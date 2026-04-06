@@ -100,7 +100,9 @@ NK_PUBLIC nk_u32_t nk_sets_reduce_sumsq_u1_streaming_(nk_u1x8_t const *data, nk_
         svbool_t predicate_b8x = svwhilelt_b8_u64(offset, n_bytes);
         acc_u32x = svdot_u32(acc_u32x, svcnt_u8_z(predicate_b8x, svld1_u8(predicate_b8x, data + offset)), ones_u8x);
     }
-    return (nk_u32_t)svaddv_u32(svptrue_b32(), acc_u32x);
+    nk_u64_t sum_u64 = svaddv_u32(svptrue_b32(), acc_u32x);
+    NK_UNPOISON(&sum_u64, sizeof(sum_u64));
+    return (nk_u32_t)sum_u64;
 }
 
 #pragma region Hamming Distance

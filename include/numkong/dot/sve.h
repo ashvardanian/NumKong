@@ -111,6 +111,7 @@ NK_PUBLIC void nk_dot_f32_sve(nk_f32_t const *a_scalars, nk_f32_t const *b_scala
                               svcvt_f64_f32_x(pred_odd_b64x, svext_f32(b_f32x, b_f32x, 1)));
     }
     *result = svaddv_f64(svptrue_b64(), ab_f64x);
+    NK_UNPOISON(result, sizeof(*result));
 }
 
 NK_PUBLIC void nk_dot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
@@ -151,6 +152,8 @@ NK_PUBLIC void nk_dot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pair
     }
     results->real = svaddv_f64(svptrue_b64(), ab_real_f64x);
     results->imag = svaddv_f64(svptrue_b64(), ab_imag_f64x);
+    NK_UNPOISON(&results->real, sizeof(results->real));
+    NK_UNPOISON(&results->imag, sizeof(results->imag));
 }
 
 NK_PUBLIC void nk_vdot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
@@ -191,6 +194,8 @@ NK_PUBLIC void nk_vdot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pai
     }
     results->real = svaddv_f64(svptrue_b64(), ab_real_f64x);
     results->imag = svaddv_f64(svptrue_b64(), ab_imag_f64x);
+    NK_UNPOISON(&results->real, sizeof(results->real));
+    NK_UNPOISON(&results->imag, sizeof(results->imag));
 }
 
 NK_PUBLIC void nk_dot_f64_sve(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars, nk_size_t count_scalars,

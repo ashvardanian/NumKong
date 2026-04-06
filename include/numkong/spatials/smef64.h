@@ -44,7 +44,11 @@ NK_PUBLIC nk_f64_t nk_dots_reduce_sumsq_f32_ssve_(nk_f32_t const *data, nk_size_
         svfloat64_t values_odd_f64x = svcvtlt_f64_f32_x(predicate_odd_b64x, values_f32x);
         accumulator_odd_f64x = svmla_f64_m(predicate_odd_b64x, accumulator_odd_f64x, values_odd_f64x, values_odd_f64x);
     }
-    return svaddv_f64(svptrue_b64(), accumulator_even_f64x) + svaddv_f64(svptrue_b64(), accumulator_odd_f64x);
+    nk_f64_t sum_even = svaddv_f64(svptrue_b64(), accumulator_even_f64x);
+    nk_f64_t sum_odd = svaddv_f64(svptrue_b64(), accumulator_odd_f64x);
+    NK_UNPOISON(&sum_even, sizeof(sum_even));
+    NK_UNPOISON(&sum_odd, sizeof(sum_odd));
+    return sum_even + sum_odd;
 }
 
 NK_PUBLIC nk_f64_t nk_dots_reduce_sumsq_f64_ssve_(nk_f64_t const *data, nk_size_t count) NK_STREAMING_ {
@@ -55,7 +59,9 @@ NK_PUBLIC nk_f64_t nk_dots_reduce_sumsq_f64_ssve_(nk_f64_t const *data, nk_size_
         svfloat64_t values_f64x = svld1_f64(predicate_b64x, data + i);
         accumulator_f64x = svmla_f64_m(predicate_b64x, accumulator_f64x, values_f64x, values_f64x);
     }
-    return svaddv_f64(svptrue_b64(), accumulator_f64x);
+    nk_f64_t sum = svaddv_f64(svptrue_b64(), accumulator_f64x);
+    NK_UNPOISON(&sum, sizeof(sum));
+    return sum;
 }
 
 NK_PUBLIC svfloat64_t nk_angulars_from_dot_f64x_ssvef64_(svbool_t predicate_b64x, svfloat64_t dots_f64x,

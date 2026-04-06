@@ -396,6 +396,7 @@ NK_PUBLIC void nk_sparse_dot_u32f32_sve2(                 //
         b_idx += b_step;
     }
     *product = svaddv_f64(predicate_all_b64x, product_f64x);
+    NK_UNPOISON(product, sizeof(*product));
 }
 
 #if defined(__clang__)
@@ -486,6 +487,7 @@ NK_PUBLIC void nk_sparse_dot_u16bf16_sve2(                  //
         b_idx += b_step;
     }
     *product = svaddv_f32(svptrue_b32(), product_f32x);
+    NK_UNPOISON(product, sizeof(*product));
 }
 
 #if defined(__clang__)

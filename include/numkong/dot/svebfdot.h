@@ -57,6 +57,7 @@ NK_PUBLIC void nk_dot_bf16_svebfdot(nk_bf16_t const *a_scalars, nk_bf16_t const 
         idx_scalars += svcnth();
     } while (idx_scalars < count_scalars);
     *result = svaddv_f32(svptrue_b32(), sum_f32x);
+    NK_UNPOISON(result, sizeof(*result));
 }
 
 #if defined(__clang__)

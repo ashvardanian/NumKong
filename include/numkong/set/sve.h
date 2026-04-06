@@ -74,6 +74,7 @@ NK_PUBLIC void nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size
             ++cycle;
         } while (i < n_bytes && cycle < 31);
         differences += svaddv_u8(all_predicate_b8x, popcount_u8x);
+        NK_UNPOISON(&differences, sizeof(differences));
         popcount_u8x = svdup_n_u8(0);
         cycle = 0; // Reset the cycle counter.
     }
@@ -111,8 +112,10 @@ NK_PUBLIC void nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size
             ++cycle;
         } while (i < n_bytes && cycle < 31);
         intersection_count += svaddv_u8(all_predicate_b8x, intersection_popcount_u8x);
+        NK_UNPOISON(&intersection_count, sizeof(intersection_count));
         intersection_popcount_u8x = svdup_n_u8(0);
         union_count += svaddv_u8(all_predicate_b8x, union_popcount_u8x);
+        NK_UNPOISON(&union_count, sizeof(union_count));
         union_popcount_u8x = svdup_n_u8(0);
         cycle = 0; // Reset the cycle counter.
     }

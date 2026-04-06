@@ -259,6 +259,7 @@ __arm_locally_streaming __arm_new("za") static void nk_maxsim_packed_f16_streami
         svfloat32_t angular_distance_f32x = svmax_f32_x(
             row_predicate_b32x, svsub_f32_x(row_predicate_b32x, svdup_f32(1.0f), cosine_f32x), svdup_f32(0.0f));
         total_angular_distance += svaddv_f32(row_predicate_b32x, angular_distance_f32x);
+        NK_UNPOISON(&total_angular_distance, sizeof(total_angular_distance));
     }
 
     *result = total_angular_distance;
@@ -455,6 +456,7 @@ __arm_locally_streaming __arm_new("za") static void nk_maxsim_packed_bf16_stream
         svfloat32_t angular_distance_f32x = svmax_f32_x(
             row_predicate_b32x, svsub_f32_x(row_predicate_b32x, svdup_f32(1.0f), cosine_f32x), svdup_f32(0.0f));
         total_angular_distance += svaddv_f32(row_predicate_b32x, angular_distance_f32x);
+        NK_UNPOISON(&total_angular_distance, sizeof(total_angular_distance));
     }
 
     *result = total_angular_distance;
@@ -649,7 +651,11 @@ NK_PUBLIC nk_f64_t nk_maxsim_reduce_dot_f32_ssve_(                         //
         svfloat64_t b_odd_f64x = svcvtlt_f64_f32_x(predicate_odd_b64x, b_f32x);
         accumulator_odd_f64x = svmla_f64_m(predicate_odd_b64x, accumulator_odd_f64x, a_odd_f64x, b_odd_f64x);
     }
-    return svaddv_f64(svptrue_b64(), accumulator_even_f64x) + svaddv_f64(svptrue_b64(), accumulator_odd_f64x);
+    nk_f64_t sum_even = svaddv_f64(svptrue_b64(), accumulator_even_f64x);
+    nk_f64_t sum_odd = svaddv_f64(svptrue_b64(), accumulator_odd_f64x);
+    NK_UNPOISON(&sum_even, sizeof(sum_even));
+    NK_UNPOISON(&sum_odd, sizeof(sum_odd));
+    return sum_even + sum_odd;
 }
 
 /**
@@ -902,6 +908,7 @@ __arm_locally_streaming __arm_new("za") static void nk_maxsim_packed_f32_streami
                 nk_size_t query_index = row_start + row_batch_start + batch_index;
                 nk_u32_t best_document_index = best_document_indices[row_batch_start + batch_index];
                 nk_f64_t dot_product_f64 = svaddv_f64(svptrue_b64(), *batch_accumulators[batch_index]);
+                NK_UNPOISON(&dot_product_f64, sizeof(dot_product_f64));
                 nk_f64_t norm_product_f64 = (nk_f64_t)query_norms[query_index] *
                                             (nk_f64_t)document_norms[best_document_index];
                 nk_f64_t cosine_f64 = (norm_product_f64 > 0.0) ? dot_product_f64 * nk_f64_rsqrt_serial(norm_product_f64)

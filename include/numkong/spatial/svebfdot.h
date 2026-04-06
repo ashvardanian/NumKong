@@ -75,7 +75,11 @@ NK_PUBLIC void nk_sqeuclidean_bf16_svebfdot(nk_bf16_t const *a_enum, nk_bf16_t c
         d2_high_f32x = svmla_f32_m(predicate_high_b32x, d2_high_f32x, a_minus_b_high_f32x, a_minus_b_high_f32x);
         i += svcnth();
     } while (i < n);
-    nk_f32_t d2 = svaddv_f32(svptrue_b32(), d2_low_f32x) + svaddv_f32(svptrue_b32(), d2_high_f32x);
+    nk_f32_t d2_low = svaddv_f32(svptrue_b32(), d2_low_f32x);
+    nk_f32_t d2_high = svaddv_f32(svptrue_b32(), d2_high_f32x);
+    NK_UNPOISON(&d2_low, sizeof(d2_low));
+    NK_UNPOISON(&d2_high, sizeof(d2_high));
+    nk_f32_t d2 = d2_low + d2_high;
     *result = d2;
 }
 NK_PUBLIC void nk_euclidean_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
@@ -104,6 +108,9 @@ NK_PUBLIC void nk_angular_bf16_svebfdot(nk_bf16_t const *a_enum, nk_bf16_t const
     nk_f32_t ab = svaddv_f32(svptrue_b32(), ab_f32x);
     nk_f32_t a2 = svaddv_f32(svptrue_b32(), a2_f32x);
     nk_f32_t b2 = svaddv_f32(svptrue_b32(), b2_f32x);
+    NK_UNPOISON(&ab, sizeof(ab));
+    NK_UNPOISON(&a2, sizeof(a2));
+    NK_UNPOISON(&b2, sizeof(b2));
     *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
 }
 

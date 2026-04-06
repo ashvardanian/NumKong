@@ -59,6 +59,7 @@ NK_PUBLIC void nk_sqeuclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_
         i += svcntb();
     } while (i < n);
     *result = (nk_u32_t)svaddv_u32(svptrue_b32(), distance_sq_u32x);
+    NK_UNPOISON(result, sizeof(*result));
 }
 NK_PUBLIC void nk_euclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t distance_sq_u32;
@@ -84,6 +85,9 @@ NK_PUBLIC void nk_angular_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size
     nk_i32_t ab = (nk_i32_t)svaddv_s32(svptrue_b32(), ab_i32x);
     nk_i32_t a2 = (nk_i32_t)svaddv_s32(svptrue_b32(), a2_i32x);
     nk_i32_t b2 = (nk_i32_t)svaddv_s32(svptrue_b32(), b2_i32x);
+    NK_UNPOISON(&ab, sizeof(ab));
+    NK_UNPOISON(&a2, sizeof(a2));
+    NK_UNPOISON(&b2, sizeof(b2));
     *result = nk_angular_normalize_f32_neon_((nk_f32_t)ab, (nk_f32_t)a2, (nk_f32_t)b2);
 }
 
@@ -99,6 +103,7 @@ NK_PUBLIC void nk_sqeuclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_
         i += svcntb();
     } while (i < n);
     *result = (nk_u32_t)svaddv_u32(svptrue_b32(), distance_sq_u32x);
+    NK_UNPOISON(result, sizeof(*result));
 }
 NK_PUBLIC void nk_euclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t distance_sq_u32;
@@ -124,6 +129,9 @@ NK_PUBLIC void nk_angular_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size
     nk_u32_t ab = (nk_u32_t)svaddv_u32(svptrue_b32(), ab_u32x);
     nk_u32_t a2 = (nk_u32_t)svaddv_u32(svptrue_b32(), a2_u32x);
     nk_u32_t b2 = (nk_u32_t)svaddv_u32(svptrue_b32(), b2_u32x);
+    NK_UNPOISON(&ab, sizeof(ab));
+    NK_UNPOISON(&a2, sizeof(a2));
+    NK_UNPOISON(&b2, sizeof(b2));
     *result = nk_angular_normalize_f32_neon_((nk_f32_t)ab, (nk_f32_t)a2, (nk_f32_t)b2);
 }
 

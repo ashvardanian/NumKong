@@ -44,7 +44,11 @@ NK_PUBLIC nk_f32_t nk_dots_reduce_sumsq_f16_ssve_(nk_f16_t const *data, nk_size_
         svfloat32_t values_odd_f32x = svcvtlt_f32_f16_x(predicate_odd_b32x, values_f16x);
         accumulator_odd_f32x = svmla_f32_m(predicate_odd_b32x, accumulator_odd_f32x, values_odd_f32x, values_odd_f32x);
     }
-    return svaddv_f32(svptrue_b32(), accumulator_even_f32x) + svaddv_f32(svptrue_b32(), accumulator_odd_f32x);
+    nk_f32_t sum_even = svaddv_f32(svptrue_b32(), accumulator_even_f32x);
+    nk_f32_t sum_odd = svaddv_f32(svptrue_b32(), accumulator_odd_f32x);
+    NK_UNPOISON(&sum_even, sizeof(sum_even));
+    NK_UNPOISON(&sum_odd, sizeof(sum_odd));
+    return sum_even + sum_odd;
 }
 
 NK_PUBLIC nk_f32_t nk_dots_reduce_sumsq_bf16_ssve_(nk_bf16_t const *data, nk_size_t count) NK_STREAMING_ {
@@ -55,7 +59,9 @@ NK_PUBLIC nk_f32_t nk_dots_reduce_sumsq_bf16_ssve_(nk_bf16_t const *data, nk_siz
         svbfloat16_t values_bf16x = svld1_bf16(predicate_b16x, (nk_bf16_for_arm_simd_t const *)(data + i));
         accumulator_f32x = svbfdot_f32(accumulator_f32x, values_bf16x, values_bf16x);
     }
-    return svaddv_f32(svptrue_b32(), accumulator_f32x);
+    nk_f32_t sum = svaddv_f32(svptrue_b32(), accumulator_f32x);
+    NK_UNPOISON(&sum, sizeof(sum));
+    return sum;
 }
 
 NK_PUBLIC nk_f32_t nk_dots_reduce_sumsq_e4m3_ssve_(nk_e4m3_t const *data, nk_size_t count) NK_STREAMING_ {
@@ -79,7 +85,11 @@ NK_PUBLIC nk_f32_t nk_dots_reduce_sumsq_e4m3_ssve_(nk_e4m3_t const *data, nk_siz
         svfloat32_t values_odd_f32x = svcvtlt_f32_f16_x(predicate_odd_b32x, values_f16x);
         accumulator_odd_f32x = svmla_f32_m(predicate_odd_b32x, accumulator_odd_f32x, values_odd_f32x, values_odd_f32x);
     }
-    return svaddv_f32(svptrue_b32(), accumulator_even_f32x) + svaddv_f32(svptrue_b32(), accumulator_odd_f32x);
+    nk_f32_t sum_even = svaddv_f32(svptrue_b32(), accumulator_even_f32x);
+    nk_f32_t sum_odd = svaddv_f32(svptrue_b32(), accumulator_odd_f32x);
+    NK_UNPOISON(&sum_even, sizeof(sum_even));
+    NK_UNPOISON(&sum_odd, sizeof(sum_odd));
+    return sum_even + sum_odd;
 }
 
 NK_PUBLIC nk_f32_t nk_dots_reduce_sumsq_e5m2_ssve_(nk_e5m2_t const *data, nk_size_t count) NK_STREAMING_ {
@@ -103,7 +113,11 @@ NK_PUBLIC nk_f32_t nk_dots_reduce_sumsq_e5m2_ssve_(nk_e5m2_t const *data, nk_siz
         svfloat32_t values_odd_f32x = svcvtlt_f32_f16_x(predicate_odd_b32x, values_f16x);
         accumulator_odd_f32x = svmla_f32_m(predicate_odd_b32x, accumulator_odd_f32x, values_odd_f32x, values_odd_f32x);
     }
-    return svaddv_f32(svptrue_b32(), accumulator_even_f32x) + svaddv_f32(svptrue_b32(), accumulator_odd_f32x);
+    nk_f32_t sum_even = svaddv_f32(svptrue_b32(), accumulator_even_f32x);
+    nk_f32_t sum_odd = svaddv_f32(svptrue_b32(), accumulator_odd_f32x);
+    NK_UNPOISON(&sum_even, sizeof(sum_even));
+    NK_UNPOISON(&sum_odd, sizeof(sum_odd));
+    return sum_even + sum_odd;
 }
 
 NK_PUBLIC nk_f32_t nk_dots_reduce_sumsq_e2m3_ssve_(nk_e2m3_t const *data, nk_size_t count) NK_STREAMING_ {
@@ -115,7 +129,9 @@ NK_PUBLIC nk_f32_t nk_dots_reduce_sumsq_e2m3_ssve_(nk_e2m3_t const *data, nk_siz
         svint8_t values_i8x = nk_e2m3x_to_i8x_ssve_(predicate_b8x, raw_u8x);
         accumulator_i32x = svdot_s32(accumulator_i32x, values_i8x, values_i8x);
     }
-    return (nk_f32_t)svaddv_s32(svptrue_b32(), accumulator_i32x) / 256.0f;
+    nk_i64_t sum_i64 = svaddv_s32(svptrue_b32(), accumulator_i32x);
+    NK_UNPOISON(&sum_i64, sizeof(sum_i64));
+    return (nk_f32_t)sum_i64 / 256.0f;
 }
 
 NK_PUBLIC nk_f32_t nk_dots_reduce_sumsq_e3m2_ssve_(nk_e3m2_t const *data, nk_size_t count) NK_STREAMING_ {
@@ -139,7 +155,11 @@ NK_PUBLIC nk_f32_t nk_dots_reduce_sumsq_e3m2_ssve_(nk_e3m2_t const *data, nk_siz
         svfloat32_t values_odd_f32x = svcvtlt_f32_f16_x(predicate_odd_b32x, values_f16x);
         accumulator_odd_f32x = svmla_f32_m(predicate_odd_b32x, accumulator_odd_f32x, values_odd_f32x, values_odd_f32x);
     }
-    return svaddv_f32(svptrue_b32(), accumulator_even_f32x) + svaddv_f32(svptrue_b32(), accumulator_odd_f32x);
+    nk_f32_t sum_even = svaddv_f32(svptrue_b32(), accumulator_even_f32x);
+    nk_f32_t sum_odd = svaddv_f32(svptrue_b32(), accumulator_odd_f32x);
+    NK_UNPOISON(&sum_even, sizeof(sum_even));
+    NK_UNPOISON(&sum_odd, sizeof(sum_odd));
+    return sum_even + sum_odd;
 }
 
 NK_PUBLIC nk_u32_t nk_dots_reduce_sumsq_i8_ssve_(nk_i8_t const *data, nk_size_t count) NK_STREAMING_ {
@@ -150,7 +170,9 @@ NK_PUBLIC nk_u32_t nk_dots_reduce_sumsq_i8_ssve_(nk_i8_t const *data, nk_size_t 
         svint8_t loaded_i8x = svld1_s8(predicate_b8x, data + i);
         accumulator_i32x = svdot_s32(accumulator_i32x, loaded_i8x, loaded_i8x);
     }
-    return (nk_u32_t)svaddv_s32(svptrue_b32(), accumulator_i32x);
+    nk_i64_t sum_i64 = svaddv_s32(svptrue_b32(), accumulator_i32x);
+    NK_UNPOISON(&sum_i64, sizeof(sum_i64));
+    return (nk_u32_t)sum_i64;
 }
 
 NK_PUBLIC nk_u32_t nk_dots_reduce_sumsq_u8_ssve_(nk_u8_t const *data, nk_size_t count) NK_STREAMING_ {
@@ -161,7 +183,9 @@ NK_PUBLIC nk_u32_t nk_dots_reduce_sumsq_u8_ssve_(nk_u8_t const *data, nk_size_t 
         svuint8_t loaded_u8x = svld1_u8(predicate_b8x, data + i);
         accumulator_u32x = svdot_u32(accumulator_u32x, loaded_u8x, loaded_u8x);
     }
-    return (nk_u32_t)svaddv_u32(svptrue_b32(), accumulator_u32x);
+    nk_u64_t sum_u64 = svaddv_u32(svptrue_b32(), accumulator_u32x);
+    NK_UNPOISON(&sum_u64, sizeof(sum_u64));
+    return (nk_u32_t)sum_u64;
 }
 
 NK_PUBLIC nk_u32_t nk_dots_reduce_sumsq_i4_ssve_(nk_i4x2_t const *data, nk_size_t count) NK_STREAMING_ {
@@ -181,7 +205,9 @@ NK_PUBLIC nk_u32_t nk_dots_reduce_sumsq_i4_ssve_(nk_i4x2_t const *data, nk_size_
         accumulator_i32x = svdot_s32(accumulator_i32x, low_i8x, low_i8x);
         accumulator_i32x = svdot_s32(accumulator_i32x, high_i8x, high_i8x);
     }
-    return (nk_u32_t)svaddv_s32(svptrue_b32(), accumulator_i32x);
+    nk_i64_t sum_i64 = svaddv_s32(svptrue_b32(), accumulator_i32x);
+    NK_UNPOISON(&sum_i64, sizeof(sum_i64));
+    return (nk_u32_t)sum_i64;
 }
 
 NK_PUBLIC nk_u32_t nk_dots_reduce_sumsq_u4_ssve_(nk_u4x2_t const *data, nk_size_t count) NK_STREAMING_ {
@@ -197,7 +223,9 @@ NK_PUBLIC nk_u32_t nk_dots_reduce_sumsq_u4_ssve_(nk_u4x2_t const *data, nk_size_
         accumulator_u32x = svdot_u32(accumulator_u32x, low_u8x, low_u8x);
         accumulator_u32x = svdot_u32(accumulator_u32x, high_u8x, high_u8x);
     }
-    return (nk_u32_t)svaddv_u32(svptrue_b32(), accumulator_u32x);
+    nk_u64_t sum_u64 = svaddv_u32(svptrue_b32(), accumulator_u32x);
+    NK_UNPOISON(&sum_u64, sizeof(sum_u64));
+    return (nk_u32_t)sum_u64;
 }
 
 NK_PUBLIC svfloat32_t nk_angulars_from_dot_f32x_ssve_(svbool_t predicate_b32x, svfloat32_t dots_f32x,

@@ -69,6 +69,20 @@
 #define _GNU_SOURCE
 #endif
 
+// MSan (MemorySanitizer) cannot track data flow through SVE horizontal reductions
+// like `svaddv`, which move data from vector registers to scalar registers via
+// architecture-specific paths invisible to the compiler. NK_UNPOISON marks the
+// resulting scalar as initialized so MSan does not report false positives.
+#if defined(__has_feature)
+#if __has_feature(memory_sanitizer)
+#include <sanitizer/msan_interface.h>
+#define NK_UNPOISON(ptr, size) __msan_unpoison((ptr), (size))
+#endif
+#endif
+#ifndef NK_UNPOISON
+#define NK_UNPOISON(ptr, size) (void)(ptr), (void)(size)
+#endif
+
 // Inferring target OS: Windows, macOS, Linux, or FreeBSD
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 #define NK_DEFINED_WINDOWS_ 1

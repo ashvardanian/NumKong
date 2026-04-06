@@ -58,6 +58,7 @@ NK_PUBLIC void nk_dot_i8_svesdot(nk_i8_t const *a_scalars, nk_i8_t const *b_scal
         idx_scalars += svcntb();
     } while (idx_scalars < count_scalars);
     *result = (nk_i32_t)svaddv_s32(svptrue_b32(), sum_i32x);
+    NK_UNPOISON(result, sizeof(*result));
 }
 
 NK_PUBLIC void nk_dot_u8_svesdot(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
@@ -72,6 +73,7 @@ NK_PUBLIC void nk_dot_u8_svesdot(nk_u8_t const *a_scalars, nk_u8_t const *b_scal
         idx_scalars += svcntb();
     } while (idx_scalars < count_scalars);
     *result = (nk_u32_t)svaddv_u32(svptrue_b32(), sum_u32x);
+    NK_UNPOISON(result, sizeof(*result));
 }
 
 #if defined(__clang__)

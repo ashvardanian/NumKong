@@ -68,6 +68,7 @@ NK_PUBLIC void nk_dot_f16_svehalf(nk_f16_t const *a_scalars, nk_f16_t const *b_s
         idx_scalars += svcnth();
     } while (idx_scalars < count_scalars);
     *result = svaddv_f32(svptrue_b32(), ab_f32x);
+    NK_UNPOISON(result, sizeof(*result));
 }
 
 NK_PUBLIC void nk_dot_f16c_svehalf(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
@@ -109,6 +110,8 @@ NK_PUBLIC void nk_dot_f16c_svehalf(nk_f16c_t const *a_pairs, nk_f16c_t const *b_
     } while (idx_scalars < count_pairs);
     results->real = svaddv_f32(svptrue_b32(), ab_real_f32x);
     results->imag = svaddv_f32(svptrue_b32(), ab_imag_f32x);
+    NK_UNPOISON(&results->real, sizeof(results->real));
+    NK_UNPOISON(&results->imag, sizeof(results->imag));
 }
 
 NK_PUBLIC void nk_vdot_f16c_svehalf(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
@@ -150,6 +153,8 @@ NK_PUBLIC void nk_vdot_f16c_svehalf(nk_f16c_t const *a_pairs, nk_f16c_t const *b
     } while (idx_scalars < count_pairs);
     results->real = svaddv_f32(svptrue_b32(), ab_real_f32x);
     results->imag = svaddv_f32(svptrue_b32(), ab_imag_f32x);
+    NK_UNPOISON(&results->real, sizeof(results->real));
+    NK_UNPOISON(&results->imag, sizeof(results->imag));
 }
 
 #if defined(__clang__)

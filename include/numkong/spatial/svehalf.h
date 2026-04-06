@@ -75,6 +75,7 @@ NK_PUBLIC void nk_sqeuclidean_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const
         i += svcnth();
     } while (i < n);
     *result = svaddv_f32(svptrue_b32(), d2_f32x);
+    NK_UNPOISON(result, sizeof(*result));
 }
 
 NK_PUBLIC void nk_euclidean_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
@@ -117,6 +118,9 @@ NK_PUBLIC void nk_angular_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const *b_
     nk_f32_t ab_f32 = svaddv_f32(svptrue_b32(), ab_f32x);
     nk_f32_t a2_f32 = svaddv_f32(svptrue_b32(), a2_f32x);
     nk_f32_t b2_f32 = svaddv_f32(svptrue_b32(), b2_f32x);
+    NK_UNPOISON(&ab_f32, sizeof(ab_f32));
+    NK_UNPOISON(&a2_f32, sizeof(a2_f32));
+    NK_UNPOISON(&b2_f32, sizeof(b2_f32));
     *result = nk_angular_normalize_f32_neon_(ab_f32, a2_f32, b2_f32);
 }
 
