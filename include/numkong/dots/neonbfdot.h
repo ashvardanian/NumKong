@@ -19,10 +19,10 @@ extern "C" {
 #endif
 
 #if defined(__clang__)
-#pragma clang attribute push(__attribute__((target("arch=armv8.6-a+simd+bf16"))), apply_to = function)
+#pragma clang attribute push(__attribute__((target("arch=armv8.6-a+simd+bf16+fp16"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
-#pragma GCC target("arch=armv8.6-a+simd+bf16")
+#pragma GCC target("arch=armv8.6-a+simd+bf16+fp16")
 #endif
 
 /* BF16 GEMM: depth_simd_dimensions=8 (8 bf16s = 16 bytes = NEON register width) */

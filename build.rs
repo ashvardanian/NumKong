@@ -372,6 +372,18 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
         build.flag_if_supported("-mpreferred-stack-boundary=4");
     }
 
+    // On AArch64 with GCC, set an explicit baseline architecture to prevent
+    // user-supplied CFLAGS (or -march=native) from raising the TU-level target
+    // above what `#pragma GCC target` regions expect.  NK_INTERNAL (always_inline)
+    // helpers in types.h are compiled at the TU baseline; if that baseline is
+    // richer than a pragma-restricted caller (e.g. set/neon.h's armv8-a+simd),
+    // GCC refuses the inline with "always_inline target mismatch".
+    // Using armv8-a+simd as the baseline matches the lowest pragma target used
+    // in the library, so every pragma scope is a superset and inlining succeeds.
+    if is_aarch64 && !is_msvc {
+        build.flag_if_supported("-march=armv8-a+simd");
+    }
+
     // Select probe tables for this architecture
     let probe_tables: &[&[IsaProbe]] = match target_arch.as_str() {
         "x86_64" => &[X86_PROBES],

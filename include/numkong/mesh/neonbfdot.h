@@ -41,10 +41,10 @@ extern "C" {
 #endif
 
 #if defined(__clang__)
-#pragma clang attribute push(__attribute__((target("arch=armv8.6-a+simd+bf16"))), apply_to = function)
+#pragma clang attribute push(__attribute__((target("arch=armv8.6-a+simd+bf16+fp16"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
-#pragma GCC target("arch=armv8.6-a+simd+bf16")
+#pragma GCC target("arch=armv8.6-a+simd+bf16+fp16")
 #endif
 
 /*  Load 4 bf16 xyz points (12 bf16 values) → 3x float32x4_t.

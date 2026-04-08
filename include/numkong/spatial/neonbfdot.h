@@ -41,10 +41,10 @@ extern "C" {
 #endif
 
 #if defined(__clang__)
-#pragma clang attribute push(__attribute__((target("arch=armv8.6-a+simd+bf16"))), apply_to = function)
+#pragma clang attribute push(__attribute__((target("arch=armv8.6-a+simd+bf16+fp16"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
-#pragma GCC target("arch=armv8.6-a+simd+bf16")
+#pragma GCC target("arch=armv8.6-a+simd+bf16+fp16")
 #endif
 
 NK_PUBLIC void nk_angular_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
