@@ -31,11 +31,12 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt update
-          sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev libopenblas-dev
+          sudo apt install -y cmake gcc-14 g++-14 libjemalloc-dev libomp-dev libopenblas-dev
 
       - name: Build Locally
         run: |
-          cmake -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_TEST=1 -D NK_BUILD_BENCH=1 -D NK_COMPARE_TO_BLAS=1 -B build_release
+          cmake -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_TEST=1 -D NK_BUILD_BENCH=1 -D NK_COMPARE_TO_BLAS=1 \
+            -D CMAKE_C_COMPILER=gcc-14 -D CMAKE_CXX_COMPILER=g++-14 -B build_release
           cmake --build build_release --config Release
 
       - name: Test
@@ -45,11 +46,48 @@ jobs:
 
       - name: Build Shared Library Test
         run: |
-          cmake -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_SHARED=1 -D NK_BUILD_SHARED_TEST=1 -B build_shared
+          cmake -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_SHARED=1 -D NK_BUILD_SHARED_TEST=1 \
+            -D CMAKE_C_COMPILER=gcc-14 -D CMAKE_CXX_COMPILER=g++-14 -B build_shared
           cmake --build build_shared --config Release --target nk_shared_test
 
       - name: Test Shared Library
         run: LD_LIBRARY_PATH=build_shared build_shared/nk_shared_test
+
+  test_windows:
+    name: Test Windows
+    runs-on: windows-2025
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set Up MSVC
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Build
+        run: |
+          cmake -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DNK_BUILD_TEST=ON `
+            -DNK_BUILD_BENCH=OFF `
+            -B build_release
+          cmake --build build_release --config Release
+
+      - name: Test
+        run: build_release\Release\nk_test.exe
+        env:
+          NK_BUDGET_SECS: 0.2
+
+      - name: Build Shared Library Test
+        run: |
+          cmake -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DNK_BUILD_SHARED=ON `
+            -DNK_BUILD_SHARED_TEST=ON `
+            -B build_shared
+          cmake --build build_shared --config Release --target nk_shared_test
+
+      - name: Test Shared Library
+        run: build_shared\Release\nk_shared_test.exe
 
   test_android:
     name: Test Android
@@ -150,15 +188,15 @@ jobs:
       - name: Install Cross-Compiler
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+          sudo apt-get install -y gcc-14-arm-linux-gnueabihf g++-14-arm-linux-gnueabihf
 
       - name: Build via CMake
         run: |
           cmake -B build_armv7 \
             -DCMAKE_SYSTEM_NAME=Linux \
             -DCMAKE_SYSTEM_PROCESSOR=arm \
-            -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc \
-            -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++ \
+            -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc-14 \
+            -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++-14 \
             -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
             -DNK_BUILD_SHARED=ON
           cmake --build build_armv7
@@ -172,13 +210,12 @@ jobs:
         uses: moonrepo/setup-rust@v1
 
       - name: Install Target
-        run: |
-          rustup target add armv7-unknown-linux-gnueabihf
-          sudo apt-get install -y gcc-arm-linux-gnueabihf
+        run: rustup target add armv7-unknown-linux-gnueabihf
 
       - name: Build via Cargo
         env:
-          CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
+          CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc-14
+          CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc-14
         run: cargo build --target armv7-unknown-linux-gnueabihf --release
 
   test_riscv_llvm23:

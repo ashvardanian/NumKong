@@ -137,6 +137,29 @@ void nk_dispatch_f16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
         default: break;
         }
 #endif
+#if NK_TARGET_GRANITEAMX
+    if (v & nk_cap_graniteamx_k) switch (k) {
+        case nk_kernel_dots_packed_size_k:
+            *m = (m_t)&nk_dots_packed_size_f16_graniteamx, *c = nk_cap_graniteamx_k;
+            return;
+        case nk_kernel_dots_pack_k: *m = (m_t)&nk_dots_pack_f16_graniteamx, *c = nk_cap_graniteamx_k; return;
+        case nk_kernel_dots_packed_k: *m = (m_t)&nk_dots_packed_f16_graniteamx, *c = nk_cap_graniteamx_k; return;
+        case nk_kernel_dots_symmetric_k: *m = (m_t)&nk_dots_symmetric_f16_graniteamx, *c = nk_cap_graniteamx_k; return;
+        case nk_kernel_angulars_packed_k:
+            *m = (m_t)&nk_angulars_packed_f16_graniteamx, *c = nk_cap_graniteamx_k;
+            return;
+        case nk_kernel_angulars_symmetric_k:
+            *m = (m_t)&nk_angulars_symmetric_f16_graniteamx, *c = nk_cap_graniteamx_k;
+            return;
+        case nk_kernel_euclideans_packed_k:
+            *m = (m_t)&nk_euclideans_packed_f16_graniteamx, *c = nk_cap_graniteamx_k;
+            return;
+        case nk_kernel_euclideans_symmetric_k:
+            *m = (m_t)&nk_euclideans_symmetric_f16_graniteamx, *c = nk_cap_graniteamx_k;
+            return;
+        default: break;
+        }
+#endif
 #if NK_TARGET_SAPPHIREAMX
     if (v & nk_cap_sapphireamx_k) switch (k) {
         case nk_kernel_maxsim_packed_size_k:

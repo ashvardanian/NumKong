@@ -739,6 +739,28 @@ NK_PUBLIC void nk_euclideans_symmetric_u8_sapphireamx(nk_u8_t const *vectors, nk
                                                       nk_size_t row_start, nk_size_t row_count);
 #endif // NK_TARGET_SAPPHIREAMX
 
+/*  Granite Rapids backends using Intel AMX-FP16.
+ *  Native FP16 spatial kernels.
+ */
+#if NK_TARGET_GRANITEAMX
+/** @copydoc nk_angulars_packed_f16 */
+NK_PUBLIC void nk_angulars_packed_f16_graniteamx(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
+/** @copydoc nk_angulars_symmetric_f16 */
+NK_PUBLIC void nk_angulars_symmetric_f16_graniteamx(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                    nk_size_t row_start, nk_size_t row_count);
+/** @copydoc nk_euclideans_packed_f16 */
+NK_PUBLIC void nk_euclideans_packed_f16_graniteamx(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                   nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
+/** @copydoc nk_euclideans_symmetric_f16 */
+NK_PUBLIC void nk_euclideans_symmetric_f16_graniteamx(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count);
+#endif // NK_TARGET_GRANITEAMX
+
 /*  ARM SME backends using Scalable Matrix Extension.
  *  SME provides ZA tile registers for outer product operations.
  *  F16/BF16/I8/U8/E4M3 use ZA32 tiles, F32/F64 use ZA64 tiles (FEAT_SME_F64F64).
@@ -2078,6 +2100,7 @@ NK_PUBLIC void nk_euclideans_symmetric_u8_rvv(nk_u8_t const *vectors, nk_size_t 
 #include "numkong/spatials/alder.h"
 #include "numkong/spatials/sierra.h"
 #include "numkong/spatials/sapphireamx.h"
+#include "numkong/spatials/graniteamx.h"
 #include "numkong/spatials/rvv.h"
 #include "numkong/spatials/v128relaxed.h"
 #include "numkong/spatials/sme.h"
@@ -2290,7 +2313,9 @@ NK_PUBLIC void nk_euclideans_symmetric_f32(nk_f32_t const *vectors, nk_size_t ve
 NK_PUBLIC void nk_angulars_packed_f16(nk_f16_t const *a, void const *b_packed, nk_f32_t *result, nk_size_t rows,
                                       nk_size_t cols, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                       nk_size_t r_stride_in_bytes) {
-#if NK_TARGET_SME
+#if NK_TARGET_GRANITEAMX
+    nk_angulars_packed_f16_graniteamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
+#elif NK_TARGET_SME
     nk_angulars_packed_f16_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
 #elif NK_TARGET_NEONFHM
     nk_angulars_packed_f16_neonfhm(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
@@ -2311,7 +2336,10 @@ NK_PUBLIC void nk_angulars_packed_f16(nk_f16_t const *a, void const *b_packed, n
 NK_PUBLIC void nk_angulars_symmetric_f16(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                          nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
                                          nk_size_t row_start, nk_size_t row_count) {
-#if NK_TARGET_SME
+#if NK_TARGET_GRANITEAMX
+    nk_angulars_symmetric_f16_graniteamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
+                                         row_count);
+#elif NK_TARGET_SME
     nk_angulars_symmetric_f16_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
 #elif NK_TARGET_NEONFHM
     nk_angulars_symmetric_f16_neonfhm(vectors, vectors_count, depth, stride, result, result_stride, row_start,
@@ -2337,7 +2365,9 @@ NK_PUBLIC void nk_angulars_symmetric_f16(nk_f16_t const *vectors, nk_size_t vect
 NK_PUBLIC void nk_euclideans_packed_f16(nk_f16_t const *a, void const *b_packed, nk_f32_t *result, nk_size_t rows,
                                         nk_size_t cols, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                         nk_size_t r_stride_in_bytes) {
-#if NK_TARGET_SME
+#if NK_TARGET_GRANITEAMX
+    nk_euclideans_packed_f16_graniteamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
+#elif NK_TARGET_SME
     nk_euclideans_packed_f16_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
 #elif NK_TARGET_NEONFHM
     nk_euclideans_packed_f16_neonfhm(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
@@ -2358,7 +2388,10 @@ NK_PUBLIC void nk_euclideans_packed_f16(nk_f16_t const *a, void const *b_packed,
 NK_PUBLIC void nk_euclideans_symmetric_f16(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                            nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
                                            nk_size_t row_start, nk_size_t row_count) {
-#if NK_TARGET_SME
+#if NK_TARGET_GRANITEAMX
+    nk_euclideans_symmetric_f16_graniteamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
+                                           row_count);
+#elif NK_TARGET_SME
     nk_euclideans_symmetric_f16_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
 #elif NK_TARGET_NEONFHM
     nk_euclideans_symmetric_f16_neonfhm(vectors, vectors_count, depth, stride, result, result_stride, row_start,

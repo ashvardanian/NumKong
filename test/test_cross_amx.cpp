@@ -33,4 +33,18 @@ void test_cross_amx() {
     check("dots_symmetric_i8_sapphireamx", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8_sapphireamx);
     check("dots_symmetric_u8_sapphireamx", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_sapphireamx);
 #endif
+#if NK_TARGET_GRANITEAMX
+    check("dots_packed_f16_graniteamx", test_dots_packed<f16_t>, nk_dots_packed_size_f16_graniteamx,
+          nk_dots_pack_f16_graniteamx, nk_dots_packed_f16_graniteamx);
+    check("dots_symmetric_f16_graniteamx", test_dots_symmetric<f16_t>, nk_dots_symmetric_f16_graniteamx);
+
+    check("angulars_packed_f16_graniteamx", test_angulars_packed<f16_t>, nk_dots_packed_size_f16_graniteamx,
+          nk_dots_pack_f16_graniteamx, nk_angulars_packed_f16_graniteamx);
+    check("angulars_symmetric_f16_graniteamx", test_angulars_symmetric<f16_t>, nk_angulars_symmetric_f16_graniteamx);
+
+    check("euclideans_packed_f16_graniteamx", test_euclideans_packed<f16_t>, nk_dots_packed_size_f16_graniteamx,
+          nk_dots_pack_f16_graniteamx, nk_euclideans_packed_f16_graniteamx);
+    check("euclideans_symmetric_f16_graniteamx", test_euclideans_symmetric<f16_t>,
+          nk_euclideans_symmetric_f16_graniteamx);
+#endif
 }

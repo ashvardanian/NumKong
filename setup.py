@@ -205,10 +205,15 @@ def probe_all_isas() -> list[tuple[str, str]]:
     for arch_match, table in tables:
         for name, probe_file, gcc_flags, msvc_flags in table:
             if arch_match and os.path.isfile(probe_file):
-                # Allow env-var override: NK_TARGET_FOO=0 forces off
-                env_val = os.environ.get(f"NK_TARGET_{name}")
-                if env_val == "0":
+                # Allow env-var override: NK_TARGET_FOO=1/true forces on, =0/false forces off
+                env_val = os.environ.get(f"NK_TARGET_{name}", "").lower()
+                if env_val in ("1", "true"):
+                    macros.append((f"NK_TARGET_{name}", "1"))
+                    print(f"[NumKong] NK_TARGET_{name}: force-enabled via environment")
+                    continue
+                if env_val in ("0", "false"):
                     macros.append((f"NK_TARGET_{name}", "0"))
+                    print(f"[NumKong] NK_TARGET_{name}: force-disabled via environment")
                     continue
                 flags = msvc_flags if is_msvc else gcc_flags
                 ok = probe_isa(cc, probe_file, flags, is_msvc)
@@ -228,6 +233,7 @@ def linux_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     compile_args = [
         "-std=c11",
         "-O3",
+        "-fopenmp",
         "-fdiagnostics-color=always",
         "-fvisibility=default",
         "-fPIC",
@@ -243,10 +249,12 @@ def linux_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
         compile_args.append("-march=rv64gcv")
     link_args = [
         "-shared",
+        "-fopenmp",
         "-lm",  # Add vectorized `logf` implementation from the `glibc`
     ]
     macros: list[tuple[str, str]] = [
         ("NK_DYNAMIC_DISPATCH", "1"),
+        ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
     ]
@@ -259,11 +267,14 @@ def darwin_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     compile_args = [
         "-std=c11",
         "-O3",
+        "-Xpreprocessor",
+        "-fopenmp",
         "-w",  # Hush warnings
     ]
-    link_args: list[str] = []
+    link_args: list[str] = ["-lomp"]
     macros: list[tuple[str, str]] = [
         ("NK_DYNAMIC_DISPATCH", "1"),
+        ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
     ]
@@ -276,6 +287,7 @@ def freebsd_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     compile_args = [
         "-std=c11",
         "-O3",
+        "-fopenmp",
         "-fdiagnostics-color=always",
         "-fvisibility=default",
         "-fPIC",
@@ -283,10 +295,12 @@ def freebsd_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     ]
     link_args = [
         "-shared",
+        "-fopenmp",
         "-lm",  # Math library
     ]
     macros: list[tuple[str, str]] = [
         ("NK_DYNAMIC_DISPATCH", "1"),
+        ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
     ]
@@ -299,6 +313,7 @@ def windows_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     compile_args = [
         "/std:c11",
         "/O2",
+        "/openmp",
         # Dealing with MinGW linking errors
         # https://cibuildwheel.readthedocs.io/en/stable/faq/#windows-importerror-dll-load-failed-the-specific-module-could-not-be-found
         "/d2FH4-",
@@ -307,6 +322,7 @@ def windows_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     link_args: list[str] = []
     macros: list[tuple[str, str]] = [
         ("NK_DYNAMIC_DISPATCH", "1"),
+        ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
     ]

@@ -21,6 +21,10 @@
 
 #include <numkong/dots.h>
 
+#if defined(NK_USE_OPENMP)
+#include <omp.h>
+#endif
+
 static void PackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self); }
 
 /** @brief Compute packed buffer size for a PackedMatrix. */
@@ -324,6 +328,7 @@ static PyObject *api_packed_common( //
     PyObject *b_obj = NULL;
     PyObject *out_obj = NULL;
     Py_ssize_t start_row = -1, end_row = -1;
+    nk_size_t threads = 1;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     if (nargs != 2) {
@@ -344,6 +349,11 @@ static PyObject *api_packed_common( //
         else if (PyUnicode_CompareWithASCIIString(name, "end_row") == 0) {
             end_row = PyLong_AsSsize_t(args[nargs + i]);
             if (end_row == -1 && PyErr_Occurred()) return NULL;
+        }
+        else if (PyUnicode_CompareWithASCIIString(name, "threads") == 0) {
+            Py_ssize_t t = PyLong_AsSsize_t(args[nargs + i]);
+            if (t == -1 && PyErr_Occurred()) return NULL;
+            threads = (nk_size_t)(t >= 0 ? t : 0);
         }
         else {
             char const *name_str = PyUnicode_AsUTF8(name);
@@ -450,10 +460,22 @@ static PyObject *api_packed_common( //
     }
     {
         char *a_ptr = (char *)a_buffer.buf + start_row * (Py_ssize_t)input_row_stride;
-        char *o_ptr = out_data + start_row * (Py_ssize_t)output_row_stride;
+        char *out_ptr = out_data + start_row * (Py_ssize_t)output_row_stride;
         nk_size_t slice_height = (nk_size_t)(end_row - start_row);
         PyThreadState *save = PyEval_SaveThread();
-        kernel(a_ptr, packed->start, o_ptr, slice_height, width, depth_packed, input_row_stride, output_row_stride);
+#if defined(NK_USE_OPENMP)
+        if (threads == 0) threads = (nk_size_t)omp_get_max_threads();
+        omp_set_num_threads((int)threads);
+#endif
+        nk_size_t const tile_count = nk_size_divide_round_up_(slice_height, NK_PARALLEL_PACKED_TILE);
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
+        for (nk_size_t tile_idx = 0; tile_idx < tile_count; tile_idx++) {
+            nk_size_t row = tile_idx * NK_PARALLEL_PACKED_TILE;
+            nk_size_t chunk = (row + NK_PARALLEL_PACKED_TILE <= slice_height) ? NK_PARALLEL_PACKED_TILE
+                                                                              : (slice_height - row);
+            kernel(a_ptr + row * input_row_stride, packed->start, out_ptr + row * output_row_stride, chunk, width,
+                   depth_packed, input_row_stride, output_row_stride);
+        }
         PyEval_RestoreThread(save);
     }
     PyBuffer_Release(&a_buffer);
@@ -471,11 +493,13 @@ static PyObject *api_symmetric_common( //
     PyObject *dtype_obj = NULL;
     PyObject *out_obj = NULL;
     Py_ssize_t start_row = -1, end_row = -1;
+    nk_size_t threads = 1;
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 1 || args_count > 5 || positional_args_count > 1) {
-        PyErr_Format(PyExc_TypeError, "%s_symmetric(vectors, *, dtype=None, out=None, start_row=None, end_row=None)",
+    if (args_count < 1 || args_count > 6 || positional_args_count > 1) {
+        PyErr_Format(PyExc_TypeError,
+                     "%s_symmetric(vectors, *, dtype=None, out=None, start_row=None, end_row=None, threads=1)",
                      spec->name);
         return NULL;
     }
@@ -493,6 +517,11 @@ static PyObject *api_symmetric_common( //
         else if (PyUnicode_CompareWithASCIIString(key, "end_row") == 0) {
             end_row = PyLong_AsSsize_t(value);
             if (end_row == -1 && PyErr_Occurred()) return NULL;
+        }
+        else if (PyUnicode_CompareWithASCIIString(key, "threads") == 0) {
+            Py_ssize_t t = PyLong_AsSsize_t(value);
+            if (t == -1 && PyErr_Occurred()) return NULL;
+            threads = (nk_size_t)(t >= 0 ? t : 0);
         }
         else {
             PyErr_Format(PyExc_TypeError, "%s_symmetric() unexpected keyword: %S", spec->name, key);
@@ -566,8 +595,20 @@ static PyObject *api_symmetric_common( //
                          (size_t)row_end, (size_t)n_vectors);
             goto cleanup;
         }
+        nk_size_t row_count_val = (nk_size_t)(row_end - row_start);
         PyThreadState *save = PyEval_SaveThread();
-        kernel(vec_buf.buf, n_vectors, depth, stride, out_data, result_stride, row_start, row_end - row_start);
+#if defined(NK_USE_OPENMP)
+        if (threads == 0) threads = (nk_size_t)omp_get_max_threads();
+        omp_set_num_threads((int)threads);
+#endif
+        nk_size_t const tile_count = nk_size_divide_round_up_(row_count_val, NK_PARALLEL_SYMMETRIC_TILE);
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
+        for (nk_size_t tile_idx = 0; tile_idx < tile_count; tile_idx++) {
+            nk_size_t tile_start = row_start + tile_idx * NK_PARALLEL_SYMMETRIC_TILE;
+            nk_size_t tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= row_end) ? NK_PARALLEL_SYMMETRIC_TILE
+                                                                                       : (row_end - tile_start);
+            kernel(vec_buf.buf, n_vectors, depth, stride, out_data, result_stride, tile_start, tile_rows);
+        }
         PyEval_RestoreThread(save);
     }
 

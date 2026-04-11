@@ -39,11 +39,13 @@
             "defines": [
                 "NK_NATIVE_F16=0",
                 "NK_NATIVE_BF16=0",
-                "NK_DYNAMIC_DISPATCH=1"
+                "NK_DYNAMIC_DISPATCH=1",
+                "NK_USE_OPENMP=1"
             ],
             "cflags": [
                 "-std=c11",
                 "-O3",
+                "-fopenmp",
                 "-Wno-unknown-pragmas",
                 "-Wno-maybe-uninitialized",
                 "-Wno-cast-function-type",
@@ -52,13 +54,17 @@
                 "-include",
                 "<(module_root_dir)/nk_probes.h",
             ],
+            "ldflags": [
+                "-fopenmp"
+            ],
             "msvs_settings": {
                 "VCCLCompilerTool": {
                     "ForcedIncludeFiles": [
                         "<(module_root_dir)/nk_probes.h"
                     ],
                     "AdditionalOptions": [
-                        "/Zc:preprocessor"
+                        "/Zc:preprocessor",
+                        "/openmp"
                     ],
                 },
             },
@@ -67,7 +73,9 @@
                     "OS=='mac'",
                     {
                         "xcode_settings": {
-                            "MACOSX_DEPLOYMENT_TARGET": "11.0"
+                            "MACOSX_DEPLOYMENT_TARGET": "11.0",
+                            "OTHER_CFLAGS": ["-Xpreprocessor", "-fopenmp"],
+                            "OTHER_LDFLAGS": ["-lomp"]
                         }
                     }
                 ],

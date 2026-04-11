@@ -76,6 +76,18 @@ extern "C" {
         }                                                                                                             \
     }
 
+/* Optimize serial fallbacks for size — see dots/serial.h for rationale. */
+#if defined(NDEBUG)
+#if defined(_MSC_VER)
+#pragma optimize("s", on)
+#elif defined(__clang__)
+#pragma clang attribute push(__attribute__((minsize)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("Os")
+#endif
+#endif
+
 nk_define_each_sum_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)        // nk_each_sum_f64_serial
 nk_define_each_sum_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)        // nk_each_sum_f32_serial
 nk_define_each_sum_(f16, f32, nk_f16_to_f32_serial, nk_f32_to_f16_serial)    // nk_each_sum_f16_serial
@@ -252,6 +264,16 @@ NK_PUBLIC void nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, n
         result[i].imag = alpha_product_imag + beta_c_imag;
     }
 }
+
+#if defined(NDEBUG)
+#if defined(_MSC_VER)
+#pragma optimize("", on)
+#elif defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+#endif
 
 #if defined(__cplusplus)
 } // extern "C"

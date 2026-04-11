@@ -12,6 +12,12 @@
 
 #include "numkong.h"
 
+/*  Row-tile sizes for OpenMP parallelization of batch operations.
+ *  Packed kernels use 2×2 tile blocking (32 rows), so 64 rows = 2 tile blocks per chunk.
+ *  Symmetric kernels use 16-row tiles, so 32 rows = 2 tile blocks per chunk. */
+#define NK_PARALLEL_PACKED_TILE    64
+#define NK_PARALLEL_SYMMETRIC_TILE 32
+
 #ifdef __cplusplus
 extern "C" {
 #endif

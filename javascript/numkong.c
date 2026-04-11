@@ -9,9 +9,16 @@
 
 #include <string.h> // `strcmp` function
 
+#if defined(NK_USE_OPENMP)
+#include <omp.h>
+#endif
+
 #include <node_api.h> // `napi_*` functions — N-API v6+ for BigInt (Node ≥ 10.20)
 
 #include <numkong/numkong.h> // `nk_*` functions — must be first to bring `_GNU_SOURCE`
+
+#define NK_PARALLEL_PACKED_TILE    64
+#define NK_PARALLEL_SYMMETRIC_TILE 32
 
 /** @brief Global variable that caches the CPU capabilities, and is computed just once, when the module is loaded. */
 nk_capability_t static_capabilities = nk_cap_serial_k;
@@ -482,11 +489,11 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
  * dtype
  */
 static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_kernel_kind_t kernel_kind) {
-    size_t argc = 9;
-    napi_value args[9];
+    size_t argc = 10;
+    napi_value args[10];
     napi_get_cb_info(env, info, &argc, args, NULL, NULL);
-    if (argc != 9) {
-        napi_throw_error(env, NULL, "Packed operation requires 9 arguments");
+    if (argc < 9 || argc > 10) {
+        napi_throw_error(env, NULL, "Packed operation requires 9-10 arguments (last is optional threads)");
         return NULL;
     }
 
@@ -533,8 +540,22 @@ static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_ke
         return NULL;
     }
 
-    kernel(a_data, packed_data, result_data, (nk_size_t)height, (nk_size_t)width, (nk_size_t)depth, (nk_size_t)a_stride,
-           (nk_size_t)result_stride);
+    uint32_t threads = 1;
+    if (argc == 10) napi_get_value_uint32(env, args[9], &threads);
+
+#if defined(NK_USE_OPENMP)
+    if (threads == 0) threads = (uint32_t)omp_get_max_threads();
+    omp_set_num_threads((int)threads);
+#endif
+
+    nk_size_t const tile_count = nk_size_divide_round_up_(height, NK_PARALLEL_PACKED_TILE);
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
+    for (nk_size_t tile_idx = 0; tile_idx < tile_count; tile_idx++) {
+        nk_size_t row = tile_idx * NK_PARALLEL_PACKED_TILE;
+        nk_size_t chunk = (row + NK_PARALLEL_PACKED_TILE <= height) ? NK_PARALLEL_PACKED_TILE : (height - row);
+        kernel((char const *)a_data + row * a_stride, packed_data, (char *)result_data + row * result_stride, chunk,
+               (nk_size_t)width, (nk_size_t)depth, (nk_size_t)a_stride, (nk_size_t)result_stride);
+    }
     return NULL;
 }
 
@@ -554,11 +575,11 @@ static napi_value api_euclideans_packed(napi_env env, napi_callback_info info) {
  * string dtype
  */
 static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk_kernel_kind_t kernel_kind) {
-    size_t argc = 9;
-    napi_value args[9];
+    size_t argc = 10;
+    napi_value args[10];
     napi_get_cb_info(env, info, &argc, args, NULL, NULL);
-    if (argc != 9) {
-        napi_throw_error(env, NULL, "Symmetric operation requires 9 arguments");
+    if (argc < 9 || argc > 10) {
+        napi_throw_error(env, NULL, "Symmetric operation requires 9-10 arguments (last is optional threads)");
         return NULL;
     }
 
@@ -601,8 +622,25 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
         return NULL;
     }
 
-    kernel(vectors_data, (nk_size_t)n_vectors, (nk_size_t)depth, (nk_size_t)vectors_stride, result_data,
-           (nk_size_t)result_stride, (nk_size_t)row_start, (nk_size_t)row_count);
+    uint32_t threads = 1;
+    if (argc == 10) napi_get_value_uint32(env, args[9], &threads);
+
+#if defined(NK_USE_OPENMP)
+    if (threads == 0) threads = (uint32_t)omp_get_max_threads();
+    omp_set_num_threads((int)threads);
+#endif
+
+    nk_size_t const tile_count = nk_size_divide_round_up_(row_count, NK_PARALLEL_SYMMETRIC_TILE);
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
+    for (nk_size_t tile_idx = 0; tile_idx < tile_count; tile_idx++) {
+        nk_size_t tile_start = (nk_size_t)row_start + tile_idx * NK_PARALLEL_SYMMETRIC_TILE;
+        nk_size_t tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= (nk_size_t)row_start + row_count)
+                                  ? NK_PARALLEL_SYMMETRIC_TILE
+                                  : ((nk_size_t)row_start + row_count - tile_start);
+        kernel(vectors_data, (nk_size_t)n_vectors, (nk_size_t)depth, (nk_size_t)vectors_stride, result_data,
+               (nk_size_t)result_stride, tile_start, tile_rows);
+    }
+
     return NULL;
 }
 

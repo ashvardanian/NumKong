@@ -289,6 +289,18 @@ extern "C" {
                m[2] * (m[3] * m[7] - m[4] * m[6]);                                       \
     }
 
+/* Optimize serial fallbacks for size — see dots/serial.h for rationale. */
+#if defined(NDEBUG)
+#if defined(_MSC_VER)
+#pragma optimize("s", on)
+#elif defined(__clang__)
+#pragma clang attribute push(__attribute__((minsize)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("Os")
+#endif
+#endif
+
 NK_INTERNAL nk_f32_t nk_sum_three_products_f32_(nk_f32_t left_0, nk_f32_t right_0, nk_f32_t left_1, nk_f32_t right_1,
                                                 nk_f32_t left_2, nk_f32_t right_2) {
     return left_0 * right_0 + left_1 * right_1 + left_2 * right_2;
@@ -691,6 +703,16 @@ nk_define_umeyama_(bf16, f32, f32, f32, f32, nk_bf16_to_f32_serial, nk_f32_sqrt_
 #undef nk_define_rmsd_
 #undef nk_define_kabsch_
 #undef nk_define_umeyama_
+
+#if defined(NDEBUG)
+#if defined(_MSC_VER)
+#pragma optimize("", on)
+#elif defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+#endif
 
 #if defined(__cplusplus)
 } // extern "C"

@@ -386,19 +386,20 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
     // Probe each ISA — uniform for all architectures including NEON and WASM
     for table in probe_tables {
         for probe in table.iter() {
-            let enabled = match env::var(probe.name) {
-                Ok(val) => val != "0" && val.to_lowercase() != "false",
-                Err(_) => true,
-            };
-
-            if !enabled {
-                build.define(probe.name, "0");
-                flags.insert(probe.name.to_string(), false);
-                println!(
-                    "cargo:warning=Disabled {} via environment variable",
-                    probe.name
-                );
-                continue;
+            // Allow env-var override: NK_TARGET_FOO=0 forces off, NK_TARGET_FOO=1 forces on
+            if let Ok(val) = env::var(probe.name) {
+                let forced = match val.as_str() {
+                    "1" | "true" | "TRUE" => Some(true),
+                    "0" | "false" | "FALSE" => Some(false),
+                    _ => None,
+                };
+                if let Some(on) = forced {
+                    build.define(probe.name, if on { "1" } else { "0" });
+                    flags.insert(probe.name.to_string(), on);
+                    let verb = if on { "enabled" } else { "disabled" };
+                    println!("cargo:warning={}: force-{verb} via environment", probe.name);
+                    continue;
+                }
             }
 
             let probe_flags = if is_msvc {

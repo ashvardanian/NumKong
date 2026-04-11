@@ -120,7 +120,7 @@ jobs:
       - name: Package Archive
         shell: bash
         run: |
-          tar -cvf "numkong_windows_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.tar" \
+          tar -czf "numkong_windows_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.tar.gz" \
             build_release/Release/numkong.dll \
             include/numkong/ \
             LICENSE
@@ -128,7 +128,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ github.event.release.tag_name }} "numkong_windows_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.tar" --clobber
+        run: gh release upload ${{ github.event.release.tag_name }} "numkong_windows_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.tar.gz" --clobber
 
   create_macos_dylib_library:
     name: Create Library for macOS
@@ -258,3 +258,165 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload ${{ github.event.release.tag_name }} numkong_wasm_*.tar.gz numkong_wasm_*.zip --clobber
+
+  create_freebsd_library:
+    name: Create Library for FreeBSD
+    runs-on: ubuntu-24.04
+    env:
+      CC: clang-20
+      CXX: clang++-20
+      AR: llvm-ar-20
+      NM: llvm-nm-20
+      RANLIB: llvm-ranlib-20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            freebsd_arch: amd64
+            target: x86_64-unknown-freebsd14.2
+            processor: x86_64
+          - arch: arm64
+            freebsd_arch: arm64/aarch64
+            target: aarch64-unknown-freebsd14.2
+            processor: aarch64
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ref: "main"
+      - name: Update Git Submodules
+        run: git submodule update --init --recursive
+      - name: Get Version
+        id: set_version
+        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+      - name: Install Dependencies
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" | sudo tee /etc/apt/sources.list.d/llvm-20.list
+          sudo apt-get update
+          sudo apt-get install -y clang-20 lld-20
+      - name: Download FreeBSD Sysroot
+        run: |
+          mkdir -p /tmp/freebsd-sysroot
+          curl -fsSL "https://download.freebsd.org/releases/${{ matrix.freebsd_arch }}/14.2-RELEASE/base.txz" \
+            | tar -xJf - -C /tmp/freebsd-sysroot ./lib ./usr/lib ./usr/include
+      - name: Build Shared Library
+        run: |
+          cmake -B build_freebsd \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_SYSTEM_NAME=FreeBSD \
+            -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.processor }} \
+            -DCMAKE_SYSROOT=/tmp/freebsd-sysroot \
+            -DCMAKE_C_COMPILER_TARGET=${{ matrix.target }} \
+            -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target }} \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld-20" \
+            -DNK_BUILD_SHARED=ON \
+            -DNK_BUILD_TEST=OFF \
+            -DNK_BUILD_BENCH=OFF
+          cmake --build build_freebsd --config Release
+          cp build_freebsd/libnumkong.so \
+            "numkong_freebsd_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.so"
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ github.event.release.tag_name }} *.so --clobber
+
+  create_linux_exotic_library:
+    name: Create Library for Linux (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ppc64le
+            arch: ppc64le
+            cc: powerpc64le-linux-gnu-gcc-14
+            cxx: powerpc64le-linux-gnu-g++-14
+            pkg: gcc-14-powerpc64le-linux-gnu g++-14-powerpc64le-linux-gnu
+            cflags: "-mcpu=power9 -mvsx"
+            processor: ppc64le
+          - name: loongarch64
+            arch: loongarch64
+            cc: loongarch64-linux-gnu-gcc-14
+            cxx: loongarch64-linux-gnu-g++-14
+            pkg: gcc-14-loongarch64-linux-gnu g++-14-loongarch64-linux-gnu
+            cflags: "-mlasx"
+            processor: loongarch64
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ref: "main"
+      - name: Update Git Submodules
+        run: git submodule update --init --recursive
+      - name: Get Version
+        id: set_version
+        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.pkg }}
+      - name: Build Shared Library
+        run: |
+          cmake -B build_release \
+            -DCMAKE_SYSTEM_NAME=Linux \
+            -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.processor }} \
+            -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+            -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+            -DCMAKE_C_FLAGS_INIT="${{ matrix.cflags }}" \
+            -DCMAKE_CXX_FLAGS_INIT="${{ matrix.cflags }}" \
+            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNK_BUILD_SHARED=ON \
+            -DNK_BUILD_TEST=OFF \
+            -DNK_BUILD_BENCH=OFF
+          cmake --build build_release --config Release
+          cp build_release/libnumkong.so \
+            "numkong_linux_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.so"
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ github.event.release.tag_name }} *.so --clobber
+
+  create_linux_riscv_library:
+    name: Create Library for Linux (riscv64)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ref: "main"
+      - name: Update Git Submodules
+        run: git submodule update --init --recursive
+      - name: Get Version
+        id: set_version
+        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+      - name: Install Dependencies
+        run: |
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo gpg --dearmor -o /usr/share/keyrings/llvm.gpg
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble main" \
+            | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y cmake clang-23 lld-23 llvm-23 \
+            gcc-riscv64-linux-gnu libc6-dev-riscv64-cross
+      - name: Build Shared Library
+        run: |
+          SYSROOT="$(riscv64-linux-gnu-gcc -print-sysroot)"
+          cmake -B build_riscv \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
+            -DLLVM_ROOT=/usr/lib/llvm-23 \
+            -DRISCV_SYSROOT="${SYSROOT}" \
+            -DRISCV_MARCH=rv64gcv_zvfh_zvfbfwma_zvbb \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNK_BUILD_SHARED=ON \
+            -DNK_BUILD_TEST=OFF \
+            -DNK_BUILD_BENCH=OFF
+          cmake --build build_riscv --config Release
+          cp build_riscv/libnumkong.so \
+            "numkong_linux_riscv64_${{ steps.set_version.outputs.version }}.so"
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ github.event.release.tag_name }} *.so --clobber

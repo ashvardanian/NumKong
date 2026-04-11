@@ -10,7 +10,12 @@
 #include <math.h>
 
 #include "distance.h"
+#include "matrix.h" // NK_PARALLEL_PACKED_TILE, NK_PARALLEL_SYMMETRIC_TILE
 #include "tensor.h"
+
+#if defined(NK_USE_OPENMP)
+#include <omp.h>
+#endif
 
 static PyObject *implement_dense_metric( //
     nk_kernel_kind_t metric_kind,        //
@@ -614,13 +619,27 @@ static void cdist_pairwise_loop(                          //
 static int cdist_batch_symmetric(                             //
     nk_kernel_kind_t symmetric_kind, nk_dtype_t dtype,        //
     char const *vectors, size_t n_vectors, size_t dimensions, //
-    size_t stride, char *out, size_t out_row_stride) {
+    size_t stride, char *out, size_t out_row_stride,          //
+    nk_size_t threads) {
     nk_dots_symmetric_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
     nk_find_kernel_punned(symmetric_kind, dtype, static_capabilities, //
                           (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) return -1;
-    kernel(vectors, n_vectors, dimensions, stride, out, out_row_stride, 0, n_vectors);
+#if defined(NK_USE_OPENMP)
+    if (threads == 0) threads = (nk_size_t)omp_get_max_threads();
+    omp_set_num_threads((int)threads);
+#endif
+
+    nk_size_t const tile_count = nk_size_divide_round_up_(n_vectors, NK_PARALLEL_SYMMETRIC_TILE);
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
+    for (nk_size_t tile_idx = 0; tile_idx < tile_count; tile_idx++) {
+        nk_size_t tile_start = tile_idx * NK_PARALLEL_SYMMETRIC_TILE;
+        nk_size_t tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= n_vectors) ? NK_PARALLEL_SYMMETRIC_TILE
+                                                                                     : (n_vectors - tile_start);
+        kernel(vectors, n_vectors, dimensions, stride, out, out_row_stride, tile_start, tile_rows);
+    }
+
     return 0;
 }
 
@@ -632,7 +651,7 @@ static int cdist_batch_packed(                                               //
     nk_kernel_kind_t packed_kind, nk_dtype_t dtype,                          //
     char const *a_start, size_t a_count, size_t a_stride,                    //
     char const *b_start, size_t b_count, size_t b_stride, size_t dimensions, //
-    char *out, size_t out_row_stride) {
+    char *out, size_t out_row_stride, nk_size_t threads) {
 
     // All metric families reuse the dots pack_size / pack kernels
     nk_dots_packed_size_punned_t size_fn = NULL;
@@ -658,7 +677,20 @@ static int cdist_batch_packed(                                               //
     if (!b_packed) return -1;
 
     pack_fn(b_start, b_count, dimensions, b_stride, b_packed);
-    kernel(a_start, b_packed, out, a_count, b_count, dimensions, a_stride, out_row_stride);
+#if defined(NK_USE_OPENMP)
+    if (threads == 0) threads = (nk_size_t)omp_get_max_threads();
+    omp_set_num_threads((int)threads);
+#endif
+
+    nk_size_t const tile_count = nk_size_divide_round_up_(a_count, NK_PARALLEL_PACKED_TILE);
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
+    for (nk_size_t tile_idx = 0; tile_idx < tile_count; tile_idx++) {
+        nk_size_t row = tile_idx * NK_PARALLEL_PACKED_TILE;
+        nk_size_t chunk = (row + NK_PARALLEL_PACKED_TILE <= a_count) ? NK_PARALLEL_PACKED_TILE : (a_count - row);
+        kernel(a_start + row * a_stride, b_packed, out + row * out_row_stride, chunk, b_count, dimensions, a_stride,
+               out_row_stride);
+    }
+
     free(b_packed);
     return 0;
 }
@@ -666,7 +698,8 @@ static int cdist_batch_packed(                                               //
 static PyObject *implement_cdist(                        //
     PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, //
     nk_kernel_kind_t metric_kind,                        //
-    nk_dtype_t dtype, nk_dtype_t out_dtype) {
+    nk_dtype_t dtype, nk_dtype_t out_dtype,              //
+    nk_size_t threads) {
 
     PyObject *return_obj = NULL;
 
@@ -818,7 +851,8 @@ static PyObject *implement_cdist(                        //
     // Try symmetric batch path first (A x A^T, no packing needed)
     if (has_batch && dtype_ok && is_symmetric)
         batch_result = cdist_batch_symmetric(symmetric_kind, dtype, a_parsed.data, a_parsed.rows, a_cols,
-                                             a_parsed.row_stride, distances_start, distances_rows_stride_bytes);
+                                             a_parsed.row_stride, distances_start, distances_rows_stride_bytes,
+                                             threads);
 
     // Symmetric kernel only writes upper triangle; mirror to lower.
     if (batch_result == 0 && is_symmetric) {
@@ -833,7 +867,7 @@ static PyObject *implement_cdist(                        //
     if (has_batch && dtype_ok && !is_symmetric && batch_result != 0)
         batch_result = cdist_batch_packed(packed_kind, dtype, a_parsed.data, a_parsed.rows, a_parsed.row_stride,
                                           b_parsed.data, b_parsed.rows, b_parsed.row_stride, a_cols, distances_start,
-                                          distances_rows_stride_bytes);
+                                          distances_rows_stride_bytes, threads);
 
     // Fall back to scalar pairwise loop
     if (batch_result != 0)
@@ -891,6 +925,7 @@ PyObject *api_cdist( //
     PyObject *out_obj = NULL;       // Optional object, "out" keyword-only
     PyObject *dtype_obj = NULL;     // Optional string, "dtype" keyword-only
     PyObject *out_dtype_obj = NULL; // Optional string, "out_dtype" keyword-only
+    nk_size_t threads = 1;          // Optional int, "threads" keyword-only. 0 = all cores.
 
     // Once parsed, the arguments will be stored in these variables:
     nk_dtype_t dtype = nk_dtype_unknown_k, out_dtype = nk_dtype_unknown_k;
@@ -903,8 +938,8 @@ PyObject *api_cdist( //
     // Parse the arguments
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 2 || args_count > 6) {
-        PyErr_Format(PyExc_TypeError, "Function expects 2-6 arguments, got %zd", args_count);
+    if (args_count < 2 || args_count > 7) {
+        PyErr_Format(PyExc_TypeError, "Function expects 2-7 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 3) {
@@ -928,6 +963,11 @@ PyObject *api_cdist( //
         else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) { out_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "out_dtype") == 0 && !out_dtype_obj) { out_dtype_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "metric") == 0 && !metric_obj) { metric_obj = value; }
+        else if (PyUnicode_CompareWithASCIIString(key, "threads") == 0) {
+            Py_ssize_t t = PyLong_AsSsize_t(value);
+            if (t == -1 && PyErr_Occurred()) return NULL;
+            threads = (nk_size_t)(t >= 0 ? t : 0);
+        }
         else {
             PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
             return NULL;
@@ -961,7 +1001,7 @@ PyObject *api_cdist( //
         if (out_dtype == nk_dtype_unknown_k) return NULL;
     }
 
-    return implement_cdist(a_obj, b_obj, out_obj, metric_kind, dtype, out_dtype);
+    return implement_cdist(a_obj, b_obj, out_obj, metric_kind, dtype, out_dtype, threads);
 }
 
 char const doc_euclidean_pointer[] = "Return an integer pointer to the `numkong.euclidean` kernel.";
