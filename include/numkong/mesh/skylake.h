@@ -14,9 +14,12 @@
  *      _mm512_permutex2var_ps  VPERMT2PS (ZMM, ZMM, ZMM)     3cy @ p5   4cy @ p12
  *      _mm512_extractf32x8_ps  VEXTRACTF32X8 (YMM, ZMM, I8)  3cy @ p5   1cy @ p0123
  *
- *  Point cloud operations use VPERMT2PS for stride-3 deinterleaving of xyz coordinates, avoiding
- *  expensive gather instructions. This achieves ~1.8x speedup over scalar deinterleaving. Dual FMA
- *  accumulators on Skylake-X server chips hide the 4cy latency for centroid and covariance computation.
+ *  Most `*_f32` mesh kernels use a 15-lane stride-3 chunk layout: 5 xyz triplets per ZMM (lane 15
+ *  masked to zero) so the xyz phase is identical across all chunks and no per-chunk deinterleave is
+ *  needed. The 9 cross-covariance cells come from three accumulators a*b, a*rot1(b), a*rot2(b)
+ *  demuxed per channel post-loop, where rot1/rot2 are cheap within-triplet permutexvar rotations.
+ *  `*_f64`, `*_f16`, `*_bf16` kernels still use VPERMT2PS deinterleave (helpers retained below).
+ *  Dual FMA accumulators on Skylake-X hide the 4cy latency for centroid and covariance computation.
  */
 #ifndef NK_MESH_SKYLAKE_H
 #define NK_MESH_SKYLAKE_H
@@ -231,10 +234,6 @@ NK_INTERNAL nk_f64_t nk_reduce_stable_f64x8_skylake_(__m512d values_f64x8) {
     return sum + compensation;
 }
 
-NK_INTERNAL void nk_rotation_from_svd_f64_skylake_(nk_f64_t const *svd_u, nk_f64_t const *svd_v, nk_f64_t *rotation) {
-    nk_rotation_from_svd_f64_serial_(svd_u, svd_v, rotation);
-}
-
 NK_INTERNAL void nk_accumulate_square_f64x8_skylake_(__m512d *sum_f64x8, __m512d *compensation_f64x8,
                                                      __m512d values_f64x8) {
     __m512d product_f64x8 = _mm512_mul_pd(values_f64x8, values_f64x8);
@@ -248,394 +247,181 @@ NK_INTERNAL void nk_accumulate_square_f64x8_skylake_(__m512d *sum_f64x8, __m512d
     *compensation_f64x8 = _mm512_add_pd(*compensation_f64x8, _mm512_add_pd(sum_error_f64x8, product_error_f64x8));
 }
 
-/*  Compute sum of squared distances after applying rotation (and optional scale).
- *  Used by kabsch (scale=1.0) and umeyama (scale=computed_scale).
- *  Returns sum_squared, caller computes √(sum_squared / n).
+/*  Single-pass streaming statistics over an f32 xyz point-cloud pair.
+ *  Processes 5 xyz triplets per chunk (15 fp32 lanes, lane 15 masked to zero) so the stride-3
+ *  phase is identical across all chunks and no deinterleave is needed. All accumulators are f64.
+ *  Outputs via pointers:
+ *    sum_a_out[3] / sum_b_out[3]     - per-channel Sum(a), Sum(b)
+ *    raw_covarianceariance_out[9]                  - row-major uncentered Sum(a_j * b_k)
+ *    norm_squared_a_out / norm_squared_b_out       - Sum(||a||^2), Sum(||b||^2) across all three channels
+ *
+ *  The 9 H-cells come from three product accumulators prod_{diag,rot1,rot2} demuxed post-loop
+ *  by a-channel. Rotations of b happen in fp64 via permutex2var_pd on the already-widened
+ *  halves: widening the rotated fp32 vector would add two extra cvtps_pd per chunk, which we
+ *  skip. Post-loop, each (accumulator, channel) pair is gathered into a single 8-lane vector
+ *  via one maskz-permutex2var_pd and reduced once — 17 horizontal reductions total (the
+ *  theoretical minimum for 17 scalar outputs) instead of 32 masked ones.
  */
-NK_INTERNAL nk_f64_t nk_transformed_ssd_f32_skylake_(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                     nk_f64_t const *r, nk_f64_t scale, nk_f64_t centroid_a_x,
-                                                     nk_f64_t centroid_a_y, nk_f64_t centroid_a_z,
-                                                     nk_f64_t centroid_b_x, nk_f64_t centroid_b_y,
-                                                     nk_f64_t centroid_b_z) {
-    __m512d scaled_rotation_x_x_f64x8 = _mm512_set1_pd(scale * r[0]);
-    __m512d scaled_rotation_x_y_f64x8 = _mm512_set1_pd(scale * r[1]);
-    __m512d scaled_rotation_x_z_f64x8 = _mm512_set1_pd(scale * r[2]);
-    __m512d scaled_rotation_y_x_f64x8 = _mm512_set1_pd(scale * r[3]);
-    __m512d scaled_rotation_y_y_f64x8 = _mm512_set1_pd(scale * r[4]);
-    __m512d scaled_rotation_y_z_f64x8 = _mm512_set1_pd(scale * r[5]);
-    __m512d scaled_rotation_z_x_f64x8 = _mm512_set1_pd(scale * r[6]);
-    __m512d scaled_rotation_z_y_f64x8 = _mm512_set1_pd(scale * r[7]);
-    __m512d scaled_rotation_z_z_f64x8 = _mm512_set1_pd(scale * r[8]);
-    __m512d centroid_a_x_f64x8 = _mm512_set1_pd(centroid_a_x), centroid_a_y_f64x8 = _mm512_set1_pd(centroid_a_y);
-    __m512d centroid_a_z_f64x8 = _mm512_set1_pd(centroid_a_z), centroid_b_x_f64x8 = _mm512_set1_pd(centroid_b_x);
-    __m512d centroid_b_y_f64x8 = _mm512_set1_pd(centroid_b_y), centroid_b_z_f64x8 = _mm512_set1_pd(centroid_b_z);
-    __m512d sum_squared_f64x8 = _mm512_setzero_pd();
-    __m512 a_x_f32x16, a_y_f32x16, a_z_f32x16, b_x_f32x16, b_y_f32x16, b_z_f32x16;
+NK_INTERNAL void nk_mesh_streaming_stats_f32_skylake_( //
+    nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *sum_a_out, nk_f64_t *sum_b_out,
+    nk_f64_t *raw_covarianceariance_out, nk_f64_t *norm_squared_a_out, nk_f64_t *norm_squared_b_out) {
+
+    // Within-triplet rotation indices for fp64 permutex2var across (b_low, b_high) as the two
+    // sources. Indices 0..7 pull from b_low, 8..15 pull from b_high. Derived from the fp32
+    // rotation pattern {1,2,0,4,5,3,7,8,6,10,11,9,13,14,12,15} (rot1) and {2,0,1,5,3,4,8,6,
+    // 7,11,9,10,14,12,13,15} (rot2) split at fp32 lane 8.
+    __m512i const idx_rotation_1_low_i64x8 = _mm512_setr_epi64(1, 2, 0, 4, 5, 3, 7, 8);
+    __m512i const idx_rotation_1_high_i64x8 = _mm512_setr_epi64(6, 10, 11, 9, 13, 14, 12, 15);
+    __m512i const idx_rotation_2_low_i64x8 = _mm512_setr_epi64(2, 0, 1, 5, 3, 4, 8, 6);
+    __m512i const idx_rotation_2_high_i64x8 = _mm512_setr_epi64(7, 11, 9, 10, 14, 12, 13, 15);
+
+    // Per-channel gather indices packing the 5 contributing fp64 lanes (across both halves)
+    // into lanes 0..4 of the output, with lanes 5..7 zeroed by maskz so the subsequent
+    // _mm512_reduce_add_pd is exact without needing a mask-reduce variant.
+    //    x -> low {0,3,6} + high {1,4}  = idx [0, 3, 6, 9, 12, _, _, _]
+    //    y -> low {1,4,7} + high {2,5}  = idx [1, 4, 7, 10, 13, _, _, _]
+    //    z -> low {2,5}   + high {0,3,6} = idx [2, 5, 8, 11, 14, _, _, _]
+    __m512i const idx_channel_x_i64x8 = _mm512_setr_epi64(0, 3, 6, 9, 12, 0, 0, 0);
+    __m512i const idx_channel_y_i64x8 = _mm512_setr_epi64(1, 4, 7, 10, 13, 0, 0, 0);
+    __m512i const idx_channel_z_i64x8 = _mm512_setr_epi64(2, 5, 8, 11, 14, 0, 0, 0);
+    __mmask8 const channel_lanes_mask = 0x1F;
+
+    __m512d const zeros_f64x8 = _mm512_setzero_pd();
+    __m512d sum_a_low_f64x8 = zeros_f64x8, sum_a_high_f64x8 = zeros_f64x8;
+    __m512d sum_b_low_f64x8 = zeros_f64x8, sum_b_high_f64x8 = zeros_f64x8;
+    __m512d norm_squared_a_low_f64x8 = zeros_f64x8, norm_squared_a_high_f64x8 = zeros_f64x8;
+    __m512d norm_squared_b_low_f64x8 = zeros_f64x8, norm_squared_b_high_f64x8 = zeros_f64x8;
+    __m512d product_diagonal_low_f64x8 = zeros_f64x8, product_diagonal_high_f64x8 = zeros_f64x8;
+    __m512d product_rotation_1_low_f64x8 = zeros_f64x8, product_rotation_1_high_f64x8 = zeros_f64x8;
+    __m512d product_rotation_2_low_f64x8 = zeros_f64x8, product_rotation_2_high_f64x8 = zeros_f64x8;
+
     nk_size_t index = 0;
+    // Main loop: 5 points (15 fp32) per chunk, lane 15 zeroed by mask 0x7FFF.
+    for (; index + 5 <= n; index += 5) {
+        __m512 a_f32x16 = _mm512_maskz_loadu_ps(0x7FFF, a + index * 3);
+        __m512 b_f32x16 = _mm512_maskz_loadu_ps(0x7FFF, b + index * 3);
 
-    for (; index + 16 <= n; index += 16) {
-        nk_deinterleave_f32x16_skylake_(a + index * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16),
-            nk_deinterleave_f32x16_skylake_(b + index * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-        __m512d a_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_x_f32x16));
-        __m512d a_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_x_f32x16, 1));
-        __m512d a_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_y_f32x16));
-        __m512d a_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_y_f32x16, 1));
-        __m512d a_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_z_f32x16));
-        __m512d a_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_z_f32x16, 1));
-        __m512d b_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_x_f32x16));
-        __m512d b_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_x_f32x16, 1));
-        __m512d b_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_y_f32x16));
-        __m512d b_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_y_f32x16, 1));
-        __m512d b_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_z_f32x16));
-        __m512d b_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_z_f32x16, 1));
+        __m512d a_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_f32x16));
+        __m512d a_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_f32x16, 1));
+        __m512d b_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_f32x16));
+        __m512d b_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_f32x16, 1));
 
-        __m512d centered_a_x_low_f64x8 = _mm512_sub_pd(a_x_low_f64x8, centroid_a_x_f64x8);
-        __m512d centered_a_x_high_f64x8 = _mm512_sub_pd(a_x_high_f64x8, centroid_a_x_f64x8);
-        __m512d centered_a_y_low_f64x8 = _mm512_sub_pd(a_y_low_f64x8, centroid_a_y_f64x8);
-        __m512d centered_a_y_high_f64x8 = _mm512_sub_pd(a_y_high_f64x8, centroid_a_y_f64x8);
-        __m512d centered_a_z_low_f64x8 = _mm512_sub_pd(a_z_low_f64x8, centroid_a_z_f64x8);
-        __m512d centered_a_z_high_f64x8 = _mm512_sub_pd(a_z_high_f64x8, centroid_a_z_f64x8);
-        __m512d centered_b_x_low_f64x8 = _mm512_sub_pd(b_x_low_f64x8, centroid_b_x_f64x8);
-        __m512d centered_b_x_high_f64x8 = _mm512_sub_pd(b_x_high_f64x8, centroid_b_x_f64x8);
-        __m512d centered_b_y_low_f64x8 = _mm512_sub_pd(b_y_low_f64x8, centroid_b_y_f64x8);
-        __m512d centered_b_y_high_f64x8 = _mm512_sub_pd(b_y_high_f64x8, centroid_b_y_f64x8);
-        __m512d centered_b_z_low_f64x8 = _mm512_sub_pd(b_z_low_f64x8, centroid_b_z_f64x8);
-        __m512d centered_b_z_high_f64x8 = _mm512_sub_pd(b_z_high_f64x8, centroid_b_z_f64x8);
+        __m512d b_rot1_low_f64x8 = _mm512_permutex2var_pd(b_low_f64x8, idx_rotation_1_low_i64x8, b_high_f64x8);
+        __m512d b_rot1_high_f64x8 = _mm512_permutex2var_pd(b_low_f64x8, idx_rotation_1_high_i64x8, b_high_f64x8);
+        __m512d b_rot2_low_f64x8 = _mm512_permutex2var_pd(b_low_f64x8, idx_rotation_2_low_i64x8, b_high_f64x8);
+        __m512d b_rot2_high_f64x8 = _mm512_permutex2var_pd(b_low_f64x8, idx_rotation_2_high_i64x8, b_high_f64x8);
 
-        __m512d rotated_a_x_low_f64x8 = _mm512_fmadd_pd(
-            scaled_rotation_x_z_f64x8, centered_a_z_low_f64x8,
-            _mm512_fmadd_pd(scaled_rotation_x_y_f64x8, centered_a_y_low_f64x8,
-                            _mm512_mul_pd(scaled_rotation_x_x_f64x8, centered_a_x_low_f64x8)));
-        __m512d rotated_a_x_high_f64x8 = _mm512_fmadd_pd(
-            scaled_rotation_x_z_f64x8, centered_a_z_high_f64x8,
-            _mm512_fmadd_pd(scaled_rotation_x_y_f64x8, centered_a_y_high_f64x8,
-                            _mm512_mul_pd(scaled_rotation_x_x_f64x8, centered_a_x_high_f64x8)));
-        __m512d rotated_a_y_low_f64x8 = _mm512_fmadd_pd(
-            scaled_rotation_y_z_f64x8, centered_a_z_low_f64x8,
-            _mm512_fmadd_pd(scaled_rotation_y_y_f64x8, centered_a_y_low_f64x8,
-                            _mm512_mul_pd(scaled_rotation_y_x_f64x8, centered_a_x_low_f64x8)));
-        __m512d rotated_a_y_high_f64x8 = _mm512_fmadd_pd(
-            scaled_rotation_y_z_f64x8, centered_a_z_high_f64x8,
-            _mm512_fmadd_pd(scaled_rotation_y_y_f64x8, centered_a_y_high_f64x8,
-                            _mm512_mul_pd(scaled_rotation_y_x_f64x8, centered_a_x_high_f64x8)));
-        __m512d rotated_a_z_low_f64x8 = _mm512_fmadd_pd(
-            scaled_rotation_z_z_f64x8, centered_a_z_low_f64x8,
-            _mm512_fmadd_pd(scaled_rotation_z_y_f64x8, centered_a_y_low_f64x8,
-                            _mm512_mul_pd(scaled_rotation_z_x_f64x8, centered_a_x_low_f64x8)));
-        __m512d rotated_a_z_high_f64x8 = _mm512_fmadd_pd(
-            scaled_rotation_z_z_f64x8, centered_a_z_high_f64x8,
-            _mm512_fmadd_pd(scaled_rotation_z_y_f64x8, centered_a_y_high_f64x8,
-                            _mm512_mul_pd(scaled_rotation_z_x_f64x8, centered_a_x_high_f64x8)));
+        sum_a_low_f64x8 = _mm512_add_pd(sum_a_low_f64x8, a_low_f64x8);
+        sum_a_high_f64x8 = _mm512_add_pd(sum_a_high_f64x8, a_high_f64x8);
+        sum_b_low_f64x8 = _mm512_add_pd(sum_b_low_f64x8, b_low_f64x8);
+        sum_b_high_f64x8 = _mm512_add_pd(sum_b_high_f64x8, b_high_f64x8);
 
-        __m512d delta_x_low_f64x8 = _mm512_sub_pd(rotated_a_x_low_f64x8, centered_b_x_low_f64x8);
-        __m512d delta_x_high_f64x8 = _mm512_sub_pd(rotated_a_x_high_f64x8, centered_b_x_high_f64x8);
-        __m512d delta_y_low_f64x8 = _mm512_sub_pd(rotated_a_y_low_f64x8, centered_b_y_low_f64x8);
-        __m512d delta_y_high_f64x8 = _mm512_sub_pd(rotated_a_y_high_f64x8, centered_b_y_high_f64x8);
-        __m512d delta_z_low_f64x8 = _mm512_sub_pd(rotated_a_z_low_f64x8, centered_b_z_low_f64x8);
-        __m512d delta_z_high_f64x8 = _mm512_sub_pd(rotated_a_z_high_f64x8, centered_b_z_high_f64x8);
+        norm_squared_a_low_f64x8 = _mm512_fmadd_pd(a_low_f64x8, a_low_f64x8, norm_squared_a_low_f64x8);
+        norm_squared_a_high_f64x8 = _mm512_fmadd_pd(a_high_f64x8, a_high_f64x8, norm_squared_a_high_f64x8);
+        norm_squared_b_low_f64x8 = _mm512_fmadd_pd(b_low_f64x8, b_low_f64x8, norm_squared_b_low_f64x8);
+        norm_squared_b_high_f64x8 = _mm512_fmadd_pd(b_high_f64x8, b_high_f64x8, norm_squared_b_high_f64x8);
 
-        __m512d batch_sum_squared_f64x8 = _mm512_add_pd(_mm512_mul_pd(delta_x_low_f64x8, delta_x_low_f64x8),
-                                                        _mm512_mul_pd(delta_x_high_f64x8, delta_x_high_f64x8));
-        batch_sum_squared_f64x8 = _mm512_fmadd_pd(delta_y_low_f64x8, delta_y_low_f64x8, batch_sum_squared_f64x8);
-        batch_sum_squared_f64x8 = _mm512_fmadd_pd(delta_y_high_f64x8, delta_y_high_f64x8, batch_sum_squared_f64x8);
-        batch_sum_squared_f64x8 = _mm512_fmadd_pd(delta_z_low_f64x8, delta_z_low_f64x8, batch_sum_squared_f64x8);
-        batch_sum_squared_f64x8 = _mm512_fmadd_pd(delta_z_high_f64x8, delta_z_high_f64x8, batch_sum_squared_f64x8);
-        sum_squared_f64x8 = _mm512_add_pd(sum_squared_f64x8, batch_sum_squared_f64x8);
+        product_diagonal_low_f64x8 = _mm512_fmadd_pd(a_low_f64x8, b_low_f64x8, product_diagonal_low_f64x8);
+        product_diagonal_high_f64x8 = _mm512_fmadd_pd(a_high_f64x8, b_high_f64x8, product_diagonal_high_f64x8);
+        product_rotation_1_low_f64x8 = _mm512_fmadd_pd(a_low_f64x8, b_rot1_low_f64x8, product_rotation_1_low_f64x8);
+        product_rotation_1_high_f64x8 = _mm512_fmadd_pd(a_high_f64x8, b_rot1_high_f64x8, product_rotation_1_high_f64x8);
+        product_rotation_2_low_f64x8 = _mm512_fmadd_pd(a_low_f64x8, b_rot2_low_f64x8, product_rotation_2_low_f64x8);
+        product_rotation_2_high_f64x8 = _mm512_fmadd_pd(a_high_f64x8, b_rot2_high_f64x8, product_rotation_2_high_f64x8);
     }
 
-    nk_f64_t sum_squared = _mm512_reduce_add_pd(sum_squared_f64x8);
-    for (; index < n; ++index) {
-        nk_f64_t centered_a_x = (nk_f64_t)a[index * 3 + 0] - centroid_a_x,
-                 centered_a_y = (nk_f64_t)a[index * 3 + 1] - centroid_a_y,
-                 centered_a_z = (nk_f64_t)a[index * 3 + 2] - centroid_a_z;
-        nk_f64_t centered_b_x = (nk_f64_t)b[index * 3 + 0] - centroid_b_x,
-                 centered_b_y = (nk_f64_t)b[index * 3 + 1] - centroid_b_y,
-                 centered_b_z = (nk_f64_t)b[index * 3 + 2] - centroid_b_z;
-        nk_f64_t rotated_a_x = scale * (r[0] * centered_a_x + r[1] * centered_a_y + r[2] * centered_a_z),
-                 rotated_a_y = scale * (r[3] * centered_a_x + r[4] * centered_a_y + r[5] * centered_a_z),
-                 rotated_a_z = scale * (r[6] * centered_a_x + r[7] * centered_a_y + r[8] * centered_a_z);
-        nk_f64_t delta_x = rotated_a_x - centered_b_x, delta_y = rotated_a_y - centered_b_y,
-                 delta_z = rotated_a_z - centered_b_z;
-        sum_squared += delta_x * delta_x + delta_y * delta_y + delta_z * delta_z;
+    // Tail: 1..4 points (3..12 fp32) via narrower mask; identical body.
+    if (index < n) {
+        nk_size_t tail_floats = (n - index) * 3;
+        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, tail_floats);
+        __m512 a_f32x16 = _mm512_maskz_loadu_ps(tail_mask, a + index * 3);
+        __m512 b_f32x16 = _mm512_maskz_loadu_ps(tail_mask, b + index * 3);
+
+        __m512d a_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_f32x16));
+        __m512d a_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_f32x16, 1));
+        __m512d b_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_f32x16));
+        __m512d b_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_f32x16, 1));
+
+        __m512d b_rot1_low_f64x8 = _mm512_permutex2var_pd(b_low_f64x8, idx_rotation_1_low_i64x8, b_high_f64x8);
+        __m512d b_rot1_high_f64x8 = _mm512_permutex2var_pd(b_low_f64x8, idx_rotation_1_high_i64x8, b_high_f64x8);
+        __m512d b_rot2_low_f64x8 = _mm512_permutex2var_pd(b_low_f64x8, idx_rotation_2_low_i64x8, b_high_f64x8);
+        __m512d b_rot2_high_f64x8 = _mm512_permutex2var_pd(b_low_f64x8, idx_rotation_2_high_i64x8, b_high_f64x8);
+
+        sum_a_low_f64x8 = _mm512_add_pd(sum_a_low_f64x8, a_low_f64x8);
+        sum_a_high_f64x8 = _mm512_add_pd(sum_a_high_f64x8, a_high_f64x8);
+        sum_b_low_f64x8 = _mm512_add_pd(sum_b_low_f64x8, b_low_f64x8);
+        sum_b_high_f64x8 = _mm512_add_pd(sum_b_high_f64x8, b_high_f64x8);
+
+        norm_squared_a_low_f64x8 = _mm512_fmadd_pd(a_low_f64x8, a_low_f64x8, norm_squared_a_low_f64x8);
+        norm_squared_a_high_f64x8 = _mm512_fmadd_pd(a_high_f64x8, a_high_f64x8, norm_squared_a_high_f64x8);
+        norm_squared_b_low_f64x8 = _mm512_fmadd_pd(b_low_f64x8, b_low_f64x8, norm_squared_b_low_f64x8);
+        norm_squared_b_high_f64x8 = _mm512_fmadd_pd(b_high_f64x8, b_high_f64x8, norm_squared_b_high_f64x8);
+
+        product_diagonal_low_f64x8 = _mm512_fmadd_pd(a_low_f64x8, b_low_f64x8, product_diagonal_low_f64x8);
+        product_diagonal_high_f64x8 = _mm512_fmadd_pd(a_high_f64x8, b_high_f64x8, product_diagonal_high_f64x8);
+        product_rotation_1_low_f64x8 = _mm512_fmadd_pd(a_low_f64x8, b_rot1_low_f64x8, product_rotation_1_low_f64x8);
+        product_rotation_1_high_f64x8 = _mm512_fmadd_pd(a_high_f64x8, b_rot1_high_f64x8, product_rotation_1_high_f64x8);
+        product_rotation_2_low_f64x8 = _mm512_fmadd_pd(a_low_f64x8, b_rot2_low_f64x8, product_rotation_2_low_f64x8);
+        product_rotation_2_high_f64x8 = _mm512_fmadd_pd(a_high_f64x8, b_rot2_high_f64x8, product_rotation_2_high_f64x8);
     }
 
-    return sum_squared;
-}
+    // Post-loop: gather each (accumulator, a-channel) pair into a single 8-lane vector via one
+    // maskz-permutex2var_pd across (low, high) halves, then one _mm512_reduce_add_pd per scalar
+    // output. 17 reductions total (6 sums + 9 H cells + 2 norms) = the scalar-output floor.
 
-/*  Compute sum of squared distances for f64 after applying rotation (and optional scale).
- *  Rotation matrix, scale and data are all f64 for full precision.
- */
-NK_INTERNAL nk_f64_t nk_transformed_ssd_f64_skylake_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                     nk_f64_t const *r, nk_f64_t scale, nk_f64_t centroid_a_x,
-                                                     nk_f64_t centroid_a_y, nk_f64_t centroid_a_z,
-                                                     nk_f64_t centroid_b_x, nk_f64_t centroid_b_y,
-                                                     nk_f64_t centroid_b_z) {
-    // Broadcast scaled rotation matrix elements
-    __m512d scaled_rotation_x_x_f64x8 = _mm512_set1_pd(scale * r[0]);
-    __m512d scaled_rotation_x_y_f64x8 = _mm512_set1_pd(scale * r[1]);
-    __m512d scaled_rotation_x_z_f64x8 = _mm512_set1_pd(scale * r[2]);
-    __m512d scaled_rotation_y_x_f64x8 = _mm512_set1_pd(scale * r[3]);
-    __m512d scaled_rotation_y_y_f64x8 = _mm512_set1_pd(scale * r[4]);
-    __m512d scaled_rotation_y_z_f64x8 = _mm512_set1_pd(scale * r[5]);
-    __m512d scaled_rotation_z_x_f64x8 = _mm512_set1_pd(scale * r[6]);
-    __m512d scaled_rotation_z_y_f64x8 = _mm512_set1_pd(scale * r[7]);
-    __m512d scaled_rotation_z_z_f64x8 = _mm512_set1_pd(scale * r[8]);
+    __m512d sum_a_x_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_mask, sum_a_low_f64x8, idx_channel_x_i64x8,
+                                                         sum_a_high_f64x8);
+    __m512d sum_a_y_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_mask, sum_a_low_f64x8, idx_channel_y_i64x8,
+                                                         sum_a_high_f64x8);
+    __m512d sum_a_z_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_mask, sum_a_low_f64x8, idx_channel_z_i64x8,
+                                                         sum_a_high_f64x8);
+    sum_a_out[0] = _mm512_reduce_add_pd(sum_a_x_f64x8);
+    sum_a_out[1] = _mm512_reduce_add_pd(sum_a_y_f64x8);
+    sum_a_out[2] = _mm512_reduce_add_pd(sum_a_z_f64x8);
 
-    // Broadcast centroids
-    __m512d centroid_a_x_f64x8 = _mm512_set1_pd(centroid_a_x);
-    __m512d centroid_a_y_f64x8 = _mm512_set1_pd(centroid_a_y);
-    __m512d centroid_a_z_f64x8 = _mm512_set1_pd(centroid_a_z);
-    __m512d centroid_b_x_f64x8 = _mm512_set1_pd(centroid_b_x);
-    __m512d centroid_b_y_f64x8 = _mm512_set1_pd(centroid_b_y);
-    __m512d centroid_b_z_f64x8 = _mm512_set1_pd(centroid_b_z);
+    __m512d sum_b_x_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_mask, sum_b_low_f64x8, idx_channel_x_i64x8,
+                                                         sum_b_high_f64x8);
+    __m512d sum_b_y_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_mask, sum_b_low_f64x8, idx_channel_y_i64x8,
+                                                         sum_b_high_f64x8);
+    __m512d sum_b_z_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_mask, sum_b_low_f64x8, idx_channel_z_i64x8,
+                                                         sum_b_high_f64x8);
+    sum_b_out[0] = _mm512_reduce_add_pd(sum_b_x_f64x8);
+    sum_b_out[1] = _mm512_reduce_add_pd(sum_b_y_f64x8);
+    sum_b_out[2] = _mm512_reduce_add_pd(sum_b_z_f64x8);
 
-    __m512d sum_squared_f64x8 = _mm512_setzero_pd();
-    __m512d sum_squared_compensation_f64x8 = _mm512_setzero_pd();
-    __m512d a_x_f64x8, a_y_f64x8, a_z_f64x8, b_x_f64x8, b_y_f64x8, b_z_f64x8;
-    nk_size_t j = 0;
+    // H cells: a-channel picks which demux mask applies; prod-vector picks which b-channel the
+    // product pairs a with (diag -> same, rot1 -> +1, rot2 -> +2 mod 3).
+    __m512d product_diagonal_x_f64x8 = _mm512_maskz_permutex2var_pd( //
+        channel_lanes_mask, product_diagonal_low_f64x8, idx_channel_x_i64x8, product_diagonal_high_f64x8);
+    __m512d product_diagonal_y_f64x8 = _mm512_maskz_permutex2var_pd( //
+        channel_lanes_mask, product_diagonal_low_f64x8, idx_channel_y_i64x8, product_diagonal_high_f64x8);
+    __m512d product_diagonal_z_f64x8 = _mm512_maskz_permutex2var_pd( //
+        channel_lanes_mask, product_diagonal_low_f64x8, idx_channel_z_i64x8, product_diagonal_high_f64x8);
+    __m512d product_rotation_1_x_f64x8 = _mm512_maskz_permutex2var_pd( //
+        channel_lanes_mask, product_rotation_1_low_f64x8, idx_channel_x_i64x8, product_rotation_1_high_f64x8);
+    __m512d product_rotation_1_y_f64x8 = _mm512_maskz_permutex2var_pd( //
+        channel_lanes_mask, product_rotation_1_low_f64x8, idx_channel_y_i64x8, product_rotation_1_high_f64x8);
+    __m512d product_rotation_1_z_f64x8 = _mm512_maskz_permutex2var_pd( //
+        channel_lanes_mask, product_rotation_1_low_f64x8, idx_channel_z_i64x8, product_rotation_1_high_f64x8);
+    __m512d product_rotation_2_x_f64x8 = _mm512_maskz_permutex2var_pd( //
+        channel_lanes_mask, product_rotation_2_low_f64x8, idx_channel_x_i64x8, product_rotation_2_high_f64x8);
+    __m512d product_rotation_2_y_f64x8 = _mm512_maskz_permutex2var_pd( //
+        channel_lanes_mask, product_rotation_2_low_f64x8, idx_channel_y_i64x8, product_rotation_2_high_f64x8);
+    __m512d product_rotation_2_z_f64x8 = _mm512_maskz_permutex2var_pd( //
+        channel_lanes_mask, product_rotation_2_low_f64x8, idx_channel_z_i64x8, product_rotation_2_high_f64x8);
 
-    for (; j + 8 <= n; j += 8) {
-        nk_deinterleave_f64x8_skylake_(a + j * 3, &a_x_f64x8, &a_y_f64x8, &a_z_f64x8);
-        nk_deinterleave_f64x8_skylake_(b + j * 3, &b_x_f64x8, &b_y_f64x8, &b_z_f64x8);
+    raw_covarianceariance_out[0] = _mm512_reduce_add_pd(product_diagonal_x_f64x8);   // H[x,x]
+    raw_covarianceariance_out[1] = _mm512_reduce_add_pd(product_rotation_1_x_f64x8); // H[x,y]
+    raw_covarianceariance_out[2] = _mm512_reduce_add_pd(product_rotation_2_x_f64x8); // H[x,z]
+    raw_covarianceariance_out[3] = _mm512_reduce_add_pd(product_rotation_2_y_f64x8); // H[y,x]
+    raw_covarianceariance_out[4] = _mm512_reduce_add_pd(product_diagonal_y_f64x8);   // H[y,y]
+    raw_covarianceariance_out[5] = _mm512_reduce_add_pd(product_rotation_1_y_f64x8); // H[y,z]
+    raw_covarianceariance_out[6] = _mm512_reduce_add_pd(product_rotation_1_z_f64x8); // H[z,x]
+    raw_covarianceariance_out[7] = _mm512_reduce_add_pd(product_rotation_2_z_f64x8); // H[z,y]
+    raw_covarianceariance_out[8] = _mm512_reduce_add_pd(product_diagonal_z_f64x8);   // H[z,z]
 
-        // Center points
-        __m512d pa_x_f64x8 = _mm512_sub_pd(a_x_f64x8, centroid_a_x_f64x8);
-        __m512d pa_y_f64x8 = _mm512_sub_pd(a_y_f64x8, centroid_a_y_f64x8);
-        __m512d pa_z_f64x8 = _mm512_sub_pd(a_z_f64x8, centroid_a_z_f64x8);
-        __m512d pb_x_f64x8 = _mm512_sub_pd(b_x_f64x8, centroid_b_x_f64x8);
-        __m512d pb_y_f64x8 = _mm512_sub_pd(b_y_f64x8, centroid_b_y_f64x8);
-        __m512d pb_z_f64x8 = _mm512_sub_pd(b_z_f64x8, centroid_b_z_f64x8);
-
-        // Rotate and scale: ra = scale * R * pa
-        __m512d ra_x_f64x8 = _mm512_fmadd_pd(scaled_rotation_x_z_f64x8, pa_z_f64x8,
-                                             _mm512_fmadd_pd(scaled_rotation_x_y_f64x8, pa_y_f64x8,
-                                                             _mm512_mul_pd(scaled_rotation_x_x_f64x8, pa_x_f64x8)));
-        __m512d ra_y_f64x8 = _mm512_fmadd_pd(scaled_rotation_y_z_f64x8, pa_z_f64x8,
-                                             _mm512_fmadd_pd(scaled_rotation_y_y_f64x8, pa_y_f64x8,
-                                                             _mm512_mul_pd(scaled_rotation_y_x_f64x8, pa_x_f64x8)));
-        __m512d ra_z_f64x8 = _mm512_fmadd_pd(scaled_rotation_z_z_f64x8, pa_z_f64x8,
-                                             _mm512_fmadd_pd(scaled_rotation_z_y_f64x8, pa_y_f64x8,
-                                                             _mm512_mul_pd(scaled_rotation_z_x_f64x8, pa_x_f64x8)));
-
-        // Delta and accumulate
-        __m512d delta_x_f64x8 = _mm512_sub_pd(ra_x_f64x8, pb_x_f64x8);
-        __m512d delta_y_f64x8 = _mm512_sub_pd(ra_y_f64x8, pb_y_f64x8);
-        __m512d delta_z_f64x8 = _mm512_sub_pd(ra_z_f64x8, pb_z_f64x8);
-
-        nk_accumulate_square_f64x8_skylake_(&sum_squared_f64x8, &sum_squared_compensation_f64x8, delta_x_f64x8);
-        nk_accumulate_square_f64x8_skylake_(&sum_squared_f64x8, &sum_squared_compensation_f64x8, delta_y_f64x8);
-        nk_accumulate_square_f64x8_skylake_(&sum_squared_f64x8, &sum_squared_compensation_f64x8, delta_z_f64x8);
-    }
-
-    nk_f64_t sum_squared = nk_dot_stable_sum_f64x8_skylake_(sum_squared_f64x8, sum_squared_compensation_f64x8);
-    nk_f64_t sum_squared_compensation = 0.0;
-
-    // Scalar tail
-    for (; j < n; ++j) {
-        nk_f64_t pa_x = a[j * 3 + 0] - centroid_a_x, pa_y = a[j * 3 + 1] - centroid_a_y,
-                 pa_z = a[j * 3 + 2] - centroid_a_z;
-        nk_f64_t pb_x = b[j * 3 + 0] - centroid_b_x, pb_y = b[j * 3 + 1] - centroid_b_y,
-                 pb_z = b[j * 3 + 2] - centroid_b_z;
-
-        nk_f64_t ra_x = scale * (r[0] * pa_x + r[1] * pa_y + r[2] * pa_z),
-                 ra_y = scale * (r[3] * pa_x + r[4] * pa_y + r[5] * pa_z),
-                 ra_z = scale * (r[6] * pa_x + r[7] * pa_y + r[8] * pa_z);
-
-        nk_f64_t delta_x = ra_x - pb_x, delta_y = ra_y - pb_y, delta_z = ra_z - pb_z;
-        nk_accumulate_square_f64_(&sum_squared, &sum_squared_compensation, delta_x);
-        nk_accumulate_square_f64_(&sum_squared, &sum_squared_compensation, delta_y);
-        nk_accumulate_square_f64_(&sum_squared, &sum_squared_compensation, delta_z);
-    }
-
-    return sum_squared + sum_squared_compensation;
-}
-
-/*  Compute sum of squared distances for f16 data after applying rotation (and optional scale).
- *  Loads f16, converts to f32 for computation. Rotation matrix, scale, and centroids are f32.
- */
-NK_INTERNAL nk_f32_t nk_transformed_ssd_f16_skylake_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                     nk_f32_t const *r, nk_f32_t scale, nk_f32_t centroid_a_x,
-                                                     nk_f32_t centroid_a_y, nk_f32_t centroid_a_z,
-                                                     nk_f32_t centroid_b_x, nk_f32_t centroid_b_y,
-                                                     nk_f32_t centroid_b_z) {
-    __m512 scaled_rotation_x_x_f32x16 = _mm512_set1_ps(scale * r[0]);
-    __m512 scaled_rotation_x_y_f32x16 = _mm512_set1_ps(scale * r[1]);
-    __m512 scaled_rotation_x_z_f32x16 = _mm512_set1_ps(scale * r[2]);
-    __m512 scaled_rotation_y_x_f32x16 = _mm512_set1_ps(scale * r[3]);
-    __m512 scaled_rotation_y_y_f32x16 = _mm512_set1_ps(scale * r[4]);
-    __m512 scaled_rotation_y_z_f32x16 = _mm512_set1_ps(scale * r[5]);
-    __m512 scaled_rotation_z_x_f32x16 = _mm512_set1_ps(scale * r[6]);
-    __m512 scaled_rotation_z_y_f32x16 = _mm512_set1_ps(scale * r[7]);
-    __m512 scaled_rotation_z_z_f32x16 = _mm512_set1_ps(scale * r[8]);
-
-    __m512 centroid_a_x_f32x16 = _mm512_set1_ps(centroid_a_x);
-    __m512 centroid_a_y_f32x16 = _mm512_set1_ps(centroid_a_y);
-    __m512 centroid_a_z_f32x16 = _mm512_set1_ps(centroid_a_z);
-    __m512 centroid_b_x_f32x16 = _mm512_set1_ps(centroid_b_x);
-    __m512 centroid_b_y_f32x16 = _mm512_set1_ps(centroid_b_y);
-    __m512 centroid_b_z_f32x16 = _mm512_set1_ps(centroid_b_z);
-
-    __m512 sum_squared_f32x16 = _mm512_setzero_ps();
-    __m512 a_x_f32x16, a_y_f32x16, a_z_f32x16, b_x_f32x16, b_y_f32x16, b_z_f32x16;
-    nk_size_t j = 0;
-
-    for (; j + 16 <= n; j += 16) {
-        nk_deinterleave_f16x16_to_f32x16_skylake_(a + j * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_f16x16_to_f32x16_skylake_(b + j * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        __m512 pa_x_f32x16 = _mm512_sub_ps(a_x_f32x16, centroid_a_x_f32x16);
-        __m512 pa_y_f32x16 = _mm512_sub_ps(a_y_f32x16, centroid_a_y_f32x16);
-        __m512 pa_z_f32x16 = _mm512_sub_ps(a_z_f32x16, centroid_a_z_f32x16);
-        __m512 pb_x_f32x16 = _mm512_sub_ps(b_x_f32x16, centroid_b_x_f32x16);
-        __m512 pb_y_f32x16 = _mm512_sub_ps(b_y_f32x16, centroid_b_y_f32x16);
-        __m512 pb_z_f32x16 = _mm512_sub_ps(b_z_f32x16, centroid_b_z_f32x16);
-
-        __m512 ra_x_f32x16 = _mm512_fmadd_ps(scaled_rotation_x_z_f32x16, pa_z_f32x16,
-                                             _mm512_fmadd_ps(scaled_rotation_x_y_f32x16, pa_y_f32x16,
-                                                             _mm512_mul_ps(scaled_rotation_x_x_f32x16, pa_x_f32x16)));
-        __m512 ra_y_f32x16 = _mm512_fmadd_ps(scaled_rotation_y_z_f32x16, pa_z_f32x16,
-                                             _mm512_fmadd_ps(scaled_rotation_y_y_f32x16, pa_y_f32x16,
-                                                             _mm512_mul_ps(scaled_rotation_y_x_f32x16, pa_x_f32x16)));
-        __m512 ra_z_f32x16 = _mm512_fmadd_ps(scaled_rotation_z_z_f32x16, pa_z_f32x16,
-                                             _mm512_fmadd_ps(scaled_rotation_z_y_f32x16, pa_y_f32x16,
-                                                             _mm512_mul_ps(scaled_rotation_z_x_f32x16, pa_x_f32x16)));
-
-        __m512 delta_x_f32x16 = _mm512_sub_ps(ra_x_f32x16, pb_x_f32x16);
-        __m512 delta_y_f32x16 = _mm512_sub_ps(ra_y_f32x16, pb_y_f32x16);
-        __m512 delta_z_f32x16 = _mm512_sub_ps(ra_z_f32x16, pb_z_f32x16);
-
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_x_f32x16, delta_x_f32x16, sum_squared_f32x16);
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_y_f32x16, delta_y_f32x16, sum_squared_f32x16);
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_z_f32x16, delta_z_f32x16, sum_squared_f32x16);
-    }
-
-    // Tail: deinterleave remaining points into zero-initialized vectors
-    if (j < n) {
-        nk_size_t tail = n - j;
-        nk_deinterleave_f16_tail_to_f32x16_skylake_(a + j * 3, tail, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_f16_tail_to_f32x16_skylake_(b + j * 3, tail, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        __m512 pa_x_f32x16 = _mm512_sub_ps(a_x_f32x16, centroid_a_x_f32x16);
-        __m512 pa_y_f32x16 = _mm512_sub_ps(a_y_f32x16, centroid_a_y_f32x16);
-        __m512 pa_z_f32x16 = _mm512_sub_ps(a_z_f32x16, centroid_a_z_f32x16);
-        __m512 pb_x_f32x16 = _mm512_sub_ps(b_x_f32x16, centroid_b_x_f32x16);
-        __m512 pb_y_f32x16 = _mm512_sub_ps(b_y_f32x16, centroid_b_y_f32x16);
-        __m512 pb_z_f32x16 = _mm512_sub_ps(b_z_f32x16, centroid_b_z_f32x16);
-
-        __m512 ra_x_f32x16 = _mm512_fmadd_ps(scaled_rotation_x_z_f32x16, pa_z_f32x16,
-                                             _mm512_fmadd_ps(scaled_rotation_x_y_f32x16, pa_y_f32x16,
-                                                             _mm512_mul_ps(scaled_rotation_x_x_f32x16, pa_x_f32x16)));
-        __m512 ra_y_f32x16 = _mm512_fmadd_ps(scaled_rotation_y_z_f32x16, pa_z_f32x16,
-                                             _mm512_fmadd_ps(scaled_rotation_y_y_f32x16, pa_y_f32x16,
-                                                             _mm512_mul_ps(scaled_rotation_y_x_f32x16, pa_x_f32x16)));
-        __m512 ra_z_f32x16 = _mm512_fmadd_ps(scaled_rotation_z_z_f32x16, pa_z_f32x16,
-                                             _mm512_fmadd_ps(scaled_rotation_z_y_f32x16, pa_y_f32x16,
-                                                             _mm512_mul_ps(scaled_rotation_z_x_f32x16, pa_x_f32x16)));
-
-        __m512 delta_x_f32x16 = _mm512_sub_ps(ra_x_f32x16, pb_x_f32x16);
-        __m512 delta_y_f32x16 = _mm512_sub_ps(ra_y_f32x16, pb_y_f32x16);
-        __m512 delta_z_f32x16 = _mm512_sub_ps(ra_z_f32x16, pb_z_f32x16);
-
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_x_f32x16, delta_x_f32x16, sum_squared_f32x16);
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_y_f32x16, delta_y_f32x16, sum_squared_f32x16);
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_z_f32x16, delta_z_f32x16, sum_squared_f32x16);
-    }
-
-    return _mm512_reduce_add_ps(sum_squared_f32x16);
-}
-
-/*  Compute sum of squared distances for bf16 data after applying rotation (and optional scale).
- *  Loads bf16, converts to f32 for computation. Rotation matrix, scale, and centroids are f32.
- */
-NK_INTERNAL nk_f32_t nk_transformed_ssd_bf16_skylake_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                      nk_f32_t const *r, nk_f32_t scale, nk_f32_t centroid_a_x,
-                                                      nk_f32_t centroid_a_y, nk_f32_t centroid_a_z,
-                                                      nk_f32_t centroid_b_x, nk_f32_t centroid_b_y,
-                                                      nk_f32_t centroid_b_z) {
-    __m512 scaled_rotation_x_x_f32x16 = _mm512_set1_ps(scale * r[0]);
-    __m512 scaled_rotation_x_y_f32x16 = _mm512_set1_ps(scale * r[1]);
-    __m512 scaled_rotation_x_z_f32x16 = _mm512_set1_ps(scale * r[2]);
-    __m512 scaled_rotation_y_x_f32x16 = _mm512_set1_ps(scale * r[3]);
-    __m512 scaled_rotation_y_y_f32x16 = _mm512_set1_ps(scale * r[4]);
-    __m512 scaled_rotation_y_z_f32x16 = _mm512_set1_ps(scale * r[5]);
-    __m512 scaled_rotation_z_x_f32x16 = _mm512_set1_ps(scale * r[6]);
-    __m512 scaled_rotation_z_y_f32x16 = _mm512_set1_ps(scale * r[7]);
-    __m512 scaled_rotation_z_z_f32x16 = _mm512_set1_ps(scale * r[8]);
-
-    __m512 centroid_a_x_f32x16 = _mm512_set1_ps(centroid_a_x);
-    __m512 centroid_a_y_f32x16 = _mm512_set1_ps(centroid_a_y);
-    __m512 centroid_a_z_f32x16 = _mm512_set1_ps(centroid_a_z);
-    __m512 centroid_b_x_f32x16 = _mm512_set1_ps(centroid_b_x);
-    __m512 centroid_b_y_f32x16 = _mm512_set1_ps(centroid_b_y);
-    __m512 centroid_b_z_f32x16 = _mm512_set1_ps(centroid_b_z);
-
-    __m512 sum_squared_f32x16 = _mm512_setzero_ps();
-    __m512 a_x_f32x16, a_y_f32x16, a_z_f32x16, b_x_f32x16, b_y_f32x16, b_z_f32x16;
-    nk_size_t j = 0;
-
-    for (; j + 16 <= n; j += 16) {
-        nk_deinterleave_bf16x16_to_f32x16_skylake_(a + j * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_bf16x16_to_f32x16_skylake_(b + j * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        __m512 pa_x_f32x16 = _mm512_sub_ps(a_x_f32x16, centroid_a_x_f32x16);
-        __m512 pa_y_f32x16 = _mm512_sub_ps(a_y_f32x16, centroid_a_y_f32x16);
-        __m512 pa_z_f32x16 = _mm512_sub_ps(a_z_f32x16, centroid_a_z_f32x16);
-        __m512 pb_x_f32x16 = _mm512_sub_ps(b_x_f32x16, centroid_b_x_f32x16);
-        __m512 pb_y_f32x16 = _mm512_sub_ps(b_y_f32x16, centroid_b_y_f32x16);
-        __m512 pb_z_f32x16 = _mm512_sub_ps(b_z_f32x16, centroid_b_z_f32x16);
-
-        __m512 ra_x_f32x16 = _mm512_fmadd_ps(scaled_rotation_x_z_f32x16, pa_z_f32x16,
-                                             _mm512_fmadd_ps(scaled_rotation_x_y_f32x16, pa_y_f32x16,
-                                                             _mm512_mul_ps(scaled_rotation_x_x_f32x16, pa_x_f32x16)));
-        __m512 ra_y_f32x16 = _mm512_fmadd_ps(scaled_rotation_y_z_f32x16, pa_z_f32x16,
-                                             _mm512_fmadd_ps(scaled_rotation_y_y_f32x16, pa_y_f32x16,
-                                                             _mm512_mul_ps(scaled_rotation_y_x_f32x16, pa_x_f32x16)));
-        __m512 ra_z_f32x16 = _mm512_fmadd_ps(scaled_rotation_z_z_f32x16, pa_z_f32x16,
-                                             _mm512_fmadd_ps(scaled_rotation_z_y_f32x16, pa_y_f32x16,
-                                                             _mm512_mul_ps(scaled_rotation_z_x_f32x16, pa_x_f32x16)));
-
-        __m512 delta_x_f32x16 = _mm512_sub_ps(ra_x_f32x16, pb_x_f32x16);
-        __m512 delta_y_f32x16 = _mm512_sub_ps(ra_y_f32x16, pb_y_f32x16);
-        __m512 delta_z_f32x16 = _mm512_sub_ps(ra_z_f32x16, pb_z_f32x16);
-
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_x_f32x16, delta_x_f32x16, sum_squared_f32x16);
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_y_f32x16, delta_y_f32x16, sum_squared_f32x16);
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_z_f32x16, delta_z_f32x16, sum_squared_f32x16);
-    }
-
-    // Tail: deinterleave remaining points into zero-initialized vectors
-    if (j < n) {
-        nk_size_t tail = n - j;
-        nk_deinterleave_bf16_tail_to_f32x16_skylake_(a + j * 3, tail, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_bf16_tail_to_f32x16_skylake_(b + j * 3, tail, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        __m512 pa_x_f32x16 = _mm512_sub_ps(a_x_f32x16, centroid_a_x_f32x16);
-        __m512 pa_y_f32x16 = _mm512_sub_ps(a_y_f32x16, centroid_a_y_f32x16);
-        __m512 pa_z_f32x16 = _mm512_sub_ps(a_z_f32x16, centroid_a_z_f32x16);
-        __m512 pb_x_f32x16 = _mm512_sub_ps(b_x_f32x16, centroid_b_x_f32x16);
-        __m512 pb_y_f32x16 = _mm512_sub_ps(b_y_f32x16, centroid_b_y_f32x16);
-        __m512 pb_z_f32x16 = _mm512_sub_ps(b_z_f32x16, centroid_b_z_f32x16);
-
-        __m512 ra_x_f32x16 = _mm512_fmadd_ps(scaled_rotation_x_z_f32x16, pa_z_f32x16,
-                                             _mm512_fmadd_ps(scaled_rotation_x_y_f32x16, pa_y_f32x16,
-                                                             _mm512_mul_ps(scaled_rotation_x_x_f32x16, pa_x_f32x16)));
-        __m512 ra_y_f32x16 = _mm512_fmadd_ps(scaled_rotation_y_z_f32x16, pa_z_f32x16,
-                                             _mm512_fmadd_ps(scaled_rotation_y_y_f32x16, pa_y_f32x16,
-                                                             _mm512_mul_ps(scaled_rotation_y_x_f32x16, pa_x_f32x16)));
-        __m512 ra_z_f32x16 = _mm512_fmadd_ps(scaled_rotation_z_z_f32x16, pa_z_f32x16,
-                                             _mm512_fmadd_ps(scaled_rotation_z_y_f32x16, pa_y_f32x16,
-                                                             _mm512_mul_ps(scaled_rotation_z_x_f32x16, pa_x_f32x16)));
-
-        __m512 delta_x_f32x16 = _mm512_sub_ps(ra_x_f32x16, pb_x_f32x16);
-        __m512 delta_y_f32x16 = _mm512_sub_ps(ra_y_f32x16, pb_y_f32x16);
-        __m512 delta_z_f32x16 = _mm512_sub_ps(ra_z_f32x16, pb_z_f32x16);
-
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_x_f32x16, delta_x_f32x16, sum_squared_f32x16);
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_y_f32x16, delta_y_f32x16, sum_squared_f32x16);
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_z_f32x16, delta_z_f32x16, sum_squared_f32x16);
-    }
-
-    return _mm512_reduce_add_ps(sum_squared_f32x16);
+    // Norms collapse all three channels, no demux.
+    *norm_squared_a_out = _mm512_reduce_add_pd(_mm512_add_pd(norm_squared_a_low_f64x8, norm_squared_a_high_f64x8));
+    *norm_squared_b_out = _mm512_reduce_add_pd(_mm512_add_pd(norm_squared_b_low_f64x8, norm_squared_b_high_f64x8));
 }
 
 NK_PUBLIC void nk_rmsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
@@ -647,277 +433,55 @@ NK_PUBLIC void nk_rmsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
-    __m512d const zeros_f64x8 = _mm512_setzero_pd();
-    __m512d sum_squared_x_f64x8 = zeros_f64x8, sum_squared_y_f64x8 = zeros_f64x8, sum_squared_z_f64x8 = zeros_f64x8;
-    __m512 a_x_f32x16, a_y_f32x16, a_z_f32x16, b_x_f32x16, b_y_f32x16, b_z_f32x16;
-    nk_size_t i = 0;
+    // 15-lane stride-3 chunks: 5 points (15 fp32) per iteration, lane 15 zeroed by mask.
+    // Identity rotation + zero centroid (per commit 1a83ab4f) make this a single (a-b)^2 sum.
+    __m512d sum_squared_low_f64x8 = _mm512_setzero_pd();
+    __m512d sum_squared_high_f64x8 = _mm512_setzero_pd();
+    nk_size_t index = 0;
 
-    // Main loop with 2x unrolling (32 points per iteration)
-    for (; i + 32 <= n; i += 32) {
-        // Iteration 0: points i..i+15
-        nk_deinterleave_f32x16_skylake_(a + i * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_f32x16_skylake_(b + i * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-        __m512d a_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_x_f32x16));
-        __m512d a_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_x_f32x16, 1));
-        __m512d a_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_y_f32x16));
-        __m512d a_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_y_f32x16, 1));
-        __m512d a_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_z_f32x16));
-        __m512d a_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_z_f32x16, 1));
-        __m512d b_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_x_f32x16));
-        __m512d b_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_x_f32x16, 1));
-        __m512d b_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_y_f32x16));
-        __m512d b_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_y_f32x16, 1));
-        __m512d b_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_z_f32x16));
-        __m512d b_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_z_f32x16, 1));
-
-        __m512d delta_x_low_f64x8 = _mm512_sub_pd(a_x_low_f64x8, b_x_low_f64x8);
-        __m512d delta_x_high_f64x8 = _mm512_sub_pd(a_x_high_f64x8, b_x_high_f64x8);
-        __m512d delta_y_low_f64x8 = _mm512_sub_pd(a_y_low_f64x8, b_y_low_f64x8);
-        __m512d delta_y_high_f64x8 = _mm512_sub_pd(a_y_high_f64x8, b_y_high_f64x8);
-        __m512d delta_z_low_f64x8 = _mm512_sub_pd(a_z_low_f64x8, b_z_low_f64x8);
-        __m512d delta_z_high_f64x8 = _mm512_sub_pd(a_z_high_f64x8, b_z_high_f64x8);
-        sum_squared_x_f64x8 = _mm512_fmadd_pd(delta_x_low_f64x8, delta_x_low_f64x8, sum_squared_x_f64x8);
-        sum_squared_x_f64x8 = _mm512_fmadd_pd(delta_x_high_f64x8, delta_x_high_f64x8, sum_squared_x_f64x8);
-        sum_squared_y_f64x8 = _mm512_fmadd_pd(delta_y_low_f64x8, delta_y_low_f64x8, sum_squared_y_f64x8);
-        sum_squared_y_f64x8 = _mm512_fmadd_pd(delta_y_high_f64x8, delta_y_high_f64x8, sum_squared_y_f64x8);
-        sum_squared_z_f64x8 = _mm512_fmadd_pd(delta_z_low_f64x8, delta_z_low_f64x8, sum_squared_z_f64x8);
-        sum_squared_z_f64x8 = _mm512_fmadd_pd(delta_z_high_f64x8, delta_z_high_f64x8, sum_squared_z_f64x8);
-
-        // Iteration 1: points i+16..i+31
-        nk_deinterleave_f32x16_skylake_(a + (i + 16) * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_f32x16_skylake_(b + (i + 16) * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-        a_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_x_f32x16));
-        a_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_x_f32x16, 1));
-        a_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_y_f32x16));
-        a_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_y_f32x16, 1));
-        a_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_z_f32x16));
-        a_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_z_f32x16, 1));
-        b_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_x_f32x16));
-        b_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_x_f32x16, 1));
-        b_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_y_f32x16));
-        b_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_y_f32x16, 1));
-        b_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_z_f32x16));
-        b_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_z_f32x16, 1));
-
-        delta_x_low_f64x8 = _mm512_sub_pd(a_x_low_f64x8, b_x_low_f64x8);
-        delta_x_high_f64x8 = _mm512_sub_pd(a_x_high_f64x8, b_x_high_f64x8);
-        delta_y_low_f64x8 = _mm512_sub_pd(a_y_low_f64x8, b_y_low_f64x8);
-        delta_y_high_f64x8 = _mm512_sub_pd(a_y_high_f64x8, b_y_high_f64x8);
-        delta_z_low_f64x8 = _mm512_sub_pd(a_z_low_f64x8, b_z_low_f64x8);
-        delta_z_high_f64x8 = _mm512_sub_pd(a_z_high_f64x8, b_z_high_f64x8);
-        sum_squared_x_f64x8 = _mm512_fmadd_pd(delta_x_low_f64x8, delta_x_low_f64x8, sum_squared_x_f64x8);
-        sum_squared_x_f64x8 = _mm512_fmadd_pd(delta_x_high_f64x8, delta_x_high_f64x8, sum_squared_x_f64x8);
-        sum_squared_y_f64x8 = _mm512_fmadd_pd(delta_y_low_f64x8, delta_y_low_f64x8, sum_squared_y_f64x8);
-        sum_squared_y_f64x8 = _mm512_fmadd_pd(delta_y_high_f64x8, delta_y_high_f64x8, sum_squared_y_f64x8);
-        sum_squared_z_f64x8 = _mm512_fmadd_pd(delta_z_low_f64x8, delta_z_low_f64x8, sum_squared_z_f64x8);
-        sum_squared_z_f64x8 = _mm512_fmadd_pd(delta_z_high_f64x8, delta_z_high_f64x8, sum_squared_z_f64x8);
+    for (; index + 5 <= n; index += 5) {
+        __m512 a_f32x16 = _mm512_maskz_loadu_ps(0x7FFF, a + index * 3);
+        __m512 b_f32x16 = _mm512_maskz_loadu_ps(0x7FFF, b + index * 3);
+        // Widen before subtracting: fp32 subtraction catastrophically cancels when a ~ b.
+        __m512d a_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_f32x16));
+        __m512d a_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_f32x16, 1));
+        __m512d b_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_f32x16));
+        __m512d b_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_f32x16, 1));
+        __m512d delta_low_f64x8 = _mm512_sub_pd(a_low_f64x8, b_low_f64x8);
+        __m512d delta_high_f64x8 = _mm512_sub_pd(a_high_f64x8, b_high_f64x8);
+        sum_squared_low_f64x8 = _mm512_fmadd_pd(delta_low_f64x8, delta_low_f64x8, sum_squared_low_f64x8);
+        sum_squared_high_f64x8 = _mm512_fmadd_pd(delta_high_f64x8, delta_high_f64x8, sum_squared_high_f64x8);
     }
 
-    // Handle 16-point remainder
-    for (; i + 16 <= n; i += 16) {
-        nk_deinterleave_f32x16_skylake_(a + i * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_f32x16_skylake_(b + i * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-        __m512d a_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_x_f32x16));
-        __m512d a_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_x_f32x16, 1));
-        __m512d a_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_y_f32x16));
-        __m512d a_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_y_f32x16, 1));
-        __m512d a_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_z_f32x16));
-        __m512d a_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_z_f32x16, 1));
-        __m512d b_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_x_f32x16));
-        __m512d b_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_x_f32x16, 1));
-        __m512d b_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_y_f32x16));
-        __m512d b_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_y_f32x16, 1));
-        __m512d b_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_z_f32x16));
-        __m512d b_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_z_f32x16, 1));
-
-        __m512d delta_x_low_f64x8 = _mm512_sub_pd(a_x_low_f64x8, b_x_low_f64x8);
-        __m512d delta_x_high_f64x8 = _mm512_sub_pd(a_x_high_f64x8, b_x_high_f64x8);
-        __m512d delta_y_low_f64x8 = _mm512_sub_pd(a_y_low_f64x8, b_y_low_f64x8);
-        __m512d delta_y_high_f64x8 = _mm512_sub_pd(a_y_high_f64x8, b_y_high_f64x8);
-        __m512d delta_z_low_f64x8 = _mm512_sub_pd(a_z_low_f64x8, b_z_low_f64x8);
-        __m512d delta_z_high_f64x8 = _mm512_sub_pd(a_z_high_f64x8, b_z_high_f64x8);
-        sum_squared_x_f64x8 = _mm512_fmadd_pd(delta_x_low_f64x8, delta_x_low_f64x8, sum_squared_x_f64x8);
-        sum_squared_x_f64x8 = _mm512_fmadd_pd(delta_x_high_f64x8, delta_x_high_f64x8, sum_squared_x_f64x8);
-        sum_squared_y_f64x8 = _mm512_fmadd_pd(delta_y_low_f64x8, delta_y_low_f64x8, sum_squared_y_f64x8);
-        sum_squared_y_f64x8 = _mm512_fmadd_pd(delta_y_high_f64x8, delta_y_high_f64x8, sum_squared_y_f64x8);
-        sum_squared_z_f64x8 = _mm512_fmadd_pd(delta_z_low_f64x8, delta_z_low_f64x8, sum_squared_z_f64x8);
-        sum_squared_z_f64x8 = _mm512_fmadd_pd(delta_z_high_f64x8, delta_z_high_f64x8, sum_squared_z_f64x8);
+    if (index < n) {
+        nk_size_t tail_floats = (n - index) * 3;
+        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, tail_floats);
+        __m512 a_f32x16 = _mm512_maskz_loadu_ps(tail_mask, a + index * 3);
+        __m512 b_f32x16 = _mm512_maskz_loadu_ps(tail_mask, b + index * 3);
+        __m512d a_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_f32x16));
+        __m512d a_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_f32x16, 1));
+        __m512d b_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_f32x16));
+        __m512d b_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_f32x16, 1));
+        __m512d delta_low_f64x8 = _mm512_sub_pd(a_low_f64x8, b_low_f64x8);
+        __m512d delta_high_f64x8 = _mm512_sub_pd(a_high_f64x8, b_high_f64x8);
+        sum_squared_low_f64x8 = _mm512_fmadd_pd(delta_low_f64x8, delta_low_f64x8, sum_squared_low_f64x8);
+        sum_squared_high_f64x8 = _mm512_fmadd_pd(delta_high_f64x8, delta_high_f64x8, sum_squared_high_f64x8);
     }
 
-    // Tail: use masked gather for remaining < 16 points
-    if (i < n) {
-        nk_size_t tail = n - i;
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, tail);
-        __m512i const gather_idx_i32x16 = _mm512_setr_epi32(0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45);
-        __m512 zeros_f32x16 = _mm512_setzero_ps();
-        nk_f32_t const *a_tail = a + i * 3;
-        nk_f32_t const *b_tail = b + i * 3;
-
-        a_x_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, a_tail + 0, 4);
-        a_y_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, a_tail + 1, 4);
-        a_z_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, a_tail + 2, 4);
-        b_x_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, b_tail + 0, 4);
-        b_y_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, b_tail + 1, 4);
-        b_z_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, b_tail + 2, 4);
-
-        __m512d a_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_x_f32x16));
-        __m512d a_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_x_f32x16, 1));
-        __m512d a_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_y_f32x16));
-        __m512d a_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_y_f32x16, 1));
-        __m512d a_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_z_f32x16));
-        __m512d a_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_z_f32x16, 1));
-        __m512d b_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_x_f32x16));
-        __m512d b_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_x_f32x16, 1));
-        __m512d b_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_y_f32x16));
-        __m512d b_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_y_f32x16, 1));
-        __m512d b_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_z_f32x16));
-        __m512d b_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_z_f32x16, 1));
-
-        __m512d delta_x_low_f64x8 = _mm512_sub_pd(a_x_low_f64x8, b_x_low_f64x8);
-        __m512d delta_x_high_f64x8 = _mm512_sub_pd(a_x_high_f64x8, b_x_high_f64x8);
-        __m512d delta_y_low_f64x8 = _mm512_sub_pd(a_y_low_f64x8, b_y_low_f64x8);
-        __m512d delta_y_high_f64x8 = _mm512_sub_pd(a_y_high_f64x8, b_y_high_f64x8);
-        __m512d delta_z_low_f64x8 = _mm512_sub_pd(a_z_low_f64x8, b_z_low_f64x8);
-        __m512d delta_z_high_f64x8 = _mm512_sub_pd(a_z_high_f64x8, b_z_high_f64x8);
-        sum_squared_x_f64x8 = _mm512_fmadd_pd(delta_x_low_f64x8, delta_x_low_f64x8, sum_squared_x_f64x8);
-        sum_squared_x_f64x8 = _mm512_fmadd_pd(delta_x_high_f64x8, delta_x_high_f64x8, sum_squared_x_f64x8);
-        sum_squared_y_f64x8 = _mm512_fmadd_pd(delta_y_low_f64x8, delta_y_low_f64x8, sum_squared_y_f64x8);
-        sum_squared_y_f64x8 = _mm512_fmadd_pd(delta_y_high_f64x8, delta_y_high_f64x8, sum_squared_y_f64x8);
-        sum_squared_z_f64x8 = _mm512_fmadd_pd(delta_z_low_f64x8, delta_z_low_f64x8, sum_squared_z_f64x8);
-        sum_squared_z_f64x8 = _mm512_fmadd_pd(delta_z_high_f64x8, delta_z_high_f64x8, sum_squared_z_f64x8);
-    }
-
-    nk_f64_t total_sq_x = _mm512_reduce_add_pd(sum_squared_x_f64x8);
-    nk_f64_t total_sq_y = _mm512_reduce_add_pd(sum_squared_y_f64x8);
-    nk_f64_t total_sq_z = _mm512_reduce_add_pd(sum_squared_z_f64x8);
-    *result = nk_f64_sqrt_haswell((total_sq_x + total_sq_y + total_sq_z) / (nk_f64_t)n);
+    nk_f64_t sum_squared = _mm512_reduce_add_pd(_mm512_add_pd(sum_squared_low_f64x8, sum_squared_high_f64x8));
+    *result = nk_f64_sqrt_haswell(sum_squared / (nk_f64_t)n);
 }
 
 NK_PUBLIC void nk_kabsch_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
-    // Fused single-pass: centroids + covariance in f64
-    __m512d const zeros_f64x8 = _mm512_setzero_pd();
-    __m512d sum_a_x_f64x8 = zeros_f64x8, sum_a_y_f64x8 = zeros_f64x8, sum_a_z_f64x8 = zeros_f64x8;
-    __m512d sum_b_x_f64x8 = zeros_f64x8, sum_b_y_f64x8 = zeros_f64x8, sum_b_z_f64x8 = zeros_f64x8;
-    __m512d cov_xx_f64x8 = zeros_f64x8, cov_xy_f64x8 = zeros_f64x8, cov_xz_f64x8 = zeros_f64x8;
-    __m512d cov_yx_f64x8 = zeros_f64x8, cov_yy_f64x8 = zeros_f64x8, cov_yz_f64x8 = zeros_f64x8;
-    __m512d cov_zx_f64x8 = zeros_f64x8, cov_zy_f64x8 = zeros_f64x8, cov_zz_f64x8 = zeros_f64x8;
-    __m512 a_x_f32x16, a_y_f32x16, a_z_f32x16, b_x_f32x16, b_y_f32x16, b_z_f32x16;
-    nk_size_t i = 0;
+    // Single pass over (a, b) via streaming-stats helper — no deinterleave, no second SSD pass.
+    nk_f64_t sum_a[3], sum_b[3], raw_covariance[9], norm_squared_a, norm_squared_b;
+    nk_mesh_streaming_stats_f32_skylake_(a, b, n, sum_a, sum_b, raw_covariance, &norm_squared_a, &norm_squared_b);
 
-    for (; i + 16 <= n; i += 16) {
-        nk_deinterleave_f32x16_skylake_(a + i * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_f32x16_skylake_(b + i * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-        __m512d a_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_x_f32x16));
-        __m512d a_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_x_f32x16, 1));
-        __m512d a_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_y_f32x16));
-        __m512d a_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_y_f32x16, 1));
-        __m512d a_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_z_f32x16));
-        __m512d a_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_z_f32x16, 1));
-        __m512d b_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_x_f32x16));
-        __m512d b_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_x_f32x16, 1));
-        __m512d b_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_y_f32x16));
-        __m512d b_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_y_f32x16, 1));
-        __m512d b_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_z_f32x16));
-        __m512d b_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_z_f32x16, 1));
-
-        sum_a_x_f64x8 = _mm512_add_pd(sum_a_x_f64x8, _mm512_add_pd(a_x_low_f64x8, a_x_high_f64x8));
-        sum_a_y_f64x8 = _mm512_add_pd(sum_a_y_f64x8, _mm512_add_pd(a_y_low_f64x8, a_y_high_f64x8));
-        sum_a_z_f64x8 = _mm512_add_pd(sum_a_z_f64x8, _mm512_add_pd(a_z_low_f64x8, a_z_high_f64x8));
-        sum_b_x_f64x8 = _mm512_add_pd(sum_b_x_f64x8, _mm512_add_pd(b_x_low_f64x8, b_x_high_f64x8));
-        sum_b_y_f64x8 = _mm512_add_pd(sum_b_y_f64x8, _mm512_add_pd(b_y_low_f64x8, b_y_high_f64x8));
-        sum_b_z_f64x8 = _mm512_add_pd(sum_b_z_f64x8, _mm512_add_pd(b_z_low_f64x8, b_z_high_f64x8));
-
-        cov_xx_f64x8 = _mm512_add_pd(cov_xx_f64x8, _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, b_x_low_f64x8),
-                                                                 _mm512_mul_pd(a_x_high_f64x8, b_x_high_f64x8)));
-        cov_xy_f64x8 = _mm512_add_pd(cov_xy_f64x8, _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, b_y_low_f64x8),
-                                                                 _mm512_mul_pd(a_x_high_f64x8, b_y_high_f64x8)));
-        cov_xz_f64x8 = _mm512_add_pd(cov_xz_f64x8, _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, b_z_low_f64x8),
-                                                                 _mm512_mul_pd(a_x_high_f64x8, b_z_high_f64x8)));
-        cov_yx_f64x8 = _mm512_add_pd(cov_yx_f64x8, _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, b_x_low_f64x8),
-                                                                 _mm512_mul_pd(a_y_high_f64x8, b_x_high_f64x8)));
-        cov_yy_f64x8 = _mm512_add_pd(cov_yy_f64x8, _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, b_y_low_f64x8),
-                                                                 _mm512_mul_pd(a_y_high_f64x8, b_y_high_f64x8)));
-        cov_yz_f64x8 = _mm512_add_pd(cov_yz_f64x8, _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, b_z_low_f64x8),
-                                                                 _mm512_mul_pd(a_y_high_f64x8, b_z_high_f64x8)));
-        cov_zx_f64x8 = _mm512_add_pd(cov_zx_f64x8, _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, b_x_low_f64x8),
-                                                                 _mm512_mul_pd(a_z_high_f64x8, b_x_high_f64x8)));
-        cov_zy_f64x8 = _mm512_add_pd(cov_zy_f64x8, _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, b_y_low_f64x8),
-                                                                 _mm512_mul_pd(a_z_high_f64x8, b_y_high_f64x8)));
-        cov_zz_f64x8 = _mm512_add_pd(cov_zz_f64x8, _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, b_z_low_f64x8),
-                                                                 _mm512_mul_pd(a_z_high_f64x8, b_z_high_f64x8)));
-    }
-
-    // Tail: use masked gather for remaining < 16 points
-    if (i < n) {
-        nk_size_t tail = n - i;
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, tail);
-        __m512i const gather_idx_i32x16 = _mm512_setr_epi32(0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45);
-        __m512 zeros_f32x16 = _mm512_setzero_ps();
-        nk_f32_t const *a_tail = a + i * 3;
-        nk_f32_t const *b_tail = b + i * 3;
-
-        a_x_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, a_tail + 0, 4);
-        a_y_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, a_tail + 1, 4);
-        a_z_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, a_tail + 2, 4);
-        b_x_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, b_tail + 0, 4);
-        b_y_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, b_tail + 1, 4);
-        b_z_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, b_tail + 2, 4);
-
-        __m512d a_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_x_f32x16));
-        __m512d a_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_x_f32x16, 1));
-        __m512d a_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_y_f32x16));
-        __m512d a_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_y_f32x16, 1));
-        __m512d a_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_z_f32x16));
-        __m512d a_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_z_f32x16, 1));
-        __m512d b_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_x_f32x16));
-        __m512d b_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_x_f32x16, 1));
-        __m512d b_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_y_f32x16));
-        __m512d b_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_y_f32x16, 1));
-        __m512d b_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_z_f32x16));
-        __m512d b_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_z_f32x16, 1));
-
-        sum_a_x_f64x8 = _mm512_add_pd(sum_a_x_f64x8, _mm512_add_pd(a_x_low_f64x8, a_x_high_f64x8));
-        sum_a_y_f64x8 = _mm512_add_pd(sum_a_y_f64x8, _mm512_add_pd(a_y_low_f64x8, a_y_high_f64x8));
-        sum_a_z_f64x8 = _mm512_add_pd(sum_a_z_f64x8, _mm512_add_pd(a_z_low_f64x8, a_z_high_f64x8));
-        sum_b_x_f64x8 = _mm512_add_pd(sum_b_x_f64x8, _mm512_add_pd(b_x_low_f64x8, b_x_high_f64x8));
-        sum_b_y_f64x8 = _mm512_add_pd(sum_b_y_f64x8, _mm512_add_pd(b_y_low_f64x8, b_y_high_f64x8));
-        sum_b_z_f64x8 = _mm512_add_pd(sum_b_z_f64x8, _mm512_add_pd(b_z_low_f64x8, b_z_high_f64x8));
-
-        cov_xx_f64x8 = _mm512_add_pd(cov_xx_f64x8, _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, b_x_low_f64x8),
-                                                                 _mm512_mul_pd(a_x_high_f64x8, b_x_high_f64x8)));
-        cov_xy_f64x8 = _mm512_add_pd(cov_xy_f64x8, _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, b_y_low_f64x8),
-                                                                 _mm512_mul_pd(a_x_high_f64x8, b_y_high_f64x8)));
-        cov_xz_f64x8 = _mm512_add_pd(cov_xz_f64x8, _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, b_z_low_f64x8),
-                                                                 _mm512_mul_pd(a_x_high_f64x8, b_z_high_f64x8)));
-        cov_yx_f64x8 = _mm512_add_pd(cov_yx_f64x8, _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, b_x_low_f64x8),
-                                                                 _mm512_mul_pd(a_y_high_f64x8, b_x_high_f64x8)));
-        cov_yy_f64x8 = _mm512_add_pd(cov_yy_f64x8, _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, b_y_low_f64x8),
-                                                                 _mm512_mul_pd(a_y_high_f64x8, b_y_high_f64x8)));
-        cov_yz_f64x8 = _mm512_add_pd(cov_yz_f64x8, _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, b_z_low_f64x8),
-                                                                 _mm512_mul_pd(a_y_high_f64x8, b_z_high_f64x8)));
-        cov_zx_f64x8 = _mm512_add_pd(cov_zx_f64x8, _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, b_x_low_f64x8),
-                                                                 _mm512_mul_pd(a_z_high_f64x8, b_x_high_f64x8)));
-        cov_zy_f64x8 = _mm512_add_pd(cov_zy_f64x8, _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, b_y_low_f64x8),
-                                                                 _mm512_mul_pd(a_z_high_f64x8, b_y_high_f64x8)));
-        cov_zz_f64x8 = _mm512_add_pd(cov_zz_f64x8, _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, b_z_low_f64x8),
-                                                                 _mm512_mul_pd(a_z_high_f64x8, b_z_high_f64x8)));
-    }
-
-    nk_f64_t sum_a_x = _mm512_reduce_add_pd(sum_a_x_f64x8), sum_a_y = _mm512_reduce_add_pd(sum_a_y_f64x8),
-             sum_a_z = _mm512_reduce_add_pd(sum_a_z_f64x8);
-    nk_f64_t sum_b_x = _mm512_reduce_add_pd(sum_b_x_f64x8), sum_b_y = _mm512_reduce_add_pd(sum_b_y_f64x8),
-             sum_b_z = _mm512_reduce_add_pd(sum_b_z_f64x8);
-    nk_f64_t covariance_x_x = _mm512_reduce_add_pd(cov_xx_f64x8), covariance_x_y = _mm512_reduce_add_pd(cov_xy_f64x8),
-             covariance_x_z = _mm512_reduce_add_pd(cov_xz_f64x8);
-    nk_f64_t covariance_y_x = _mm512_reduce_add_pd(cov_yx_f64x8), covariance_y_y = _mm512_reduce_add_pd(cov_yy_f64x8),
-             covariance_y_z = _mm512_reduce_add_pd(cov_yz_f64x8);
-    nk_f64_t covariance_z_x = _mm512_reduce_add_pd(cov_zx_f64x8), covariance_z_y = _mm512_reduce_add_pd(cov_zy_f64x8),
-             covariance_z_z = _mm512_reduce_add_pd(cov_zz_f64x8);
-
-    nk_f64_t inv_n = 1.0 / (nk_f64_t)n;
-    nk_f64_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;
-    nk_f64_t centroid_b_x = sum_b_x * inv_n, centroid_b_y = sum_b_y * inv_n, centroid_b_z = sum_b_z * inv_n;
+    nk_f64_t n_f64 = (nk_f64_t)n;
+    nk_f64_t inv_n = 1.0 / n_f64;
+    nk_f64_t centroid_a_x = sum_a[0] * inv_n, centroid_a_y = sum_a[1] * inv_n, centroid_a_z = sum_a[2] * inv_n;
+    nk_f64_t centroid_b_x = sum_b[0] * inv_n, centroid_b_y = sum_b[1] * inv_n, centroid_b_z = sum_b[2] * inv_n;
     if (a_centroid)
         a_centroid[0] = (nk_f32_t)centroid_a_x, a_centroid[1] = (nk_f32_t)centroid_a_y,
         a_centroid[2] = (nk_f32_t)centroid_a_z;
@@ -926,32 +490,69 @@ NK_PUBLIC void nk_kabsch_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_si
         b_centroid[2] = (nk_f32_t)centroid_b_z;
     if (scale) *scale = 1.0f;
 
-    nk_f64_t n_f64 = (nk_f64_t)n;
+    // Parallel-axis correction: H_centered[j,k] = Sum(a_j * b_k) - n * centroid_a[j] * centroid_b[k].
     nk_f64_t cross_covariance[9];
-    cross_covariance[0] = covariance_x_x - n_f64 * centroid_a_x * centroid_b_x;
-    cross_covariance[1] = covariance_x_y - n_f64 * centroid_a_x * centroid_b_y;
-    cross_covariance[2] = covariance_x_z - n_f64 * centroid_a_x * centroid_b_z;
-    cross_covariance[3] = covariance_y_x - n_f64 * centroid_a_y * centroid_b_x;
-    cross_covariance[4] = covariance_y_y - n_f64 * centroid_a_y * centroid_b_y;
-    cross_covariance[5] = covariance_y_z - n_f64 * centroid_a_y * centroid_b_z;
-    cross_covariance[6] = covariance_z_x - n_f64 * centroid_a_z * centroid_b_x;
-    cross_covariance[7] = covariance_z_y - n_f64 * centroid_a_z * centroid_b_y;
-    cross_covariance[8] = covariance_z_z - n_f64 * centroid_a_z * centroid_b_z;
+    cross_covariance[0] = raw_covariance[0] - n_f64 * centroid_a_x * centroid_b_x;
+    cross_covariance[1] = raw_covariance[1] - n_f64 * centroid_a_x * centroid_b_y;
+    cross_covariance[2] = raw_covariance[2] - n_f64 * centroid_a_x * centroid_b_z;
+    cross_covariance[3] = raw_covariance[3] - n_f64 * centroid_a_y * centroid_b_x;
+    cross_covariance[4] = raw_covariance[4] - n_f64 * centroid_a_y * centroid_b_y;
+    cross_covariance[5] = raw_covariance[5] - n_f64 * centroid_a_y * centroid_b_z;
+    cross_covariance[6] = raw_covariance[6] - n_f64 * centroid_a_z * centroid_b_x;
+    cross_covariance[7] = raw_covariance[7] - n_f64 * centroid_a_z * centroid_b_y;
+    cross_covariance[8] = raw_covariance[8] - n_f64 * centroid_a_z * centroid_b_z;
 
-    nk_f64_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f64_(cross_covariance, svd_u, svd_s, svd_v);
-    nk_f64_t r[9];
-    nk_rotation_from_svd_f64_skylake_(svd_u, svd_v, r);
-    if (nk_det3x3_f64_(r) < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        nk_rotation_from_svd_f64_skylake_(svd_u, svd_v, r);
+    // Identity-dominant short-circuit: skip SVD + rotation_from_svd when H is near-diagonal
+    // positive-definite. `r` is set to identity and trace(R * H) collapses to H[0]+H[4]+H[8].
+    // Saves ~500 cycles on aligned/pre-registered inputs; zero cost when inputs are random
+    //  (branch is well-predicted in practice).
+    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f64_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f64_t optimal_rotation[9];
+    nk_f64_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
+        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
+        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
+        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
+        optimal_rotation[8] = 1;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+    }
+    else {
+        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        if (nk_det3x3_f64_(optimal_rotation) < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        }
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
     }
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)r[j];
-    *result = nk_f64_sqrt_haswell(nk_transformed_ssd_f32_skylake_(a, b, n, r, 1.0, centroid_a_x, centroid_a_y,
-                                                                  centroid_a_z, centroid_b_x, centroid_b_y,
-                                                                  centroid_b_z) /
-                                  n_f64);
+        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
+
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    nk_f64_t centered_norm_squared_a = norm_squared_a -
+                                       n_f64 * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                centroid_a_z * centroid_a_z);
+    nk_f64_t centered_norm_squared_b = norm_squared_b -
+                                       n_f64 * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0) centered_norm_squared_a = 0.0;
+    if (centered_norm_squared_b < 0.0) centered_norm_squared_b = 0.0;
+
+    nk_f64_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0 * trace_rotation_covariance;
+    if (sum_squared < 0.0) sum_squared = 0.0;
+    *result = nk_f64_sqrt_haswell(sum_squared / n_f64);
 }
 
 NK_PUBLIC void nk_rmsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
@@ -1064,14 +665,15 @@ NK_PUBLIC void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_si
     __m512d sum_b_x_f64x8 = zeros_f64x8, sum_b_y_f64x8 = zeros_f64x8, sum_b_z_f64x8 = zeros_f64x8;
 
     // Accumulators for covariance matrix (sum of outer products)
-    __m512d cov_xx_f64x8 = zeros_f64x8, cov_xy_f64x8 = zeros_f64x8, cov_xz_f64x8 = zeros_f64x8;
-    __m512d cov_yx_f64x8 = zeros_f64x8, cov_yy_f64x8 = zeros_f64x8, cov_yz_f64x8 = zeros_f64x8;
-    __m512d cov_zx_f64x8 = zeros_f64x8, cov_zy_f64x8 = zeros_f64x8, cov_zz_f64x8 = zeros_f64x8;
+    __m512d covariance_xx_f64x8 = zeros_f64x8, covariance_xy_f64x8 = zeros_f64x8, covariance_xz_f64x8 = zeros_f64x8;
+    __m512d covariance_yx_f64x8 = zeros_f64x8, covariance_yy_f64x8 = zeros_f64x8, covariance_yz_f64x8 = zeros_f64x8;
+    __m512d covariance_zx_f64x8 = zeros_f64x8, covariance_zy_f64x8 = zeros_f64x8, covariance_zz_f64x8 = zeros_f64x8;
+    __m512d norm_squared_a_f64x8 = zeros_f64x8, norm_squared_b_f64x8 = zeros_f64x8;
 
     nk_size_t i = 0;
     __m512d a_x_f64x8, a_y_f64x8, a_z_f64x8, b_x_f64x8, b_y_f64x8, b_z_f64x8;
 
-    // Fused single-pass: accumulate sums and outer products together
+    // Fused single-pass: accumulate sums, outer products, and norms^2 together
     for (; i + 8 <= n; i += 8) {
         nk_deinterleave_f64x8_skylake_(a + i * 3, &a_x_f64x8, &a_y_f64x8, &a_z_f64x8);
         nk_deinterleave_f64x8_skylake_(b + i * 3, &b_x_f64x8, &b_y_f64x8, &b_z_f64x8);
@@ -1085,15 +687,21 @@ NK_PUBLIC void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_si
         sum_b_z_f64x8 = _mm512_add_pd(sum_b_z_f64x8, b_z_f64x8);
 
         // Accumulate outer products (raw, not centered)
-        cov_xx_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_x_f64x8, cov_xx_f64x8),
-        cov_xy_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_y_f64x8, cov_xy_f64x8),
-        cov_xz_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_z_f64x8, cov_xz_f64x8);
-        cov_yx_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_x_f64x8, cov_yx_f64x8),
-        cov_yy_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_y_f64x8, cov_yy_f64x8),
-        cov_yz_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_z_f64x8, cov_yz_f64x8);
-        cov_zx_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_x_f64x8, cov_zx_f64x8),
-        cov_zy_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_y_f64x8, cov_zy_f64x8),
-        cov_zz_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_z_f64x8, cov_zz_f64x8);
+        covariance_xx_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_x_f64x8, covariance_xx_f64x8),
+        covariance_xy_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_y_f64x8, covariance_xy_f64x8),
+        covariance_xz_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_z_f64x8, covariance_xz_f64x8);
+        covariance_yx_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_x_f64x8, covariance_yx_f64x8),
+        covariance_yy_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_y_f64x8, covariance_yy_f64x8),
+        covariance_yz_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_z_f64x8, covariance_yz_f64x8);
+        covariance_zx_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_x_f64x8, covariance_zx_f64x8),
+        covariance_zy_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_y_f64x8, covariance_zy_f64x8),
+        covariance_zz_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_z_f64x8, covariance_zz_f64x8);
+        norm_squared_a_f64x8 = _mm512_fmadd_pd(a_x_f64x8, a_x_f64x8, norm_squared_a_f64x8);
+        norm_squared_a_f64x8 = _mm512_fmadd_pd(a_y_f64x8, a_y_f64x8, norm_squared_a_f64x8);
+        norm_squared_a_f64x8 = _mm512_fmadd_pd(a_z_f64x8, a_z_f64x8, norm_squared_a_f64x8);
+        norm_squared_b_f64x8 = _mm512_fmadd_pd(b_x_f64x8, b_x_f64x8, norm_squared_b_f64x8);
+        norm_squared_b_f64x8 = _mm512_fmadd_pd(b_y_f64x8, b_y_f64x8, norm_squared_b_f64x8);
+        norm_squared_b_f64x8 = _mm512_fmadd_pd(b_z_f64x8, b_z_f64x8, norm_squared_b_f64x8);
     }
 
     // Tail: masked gather for remaining points
@@ -1117,15 +725,21 @@ NK_PUBLIC void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_si
         sum_b_y_f64x8 = _mm512_add_pd(sum_b_y_f64x8, b_y_f64x8),
         sum_b_z_f64x8 = _mm512_add_pd(sum_b_z_f64x8, b_z_f64x8);
 
-        cov_xx_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_x_f64x8, cov_xx_f64x8),
-        cov_xy_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_y_f64x8, cov_xy_f64x8),
-        cov_xz_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_z_f64x8, cov_xz_f64x8);
-        cov_yx_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_x_f64x8, cov_yx_f64x8),
-        cov_yy_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_y_f64x8, cov_yy_f64x8),
-        cov_yz_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_z_f64x8, cov_yz_f64x8);
-        cov_zx_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_x_f64x8, cov_zx_f64x8),
-        cov_zy_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_y_f64x8, cov_zy_f64x8),
-        cov_zz_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_z_f64x8, cov_zz_f64x8);
+        covariance_xx_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_x_f64x8, covariance_xx_f64x8),
+        covariance_xy_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_y_f64x8, covariance_xy_f64x8),
+        covariance_xz_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_z_f64x8, covariance_xz_f64x8);
+        covariance_yx_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_x_f64x8, covariance_yx_f64x8),
+        covariance_yy_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_y_f64x8, covariance_yy_f64x8),
+        covariance_yz_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_z_f64x8, covariance_yz_f64x8);
+        covariance_zx_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_x_f64x8, covariance_zx_f64x8),
+        covariance_zy_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_y_f64x8, covariance_zy_f64x8),
+        covariance_zz_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_z_f64x8, covariance_zz_f64x8);
+        norm_squared_a_f64x8 = _mm512_fmadd_pd(a_x_f64x8, a_x_f64x8, norm_squared_a_f64x8);
+        norm_squared_a_f64x8 = _mm512_fmadd_pd(a_y_f64x8, a_y_f64x8, norm_squared_a_f64x8);
+        norm_squared_a_f64x8 = _mm512_fmadd_pd(a_z_f64x8, a_z_f64x8, norm_squared_a_f64x8);
+        norm_squared_b_f64x8 = _mm512_fmadd_pd(b_x_f64x8, b_x_f64x8, norm_squared_b_f64x8);
+        norm_squared_b_f64x8 = _mm512_fmadd_pd(b_y_f64x8, b_y_f64x8, norm_squared_b_f64x8);
+        norm_squared_b_f64x8 = _mm512_fmadd_pd(b_z_f64x8, b_z_f64x8, norm_squared_b_f64x8);
         i = n;
     }
 
@@ -1137,15 +751,19 @@ NK_PUBLIC void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_si
     nk_f64_t sum_b_x = nk_reduce_stable_f64x8_skylake_(sum_b_x_f64x8), sum_b_x_compensation = 0.0;
     nk_f64_t sum_b_y = nk_reduce_stable_f64x8_skylake_(sum_b_y_f64x8), sum_b_y_compensation = 0.0;
     nk_f64_t sum_b_z = nk_reduce_stable_f64x8_skylake_(sum_b_z_f64x8), sum_b_z_compensation = 0.0;
-    nk_f64_t covariance_x_x = nk_reduce_stable_f64x8_skylake_(cov_xx_f64x8), covariance_x_x_compensation = 0.0;
-    nk_f64_t covariance_x_y = nk_reduce_stable_f64x8_skylake_(cov_xy_f64x8), covariance_x_y_compensation = 0.0;
-    nk_f64_t covariance_x_z = nk_reduce_stable_f64x8_skylake_(cov_xz_f64x8), covariance_x_z_compensation = 0.0;
-    nk_f64_t covariance_y_x = nk_reduce_stable_f64x8_skylake_(cov_yx_f64x8), covariance_y_x_compensation = 0.0;
-    nk_f64_t covariance_y_y = nk_reduce_stable_f64x8_skylake_(cov_yy_f64x8), covariance_y_y_compensation = 0.0;
-    nk_f64_t covariance_y_z = nk_reduce_stable_f64x8_skylake_(cov_yz_f64x8), covariance_y_z_compensation = 0.0;
-    nk_f64_t covariance_z_x = nk_reduce_stable_f64x8_skylake_(cov_zx_f64x8), covariance_z_x_compensation = 0.0;
-    nk_f64_t covariance_z_y = nk_reduce_stable_f64x8_skylake_(cov_zy_f64x8), covariance_z_y_compensation = 0.0;
-    nk_f64_t covariance_z_z = nk_reduce_stable_f64x8_skylake_(cov_zz_f64x8), covariance_z_z_compensation = 0.0;
+    nk_f64_t covariance_x_x = nk_reduce_stable_f64x8_skylake_(covariance_xx_f64x8), covariance_x_x_compensation = 0.0;
+    nk_f64_t covariance_x_y = nk_reduce_stable_f64x8_skylake_(covariance_xy_f64x8), covariance_x_y_compensation = 0.0;
+    nk_f64_t covariance_x_z = nk_reduce_stable_f64x8_skylake_(covariance_xz_f64x8), covariance_x_z_compensation = 0.0;
+    nk_f64_t covariance_y_x = nk_reduce_stable_f64x8_skylake_(covariance_yx_f64x8), covariance_y_x_compensation = 0.0;
+    nk_f64_t covariance_y_y = nk_reduce_stable_f64x8_skylake_(covariance_yy_f64x8), covariance_y_y_compensation = 0.0;
+    nk_f64_t covariance_y_z = nk_reduce_stable_f64x8_skylake_(covariance_yz_f64x8), covariance_y_z_compensation = 0.0;
+    nk_f64_t covariance_z_x = nk_reduce_stable_f64x8_skylake_(covariance_zx_f64x8), covariance_z_x_compensation = 0.0;
+    nk_f64_t covariance_z_y = nk_reduce_stable_f64x8_skylake_(covariance_zy_f64x8), covariance_z_y_compensation = 0.0;
+    nk_f64_t covariance_z_z = nk_reduce_stable_f64x8_skylake_(covariance_zz_f64x8), covariance_z_z_compensation = 0.0;
+    nk_f64_t norm_squared_a_sum = nk_reduce_stable_f64x8_skylake_(norm_squared_a_f64x8),
+             norm_squared_a_compensation = 0.0;
+    nk_f64_t norm_squared_b_sum = nk_reduce_stable_f64x8_skylake_(norm_squared_b_f64x8),
+             norm_squared_b_compensation = 0.0;
 
     for (; i < n; ++i) {
         nk_f64_t ax = a[i * 3 + 0], ay = a[i * 3 + 1], az = a[i * 3 + 2];
@@ -1165,6 +783,12 @@ NK_PUBLIC void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_si
         nk_accumulate_product_f64_(&covariance_z_x, &covariance_z_x_compensation, az, bx);
         nk_accumulate_product_f64_(&covariance_z_y, &covariance_z_y_compensation, az, by);
         nk_accumulate_product_f64_(&covariance_z_z, &covariance_z_z_compensation, az, bz);
+        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, ax);
+        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, ay);
+        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, az);
+        nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, bx);
+        nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, by);
+        nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, bz);
     }
 
     sum_a_x += sum_a_x_compensation, sum_a_y += sum_a_y_compensation, sum_a_z += sum_a_z_compensation;
@@ -1175,6 +799,8 @@ NK_PUBLIC void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_si
         covariance_y_z += covariance_y_z_compensation;
     covariance_z_x += covariance_z_x_compensation, covariance_z_y += covariance_z_y_compensation,
         covariance_z_z += covariance_z_z_compensation;
+    norm_squared_a_sum += norm_squared_a_compensation;
+    norm_squared_b_sum += norm_squared_b_compensation;
 
     nk_f64_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;
     nk_f64_t centroid_b_x = sum_b_x * inv_n, centroid_b_y = sum_b_y * inv_n, centroid_b_z = sum_b_z * inv_n;
@@ -1194,177 +820,70 @@ NK_PUBLIC void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_si
     cross_covariance[7] = covariance_z_y - sum_a_z * sum_b_y * inv_n;
     cross_covariance[8] = covariance_z_z - sum_a_z * sum_b_z * inv_n;
 
-    // SVD using f64 for full precision
-    nk_f64_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f64_(cross_covariance, svd_u, svd_s, svd_v);
-
-    nk_f64_t r[9];
-    nk_rotation_from_svd_f64_skylake_(svd_u, svd_v, r);
-
-    // Handle reflection
-    if (nk_det3x3_f64_(r) < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        nk_rotation_from_svd_f64_skylake_(svd_u, svd_v, r);
+    // Identity-dominant short-circuit: if H_centered is near-diagonal positive-definite,
+    // R = I and trace(R * H) = H[0] + H[4] + H[8]. Saves ~500 cycles on aligned inputs.
+    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f64_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f64_t optimal_rotation[9];
+    nk_f64_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
+        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
+        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
+        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
+        optimal_rotation[8] = 1;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+    }
+    else {
+        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        if (nk_det3x3_f64_(optimal_rotation) < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        }
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
     }
 
     // Output rotation matrix and scale=1.0.
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f64_t)r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f64_t)optimal_rotation[j];
     if (scale) *scale = 1.0;
 
-    // Compute RMSD after optimal rotation
-    nk_f64_t sum_squared = nk_transformed_ssd_f64_skylake_(a, b, n, r, 1.0, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                           centroid_b_x, centroid_b_y, centroid_b_z);
+    // Folded SSD via trace identity - no second pass over the buffers:
+    //   SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    nk_f64_t centered_norm_squared_a = norm_squared_a_sum -
+                                       (nk_f64_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f64_t centered_norm_squared_b = norm_squared_b_sum -
+                                       (nk_f64_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0) centered_norm_squared_a = 0.0;
+    if (centered_norm_squared_b < 0.0) centered_norm_squared_b = 0.0;
+    nk_f64_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0 * trace_rotation_covariance;
+    if (sum_squared < 0.0) sum_squared = 0.0;
     *result = nk_f64_sqrt_haswell(sum_squared * inv_n);
 }
 
 NK_PUBLIC void nk_umeyama_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
-    // Fused single-pass: centroids + covariance + variance of A, all in f64
-    __m512d const zeros_f64x8 = _mm512_setzero_pd();
-    __m512d sum_a_x_f64x8 = zeros_f64x8, sum_a_y_f64x8 = zeros_f64x8, sum_a_z_f64x8 = zeros_f64x8;
-    __m512d sum_b_x_f64x8 = zeros_f64x8, sum_b_y_f64x8 = zeros_f64x8, sum_b_z_f64x8 = zeros_f64x8;
-    __m512d cov_xx_f64x8 = zeros_f64x8, cov_xy_f64x8 = zeros_f64x8, cov_xz_f64x8 = zeros_f64x8;
-    __m512d cov_yx_f64x8 = zeros_f64x8, cov_yy_f64x8 = zeros_f64x8, cov_yz_f64x8 = zeros_f64x8;
-    __m512d cov_zx_f64x8 = zeros_f64x8, cov_zy_f64x8 = zeros_f64x8, cov_zz_f64x8 = zeros_f64x8;
-    __m512d variance_a_f64x8 = zeros_f64x8;
-    __m512 a_x_f32x16, a_y_f32x16, a_z_f32x16, b_x_f32x16, b_y_f32x16, b_z_f32x16;
-    nk_size_t i = 0;
+    // Single pass over (a, b) via streaming-stats helper — no deinterleave, no second SSD pass.
+    nk_f64_t sum_a[3], sum_b[3], raw_covariance[9], norm_squared_a, norm_squared_b;
+    nk_mesh_streaming_stats_f32_skylake_(a, b, n, sum_a, sum_b, raw_covariance, &norm_squared_a, &norm_squared_b);
 
-    for (; i + 16 <= n; i += 16) {
-        nk_deinterleave_f32x16_skylake_(a + i * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_f32x16_skylake_(b + i * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-        __m512d a_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_x_f32x16));
-        __m512d a_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_x_f32x16, 1));
-        __m512d a_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_y_f32x16));
-        __m512d a_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_y_f32x16, 1));
-        __m512d a_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_z_f32x16));
-        __m512d a_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_z_f32x16, 1));
-        __m512d b_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_x_f32x16));
-        __m512d b_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_x_f32x16, 1));
-        __m512d b_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_y_f32x16));
-        __m512d b_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_y_f32x16, 1));
-        __m512d b_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_z_f32x16));
-        __m512d b_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_z_f32x16, 1));
-
-        sum_a_x_f64x8 = _mm512_add_pd(sum_a_x_f64x8, _mm512_add_pd(a_x_low_f64x8, a_x_high_f64x8));
-        sum_a_y_f64x8 = _mm512_add_pd(sum_a_y_f64x8, _mm512_add_pd(a_y_low_f64x8, a_y_high_f64x8));
-        sum_a_z_f64x8 = _mm512_add_pd(sum_a_z_f64x8, _mm512_add_pd(a_z_low_f64x8, a_z_high_f64x8));
-        sum_b_x_f64x8 = _mm512_add_pd(sum_b_x_f64x8, _mm512_add_pd(b_x_low_f64x8, b_x_high_f64x8));
-        sum_b_y_f64x8 = _mm512_add_pd(sum_b_y_f64x8, _mm512_add_pd(b_y_low_f64x8, b_y_high_f64x8));
-        sum_b_z_f64x8 = _mm512_add_pd(sum_b_z_f64x8, _mm512_add_pd(b_z_low_f64x8, b_z_high_f64x8));
-
-        cov_xx_f64x8 = _mm512_add_pd(cov_xx_f64x8, _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, b_x_low_f64x8),
-                                                                 _mm512_mul_pd(a_x_high_f64x8, b_x_high_f64x8)));
-        cov_xy_f64x8 = _mm512_add_pd(cov_xy_f64x8, _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, b_y_low_f64x8),
-                                                                 _mm512_mul_pd(a_x_high_f64x8, b_y_high_f64x8)));
-        cov_xz_f64x8 = _mm512_add_pd(cov_xz_f64x8, _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, b_z_low_f64x8),
-                                                                 _mm512_mul_pd(a_x_high_f64x8, b_z_high_f64x8)));
-        cov_yx_f64x8 = _mm512_add_pd(cov_yx_f64x8, _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, b_x_low_f64x8),
-                                                                 _mm512_mul_pd(a_y_high_f64x8, b_x_high_f64x8)));
-        cov_yy_f64x8 = _mm512_add_pd(cov_yy_f64x8, _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, b_y_low_f64x8),
-                                                                 _mm512_mul_pd(a_y_high_f64x8, b_y_high_f64x8)));
-        cov_yz_f64x8 = _mm512_add_pd(cov_yz_f64x8, _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, b_z_low_f64x8),
-                                                                 _mm512_mul_pd(a_y_high_f64x8, b_z_high_f64x8)));
-        cov_zx_f64x8 = _mm512_add_pd(cov_zx_f64x8, _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, b_x_low_f64x8),
-                                                                 _mm512_mul_pd(a_z_high_f64x8, b_x_high_f64x8)));
-        cov_zy_f64x8 = _mm512_add_pd(cov_zy_f64x8, _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, b_y_low_f64x8),
-                                                                 _mm512_mul_pd(a_z_high_f64x8, b_y_high_f64x8)));
-        cov_zz_f64x8 = _mm512_add_pd(cov_zz_f64x8, _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, b_z_low_f64x8),
-                                                                 _mm512_mul_pd(a_z_high_f64x8, b_z_high_f64x8)));
-
-        variance_a_f64x8 = _mm512_add_pd(
-            variance_a_f64x8,
-            _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, a_x_low_f64x8), _mm512_mul_pd(a_x_high_f64x8, a_x_high_f64x8)));
-        variance_a_f64x8 = _mm512_add_pd(
-            variance_a_f64x8,
-            _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, a_y_low_f64x8), _mm512_mul_pd(a_y_high_f64x8, a_y_high_f64x8)));
-        variance_a_f64x8 = _mm512_add_pd(
-            variance_a_f64x8,
-            _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, a_z_low_f64x8), _mm512_mul_pd(a_z_high_f64x8, a_z_high_f64x8)));
-    }
-
-    // Tail: use masked gather for remaining < 16 points
-    if (i < n) {
-        nk_size_t tail = n - i;
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, tail);
-        __m512i const gather_idx_i32x16 = _mm512_setr_epi32(0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45);
-        __m512 zeros_f32x16 = _mm512_setzero_ps();
-        nk_f32_t const *a_tail = a + i * 3;
-        nk_f32_t const *b_tail = b + i * 3;
-
-        a_x_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, a_tail + 0, 4);
-        a_y_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, a_tail + 1, 4);
-        a_z_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, a_tail + 2, 4);
-        b_x_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, b_tail + 0, 4);
-        b_y_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, b_tail + 1, 4);
-        b_z_f32x16 = _mm512_mask_i32gather_ps(zeros_f32x16, mask, gather_idx_i32x16, b_tail + 2, 4);
-
-        __m512d a_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_x_f32x16));
-        __m512d a_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_x_f32x16, 1));
-        __m512d a_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_y_f32x16));
-        __m512d a_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_y_f32x16, 1));
-        __m512d a_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_z_f32x16));
-        __m512d a_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_z_f32x16, 1));
-        __m512d b_x_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_x_f32x16));
-        __m512d b_x_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_x_f32x16, 1));
-        __m512d b_y_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_y_f32x16));
-        __m512d b_y_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_y_f32x16, 1));
-        __m512d b_z_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_z_f32x16));
-        __m512d b_z_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(b_z_f32x16, 1));
-
-        sum_a_x_f64x8 = _mm512_add_pd(sum_a_x_f64x8, _mm512_add_pd(a_x_low_f64x8, a_x_high_f64x8));
-        sum_a_y_f64x8 = _mm512_add_pd(sum_a_y_f64x8, _mm512_add_pd(a_y_low_f64x8, a_y_high_f64x8));
-        sum_a_z_f64x8 = _mm512_add_pd(sum_a_z_f64x8, _mm512_add_pd(a_z_low_f64x8, a_z_high_f64x8));
-        sum_b_x_f64x8 = _mm512_add_pd(sum_b_x_f64x8, _mm512_add_pd(b_x_low_f64x8, b_x_high_f64x8));
-        sum_b_y_f64x8 = _mm512_add_pd(sum_b_y_f64x8, _mm512_add_pd(b_y_low_f64x8, b_y_high_f64x8));
-        sum_b_z_f64x8 = _mm512_add_pd(sum_b_z_f64x8, _mm512_add_pd(b_z_low_f64x8, b_z_high_f64x8));
-
-        cov_xx_f64x8 = _mm512_add_pd(cov_xx_f64x8, _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, b_x_low_f64x8),
-                                                                 _mm512_mul_pd(a_x_high_f64x8, b_x_high_f64x8)));
-        cov_xy_f64x8 = _mm512_add_pd(cov_xy_f64x8, _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, b_y_low_f64x8),
-                                                                 _mm512_mul_pd(a_x_high_f64x8, b_y_high_f64x8)));
-        cov_xz_f64x8 = _mm512_add_pd(cov_xz_f64x8, _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, b_z_low_f64x8),
-                                                                 _mm512_mul_pd(a_x_high_f64x8, b_z_high_f64x8)));
-        cov_yx_f64x8 = _mm512_add_pd(cov_yx_f64x8, _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, b_x_low_f64x8),
-                                                                 _mm512_mul_pd(a_y_high_f64x8, b_x_high_f64x8)));
-        cov_yy_f64x8 = _mm512_add_pd(cov_yy_f64x8, _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, b_y_low_f64x8),
-                                                                 _mm512_mul_pd(a_y_high_f64x8, b_y_high_f64x8)));
-        cov_yz_f64x8 = _mm512_add_pd(cov_yz_f64x8, _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, b_z_low_f64x8),
-                                                                 _mm512_mul_pd(a_y_high_f64x8, b_z_high_f64x8)));
-        cov_zx_f64x8 = _mm512_add_pd(cov_zx_f64x8, _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, b_x_low_f64x8),
-                                                                 _mm512_mul_pd(a_z_high_f64x8, b_x_high_f64x8)));
-        cov_zy_f64x8 = _mm512_add_pd(cov_zy_f64x8, _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, b_y_low_f64x8),
-                                                                 _mm512_mul_pd(a_z_high_f64x8, b_y_high_f64x8)));
-        cov_zz_f64x8 = _mm512_add_pd(cov_zz_f64x8, _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, b_z_low_f64x8),
-                                                                 _mm512_mul_pd(a_z_high_f64x8, b_z_high_f64x8)));
-
-        variance_a_f64x8 = _mm512_add_pd(
-            variance_a_f64x8,
-            _mm512_add_pd(_mm512_mul_pd(a_x_low_f64x8, a_x_low_f64x8), _mm512_mul_pd(a_x_high_f64x8, a_x_high_f64x8)));
-        variance_a_f64x8 = _mm512_add_pd(
-            variance_a_f64x8,
-            _mm512_add_pd(_mm512_mul_pd(a_y_low_f64x8, a_y_low_f64x8), _mm512_mul_pd(a_y_high_f64x8, a_y_high_f64x8)));
-        variance_a_f64x8 = _mm512_add_pd(
-            variance_a_f64x8,
-            _mm512_add_pd(_mm512_mul_pd(a_z_low_f64x8, a_z_low_f64x8), _mm512_mul_pd(a_z_high_f64x8, a_z_high_f64x8)));
-    }
-
-    nk_f64_t sum_a_x = _mm512_reduce_add_pd(sum_a_x_f64x8), sum_a_y = _mm512_reduce_add_pd(sum_a_y_f64x8),
-             sum_a_z = _mm512_reduce_add_pd(sum_a_z_f64x8);
-    nk_f64_t sum_b_x = _mm512_reduce_add_pd(sum_b_x_f64x8), sum_b_y = _mm512_reduce_add_pd(sum_b_y_f64x8),
-             sum_b_z = _mm512_reduce_add_pd(sum_b_z_f64x8);
-    nk_f64_t covariance_x_x = _mm512_reduce_add_pd(cov_xx_f64x8), covariance_x_y = _mm512_reduce_add_pd(cov_xy_f64x8),
-             covariance_x_z = _mm512_reduce_add_pd(cov_xz_f64x8);
-    nk_f64_t covariance_y_x = _mm512_reduce_add_pd(cov_yx_f64x8), covariance_y_y = _mm512_reduce_add_pd(cov_yy_f64x8),
-             covariance_y_z = _mm512_reduce_add_pd(cov_yz_f64x8);
-    nk_f64_t covariance_z_x = _mm512_reduce_add_pd(cov_zx_f64x8), covariance_z_y = _mm512_reduce_add_pd(cov_zy_f64x8),
-             covariance_z_z = _mm512_reduce_add_pd(cov_zz_f64x8);
-    nk_f64_t variance_a_sum = _mm512_reduce_add_pd(variance_a_f64x8);
-
-    nk_f64_t inv_n = 1.0 / (nk_f64_t)n;
-    nk_f64_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;
-    nk_f64_t centroid_b_x = sum_b_x * inv_n, centroid_b_y = sum_b_y * inv_n, centroid_b_z = sum_b_z * inv_n;
+    nk_f64_t n_f64 = (nk_f64_t)n;
+    nk_f64_t inv_n = 1.0 / n_f64;
+    nk_f64_t centroid_a_x = sum_a[0] * inv_n, centroid_a_y = sum_a[1] * inv_n, centroid_a_z = sum_a[2] * inv_n;
+    nk_f64_t centroid_b_x = sum_b[0] * inv_n, centroid_b_y = sum_b[1] * inv_n, centroid_b_z = sum_b[2] * inv_n;
     if (a_centroid)
         a_centroid[0] = (nk_f32_t)centroid_a_x, a_centroid[1] = (nk_f32_t)centroid_a_y,
         a_centroid[2] = (nk_f32_t)centroid_a_z;
@@ -1372,49 +891,81 @@ NK_PUBLIC void nk_umeyama_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_s
         b_centroid[0] = (nk_f32_t)centroid_b_x, b_centroid[1] = (nk_f32_t)centroid_b_y,
         b_centroid[2] = (nk_f32_t)centroid_b_z;
 
-    // Compute centered covariance and variance
-    nk_f64_t variance_a = variance_a_sum * inv_n -
-                          (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y + centroid_a_z * centroid_a_z);
+    // Centered norms and centered covariance via parallel-axis identity.
+    nk_f64_t centered_norm_squared_a = norm_squared_a -
+                                       n_f64 * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                centroid_a_z * centroid_a_z);
+    nk_f64_t centered_norm_squared_b = norm_squared_b -
+                                       n_f64 * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0) centered_norm_squared_a = 0.0;
+    if (centered_norm_squared_b < 0.0) centered_norm_squared_b = 0.0;
+    nk_f64_t variance_a = centered_norm_squared_a * inv_n;
 
-    // Compute centered covariance matrix: Hᵢⱼ = Σ(aᵢ×bⱼ) - Σaᵢ × Σbⱼ / n
-    nk_f64_t n_f64 = (nk_f64_t)n;
     nk_f64_t cross_covariance[9];
-    cross_covariance[0] = covariance_x_x - n_f64 * centroid_a_x * centroid_b_x;
-    cross_covariance[1] = covariance_x_y - n_f64 * centroid_a_x * centroid_b_y;
-    cross_covariance[2] = covariance_x_z - n_f64 * centroid_a_x * centroid_b_z;
-    cross_covariance[3] = covariance_y_x - n_f64 * centroid_a_y * centroid_b_x;
-    cross_covariance[4] = covariance_y_y - n_f64 * centroid_a_y * centroid_b_y;
-    cross_covariance[5] = covariance_y_z - n_f64 * centroid_a_y * centroid_b_z;
-    cross_covariance[6] = covariance_z_x - n_f64 * centroid_a_z * centroid_b_x;
-    cross_covariance[7] = covariance_z_y - n_f64 * centroid_a_z * centroid_b_y;
-    cross_covariance[8] = covariance_z_z - n_f64 * centroid_a_z * centroid_b_z;
+    cross_covariance[0] = raw_covariance[0] - n_f64 * centroid_a_x * centroid_b_x;
+    cross_covariance[1] = raw_covariance[1] - n_f64 * centroid_a_x * centroid_b_y;
+    cross_covariance[2] = raw_covariance[2] - n_f64 * centroid_a_x * centroid_b_z;
+    cross_covariance[3] = raw_covariance[3] - n_f64 * centroid_a_y * centroid_b_x;
+    cross_covariance[4] = raw_covariance[4] - n_f64 * centroid_a_y * centroid_b_y;
+    cross_covariance[5] = raw_covariance[5] - n_f64 * centroid_a_y * centroid_b_z;
+    cross_covariance[6] = raw_covariance[6] - n_f64 * centroid_a_z * centroid_b_x;
+    cross_covariance[7] = raw_covariance[7] - n_f64 * centroid_a_z * centroid_b_y;
+    cross_covariance[8] = raw_covariance[8] - n_f64 * centroid_a_z * centroid_b_z;
 
-    // SVD using f64 for full precision
-    nk_f64_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f64_(cross_covariance, svd_u, svd_s, svd_v);
-
-    nk_f64_t r[9];
-    nk_rotation_from_svd_f64_skylake_(svd_u, svd_v, r);
-
-    // Scale factor: c = trace(D × S) / (n × variance(a))
-    nk_f64_t det = nk_det3x3_f64_(r);
-    nk_f64_t d3 = det < 0 ? -1.0 : 1.0;
-    nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_s[0], 1.0, svd_s[4], 1.0, svd_s[8], d3);
-    nk_f64_t applied_scale = trace_ds / ((nk_f64_t)n * variance_a);
-    if (scale) *scale = (nk_f32_t)applied_scale;
-
-    // Handle reflection
-    if (det < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        nk_rotation_from_svd_f64_skylake_(svd_u, svd_v, r);
+    // Identity-dominant short-circuit: when H_centered is near-diagonal positive-definite, R = I
+    // and trace(R * H) collapses to H[0]+H[4]+H[8]. Also d3 = +1, so trace_ds = sum of diagonal,
+    // and applied_scale = trace_ds / (n * variance_a). Skips SVD + two rotation_from_svd calls.
+    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f64_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f64_t optimal_rotation[9];
+    nk_f64_t applied_scale;
+    nk_f64_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
+        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
+        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
+        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
+        optimal_rotation[8] = 1;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+        applied_scale = trace_rotation_covariance / (n_f64 * variance_a);
     }
+    else {
+        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
 
+        // Scale factor: c = trace(D · S) / (n * variance_a), with reflection sign via d3.
+        nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
+        nk_f64_t d3 = det < 0 ? -1.0 : 1.0;
+        nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8], d3);
+        applied_scale = trace_ds / (n_f64 * variance_a);
+
+        if (det < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        }
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
+    }
+    if (scale) *scale = (nk_f32_t)applied_scale;
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)r[j];
-    *result = nk_f64_sqrt_haswell(nk_transformed_ssd_f32_skylake_(a, b, n, r, applied_scale, centroid_a_x, centroid_a_y,
-                                                                  centroid_a_z, centroid_b_x, centroid_b_y,
-                                                                  centroid_b_z) /
-                                  n_f64);
+        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
+
+    // Folded SSD with scale: sum(|| s*R*(a-abar) - (b-bbar) ||^2)
+    //    = s²·‖a-ā‖² + ‖b-b̄‖² − 2s·trace(R · H_centered).
+    nk_f64_t sum_squared = applied_scale * applied_scale * centered_norm_squared_a + centered_norm_squared_b -
+                           2.0 * applied_scale * trace_rotation_covariance;
+    if (sum_squared < 0.0) sum_squared = 0.0;
+    *result = nk_f64_sqrt_haswell(sum_squared / n_f64);
 }
 
 NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
@@ -1425,10 +976,10 @@ NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
 
     __m512d sum_a_x_f64x8 = zeros_f64x8, sum_a_y_f64x8 = zeros_f64x8, sum_a_z_f64x8 = zeros_f64x8;
     __m512d sum_b_x_f64x8 = zeros_f64x8, sum_b_y_f64x8 = zeros_f64x8, sum_b_z_f64x8 = zeros_f64x8;
-    __m512d cov_xx_f64x8 = zeros_f64x8, cov_xy_f64x8 = zeros_f64x8, cov_xz_f64x8 = zeros_f64x8;
-    __m512d cov_yx_f64x8 = zeros_f64x8, cov_yy_f64x8 = zeros_f64x8, cov_yz_f64x8 = zeros_f64x8;
-    __m512d cov_zx_f64x8 = zeros_f64x8, cov_zy_f64x8 = zeros_f64x8, cov_zz_f64x8 = zeros_f64x8;
-    __m512d variance_a_f64x8 = zeros_f64x8;
+    __m512d covariance_xx_f64x8 = zeros_f64x8, covariance_xy_f64x8 = zeros_f64x8, covariance_xz_f64x8 = zeros_f64x8;
+    __m512d covariance_yx_f64x8 = zeros_f64x8, covariance_yy_f64x8 = zeros_f64x8, covariance_yz_f64x8 = zeros_f64x8;
+    __m512d covariance_zx_f64x8 = zeros_f64x8, covariance_zy_f64x8 = zeros_f64x8, covariance_zz_f64x8 = zeros_f64x8;
+    __m512d norm_squared_a_f64x8 = zeros_f64x8, norm_squared_b_f64x8 = zeros_f64x8;
 
     nk_size_t i = 0;
     __m512d a_x_f64x8, a_y_f64x8, a_z_f64x8, b_x_f64x8, b_y_f64x8, b_z_f64x8;
@@ -1444,18 +995,21 @@ NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
         sum_b_y_f64x8 = _mm512_add_pd(sum_b_y_f64x8, b_y_f64x8);
         sum_b_z_f64x8 = _mm512_add_pd(sum_b_z_f64x8, b_z_f64x8);
 
-        cov_xx_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_x_f64x8, cov_xx_f64x8),
-        cov_xy_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_y_f64x8, cov_xy_f64x8);
-        cov_xz_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_z_f64x8, cov_xz_f64x8);
-        cov_yx_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_x_f64x8, cov_yx_f64x8),
-        cov_yy_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_y_f64x8, cov_yy_f64x8);
-        cov_yz_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_z_f64x8, cov_yz_f64x8);
-        cov_zx_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_x_f64x8, cov_zx_f64x8),
-        cov_zy_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_y_f64x8, cov_zy_f64x8);
-        cov_zz_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_z_f64x8, cov_zz_f64x8);
-        variance_a_f64x8 = _mm512_fmadd_pd(a_x_f64x8, a_x_f64x8, variance_a_f64x8);
-        variance_a_f64x8 = _mm512_fmadd_pd(a_y_f64x8, a_y_f64x8, variance_a_f64x8);
-        variance_a_f64x8 = _mm512_fmadd_pd(a_z_f64x8, a_z_f64x8, variance_a_f64x8);
+        covariance_xx_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_x_f64x8, covariance_xx_f64x8),
+        covariance_xy_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_y_f64x8, covariance_xy_f64x8);
+        covariance_xz_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_z_f64x8, covariance_xz_f64x8);
+        covariance_yx_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_x_f64x8, covariance_yx_f64x8),
+        covariance_yy_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_y_f64x8, covariance_yy_f64x8);
+        covariance_yz_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_z_f64x8, covariance_yz_f64x8);
+        covariance_zx_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_x_f64x8, covariance_zx_f64x8),
+        covariance_zy_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_y_f64x8, covariance_zy_f64x8);
+        covariance_zz_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_z_f64x8, covariance_zz_f64x8);
+        norm_squared_a_f64x8 = _mm512_fmadd_pd(a_x_f64x8, a_x_f64x8, norm_squared_a_f64x8);
+        norm_squared_a_f64x8 = _mm512_fmadd_pd(a_y_f64x8, a_y_f64x8, norm_squared_a_f64x8);
+        norm_squared_a_f64x8 = _mm512_fmadd_pd(a_z_f64x8, a_z_f64x8, norm_squared_a_f64x8);
+        norm_squared_b_f64x8 = _mm512_fmadd_pd(b_x_f64x8, b_x_f64x8, norm_squared_b_f64x8);
+        norm_squared_b_f64x8 = _mm512_fmadd_pd(b_y_f64x8, b_y_f64x8, norm_squared_b_f64x8);
+        norm_squared_b_f64x8 = _mm512_fmadd_pd(b_z_f64x8, b_z_f64x8, norm_squared_b_f64x8);
     }
 
     if (i < n) {
@@ -1478,18 +1032,21 @@ NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
         sum_b_y_f64x8 = _mm512_add_pd(sum_b_y_f64x8, b_y_f64x8);
         sum_b_z_f64x8 = _mm512_add_pd(sum_b_z_f64x8, b_z_f64x8);
 
-        cov_xx_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_x_f64x8, cov_xx_f64x8),
-        cov_xy_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_y_f64x8, cov_xy_f64x8);
-        cov_xz_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_z_f64x8, cov_xz_f64x8);
-        cov_yx_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_x_f64x8, cov_yx_f64x8),
-        cov_yy_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_y_f64x8, cov_yy_f64x8);
-        cov_yz_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_z_f64x8, cov_yz_f64x8);
-        cov_zx_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_x_f64x8, cov_zx_f64x8),
-        cov_zy_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_y_f64x8, cov_zy_f64x8);
-        cov_zz_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_z_f64x8, cov_zz_f64x8);
-        variance_a_f64x8 = _mm512_fmadd_pd(a_x_f64x8, a_x_f64x8, variance_a_f64x8);
-        variance_a_f64x8 = _mm512_fmadd_pd(a_y_f64x8, a_y_f64x8, variance_a_f64x8);
-        variance_a_f64x8 = _mm512_fmadd_pd(a_z_f64x8, a_z_f64x8, variance_a_f64x8);
+        covariance_xx_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_x_f64x8, covariance_xx_f64x8),
+        covariance_xy_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_y_f64x8, covariance_xy_f64x8);
+        covariance_xz_f64x8 = _mm512_fmadd_pd(a_x_f64x8, b_z_f64x8, covariance_xz_f64x8);
+        covariance_yx_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_x_f64x8, covariance_yx_f64x8),
+        covariance_yy_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_y_f64x8, covariance_yy_f64x8);
+        covariance_yz_f64x8 = _mm512_fmadd_pd(a_y_f64x8, b_z_f64x8, covariance_yz_f64x8);
+        covariance_zx_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_x_f64x8, covariance_zx_f64x8),
+        covariance_zy_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_y_f64x8, covariance_zy_f64x8);
+        covariance_zz_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_z_f64x8, covariance_zz_f64x8);
+        norm_squared_a_f64x8 = _mm512_fmadd_pd(a_x_f64x8, a_x_f64x8, norm_squared_a_f64x8);
+        norm_squared_a_f64x8 = _mm512_fmadd_pd(a_y_f64x8, a_y_f64x8, norm_squared_a_f64x8);
+        norm_squared_a_f64x8 = _mm512_fmadd_pd(a_z_f64x8, a_z_f64x8, norm_squared_a_f64x8);
+        norm_squared_b_f64x8 = _mm512_fmadd_pd(b_x_f64x8, b_x_f64x8, norm_squared_b_f64x8);
+        norm_squared_b_f64x8 = _mm512_fmadd_pd(b_y_f64x8, b_y_f64x8, norm_squared_b_f64x8);
+        norm_squared_b_f64x8 = _mm512_fmadd_pd(b_z_f64x8, b_z_f64x8, norm_squared_b_f64x8);
         i = n;
     }
 
@@ -1501,16 +1058,19 @@ NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
     nk_f64_t sum_b_x = nk_reduce_stable_f64x8_skylake_(sum_b_x_f64x8), sum_b_x_compensation = 0.0;
     nk_f64_t sum_b_y = nk_reduce_stable_f64x8_skylake_(sum_b_y_f64x8), sum_b_y_compensation = 0.0;
     nk_f64_t sum_b_z = nk_reduce_stable_f64x8_skylake_(sum_b_z_f64x8), sum_b_z_compensation = 0.0;
-    nk_f64_t covariance_x_x = nk_reduce_stable_f64x8_skylake_(cov_xx_f64x8), covariance_x_x_compensation = 0.0;
-    nk_f64_t covariance_x_y = nk_reduce_stable_f64x8_skylake_(cov_xy_f64x8), covariance_x_y_compensation = 0.0;
-    nk_f64_t covariance_x_z = nk_reduce_stable_f64x8_skylake_(cov_xz_f64x8), covariance_x_z_compensation = 0.0;
-    nk_f64_t covariance_y_x = nk_reduce_stable_f64x8_skylake_(cov_yx_f64x8), covariance_y_x_compensation = 0.0;
-    nk_f64_t covariance_y_y = nk_reduce_stable_f64x8_skylake_(cov_yy_f64x8), covariance_y_y_compensation = 0.0;
-    nk_f64_t covariance_y_z = nk_reduce_stable_f64x8_skylake_(cov_yz_f64x8), covariance_y_z_compensation = 0.0;
-    nk_f64_t covariance_z_x = nk_reduce_stable_f64x8_skylake_(cov_zx_f64x8), covariance_z_x_compensation = 0.0;
-    nk_f64_t covariance_z_y = nk_reduce_stable_f64x8_skylake_(cov_zy_f64x8), covariance_z_y_compensation = 0.0;
-    nk_f64_t covariance_z_z = nk_reduce_stable_f64x8_skylake_(cov_zz_f64x8), covariance_z_z_compensation = 0.0;
-    nk_f64_t variance_a_sum = nk_reduce_stable_f64x8_skylake_(variance_a_f64x8), variance_a_compensation = 0.0;
+    nk_f64_t covariance_x_x = nk_reduce_stable_f64x8_skylake_(covariance_xx_f64x8), covariance_x_x_compensation = 0.0;
+    nk_f64_t covariance_x_y = nk_reduce_stable_f64x8_skylake_(covariance_xy_f64x8), covariance_x_y_compensation = 0.0;
+    nk_f64_t covariance_x_z = nk_reduce_stable_f64x8_skylake_(covariance_xz_f64x8), covariance_x_z_compensation = 0.0;
+    nk_f64_t covariance_y_x = nk_reduce_stable_f64x8_skylake_(covariance_yx_f64x8), covariance_y_x_compensation = 0.0;
+    nk_f64_t covariance_y_y = nk_reduce_stable_f64x8_skylake_(covariance_yy_f64x8), covariance_y_y_compensation = 0.0;
+    nk_f64_t covariance_y_z = nk_reduce_stable_f64x8_skylake_(covariance_yz_f64x8), covariance_y_z_compensation = 0.0;
+    nk_f64_t covariance_z_x = nk_reduce_stable_f64x8_skylake_(covariance_zx_f64x8), covariance_z_x_compensation = 0.0;
+    nk_f64_t covariance_z_y = nk_reduce_stable_f64x8_skylake_(covariance_zy_f64x8), covariance_z_y_compensation = 0.0;
+    nk_f64_t covariance_z_z = nk_reduce_stable_f64x8_skylake_(covariance_zz_f64x8), covariance_z_z_compensation = 0.0;
+    nk_f64_t norm_squared_a_sum = nk_reduce_stable_f64x8_skylake_(norm_squared_a_f64x8),
+             norm_squared_a_compensation = 0.0;
+    nk_f64_t norm_squared_b_sum = nk_reduce_stable_f64x8_skylake_(norm_squared_b_f64x8),
+             norm_squared_b_compensation = 0.0;
 
     for (; i < n; ++i) {
         nk_f64_t ax = a[i * 3 + 0], ay = a[i * 3 + 1], az = a[i * 3 + 2];
@@ -1530,9 +1090,12 @@ NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
         nk_accumulate_product_f64_(&covariance_z_x, &covariance_z_x_compensation, az, bx);
         nk_accumulate_product_f64_(&covariance_z_y, &covariance_z_y_compensation, az, by);
         nk_accumulate_product_f64_(&covariance_z_z, &covariance_z_z_compensation, az, bz);
-        nk_accumulate_square_f64_(&variance_a_sum, &variance_a_compensation, ax);
-        nk_accumulate_square_f64_(&variance_a_sum, &variance_a_compensation, ay);
-        nk_accumulate_square_f64_(&variance_a_sum, &variance_a_compensation, az);
+        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, ax);
+        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, ay);
+        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, az);
+        nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, bx);
+        nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, by);
+        nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, bz);
     }
 
     sum_a_x += sum_a_x_compensation, sum_a_y += sum_a_y_compensation, sum_a_z += sum_a_z_compensation;
@@ -1543,7 +1106,8 @@ NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
         covariance_y_z += covariance_y_z_compensation;
     covariance_z_x += covariance_z_x_compensation, covariance_z_y += covariance_z_y_compensation,
         covariance_z_z += covariance_z_z_compensation;
-    variance_a_sum += variance_a_compensation;
+    norm_squared_a_sum += norm_squared_a_compensation;
+    norm_squared_b_sum += norm_squared_b_compensation;
 
     nk_f64_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;
     nk_f64_t centroid_b_x = sum_b_x * inv_n, centroid_b_y = sum_b_y * inv_n, centroid_b_z = sum_b_z * inv_n;
@@ -1551,9 +1115,15 @@ NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
 
-    // Compute centered covariance and variance.
-    nk_f64_t variance_a = variance_a_sum * inv_n -
-                          (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y + centroid_a_z * centroid_a_z);
+    // Centered norm squared via parallel-axis identity (clamped for numerical safety).
+    nk_f64_t centered_norm_squared_a = norm_squared_a_sum -
+                                       (nk_f64_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f64_t centered_norm_squared_b = norm_squared_b_sum -
+                                       (nk_f64_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0) centered_norm_squared_a = 0.0;
+    if (centered_norm_squared_b < 0.0) centered_norm_squared_b = 0.0;
 
     // Compute centered covariance matrix: Hᵢⱼ = Σ(aᵢ×bⱼ) - Σaᵢ × Σbⱼ / n.
     nk_f64_t cross_covariance[9];
@@ -1568,32 +1138,58 @@ NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
     cross_covariance[8] = covariance_z_z - sum_a_z * sum_b_z * inv_n;
 
     // SVD using f64 for full precision
-    nk_f64_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f64_(cross_covariance, svd_u, svd_s, svd_v);
-
-    nk_f64_t r[9];
-    nk_rotation_from_svd_f64_skylake_(svd_u, svd_v, r);
-
-    // Scale factor: c = trace(D × S) / (n × variance(a))
-    nk_f64_t det = nk_det3x3_f64_(r);
-    nk_f64_t d3 = det < 0 ? -1.0 : 1.0;
-    nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_s[0], 1.0, svd_s[4], 1.0, svd_s[8], d3);
-    nk_f64_t c = trace_ds / ((nk_f64_t)n * variance_a);
-    if (scale) *scale = c;
-
-    // Handle reflection
-    if (det < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        nk_rotation_from_svd_f64_skylake_(svd_u, svd_v, r);
+    // Identity-dominant short-circuit: when H_centered is near-diagonal positive-definite,
+    // R = I, trace(R * H) = H[0]+H[4]+H[8] (also == trace_ds with d3=+1), and the scale
+    // derivation collapses. Skips SVD + two rotation_from_svd calls.
+    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f64_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f64_t optimal_rotation[9];
+    nk_f64_t c;
+    nk_f64_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
+        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
+        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
+        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
+        optimal_rotation[8] = 1;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+        c = centered_norm_squared_a > 0.0 ? trace_rotation_covariance / centered_norm_squared_a : 0.0;
     }
+    else {
+        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
 
-    // Output rotation matrix.
+        // Scale factor: c = trace(D · S) / (n * variance(a)), with reflection sign via d3.
+        nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
+        nk_f64_t d3 = det < 0 ? -1.0 : 1.0;
+        nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8], d3);
+        c = centered_norm_squared_a > 0.0 ? trace_ds / centered_norm_squared_a : 0.0;
+
+        if (det < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        }
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
+    }
+    if (scale) *scale = c;
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f64_t)r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f64_t)optimal_rotation[j];
 
-    // Compute RMSD with scaling
-    nk_f64_t sum_squared = nk_transformed_ssd_f64_skylake_(a, b, n, r, c, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                           centroid_b_x, centroid_b_y, centroid_b_z);
+    // Folded SSD with scale: Sum(|| c*R*(a-abar) - (b-bbar) ||^2)
+    //   = c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    nk_f64_t sum_squared = c * c * centered_norm_squared_a + centered_norm_squared_b -
+                           2.0 * c * trace_rotation_covariance;
+    if (sum_squared < 0.0) sum_squared = 0.0;
     *result = nk_f64_sqrt_haswell(sum_squared * inv_n);
 }
 
@@ -1603,85 +1199,34 @@ NK_PUBLIC void nk_rmsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0f;
+    if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+    if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
-    __m512 const zeros_f32x16 = _mm512_setzero_ps();
-    __m512 sum_a_x_f32x16 = zeros_f32x16, sum_a_y_f32x16 = zeros_f32x16, sum_a_z_f32x16 = zeros_f32x16;
-    __m512 sum_b_x_f32x16 = zeros_f32x16, sum_b_y_f32x16 = zeros_f32x16, sum_b_z_f32x16 = zeros_f32x16;
-    __m512 sum_squared_x_f32x16 = zeros_f32x16, sum_squared_y_f32x16 = zeros_f32x16;
-    __m512 sum_squared_z_f32x16 = zeros_f32x16;
-    __m512 a_x_f32x16, a_y_f32x16, a_z_f32x16, b_x_f32x16, b_y_f32x16, b_z_f32x16;
-    nk_size_t i = 0;
+    // 15-lane stride-3 layout: mask at the f16 level so the last chunk stays in-bounds.
+    __m512 sum_squared_f32x16 = _mm512_setzero_ps();
+    nk_size_t index = 0;
 
-    for (; i + 16 <= n; i += 16) {
-        nk_deinterleave_f16x16_to_f32x16_skylake_(a + i * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_f16x16_to_f32x16_skylake_(b + i * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        sum_a_x_f32x16 = _mm512_add_ps(sum_a_x_f32x16, a_x_f32x16);
-        sum_a_y_f32x16 = _mm512_add_ps(sum_a_y_f32x16, a_y_f32x16);
-        sum_a_z_f32x16 = _mm512_add_ps(sum_a_z_f32x16, a_z_f32x16);
-        sum_b_x_f32x16 = _mm512_add_ps(sum_b_x_f32x16, b_x_f32x16);
-        sum_b_y_f32x16 = _mm512_add_ps(sum_b_y_f32x16, b_y_f32x16);
-        sum_b_z_f32x16 = _mm512_add_ps(sum_b_z_f32x16, b_z_f32x16);
-
-        __m512 delta_x_f32x16 = _mm512_sub_ps(a_x_f32x16, b_x_f32x16);
-        __m512 delta_y_f32x16 = _mm512_sub_ps(a_y_f32x16, b_y_f32x16);
-        __m512 delta_z_f32x16 = _mm512_sub_ps(a_z_f32x16, b_z_f32x16);
-
-        sum_squared_x_f32x16 = _mm512_fmadd_ps(delta_x_f32x16, delta_x_f32x16, sum_squared_x_f32x16);
-        sum_squared_y_f32x16 = _mm512_fmadd_ps(delta_y_f32x16, delta_y_f32x16, sum_squared_y_f32x16);
-        sum_squared_z_f32x16 = _mm512_fmadd_ps(delta_z_f32x16, delta_z_f32x16, sum_squared_z_f32x16);
+    for (; index + 5 <= n; index += 5) {
+        __m256i a_f16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(a + index * 3));
+        __m256i b_f16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = _mm512_cvtph_ps(a_f16x16);
+        __m512 b_f32x16 = _mm512_cvtph_ps(b_f16x16);
+        __m512 delta_f32x16 = _mm512_sub_ps(a_f32x16, b_f32x16);
+        sum_squared_f32x16 = _mm512_fmadd_ps(delta_f32x16, delta_f32x16, sum_squared_f32x16);
     }
 
-    // Tail: deinterleave remaining points into zero-initialized vectors
-    if (i < n) {
-        nk_size_t tail = n - i;
-        nk_deinterleave_f16_tail_to_f32x16_skylake_(a + i * 3, tail, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_f16_tail_to_f32x16_skylake_(b + i * 3, tail, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        sum_a_x_f32x16 = _mm512_add_ps(sum_a_x_f32x16, a_x_f32x16);
-        sum_a_y_f32x16 = _mm512_add_ps(sum_a_y_f32x16, a_y_f32x16);
-        sum_a_z_f32x16 = _mm512_add_ps(sum_a_z_f32x16, a_z_f32x16);
-        sum_b_x_f32x16 = _mm512_add_ps(sum_b_x_f32x16, b_x_f32x16);
-        sum_b_y_f32x16 = _mm512_add_ps(sum_b_y_f32x16, b_y_f32x16);
-        sum_b_z_f32x16 = _mm512_add_ps(sum_b_z_f32x16, b_z_f32x16);
-
-        __m512 delta_x_f32x16 = _mm512_sub_ps(a_x_f32x16, b_x_f32x16);
-        __m512 delta_y_f32x16 = _mm512_sub_ps(a_y_f32x16, b_y_f32x16);
-        __m512 delta_z_f32x16 = _mm512_sub_ps(a_z_f32x16, b_z_f32x16);
-
-        sum_squared_x_f32x16 = _mm512_fmadd_ps(delta_x_f32x16, delta_x_f32x16, sum_squared_x_f32x16);
-        sum_squared_y_f32x16 = _mm512_fmadd_ps(delta_y_f32x16, delta_y_f32x16, sum_squared_y_f32x16);
-        sum_squared_z_f32x16 = _mm512_fmadd_ps(delta_z_f32x16, delta_z_f32x16, sum_squared_z_f32x16);
+    if (index < n) {
+        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
+        __m256i a_f16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(a + index * 3));
+        __m256i b_f16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = _mm512_cvtph_ps(a_f16x16);
+        __m512 b_f32x16 = _mm512_cvtph_ps(b_f16x16);
+        __m512 delta_f32x16 = _mm512_sub_ps(a_f32x16, b_f32x16);
+        sum_squared_f32x16 = _mm512_fmadd_ps(delta_f32x16, delta_f32x16, sum_squared_f32x16);
     }
 
-    nk_f32_t total_ax = _mm512_reduce_add_ps(sum_a_x_f32x16);
-    nk_f32_t total_ay = _mm512_reduce_add_ps(sum_a_y_f32x16);
-    nk_f32_t total_az = _mm512_reduce_add_ps(sum_a_z_f32x16);
-    nk_f32_t total_bx = _mm512_reduce_add_ps(sum_b_x_f32x16);
-    nk_f32_t total_by = _mm512_reduce_add_ps(sum_b_y_f32x16);
-    nk_f32_t total_bz = _mm512_reduce_add_ps(sum_b_z_f32x16);
-    nk_f32_t total_sq_x = _mm512_reduce_add_ps(sum_squared_x_f32x16);
-    nk_f32_t total_sq_y = _mm512_reduce_add_ps(sum_squared_y_f32x16);
-    nk_f32_t total_sq_z = _mm512_reduce_add_ps(sum_squared_z_f32x16);
-
-    nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
-    nk_f32_t centroid_a_x = total_ax * inv_n;
-    nk_f32_t centroid_a_y = total_ay * inv_n;
-    nk_f32_t centroid_a_z = total_az * inv_n;
-    nk_f32_t centroid_b_x = total_bx * inv_n;
-    nk_f32_t centroid_b_y = total_by * inv_n;
-    nk_f32_t centroid_b_z = total_bz * inv_n;
-
-    if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
-    if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
-
-    nk_f32_t mean_diff_x = centroid_a_x - centroid_b_x;
-    nk_f32_t mean_diff_y = centroid_a_y - centroid_b_y;
-    nk_f32_t mean_diff_z = centroid_a_z - centroid_b_z;
-    nk_f32_t sum_squared = total_sq_x + total_sq_y + total_sq_z;
-    nk_f32_t mean_diff_sq = mean_diff_x * mean_diff_x + mean_diff_y * mean_diff_y + mean_diff_z * mean_diff_z;
-
-    *result = nk_f32_sqrt_haswell(sum_squared * inv_n - mean_diff_sq);
+    nk_f32_t sum_squared = _mm512_reduce_add_ps(sum_squared_f32x16);
+    *result = nk_f32_sqrt_haswell(sum_squared / (nk_f32_t)n);
 }
 
 NK_PUBLIC void nk_rmsd_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
@@ -1690,642 +1235,541 @@ NK_PUBLIC void nk_rmsd_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_s
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0f;
+    if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+    if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
-    __m512 const zeros_f32x16 = _mm512_setzero_ps();
-    __m512 sum_a_x_f32x16 = zeros_f32x16, sum_a_y_f32x16 = zeros_f32x16, sum_a_z_f32x16 = zeros_f32x16;
-    __m512 sum_b_x_f32x16 = zeros_f32x16, sum_b_y_f32x16 = zeros_f32x16, sum_b_z_f32x16 = zeros_f32x16;
-    __m512 sum_squared_x_f32x16 = zeros_f32x16, sum_squared_y_f32x16 = zeros_f32x16;
-    __m512 sum_squared_z_f32x16 = zeros_f32x16;
-    __m512 a_x_f32x16, a_y_f32x16, a_z_f32x16, b_x_f32x16, b_y_f32x16, b_z_f32x16;
-    nk_size_t i = 0;
+    // 15-lane stride-3 layout: mask at the bf16 level so the last chunk stays in-bounds.
+    __m512 sum_squared_f32x16 = _mm512_setzero_ps();
+    nk_size_t index = 0;
 
-    for (; i + 16 <= n; i += 16) {
-        nk_deinterleave_bf16x16_to_f32x16_skylake_(a + i * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_bf16x16_to_f32x16_skylake_(b + i * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        sum_a_x_f32x16 = _mm512_add_ps(sum_a_x_f32x16, a_x_f32x16);
-        sum_a_y_f32x16 = _mm512_add_ps(sum_a_y_f32x16, a_y_f32x16);
-        sum_a_z_f32x16 = _mm512_add_ps(sum_a_z_f32x16, a_z_f32x16);
-        sum_b_x_f32x16 = _mm512_add_ps(sum_b_x_f32x16, b_x_f32x16);
-        sum_b_y_f32x16 = _mm512_add_ps(sum_b_y_f32x16, b_y_f32x16);
-        sum_b_z_f32x16 = _mm512_add_ps(sum_b_z_f32x16, b_z_f32x16);
-
-        __m512 delta_x_f32x16 = _mm512_sub_ps(a_x_f32x16, b_x_f32x16);
-        __m512 delta_y_f32x16 = _mm512_sub_ps(a_y_f32x16, b_y_f32x16);
-        __m512 delta_z_f32x16 = _mm512_sub_ps(a_z_f32x16, b_z_f32x16);
-
-        sum_squared_x_f32x16 = _mm512_fmadd_ps(delta_x_f32x16, delta_x_f32x16, sum_squared_x_f32x16);
-        sum_squared_y_f32x16 = _mm512_fmadd_ps(delta_y_f32x16, delta_y_f32x16, sum_squared_y_f32x16);
-        sum_squared_z_f32x16 = _mm512_fmadd_ps(delta_z_f32x16, delta_z_f32x16, sum_squared_z_f32x16);
+    for (; index + 5 <= n; index += 5) {
+        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(a + index * 3));
+        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = nk_bf16x16_to_f32x16_skylake_(a_bf16x16);
+        __m512 b_f32x16 = nk_bf16x16_to_f32x16_skylake_(b_bf16x16);
+        __m512 delta_f32x16 = _mm512_sub_ps(a_f32x16, b_f32x16);
+        sum_squared_f32x16 = _mm512_fmadd_ps(delta_f32x16, delta_f32x16, sum_squared_f32x16);
     }
 
-    // Tail: deinterleave remaining points into zero-initialized vectors
-    if (i < n) {
-        nk_size_t tail = n - i;
-        nk_deinterleave_bf16_tail_to_f32x16_skylake_(a + i * 3, tail, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_bf16_tail_to_f32x16_skylake_(b + i * 3, tail, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        sum_a_x_f32x16 = _mm512_add_ps(sum_a_x_f32x16, a_x_f32x16);
-        sum_a_y_f32x16 = _mm512_add_ps(sum_a_y_f32x16, a_y_f32x16);
-        sum_a_z_f32x16 = _mm512_add_ps(sum_a_z_f32x16, a_z_f32x16);
-        sum_b_x_f32x16 = _mm512_add_ps(sum_b_x_f32x16, b_x_f32x16);
-        sum_b_y_f32x16 = _mm512_add_ps(sum_b_y_f32x16, b_y_f32x16);
-        sum_b_z_f32x16 = _mm512_add_ps(sum_b_z_f32x16, b_z_f32x16);
-
-        __m512 delta_x_f32x16 = _mm512_sub_ps(a_x_f32x16, b_x_f32x16);
-        __m512 delta_y_f32x16 = _mm512_sub_ps(a_y_f32x16, b_y_f32x16);
-        __m512 delta_z_f32x16 = _mm512_sub_ps(a_z_f32x16, b_z_f32x16);
-
-        sum_squared_x_f32x16 = _mm512_fmadd_ps(delta_x_f32x16, delta_x_f32x16, sum_squared_x_f32x16);
-        sum_squared_y_f32x16 = _mm512_fmadd_ps(delta_y_f32x16, delta_y_f32x16, sum_squared_y_f32x16);
-        sum_squared_z_f32x16 = _mm512_fmadd_ps(delta_z_f32x16, delta_z_f32x16, sum_squared_z_f32x16);
+    if (index < n) {
+        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
+        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(a + index * 3));
+        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = nk_bf16x16_to_f32x16_skylake_(a_bf16x16);
+        __m512 b_f32x16 = nk_bf16x16_to_f32x16_skylake_(b_bf16x16);
+        __m512 delta_f32x16 = _mm512_sub_ps(a_f32x16, b_f32x16);
+        sum_squared_f32x16 = _mm512_fmadd_ps(delta_f32x16, delta_f32x16, sum_squared_f32x16);
     }
 
-    nk_f32_t total_ax = _mm512_reduce_add_ps(sum_a_x_f32x16);
-    nk_f32_t total_ay = _mm512_reduce_add_ps(sum_a_y_f32x16);
-    nk_f32_t total_az = _mm512_reduce_add_ps(sum_a_z_f32x16);
-    nk_f32_t total_bx = _mm512_reduce_add_ps(sum_b_x_f32x16);
-    nk_f32_t total_by = _mm512_reduce_add_ps(sum_b_y_f32x16);
-    nk_f32_t total_bz = _mm512_reduce_add_ps(sum_b_z_f32x16);
-    nk_f32_t total_sq_x = _mm512_reduce_add_ps(sum_squared_x_f32x16);
-    nk_f32_t total_sq_y = _mm512_reduce_add_ps(sum_squared_y_f32x16);
-    nk_f32_t total_sq_z = _mm512_reduce_add_ps(sum_squared_z_f32x16);
-
-    nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
-    nk_f32_t centroid_a_x = total_ax * inv_n;
-    nk_f32_t centroid_a_y = total_ay * inv_n;
-    nk_f32_t centroid_a_z = total_az * inv_n;
-    nk_f32_t centroid_b_x = total_bx * inv_n;
-    nk_f32_t centroid_b_y = total_by * inv_n;
-    nk_f32_t centroid_b_z = total_bz * inv_n;
-
-    if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
-    if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
-
-    nk_f32_t mean_diff_x = centroid_a_x - centroid_b_x;
-    nk_f32_t mean_diff_y = centroid_a_y - centroid_b_y;
-    nk_f32_t mean_diff_z = centroid_a_z - centroid_b_z;
-    nk_f32_t sum_squared = total_sq_x + total_sq_y + total_sq_z;
-    nk_f32_t mean_diff_sq = mean_diff_x * mean_diff_x + mean_diff_y * mean_diff_y + mean_diff_z * mean_diff_z;
-
-    *result = nk_f32_sqrt_haswell(sum_squared * inv_n - mean_diff_sq);
+    nk_f32_t sum_squared = _mm512_reduce_add_ps(sum_squared_f32x16);
+    *result = nk_f32_sqrt_haswell(sum_squared / (nk_f32_t)n);
 }
 
 NK_PUBLIC void nk_kabsch_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    // 15-lane stride-3 layout: one masked epi16 load + widen gives {a_f32x16, b_f32x16} with
+    // channel phase [x,y,z, x,y,z, x,y,z, x,y,z, x,y,z, _] constant across all chunks. The 9
+    // H-cells come from three product accumulators a*b, a*rot1(b), a*rot2(b) demuxed per channel.
+    __m512i const idx_rotation_1_i32x16 = _mm512_setr_epi32(1, 2, 0, 4, 5, 3, 7, 8, 6, 10, 11, 9, 13, 14, 12, 15);
+    __m512i const idx_rotation_2_i32x16 = _mm512_setr_epi32(2, 0, 1, 5, 3, 4, 8, 6, 7, 11, 9, 10, 14, 12, 13, 15);
+
     __m512 const zeros_f32x16 = _mm512_setzero_ps();
+    __m512 sum_a_f32x16 = zeros_f32x16, sum_b_f32x16 = zeros_f32x16;
+    __m512 norm_squared_a_f32x16 = zeros_f32x16, norm_squared_b_f32x16 = zeros_f32x16;
+    __m512 product_diagonal_f32x16 = zeros_f32x16;
+    __m512 product_rotation_1_f32x16 = zeros_f32x16;
+    __m512 product_rotation_2_f32x16 = zeros_f32x16;
 
-    __m512 sum_a_x_f32x16 = zeros_f32x16, sum_a_y_f32x16 = zeros_f32x16, sum_a_z_f32x16 = zeros_f32x16;
-    __m512 sum_b_x_f32x16 = zeros_f32x16, sum_b_y_f32x16 = zeros_f32x16, sum_b_z_f32x16 = zeros_f32x16;
-    __m512 cov_xx_f32x16 = zeros_f32x16, cov_xy_f32x16 = zeros_f32x16, cov_xz_f32x16 = zeros_f32x16;
-    __m512 cov_yx_f32x16 = zeros_f32x16, cov_yy_f32x16 = zeros_f32x16, cov_yz_f32x16 = zeros_f32x16;
-    __m512 cov_zx_f32x16 = zeros_f32x16, cov_zy_f32x16 = zeros_f32x16, cov_zz_f32x16 = zeros_f32x16;
-
-    nk_size_t i = 0;
-    __m512 a_x_f32x16, a_y_f32x16, a_z_f32x16, b_x_f32x16, b_y_f32x16, b_z_f32x16;
-
-    for (; i + 16 <= n; i += 16) {
-        nk_deinterleave_f16x16_to_f32x16_skylake_(a + i * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_f16x16_to_f32x16_skylake_(b + i * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        sum_a_x_f32x16 = _mm512_add_ps(sum_a_x_f32x16, a_x_f32x16);
-        sum_a_y_f32x16 = _mm512_add_ps(sum_a_y_f32x16, a_y_f32x16);
-        sum_a_z_f32x16 = _mm512_add_ps(sum_a_z_f32x16, a_z_f32x16);
-        sum_b_x_f32x16 = _mm512_add_ps(sum_b_x_f32x16, b_x_f32x16);
-        sum_b_y_f32x16 = _mm512_add_ps(sum_b_y_f32x16, b_y_f32x16);
-        sum_b_z_f32x16 = _mm512_add_ps(sum_b_z_f32x16, b_z_f32x16);
-
-        cov_xx_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_x_f32x16, cov_xx_f32x16);
-        cov_xy_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_y_f32x16, cov_xy_f32x16);
-        cov_xz_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_z_f32x16, cov_xz_f32x16);
-        cov_yx_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_x_f32x16, cov_yx_f32x16);
-        cov_yy_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_y_f32x16, cov_yy_f32x16);
-        cov_yz_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_z_f32x16, cov_yz_f32x16);
-        cov_zx_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_x_f32x16, cov_zx_f32x16);
-        cov_zy_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_y_f32x16, cov_zy_f32x16);
-        cov_zz_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_z_f32x16, cov_zz_f32x16);
+    nk_size_t index = 0;
+    for (; index + 5 <= n; index += 5) {
+        __m256i a_f16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(a + index * 3));
+        __m256i b_f16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = _mm512_cvtph_ps(a_f16x16);
+        __m512 b_f32x16 = _mm512_cvtph_ps(b_f16x16);
+        __m512 b_rotation_1_f32x16 = _mm512_permutexvar_ps(idx_rotation_1_i32x16, b_f32x16);
+        __m512 b_rotation_2_f32x16 = _mm512_permutexvar_ps(idx_rotation_2_i32x16, b_f32x16);
+        sum_a_f32x16 = _mm512_add_ps(sum_a_f32x16, a_f32x16);
+        sum_b_f32x16 = _mm512_add_ps(sum_b_f32x16, b_f32x16);
+        norm_squared_a_f32x16 = _mm512_fmadd_ps(a_f32x16, a_f32x16, norm_squared_a_f32x16);
+        norm_squared_b_f32x16 = _mm512_fmadd_ps(b_f32x16, b_f32x16, norm_squared_b_f32x16);
+        product_diagonal_f32x16 = _mm512_fmadd_ps(a_f32x16, b_f32x16, product_diagonal_f32x16);
+        product_rotation_1_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_1_f32x16, product_rotation_1_f32x16);
+        product_rotation_2_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_2_f32x16, product_rotation_2_f32x16);
     }
 
-    // Tail: deinterleave remaining points into zero-initialized vectors
-    if (i < n) {
-        nk_size_t tail = n - i;
-        nk_deinterleave_f16_tail_to_f32x16_skylake_(a + i * 3, tail, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_f16_tail_to_f32x16_skylake_(b + i * 3, tail, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        sum_a_x_f32x16 = _mm512_add_ps(sum_a_x_f32x16, a_x_f32x16);
-        sum_a_y_f32x16 = _mm512_add_ps(sum_a_y_f32x16, a_y_f32x16);
-        sum_a_z_f32x16 = _mm512_add_ps(sum_a_z_f32x16, a_z_f32x16);
-        sum_b_x_f32x16 = _mm512_add_ps(sum_b_x_f32x16, b_x_f32x16);
-        sum_b_y_f32x16 = _mm512_add_ps(sum_b_y_f32x16, b_y_f32x16);
-        sum_b_z_f32x16 = _mm512_add_ps(sum_b_z_f32x16, b_z_f32x16);
-
-        cov_xx_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_x_f32x16, cov_xx_f32x16);
-        cov_xy_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_y_f32x16, cov_xy_f32x16);
-        cov_xz_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_z_f32x16, cov_xz_f32x16);
-        cov_yx_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_x_f32x16, cov_yx_f32x16);
-        cov_yy_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_y_f32x16, cov_yy_f32x16);
-        cov_yz_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_z_f32x16, cov_yz_f32x16);
-        cov_zx_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_x_f32x16, cov_zx_f32x16);
-        cov_zy_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_y_f32x16, cov_zy_f32x16);
-        cov_zz_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_z_f32x16, cov_zz_f32x16);
+    if (index < n) {
+        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
+        __m256i a_f16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(a + index * 3));
+        __m256i b_f16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = _mm512_cvtph_ps(a_f16x16);
+        __m512 b_f32x16 = _mm512_cvtph_ps(b_f16x16);
+        __m512 b_rotation_1_f32x16 = _mm512_permutexvar_ps(idx_rotation_1_i32x16, b_f32x16);
+        __m512 b_rotation_2_f32x16 = _mm512_permutexvar_ps(idx_rotation_2_i32x16, b_f32x16);
+        sum_a_f32x16 = _mm512_add_ps(sum_a_f32x16, a_f32x16);
+        sum_b_f32x16 = _mm512_add_ps(sum_b_f32x16, b_f32x16);
+        norm_squared_a_f32x16 = _mm512_fmadd_ps(a_f32x16, a_f32x16, norm_squared_a_f32x16);
+        norm_squared_b_f32x16 = _mm512_fmadd_ps(b_f32x16, b_f32x16, norm_squared_b_f32x16);
+        product_diagonal_f32x16 = _mm512_fmadd_ps(a_f32x16, b_f32x16, product_diagonal_f32x16);
+        product_rotation_1_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_1_f32x16, product_rotation_1_f32x16);
+        product_rotation_2_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_2_f32x16, product_rotation_2_f32x16);
     }
 
-    nk_f32_t sum_a_x = _mm512_reduce_add_ps(sum_a_x_f32x16);
-    nk_f32_t sum_a_y = _mm512_reduce_add_ps(sum_a_y_f32x16);
-    nk_f32_t sum_a_z = _mm512_reduce_add_ps(sum_a_z_f32x16);
-    nk_f32_t sum_b_x = _mm512_reduce_add_ps(sum_b_x_f32x16);
-    nk_f32_t sum_b_y = _mm512_reduce_add_ps(sum_b_y_f32x16);
-    nk_f32_t sum_b_z = _mm512_reduce_add_ps(sum_b_z_f32x16);
-    nk_f32_t covariance_x_x = _mm512_reduce_add_ps(cov_xx_f32x16);
-    nk_f32_t covariance_x_y = _mm512_reduce_add_ps(cov_xy_f32x16);
-    nk_f32_t covariance_x_z = _mm512_reduce_add_ps(cov_xz_f32x16);
-    nk_f32_t covariance_y_x = _mm512_reduce_add_ps(cov_yx_f32x16);
-    nk_f32_t covariance_y_y = _mm512_reduce_add_ps(cov_yy_f32x16);
-    nk_f32_t covariance_y_z = _mm512_reduce_add_ps(cov_yz_f32x16);
-    nk_f32_t covariance_z_x = _mm512_reduce_add_ps(cov_zx_f32x16);
-    nk_f32_t covariance_z_y = _mm512_reduce_add_ps(cov_zy_f32x16);
-    nk_f32_t covariance_z_z = _mm512_reduce_add_ps(cov_zz_f32x16);
+    // Per-channel demux via mask-reduce on the fp32 accumulators (lane i carries channel i%3).
+    __mmask16 const mask_channel_x_f32 = 0x1249; // lanes {0, 3, 6, 9, 12}
+    __mmask16 const mask_channel_y_f32 = 0x2492; // lanes {1, 4, 7, 10, 13}
+    __mmask16 const mask_channel_z_f32 = 0x4924; // lanes {2, 5, 8, 11, 14}
+
+    nk_f32_t sum_a_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_a_f32x16);
+    nk_f32_t sum_a_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_a_f32x16);
+    nk_f32_t sum_a_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_a_f32x16);
+    nk_f32_t sum_b_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_b_f32x16);
+    nk_f32_t sum_b_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_b_f32x16);
+    nk_f32_t sum_b_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_b_f32x16);
+    nk_f32_t norm_squared_a = _mm512_reduce_add_ps(norm_squared_a_f32x16);
+    nk_f32_t norm_squared_b = _mm512_reduce_add_ps(norm_squared_b_f32x16);
+
+    nk_f32_t covariance_x_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_diagonal_f32x16);
+    nk_f32_t covariance_x_y = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_1_f32x16);
+    nk_f32_t covariance_x_z = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_x = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_diagonal_f32x16);
+    nk_f32_t covariance_y_z = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_x = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_y = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_2_f32x16);
+    nk_f32_t covariance_z_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_diagonal_f32x16);
 
     nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
     nk_f32_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;
     nk_f32_t centroid_b_x = sum_b_x * inv_n, centroid_b_y = sum_b_y * inv_n, centroid_b_z = sum_b_z * inv_n;
-
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
 
-    covariance_x_x -= (nk_f32_t)n * centroid_a_x * centroid_b_x;
-    covariance_x_y -= (nk_f32_t)n * centroid_a_x * centroid_b_y;
-    covariance_x_z -= (nk_f32_t)n * centroid_a_x * centroid_b_z;
-    covariance_y_x -= (nk_f32_t)n * centroid_a_y * centroid_b_x;
-    covariance_y_y -= (nk_f32_t)n * centroid_a_y * centroid_b_y;
-    covariance_y_z -= (nk_f32_t)n * centroid_a_y * centroid_b_z;
-    covariance_z_x -= (nk_f32_t)n * centroid_a_z * centroid_b_x;
-    covariance_z_y -= (nk_f32_t)n * centroid_a_z * centroid_b_y;
-    covariance_z_z -= (nk_f32_t)n * centroid_a_z * centroid_b_z;
+    // Parallel-axis correction.
+    nk_f32_t cross_covariance[9];
+    cross_covariance[0] = covariance_x_x - (nk_f32_t)n * centroid_a_x * centroid_b_x;
+    cross_covariance[1] = covariance_x_y - (nk_f32_t)n * centroid_a_x * centroid_b_y;
+    cross_covariance[2] = covariance_x_z - (nk_f32_t)n * centroid_a_x * centroid_b_z;
+    cross_covariance[3] = covariance_y_x - (nk_f32_t)n * centroid_a_y * centroid_b_x;
+    cross_covariance[4] = covariance_y_y - (nk_f32_t)n * centroid_a_y * centroid_b_y;
+    cross_covariance[5] = covariance_y_z - (nk_f32_t)n * centroid_a_y * centroid_b_z;
+    cross_covariance[6] = covariance_z_x - (nk_f32_t)n * centroid_a_z * centroid_b_x;
+    cross_covariance[7] = covariance_z_y - (nk_f32_t)n * centroid_a_z * centroid_b_y;
+    cross_covariance[8] = covariance_z_z - (nk_f32_t)n * centroid_a_z * centroid_b_z;
 
-    nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
-                                    covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
-    nk_f32_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f32_(cross_covariance, svd_u, svd_s, svd_v);
-
-    nk_f32_t r[9];
-    r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
-
-    if (nk_det3x3_f32_(r) < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
+    nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+    nk_f32_t optimal_rotation[9];
+    nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
+    if (nk_det3x3_f32_(optimal_rotation) < 0) {
+        svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+        nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
     }
-
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    nk_f32_t sum_squared = nk_transformed_ssd_f16_skylake_(a, b, n, r, 1.0f, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                           centroid_b_x, centroid_b_y, centroid_b_z);
+    // Folded SSD via trace identity:
+    //    SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered)
+    //    trace(R · H_centered) = Σⱼₖ R[j,k] · H[k,j]  (note transpose on H).
+    nk_f32_t centered_norm_squared_a = norm_squared_a -
+                                       (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f32_t centered_norm_squared_b = norm_squared_b -
+                                       (nk_f32_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
+    if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
+    nk_f32_t trace_rotation_covariance =
+        optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+        optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+        optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+        optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+        optimal_rotation[8] * cross_covariance[8];
+    nk_f32_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0f * trace_rotation_covariance;
+    if (sum_squared < 0.0f) sum_squared = 0.0f;
     *result = nk_f32_sqrt_haswell(sum_squared * inv_n);
 }
 
 NK_PUBLIC void nk_kabsch_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    // 15-lane stride-3 layout: one masked epi16 load + widen gives {a_f32x16, b_f32x16} with
+    // channel phase [x,y,z, x,y,z, x,y,z, x,y,z, x,y,z, _] constant across all chunks. The 9
+    // H-cells come from three product accumulators a*b, a*rot1(b), a*rot2(b) demuxed per channel.
+    __m512i const idx_rotation_1_i32x16 = _mm512_setr_epi32(1, 2, 0, 4, 5, 3, 7, 8, 6, 10, 11, 9, 13, 14, 12, 15);
+    __m512i const idx_rotation_2_i32x16 = _mm512_setr_epi32(2, 0, 1, 5, 3, 4, 8, 6, 7, 11, 9, 10, 14, 12, 13, 15);
+
     __m512 const zeros_f32x16 = _mm512_setzero_ps();
+    __m512 sum_a_f32x16 = zeros_f32x16, sum_b_f32x16 = zeros_f32x16;
+    __m512 norm_squared_a_f32x16 = zeros_f32x16, norm_squared_b_f32x16 = zeros_f32x16;
+    __m512 product_diagonal_f32x16 = zeros_f32x16;
+    __m512 product_rotation_1_f32x16 = zeros_f32x16;
+    __m512 product_rotation_2_f32x16 = zeros_f32x16;
 
-    __m512 sum_a_x_f32x16 = zeros_f32x16, sum_a_y_f32x16 = zeros_f32x16, sum_a_z_f32x16 = zeros_f32x16;
-    __m512 sum_b_x_f32x16 = zeros_f32x16, sum_b_y_f32x16 = zeros_f32x16, sum_b_z_f32x16 = zeros_f32x16;
-    __m512 cov_xx_f32x16 = zeros_f32x16, cov_xy_f32x16 = zeros_f32x16, cov_xz_f32x16 = zeros_f32x16;
-    __m512 cov_yx_f32x16 = zeros_f32x16, cov_yy_f32x16 = zeros_f32x16, cov_yz_f32x16 = zeros_f32x16;
-    __m512 cov_zx_f32x16 = zeros_f32x16, cov_zy_f32x16 = zeros_f32x16, cov_zz_f32x16 = zeros_f32x16;
-
-    nk_size_t i = 0;
-    __m512 a_x_f32x16, a_y_f32x16, a_z_f32x16, b_x_f32x16, b_y_f32x16, b_z_f32x16;
-
-    for (; i + 16 <= n; i += 16) {
-        nk_deinterleave_bf16x16_to_f32x16_skylake_(a + i * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_bf16x16_to_f32x16_skylake_(b + i * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        sum_a_x_f32x16 = _mm512_add_ps(sum_a_x_f32x16, a_x_f32x16);
-        sum_a_y_f32x16 = _mm512_add_ps(sum_a_y_f32x16, a_y_f32x16);
-        sum_a_z_f32x16 = _mm512_add_ps(sum_a_z_f32x16, a_z_f32x16);
-        sum_b_x_f32x16 = _mm512_add_ps(sum_b_x_f32x16, b_x_f32x16);
-        sum_b_y_f32x16 = _mm512_add_ps(sum_b_y_f32x16, b_y_f32x16);
-        sum_b_z_f32x16 = _mm512_add_ps(sum_b_z_f32x16, b_z_f32x16);
-
-        cov_xx_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_x_f32x16, cov_xx_f32x16);
-        cov_xy_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_y_f32x16, cov_xy_f32x16);
-        cov_xz_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_z_f32x16, cov_xz_f32x16);
-        cov_yx_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_x_f32x16, cov_yx_f32x16);
-        cov_yy_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_y_f32x16, cov_yy_f32x16);
-        cov_yz_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_z_f32x16, cov_yz_f32x16);
-        cov_zx_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_x_f32x16, cov_zx_f32x16);
-        cov_zy_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_y_f32x16, cov_zy_f32x16);
-        cov_zz_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_z_f32x16, cov_zz_f32x16);
+    nk_size_t index = 0;
+    for (; index + 5 <= n; index += 5) {
+        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(a + index * 3));
+        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = nk_bf16x16_to_f32x16_skylake_(a_bf16x16);
+        __m512 b_f32x16 = nk_bf16x16_to_f32x16_skylake_(b_bf16x16);
+        __m512 b_rotation_1_f32x16 = _mm512_permutexvar_ps(idx_rotation_1_i32x16, b_f32x16);
+        __m512 b_rotation_2_f32x16 = _mm512_permutexvar_ps(idx_rotation_2_i32x16, b_f32x16);
+        sum_a_f32x16 = _mm512_add_ps(sum_a_f32x16, a_f32x16);
+        sum_b_f32x16 = _mm512_add_ps(sum_b_f32x16, b_f32x16);
+        norm_squared_a_f32x16 = _mm512_fmadd_ps(a_f32x16, a_f32x16, norm_squared_a_f32x16);
+        norm_squared_b_f32x16 = _mm512_fmadd_ps(b_f32x16, b_f32x16, norm_squared_b_f32x16);
+        product_diagonal_f32x16 = _mm512_fmadd_ps(a_f32x16, b_f32x16, product_diagonal_f32x16);
+        product_rotation_1_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_1_f32x16, product_rotation_1_f32x16);
+        product_rotation_2_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_2_f32x16, product_rotation_2_f32x16);
     }
 
-    // Tail: deinterleave remaining points into zero-initialized vectors
-    if (i < n) {
-        nk_size_t tail = n - i;
-        nk_deinterleave_bf16_tail_to_f32x16_skylake_(a + i * 3, tail, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_bf16_tail_to_f32x16_skylake_(b + i * 3, tail, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        sum_a_x_f32x16 = _mm512_add_ps(sum_a_x_f32x16, a_x_f32x16);
-        sum_a_y_f32x16 = _mm512_add_ps(sum_a_y_f32x16, a_y_f32x16);
-        sum_a_z_f32x16 = _mm512_add_ps(sum_a_z_f32x16, a_z_f32x16);
-        sum_b_x_f32x16 = _mm512_add_ps(sum_b_x_f32x16, b_x_f32x16);
-        sum_b_y_f32x16 = _mm512_add_ps(sum_b_y_f32x16, b_y_f32x16);
-        sum_b_z_f32x16 = _mm512_add_ps(sum_b_z_f32x16, b_z_f32x16);
-
-        cov_xx_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_x_f32x16, cov_xx_f32x16);
-        cov_xy_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_y_f32x16, cov_xy_f32x16);
-        cov_xz_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_z_f32x16, cov_xz_f32x16);
-        cov_yx_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_x_f32x16, cov_yx_f32x16);
-        cov_yy_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_y_f32x16, cov_yy_f32x16);
-        cov_yz_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_z_f32x16, cov_yz_f32x16);
-        cov_zx_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_x_f32x16, cov_zx_f32x16);
-        cov_zy_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_y_f32x16, cov_zy_f32x16);
-        cov_zz_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_z_f32x16, cov_zz_f32x16);
+    if (index < n) {
+        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
+        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(a + index * 3));
+        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = nk_bf16x16_to_f32x16_skylake_(a_bf16x16);
+        __m512 b_f32x16 = nk_bf16x16_to_f32x16_skylake_(b_bf16x16);
+        __m512 b_rotation_1_f32x16 = _mm512_permutexvar_ps(idx_rotation_1_i32x16, b_f32x16);
+        __m512 b_rotation_2_f32x16 = _mm512_permutexvar_ps(idx_rotation_2_i32x16, b_f32x16);
+        sum_a_f32x16 = _mm512_add_ps(sum_a_f32x16, a_f32x16);
+        sum_b_f32x16 = _mm512_add_ps(sum_b_f32x16, b_f32x16);
+        norm_squared_a_f32x16 = _mm512_fmadd_ps(a_f32x16, a_f32x16, norm_squared_a_f32x16);
+        norm_squared_b_f32x16 = _mm512_fmadd_ps(b_f32x16, b_f32x16, norm_squared_b_f32x16);
+        product_diagonal_f32x16 = _mm512_fmadd_ps(a_f32x16, b_f32x16, product_diagonal_f32x16);
+        product_rotation_1_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_1_f32x16, product_rotation_1_f32x16);
+        product_rotation_2_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_2_f32x16, product_rotation_2_f32x16);
     }
 
-    nk_f32_t sum_a_x = _mm512_reduce_add_ps(sum_a_x_f32x16);
-    nk_f32_t sum_a_y = _mm512_reduce_add_ps(sum_a_y_f32x16);
-    nk_f32_t sum_a_z = _mm512_reduce_add_ps(sum_a_z_f32x16);
-    nk_f32_t sum_b_x = _mm512_reduce_add_ps(sum_b_x_f32x16);
-    nk_f32_t sum_b_y = _mm512_reduce_add_ps(sum_b_y_f32x16);
-    nk_f32_t sum_b_z = _mm512_reduce_add_ps(sum_b_z_f32x16);
-    nk_f32_t covariance_x_x = _mm512_reduce_add_ps(cov_xx_f32x16);
-    nk_f32_t covariance_x_y = _mm512_reduce_add_ps(cov_xy_f32x16);
-    nk_f32_t covariance_x_z = _mm512_reduce_add_ps(cov_xz_f32x16);
-    nk_f32_t covariance_y_x = _mm512_reduce_add_ps(cov_yx_f32x16);
-    nk_f32_t covariance_y_y = _mm512_reduce_add_ps(cov_yy_f32x16);
-    nk_f32_t covariance_y_z = _mm512_reduce_add_ps(cov_yz_f32x16);
-    nk_f32_t covariance_z_x = _mm512_reduce_add_ps(cov_zx_f32x16);
-    nk_f32_t covariance_z_y = _mm512_reduce_add_ps(cov_zy_f32x16);
-    nk_f32_t covariance_z_z = _mm512_reduce_add_ps(cov_zz_f32x16);
+    // Per-channel demux via mask-reduce on the fp32 accumulators (lane i carries channel i%3).
+    __mmask16 const mask_channel_x_f32 = 0x1249; // lanes {0, 3, 6, 9, 12}
+    __mmask16 const mask_channel_y_f32 = 0x2492; // lanes {1, 4, 7, 10, 13}
+    __mmask16 const mask_channel_z_f32 = 0x4924; // lanes {2, 5, 8, 11, 14}
+
+    nk_f32_t sum_a_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_a_f32x16);
+    nk_f32_t sum_a_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_a_f32x16);
+    nk_f32_t sum_a_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_a_f32x16);
+    nk_f32_t sum_b_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_b_f32x16);
+    nk_f32_t sum_b_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_b_f32x16);
+    nk_f32_t sum_b_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_b_f32x16);
+    nk_f32_t norm_squared_a = _mm512_reduce_add_ps(norm_squared_a_f32x16);
+    nk_f32_t norm_squared_b = _mm512_reduce_add_ps(norm_squared_b_f32x16);
+
+    nk_f32_t covariance_x_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_diagonal_f32x16);
+    nk_f32_t covariance_x_y = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_1_f32x16);
+    nk_f32_t covariance_x_z = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_x = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_diagonal_f32x16);
+    nk_f32_t covariance_y_z = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_x = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_y = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_2_f32x16);
+    nk_f32_t covariance_z_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_diagonal_f32x16);
 
     nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
     nk_f32_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;
     nk_f32_t centroid_b_x = sum_b_x * inv_n, centroid_b_y = sum_b_y * inv_n, centroid_b_z = sum_b_z * inv_n;
-
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
 
-    covariance_x_x -= (nk_f32_t)n * centroid_a_x * centroid_b_x;
-    covariance_x_y -= (nk_f32_t)n * centroid_a_x * centroid_b_y;
-    covariance_x_z -= (nk_f32_t)n * centroid_a_x * centroid_b_z;
-    covariance_y_x -= (nk_f32_t)n * centroid_a_y * centroid_b_x;
-    covariance_y_y -= (nk_f32_t)n * centroid_a_y * centroid_b_y;
-    covariance_y_z -= (nk_f32_t)n * centroid_a_y * centroid_b_z;
-    covariance_z_x -= (nk_f32_t)n * centroid_a_z * centroid_b_x;
-    covariance_z_y -= (nk_f32_t)n * centroid_a_z * centroid_b_y;
-    covariance_z_z -= (nk_f32_t)n * centroid_a_z * centroid_b_z;
+    // Parallel-axis correction.
+    nk_f32_t cross_covariance[9];
+    cross_covariance[0] = covariance_x_x - (nk_f32_t)n * centroid_a_x * centroid_b_x;
+    cross_covariance[1] = covariance_x_y - (nk_f32_t)n * centroid_a_x * centroid_b_y;
+    cross_covariance[2] = covariance_x_z - (nk_f32_t)n * centroid_a_x * centroid_b_z;
+    cross_covariance[3] = covariance_y_x - (nk_f32_t)n * centroid_a_y * centroid_b_x;
+    cross_covariance[4] = covariance_y_y - (nk_f32_t)n * centroid_a_y * centroid_b_y;
+    cross_covariance[5] = covariance_y_z - (nk_f32_t)n * centroid_a_y * centroid_b_z;
+    cross_covariance[6] = covariance_z_x - (nk_f32_t)n * centroid_a_z * centroid_b_x;
+    cross_covariance[7] = covariance_z_y - (nk_f32_t)n * centroid_a_z * centroid_b_y;
+    cross_covariance[8] = covariance_z_z - (nk_f32_t)n * centroid_a_z * centroid_b_z;
 
-    nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
-                                    covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
-    nk_f32_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f32_(cross_covariance, svd_u, svd_s, svd_v);
-
-    nk_f32_t r[9];
-    r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
-
-    if (nk_det3x3_f32_(r) < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
+    nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+    nk_f32_t optimal_rotation[9];
+    nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
+    if (nk_det3x3_f32_(optimal_rotation) < 0) {
+        svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+        nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
     }
-
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    nk_f32_t sum_squared = nk_transformed_ssd_bf16_skylake_(a, b, n, r, 1.0f, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                            centroid_b_x, centroid_b_y, centroid_b_z);
+    // Folded SSD via trace identity:
+    //    SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered)
+    //    trace(R · H_centered) = Σⱼₖ R[j,k] · H[k,j]  (note transpose on H).
+    nk_f32_t centered_norm_squared_a = norm_squared_a -
+                                       (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f32_t centered_norm_squared_b = norm_squared_b -
+                                       (nk_f32_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
+    if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
+    nk_f32_t trace_rotation_covariance =
+        optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+        optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+        optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+        optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+        optimal_rotation[8] * cross_covariance[8];
+    nk_f32_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0f * trace_rotation_covariance;
+    if (sum_squared < 0.0f) sum_squared = 0.0f;
     *result = nk_f32_sqrt_haswell(sum_squared * inv_n);
 }
 
 NK_PUBLIC void nk_umeyama_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    // Same 15-lane streaming-stats pattern as kabsch_f16_skylake; adds the Umeyama scale.
+    __m512i const idx_rotation_1_i32x16 = _mm512_setr_epi32(1, 2, 0, 4, 5, 3, 7, 8, 6, 10, 11, 9, 13, 14, 12, 15);
+    __m512i const idx_rotation_2_i32x16 = _mm512_setr_epi32(2, 0, 1, 5, 3, 4, 8, 6, 7, 11, 9, 10, 14, 12, 13, 15);
+
     __m512 const zeros_f32x16 = _mm512_setzero_ps();
+    __m512 sum_a_f32x16 = zeros_f32x16, sum_b_f32x16 = zeros_f32x16;
+    __m512 norm_squared_a_f32x16 = zeros_f32x16, norm_squared_b_f32x16 = zeros_f32x16;
+    __m512 product_diagonal_f32x16 = zeros_f32x16;
+    __m512 product_rotation_1_f32x16 = zeros_f32x16;
+    __m512 product_rotation_2_f32x16 = zeros_f32x16;
 
-    __m512 sum_a_x_f32x16 = zeros_f32x16, sum_a_y_f32x16 = zeros_f32x16, sum_a_z_f32x16 = zeros_f32x16;
-    __m512 sum_b_x_f32x16 = zeros_f32x16, sum_b_y_f32x16 = zeros_f32x16, sum_b_z_f32x16 = zeros_f32x16;
-    __m512 cov_xx_f32x16 = zeros_f32x16, cov_xy_f32x16 = zeros_f32x16, cov_xz_f32x16 = zeros_f32x16;
-    __m512 cov_yx_f32x16 = zeros_f32x16, cov_yy_f32x16 = zeros_f32x16, cov_yz_f32x16 = zeros_f32x16;
-    __m512 cov_zx_f32x16 = zeros_f32x16, cov_zy_f32x16 = zeros_f32x16, cov_zz_f32x16 = zeros_f32x16;
-    __m512 variance_a_f32x16 = zeros_f32x16;
-
-    nk_size_t i = 0;
-    __m512 a_x_f32x16, a_y_f32x16, a_z_f32x16, b_x_f32x16, b_y_f32x16, b_z_f32x16;
-
-    for (; i + 16 <= n; i += 16) {
-        nk_deinterleave_f16x16_to_f32x16_skylake_(a + i * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_f16x16_to_f32x16_skylake_(b + i * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        sum_a_x_f32x16 = _mm512_add_ps(sum_a_x_f32x16, a_x_f32x16);
-        sum_a_y_f32x16 = _mm512_add_ps(sum_a_y_f32x16, a_y_f32x16);
-        sum_a_z_f32x16 = _mm512_add_ps(sum_a_z_f32x16, a_z_f32x16);
-        sum_b_x_f32x16 = _mm512_add_ps(sum_b_x_f32x16, b_x_f32x16);
-        sum_b_y_f32x16 = _mm512_add_ps(sum_b_y_f32x16, b_y_f32x16);
-        sum_b_z_f32x16 = _mm512_add_ps(sum_b_z_f32x16, b_z_f32x16);
-
-        cov_xx_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_x_f32x16, cov_xx_f32x16);
-        cov_xy_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_y_f32x16, cov_xy_f32x16);
-        cov_xz_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_z_f32x16, cov_xz_f32x16);
-        cov_yx_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_x_f32x16, cov_yx_f32x16);
-        cov_yy_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_y_f32x16, cov_yy_f32x16);
-        cov_yz_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_z_f32x16, cov_yz_f32x16);
-        cov_zx_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_x_f32x16, cov_zx_f32x16);
-        cov_zy_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_y_f32x16, cov_zy_f32x16);
-        cov_zz_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_z_f32x16, cov_zz_f32x16);
-
-        variance_a_f32x16 = _mm512_fmadd_ps(a_x_f32x16, a_x_f32x16, variance_a_f32x16);
-        variance_a_f32x16 = _mm512_fmadd_ps(a_y_f32x16, a_y_f32x16, variance_a_f32x16);
-        variance_a_f32x16 = _mm512_fmadd_ps(a_z_f32x16, a_z_f32x16, variance_a_f32x16);
+    nk_size_t index = 0;
+    for (; index + 5 <= n; index += 5) {
+        __m256i a_f16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(a + index * 3));
+        __m256i b_f16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = _mm512_cvtph_ps(a_f16x16);
+        __m512 b_f32x16 = _mm512_cvtph_ps(b_f16x16);
+        __m512 b_rotation_1_f32x16 = _mm512_permutexvar_ps(idx_rotation_1_i32x16, b_f32x16);
+        __m512 b_rotation_2_f32x16 = _mm512_permutexvar_ps(idx_rotation_2_i32x16, b_f32x16);
+        sum_a_f32x16 = _mm512_add_ps(sum_a_f32x16, a_f32x16);
+        sum_b_f32x16 = _mm512_add_ps(sum_b_f32x16, b_f32x16);
+        norm_squared_a_f32x16 = _mm512_fmadd_ps(a_f32x16, a_f32x16, norm_squared_a_f32x16);
+        norm_squared_b_f32x16 = _mm512_fmadd_ps(b_f32x16, b_f32x16, norm_squared_b_f32x16);
+        product_diagonal_f32x16 = _mm512_fmadd_ps(a_f32x16, b_f32x16, product_diagonal_f32x16);
+        product_rotation_1_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_1_f32x16, product_rotation_1_f32x16);
+        product_rotation_2_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_2_f32x16, product_rotation_2_f32x16);
     }
 
-    // Tail: deinterleave remaining points into zero-initialized vectors
-    if (i < n) {
-        nk_size_t tail = n - i;
-        nk_deinterleave_f16_tail_to_f32x16_skylake_(a + i * 3, tail, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_f16_tail_to_f32x16_skylake_(b + i * 3, tail, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        sum_a_x_f32x16 = _mm512_add_ps(sum_a_x_f32x16, a_x_f32x16);
-        sum_a_y_f32x16 = _mm512_add_ps(sum_a_y_f32x16, a_y_f32x16);
-        sum_a_z_f32x16 = _mm512_add_ps(sum_a_z_f32x16, a_z_f32x16);
-        sum_b_x_f32x16 = _mm512_add_ps(sum_b_x_f32x16, b_x_f32x16);
-        sum_b_y_f32x16 = _mm512_add_ps(sum_b_y_f32x16, b_y_f32x16);
-        sum_b_z_f32x16 = _mm512_add_ps(sum_b_z_f32x16, b_z_f32x16);
-
-        cov_xx_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_x_f32x16, cov_xx_f32x16);
-        cov_xy_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_y_f32x16, cov_xy_f32x16);
-        cov_xz_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_z_f32x16, cov_xz_f32x16);
-        cov_yx_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_x_f32x16, cov_yx_f32x16);
-        cov_yy_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_y_f32x16, cov_yy_f32x16);
-        cov_yz_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_z_f32x16, cov_yz_f32x16);
-        cov_zx_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_x_f32x16, cov_zx_f32x16);
-        cov_zy_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_y_f32x16, cov_zy_f32x16);
-        cov_zz_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_z_f32x16, cov_zz_f32x16);
-
-        variance_a_f32x16 = _mm512_fmadd_ps(a_x_f32x16, a_x_f32x16, variance_a_f32x16);
-        variance_a_f32x16 = _mm512_fmadd_ps(a_y_f32x16, a_y_f32x16, variance_a_f32x16);
-        variance_a_f32x16 = _mm512_fmadd_ps(a_z_f32x16, a_z_f32x16, variance_a_f32x16);
+    if (index < n) {
+        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
+        __m256i a_f16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(a + index * 3));
+        __m256i b_f16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = _mm512_cvtph_ps(a_f16x16);
+        __m512 b_f32x16 = _mm512_cvtph_ps(b_f16x16);
+        __m512 b_rotation_1_f32x16 = _mm512_permutexvar_ps(idx_rotation_1_i32x16, b_f32x16);
+        __m512 b_rotation_2_f32x16 = _mm512_permutexvar_ps(idx_rotation_2_i32x16, b_f32x16);
+        sum_a_f32x16 = _mm512_add_ps(sum_a_f32x16, a_f32x16);
+        sum_b_f32x16 = _mm512_add_ps(sum_b_f32x16, b_f32x16);
+        norm_squared_a_f32x16 = _mm512_fmadd_ps(a_f32x16, a_f32x16, norm_squared_a_f32x16);
+        norm_squared_b_f32x16 = _mm512_fmadd_ps(b_f32x16, b_f32x16, norm_squared_b_f32x16);
+        product_diagonal_f32x16 = _mm512_fmadd_ps(a_f32x16, b_f32x16, product_diagonal_f32x16);
+        product_rotation_1_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_1_f32x16, product_rotation_1_f32x16);
+        product_rotation_2_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_2_f32x16, product_rotation_2_f32x16);
     }
 
-    nk_f32_t sum_a_x = _mm512_reduce_add_ps(sum_a_x_f32x16);
-    nk_f32_t sum_a_y = _mm512_reduce_add_ps(sum_a_y_f32x16);
-    nk_f32_t sum_a_z = _mm512_reduce_add_ps(sum_a_z_f32x16);
-    nk_f32_t sum_b_x = _mm512_reduce_add_ps(sum_b_x_f32x16);
-    nk_f32_t sum_b_y = _mm512_reduce_add_ps(sum_b_y_f32x16);
-    nk_f32_t sum_b_z = _mm512_reduce_add_ps(sum_b_z_f32x16);
-    nk_f32_t covariance_x_x = _mm512_reduce_add_ps(cov_xx_f32x16);
-    nk_f32_t covariance_x_y = _mm512_reduce_add_ps(cov_xy_f32x16);
-    nk_f32_t covariance_x_z = _mm512_reduce_add_ps(cov_xz_f32x16);
-    nk_f32_t covariance_y_x = _mm512_reduce_add_ps(cov_yx_f32x16);
-    nk_f32_t covariance_y_y = _mm512_reduce_add_ps(cov_yy_f32x16);
-    nk_f32_t covariance_y_z = _mm512_reduce_add_ps(cov_yz_f32x16);
-    nk_f32_t covariance_z_x = _mm512_reduce_add_ps(cov_zx_f32x16);
-    nk_f32_t covariance_z_y = _mm512_reduce_add_ps(cov_zy_f32x16);
-    nk_f32_t covariance_z_z = _mm512_reduce_add_ps(cov_zz_f32x16);
-    nk_f32_t variance_a_sum = _mm512_reduce_add_ps(variance_a_f32x16);
+    __mmask16 const mask_channel_x_f32 = 0x1249;
+    __mmask16 const mask_channel_y_f32 = 0x2492;
+    __mmask16 const mask_channel_z_f32 = 0x4924;
+
+    nk_f32_t sum_a_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_a_f32x16);
+    nk_f32_t sum_a_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_a_f32x16);
+    nk_f32_t sum_a_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_a_f32x16);
+    nk_f32_t sum_b_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_b_f32x16);
+    nk_f32_t sum_b_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_b_f32x16);
+    nk_f32_t sum_b_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_b_f32x16);
+    nk_f32_t norm_squared_a = _mm512_reduce_add_ps(norm_squared_a_f32x16);
+    nk_f32_t norm_squared_b = _mm512_reduce_add_ps(norm_squared_b_f32x16);
+
+    nk_f32_t covariance_x_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_diagonal_f32x16);
+    nk_f32_t covariance_x_y = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_1_f32x16);
+    nk_f32_t covariance_x_z = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_x = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_diagonal_f32x16);
+    nk_f32_t covariance_y_z = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_x = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_y = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_2_f32x16);
+    nk_f32_t covariance_z_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_diagonal_f32x16);
 
     nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
     nk_f32_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;
     nk_f32_t centroid_b_x = sum_b_x * inv_n, centroid_b_y = sum_b_y * inv_n, centroid_b_z = sum_b_z * inv_n;
-
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
 
-    nk_f32_t variance_a = variance_a_sum * inv_n -
-                          (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y + centroid_a_z * centroid_a_z);
+    nk_f32_t centered_norm_squared_a = norm_squared_a -
+                                       (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f32_t centered_norm_squared_b = norm_squared_b -
+                                       (nk_f32_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
+    if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
 
-    covariance_x_x -= (nk_f32_t)n * centroid_a_x * centroid_b_x;
-    covariance_x_y -= (nk_f32_t)n * centroid_a_x * centroid_b_y;
-    covariance_x_z -= (nk_f32_t)n * centroid_a_x * centroid_b_z;
-    covariance_y_x -= (nk_f32_t)n * centroid_a_y * centroid_b_x;
-    covariance_y_y -= (nk_f32_t)n * centroid_a_y * centroid_b_y;
-    covariance_y_z -= (nk_f32_t)n * centroid_a_y * centroid_b_z;
-    covariance_z_x -= (nk_f32_t)n * centroid_a_z * centroid_b_x;
-    covariance_z_y -= (nk_f32_t)n * centroid_a_z * centroid_b_y;
-    covariance_z_z -= (nk_f32_t)n * centroid_a_z * centroid_b_z;
+    nk_f32_t cross_covariance[9];
+    cross_covariance[0] = covariance_x_x - (nk_f32_t)n * centroid_a_x * centroid_b_x;
+    cross_covariance[1] = covariance_x_y - (nk_f32_t)n * centroid_a_x * centroid_b_y;
+    cross_covariance[2] = covariance_x_z - (nk_f32_t)n * centroid_a_x * centroid_b_z;
+    cross_covariance[3] = covariance_y_x - (nk_f32_t)n * centroid_a_y * centroid_b_x;
+    cross_covariance[4] = covariance_y_y - (nk_f32_t)n * centroid_a_y * centroid_b_y;
+    cross_covariance[5] = covariance_y_z - (nk_f32_t)n * centroid_a_y * centroid_b_z;
+    cross_covariance[6] = covariance_z_x - (nk_f32_t)n * centroid_a_z * centroid_b_x;
+    cross_covariance[7] = covariance_z_y - (nk_f32_t)n * centroid_a_z * centroid_b_y;
+    cross_covariance[8] = covariance_z_z - (nk_f32_t)n * centroid_a_z * centroid_b_z;
 
-    nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
-                                    covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
+    nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
+    nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+    nk_f32_t optimal_rotation[9];
+    nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
 
-    nk_f32_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f32_(cross_covariance, svd_u, svd_s, svd_v);
-
-    nk_f32_t r[9];
-    r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
-
-    nk_f32_t det = nk_det3x3_f32_(r);
-    nk_f32_t d3 = det < 0 ? -1.0f : 1.0f;
-    nk_f32_t trace_ds = svd_s[0] + svd_s[4] + d3 * svd_s[8];
-    nk_f32_t c = trace_ds / ((nk_f32_t)n * variance_a);
+    // Scale factor: c = trace(D · S) / ‖a-ā‖², with reflection sign via d3.
+    nk_f32_t det = nk_det3x3_f32_(optimal_rotation);
+    nk_f32_t d3 = det < 0.0f ? -1.0f : 1.0f;
+    nk_f32_t trace_ds = nk_sum_three_products_f32_(svd_diagonal[0], 1.0f, svd_diagonal[4], 1.0f, svd_diagonal[8], d3);
+    nk_f32_t c = centered_norm_squared_a > 0.0f ? trace_ds / centered_norm_squared_a : 0.0f;
     if (scale) *scale = c;
 
-    if (det < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    if (det < 0.0f) {
+        svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+        nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
     }
-
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    nk_f32_t sum_squared = nk_transformed_ssd_f16_skylake_(a, b, n, r, c, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                           centroid_b_x, centroid_b_y, centroid_b_z);
+    // Folded SSD with scale:
+    //    SSD = c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    nk_f32_t trace_rotation_covariance =
+        optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+        optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+        optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+        optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+        optimal_rotation[8] * cross_covariance[8];
+    nk_f32_t sum_squared = c * c * centered_norm_squared_a + centered_norm_squared_b -
+                           2.0f * c * trace_rotation_covariance;
+    if (sum_squared < 0.0f) sum_squared = 0.0f;
     *result = nk_f32_sqrt_haswell(sum_squared * inv_n);
 }
 
 NK_PUBLIC void nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    // Same 15-lane streaming-stats pattern as kabsch_bf16_skylake; adds the Umeyama scale.
+    __m512i const idx_rotation_1_i32x16 = _mm512_setr_epi32(1, 2, 0, 4, 5, 3, 7, 8, 6, 10, 11, 9, 13, 14, 12, 15);
+    __m512i const idx_rotation_2_i32x16 = _mm512_setr_epi32(2, 0, 1, 5, 3, 4, 8, 6, 7, 11, 9, 10, 14, 12, 13, 15);
+
     __m512 const zeros_f32x16 = _mm512_setzero_ps();
+    __m512 sum_a_f32x16 = zeros_f32x16, sum_b_f32x16 = zeros_f32x16;
+    __m512 norm_squared_a_f32x16 = zeros_f32x16, norm_squared_b_f32x16 = zeros_f32x16;
+    __m512 product_diagonal_f32x16 = zeros_f32x16;
+    __m512 product_rotation_1_f32x16 = zeros_f32x16;
+    __m512 product_rotation_2_f32x16 = zeros_f32x16;
 
-    __m512 sum_a_x_f32x16 = zeros_f32x16, sum_a_y_f32x16 = zeros_f32x16, sum_a_z_f32x16 = zeros_f32x16;
-    __m512 sum_b_x_f32x16 = zeros_f32x16, sum_b_y_f32x16 = zeros_f32x16, sum_b_z_f32x16 = zeros_f32x16;
-    __m512 cov_xx_f32x16 = zeros_f32x16, cov_xy_f32x16 = zeros_f32x16, cov_xz_f32x16 = zeros_f32x16;
-    __m512 cov_yx_f32x16 = zeros_f32x16, cov_yy_f32x16 = zeros_f32x16, cov_yz_f32x16 = zeros_f32x16;
-    __m512 cov_zx_f32x16 = zeros_f32x16, cov_zy_f32x16 = zeros_f32x16, cov_zz_f32x16 = zeros_f32x16;
-    __m512 variance_a_f32x16 = zeros_f32x16;
-
-    nk_size_t i = 0;
-    __m512 a_x_f32x16, a_y_f32x16, a_z_f32x16, b_x_f32x16, b_y_f32x16, b_z_f32x16;
-
-    for (; i + 16 <= n; i += 16) {
-        nk_deinterleave_bf16x16_to_f32x16_skylake_(a + i * 3, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_bf16x16_to_f32x16_skylake_(b + i * 3, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        sum_a_x_f32x16 = _mm512_add_ps(sum_a_x_f32x16, a_x_f32x16);
-        sum_a_y_f32x16 = _mm512_add_ps(sum_a_y_f32x16, a_y_f32x16);
-        sum_a_z_f32x16 = _mm512_add_ps(sum_a_z_f32x16, a_z_f32x16);
-        sum_b_x_f32x16 = _mm512_add_ps(sum_b_x_f32x16, b_x_f32x16);
-        sum_b_y_f32x16 = _mm512_add_ps(sum_b_y_f32x16, b_y_f32x16);
-        sum_b_z_f32x16 = _mm512_add_ps(sum_b_z_f32x16, b_z_f32x16);
-
-        cov_xx_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_x_f32x16, cov_xx_f32x16);
-        cov_xy_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_y_f32x16, cov_xy_f32x16);
-        cov_xz_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_z_f32x16, cov_xz_f32x16);
-        cov_yx_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_x_f32x16, cov_yx_f32x16);
-        cov_yy_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_y_f32x16, cov_yy_f32x16);
-        cov_yz_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_z_f32x16, cov_yz_f32x16);
-        cov_zx_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_x_f32x16, cov_zx_f32x16);
-        cov_zy_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_y_f32x16, cov_zy_f32x16);
-        cov_zz_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_z_f32x16, cov_zz_f32x16);
-
-        variance_a_f32x16 = _mm512_fmadd_ps(a_x_f32x16, a_x_f32x16, variance_a_f32x16);
-        variance_a_f32x16 = _mm512_fmadd_ps(a_y_f32x16, a_y_f32x16, variance_a_f32x16);
-        variance_a_f32x16 = _mm512_fmadd_ps(a_z_f32x16, a_z_f32x16, variance_a_f32x16);
+    nk_size_t index = 0;
+    for (; index + 5 <= n; index += 5) {
+        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(a + index * 3));
+        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = nk_bf16x16_to_f32x16_skylake_(a_bf16x16);
+        __m512 b_f32x16 = nk_bf16x16_to_f32x16_skylake_(b_bf16x16);
+        __m512 b_rotation_1_f32x16 = _mm512_permutexvar_ps(idx_rotation_1_i32x16, b_f32x16);
+        __m512 b_rotation_2_f32x16 = _mm512_permutexvar_ps(idx_rotation_2_i32x16, b_f32x16);
+        sum_a_f32x16 = _mm512_add_ps(sum_a_f32x16, a_f32x16);
+        sum_b_f32x16 = _mm512_add_ps(sum_b_f32x16, b_f32x16);
+        norm_squared_a_f32x16 = _mm512_fmadd_ps(a_f32x16, a_f32x16, norm_squared_a_f32x16);
+        norm_squared_b_f32x16 = _mm512_fmadd_ps(b_f32x16, b_f32x16, norm_squared_b_f32x16);
+        product_diagonal_f32x16 = _mm512_fmadd_ps(a_f32x16, b_f32x16, product_diagonal_f32x16);
+        product_rotation_1_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_1_f32x16, product_rotation_1_f32x16);
+        product_rotation_2_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_2_f32x16, product_rotation_2_f32x16);
     }
 
-    // Tail: deinterleave remaining points into zero-initialized vectors
-    if (i < n) {
-        nk_size_t tail = n - i;
-        nk_deinterleave_bf16_tail_to_f32x16_skylake_(a + i * 3, tail, &a_x_f32x16, &a_y_f32x16, &a_z_f32x16);
-        nk_deinterleave_bf16_tail_to_f32x16_skylake_(b + i * 3, tail, &b_x_f32x16, &b_y_f32x16, &b_z_f32x16);
-
-        sum_a_x_f32x16 = _mm512_add_ps(sum_a_x_f32x16, a_x_f32x16);
-        sum_a_y_f32x16 = _mm512_add_ps(sum_a_y_f32x16, a_y_f32x16);
-        sum_a_z_f32x16 = _mm512_add_ps(sum_a_z_f32x16, a_z_f32x16);
-        sum_b_x_f32x16 = _mm512_add_ps(sum_b_x_f32x16, b_x_f32x16);
-        sum_b_y_f32x16 = _mm512_add_ps(sum_b_y_f32x16, b_y_f32x16);
-        sum_b_z_f32x16 = _mm512_add_ps(sum_b_z_f32x16, b_z_f32x16);
-
-        cov_xx_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_x_f32x16, cov_xx_f32x16);
-        cov_xy_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_y_f32x16, cov_xy_f32x16);
-        cov_xz_f32x16 = _mm512_fmadd_ps(a_x_f32x16, b_z_f32x16, cov_xz_f32x16);
-        cov_yx_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_x_f32x16, cov_yx_f32x16);
-        cov_yy_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_y_f32x16, cov_yy_f32x16);
-        cov_yz_f32x16 = _mm512_fmadd_ps(a_y_f32x16, b_z_f32x16, cov_yz_f32x16);
-        cov_zx_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_x_f32x16, cov_zx_f32x16);
-        cov_zy_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_y_f32x16, cov_zy_f32x16);
-        cov_zz_f32x16 = _mm512_fmadd_ps(a_z_f32x16, b_z_f32x16, cov_zz_f32x16);
-
-        variance_a_f32x16 = _mm512_fmadd_ps(a_x_f32x16, a_x_f32x16, variance_a_f32x16);
-        variance_a_f32x16 = _mm512_fmadd_ps(a_y_f32x16, a_y_f32x16, variance_a_f32x16);
-        variance_a_f32x16 = _mm512_fmadd_ps(a_z_f32x16, a_z_f32x16, variance_a_f32x16);
+    if (index < n) {
+        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
+        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(a + index * 3));
+        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = nk_bf16x16_to_f32x16_skylake_(a_bf16x16);
+        __m512 b_f32x16 = nk_bf16x16_to_f32x16_skylake_(b_bf16x16);
+        __m512 b_rotation_1_f32x16 = _mm512_permutexvar_ps(idx_rotation_1_i32x16, b_f32x16);
+        __m512 b_rotation_2_f32x16 = _mm512_permutexvar_ps(idx_rotation_2_i32x16, b_f32x16);
+        sum_a_f32x16 = _mm512_add_ps(sum_a_f32x16, a_f32x16);
+        sum_b_f32x16 = _mm512_add_ps(sum_b_f32x16, b_f32x16);
+        norm_squared_a_f32x16 = _mm512_fmadd_ps(a_f32x16, a_f32x16, norm_squared_a_f32x16);
+        norm_squared_b_f32x16 = _mm512_fmadd_ps(b_f32x16, b_f32x16, norm_squared_b_f32x16);
+        product_diagonal_f32x16 = _mm512_fmadd_ps(a_f32x16, b_f32x16, product_diagonal_f32x16);
+        product_rotation_1_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_1_f32x16, product_rotation_1_f32x16);
+        product_rotation_2_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_2_f32x16, product_rotation_2_f32x16);
     }
 
-    nk_f32_t sum_a_x = _mm512_reduce_add_ps(sum_a_x_f32x16);
-    nk_f32_t sum_a_y = _mm512_reduce_add_ps(sum_a_y_f32x16);
-    nk_f32_t sum_a_z = _mm512_reduce_add_ps(sum_a_z_f32x16);
-    nk_f32_t sum_b_x = _mm512_reduce_add_ps(sum_b_x_f32x16);
-    nk_f32_t sum_b_y = _mm512_reduce_add_ps(sum_b_y_f32x16);
-    nk_f32_t sum_b_z = _mm512_reduce_add_ps(sum_b_z_f32x16);
-    nk_f32_t covariance_x_x = _mm512_reduce_add_ps(cov_xx_f32x16);
-    nk_f32_t covariance_x_y = _mm512_reduce_add_ps(cov_xy_f32x16);
-    nk_f32_t covariance_x_z = _mm512_reduce_add_ps(cov_xz_f32x16);
-    nk_f32_t covariance_y_x = _mm512_reduce_add_ps(cov_yx_f32x16);
-    nk_f32_t covariance_y_y = _mm512_reduce_add_ps(cov_yy_f32x16);
-    nk_f32_t covariance_y_z = _mm512_reduce_add_ps(cov_yz_f32x16);
-    nk_f32_t covariance_z_x = _mm512_reduce_add_ps(cov_zx_f32x16);
-    nk_f32_t covariance_z_y = _mm512_reduce_add_ps(cov_zy_f32x16);
-    nk_f32_t covariance_z_z = _mm512_reduce_add_ps(cov_zz_f32x16);
-    nk_f32_t variance_a_sum = _mm512_reduce_add_ps(variance_a_f32x16);
+    __mmask16 const mask_channel_x_f32 = 0x1249;
+    __mmask16 const mask_channel_y_f32 = 0x2492;
+    __mmask16 const mask_channel_z_f32 = 0x4924;
+
+    nk_f32_t sum_a_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_a_f32x16);
+    nk_f32_t sum_a_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_a_f32x16);
+    nk_f32_t sum_a_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_a_f32x16);
+    nk_f32_t sum_b_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_b_f32x16);
+    nk_f32_t sum_b_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_b_f32x16);
+    nk_f32_t sum_b_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_b_f32x16);
+    nk_f32_t norm_squared_a = _mm512_reduce_add_ps(norm_squared_a_f32x16);
+    nk_f32_t norm_squared_b = _mm512_reduce_add_ps(norm_squared_b_f32x16);
+
+    nk_f32_t covariance_x_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_diagonal_f32x16);
+    nk_f32_t covariance_x_y = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_1_f32x16);
+    nk_f32_t covariance_x_z = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_x = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_diagonal_f32x16);
+    nk_f32_t covariance_y_z = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_x = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_y = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_2_f32x16);
+    nk_f32_t covariance_z_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_diagonal_f32x16);
 
     nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
     nk_f32_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;
     nk_f32_t centroid_b_x = sum_b_x * inv_n, centroid_b_y = sum_b_y * inv_n, centroid_b_z = sum_b_z * inv_n;
-
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
 
-    nk_f32_t variance_a = variance_a_sum * inv_n -
-                          (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y + centroid_a_z * centroid_a_z);
+    nk_f32_t centered_norm_squared_a = norm_squared_a -
+                                       (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f32_t centered_norm_squared_b = norm_squared_b -
+                                       (nk_f32_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
+    if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
 
-    covariance_x_x -= (nk_f32_t)n * centroid_a_x * centroid_b_x;
-    covariance_x_y -= (nk_f32_t)n * centroid_a_x * centroid_b_y;
-    covariance_x_z -= (nk_f32_t)n * centroid_a_x * centroid_b_z;
-    covariance_y_x -= (nk_f32_t)n * centroid_a_y * centroid_b_x;
-    covariance_y_y -= (nk_f32_t)n * centroid_a_y * centroid_b_y;
-    covariance_y_z -= (nk_f32_t)n * centroid_a_y * centroid_b_z;
-    covariance_z_x -= (nk_f32_t)n * centroid_a_z * centroid_b_x;
-    covariance_z_y -= (nk_f32_t)n * centroid_a_z * centroid_b_y;
-    covariance_z_z -= (nk_f32_t)n * centroid_a_z * centroid_b_z;
+    nk_f32_t cross_covariance[9];
+    cross_covariance[0] = covariance_x_x - (nk_f32_t)n * centroid_a_x * centroid_b_x;
+    cross_covariance[1] = covariance_x_y - (nk_f32_t)n * centroid_a_x * centroid_b_y;
+    cross_covariance[2] = covariance_x_z - (nk_f32_t)n * centroid_a_x * centroid_b_z;
+    cross_covariance[3] = covariance_y_x - (nk_f32_t)n * centroid_a_y * centroid_b_x;
+    cross_covariance[4] = covariance_y_y - (nk_f32_t)n * centroid_a_y * centroid_b_y;
+    cross_covariance[5] = covariance_y_z - (nk_f32_t)n * centroid_a_y * centroid_b_z;
+    cross_covariance[6] = covariance_z_x - (nk_f32_t)n * centroid_a_z * centroid_b_x;
+    cross_covariance[7] = covariance_z_y - (nk_f32_t)n * centroid_a_z * centroid_b_y;
+    cross_covariance[8] = covariance_z_z - (nk_f32_t)n * centroid_a_z * centroid_b_z;
 
-    nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
-                                    covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
+    nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
+    nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+    nk_f32_t optimal_rotation[9];
+    nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
 
-    nk_f32_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f32_(cross_covariance, svd_u, svd_s, svd_v);
-
-    nk_f32_t r[9];
-    r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
-
-    nk_f32_t det = nk_det3x3_f32_(r);
-    nk_f32_t d3 = det < 0 ? -1.0f : 1.0f;
-    nk_f32_t trace_ds = svd_s[0] + svd_s[4] + d3 * svd_s[8];
-    nk_f32_t c = trace_ds / ((nk_f32_t)n * variance_a);
+    // Scale factor: c = trace(D · S) / ‖a-ā‖², with reflection sign via d3.
+    nk_f32_t det = nk_det3x3_f32_(optimal_rotation);
+    nk_f32_t d3 = det < 0.0f ? -1.0f : 1.0f;
+    nk_f32_t trace_ds = nk_sum_three_products_f32_(svd_diagonal[0], 1.0f, svd_diagonal[4], 1.0f, svd_diagonal[8], d3);
+    nk_f32_t c = centered_norm_squared_a > 0.0f ? trace_ds / centered_norm_squared_a : 0.0f;
     if (scale) *scale = c;
 
-    if (det < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    if (det < 0.0f) {
+        svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+        nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
     }
-
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    nk_f32_t sum_squared = nk_transformed_ssd_bf16_skylake_(a, b, n, r, c, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                            centroid_b_x, centroid_b_y, centroid_b_z);
+    // Folded SSD with scale:
+    //    SSD = c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    nk_f32_t trace_rotation_covariance =
+        optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+        optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+        optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+        optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+        optimal_rotation[8] * cross_covariance[8];
+    nk_f32_t sum_squared = c * c * centered_norm_squared_a + centered_norm_squared_b -
+                           2.0f * c * trace_rotation_covariance;
+    if (sum_squared < 0.0f) sum_squared = 0.0f;
     *result = nk_f32_sqrt_haswell(sum_squared * inv_n);
 }
 

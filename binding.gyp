@@ -70,6 +70,7 @@
             },
             "conditions": [
                 # Pin TU baseline to each arch's ABI floor; SIMD kernels use per-function pragmas.
+                # Keep per-arch table in sync with cmake/nk_compiler_flags.cmake, build.rs, setup.py.
                 [
                     "OS!='win' and target_arch=='arm64'",
                     {
@@ -91,6 +92,23 @@
                     {
                         "cflags": [
                             "-march=rv64gc"
+                        ]
+                    }
+                ],
+                [
+                    "OS!='win' and target_arch=='ppc64'",
+                    {
+                        "cflags": [
+                            "-mcpu=power8"
+                        ]
+                    }
+                ],
+                [
+                    "OS!='win' and target_arch=='loong64'",
+                    {
+                        "cflags": [
+                            "-march=loongarch64",
+                            "-mlasx"
                         ]
                     }
                 ],

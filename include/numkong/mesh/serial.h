@@ -146,28 +146,28 @@ extern "C" {
 
 #define nk_define_sort_singular_values_(type)                                                \
     NK_INTERNAL void nk_sort_singular_values_##type##_(nk_##type##_t *b, nk_##type##_t *v) { \
-        nk_##type##_t rho1 = b[0] * b[0] + b[3] * b[3] + b[6] * b[6];                        \
-        nk_##type##_t rho2 = b[1] * b[1] + b[4] * b[4] + b[7] * b[7];                        \
-        nk_##type##_t rho3 = b[2] * b[2] + b[5] * b[5] + b[8] * b[8];                        \
+        nk_##type##_t column_norm_squared_0 = b[0] * b[0] + b[3] * b[3] + b[6] * b[6];       \
+        nk_##type##_t column_norm_squared_1 = b[1] * b[1] + b[4] * b[4] + b[7] * b[7];       \
+        nk_##type##_t column_norm_squared_2 = b[2] * b[2] + b[5] * b[5] + b[8] * b[8];       \
         int should_swap;                                                                     \
         /* Sort columns by descending singular value magnitude */                            \
-        should_swap = rho1 < rho2;                                                           \
+        should_swap = column_norm_squared_0 < column_norm_squared_1;                         \
         nk_conditional_negating_swap_##type##_(should_swap, &b[0], &b[1]);                   \
         nk_conditional_negating_swap_##type##_(should_swap, &v[0], &v[1]);                   \
         nk_conditional_negating_swap_##type##_(should_swap, &b[3], &b[4]);                   \
         nk_conditional_negating_swap_##type##_(should_swap, &v[3], &v[4]);                   \
         nk_conditional_negating_swap_##type##_(should_swap, &b[6], &b[7]);                   \
         nk_conditional_negating_swap_##type##_(should_swap, &v[6], &v[7]);                   \
-        nk_cond_swap_##type##_(should_swap, &rho1, &rho2);                                   \
-        should_swap = rho1 < rho3;                                                           \
+        nk_cond_swap_##type##_(should_swap, &column_norm_squared_0, &column_norm_squared_1); \
+        should_swap = column_norm_squared_0 < column_norm_squared_2;                         \
         nk_conditional_negating_swap_##type##_(should_swap, &b[0], &b[2]);                   \
         nk_conditional_negating_swap_##type##_(should_swap, &v[0], &v[2]);                   \
         nk_conditional_negating_swap_##type##_(should_swap, &b[3], &b[5]);                   \
         nk_conditional_negating_swap_##type##_(should_swap, &v[3], &v[5]);                   \
         nk_conditional_negating_swap_##type##_(should_swap, &b[6], &b[8]);                   \
         nk_conditional_negating_swap_##type##_(should_swap, &v[6], &v[8]);                   \
-        nk_cond_swap_##type##_(should_swap, &rho1, &rho3);                                   \
-        should_swap = rho2 < rho3;                                                           \
+        nk_cond_swap_##type##_(should_swap, &column_norm_squared_0, &column_norm_squared_2); \
+        should_swap = column_norm_squared_1 < column_norm_squared_2;                         \
         nk_conditional_negating_swap_##type##_(should_swap, &b[1], &b[2]);                   \
         nk_conditional_negating_swap_##type##_(should_swap, &v[1], &v[2]);                   \
         nk_conditional_negating_swap_##type##_(should_swap, &b[4], &b[5]);                   \
@@ -176,48 +176,32 @@ extern "C" {
         nk_conditional_negating_swap_##type##_(should_swap, &v[7], &v[8]);                   \
     }
 
-#define nk_define_qr_decomposition_(type)                                                                            \
-    NK_INTERNAL void nk_qr_decomposition_##type##_(nk_##type##_t const *input, nk_##type##_t *q, nk_##type##_t *r) { \
+/*  Q-only QR via three Givens rotations. The R upper-triangular factor is unused by the SVD
+ *  caller, so we skip computing it (saves the third cos_theta/sin_theta and 9 R stores per call).
+ */
+#define nk_define_qr_orthogonal_factor_(type)                                                                        \
+    NK_INTERNAL void nk_qr_orthogonal_factor_##type##_(nk_##type##_t const *input, nk_##type##_t *q) {               \
         nk_##type##_t cos_half_1, sin_half_1;                                                                        \
         nk_##type##_t cos_half_2, sin_half_2;                                                                        \
         nk_##type##_t cos_half_3, sin_half_3;                                                                        \
         nk_##type##_t cos_theta, sin_theta;                                                                          \
-        nk_##type##_t rotation_temp[9], matrix_temp[9];                                                              \
+        nk_##type##_t rotation_temp[9];                                                                              \
         /* First Givens rotation (zero input[3]) */                                                                  \
         nk_qr_givens_quaternion_##type##_(input[0], input[3], &cos_half_1, &sin_half_1);                             \
         cos_theta = 1 - 2 * sin_half_1 * sin_half_1;                                                                 \
         sin_theta = 2 * cos_half_1 * sin_half_1;                                                                     \
-        rotation_temp[0] = cos_theta * input[0] + sin_theta * input[3];                                              \
         rotation_temp[1] = cos_theta * input[1] + sin_theta * input[4];                                              \
-        rotation_temp[2] = cos_theta * input[2] + sin_theta * input[5];                                              \
-        rotation_temp[3] = -sin_theta * input[0] + cos_theta * input[3];                                             \
         rotation_temp[4] = -sin_theta * input[1] + cos_theta * input[4];                                             \
-        rotation_temp[5] = -sin_theta * input[2] + cos_theta * input[5];                                             \
-        rotation_temp[6] = input[6], rotation_temp[7] = input[7];                                                    \
-        rotation_temp[8] = input[8];                                                                                 \
-        /* Second Givens rotation (zero rotation_temp[6]) */                                                         \
-        nk_qr_givens_quaternion_##type##_(rotation_temp[0], rotation_temp[6], &cos_half_2, &sin_half_2);             \
+        rotation_temp[7] = input[7];                                                                                 \
+        /* Second Givens rotation (only the [4]/[7] cells flow into the third Givens) */                             \
+        nk_qr_givens_quaternion_##type##_(input[0] * cos_theta + sin_theta * input[3], input[6], &cos_half_2,        \
+                                          &sin_half_2);                                                              \
         cos_theta = 1 - 2 * sin_half_2 * sin_half_2;                                                                 \
         sin_theta = 2 * cos_half_2 * sin_half_2;                                                                     \
-        matrix_temp[0] = cos_theta * rotation_temp[0] + sin_theta * rotation_temp[6];                                \
-        matrix_temp[1] = cos_theta * rotation_temp[1] + sin_theta * rotation_temp[7];                                \
-        matrix_temp[2] = cos_theta * rotation_temp[2] + sin_theta * rotation_temp[8];                                \
-        matrix_temp[3] = rotation_temp[3], matrix_temp[4] = rotation_temp[4];                                        \
-        matrix_temp[5] = rotation_temp[5];                                                                           \
-        matrix_temp[6] = -sin_theta * rotation_temp[0] + cos_theta * rotation_temp[6];                               \
-        matrix_temp[7] = -sin_theta * rotation_temp[1] + cos_theta * rotation_temp[7];                               \
-        matrix_temp[8] = -sin_theta * rotation_temp[2] + cos_theta * rotation_temp[8];                               \
-        /* Third Givens rotation (zero matrix_temp[7]) */                                                            \
-        nk_qr_givens_quaternion_##type##_(matrix_temp[4], matrix_temp[7], &cos_half_3, &sin_half_3);                 \
-        cos_theta = 1 - 2 * sin_half_3 * sin_half_3;                                                                 \
-        sin_theta = 2 * cos_half_3 * sin_half_3;                                                                     \
-        r[0] = matrix_temp[0], r[1] = matrix_temp[1], r[2] = matrix_temp[2];                                         \
-        r[3] = cos_theta * matrix_temp[3] + sin_theta * matrix_temp[6];                                              \
-        r[4] = cos_theta * matrix_temp[4] + sin_theta * matrix_temp[7];                                              \
-        r[5] = cos_theta * matrix_temp[5] + sin_theta * matrix_temp[8];                                              \
-        r[6] = -sin_theta * matrix_temp[3] + cos_theta * matrix_temp[6];                                             \
-        r[7] = -sin_theta * matrix_temp[4] + cos_theta * matrix_temp[7];                                             \
-        r[8] = -sin_theta * matrix_temp[5] + cos_theta * matrix_temp[8];                                             \
+        nk_##type##_t matrix_temp_4 = rotation_temp[4];                                                              \
+        nk_##type##_t matrix_temp_7 = -sin_theta * rotation_temp[1] + cos_theta * rotation_temp[7];                  \
+        /* Third Givens rotation (zero matrix_temp_7) — only sin_half_3 / cos_half_3 are needed for Q */             \
+        nk_qr_givens_quaternion_##type##_(matrix_temp_4, matrix_temp_7, &cos_half_3, &sin_half_3);                   \
         /* Construct Q = Q1 * Q2 * Q3 (closed-form expressions) */                                                   \
         nk_##type##_t sin_half_1_sq = sin_half_1 * sin_half_1;                                                       \
         nk_##type##_t sin_half_2_sq = sin_half_2 * sin_half_2;                                                       \
@@ -238,49 +222,48 @@ extern "C" {
         q[8] = (-1 + 2 * sin_half_2_sq) * (-1 + 2 * sin_half_3_sq);                                                  \
     }
 
-#define nk_define_svd3x3_(type, compute_sqrt)                                                                \
-    NK_INTERNAL void nk_svd3x3_##type##_(nk_##type##_t const *a, nk_##type##_t *svd_u, nk_##type##_t *svd_s, \
-                                         nk_##type##_t *svd_v) {                                             \
-        /* Compute Aᵀ * A (symmetric) */                                                                     \
-        nk_##type##_t ata[9];                                                                                \
-        ata[0] = nk_sum_three_squares_##type##_(a[0], a[3], a[6]);                                           \
-        ata[1] = nk_sum_three_products_##type##_(a[0], a[1], a[3], a[4], a[6], a[7]);                        \
-        ata[2] = nk_sum_three_products_##type##_(a[0], a[2], a[3], a[5], a[6], a[8]);                        \
-        ata[3] = ata[1];                                                                                     \
-        ata[4] = nk_sum_three_squares_##type##_(a[1], a[4], a[7]);                                           \
-        ata[5] = nk_sum_three_products_##type##_(a[1], a[2], a[4], a[5], a[7], a[8]);                        \
-        ata[6] = ata[2];                                                                                     \
-        ata[7] = ata[5];                                                                                     \
-        ata[8] = nk_sum_three_squares_##type##_(a[2], a[5], a[8]);                                           \
-        /* Jacobi eigenanalysis of Aᵀ * A */                                                                 \
-        nk_##type##_t quaternion[4];                                                                         \
-        nk_jacobi_eigenanalysis_##type##_(&ata[0], &ata[1], &ata[4], &ata[2], &ata[5], &ata[8], quaternion); \
-        nk_quaternion_to_mat3x3_##type##_(quaternion, svd_v);                                                \
-        /* B = A * V */                                                                                      \
-        nk_##type##_t product[9];                                                                            \
-        product[0] = nk_sum_three_products_##type##_(a[0], svd_v[0], a[1], svd_v[3], a[2], svd_v[6]);        \
-        product[1] = nk_sum_three_products_##type##_(a[0], svd_v[1], a[1], svd_v[4], a[2], svd_v[7]);        \
-        product[2] = nk_sum_three_products_##type##_(a[0], svd_v[2], a[1], svd_v[5], a[2], svd_v[8]);        \
-        product[3] = nk_sum_three_products_##type##_(a[3], svd_v[0], a[4], svd_v[3], a[5], svd_v[6]);        \
-        product[4] = nk_sum_three_products_##type##_(a[3], svd_v[1], a[4], svd_v[4], a[5], svd_v[7]);        \
-        product[5] = nk_sum_three_products_##type##_(a[3], svd_v[2], a[4], svd_v[5], a[5], svd_v[8]);        \
-        product[6] = nk_sum_three_products_##type##_(a[6], svd_v[0], a[7], svd_v[3], a[8], svd_v[6]);        \
-        product[7] = nk_sum_three_products_##type##_(a[6], svd_v[1], a[7], svd_v[4], a[8], svd_v[7]);        \
-        product[8] = nk_sum_three_products_##type##_(a[6], svd_v[2], a[7], svd_v[5], a[8], svd_v[8]);        \
-        /* Sort singular values and update V */                                                              \
-        nk_sort_singular_values_##type##_(product, svd_v);                                                   \
-        /* Compute singular values from column norms of sorted B (before QR orthogonalizes them) */          \
-        /* These are the true singular values: √(‖colᵢ‖²) */                                                 \
-        nk_##type##_t s1_sq = nk_sum_three_squares_##type##_(product[0], product[3], product[6]);            \
-        nk_##type##_t s2_sq = nk_sum_three_squares_##type##_(product[1], product[4], product[7]);            \
-        nk_##type##_t s3_sq = nk_sum_three_squares_##type##_(product[2], product[5], product[8]);            \
-        /* QR decomposition: B = U * R (we only need U for the rotation) */                                  \
-        nk_##type##_t qr_r[9];                                                                               \
-        nk_qr_decomposition_##type##_(product, svd_u, qr_r);                                                 \
-        /* Store singular values in diagonal of svd_s (rest is zero for compatibility) */                    \
-        svd_s[0] = compute_sqrt(s1_sq), svd_s[1] = 0, svd_s[2] = 0;                                          \
-        svd_s[3] = 0, svd_s[4] = compute_sqrt(s2_sq), svd_s[5] = 0;                                          \
-        svd_s[6] = 0, svd_s[7] = 0, svd_s[8] = compute_sqrt(s3_sq);                                          \
+#define nk_define_svd3x3_(type, compute_sqrt)                                                                          \
+    NK_INTERNAL void nk_svd3x3_##type##_(nk_##type##_t const *a, nk_##type##_t *svd_left, nk_##type##_t *svd_diagonal, \
+                                         nk_##type##_t *svd_right) {                                                   \
+        /* Compute Aᵀ * A (symmetric) */                                                                               \
+        nk_##type##_t ata[9];                                                                                          \
+        ata[0] = nk_sum_three_squares_##type##_(a[0], a[3], a[6]);                                                     \
+        ata[1] = nk_sum_three_products_##type##_(a[0], a[1], a[3], a[4], a[6], a[7]);                                  \
+        ata[2] = nk_sum_three_products_##type##_(a[0], a[2], a[3], a[5], a[6], a[8]);                                  \
+        ata[3] = ata[1];                                                                                               \
+        ata[4] = nk_sum_three_squares_##type##_(a[1], a[4], a[7]);                                                     \
+        ata[5] = nk_sum_three_products_##type##_(a[1], a[2], a[4], a[5], a[7], a[8]);                                  \
+        ata[6] = ata[2];                                                                                               \
+        ata[7] = ata[5];                                                                                               \
+        ata[8] = nk_sum_three_squares_##type##_(a[2], a[5], a[8]);                                                     \
+        /* Jacobi eigenanalysis of Aᵀ * A */                                                                           \
+        nk_##type##_t quaternion[4];                                                                                   \
+        nk_jacobi_eigenanalysis_##type##_(&ata[0], &ata[1], &ata[4], &ata[2], &ata[5], &ata[8], quaternion);           \
+        nk_quaternion_to_mat3x3_##type##_(quaternion, svd_right);                                                      \
+        /* B = A * V */                                                                                                \
+        nk_##type##_t product[9];                                                                                      \
+        product[0] = nk_sum_three_products_##type##_(a[0], svd_right[0], a[1], svd_right[3], a[2], svd_right[6]);      \
+        product[1] = nk_sum_three_products_##type##_(a[0], svd_right[1], a[1], svd_right[4], a[2], svd_right[7]);      \
+        product[2] = nk_sum_three_products_##type##_(a[0], svd_right[2], a[1], svd_right[5], a[2], svd_right[8]);      \
+        product[3] = nk_sum_three_products_##type##_(a[3], svd_right[0], a[4], svd_right[3], a[5], svd_right[6]);      \
+        product[4] = nk_sum_three_products_##type##_(a[3], svd_right[1], a[4], svd_right[4], a[5], svd_right[7]);      \
+        product[5] = nk_sum_three_products_##type##_(a[3], svd_right[2], a[4], svd_right[5], a[5], svd_right[8]);      \
+        product[6] = nk_sum_three_products_##type##_(a[6], svd_right[0], a[7], svd_right[3], a[8], svd_right[6]);      \
+        product[7] = nk_sum_three_products_##type##_(a[6], svd_right[1], a[7], svd_right[4], a[8], svd_right[7]);      \
+        product[8] = nk_sum_three_products_##type##_(a[6], svd_right[2], a[7], svd_right[5], a[8], svd_right[8]);      \
+        /* Sort singular values and update V */                                                                        \
+        nk_sort_singular_values_##type##_(product, svd_right);                                                         \
+        /* Compute singular values from column norms of sorted B (before QR orthogonalizes them) */                    \
+        /* These are the true singular values: √(‖colᵢ‖²) */                                                           \
+        nk_##type##_t singular_value_squared_0 = nk_sum_three_squares_##type##_(product[0], product[3], product[6]);   \
+        nk_##type##_t singular_value_squared_1 = nk_sum_three_squares_##type##_(product[1], product[4], product[7]);   \
+        nk_##type##_t singular_value_squared_2 = nk_sum_three_squares_##type##_(product[2], product[5], product[8]);   \
+        /* Q-only QR: extract U (the orthogonal factor); R is unused by SVD */                                         \
+        nk_qr_orthogonal_factor_##type##_(product, svd_left);                                                          \
+        /* Store singular values on diagonal positions [0], [4], [8]; off-diagonals never read by callers */           \
+        svd_diagonal[0] = compute_sqrt(singular_value_squared_0);                                                      \
+        svd_diagonal[4] = compute_sqrt(singular_value_squared_1);                                                      \
+        svd_diagonal[8] = compute_sqrt(singular_value_squared_2);                                                      \
     }
 
 #define nk_define_det3x3_(type)                                                          \
@@ -352,27 +335,47 @@ NK_INTERNAL void nk_accumulate_square_f64_(nk_f64_t *sum, nk_f64_t *compensation
     nk_f64_dot2_(sum, compensation, value, value);
 }
 
-NK_INTERNAL void nk_rotation_from_svd_f32_serial_(nk_f32_t const *svd_u, nk_f32_t const *svd_v, nk_f32_t *rotation) {
-    rotation[0] = nk_sum_three_products_f32_(svd_v[0], svd_u[0], svd_v[1], svd_u[1], svd_v[2], svd_u[2]);
-    rotation[1] = nk_sum_three_products_f32_(svd_v[0], svd_u[3], svd_v[1], svd_u[4], svd_v[2], svd_u[5]);
-    rotation[2] = nk_sum_three_products_f32_(svd_v[0], svd_u[6], svd_v[1], svd_u[7], svd_v[2], svd_u[8]);
-    rotation[3] = nk_sum_three_products_f32_(svd_v[3], svd_u[0], svd_v[4], svd_u[1], svd_v[5], svd_u[2]);
-    rotation[4] = nk_sum_three_products_f32_(svd_v[3], svd_u[3], svd_v[4], svd_u[4], svd_v[5], svd_u[5]);
-    rotation[5] = nk_sum_three_products_f32_(svd_v[3], svd_u[6], svd_v[4], svd_u[7], svd_v[5], svd_u[8]);
-    rotation[6] = nk_sum_three_products_f32_(svd_v[6], svd_u[0], svd_v[7], svd_u[1], svd_v[8], svd_u[2]);
-    rotation[7] = nk_sum_three_products_f32_(svd_v[6], svd_u[3], svd_v[7], svd_u[4], svd_v[8], svd_u[5]);
-    rotation[8] = nk_sum_three_products_f32_(svd_v[6], svd_u[6], svd_v[7], svd_u[7], svd_v[8], svd_u[8]);
+NK_INTERNAL void nk_rotation_from_svd_f32_serial_(nk_f32_t const *svd_left, nk_f32_t const *svd_right,
+                                                  nk_f32_t *rotation) {
+    rotation[0] = nk_sum_three_products_f32_( //
+        svd_right[0], svd_left[0], svd_right[1], svd_left[1], svd_right[2], svd_left[2]);
+    rotation[1] = nk_sum_three_products_f32_( //
+        svd_right[0], svd_left[3], svd_right[1], svd_left[4], svd_right[2], svd_left[5]);
+    rotation[2] = nk_sum_three_products_f32_( //
+        svd_right[0], svd_left[6], svd_right[1], svd_left[7], svd_right[2], svd_left[8]);
+    rotation[3] = nk_sum_three_products_f32_( //
+        svd_right[3], svd_left[0], svd_right[4], svd_left[1], svd_right[5], svd_left[2]);
+    rotation[4] = nk_sum_three_products_f32_( //
+        svd_right[3], svd_left[3], svd_right[4], svd_left[4], svd_right[5], svd_left[5]);
+    rotation[5] = nk_sum_three_products_f32_( //
+        svd_right[3], svd_left[6], svd_right[4], svd_left[7], svd_right[5], svd_left[8]);
+    rotation[6] = nk_sum_three_products_f32_( //
+        svd_right[6], svd_left[0], svd_right[7], svd_left[1], svd_right[8], svd_left[2]);
+    rotation[7] = nk_sum_three_products_f32_( //
+        svd_right[6], svd_left[3], svd_right[7], svd_left[4], svd_right[8], svd_left[5]);
+    rotation[8] = nk_sum_three_products_f32_( //
+        svd_right[6], svd_left[6], svd_right[7], svd_left[7], svd_right[8], svd_left[8]);
 }
-NK_INTERNAL void nk_rotation_from_svd_f64_serial_(nk_f64_t const *svd_u, nk_f64_t const *svd_v, nk_f64_t *rotation) {
-    rotation[0] = nk_sum_three_products_f64_(svd_v[0], svd_u[0], svd_v[1], svd_u[1], svd_v[2], svd_u[2]);
-    rotation[1] = nk_sum_three_products_f64_(svd_v[0], svd_u[3], svd_v[1], svd_u[4], svd_v[2], svd_u[5]);
-    rotation[2] = nk_sum_three_products_f64_(svd_v[0], svd_u[6], svd_v[1], svd_u[7], svd_v[2], svd_u[8]);
-    rotation[3] = nk_sum_three_products_f64_(svd_v[3], svd_u[0], svd_v[4], svd_u[1], svd_v[5], svd_u[2]);
-    rotation[4] = nk_sum_three_products_f64_(svd_v[3], svd_u[3], svd_v[4], svd_u[4], svd_v[5], svd_u[5]);
-    rotation[5] = nk_sum_three_products_f64_(svd_v[3], svd_u[6], svd_v[4], svd_u[7], svd_v[5], svd_u[8]);
-    rotation[6] = nk_sum_three_products_f64_(svd_v[6], svd_u[0], svd_v[7], svd_u[1], svd_v[8], svd_u[2]);
-    rotation[7] = nk_sum_three_products_f64_(svd_v[6], svd_u[3], svd_v[7], svd_u[4], svd_v[8], svd_u[5]);
-    rotation[8] = nk_sum_three_products_f64_(svd_v[6], svd_u[6], svd_v[7], svd_u[7], svd_v[8], svd_u[8]);
+NK_INTERNAL void nk_rotation_from_svd_f64_serial_(nk_f64_t const *svd_left, nk_f64_t const *svd_right,
+                                                  nk_f64_t *rotation) {
+    rotation[0] = nk_sum_three_products_f64_( //
+        svd_right[0], svd_left[0], svd_right[1], svd_left[1], svd_right[2], svd_left[2]);
+    rotation[1] = nk_sum_three_products_f64_( //
+        svd_right[0], svd_left[3], svd_right[1], svd_left[4], svd_right[2], svd_left[5]);
+    rotation[2] = nk_sum_three_products_f64_( //
+        svd_right[0], svd_left[6], svd_right[1], svd_left[7], svd_right[2], svd_left[8]);
+    rotation[3] = nk_sum_three_products_f64_( //
+        svd_right[3], svd_left[0], svd_right[4], svd_left[1], svd_right[5], svd_left[2]);
+    rotation[4] = nk_sum_three_products_f64_( //
+        svd_right[3], svd_left[3], svd_right[4], svd_left[4], svd_right[5], svd_left[5]);
+    rotation[5] = nk_sum_three_products_f64_( //
+        svd_right[3], svd_left[6], svd_right[4], svd_left[7], svd_right[5], svd_left[8]);
+    rotation[6] = nk_sum_three_products_f64_( //
+        svd_right[6], svd_left[0], svd_right[7], svd_left[1], svd_right[8], svd_left[2]);
+    rotation[7] = nk_sum_three_products_f64_( //
+        svd_right[6], svd_left[3], svd_right[7], svd_left[4], svd_right[8], svd_left[5]);
+    rotation[8] = nk_sum_three_products_f64_( //
+        svd_right[6], svd_left[6], svd_right[7], svd_left[7], svd_right[8], svd_left[8]);
 }
 
 nk_define_cond_swap_(f32)
@@ -384,7 +387,7 @@ nk_define_quaternion_to_mat3x3_(f32)
 nk_define_jacobi_eigenanalysis_(f32, nk_f32_rsqrt_serial)
 nk_define_qr_givens_quaternion_(f32, NK_F32_SVD_EPSILON_, nk_f32_rsqrt_serial)
 nk_define_sort_singular_values_(f32)
-nk_define_qr_decomposition_(f32)
+nk_define_qr_orthogonal_factor_(f32)
 nk_define_svd3x3_(f32, nk_f32_sqrt_serial)
 nk_define_det3x3_(f32)
 
@@ -397,7 +400,7 @@ nk_define_quaternion_to_mat3x3_(f64)
 nk_define_jacobi_eigenanalysis_(f64, nk_f64_rsqrt_serial)
 nk_define_qr_givens_quaternion_(f64, NK_F64_SVD_EPSILON_, nk_f64_rsqrt_serial)
 nk_define_sort_singular_values_(f64)
-nk_define_qr_decomposition_(f64)
+nk_define_qr_orthogonal_factor_(f64)
 nk_define_svd3x3_(f64, nk_f64_sqrt_serial)
 nk_define_det3x3_(f64)
 
@@ -472,42 +475,53 @@ nk_define_det3x3_(f64)
             b_centroid[0] = (nk_##output_type##_t)centroid_b_x, b_centroid[1] = (nk_##output_type##_t)centroid_b_y,  \
             b_centroid[2] = (nk_##output_type##_t)centroid_b_z;                                                      \
         /* Step 2: Build 3×3 covariance matrix H = (A - Ā)ᵀ × (B - B̄) */                                             \
-        nk_##accumulator_type##_t h[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};                                                \
-        nk_##accumulator_type##_t h_compensation[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};                                   \
+        nk_##accumulator_type##_t cross_covariance_kahan_sum[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};                       \
+        nk_##accumulator_type##_t cross_covariance_kahan_compensation[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};              \
         for (nk_size_t i = 0; i < n; ++i) {                                                                          \
             load_and_convert(a + i * 3 + 0, &val_a_x), load_and_convert(b + i * 3 + 0, &val_b_x);                    \
             load_and_convert(a + i * 3 + 1, &val_a_y), load_and_convert(b + i * 3 + 1, &val_b_y);                    \
             load_and_convert(a + i * 3 + 2, &val_a_z), load_and_convert(b + i * 3 + 2, &val_b_z);                    \
             val_a_x -= centroid_a_x, val_a_y -= centroid_a_y, val_a_z -= centroid_a_z;                               \
             val_b_x -= centroid_b_x, val_b_y -= centroid_b_y, val_b_z -= centroid_b_z;                               \
-            nk_accumulate_product_##accumulator_type##_(&h[0], &h_compensation[0], val_a_x, val_b_x);                \
-            nk_accumulate_product_##accumulator_type##_(&h[1], &h_compensation[1], val_a_x, val_b_y);                \
-            nk_accumulate_product_##accumulator_type##_(&h[2], &h_compensation[2], val_a_x, val_b_z);                \
-            nk_accumulate_product_##accumulator_type##_(&h[3], &h_compensation[3], val_a_y, val_b_x);                \
-            nk_accumulate_product_##accumulator_type##_(&h[4], &h_compensation[4], val_a_y, val_b_y);                \
-            nk_accumulate_product_##accumulator_type##_(&h[5], &h_compensation[5], val_a_y, val_b_z);                \
-            nk_accumulate_product_##accumulator_type##_(&h[6], &h_compensation[6], val_a_z, val_b_x);                \
-            nk_accumulate_product_##accumulator_type##_(&h[7], &h_compensation[7], val_a_z, val_b_y);                \
-            nk_accumulate_product_##accumulator_type##_(&h[8], &h_compensation[8], val_a_z, val_b_z);                \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[0],                              \
+                                                        &cross_covariance_kahan_compensation[0], val_a_x, val_b_x);  \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[1],                              \
+                                                        &cross_covariance_kahan_compensation[1], val_a_x, val_b_y);  \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[2],                              \
+                                                        &cross_covariance_kahan_compensation[2], val_a_x, val_b_z);  \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[3],                              \
+                                                        &cross_covariance_kahan_compensation[3], val_a_y, val_b_x);  \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[4],                              \
+                                                        &cross_covariance_kahan_compensation[4], val_a_y, val_b_y);  \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[5],                              \
+                                                        &cross_covariance_kahan_compensation[5], val_a_y, val_b_z);  \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[6],                              \
+                                                        &cross_covariance_kahan_compensation[6], val_a_z, val_b_x);  \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[7],                              \
+                                                        &cross_covariance_kahan_compensation[7], val_a_z, val_b_y);  \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[8],                              \
+                                                        &cross_covariance_kahan_compensation[8], val_a_z, val_b_z);  \
         }                                                                                                            \
         /* Convert to svd_type for SVD */                                                                            \
         nk_##svd_type##_t cross_covariance[9];                                                                       \
-        for (int j = 0; j < 9; ++j) cross_covariance[j] = (nk_##svd_type##_t)(h[j] + h_compensation[j]);             \
+        for (int j = 0; j < 9; ++j)                                                                                  \
+            cross_covariance[j] = (nk_##svd_type##_t)(cross_covariance_kahan_sum[j] +                                \
+                                                      cross_covariance_kahan_compensation[j]);                       \
         /* Step 3: SVD of H = U * S * Vᵀ */                                                                          \
-        nk_##svd_type##_t svd_u[9], svd_s[9], svd_v[9];                                                              \
-        nk_svd3x3_##svd_type##_(cross_covariance, svd_u, svd_s, svd_v);                                              \
+        nk_##svd_type##_t svd_left[9], svd_diagonal[9], svd_right[9];                                                \
+        nk_svd3x3_##svd_type##_(cross_covariance, svd_left, svd_diagonal, svd_right);                                \
         /* Step 4: R = V * Uᵀ */                                                                                     \
-        nk_##svd_type##_t rotation_matrix[9];                                                                        \
-        nk_rotation_from_svd_##svd_type##_serial_(svd_u, svd_v, rotation_matrix);                                    \
+        nk_##svd_type##_t optimal_rotation[9];                                                                       \
+        nk_rotation_from_svd_##svd_type##_serial_(svd_left, svd_right, optimal_rotation);                            \
         /* Handle reflection: if det(R) < 0, negate third column of V and recompute R */                             \
-        nk_##svd_type##_t rotation_det = nk_det3x3_##svd_type##_(rotation_matrix);                                   \
-        if (rotation_det < 0) {                                                                                      \
-            svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];                                        \
-            nk_rotation_from_svd_##svd_type##_serial_(svd_u, svd_v, rotation_matrix);                                \
+        nk_##svd_type##_t rotation_determinant = nk_det3x3_##svd_type##_(optimal_rotation);                          \
+        if (rotation_determinant < 0) {                                                                              \
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];                \
+            nk_rotation_from_svd_##svd_type##_serial_(svd_left, svd_right, optimal_rotation);                        \
         }                                                                                                            \
         /* Output rotation matrix and scale=1.0 */                                                                   \
         if (rotation)                                                                                                \
-            for (int j = 0; j < 9; ++j) rotation[j] = (nk_##output_type##_t)rotation_matrix[j];                      \
+            for (int j = 0; j < 9; ++j) rotation[j] = (nk_##output_type##_t)optimal_rotation[j];                     \
         if (scale) *scale = (nk_##output_type##_t)1;                                                                 \
         /* Step 5: Compute RMSD after rotation */                                                                    \
         nk_##accumulator_type##_t sum_squared = 0, sum_squared_compensation = 0;                                     \
@@ -522,12 +536,12 @@ nk_define_det3x3_(f64)
             point_b[0] = (nk_##svd_type##_t)(val_b_x - centroid_b_x),                                                \
             point_b[1] = (nk_##svd_type##_t)(val_b_y - centroid_b_y),                                                \
             point_b[2] = (nk_##svd_type##_t)(val_b_z - centroid_b_z);                                                \
-            rotated_point_a[0] = rotation_matrix[0] * point_a[0] + rotation_matrix[1] * point_a[1] +                 \
-                                 rotation_matrix[2] * point_a[2];                                                    \
-            rotated_point_a[1] = rotation_matrix[3] * point_a[0] + rotation_matrix[4] * point_a[1] +                 \
-                                 rotation_matrix[5] * point_a[2];                                                    \
-            rotated_point_a[2] = rotation_matrix[6] * point_a[0] + rotation_matrix[7] * point_a[1] +                 \
-                                 rotation_matrix[8] * point_a[2];                                                    \
+            rotated_point_a[0] = optimal_rotation[0] * point_a[0] + optimal_rotation[1] * point_a[1] +               \
+                                 optimal_rotation[2] * point_a[2];                                                   \
+            rotated_point_a[1] = optimal_rotation[3] * point_a[0] + optimal_rotation[4] * point_a[1] +               \
+                                 optimal_rotation[5] * point_a[2];                                                   \
+            rotated_point_a[2] = optimal_rotation[6] * point_a[0] + optimal_rotation[7] * point_a[1] +               \
+                                 optimal_rotation[8] * point_a[2];                                                   \
             nk_##svd_type##_t dx = rotated_point_a[0] - point_b[0];                                                  \
             nk_##svd_type##_t dy = rotated_point_a[1] - point_b[1];                                                  \
             nk_##svd_type##_t dz = rotated_point_a[2] - point_b[2];                                                  \
@@ -583,8 +597,8 @@ nk_define_det3x3_(f64)
             b_centroid[0] = (nk_##output_type##_t)centroid_b_x, b_centroid[1] = (nk_##output_type##_t)centroid_b_y,   \
             b_centroid[2] = (nk_##output_type##_t)centroid_b_z;                                                       \
         /* Step 2: Build covariance matrix H and compute variance of A */                                             \
-        nk_##accumulator_type##_t h[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};                                                 \
-        nk_##accumulator_type##_t h_compensation[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};                                    \
+        nk_##accumulator_type##_t cross_covariance_kahan_sum[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};                        \
+        nk_##accumulator_type##_t cross_covariance_kahan_compensation[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};               \
         nk_##accumulator_type##_t variance_a = 0, variance_a_compensation = 0;                                        \
         for (nk_size_t i = 0; i < n; ++i) {                                                                           \
             load_and_convert(a + i * 3 + 0, &val_a_x), load_and_convert(b + i * 3 + 0, &val_b_x);                     \
@@ -595,41 +609,52 @@ nk_define_det3x3_(f64)
             nk_accumulate_square_##accumulator_type##_(&variance_a, &variance_a_compensation, val_a_x);               \
             nk_accumulate_square_##accumulator_type##_(&variance_a, &variance_a_compensation, val_a_y);               \
             nk_accumulate_square_##accumulator_type##_(&variance_a, &variance_a_compensation, val_a_z);               \
-            nk_accumulate_product_##accumulator_type##_(&h[0], &h_compensation[0], val_a_x, val_b_x);                 \
-            nk_accumulate_product_##accumulator_type##_(&h[1], &h_compensation[1], val_a_x, val_b_y);                 \
-            nk_accumulate_product_##accumulator_type##_(&h[2], &h_compensation[2], val_a_x, val_b_z);                 \
-            nk_accumulate_product_##accumulator_type##_(&h[3], &h_compensation[3], val_a_y, val_b_x);                 \
-            nk_accumulate_product_##accumulator_type##_(&h[4], &h_compensation[4], val_a_y, val_b_y);                 \
-            nk_accumulate_product_##accumulator_type##_(&h[5], &h_compensation[5], val_a_y, val_b_z);                 \
-            nk_accumulate_product_##accumulator_type##_(&h[6], &h_compensation[6], val_a_z, val_b_x);                 \
-            nk_accumulate_product_##accumulator_type##_(&h[7], &h_compensation[7], val_a_z, val_b_y);                 \
-            nk_accumulate_product_##accumulator_type##_(&h[8], &h_compensation[8], val_a_z, val_b_z);                 \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[0],                               \
+                                                        &cross_covariance_kahan_compensation[0], val_a_x, val_b_x);   \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[1],                               \
+                                                        &cross_covariance_kahan_compensation[1], val_a_x, val_b_y);   \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[2],                               \
+                                                        &cross_covariance_kahan_compensation[2], val_a_x, val_b_z);   \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[3],                               \
+                                                        &cross_covariance_kahan_compensation[3], val_a_y, val_b_x);   \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[4],                               \
+                                                        &cross_covariance_kahan_compensation[4], val_a_y, val_b_y);   \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[5],                               \
+                                                        &cross_covariance_kahan_compensation[5], val_a_y, val_b_z);   \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[6],                               \
+                                                        &cross_covariance_kahan_compensation[6], val_a_z, val_b_x);   \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[7],                               \
+                                                        &cross_covariance_kahan_compensation[7], val_a_z, val_b_y);   \
+            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[8],                               \
+                                                        &cross_covariance_kahan_compensation[8], val_a_z, val_b_z);   \
         }                                                                                                             \
         variance_a = (variance_a + variance_a_compensation) * inv_n;                                                  \
         /* Convert to svd_type for SVD */                                                                             \
         nk_##svd_type##_t cross_covariance[9];                                                                        \
-        for (int j = 0; j < 9; ++j) cross_covariance[j] = (nk_##svd_type##_t)(h[j] + h_compensation[j]);              \
+        for (int j = 0; j < 9; ++j)                                                                                   \
+            cross_covariance[j] = (nk_##svd_type##_t)(cross_covariance_kahan_sum[j] +                                 \
+                                                      cross_covariance_kahan_compensation[j]);                        \
         /* Step 3: SVD of H = U * S * Vᵀ */                                                                           \
-        nk_##svd_type##_t svd_u[9], svd_s[9], svd_v[9];                                                               \
-        nk_svd3x3_##svd_type##_(cross_covariance, svd_u, svd_s, svd_v);                                               \
+        nk_##svd_type##_t svd_left[9], svd_diagonal[9], svd_right[9];                                                 \
+        nk_svd3x3_##svd_type##_(cross_covariance, svd_left, svd_diagonal, svd_right);                                 \
         /* Step 4: R = V * Uᵀ */                                                                                      \
-        nk_##svd_type##_t rotation_matrix[9];                                                                         \
-        nk_rotation_from_svd_##svd_type##_serial_(svd_u, svd_v, rotation_matrix);                                     \
+        nk_##svd_type##_t optimal_rotation[9];                                                                        \
+        nk_rotation_from_svd_##svd_type##_serial_(svd_left, svd_right, optimal_rotation);                             \
         /* Handle reflection and compute scale: c = trace(D × S) / variance(a) */                                     \
-        /* D = diag(1, 1, det(R)), svd_s contains proper positive singular values on diagonal */                      \
-        nk_##svd_type##_t rotation_det = nk_det3x3_##svd_type##_(rotation_matrix);                                    \
-        nk_##svd_type##_t sign_det = rotation_det < 0 ? (nk_##svd_type##_t) - 1.0 : (nk_##svd_type##_t)1.0;           \
-        nk_##svd_type##_t trace_scaled_s = svd_s[0] + svd_s[4] + sign_det * svd_s[8];                                 \
+        /* D = diag(1, 1, det(R)), svd_diagonal contains proper positive singular values on diagonal */               \
+        nk_##svd_type##_t rotation_determinant = nk_det3x3_##svd_type##_(optimal_rotation);                           \
+        nk_##svd_type##_t sign_det = rotation_determinant < 0 ? (nk_##svd_type##_t) - 1.0 : (nk_##svd_type##_t)1.0;   \
+        nk_##svd_type##_t trace_scaled_s = svd_diagonal[0] + svd_diagonal[4] + sign_det * svd_diagonal[8];            \
         nk_##accumulator_type##_t scale_factor = (nk_##accumulator_type##_t)trace_scaled_s /                          \
                                                  ((nk_##accumulator_type##_t)n * variance_a);                         \
         if (scale) *scale = (nk_##output_type##_t)scale_factor;                                                       \
-        if (rotation_det < 0) {                                                                                       \
-            svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];                                         \
-            nk_rotation_from_svd_##svd_type##_serial_(svd_u, svd_v, rotation_matrix);                                 \
+        if (rotation_determinant < 0) {                                                                               \
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];                 \
+            nk_rotation_from_svd_##svd_type##_serial_(svd_left, svd_right, optimal_rotation);                         \
         }                                                                                                             \
         /* Output rotation matrix */                                                                                  \
         if (rotation)                                                                                                 \
-            for (int j = 0; j < 9; ++j) rotation[j] = (nk_##output_type##_t)rotation_matrix[j];                       \
+            for (int j = 0; j < 9; ++j) rotation[j] = (nk_##output_type##_t)optimal_rotation[j];                      \
         /* Step 5: Compute RMSD after similarity transform: ‖c × R × a - b‖ */                                        \
         nk_##accumulator_type##_t sum_squared = 0, sum_squared_compensation = 0;                                      \
         for (nk_size_t i = 0; i < n; ++i) {                                                                           \
@@ -644,14 +669,14 @@ nk_define_det3x3_(f64)
             point_b[1] = (nk_##svd_type##_t)(val_b_y - centroid_b_y),                                                 \
             point_b[2] = (nk_##svd_type##_t)(val_b_z - centroid_b_z);                                                 \
             rotated_point_a[0] = (nk_##svd_type##_t)scale_factor *                                                    \
-                                 (rotation_matrix[0] * point_a[0] + rotation_matrix[1] * point_a[1] +                 \
-                                  rotation_matrix[2] * point_a[2]);                                                   \
+                                 (optimal_rotation[0] * point_a[0] + optimal_rotation[1] * point_a[1] +               \
+                                  optimal_rotation[2] * point_a[2]);                                                  \
             rotated_point_a[1] = (nk_##svd_type##_t)scale_factor *                                                    \
-                                 (rotation_matrix[3] * point_a[0] + rotation_matrix[4] * point_a[1] +                 \
-                                  rotation_matrix[5] * point_a[2]);                                                   \
+                                 (optimal_rotation[3] * point_a[0] + optimal_rotation[4] * point_a[1] +               \
+                                  optimal_rotation[5] * point_a[2]);                                                  \
             rotated_point_a[2] = (nk_##svd_type##_t)scale_factor *                                                    \
-                                 (rotation_matrix[6] * point_a[0] + rotation_matrix[7] * point_a[1] +                 \
-                                  rotation_matrix[8] * point_a[2]);                                                   \
+                                 (optimal_rotation[6] * point_a[0] + optimal_rotation[7] * point_a[1] +               \
+                                  optimal_rotation[8] * point_a[2]);                                                  \
             nk_##svd_type##_t dx = rotated_point_a[0] - point_b[0];                                                   \
             nk_##svd_type##_t dy = rotated_point_a[1] - point_b[1];                                                   \
             nk_##svd_type##_t dz = rotated_point_a[2] - point_b[2];                                                   \
@@ -697,7 +722,7 @@ nk_define_umeyama_(bf16, f32, f32, f32, f32, nk_bf16_to_f32_serial, nk_f32_sqrt_
 #undef nk_define_jacobi_eigenanalysis_
 #undef nk_define_qr_givens_quaternion_
 #undef nk_define_sort_singular_values_
-#undef nk_define_qr_decomposition_
+#undef nk_define_qr_orthogonal_factor_
 #undef nk_define_svd3x3_
 #undef nk_define_det3x3_
 #undef nk_define_rmsd_

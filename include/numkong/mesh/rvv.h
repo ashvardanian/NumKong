@@ -16,8 +16,8 @@
  *  Fused helpers minimize data passes:
  *
  *  - RMSD: fully fused single-pass (centroids + squared diffs), no separate helper
- *  - `nk_centroid_and_cross_covariance_*_rvv_`: centroids + H in one pass (Kabsch)
- *  - `nk_centroid_and_cross_covariance_and_variance_*_rvv_`: + variance (Umeyama)
+ *  - `nk_centroid_and_cross_covariance_*_rvv_`: centroids + H + centered ‖·‖² of a and b (Kabsch)
+ *  - `nk_centroid_and_cross_covariance_and_variance_*_rvv_`: same outputs, used by Umeyama
  *
  *  Math for fused centroid+covariance:
  *    H[i][j] = Σ (a[i] - ca[i]) * (b[j] - cb[j])
@@ -104,7 +104,7 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_f32_rvv_(                 //
     nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,           //
     nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z, //
     nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z, //
-    nk_f64_t h[9]) {
+    nk_f64_t cross_covariance[9], nk_f64_t *centered_norm_squared_a, nk_f64_t *centered_norm_squared_b) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
     vfloat64m2_t sum_a_x_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length),
                  sum_a_y_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
@@ -121,6 +121,8 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_f32_rvv_(                 //
     vfloat64m2_t cross_20_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length),
                  cross_21_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
     vfloat64m2_t cross_22_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
+    vfloat64m2_t norm_squared_a_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
+    vfloat64m2_t norm_squared_b_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
     nk_f32_t const *a_ptr = a, *b_ptr = b;
     nk_size_t remaining = points_count;
     for (nk_size_t vector_length; remaining > 0;
@@ -149,6 +151,13 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_f32_rvv_(                 //
         cross_20_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(cross_20_f64m2, a_z_f32m1, b_x_f32m1, vector_length);
         cross_21_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(cross_21_f64m2, a_z_f32m1, b_y_f32m1, vector_length);
         cross_22_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(cross_22_f64m2, a_z_f32m1, b_z_f32m1, vector_length);
+        // Accumulate norm-squared for a and b (uncentered; centering fixup applied after reduction).
+        norm_squared_a_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(norm_squared_a_f64m2, a_x_f32m1, a_x_f32m1, vector_length);
+        norm_squared_a_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(norm_squared_a_f64m2, a_y_f32m1, a_y_f32m1, vector_length);
+        norm_squared_a_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(norm_squared_a_f64m2, a_z_f32m1, a_z_f32m1, vector_length);
+        norm_squared_b_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(norm_squared_b_f64m2, b_x_f32m1, b_x_f32m1, vector_length);
+        norm_squared_b_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(norm_squared_b_f64m2, b_y_f32m1, b_y_f32m1, vector_length);
+        norm_squared_b_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(norm_squared_b_f64m2, b_z_f32m1, b_z_f32m1, vector_length);
     }
     vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
     // Compute centroids
@@ -179,24 +188,46 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_f32_rvv_(                 //
     *centroid_b_z = centroid_b_z_f64;
     // Fix up: H[i][j] = raw[i][j] - points_count * ca[i] * cb[j]
     nk_f64_t n_f64 = (nk_f64_t)points_count;
-    h[0] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_00_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_x_f64 * centroid_b_x_f64;
-    h[1] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_01_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_x_f64 * centroid_b_y_f64;
-    h[2] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_02_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_x_f64 * centroid_b_z_f64;
-    h[3] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_10_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_y_f64 * centroid_b_x_f64;
-    h[4] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_11_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_y_f64 * centroid_b_y_f64;
-    h[5] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_12_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_y_f64 * centroid_b_z_f64;
-    h[6] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_20_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_z_f64 * centroid_b_x_f64;
-    h[7] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_21_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_z_f64 * centroid_b_y_f64;
-    h[8] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_22_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_z_f64 * centroid_b_z_f64;
+    cross_covariance[0] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_00_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_x_f64 * centroid_b_x_f64;
+    cross_covariance[1] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_01_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_x_f64 * centroid_b_y_f64;
+    cross_covariance[2] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_02_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_x_f64 * centroid_b_z_f64;
+    cross_covariance[3] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_10_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_y_f64 * centroid_b_x_f64;
+    cross_covariance[4] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_11_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_y_f64 * centroid_b_y_f64;
+    cross_covariance[5] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_12_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_y_f64 * centroid_b_z_f64;
+    cross_covariance[6] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_20_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_z_f64 * centroid_b_x_f64;
+    cross_covariance[7] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_21_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_z_f64 * centroid_b_y_f64;
+    cross_covariance[8] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_22_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_z_f64 * centroid_b_z_f64;
+    // Centered norm-squared via parallel-axis identity; clamp at zero for numeric safety.
+    nk_f64_t norm_squared_a_sum = __riscv_vfmv_f_s_f64m1_f64(
+        __riscv_vfredusum_vs_f64m2_f64m1(norm_squared_a_f64m2, zero_f64m1, max_vector_length));
+    nk_f64_t norm_squared_b_sum = __riscv_vfmv_f_s_f64m1_f64(
+        __riscv_vfredusum_vs_f64m2_f64m1(norm_squared_b_f64m2, zero_f64m1, max_vector_length));
+    *centered_norm_squared_a = norm_squared_a_sum -
+                               n_f64 * (centroid_a_x_f64 * centroid_a_x_f64 + centroid_a_y_f64 * centroid_a_y_f64 +
+                                        centroid_a_z_f64 * centroid_a_z_f64);
+    *centered_norm_squared_b = norm_squared_b_sum -
+                               n_f64 * (centroid_b_x_f64 * centroid_b_x_f64 + centroid_b_y_f64 * centroid_b_y_f64 +
+                                        centroid_b_z_f64 * centroid_b_z_f64);
+    if (*centered_norm_squared_a < 0.0) *centered_norm_squared_a = 0.0;
+    if (*centered_norm_squared_b < 0.0) *centered_norm_squared_b = 0.0;
 }
 
 /**
@@ -209,7 +240,7 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_f64_rvv_(                 //
     nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count,           //
     nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z, //
     nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z, //
-    nk_f64_t h[9]) {
+    nk_f64_t cross_covariance[9], nk_f64_t *centered_norm_squared_a, nk_f64_t *centered_norm_squared_b) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
     vfloat64m1_t sum_a_x_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length),
                  sum_a_y_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
@@ -241,6 +272,10 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_f64_rvv_(                 //
     vfloat64m1_t compensation_20_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
     vfloat64m1_t compensation_21_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
     vfloat64m1_t compensation_22_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t norm_squared_a_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t norm_squared_b_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t compensation_norm_squared_a_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t compensation_norm_squared_b_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
     nk_f64_t const *a_ptr = a, *b_ptr = b;
     nk_size_t remaining = points_count;
     for (nk_size_t vector_length; remaining > 0;
@@ -269,6 +304,19 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_f64_rvv_(                 //
         nk_accumulate_product_f64m1_rvv_(&cross_20_f64m1, &compensation_20_f64m1, a_z_f64m1, b_x_f64m1, vector_length);
         nk_accumulate_product_f64m1_rvv_(&cross_21_f64m1, &compensation_21_f64m1, a_z_f64m1, b_y_f64m1, vector_length);
         nk_accumulate_product_f64m1_rvv_(&cross_22_f64m1, &compensation_22_f64m1, a_z_f64m1, b_z_f64m1, vector_length);
+        // Accumulate norm-squared for a and b via Kahan-compensated products (self*self).
+        nk_accumulate_product_f64m1_rvv_(&norm_squared_a_f64m1, &compensation_norm_squared_a_f64m1, a_x_f64m1,
+                                         a_x_f64m1, vector_length);
+        nk_accumulate_product_f64m1_rvv_(&norm_squared_a_f64m1, &compensation_norm_squared_a_f64m1, a_y_f64m1,
+                                         a_y_f64m1, vector_length);
+        nk_accumulate_product_f64m1_rvv_(&norm_squared_a_f64m1, &compensation_norm_squared_a_f64m1, a_z_f64m1,
+                                         a_z_f64m1, vector_length);
+        nk_accumulate_product_f64m1_rvv_(&norm_squared_b_f64m1, &compensation_norm_squared_b_f64m1, b_x_f64m1,
+                                         b_x_f64m1, vector_length);
+        nk_accumulate_product_f64m1_rvv_(&norm_squared_b_f64m1, &compensation_norm_squared_b_f64m1, b_y_f64m1,
+                                         b_y_f64m1, vector_length);
+        nk_accumulate_product_f64m1_rvv_(&norm_squared_b_f64m1, &compensation_norm_squared_b_f64m1, b_z_f64m1,
+                                         b_z_f64m1, vector_length);
     }
     // Compute centroids.
     nk_f64_t inv_points_count = 1.0 / (nk_f64_t)points_count;
@@ -285,32 +333,45 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_f64_rvv_(                 //
     *centroid_b_y = centroid_b_y_f64;
     *centroid_b_z = centroid_b_z_f64;
     nk_f64_t n_f64 = (nk_f64_t)points_count;
-    h[0] = nk_dot_stable_sum_f64m1_rvv_(cross_00_f64m1, compensation_00_f64m1) -
-           n_f64 * centroid_a_x_f64 * centroid_b_x_f64;
-    h[1] = nk_dot_stable_sum_f64m1_rvv_(cross_01_f64m1, compensation_01_f64m1) -
-           n_f64 * centroid_a_x_f64 * centroid_b_y_f64;
-    h[2] = nk_dot_stable_sum_f64m1_rvv_(cross_02_f64m1, compensation_02_f64m1) -
-           n_f64 * centroid_a_x_f64 * centroid_b_z_f64;
-    h[3] = nk_dot_stable_sum_f64m1_rvv_(cross_10_f64m1, compensation_10_f64m1) -
-           n_f64 * centroid_a_y_f64 * centroid_b_x_f64;
-    h[4] = nk_dot_stable_sum_f64m1_rvv_(cross_11_f64m1, compensation_11_f64m1) -
-           n_f64 * centroid_a_y_f64 * centroid_b_y_f64;
-    h[5] = nk_dot_stable_sum_f64m1_rvv_(cross_12_f64m1, compensation_12_f64m1) -
-           n_f64 * centroid_a_y_f64 * centroid_b_z_f64;
-    h[6] = nk_dot_stable_sum_f64m1_rvv_(cross_20_f64m1, compensation_20_f64m1) -
-           n_f64 * centroid_a_z_f64 * centroid_b_x_f64;
-    h[7] = nk_dot_stable_sum_f64m1_rvv_(cross_21_f64m1, compensation_21_f64m1) -
-           n_f64 * centroid_a_z_f64 * centroid_b_y_f64;
-    h[8] = nk_dot_stable_sum_f64m1_rvv_(cross_22_f64m1, compensation_22_f64m1) -
-           n_f64 * centroid_a_z_f64 * centroid_b_z_f64;
+    cross_covariance[0] = nk_dot_stable_sum_f64m1_rvv_(cross_00_f64m1, compensation_00_f64m1) -
+                          n_f64 * centroid_a_x_f64 * centroid_b_x_f64;
+    cross_covariance[1] = nk_dot_stable_sum_f64m1_rvv_(cross_01_f64m1, compensation_01_f64m1) -
+                          n_f64 * centroid_a_x_f64 * centroid_b_y_f64;
+    cross_covariance[2] = nk_dot_stable_sum_f64m1_rvv_(cross_02_f64m1, compensation_02_f64m1) -
+                          n_f64 * centroid_a_x_f64 * centroid_b_z_f64;
+    cross_covariance[3] = nk_dot_stable_sum_f64m1_rvv_(cross_10_f64m1, compensation_10_f64m1) -
+                          n_f64 * centroid_a_y_f64 * centroid_b_x_f64;
+    cross_covariance[4] = nk_dot_stable_sum_f64m1_rvv_(cross_11_f64m1, compensation_11_f64m1) -
+                          n_f64 * centroid_a_y_f64 * centroid_b_y_f64;
+    cross_covariance[5] = nk_dot_stable_sum_f64m1_rvv_(cross_12_f64m1, compensation_12_f64m1) -
+                          n_f64 * centroid_a_y_f64 * centroid_b_z_f64;
+    cross_covariance[6] = nk_dot_stable_sum_f64m1_rvv_(cross_20_f64m1, compensation_20_f64m1) -
+                          n_f64 * centroid_a_z_f64 * centroid_b_x_f64;
+    cross_covariance[7] = nk_dot_stable_sum_f64m1_rvv_(cross_21_f64m1, compensation_21_f64m1) -
+                          n_f64 * centroid_a_z_f64 * centroid_b_y_f64;
+    cross_covariance[8] = nk_dot_stable_sum_f64m1_rvv_(cross_22_f64m1, compensation_22_f64m1) -
+                          n_f64 * centroid_a_z_f64 * centroid_b_z_f64;
+    // Centered norm-squared via parallel-axis identity; clamp at zero for numeric safety.
+    nk_f64_t norm_squared_a_sum = nk_dot_stable_sum_f64m1_rvv_(norm_squared_a_f64m1, compensation_norm_squared_a_f64m1);
+    nk_f64_t norm_squared_b_sum = nk_dot_stable_sum_f64m1_rvv_(norm_squared_b_f64m1, compensation_norm_squared_b_f64m1);
+    *centered_norm_squared_a = norm_squared_a_sum -
+                               n_f64 * (centroid_a_x_f64 * centroid_a_x_f64 + centroid_a_y_f64 * centroid_a_y_f64 +
+                                        centroid_a_z_f64 * centroid_a_z_f64);
+    *centered_norm_squared_b = norm_squared_b_sum -
+                               n_f64 * (centroid_b_x_f64 * centroid_b_x_f64 + centroid_b_y_f64 * centroid_b_y_f64 +
+                                        centroid_b_z_f64 * centroid_b_z_f64);
+    if (*centered_norm_squared_a < 0.0) *centered_norm_squared_a = 0.0;
+    if (*centered_norm_squared_b < 0.0) *centered_norm_squared_b = 0.0;
 }
 
 /**
- *  @brief Compute centroids, cross-covariance, and variance_a in a single pass (f32).
+ *  @brief Compute centroids, cross-covariance, and centered norm-squared of both point sets (f32).
  *
- *  Same as centroid_and_cross_covariance but also computes:
- *    variance_a = (1/n) * Σ ||a[i] - ca||²
- *               = (1/n) * (Σ ||a[i]||² - n * ||ca||²)
+ *  Same as centroid_and_cross_covariance but also outputs:
+ *    centered_norm_squared_a = Σ ||a[i] - ca||² = Σ ||a[i]||² - n * ||ca||²
+ *    centered_norm_squared_b = Σ ||b[i] - cb||² = Σ ||b[i]||² - n * ||cb||²
+ *
+ *  These enable the trace-identity SSD fold in Kabsch/Umeyama callers.
  *
  *  Cross-products use per-lane `vfwmacc_vv` accumulation (vfloat64m2_t) with
  *  deferred `vfredusum` after the loop — eliminates 9 reductions per iteration.
@@ -319,7 +380,7 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f32_rvv_(    //
     nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,           //
     nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z, //
     nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z, //
-    nk_f64_t h[9], nk_f64_t *variance_a) {
+    nk_f64_t cross_covariance[9], nk_f64_t *centered_norm_squared_a, nk_f64_t *centered_norm_squared_b) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
     vfloat64m2_t sum_a_x_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length),
                  sum_a_y_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
@@ -336,7 +397,8 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f32_rvv_(    //
     vfloat64m2_t cross_20_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length),
                  cross_21_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
     vfloat64m2_t cross_22_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
-    vfloat64m2_t sum_norm_squared_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
+    vfloat64m2_t norm_squared_a_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
+    vfloat64m2_t norm_squared_b_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
     nk_f32_t const *a_ptr = a, *b_ptr = b;
     nk_size_t remaining = points_count;
     for (nk_size_t vector_length; remaining > 0;
@@ -365,12 +427,13 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f32_rvv_(    //
         cross_20_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(cross_20_f64m2, a_z_f32m1, b_x_f32m1, vector_length);
         cross_21_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(cross_21_f64m2, a_z_f32m1, b_y_f32m1, vector_length);
         cross_22_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(cross_22_f64m2, a_z_f32m1, b_z_f32m1, vector_length);
-        // Variance: Σ (a_x² + a_y² + a_z²) — raw, not centered.
-        vfloat64m2_t norm_squared_f64m2 = __riscv_vfwmul_vv_f64m2(a_x_f32m1, a_x_f32m1, vector_length);
-        norm_squared_f64m2 = __riscv_vfwmacc_vv_f64m2(norm_squared_f64m2, a_y_f32m1, a_y_f32m1, vector_length);
-        norm_squared_f64m2 = __riscv_vfwmacc_vv_f64m2(norm_squared_f64m2, a_z_f32m1, a_z_f32m1, vector_length);
-        sum_norm_squared_f64m2 = __riscv_vfadd_vv_f64m2_tu(sum_norm_squared_f64m2, sum_norm_squared_f64m2,
-                                                           norm_squared_f64m2, vector_length);
+        // Accumulate norm-squared for a and b (uncentered; centering fixup applied after reduction).
+        norm_squared_a_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(norm_squared_a_f64m2, a_x_f32m1, a_x_f32m1, vector_length);
+        norm_squared_a_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(norm_squared_a_f64m2, a_y_f32m1, a_y_f32m1, vector_length);
+        norm_squared_a_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(norm_squared_a_f64m2, a_z_f32m1, a_z_f32m1, vector_length);
+        norm_squared_b_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(norm_squared_b_f64m2, b_x_f32m1, b_x_f32m1, vector_length);
+        norm_squared_b_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(norm_squared_b_f64m2, b_y_f32m1, b_y_f32m1, vector_length);
+        norm_squared_b_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(norm_squared_b_f64m2, b_z_f32m1, b_z_f32m1, vector_length);
     }
     vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
     nk_f64_t inv_points_count = 1.0 / (nk_f64_t)points_count;
@@ -399,35 +462,52 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f32_rvv_(    //
     *centroid_b_y = centroid_b_y_f64;
     *centroid_b_z = centroid_b_z_f64;
     nk_f64_t n_f64 = (nk_f64_t)points_count;
-    h[0] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_00_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_x_f64 * centroid_b_x_f64;
-    h[1] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_01_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_x_f64 * centroid_b_y_f64;
-    h[2] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_02_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_x_f64 * centroid_b_z_f64;
-    h[3] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_10_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_y_f64 * centroid_b_x_f64;
-    h[4] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_11_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_y_f64 * centroid_b_y_f64;
-    h[5] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_12_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_y_f64 * centroid_b_z_f64;
-    h[6] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_20_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_z_f64 * centroid_b_x_f64;
-    h[7] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_21_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_z_f64 * centroid_b_y_f64;
-    h[8] = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(cross_22_f64m2, zero_f64m1, max_vector_length)) -
-           n_f64 * centroid_a_z_f64 * centroid_b_z_f64;
-    // variance_a = (1/points_count) * (Σ ||a[i]||² - points_count * ||ca||²)
-    *variance_a = __riscv_vfmv_f_s_f64m1_f64(
-                      __riscv_vfredusum_vs_f64m2_f64m1(sum_norm_squared_f64m2, zero_f64m1, max_vector_length)) *
-                      inv_points_count -
-                  (centroid_a_x_f64 * centroid_a_x_f64 + centroid_a_y_f64 * centroid_a_y_f64 +
-                   centroid_a_z_f64 * centroid_a_z_f64);
+    cross_covariance[0] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_00_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_x_f64 * centroid_b_x_f64;
+    cross_covariance[1] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_01_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_x_f64 * centroid_b_y_f64;
+    cross_covariance[2] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_02_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_x_f64 * centroid_b_z_f64;
+    cross_covariance[3] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_10_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_y_f64 * centroid_b_x_f64;
+    cross_covariance[4] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_11_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_y_f64 * centroid_b_y_f64;
+    cross_covariance[5] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_12_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_y_f64 * centroid_b_z_f64;
+    cross_covariance[6] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_20_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_z_f64 * centroid_b_x_f64;
+    cross_covariance[7] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_21_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_z_f64 * centroid_b_y_f64;
+    cross_covariance[8] = __riscv_vfmv_f_s_f64m1_f64(
+                              __riscv_vfredusum_vs_f64m2_f64m1(cross_22_f64m2, zero_f64m1, max_vector_length)) -
+                          n_f64 * centroid_a_z_f64 * centroid_b_z_f64;
+    // Centered norm-squared via parallel-axis identity; clamp at zero for numeric safety.
+    nk_f64_t norm_squared_a_sum = __riscv_vfmv_f_s_f64m1_f64(
+        __riscv_vfredusum_vs_f64m2_f64m1(norm_squared_a_f64m2, zero_f64m1, max_vector_length));
+    nk_f64_t norm_squared_b_sum = __riscv_vfmv_f_s_f64m1_f64(
+        __riscv_vfredusum_vs_f64m2_f64m1(norm_squared_b_f64m2, zero_f64m1, max_vector_length));
+    *centered_norm_squared_a = norm_squared_a_sum -
+                               n_f64 * (centroid_a_x_f64 * centroid_a_x_f64 + centroid_a_y_f64 * centroid_a_y_f64 +
+                                        centroid_a_z_f64 * centroid_a_z_f64);
+    *centered_norm_squared_b = norm_squared_b_sum -
+                               n_f64 * (centroid_b_x_f64 * centroid_b_x_f64 + centroid_b_y_f64 * centroid_b_y_f64 +
+                                        centroid_b_z_f64 * centroid_b_z_f64);
+    if (*centered_norm_squared_a < 0.0) *centered_norm_squared_a = 0.0;
+    if (*centered_norm_squared_b < 0.0) *centered_norm_squared_b = 0.0;
 }
 
 /**
- *  @brief Compute centroids, cross-covariance, and variance_a in a single pass (f64).
+ *  @brief Compute centroids, cross-covariance, and centered norm-squared of both point sets (f64).
  *
+ *  Same outputs as the f32 variant; used by the Umeyama caller for the trace-identity SSD fold.
  *  Per-lane `vfadd_vv`/`vfmacc_vv` accumulation with deferred `vfredusum` after the loop
  *  — eliminates 16 horizontal reductions per iteration.
  */
@@ -435,7 +515,7 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f64_rvv_(    //
     nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count,           //
     nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z, //
     nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z, //
-    nk_f64_t h[9], nk_f64_t *variance_a) {
+    nk_f64_t cross_covariance[9], nk_f64_t *centered_norm_squared_a, nk_f64_t *centered_norm_squared_b) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
     vfloat64m1_t sum_a_x_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length),
                  sum_a_y_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
@@ -467,8 +547,10 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f64_rvv_(    //
     vfloat64m1_t compensation_20_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
     vfloat64m1_t compensation_21_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
     vfloat64m1_t compensation_22_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
-    vfloat64m1_t sum_norm_squared_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
-    vfloat64m1_t compensation_norm_squared_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t norm_squared_a_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t norm_squared_b_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t compensation_norm_squared_a_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t compensation_norm_squared_b_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
     nk_f64_t const *a_ptr = a, *b_ptr = b;
     nk_size_t remaining = points_count;
     for (nk_size_t vector_length; remaining > 0;
@@ -497,11 +579,19 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f64_rvv_(    //
         nk_accumulate_product_f64m1_rvv_(&cross_20_f64m1, &compensation_20_f64m1, a_z_f64m1, b_x_f64m1, vector_length);
         nk_accumulate_product_f64m1_rvv_(&cross_21_f64m1, &compensation_21_f64m1, a_z_f64m1, b_y_f64m1, vector_length);
         nk_accumulate_product_f64m1_rvv_(&cross_22_f64m1, &compensation_22_f64m1, a_z_f64m1, b_z_f64m1, vector_length);
-        vfloat64m1_t norm_squared_f64m1 = __riscv_vfmul_vv_f64m1(a_x_f64m1, a_x_f64m1, vector_length);
-        norm_squared_f64m1 = __riscv_vfmacc_vv_f64m1(norm_squared_f64m1, a_y_f64m1, a_y_f64m1, vector_length);
-        norm_squared_f64m1 = __riscv_vfmacc_vv_f64m1(norm_squared_f64m1, a_z_f64m1, a_z_f64m1, vector_length);
-        nk_accumulate_sum_f64m1_rvv_(&sum_norm_squared_f64m1, &compensation_norm_squared_f64m1, norm_squared_f64m1,
-                                     vector_length);
+        // Accumulate norm-squared for a and b via Kahan-compensated products (self*self).
+        nk_accumulate_product_f64m1_rvv_(&norm_squared_a_f64m1, &compensation_norm_squared_a_f64m1, a_x_f64m1,
+                                         a_x_f64m1, vector_length);
+        nk_accumulate_product_f64m1_rvv_(&norm_squared_a_f64m1, &compensation_norm_squared_a_f64m1, a_y_f64m1,
+                                         a_y_f64m1, vector_length);
+        nk_accumulate_product_f64m1_rvv_(&norm_squared_a_f64m1, &compensation_norm_squared_a_f64m1, a_z_f64m1,
+                                         a_z_f64m1, vector_length);
+        nk_accumulate_product_f64m1_rvv_(&norm_squared_b_f64m1, &compensation_norm_squared_b_f64m1, b_x_f64m1,
+                                         b_x_f64m1, vector_length);
+        nk_accumulate_product_f64m1_rvv_(&norm_squared_b_f64m1, &compensation_norm_squared_b_f64m1, b_y_f64m1,
+                                         b_y_f64m1, vector_length);
+        nk_accumulate_product_f64m1_rvv_(&norm_squared_b_f64m1, &compensation_norm_squared_b_f64m1, b_z_f64m1,
+                                         b_z_f64m1, vector_length);
     }
     nk_f64_t inv_points_count = 1.0 / (nk_f64_t)points_count;
     nk_f64_t centroid_a_x_f64 = nk_dot_stable_sum_f64m1_rvv_(sum_a_x_f64m1, compensation_a_x_f64m1) * inv_points_count;
@@ -517,182 +607,59 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f64_rvv_(    //
     *centroid_b_y = centroid_b_y_f64;
     *centroid_b_z = centroid_b_z_f64;
     nk_f64_t n_f64 = (nk_f64_t)points_count;
-    h[0] = nk_dot_stable_sum_f64m1_rvv_(cross_00_f64m1, compensation_00_f64m1) -
-           n_f64 * centroid_a_x_f64 * centroid_b_x_f64;
-    h[1] = nk_dot_stable_sum_f64m1_rvv_(cross_01_f64m1, compensation_01_f64m1) -
-           n_f64 * centroid_a_x_f64 * centroid_b_y_f64;
-    h[2] = nk_dot_stable_sum_f64m1_rvv_(cross_02_f64m1, compensation_02_f64m1) -
-           n_f64 * centroid_a_x_f64 * centroid_b_z_f64;
-    h[3] = nk_dot_stable_sum_f64m1_rvv_(cross_10_f64m1, compensation_10_f64m1) -
-           n_f64 * centroid_a_y_f64 * centroid_b_x_f64;
-    h[4] = nk_dot_stable_sum_f64m1_rvv_(cross_11_f64m1, compensation_11_f64m1) -
-           n_f64 * centroid_a_y_f64 * centroid_b_y_f64;
-    h[5] = nk_dot_stable_sum_f64m1_rvv_(cross_12_f64m1, compensation_12_f64m1) -
-           n_f64 * centroid_a_y_f64 * centroid_b_z_f64;
-    h[6] = nk_dot_stable_sum_f64m1_rvv_(cross_20_f64m1, compensation_20_f64m1) -
-           n_f64 * centroid_a_z_f64 * centroid_b_x_f64;
-    h[7] = nk_dot_stable_sum_f64m1_rvv_(cross_21_f64m1, compensation_21_f64m1) -
-           n_f64 * centroid_a_z_f64 * centroid_b_y_f64;
-    h[8] = nk_dot_stable_sum_f64m1_rvv_(cross_22_f64m1, compensation_22_f64m1) -
-           n_f64 * centroid_a_z_f64 * centroid_b_z_f64;
-    *variance_a = nk_dot_stable_sum_f64m1_rvv_(sum_norm_squared_f64m1, compensation_norm_squared_f64m1) *
-                      inv_points_count -
-                  (centroid_a_x_f64 * centroid_a_x_f64 + centroid_a_y_f64 * centroid_a_y_f64 +
-                   centroid_a_z_f64 * centroid_a_z_f64);
-}
-
-NK_INTERNAL nk_f64_t nk_transformed_ssd_f32_rvv_(                        //
-    nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,        //
-    nk_f64_t const *r, nk_f64_t scale,                                   //
-    nk_f64_t centroid_a_x, nk_f64_t centroid_a_y, nk_f64_t centroid_a_z, //
-    nk_f64_t centroid_b_x, nk_f64_t centroid_b_y, nk_f64_t centroid_b_z) {
-    nk_f64_t scaled_rotation_x_x = scale * r[0], scaled_rotation_x_y = scale * r[1], scaled_rotation_x_z = scale * r[2];
-    nk_f64_t scaled_rotation_y_x = scale * r[3], scaled_rotation_y_y = scale * r[4], scaled_rotation_y_z = scale * r[5];
-    nk_f64_t scaled_rotation_z_x = scale * r[6], scaled_rotation_z_y = scale * r[7], scaled_rotation_z_z = scale * r[8];
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
-    vfloat64m2_t sum_distance_squared_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
-    vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
-    nk_f32_t const *a_ptr = a, *b_ptr = b;
-    nk_size_t remaining = points_count;
-    for (nk_size_t vector_length; remaining > 0;
-         remaining -= vector_length, a_ptr += vector_length * 3, b_ptr += vector_length * 3) {
-        vector_length = __riscv_vsetvl_e32m1(remaining);
-        vfloat32m1x3_t a_f32m1x3 = __riscv_vlseg3e32_v_f32m1x3(a_ptr, vector_length);
-        vfloat64m2_t centered_a_x_f64m2 = __riscv_vfsub_vf_f64m2(
-            __riscv_vfwcvt_f_f_v_f64m2(__riscv_vget_v_f32m1x3_f32m1(a_f32m1x3, 0), vector_length), centroid_a_x,
-            vector_length);
-        vfloat64m2_t centered_a_y_f64m2 = __riscv_vfsub_vf_f64m2(
-            __riscv_vfwcvt_f_f_v_f64m2(__riscv_vget_v_f32m1x3_f32m1(a_f32m1x3, 1), vector_length), centroid_a_y,
-            vector_length);
-        vfloat64m2_t centered_a_z_f64m2 = __riscv_vfsub_vf_f64m2(
-            __riscv_vfwcvt_f_f_v_f64m2(__riscv_vget_v_f32m1x3_f32m1(a_f32m1x3, 2), vector_length), centroid_a_z,
-            vector_length);
-        vfloat64m2_t rotated_a_x_f64m2 = __riscv_vfmul_vf_f64m2(centered_a_x_f64m2, scaled_rotation_x_x, vector_length);
-        rotated_a_x_f64m2 = __riscv_vfmacc_vf_f64m2(rotated_a_x_f64m2, scaled_rotation_x_y, centered_a_y_f64m2,
-                                                    vector_length);
-        rotated_a_x_f64m2 = __riscv_vfmacc_vf_f64m2(rotated_a_x_f64m2, scaled_rotation_x_z, centered_a_z_f64m2,
-                                                    vector_length);
-        vfloat64m2_t rotated_a_y_f64m2 = __riscv_vfmul_vf_f64m2(centered_a_x_f64m2, scaled_rotation_y_x, vector_length);
-        rotated_a_y_f64m2 = __riscv_vfmacc_vf_f64m2(rotated_a_y_f64m2, scaled_rotation_y_y, centered_a_y_f64m2,
-                                                    vector_length);
-        rotated_a_y_f64m2 = __riscv_vfmacc_vf_f64m2(rotated_a_y_f64m2, scaled_rotation_y_z, centered_a_z_f64m2,
-                                                    vector_length);
-        vfloat64m2_t rotated_a_z_f64m2 = __riscv_vfmul_vf_f64m2(centered_a_x_f64m2, scaled_rotation_z_x, vector_length);
-        rotated_a_z_f64m2 = __riscv_vfmacc_vf_f64m2(rotated_a_z_f64m2, scaled_rotation_z_y, centered_a_y_f64m2,
-                                                    vector_length);
-        rotated_a_z_f64m2 = __riscv_vfmacc_vf_f64m2(rotated_a_z_f64m2, scaled_rotation_z_z, centered_a_z_f64m2,
-                                                    vector_length);
-        vfloat32m1x3_t b_f32m1x3 = __riscv_vlseg3e32_v_f32m1x3(b_ptr, vector_length);
-        vfloat64m2_t centered_b_x_f64m2 = __riscv_vfsub_vf_f64m2(
-            __riscv_vfwcvt_f_f_v_f64m2(__riscv_vget_v_f32m1x3_f32m1(b_f32m1x3, 0), vector_length), centroid_b_x,
-            vector_length);
-        vfloat64m2_t centered_b_y_f64m2 = __riscv_vfsub_vf_f64m2(
-            __riscv_vfwcvt_f_f_v_f64m2(__riscv_vget_v_f32m1x3_f32m1(b_f32m1x3, 1), vector_length), centroid_b_y,
-            vector_length);
-        vfloat64m2_t centered_b_z_f64m2 = __riscv_vfsub_vf_f64m2(
-            __riscv_vfwcvt_f_f_v_f64m2(__riscv_vget_v_f32m1x3_f32m1(b_f32m1x3, 2), vector_length), centroid_b_z,
-            vector_length);
-        vfloat64m2_t delta_x_f64m2 = __riscv_vfsub_vv_f64m2(rotated_a_x_f64m2, centered_b_x_f64m2, vector_length);
-        vfloat64m2_t delta_y_f64m2 = __riscv_vfsub_vv_f64m2(rotated_a_y_f64m2, centered_b_y_f64m2, vector_length);
-        vfloat64m2_t delta_z_f64m2 = __riscv_vfsub_vv_f64m2(rotated_a_z_f64m2, centered_b_z_f64m2, vector_length);
-        sum_distance_squared_f64m2 = __riscv_vfmacc_vv_f64m2_tu(sum_distance_squared_f64m2, delta_x_f64m2,
-                                                                delta_x_f64m2, vector_length);
-        sum_distance_squared_f64m2 = __riscv_vfmacc_vv_f64m2_tu(sum_distance_squared_f64m2, delta_y_f64m2,
-                                                                delta_y_f64m2, vector_length);
-        sum_distance_squared_f64m2 = __riscv_vfmacc_vv_f64m2_tu(sum_distance_squared_f64m2, delta_z_f64m2,
-                                                                delta_z_f64m2, vector_length);
-    }
-    return __riscv_vfmv_f_s_f64m1_f64(
-        __riscv_vfredusum_vs_f64m2_f64m1(sum_distance_squared_f64m2, zero_f64m1, max_vector_length));
-}
-
-NK_INTERNAL nk_f64_t nk_transformed_ssd_f64_rvv_(                        //
-    nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count,        //
-    nk_f64_t const *r, nk_f64_t scale,                                   //
-    nk_f64_t centroid_a_x, nk_f64_t centroid_a_y, nk_f64_t centroid_a_z, //
-    nk_f64_t centroid_b_x, nk_f64_t centroid_b_y, nk_f64_t centroid_b_z) {
-    nk_f64_t scaled_rotation_x_x = scale * r[0], scaled_rotation_x_y = scale * r[1], scaled_rotation_x_z = scale * r[2];
-    nk_f64_t scaled_rotation_y_x = scale * r[3], scaled_rotation_y_y = scale * r[4], scaled_rotation_y_z = scale * r[5];
-    nk_f64_t scaled_rotation_z_x = scale * r[6], scaled_rotation_z_y = scale * r[7], scaled_rotation_z_z = scale * r[8];
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
-    vfloat64m1_t sum_distance_squared_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
-    vfloat64m1_t compensation_distance_squared_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
-    nk_f64_t const *a_ptr = a, *b_ptr = b;
-    nk_size_t remaining = points_count;
-    for (nk_size_t vector_length; remaining > 0;
-         remaining -= vector_length, a_ptr += vector_length * 3, b_ptr += vector_length * 3) {
-        vector_length = __riscv_vsetvl_e64m1(remaining);
-        vfloat64m1x3_t a_f64m1x3 = __riscv_vlseg3e64_v_f64m1x3(a_ptr, vector_length);
-        vfloat64m1_t centered_a_x_f64m1 = __riscv_vfsub_vf_f64m1(__riscv_vget_v_f64m1x3_f64m1(a_f64m1x3, 0),
-                                                                 centroid_a_x, vector_length);
-        vfloat64m1_t centered_a_y_f64m1 = __riscv_vfsub_vf_f64m1(__riscv_vget_v_f64m1x3_f64m1(a_f64m1x3, 1),
-                                                                 centroid_a_y, vector_length);
-        vfloat64m1_t centered_a_z_f64m1 = __riscv_vfsub_vf_f64m1(__riscv_vget_v_f64m1x3_f64m1(a_f64m1x3, 2),
-                                                                 centroid_a_z, vector_length);
-        vfloat64m1_t rotated_a_x_f64m1 = __riscv_vfmul_vf_f64m1(centered_a_x_f64m1, scaled_rotation_x_x, vector_length);
-        rotated_a_x_f64m1 = __riscv_vfmacc_vf_f64m1(rotated_a_x_f64m1, scaled_rotation_x_y, centered_a_y_f64m1,
-                                                    vector_length);
-        rotated_a_x_f64m1 = __riscv_vfmacc_vf_f64m1(rotated_a_x_f64m1, scaled_rotation_x_z, centered_a_z_f64m1,
-                                                    vector_length);
-        vfloat64m1_t rotated_a_y_f64m1 = __riscv_vfmul_vf_f64m1(centered_a_x_f64m1, scaled_rotation_y_x, vector_length);
-        rotated_a_y_f64m1 = __riscv_vfmacc_vf_f64m1(rotated_a_y_f64m1, scaled_rotation_y_y, centered_a_y_f64m1,
-                                                    vector_length);
-        rotated_a_y_f64m1 = __riscv_vfmacc_vf_f64m1(rotated_a_y_f64m1, scaled_rotation_y_z, centered_a_z_f64m1,
-                                                    vector_length);
-        vfloat64m1_t rotated_a_z_f64m1 = __riscv_vfmul_vf_f64m1(centered_a_x_f64m1, scaled_rotation_z_x, vector_length);
-        rotated_a_z_f64m1 = __riscv_vfmacc_vf_f64m1(rotated_a_z_f64m1, scaled_rotation_z_y, centered_a_y_f64m1,
-                                                    vector_length);
-        rotated_a_z_f64m1 = __riscv_vfmacc_vf_f64m1(rotated_a_z_f64m1, scaled_rotation_z_z, centered_a_z_f64m1,
-                                                    vector_length);
-        vfloat64m1x3_t b_f64m1x3 = __riscv_vlseg3e64_v_f64m1x3(b_ptr, vector_length);
-        vfloat64m1_t centered_b_x_f64m1 = __riscv_vfsub_vf_f64m1(__riscv_vget_v_f64m1x3_f64m1(b_f64m1x3, 0),
-                                                                 centroid_b_x, vector_length);
-        vfloat64m1_t centered_b_y_f64m1 = __riscv_vfsub_vf_f64m1(__riscv_vget_v_f64m1x3_f64m1(b_f64m1x3, 1),
-                                                                 centroid_b_y, vector_length);
-        vfloat64m1_t centered_b_z_f64m1 = __riscv_vfsub_vf_f64m1(__riscv_vget_v_f64m1x3_f64m1(b_f64m1x3, 2),
-                                                                 centroid_b_z, vector_length);
-        vfloat64m1_t delta_x_f64m1 = __riscv_vfsub_vv_f64m1(rotated_a_x_f64m1, centered_b_x_f64m1, vector_length);
-        vfloat64m1_t delta_y_f64m1 = __riscv_vfsub_vv_f64m1(rotated_a_y_f64m1, centered_b_y_f64m1, vector_length);
-        vfloat64m1_t delta_z_f64m1 = __riscv_vfsub_vv_f64m1(rotated_a_z_f64m1, centered_b_z_f64m1, vector_length);
-        vfloat64m1_t distance_squared_f64m1 = __riscv_vfmul_vv_f64m1(delta_x_f64m1, delta_x_f64m1, vector_length);
-        distance_squared_f64m1 = __riscv_vfmacc_vv_f64m1(distance_squared_f64m1, delta_y_f64m1, delta_y_f64m1,
-                                                         vector_length);
-        distance_squared_f64m1 = __riscv_vfmacc_vv_f64m1(distance_squared_f64m1, delta_z_f64m1, delta_z_f64m1,
-                                                         vector_length);
-        nk_accumulate_sum_f64m1_rvv_(&sum_distance_squared_f64m1, &compensation_distance_squared_f64m1,
-                                     distance_squared_f64m1, vector_length);
-    }
-    return nk_dot_stable_sum_f64m1_rvv_(sum_distance_squared_f64m1, compensation_distance_squared_f64m1);
+    cross_covariance[0] = nk_dot_stable_sum_f64m1_rvv_(cross_00_f64m1, compensation_00_f64m1) -
+                          n_f64 * centroid_a_x_f64 * centroid_b_x_f64;
+    cross_covariance[1] = nk_dot_stable_sum_f64m1_rvv_(cross_01_f64m1, compensation_01_f64m1) -
+                          n_f64 * centroid_a_x_f64 * centroid_b_y_f64;
+    cross_covariance[2] = nk_dot_stable_sum_f64m1_rvv_(cross_02_f64m1, compensation_02_f64m1) -
+                          n_f64 * centroid_a_x_f64 * centroid_b_z_f64;
+    cross_covariance[3] = nk_dot_stable_sum_f64m1_rvv_(cross_10_f64m1, compensation_10_f64m1) -
+                          n_f64 * centroid_a_y_f64 * centroid_b_x_f64;
+    cross_covariance[4] = nk_dot_stable_sum_f64m1_rvv_(cross_11_f64m1, compensation_11_f64m1) -
+                          n_f64 * centroid_a_y_f64 * centroid_b_y_f64;
+    cross_covariance[5] = nk_dot_stable_sum_f64m1_rvv_(cross_12_f64m1, compensation_12_f64m1) -
+                          n_f64 * centroid_a_y_f64 * centroid_b_z_f64;
+    cross_covariance[6] = nk_dot_stable_sum_f64m1_rvv_(cross_20_f64m1, compensation_20_f64m1) -
+                          n_f64 * centroid_a_z_f64 * centroid_b_x_f64;
+    cross_covariance[7] = nk_dot_stable_sum_f64m1_rvv_(cross_21_f64m1, compensation_21_f64m1) -
+                          n_f64 * centroid_a_z_f64 * centroid_b_y_f64;
+    cross_covariance[8] = nk_dot_stable_sum_f64m1_rvv_(cross_22_f64m1, compensation_22_f64m1) -
+                          n_f64 * centroid_a_z_f64 * centroid_b_z_f64;
+    // Centered norm-squared via parallel-axis identity; clamp at zero for numeric safety.
+    nk_f64_t norm_squared_a_sum = nk_dot_stable_sum_f64m1_rvv_(norm_squared_a_f64m1, compensation_norm_squared_a_f64m1);
+    nk_f64_t norm_squared_b_sum = nk_dot_stable_sum_f64m1_rvv_(norm_squared_b_f64m1, compensation_norm_squared_b_f64m1);
+    *centered_norm_squared_a = norm_squared_a_sum -
+                               n_f64 * (centroid_a_x_f64 * centroid_a_x_f64 + centroid_a_y_f64 * centroid_a_y_f64 +
+                                        centroid_a_z_f64 * centroid_a_z_f64);
+    *centered_norm_squared_b = norm_squared_b_sum -
+                               n_f64 * (centroid_b_x_f64 * centroid_b_x_f64 + centroid_b_y_f64 * centroid_b_y_f64 +
+                                        centroid_b_z_f64 * centroid_b_z_f64);
+    if (*centered_norm_squared_a < 0.0) *centered_norm_squared_a = 0.0;
+    if (*centered_norm_squared_b < 0.0) *centered_norm_squared_b = 0.0;
 }
 
 /** @brief Compute R = V * Uᵀ from SVD factors (f32), vectorized with `vfmul_vf`/`vfmacc_vf`. */
 NK_INTERNAL void nk_rotation_from_svd_f32_rvv_( //
-    nk_f32_t *svd_u, nk_f32_t *svd_v, nk_f32_t r[9]) {
+    nk_f32_t *svd_left, nk_f32_t *svd_right, nk_f32_t optimal_rotation[9]) {
     nk_size_t vl3 = __riscv_vsetvl_e32m1(3);
-    vfloat32m1_t u_row0_f32m1 = __riscv_vle32_v_f32m1(svd_u + 0, vl3);
-    vfloat32m1_t u_row1_f32m1 = __riscv_vle32_v_f32m1(svd_u + 3, vl3);
-    vfloat32m1_t u_row2_f32m1 = __riscv_vle32_v_f32m1(svd_u + 6, vl3);
+    vfloat32m1_t u_row0_f32m1 = __riscv_vle32_v_f32m1(svd_left + 0, vl3);
+    vfloat32m1_t u_row1_f32m1 = __riscv_vle32_v_f32m1(svd_left + 3, vl3);
+    vfloat32m1_t u_row2_f32m1 = __riscv_vle32_v_f32m1(svd_left + 6, vl3);
     // Row 0: R[0..2] = V[0]*U_row0 + V[1]*U_row1 + V[2]*U_row2
-    vfloat32m1_t rotation_row_f32m1 = __riscv_vfmul_vf_f32m1(u_row0_f32m1, svd_v[0], vl3);
-    rotation_row_f32m1 = __riscv_vfmacc_vf_f32m1(rotation_row_f32m1, svd_v[1], u_row1_f32m1, vl3);
-    rotation_row_f32m1 = __riscv_vfmacc_vf_f32m1(rotation_row_f32m1, svd_v[2], u_row2_f32m1, vl3);
-    __riscv_vse32_v_f32m1(r + 0, rotation_row_f32m1, vl3);
+    vfloat32m1_t rotation_row_f32m1 = __riscv_vfmul_vf_f32m1(u_row0_f32m1, svd_right[0], vl3);
+    rotation_row_f32m1 = __riscv_vfmacc_vf_f32m1(rotation_row_f32m1, svd_right[1], u_row1_f32m1, vl3);
+    rotation_row_f32m1 = __riscv_vfmacc_vf_f32m1(rotation_row_f32m1, svd_right[2], u_row2_f32m1, vl3);
+    __riscv_vse32_v_f32m1(optimal_rotation + 0, rotation_row_f32m1, vl3);
     // Row 1: R[3..5]
-    rotation_row_f32m1 = __riscv_vfmul_vf_f32m1(u_row0_f32m1, svd_v[3], vl3);
-    rotation_row_f32m1 = __riscv_vfmacc_vf_f32m1(rotation_row_f32m1, svd_v[4], u_row1_f32m1, vl3);
-    rotation_row_f32m1 = __riscv_vfmacc_vf_f32m1(rotation_row_f32m1, svd_v[5], u_row2_f32m1, vl3);
-    __riscv_vse32_v_f32m1(r + 3, rotation_row_f32m1, vl3);
+    rotation_row_f32m1 = __riscv_vfmul_vf_f32m1(u_row0_f32m1, svd_right[3], vl3);
+    rotation_row_f32m1 = __riscv_vfmacc_vf_f32m1(rotation_row_f32m1, svd_right[4], u_row1_f32m1, vl3);
+    rotation_row_f32m1 = __riscv_vfmacc_vf_f32m1(rotation_row_f32m1, svd_right[5], u_row2_f32m1, vl3);
+    __riscv_vse32_v_f32m1(optimal_rotation + 3, rotation_row_f32m1, vl3);
     // Row 2: R[6..8]
-    rotation_row_f32m1 = __riscv_vfmul_vf_f32m1(u_row0_f32m1, svd_v[6], vl3);
-    rotation_row_f32m1 = __riscv_vfmacc_vf_f32m1(rotation_row_f32m1, svd_v[7], u_row1_f32m1, vl3);
-    rotation_row_f32m1 = __riscv_vfmacc_vf_f32m1(rotation_row_f32m1, svd_v[8], u_row2_f32m1, vl3);
-    __riscv_vse32_v_f32m1(r + 6, rotation_row_f32m1, vl3);
-}
-
-/** @brief Compute R = V * Uᵀ from SVD factors (f64), vectorized with `vfmul_vf`/`vfmacc_vf`. */
-NK_INTERNAL void nk_rotation_from_svd_f64_rvv_( //
-    nk_f64_t *svd_u, nk_f64_t *svd_v, nk_f64_t r[9]) {
-    nk_rotation_from_svd_f64_serial_(svd_u, svd_v, r);
+    rotation_row_f32m1 = __riscv_vfmul_vf_f32m1(u_row0_f32m1, svd_right[6], vl3);
+    rotation_row_f32m1 = __riscv_vfmacc_vf_f32m1(rotation_row_f32m1, svd_right[7], u_row1_f32m1, vl3);
+    rotation_row_f32m1 = __riscv_vfmacc_vf_f32m1(rotation_row_f32m1, svd_right[8], u_row2_f32m1, vl3);
+    __riscv_vse32_v_f32m1(optimal_rotation + 6, rotation_row_f32m1, vl3);
 }
 
 NK_PUBLIC void nk_rmsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,
@@ -781,114 +748,232 @@ NK_PUBLIC void nk_kabsch_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t
                                  nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
     if (scale) *scale = 1.0f;
     nk_f64_t centroid_a_x, centroid_a_y, centroid_a_z, centroid_b_x, centroid_b_y, centroid_b_z;
-    nk_f64_t h[9];
+    nk_f64_t centered_norm_squared_a, centered_norm_squared_b;
+    nk_f64_t cross_covariance[9];
     nk_centroid_and_cross_covariance_f32_rvv_(a, b, points_count, &centroid_a_x, &centroid_a_y, &centroid_a_z,
-                                              &centroid_b_x, &centroid_b_y, &centroid_b_z, h);
+                                              &centroid_b_x, &centroid_b_y, &centroid_b_z, cross_covariance,
+                                              &centered_norm_squared_a, &centered_norm_squared_b);
     if (a_centroid)
         a_centroid[0] = (nk_f32_t)centroid_a_x, a_centroid[1] = (nk_f32_t)centroid_a_y,
         a_centroid[2] = (nk_f32_t)centroid_a_z;
     if (b_centroid)
         b_centroid[0] = (nk_f32_t)centroid_b_x, b_centroid[1] = (nk_f32_t)centroid_b_y,
         b_centroid[2] = (nk_f32_t)centroid_b_z;
-    nk_f64_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f64_(h, svd_u, svd_s, svd_v);
-    nk_f64_t r[9];
-    nk_rotation_from_svd_f64_rvv_(svd_u, svd_v, r);
-    if (nk_det3x3_f64_(r) < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        nk_rotation_from_svd_f64_rvv_(svd_u, svd_v, r);
+
+    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f64_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f64_t optimal_rotation[9];
+    nk_f64_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
+        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
+        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
+        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
+        optimal_rotation[8] = 1;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+    }
+    else {
+        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        if (nk_det3x3_f64_(optimal_rotation) < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        }
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
     }
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)r[j];
-    nk_f64_t ssd = nk_transformed_ssd_f32_rvv_(a, b, points_count, r, 1.0, centroid_a_x, centroid_a_y, centroid_a_z,
-                                               centroid_b_x, centroid_b_y, centroid_b_z);
-    *result = nk_f64_sqrt_rvv(ssd / (nk_f64_t)points_count);
+        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    nk_f64_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0 * trace_rotation_covariance;
+    if (sum_squared < 0.0) sum_squared = 0.0;
+    *result = nk_f64_sqrt_rvv(sum_squared / (nk_f64_t)points_count);
 }
 
 NK_PUBLIC void nk_kabsch_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count, nk_f64_t *a_centroid,
                                  nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
     if (scale) *scale = 1.0;
     nk_f64_t centroid_a_x, centroid_a_y, centroid_a_z, centroid_b_x, centroid_b_y, centroid_b_z;
-    nk_f64_t h[9];
+    nk_f64_t centered_norm_squared_a, centered_norm_squared_b;
+    nk_f64_t cross_covariance[9];
     nk_centroid_and_cross_covariance_f64_rvv_(a, b, points_count, &centroid_a_x, &centroid_a_y, &centroid_a_z,
-                                              &centroid_b_x, &centroid_b_y, &centroid_b_z, h);
+                                              &centroid_b_x, &centroid_b_y, &centroid_b_z, cross_covariance,
+                                              &centered_norm_squared_a, &centered_norm_squared_b);
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
-    nk_f64_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f64_(h, svd_u, svd_s, svd_v);
-    nk_f64_t r[9];
-    nk_rotation_from_svd_f64_rvv_(svd_u, svd_v, r);
-    if (nk_det3x3_f64_(r) < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        nk_rotation_from_svd_f64_rvv_(svd_u, svd_v, r);
+
+    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f64_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f64_t optimal_rotation[9];
+    nk_f64_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
+        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
+        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
+        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
+        optimal_rotation[8] = 1;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+    }
+    else {
+        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        if (nk_det3x3_f64_(optimal_rotation) < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        }
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
     }
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
-    nk_f64_t ssd = nk_transformed_ssd_f64_rvv_(a, b, points_count, r, 1.0, centroid_a_x, centroid_a_y, centroid_a_z,
-                                               centroid_b_x, centroid_b_y, centroid_b_z);
-    *result = nk_f64_sqrt_rvv(ssd / (nk_f64_t)points_count);
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    nk_f64_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0 * trace_rotation_covariance;
+    if (sum_squared < 0.0) sum_squared = 0.0;
+    *result = nk_f64_sqrt_rvv(sum_squared / (nk_f64_t)points_count);
 }
 
 NK_PUBLIC void nk_umeyama_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,
                                   nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
     nk_f64_t centroid_a_x, centroid_a_y, centroid_a_z, centroid_b_x, centroid_b_y, centroid_b_z;
-    nk_f64_t h[9], variance_a;
-    nk_centroid_and_cross_covariance_and_variance_f32_rvv_(a, b, points_count, &centroid_a_x, &centroid_a_y,
-                                                           &centroid_a_z, &centroid_b_x, &centroid_b_y, &centroid_b_z,
-                                                           h, &variance_a);
+    nk_f64_t centered_norm_squared_a, centered_norm_squared_b;
+    nk_f64_t cross_covariance[9];
+    nk_centroid_and_cross_covariance_and_variance_f32_rvv_(
+        a, b, points_count, &centroid_a_x, &centroid_a_y, &centroid_a_z, &centroid_b_x, &centroid_b_y, &centroid_b_z,
+        cross_covariance, &centered_norm_squared_a, &centered_norm_squared_b);
     if (a_centroid)
         a_centroid[0] = (nk_f32_t)centroid_a_x, a_centroid[1] = (nk_f32_t)centroid_a_y,
         a_centroid[2] = (nk_f32_t)centroid_a_z;
     if (b_centroid)
         b_centroid[0] = (nk_f32_t)centroid_b_x, b_centroid[1] = (nk_f32_t)centroid_b_y,
         b_centroid[2] = (nk_f32_t)centroid_b_z;
-    nk_f64_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f64_(h, svd_u, svd_s, svd_v);
-    nk_f64_t r[9];
-    nk_rotation_from_svd_f64_rvv_(svd_u, svd_v, r);
-    nk_f64_t det = nk_det3x3_f64_(r);
-    nk_f64_t sign_det = det < 0 ? -1.0 : 1.0;
-    nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_s[0], 1.0, svd_s[4], 1.0, svd_s[8], sign_det);
-    nk_f64_t scale_factor = trace_ds / ((nk_f64_t)points_count * variance_a);
-    if (scale) *scale = (nk_f32_t)scale_factor;
-    if (det < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        nk_rotation_from_svd_f64_rvv_(svd_u, svd_v, r);
+
+    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f64_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f64_t optimal_rotation[9];
+    nk_f64_t trace_rotation_covariance;
+    nk_f64_t scale_factor;
+    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
+        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
+        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
+        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
+        optimal_rotation[8] = 1;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+        scale_factor = centered_norm_squared_a > 0.0 ? trace_rotation_covariance / centered_norm_squared_a : 0.0;
     }
+    else {
+        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
+        nk_f64_t sign_det = det < 0 ? -1.0 : 1.0;
+        nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8],
+                                                       sign_det);
+        scale_factor = centered_norm_squared_a > 0.0 ? trace_ds / centered_norm_squared_a : 0.0;
+        if (det < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        }
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
+    }
+    if (scale) *scale = (nk_f32_t)scale_factor;
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)r[j];
-    nk_f64_t ssd = nk_transformed_ssd_f32_rvv_(a, b, points_count, r, scale_factor, centroid_a_x, centroid_a_y,
-                                               centroid_a_z, centroid_b_x, centroid_b_y, centroid_b_z);
-    *result = nk_f64_sqrt_rvv(ssd / (nk_f64_t)points_count);
+        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
+    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    nk_f64_t sum_squared = scale_factor * scale_factor * centered_norm_squared_a + centered_norm_squared_b -
+                           2.0 * scale_factor * trace_rotation_covariance;
+    if (sum_squared < 0.0) sum_squared = 0.0;
+    *result = nk_f64_sqrt_rvv(sum_squared / (nk_f64_t)points_count);
 }
 
 NK_PUBLIC void nk_umeyama_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count, nk_f64_t *a_centroid,
                                   nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
     nk_f64_t centroid_a_x, centroid_a_y, centroid_a_z, centroid_b_x, centroid_b_y, centroid_b_z;
-    nk_f64_t h[9], variance_a;
-    nk_centroid_and_cross_covariance_and_variance_f64_rvv_(a, b, points_count, &centroid_a_x, &centroid_a_y,
-                                                           &centroid_a_z, &centroid_b_x, &centroid_b_y, &centroid_b_z,
-                                                           h, &variance_a);
+    nk_f64_t centered_norm_squared_a, centered_norm_squared_b;
+    nk_f64_t cross_covariance[9];
+    nk_centroid_and_cross_covariance_and_variance_f64_rvv_(
+        a, b, points_count, &centroid_a_x, &centroid_a_y, &centroid_a_z, &centroid_b_x, &centroid_b_y, &centroid_b_z,
+        cross_covariance, &centered_norm_squared_a, &centered_norm_squared_b);
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
-    nk_f64_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f64_(h, svd_u, svd_s, svd_v);
-    nk_f64_t r[9];
-    nk_rotation_from_svd_f64_rvv_(svd_u, svd_v, r);
-    nk_f64_t det = nk_det3x3_f64_(r);
-    nk_f64_t sign_det = det < 0 ? -1.0 : 1.0;
-    nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_s[0], 1.0, svd_s[4], 1.0, svd_s[8], sign_det);
-    nk_f64_t scale_factor = trace_ds / ((nk_f64_t)points_count * variance_a);
-    if (scale) *scale = scale_factor;
-    if (det < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        nk_rotation_from_svd_f64_rvv_(svd_u, svd_v, r);
+
+    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f64_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f64_t optimal_rotation[9];
+    nk_f64_t trace_rotation_covariance;
+    nk_f64_t scale_factor;
+    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
+        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
+        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
+        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
+        optimal_rotation[8] = 1;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+        scale_factor = centered_norm_squared_a > 0.0 ? trace_rotation_covariance / centered_norm_squared_a : 0.0;
     }
+    else {
+        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
+        nk_f64_t sign_det = det < 0 ? -1.0 : 1.0;
+        nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8],
+                                                       sign_det);
+        scale_factor = centered_norm_squared_a > 0.0 ? trace_ds / centered_norm_squared_a : 0.0;
+        if (det < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        }
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
+    }
+    if (scale) *scale = scale_factor;
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
-    nk_f64_t ssd = nk_transformed_ssd_f64_rvv_(a, b, points_count, r, scale_factor, centroid_a_x, centroid_a_y,
-                                               centroid_a_z, centroid_b_x, centroid_b_y, centroid_b_z);
-    *result = nk_f64_sqrt_rvv(ssd / (nk_f64_t)points_count);
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
+    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    nk_f64_t sum_squared = scale_factor * scale_factor * centered_norm_squared_a + centered_norm_squared_b -
+                           2.0 * scale_factor * trace_rotation_covariance;
+    if (sum_squared < 0.0) sum_squared = 0.0;
+    *result = nk_f64_sqrt_rvv(sum_squared / (nk_f64_t)points_count);
 }
 
 NK_PUBLIC void nk_rmsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,

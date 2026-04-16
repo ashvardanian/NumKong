@@ -137,6 +137,12 @@ void test_mesh() {
     check("umeyama_bf16_neonbfdot", test_umeyama<bf16_t>, nk_umeyama_bf16_neonbfdot);
 #endif // NK_TARGET_NEONBFDOT
 
+#if NK_TARGET_NEONFHM
+    check("rmsd_f16_neonfhm", test_rmsd<f16_t>, nk_rmsd_f16_neonfhm);
+    check("kabsch_f16_neonfhm", test_kabsch<f16_t>, nk_kabsch_f16_neonfhm);
+    check("umeyama_f16_neonfhm", test_umeyama<f16_t>, nk_umeyama_f16_neonfhm);
+#endif // NK_TARGET_NEONFHM
+
 #if NK_TARGET_HASWELL
     check("rmsd_f64_haswell", test_rmsd<f64_t>, nk_rmsd_f64_haswell);
     check("rmsd_f32_haswell", test_rmsd<f32_t>, nk_rmsd_f32_haswell);
@@ -166,6 +172,12 @@ void test_mesh() {
     check("umeyama_f16_skylake", test_umeyama<f16_t>, nk_umeyama_f16_skylake);
     check("umeyama_bf16_skylake", test_umeyama<bf16_t>, nk_umeyama_bf16_skylake);
 #endif // NK_TARGET_SKYLAKE
+
+#if NK_TARGET_GENOA
+    check("rmsd_bf16_genoa", test_rmsd<bf16_t>, nk_rmsd_bf16_genoa);
+    check("kabsch_bf16_genoa", test_kabsch<bf16_t>, nk_kabsch_bf16_genoa);
+    check("umeyama_bf16_genoa", test_umeyama<bf16_t>, nk_umeyama_bf16_genoa);
+#endif // NK_TARGET_GENOA
 
 #if NK_TARGET_RVV
     check("rmsd_f64_rvv", test_rmsd<f64_t>, nk_rmsd_f64_rvv);

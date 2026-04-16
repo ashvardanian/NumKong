@@ -99,7 +99,7 @@ StatementMacros:
   - nk_define_angular_
   - nk_define_rmsd_
   - nk_define_kabsch_
-  - nk_define_umeyama_  
+  - nk_define_umeyama_
   - nk_define_cond_swap_
   - nk_define_conditional_negating_swap_
   - nk_define_approximate_givens_quaternion_
@@ -108,7 +108,7 @@ StatementMacros:
   - nk_define_jacobi_eigenanalysis_
   - nk_define_qr_givens_quaternion_
   - nk_define_sort_singular_values_
-  - nk_define_qr_decomposition_
+  - nk_define_qr_orthogonal_factor_
   - nk_define_svd3x3_
   - nk_define_det3x3_
   - nk_define_geospatial_

@@ -96,62 +96,100 @@ void test_tensor_operator_indexing() {
 
     assert(t[0] == 1.0f && "flat tensor lookup failed");
     assert(t[-1] == 6.0f && "negative flat tensor lookup failed");
-    assert((t[0, 0] == 1.0f) && "exact tensor lookup failed");
-    assert((t[1, -1] == 6.0f) && "negative exact tensor lookup failed");
+    assert((t(0, 0) == 1.0f) && "exact tensor lookup failed");
+    assert((t(1, -1) == 6.0f) && "negative exact tensor lookup failed");
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    assert((t[0, 0] == 1.0f) && "exact tensor lookup via operator[] failed");
+    assert((t[1, -1] == 6.0f) && "negative exact tensor lookup via operator[] failed");
+#endif
 
     auto whole = t[nk::slice];
     assert(whole.rank() == 2 && "slice identity rank mismatch");
     assert(whole.extent(0) == 2 && whole.extent(1) == 3 && "slice identity extents mismatch");
 
-    auto row1 = t[1, nk::slice];
+    auto row1 = t(1, nk::slice);
     assert(row1.rank() == 1 && "row slice rank mismatch");
     assert(row1.extent(0) == 3 && "row slice extent mismatch");
     assert(row1[0] == 4.0f && row1[-1] == 6.0f && "row slice values mismatch");
     row1[1] = 42.0f;
-    assert((t[1, 1] == 42.0f) && "row slice write-through failed");
+    assert((t(1, 1) == 42.0f) && "row slice write-through failed");
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    assert((t[1, 1] == 42.0f) && "operator[] row slice write-through failed");
+    auto row1_subscript = t[1, nk::slice];
+    assert(row1_subscript.extent(0) == row1.extent(0) && "operator[] row slice mismatch");
+#endif
 
-    auto cell = t[1, 1, nk::slice];
+    auto cell = t(1, 1, nk::slice);
     assert(cell.rank() == 0 && "scalar slice rank mismatch");
     assert(cell.scalar() == 42.0f && "scalar slice value mismatch");
     cell.scalar_ref() = 24.0f;
-    assert((t[1, 1] == 24.0f) && "scalar slice write-through failed");
+    assert((t(1, 1) == 24.0f) && "scalar slice write-through failed");
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    assert((t[1, 1] == 24.0f) && "operator[] scalar slice write-through failed");
+    auto cell_subscript = t[1, 1, nk::slice];
+    assert(cell_subscript.rank() == 0 && "operator[] scalar slice rank mismatch");
+#endif
 
     auto const &ct = t;
-    auto const last_row = ct[-1, nk::slice];
+    auto const last_row = ct(-1, nk::slice);
     assert(last_row.rank() == 1 && "const row slice rank mismatch");
     assert(last_row[0] == 4.0f && "const row slice mismatch");
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    auto const last_row_subscript = ct[-1, nk::slice];
+    assert(last_row_subscript.rank() == 1 && "operator[] const row slice mismatch");
+#endif
 
     auto cube = nk::tensor<float>::try_zeros({2, 3, 4});
     assert(!cube.empty() && "cube allocation failed");
     for (int i = 0; i < 24; ++i) cube[i] = static_cast<float>(i);
 
-    auto plane = cube[1, nk::slice];
+    auto plane = cube(1, nk::slice);
     assert(plane.rank() == 2 && plane.extent(0) == 3 && plane.extent(1) == 4 && "plane slice mismatch");
-    auto line = cube[1, 2, nk::slice];
+    auto line = cube(1, 2, nk::slice);
     assert(line.rank() == 1 && line.extent(0) == 4 && "line slice mismatch");
-    assert((line[3] == cube[1, 2, 3]) && "line slice element mismatch");
-    auto point = cube[1, 2, 3, nk::slice];
-    assert((point.rank() == 0 && point.scalar() == cube[1, 2, 3]) && "point slice mismatch");
+    assert((line[3] == cube(1, 2, 3)) && "line slice element mismatch");
+    auto point = cube(1, 2, 3, nk::slice);
+    assert((point.rank() == 0 && point.scalar() == cube(1, 2, 3)) && "point slice mismatch");
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    auto plane_subscript = cube[1, nk::slice];
+    auto line_subscript = cube[1, 2, nk::slice];
+    auto point_subscript = cube[1, 2, 3, nk::slice];
+    assert((line_subscript[3] == cube[1, 2, 3]) && "operator[] line slice element mismatch");
+    assert((point_subscript.scalar() == cube[1, 2, 3]) && "operator[] point slice mismatch");
+    assert(plane_subscript.rank() == 2 && "operator[] plane slice rank mismatch");
+#endif
 
     // all_t slicing: extract a column
-    auto second_column = t[nk::all, 1, nk::slice];
+    auto second_column = t(nk::all, 1, nk::slice);
     assert(second_column.rank() == 1 && "all_t column rank mismatch");
     assert(second_column.numel() == 2 && "all_t column numel mismatch");
 
     // range slicing: extract a sub-range of rows
-    auto first_two_planes = cube[nk::range(0, 2), nk::slice];
+    auto first_two_planes = cube(nk::range(0, 2), nk::slice);
     assert(first_two_planes.rank() == 3 && "range slice rank mismatch");
     assert(first_two_planes.extent(0) == 2 && "range slice extent mismatch");
 
     // combined: range + all_t + slice on a 3D tensor
-    auto sub = cube[nk::range(0, 2), nk::all, nk::slice];
+    auto sub = cube(nk::range(0, 2), nk::all, nk::slice);
     assert(sub.rank() == 3 && sub.extent(0) == 2 && sub.extent(1) == 3 && "range+all slice mismatch");
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    auto second_column_subscript = t[nk::all, 1, nk::slice];
+    auto first_two_planes_subscript = cube[nk::range(0, 2), nk::slice];
+    auto sub_subscript = cube[nk::range(0, 2), nk::all, nk::slice];
+    assert(second_column_subscript.numel() == 2 && "operator[] all_t column mismatch");
+    assert(first_two_planes_subscript.extent(0) == 2 && "operator[] range slice mismatch");
+    assert(sub_subscript.extent(1) == 3 && "operator[] range+all slice mismatch");
+#endif
 
     // row() access
     auto row0 = t.row(0);
     assert(row0.rank() == 1 && row0.extent(0) == 3 && "row() rank/extent mismatch");
-    auto row0_via_slice = t[0, nk::slice];
-    assert(row0[0] == row0_via_slice[0] && "row() should match t[0, slice]");
+    auto row0_via_slice = t(0, nk::slice);
+    assert(row0[0] == row0_via_slice[0] && "row() should match t(0, slice)");
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    auto row0_via_subscript = t[0, nk::slice];
+    assert(row0[0] == row0_via_subscript[0] && "row() should match t[0, slice]");
+#endif
 }
 
 void test_packed_tensor_operator_indexing() {
@@ -162,14 +200,23 @@ void test_packed_tensor_operator_indexing() {
 
     assert(int(t4[0]) == 1 && "packed flat lookup failed");
     assert(int(t4[-1]) == 8 && "packed negative flat lookup failed");
-    assert((int(t4[0, 3]) == 4) && "packed exact lookup failed");
-    assert((int(t4[1, -1]) == 8) && "packed negative exact lookup failed");
+    assert((int(t4(0, 3)) == 4) && "packed exact lookup failed");
+    assert((int(t4(1, -1)) == 8) && "packed negative exact lookup failed");
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    assert((int(t4[0, 3]) == 4) && "packed operator[] exact lookup failed");
+    assert((int(t4[1, -1]) == 8) && "packed operator[] negative exact lookup failed");
+#endif
 
-    auto second_row = t4[1, nk::slice];
+    auto second_row = t4(1, nk::slice);
     assert(second_row.rank() == 1 && second_row.extent(0) == 4 && "packed row slice rank mismatch");
     assert(int(second_row[0]) == 5 && int(second_row[-1]) == 8 && "packed row slice values mismatch");
     second_row[1] = 14;
-    assert((int(t4[1, 1]) == 14) && "packed row slice write-through failed");
+    assert((int(t4(1, 1)) == 14) && "packed row slice write-through failed");
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    auto second_row_subscript = t4[1, nk::slice];
+    assert(second_row_subscript.extent(0) == 4 && "packed operator[] row slice rank mismatch");
+    assert((int(t4[1, 1]) == 14) && "packed operator[] row slice write-through failed");
+#endif
 
     auto t1 = nk::tensor<nk::u1x8_t>::try_zeros({2, 8});
     assert(!t1.empty() && "packed u1 tensor allocation failed");
@@ -179,14 +226,23 @@ void test_packed_tensor_operator_indexing() {
     t1[-1] = true;
 
     assert(bool(t1[0]) && "packed bit flat lookup failed");
-    assert((bool(t1[0, 7])) && "packed bit exact lookup failed");
-    assert((bool(t1[1, 3])) && "packed bit second-row lookup failed");
+    assert((bool(t1(0, 7))) && "packed bit exact lookup failed");
+    assert((bool(t1(1, 3))) && "packed bit second-row lookup failed");
     assert(bool(t1[-1]) && "packed bit negative flat lookup failed");
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    assert((bool(t1[0, 7])) && "packed bit operator[] exact lookup failed");
+    assert((bool(t1[1, 3])) && "packed bit operator[] second-row lookup failed");
+#endif
 
-    auto bits = t1[1, nk::slice];
+    auto bits = t1(1, nk::slice);
     assert(bits.rank() == 1 && bits.extent(0) == 8 && "packed bit slice rank mismatch");
     bits[4] = true;
-    assert((bool(t1[1, 4])) && "packed bit slice write-through failed");
+    assert((bool(t1(1, 4))) && "packed bit slice write-through failed");
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    auto bits_subscript = t1[1, nk::slice];
+    assert(bits_subscript.extent(0) == 8 && "packed bit operator[] slice rank mismatch");
+    assert((bool(t1[1, 4])) && "packed bit operator[] slice write-through failed");
+#endif
 }
 
 void test_move_semantics() {
@@ -470,8 +526,12 @@ void test_packed_tensor_fail_closed_views() {
     auto packed = nk::tensor<nk::i4x2_t>::try_zeros({2, 4});
     assert(!packed.empty() && "packed tensor allocation failed");
     assert(packed.view().transpose().empty() && "packed transpose should fail closed");
-    assert((!packed[1, nk::slice].empty()) && "packed row slice should remain supported");
-    assert((packed[1, 2, nk::slice].empty()) && "packed scalar trailing slice should fail closed");
+    assert((!packed(1, nk::slice).empty()) && "packed row slice should remain supported");
+    assert((packed(1, 2, nk::slice).empty()) && "packed scalar trailing slice should fail closed");
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    assert((!packed[1, nk::slice].empty()) && "packed operator[] row slice should remain supported");
+    assert((packed[1, 2, nk::slice].empty()) && "packed operator[] scalar trailing slice should fail closed");
+#endif
 }
 
 void test_vector_types() {

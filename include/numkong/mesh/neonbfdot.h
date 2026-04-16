@@ -8,24 +8,28 @@
  *
  *  @section mesh_neonbfdot_instructions ARM NEON BF16 Instructions (ARMv8.6-BF16)
  *
- *      Intrinsic    Instruction              A76       M5
- *      vld3_u16     LD3 (V.4H x 3)           4cy @ 1p  4cy @ 1p
- *      vshll_n_u16  USHLL (V.4S, V.4H, #16)  2cy @ 2p  2cy @ 4p
- *      vfmaq_f32    FMLA (V.4S, V.4S, V.4S)  4cy @ 2p  3cy @ 4p
- *      vaddq_f32    FADD (V.4S, V.4S, V.4S)  2cy @ 2p  2cy @ 4p
- *      vsubq_f32    FSUB (V.4S, V.4S, V.4S)  2cy @ 2p  2cy @ 4p
- *      vmulq_f32    FMUL (V.4S, V.4S, V.4S)  3cy @ 2p  3cy @ 4p
- *      vdupq_n_f32  DUP (V.4S, scalar)       2cy @ 2p  2cy @ 4p
- *      vaddvq_f32   FADDP+FADDP (V.4S)       5cy @ 1p  8cy @ 1p
+ *      Intrinsic    Instruction               A76       M5
+ *      vld3q_u16    LD3 (V.8H x 3)            4cy @ 1p  4cy @ 1p
+ *      vld3_u16     LD3 (V.4H x 3)            4cy @ 1p  4cy @ 1p
+ *      vbfdotq_f32  BFDOT (V.4S, V.8H, V.8H)  3cy @ 2p  2cy @ 1p
+ *      vshll_n_u16  USHLL (V.4S, V.4H, #16)   2cy @ 2p  2cy @ 4p
+ *      vfmaq_f32    FMLA (V.4S, V.4S, V.4S)   4cy @ 2p  3cy @ 4p
+ *      vaddq_f32    FADD (V.4S, V.4S, V.4S)   2cy @ 2p  2cy @ 4p
+ *      vsubq_f32    FSUB (V.4S, V.4S, V.4S)   2cy @ 2p  2cy @ 4p
+ *      vmulq_f32    FMUL (V.4S, V.4S, V.4S)   3cy @ 2p  3cy @ 4p
+ *      vdupq_n_f32  DUP (V.4S, scalar)        2cy @ 2p  2cy @ 4p
+ *      vaddvq_f32   FADDP+FADDP (V.4S)        5cy @ 1p  8cy @ 1p
  *
  *  The ARMv8.6-BF16 extension enables BF16 storage with F32 computation for 3D mesh alignment
  *  operations. BF16's wider exponent range (matching F32) prevents overflow in geometric calculations
  *  while halving memory bandwidth compared to F32.
  *
- *  For point cloud registration (RMSD, Kabsch, Umeyama), BF16 data is loaded using VLD3 de-interleave
- *  operations, converted to F32 via bit-shift widening, then processed with F32 FMA chains. The 2x
- *  unrolling with dual accumulators hides the 4-cycle FMA latency, achieving near-peak throughput
- *  for covariance matrix and centroid computations.
+ *  For point cloud registration (Kabsch, Umeyama), BF16 data is loaded using VLD3 de-interleave
+ *  operations and processed directly with BFDOT (`vbfdotq_f32`), which computes two BF16 products
+ *  per 32-bit lane with FP32 accumulation. This skips the explicit bf16→f32 widening that the
+ *  prior vshll+fmaq approach required, halving the front-end pressure on the covariance/centroid
+ *  stats pass. RMSD keeps the widen+subtract+fmaq pipeline because it needs the (a - b) difference
+ *  before squaring, which BFDOT can't express directly.
  */
 #ifndef NK_MESH_NEONBFDOT_H
 #define NK_MESH_NEONBFDOT_H
@@ -34,6 +38,7 @@
 #if NK_TARGET_NEONBFDOT
 
 #include "numkong/types.h"
+#include "numkong/cast/neon.h"    // `nk_u16x8_splat_`
 #include "numkong/spatial/neon.h" // `nk_f32_sqrt_neon`
 
 #if defined(__cplusplus)
@@ -73,191 +78,6 @@ NK_INTERNAL void nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(nk_bf16_t cons
     nk_u16_t const *src = (nk_u16_t const *)ptr;
     for (nk_size_t k = 0; k < n_points * 3; ++k) buf[k] = src[k];
     nk_deinterleave_bf16x4_to_f32x4_neonbfdot_((nk_bf16_t const *)buf, x_out, y_out, z_out);
-}
-
-/*  Compute sum of squared distances for bf16 data after applying rotation (and optional scale).
- *  Loads bf16 data, converts to f32 during processing.
- *  Note: rotation matrix r is f32 (from SVD), scale and computation done in f32.
- */
-NK_INTERNAL nk_f32_t nk_transformed_ssd_bf16_neonbfdot_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                        nk_f32_t const *r, nk_f32_t scale, nk_f32_t centroid_a_x,
-                                                        nk_f32_t centroid_a_y, nk_f32_t centroid_a_z,
-                                                        nk_f32_t centroid_b_x, nk_f32_t centroid_b_y,
-                                                        nk_f32_t centroid_b_z) {
-    // Broadcast scaled rotation matrix elements
-    float32x4_t scaled_rotation_x_x_f32x4 = vdupq_n_f32(scale * r[0]);
-    float32x4_t scaled_rotation_x_y_f32x4 = vdupq_n_f32(scale * r[1]);
-    float32x4_t scaled_rotation_x_z_f32x4 = vdupq_n_f32(scale * r[2]);
-    float32x4_t scaled_rotation_y_x_f32x4 = vdupq_n_f32(scale * r[3]);
-    float32x4_t scaled_rotation_y_y_f32x4 = vdupq_n_f32(scale * r[4]);
-    float32x4_t scaled_rotation_y_z_f32x4 = vdupq_n_f32(scale * r[5]);
-    float32x4_t scaled_rotation_z_x_f32x4 = vdupq_n_f32(scale * r[6]);
-    float32x4_t scaled_rotation_z_y_f32x4 = vdupq_n_f32(scale * r[7]);
-    float32x4_t scaled_rotation_z_z_f32x4 = vdupq_n_f32(scale * r[8]);
-
-    // Broadcast centroids
-    float32x4_t centroid_a_x_f32x4 = vdupq_n_f32(centroid_a_x);
-    float32x4_t centroid_a_y_f32x4 = vdupq_n_f32(centroid_a_y);
-    float32x4_t centroid_a_z_f32x4 = vdupq_n_f32(centroid_a_z);
-    float32x4_t centroid_b_x_f32x4 = vdupq_n_f32(centroid_b_x);
-    float32x4_t centroid_b_y_f32x4 = vdupq_n_f32(centroid_b_y);
-    float32x4_t centroid_b_z_f32x4 = vdupq_n_f32(centroid_b_z);
-
-    // Two independent accumulators to hide FMA latency
-    float32x4_t sum_squared_a_f32x4 = vdupq_n_f32(0);
-    float32x4_t sum_squared_b_f32x4 = vdupq_n_f32(0);
-    nk_size_t j = 0;
-
-    // Main loop: process 8 points per iteration (2x unrolled)
-    for (; j + 8 <= n; j += 8) {
-        // First batch of 4 points
-        float32x4_t a1_x_f32x4, a1_y_f32x4, a1_z_f32x4, b1_x_f32x4, b1_y_f32x4, b1_z_f32x4;
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(a + j * 3, &a1_x_f32x4, &a1_y_f32x4, &a1_z_f32x4);
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(b + j * 3, &b1_x_f32x4, &b1_y_f32x4, &b1_z_f32x4);
-
-        // Second batch of 4 points
-        float32x4_t a2_x_f32x4, a2_y_f32x4, a2_z_f32x4, b2_x_f32x4, b2_y_f32x4, b2_z_f32x4;
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(a + (j + 4) * 3, &a2_x_f32x4, &a2_y_f32x4, &a2_z_f32x4);
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(b + (j + 4) * 3, &b2_x_f32x4, &b2_y_f32x4, &b2_z_f32x4);
-
-        // Center first batch
-        float32x4_t pa1_x_f32x4 = vsubq_f32(a1_x_f32x4, centroid_a_x_f32x4);
-        float32x4_t pa1_y_f32x4 = vsubq_f32(a1_y_f32x4, centroid_a_y_f32x4);
-        float32x4_t pa1_z_f32x4 = vsubq_f32(a1_z_f32x4, centroid_a_z_f32x4);
-        float32x4_t pb1_x_f32x4 = vsubq_f32(b1_x_f32x4, centroid_b_x_f32x4);
-        float32x4_t pb1_y_f32x4 = vsubq_f32(b1_y_f32x4, centroid_b_y_f32x4);
-        float32x4_t pb1_z_f32x4 = vsubq_f32(b1_z_f32x4, centroid_b_z_f32x4);
-
-        // Center second batch
-        float32x4_t pa2_x_f32x4 = vsubq_f32(a2_x_f32x4, centroid_a_x_f32x4);
-        float32x4_t pa2_y_f32x4 = vsubq_f32(a2_y_f32x4, centroid_a_y_f32x4);
-        float32x4_t pa2_z_f32x4 = vsubq_f32(a2_z_f32x4, centroid_a_z_f32x4);
-        float32x4_t pb2_x_f32x4 = vsubq_f32(b2_x_f32x4, centroid_b_x_f32x4);
-        float32x4_t pb2_y_f32x4 = vsubq_f32(b2_y_f32x4, centroid_b_y_f32x4);
-        float32x4_t pb2_z_f32x4 = vsubq_f32(b2_z_f32x4, centroid_b_z_f32x4);
-
-        // Rotate and scale first batch: ra1 = scale * R * pa1
-        float32x4_t ra1_x_f32x4 = vfmaq_f32(
-            vfmaq_f32(vmulq_f32(scaled_rotation_x_x_f32x4, pa1_x_f32x4), scaled_rotation_x_y_f32x4, pa1_y_f32x4),
-            scaled_rotation_x_z_f32x4, pa1_z_f32x4);
-        float32x4_t ra1_y_f32x4 = vfmaq_f32(
-            vfmaq_f32(vmulq_f32(scaled_rotation_y_x_f32x4, pa1_x_f32x4), scaled_rotation_y_y_f32x4, pa1_y_f32x4),
-            scaled_rotation_y_z_f32x4, pa1_z_f32x4);
-        float32x4_t ra1_z_f32x4 = vfmaq_f32(
-            vfmaq_f32(vmulq_f32(scaled_rotation_z_x_f32x4, pa1_x_f32x4), scaled_rotation_z_y_f32x4, pa1_y_f32x4),
-            scaled_rotation_z_z_f32x4, pa1_z_f32x4);
-
-        // Rotate and scale second batch: ra2 = scale * R * pa2
-        float32x4_t ra2_x_f32x4 = vfmaq_f32(
-            vfmaq_f32(vmulq_f32(scaled_rotation_x_x_f32x4, pa2_x_f32x4), scaled_rotation_x_y_f32x4, pa2_y_f32x4),
-            scaled_rotation_x_z_f32x4, pa2_z_f32x4);
-        float32x4_t ra2_y_f32x4 = vfmaq_f32(
-            vfmaq_f32(vmulq_f32(scaled_rotation_y_x_f32x4, pa2_x_f32x4), scaled_rotation_y_y_f32x4, pa2_y_f32x4),
-            scaled_rotation_y_z_f32x4, pa2_z_f32x4);
-        float32x4_t ra2_z_f32x4 = vfmaq_f32(
-            vfmaq_f32(vmulq_f32(scaled_rotation_z_x_f32x4, pa2_x_f32x4), scaled_rotation_z_y_f32x4, pa2_y_f32x4),
-            scaled_rotation_z_z_f32x4, pa2_z_f32x4);
-
-        // Deltas
-        float32x4_t delta1_x_f32x4 = vsubq_f32(ra1_x_f32x4, pb1_x_f32x4);
-        float32x4_t delta1_y_f32x4 = vsubq_f32(ra1_y_f32x4, pb1_y_f32x4);
-        float32x4_t delta1_z_f32x4 = vsubq_f32(ra1_z_f32x4, pb1_z_f32x4);
-        float32x4_t delta2_x_f32x4 = vsubq_f32(ra2_x_f32x4, pb2_x_f32x4);
-        float32x4_t delta2_y_f32x4 = vsubq_f32(ra2_y_f32x4, pb2_y_f32x4);
-        float32x4_t delta2_z_f32x4 = vsubq_f32(ra2_z_f32x4, pb2_z_f32x4);
-
-        // Accumulate to independent accumulators
-        sum_squared_a_f32x4 = vfmaq_f32(sum_squared_a_f32x4, delta1_x_f32x4, delta1_x_f32x4);
-        sum_squared_b_f32x4 = vfmaq_f32(sum_squared_b_f32x4, delta2_x_f32x4, delta2_x_f32x4);
-        sum_squared_a_f32x4 = vfmaq_f32(sum_squared_a_f32x4, delta1_y_f32x4, delta1_y_f32x4);
-        sum_squared_b_f32x4 = vfmaq_f32(sum_squared_b_f32x4, delta2_y_f32x4, delta2_y_f32x4);
-        sum_squared_a_f32x4 = vfmaq_f32(sum_squared_a_f32x4, delta1_z_f32x4, delta1_z_f32x4);
-        sum_squared_b_f32x4 = vfmaq_f32(sum_squared_b_f32x4, delta2_z_f32x4, delta2_z_f32x4);
-    }
-
-    // Handle remaining 4 points
-    if (j + 4 <= n) {
-        float32x4_t a_x_f32x4, a_y_f32x4, a_z_f32x4, b_x_f32x4, b_y_f32x4, b_z_f32x4;
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(a + j * 3, &a_x_f32x4, &a_y_f32x4, &a_z_f32x4);
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(b + j * 3, &b_x_f32x4, &b_y_f32x4, &b_z_f32x4);
-
-        float32x4_t pa_x_f32x4 = vsubq_f32(a_x_f32x4, centroid_a_x_f32x4);
-        float32x4_t pa_y_f32x4 = vsubq_f32(a_y_f32x4, centroid_a_y_f32x4);
-        float32x4_t pa_z_f32x4 = vsubq_f32(a_z_f32x4, centroid_a_z_f32x4);
-        float32x4_t pb_x_f32x4 = vsubq_f32(b_x_f32x4, centroid_b_x_f32x4);
-        float32x4_t pb_y_f32x4 = vsubq_f32(b_y_f32x4, centroid_b_y_f32x4);
-        float32x4_t pb_z_f32x4 = vsubq_f32(b_z_f32x4, centroid_b_z_f32x4);
-
-        float32x4_t ra_x_f32x4 = vfmaq_f32(
-            vfmaq_f32(vmulq_f32(scaled_rotation_x_x_f32x4, pa_x_f32x4), scaled_rotation_x_y_f32x4, pa_y_f32x4),
-            scaled_rotation_x_z_f32x4, pa_z_f32x4);
-        float32x4_t ra_y_f32x4 = vfmaq_f32(
-            vfmaq_f32(vmulq_f32(scaled_rotation_y_x_f32x4, pa_x_f32x4), scaled_rotation_y_y_f32x4, pa_y_f32x4),
-            scaled_rotation_y_z_f32x4, pa_z_f32x4);
-        float32x4_t ra_z_f32x4 = vfmaq_f32(
-            vfmaq_f32(vmulq_f32(scaled_rotation_z_x_f32x4, pa_x_f32x4), scaled_rotation_z_y_f32x4, pa_y_f32x4),
-            scaled_rotation_z_z_f32x4, pa_z_f32x4);
-
-        float32x4_t delta_x_f32x4 = vsubq_f32(ra_x_f32x4, pb_x_f32x4);
-        float32x4_t delta_y_f32x4 = vsubq_f32(ra_y_f32x4, pb_y_f32x4);
-        float32x4_t delta_z_f32x4 = vsubq_f32(ra_z_f32x4, pb_z_f32x4);
-
-        sum_squared_a_f32x4 = vfmaq_f32(sum_squared_a_f32x4, delta_x_f32x4, delta_x_f32x4);
-        sum_squared_a_f32x4 = vfmaq_f32(sum_squared_a_f32x4, delta_y_f32x4, delta_y_f32x4);
-        sum_squared_a_f32x4 = vfmaq_f32(sum_squared_a_f32x4, delta_z_f32x4, delta_z_f32x4);
-        j += 4;
-    }
-
-    // Partial tail: handle remaining 1-3 points with vectorized partial deinterleave
-    if (j < n) {
-        float32x4_t a_x_f32x4, a_y_f32x4, a_z_f32x4, b_x_f32x4, b_y_f32x4, b_z_f32x4;
-        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(a + j * 3, n - j, &a_x_f32x4, &a_y_f32x4, &a_z_f32x4);
-        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(b + j * 3, n - j, &b_x_f32x4, &b_y_f32x4, &b_z_f32x4);
-
-        // Mask invalid lanes to zero BEFORE centering
-        uint32x4_t lane_u32x4 = vcombine_u32(vreinterpret_u32_u64(vcreate_u64(0x0000000100000000ULL)),
-                                             vreinterpret_u32_u64(vcreate_u64(0x0000000300000002ULL)));
-        uint32x4_t valid_u32x4 = vcltq_u32(lane_u32x4, vdupq_n_u32((nk_u32_t)(n - j)));
-        float32x4_t zero_f32x4 = vdupq_n_f32(0);
-        a_x_f32x4 = vbslq_f32(valid_u32x4, a_x_f32x4, zero_f32x4);
-        a_y_f32x4 = vbslq_f32(valid_u32x4, a_y_f32x4, zero_f32x4);
-        a_z_f32x4 = vbslq_f32(valid_u32x4, a_z_f32x4, zero_f32x4);
-        b_x_f32x4 = vbslq_f32(valid_u32x4, b_x_f32x4, zero_f32x4);
-        b_y_f32x4 = vbslq_f32(valid_u32x4, b_y_f32x4, zero_f32x4);
-        b_z_f32x4 = vbslq_f32(valid_u32x4, b_z_f32x4, zero_f32x4);
-
-        // Same centering + rotation + delta + FMA as body
-        float32x4_t pa_x_f32x4 = vsubq_f32(a_x_f32x4, centroid_a_x_f32x4);
-        float32x4_t pa_y_f32x4 = vsubq_f32(a_y_f32x4, centroid_a_y_f32x4);
-        float32x4_t pa_z_f32x4 = vsubq_f32(a_z_f32x4, centroid_a_z_f32x4);
-        float32x4_t pb_x_f32x4 = vsubq_f32(b_x_f32x4, centroid_b_x_f32x4);
-        float32x4_t pb_y_f32x4 = vsubq_f32(b_y_f32x4, centroid_b_y_f32x4);
-        float32x4_t pb_z_f32x4 = vsubq_f32(b_z_f32x4, centroid_b_z_f32x4);
-
-        float32x4_t ra_x_f32x4 = vfmaq_f32(
-            vfmaq_f32(vmulq_f32(scaled_rotation_x_x_f32x4, pa_x_f32x4), scaled_rotation_x_y_f32x4, pa_y_f32x4),
-            scaled_rotation_x_z_f32x4, pa_z_f32x4);
-        float32x4_t ra_y_f32x4 = vfmaq_f32(
-            vfmaq_f32(vmulq_f32(scaled_rotation_y_x_f32x4, pa_x_f32x4), scaled_rotation_y_y_f32x4, pa_y_f32x4),
-            scaled_rotation_y_z_f32x4, pa_z_f32x4);
-        float32x4_t ra_z_f32x4 = vfmaq_f32(
-            vfmaq_f32(vmulq_f32(scaled_rotation_z_x_f32x4, pa_x_f32x4), scaled_rotation_z_y_f32x4, pa_y_f32x4),
-            scaled_rotation_z_z_f32x4, pa_z_f32x4);
-
-        float32x4_t delta_x_f32x4 = vsubq_f32(ra_x_f32x4, pb_x_f32x4);
-        float32x4_t delta_y_f32x4 = vsubq_f32(ra_y_f32x4, pb_y_f32x4);
-        float32x4_t delta_z_f32x4 = vsubq_f32(ra_z_f32x4, pb_z_f32x4);
-
-        sum_squared_a_f32x4 = vfmaq_f32(sum_squared_a_f32x4, delta_x_f32x4, delta_x_f32x4);
-        sum_squared_a_f32x4 = vfmaq_f32(sum_squared_a_f32x4, delta_y_f32x4, delta_y_f32x4);
-        sum_squared_a_f32x4 = vfmaq_f32(sum_squared_a_f32x4, delta_z_f32x4, delta_z_f32x4);
-    }
-
-    // Combine accumulators and reduce
-    float32x4_t sum_squared_f32x4 = vaddq_f32(sum_squared_a_f32x4, sum_squared_b_f32x4);
-    nk_f32_t sum_squared = vaddvq_f32(sum_squared_f32x4);
-
-    return sum_squared;
 }
 
 NK_PUBLIC void nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
@@ -318,123 +138,116 @@ NK_PUBLIC void nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk
 NK_PUBLIC void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
     float32x4_t const zeros_f32x4 = vdupq_n_f32(0);
+    // bf16 representation of 1.0 is 0x3F80; splatted across 8 lanes for BFDOT-based horizontal sums.
+    // The `nk_u16x8_splat_` wrapper prevents GCC from lowering this to `fmov v.8h, #1.0` (a FEAT_FP16
+    // encoding) that fails to assemble under a `+bf16`-only pragma.
+    bfloat16x8_t const ones_bf16x8 = vreinterpretq_bf16_u16(nk_u16x8_splat_(0x3F80));
 
-    // 2x unrolling with dual accumulators to hide FMA latency.
-    float32x4_t sum_a_x_a_f32x4 = zeros_f32x4, sum_a_y_a_f32x4 = zeros_f32x4, sum_a_z_a_f32x4 = zeros_f32x4;
-    float32x4_t sum_b_x_a_f32x4 = zeros_f32x4, sum_b_y_a_f32x4 = zeros_f32x4, sum_b_z_a_f32x4 = zeros_f32x4;
-    float32x4_t sum_a_x_b_f32x4 = zeros_f32x4, sum_a_y_b_f32x4 = zeros_f32x4, sum_a_z_b_f32x4 = zeros_f32x4;
-    float32x4_t sum_b_x_b_f32x4 = zeros_f32x4, sum_b_y_b_f32x4 = zeros_f32x4, sum_b_z_b_f32x4 = zeros_f32x4;
-
-    float32x4_t cov_xx_a_f32x4 = zeros_f32x4, cov_xy_a_f32x4 = zeros_f32x4, cov_xz_a_f32x4 = zeros_f32x4;
-    float32x4_t cov_yx_a_f32x4 = zeros_f32x4, cov_yy_a_f32x4 = zeros_f32x4, cov_yz_a_f32x4 = zeros_f32x4;
-    float32x4_t cov_zx_a_f32x4 = zeros_f32x4, cov_zy_a_f32x4 = zeros_f32x4, cov_zz_a_f32x4 = zeros_f32x4;
-    float32x4_t cov_xx_b_f32x4 = zeros_f32x4, cov_xy_b_f32x4 = zeros_f32x4, cov_xz_b_f32x4 = zeros_f32x4;
-    float32x4_t cov_yx_b_f32x4 = zeros_f32x4, cov_yy_b_f32x4 = zeros_f32x4, cov_yz_b_f32x4 = zeros_f32x4;
-    float32x4_t cov_zx_b_f32x4 = zeros_f32x4, cov_zy_b_f32x4 = zeros_f32x4, cov_zz_b_f32x4 = zeros_f32x4;
+    // Centroid numerators, norm-squared, and 3x3 cross-covariance accumulators.
+    float32x4_t sum_a_x_f32x4 = zeros_f32x4, sum_a_y_f32x4 = zeros_f32x4, sum_a_z_f32x4 = zeros_f32x4;
+    float32x4_t sum_b_x_f32x4 = zeros_f32x4, sum_b_y_f32x4 = zeros_f32x4, sum_b_z_f32x4 = zeros_f32x4;
+    float32x4_t covariance_xx_f32x4 = zeros_f32x4, covariance_xy_f32x4 = zeros_f32x4, covariance_xz_f32x4 = zeros_f32x4;
+    float32x4_t covariance_yx_f32x4 = zeros_f32x4, covariance_yy_f32x4 = zeros_f32x4, covariance_yz_f32x4 = zeros_f32x4;
+    float32x4_t covariance_zx_f32x4 = zeros_f32x4, covariance_zy_f32x4 = zeros_f32x4, covariance_zz_f32x4 = zeros_f32x4;
+    float32x4_t norm_squared_a_f32x4 = zeros_f32x4, norm_squared_b_f32x4 = zeros_f32x4;
 
     nk_size_t i = 0;
-    float32x4_t a1_x_f32x4, a1_y_f32x4, a1_z_f32x4, b1_x_f32x4, b1_y_f32x4, b1_z_f32x4;
-    float32x4_t a2_x_f32x4, a2_y_f32x4, a2_z_f32x4, b2_x_f32x4, b2_y_f32x4, b2_z_f32x4;
 
-    // Main loop: 8 points per iteration (2x unrolled)
+    // Main loop: 8 triplets per iteration via vld3q_u16 + vbfdotq_f32.
+    // Each vld3q_u16 de-interleaves 24 bf16 values into three 8-lane channel vectors.
+    // vbfdotq_f32(acc, p, q) computes per-32bit-lane: acc[l] += p[2l]*q[2l] + p[2l+1]*q[2l+1]
+    // with bf16 inputs and f32 accumulation. Summing the 4 lanes at the end yields the scalar.
     for (; i + 8 <= n; i += 8) {
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(a + i * 3, &a1_x_f32x4, &a1_y_f32x4, &a1_z_f32x4);
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(b + i * 3, &b1_x_f32x4, &b1_y_f32x4, &b1_z_f32x4);
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(a + (i + 4) * 3, &a2_x_f32x4, &a2_y_f32x4, &a2_z_f32x4);
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(b + (i + 4) * 3, &b2_x_f32x4, &b2_y_f32x4, &b2_z_f32x4);
+        uint16x8x3_t a_xyz_u16x8x3 = vld3q_u16((nk_u16_t const *)(a + i * 3));
+        uint16x8x3_t b_xyz_u16x8x3 = vld3q_u16((nk_u16_t const *)(b + i * 3));
+        bfloat16x8_t a_x_bf16x8 = vreinterpretq_bf16_u16(a_xyz_u16x8x3.val[0]);
+        bfloat16x8_t a_y_bf16x8 = vreinterpretq_bf16_u16(a_xyz_u16x8x3.val[1]);
+        bfloat16x8_t a_z_bf16x8 = vreinterpretq_bf16_u16(a_xyz_u16x8x3.val[2]);
+        bfloat16x8_t b_x_bf16x8 = vreinterpretq_bf16_u16(b_xyz_u16x8x3.val[0]);
+        bfloat16x8_t b_y_bf16x8 = vreinterpretq_bf16_u16(b_xyz_u16x8x3.val[1]);
+        bfloat16x8_t b_z_bf16x8 = vreinterpretq_bf16_u16(b_xyz_u16x8x3.val[2]);
 
-        // Interleaved accumulation to hide FMA latency
-        sum_a_x_a_f32x4 = vaddq_f32(sum_a_x_a_f32x4, a1_x_f32x4);
-        sum_a_x_b_f32x4 = vaddq_f32(sum_a_x_b_f32x4, a2_x_f32x4);
-        sum_a_y_a_f32x4 = vaddq_f32(sum_a_y_a_f32x4, a1_y_f32x4);
-        sum_a_y_b_f32x4 = vaddq_f32(sum_a_y_b_f32x4, a2_y_f32x4);
-        sum_a_z_a_f32x4 = vaddq_f32(sum_a_z_a_f32x4, a1_z_f32x4);
-        sum_a_z_b_f32x4 = vaddq_f32(sum_a_z_b_f32x4, a2_z_f32x4);
-        sum_b_x_a_f32x4 = vaddq_f32(sum_b_x_a_f32x4, b1_x_f32x4);
-        sum_b_x_b_f32x4 = vaddq_f32(sum_b_x_b_f32x4, b2_x_f32x4);
-        sum_b_y_a_f32x4 = vaddq_f32(sum_b_y_a_f32x4, b1_y_f32x4);
-        sum_b_y_b_f32x4 = vaddq_f32(sum_b_y_b_f32x4, b2_y_f32x4);
-        sum_b_z_a_f32x4 = vaddq_f32(sum_b_z_a_f32x4, b1_z_f32x4);
-        sum_b_z_b_f32x4 = vaddq_f32(sum_b_z_b_f32x4, b2_z_f32x4);
+        // Centroid numerators: Σ channel values (pairwise via BFDOT against bf16 1.0).
+        sum_a_x_f32x4 = vbfdotq_f32(sum_a_x_f32x4, a_x_bf16x8, ones_bf16x8);
+        sum_a_y_f32x4 = vbfdotq_f32(sum_a_y_f32x4, a_y_bf16x8, ones_bf16x8);
+        sum_a_z_f32x4 = vbfdotq_f32(sum_a_z_f32x4, a_z_bf16x8, ones_bf16x8);
+        sum_b_x_f32x4 = vbfdotq_f32(sum_b_x_f32x4, b_x_bf16x8, ones_bf16x8);
+        sum_b_y_f32x4 = vbfdotq_f32(sum_b_y_f32x4, b_y_bf16x8, ones_bf16x8);
+        sum_b_z_f32x4 = vbfdotq_f32(sum_b_z_f32x4, b_z_bf16x8, ones_bf16x8);
 
-        cov_xx_a_f32x4 = vfmaq_f32(cov_xx_a_f32x4, a1_x_f32x4, b1_x_f32x4);
-        cov_xx_b_f32x4 = vfmaq_f32(cov_xx_b_f32x4, a2_x_f32x4, b2_x_f32x4);
-        cov_xy_a_f32x4 = vfmaq_f32(cov_xy_a_f32x4, a1_x_f32x4, b1_y_f32x4);
-        cov_xy_b_f32x4 = vfmaq_f32(cov_xy_b_f32x4, a2_x_f32x4, b2_y_f32x4);
-        cov_xz_a_f32x4 = vfmaq_f32(cov_xz_a_f32x4, a1_x_f32x4, b1_z_f32x4);
-        cov_xz_b_f32x4 = vfmaq_f32(cov_xz_b_f32x4, a2_x_f32x4, b2_z_f32x4);
-        cov_yx_a_f32x4 = vfmaq_f32(cov_yx_a_f32x4, a1_y_f32x4, b1_x_f32x4);
-        cov_yx_b_f32x4 = vfmaq_f32(cov_yx_b_f32x4, a2_y_f32x4, b2_x_f32x4);
-        cov_yy_a_f32x4 = vfmaq_f32(cov_yy_a_f32x4, a1_y_f32x4, b1_y_f32x4);
-        cov_yy_b_f32x4 = vfmaq_f32(cov_yy_b_f32x4, a2_y_f32x4, b2_y_f32x4);
-        cov_yz_a_f32x4 = vfmaq_f32(cov_yz_a_f32x4, a1_y_f32x4, b1_z_f32x4);
-        cov_yz_b_f32x4 = vfmaq_f32(cov_yz_b_f32x4, a2_y_f32x4, b2_z_f32x4);
-        cov_zx_a_f32x4 = vfmaq_f32(cov_zx_a_f32x4, a1_z_f32x4, b1_x_f32x4);
-        cov_zx_b_f32x4 = vfmaq_f32(cov_zx_b_f32x4, a2_z_f32x4, b2_x_f32x4);
-        cov_zy_a_f32x4 = vfmaq_f32(cov_zy_a_f32x4, a1_z_f32x4, b1_y_f32x4);
-        cov_zy_b_f32x4 = vfmaq_f32(cov_zy_b_f32x4, a2_z_f32x4, b2_y_f32x4);
-        cov_zz_a_f32x4 = vfmaq_f32(cov_zz_a_f32x4, a1_z_f32x4, b1_z_f32x4);
-        cov_zz_b_f32x4 = vfmaq_f32(cov_zz_b_f32x4, a2_z_f32x4, b2_z_f32x4);
+        // 3x3 cross-covariance H cells: Σ a_j · b_k.
+        covariance_xx_f32x4 = vbfdotq_f32(covariance_xx_f32x4, a_x_bf16x8, b_x_bf16x8);
+        covariance_xy_f32x4 = vbfdotq_f32(covariance_xy_f32x4, a_x_bf16x8, b_y_bf16x8);
+        covariance_xz_f32x4 = vbfdotq_f32(covariance_xz_f32x4, a_x_bf16x8, b_z_bf16x8);
+        covariance_yx_f32x4 = vbfdotq_f32(covariance_yx_f32x4, a_y_bf16x8, b_x_bf16x8);
+        covariance_yy_f32x4 = vbfdotq_f32(covariance_yy_f32x4, a_y_bf16x8, b_y_bf16x8);
+        covariance_yz_f32x4 = vbfdotq_f32(covariance_yz_f32x4, a_y_bf16x8, b_z_bf16x8);
+        covariance_zx_f32x4 = vbfdotq_f32(covariance_zx_f32x4, a_z_bf16x8, b_x_bf16x8);
+        covariance_zy_f32x4 = vbfdotq_f32(covariance_zy_f32x4, a_z_bf16x8, b_y_bf16x8);
+        covariance_zz_f32x4 = vbfdotq_f32(covariance_zz_f32x4, a_z_bf16x8, b_z_bf16x8);
+
+        // Norm-squared per point set: Σ (x² + y² + z²).
+        norm_squared_a_f32x4 = vbfdotq_f32(norm_squared_a_f32x4, a_x_bf16x8, a_x_bf16x8);
+        norm_squared_a_f32x4 = vbfdotq_f32(norm_squared_a_f32x4, a_y_bf16x8, a_y_bf16x8);
+        norm_squared_a_f32x4 = vbfdotq_f32(norm_squared_a_f32x4, a_z_bf16x8, a_z_bf16x8);
+        norm_squared_b_f32x4 = vbfdotq_f32(norm_squared_b_f32x4, b_x_bf16x8, b_x_bf16x8);
+        norm_squared_b_f32x4 = vbfdotq_f32(norm_squared_b_f32x4, b_y_bf16x8, b_y_bf16x8);
+        norm_squared_b_f32x4 = vbfdotq_f32(norm_squared_b_f32x4, b_z_bf16x8, b_z_bf16x8);
     }
 
-    // 4-point tail
+    // 4-point and partial (1-3) tails: keep the widen+fmaq path on f32x4 channel vectors.
+    // These branches run at most once each, so we skip another vbfdotq variant for them.
+    float32x4_t a_x_f32x4, a_y_f32x4, a_z_f32x4, b_x_f32x4, b_y_f32x4, b_z_f32x4;
     for (; i + 4 <= n; i += 4) {
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(a + i * 3, &a1_x_f32x4, &a1_y_f32x4, &a1_z_f32x4);
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(b + i * 3, &b1_x_f32x4, &b1_y_f32x4, &b1_z_f32x4);
-        sum_a_x_a_f32x4 = vaddq_f32(sum_a_x_a_f32x4, a1_x_f32x4);
-        sum_a_y_a_f32x4 = vaddq_f32(sum_a_y_a_f32x4, a1_y_f32x4);
-        sum_a_z_a_f32x4 = vaddq_f32(sum_a_z_a_f32x4, a1_z_f32x4);
-        sum_b_x_a_f32x4 = vaddq_f32(sum_b_x_a_f32x4, b1_x_f32x4);
-        sum_b_y_a_f32x4 = vaddq_f32(sum_b_y_a_f32x4, b1_y_f32x4);
-        sum_b_z_a_f32x4 = vaddq_f32(sum_b_z_a_f32x4, b1_z_f32x4);
-        cov_xx_a_f32x4 = vfmaq_f32(cov_xx_a_f32x4, a1_x_f32x4, b1_x_f32x4);
-        cov_xy_a_f32x4 = vfmaq_f32(cov_xy_a_f32x4, a1_x_f32x4, b1_y_f32x4);
-        cov_xz_a_f32x4 = vfmaq_f32(cov_xz_a_f32x4, a1_x_f32x4, b1_z_f32x4);
-        cov_yx_a_f32x4 = vfmaq_f32(cov_yx_a_f32x4, a1_y_f32x4, b1_x_f32x4);
-        cov_yy_a_f32x4 = vfmaq_f32(cov_yy_a_f32x4, a1_y_f32x4, b1_y_f32x4);
-        cov_yz_a_f32x4 = vfmaq_f32(cov_yz_a_f32x4, a1_y_f32x4, b1_z_f32x4);
-        cov_zx_a_f32x4 = vfmaq_f32(cov_zx_a_f32x4, a1_z_f32x4, b1_x_f32x4);
-        cov_zy_a_f32x4 = vfmaq_f32(cov_zy_a_f32x4, a1_z_f32x4, b1_y_f32x4);
-        cov_zz_a_f32x4 = vfmaq_f32(cov_zz_a_f32x4, a1_z_f32x4, b1_z_f32x4);
+        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(a + i * 3, &a_x_f32x4, &a_y_f32x4, &a_z_f32x4);
+        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(b + i * 3, &b_x_f32x4, &b_y_f32x4, &b_z_f32x4);
+        sum_a_x_f32x4 = vaddq_f32(sum_a_x_f32x4, a_x_f32x4);
+        sum_a_y_f32x4 = vaddq_f32(sum_a_y_f32x4, a_y_f32x4);
+        sum_a_z_f32x4 = vaddq_f32(sum_a_z_f32x4, a_z_f32x4);
+        sum_b_x_f32x4 = vaddq_f32(sum_b_x_f32x4, b_x_f32x4);
+        sum_b_y_f32x4 = vaddq_f32(sum_b_y_f32x4, b_y_f32x4);
+        sum_b_z_f32x4 = vaddq_f32(sum_b_z_f32x4, b_z_f32x4);
+        covariance_xx_f32x4 = vfmaq_f32(covariance_xx_f32x4, a_x_f32x4, b_x_f32x4);
+        covariance_xy_f32x4 = vfmaq_f32(covariance_xy_f32x4, a_x_f32x4, b_y_f32x4);
+        covariance_xz_f32x4 = vfmaq_f32(covariance_xz_f32x4, a_x_f32x4, b_z_f32x4);
+        covariance_yx_f32x4 = vfmaq_f32(covariance_yx_f32x4, a_y_f32x4, b_x_f32x4);
+        covariance_yy_f32x4 = vfmaq_f32(covariance_yy_f32x4, a_y_f32x4, b_y_f32x4);
+        covariance_yz_f32x4 = vfmaq_f32(covariance_yz_f32x4, a_y_f32x4, b_z_f32x4);
+        covariance_zx_f32x4 = vfmaq_f32(covariance_zx_f32x4, a_z_f32x4, b_x_f32x4);
+        covariance_zy_f32x4 = vfmaq_f32(covariance_zy_f32x4, a_z_f32x4, b_y_f32x4);
+        covariance_zz_f32x4 = vfmaq_f32(covariance_zz_f32x4, a_z_f32x4, b_z_f32x4);
+        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_x_f32x4, a_x_f32x4);
+        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_y_f32x4, a_y_f32x4);
+        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_z_f32x4, a_z_f32x4);
+        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_x_f32x4, b_x_f32x4);
+        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_y_f32x4, b_y_f32x4);
+        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_z_f32x4, b_z_f32x4);
     }
-
-    // Partial tail: handle remaining 1-3 points with vectorized partial deinterleave
     if (i < n) {
-        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(a + i * 3, n - i, &a1_x_f32x4, &a1_y_f32x4, &a1_z_f32x4);
-        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(b + i * 3, n - i, &b1_x_f32x4, &b1_y_f32x4, &b1_z_f32x4);
-        sum_a_x_a_f32x4 = vaddq_f32(sum_a_x_a_f32x4, a1_x_f32x4);
-        sum_a_y_a_f32x4 = vaddq_f32(sum_a_y_a_f32x4, a1_y_f32x4);
-        sum_a_z_a_f32x4 = vaddq_f32(sum_a_z_a_f32x4, a1_z_f32x4);
-        sum_b_x_a_f32x4 = vaddq_f32(sum_b_x_a_f32x4, b1_x_f32x4);
-        sum_b_y_a_f32x4 = vaddq_f32(sum_b_y_a_f32x4, b1_y_f32x4);
-        sum_b_z_a_f32x4 = vaddq_f32(sum_b_z_a_f32x4, b1_z_f32x4);
-        cov_xx_a_f32x4 = vfmaq_f32(cov_xx_a_f32x4, a1_x_f32x4, b1_x_f32x4);
-        cov_xy_a_f32x4 = vfmaq_f32(cov_xy_a_f32x4, a1_x_f32x4, b1_y_f32x4);
-        cov_xz_a_f32x4 = vfmaq_f32(cov_xz_a_f32x4, a1_x_f32x4, b1_z_f32x4);
-        cov_yx_a_f32x4 = vfmaq_f32(cov_yx_a_f32x4, a1_y_f32x4, b1_x_f32x4);
-        cov_yy_a_f32x4 = vfmaq_f32(cov_yy_a_f32x4, a1_y_f32x4, b1_y_f32x4);
-        cov_yz_a_f32x4 = vfmaq_f32(cov_yz_a_f32x4, a1_y_f32x4, b1_z_f32x4);
-        cov_zx_a_f32x4 = vfmaq_f32(cov_zx_a_f32x4, a1_z_f32x4, b1_x_f32x4);
-        cov_zy_a_f32x4 = vfmaq_f32(cov_zy_a_f32x4, a1_z_f32x4, b1_y_f32x4);
-        cov_zz_a_f32x4 = vfmaq_f32(cov_zz_a_f32x4, a1_z_f32x4, b1_z_f32x4);
+        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(a + i * 3, n - i, &a_x_f32x4, &a_y_f32x4, &a_z_f32x4);
+        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(b + i * 3, n - i, &b_x_f32x4, &b_y_f32x4, &b_z_f32x4);
+        sum_a_x_f32x4 = vaddq_f32(sum_a_x_f32x4, a_x_f32x4);
+        sum_a_y_f32x4 = vaddq_f32(sum_a_y_f32x4, a_y_f32x4);
+        sum_a_z_f32x4 = vaddq_f32(sum_a_z_f32x4, a_z_f32x4);
+        sum_b_x_f32x4 = vaddq_f32(sum_b_x_f32x4, b_x_f32x4);
+        sum_b_y_f32x4 = vaddq_f32(sum_b_y_f32x4, b_y_f32x4);
+        sum_b_z_f32x4 = vaddq_f32(sum_b_z_f32x4, b_z_f32x4);
+        covariance_xx_f32x4 = vfmaq_f32(covariance_xx_f32x4, a_x_f32x4, b_x_f32x4);
+        covariance_xy_f32x4 = vfmaq_f32(covariance_xy_f32x4, a_x_f32x4, b_y_f32x4);
+        covariance_xz_f32x4 = vfmaq_f32(covariance_xz_f32x4, a_x_f32x4, b_z_f32x4);
+        covariance_yx_f32x4 = vfmaq_f32(covariance_yx_f32x4, a_y_f32x4, b_x_f32x4);
+        covariance_yy_f32x4 = vfmaq_f32(covariance_yy_f32x4, a_y_f32x4, b_y_f32x4);
+        covariance_yz_f32x4 = vfmaq_f32(covariance_yz_f32x4, a_y_f32x4, b_z_f32x4);
+        covariance_zx_f32x4 = vfmaq_f32(covariance_zx_f32x4, a_z_f32x4, b_x_f32x4);
+        covariance_zy_f32x4 = vfmaq_f32(covariance_zy_f32x4, a_z_f32x4, b_y_f32x4);
+        covariance_zz_f32x4 = vfmaq_f32(covariance_zz_f32x4, a_z_f32x4, b_z_f32x4);
+        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_x_f32x4, a_x_f32x4);
+        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_y_f32x4, a_y_f32x4);
+        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_z_f32x4, a_z_f32x4);
+        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_x_f32x4, b_x_f32x4);
+        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_y_f32x4, b_y_f32x4);
+        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_z_f32x4, b_z_f32x4);
     }
-
-    // Combine dual accumulators
-    float32x4_t sum_a_x_f32x4 = vaddq_f32(sum_a_x_a_f32x4, sum_a_x_b_f32x4);
-    float32x4_t sum_a_y_f32x4 = vaddq_f32(sum_a_y_a_f32x4, sum_a_y_b_f32x4);
-    float32x4_t sum_a_z_f32x4 = vaddq_f32(sum_a_z_a_f32x4, sum_a_z_b_f32x4);
-    float32x4_t sum_b_x_f32x4 = vaddq_f32(sum_b_x_a_f32x4, sum_b_x_b_f32x4);
-    float32x4_t sum_b_y_f32x4 = vaddq_f32(sum_b_y_a_f32x4, sum_b_y_b_f32x4);
-    float32x4_t sum_b_z_f32x4 = vaddq_f32(sum_b_z_a_f32x4, sum_b_z_b_f32x4);
-    float32x4_t cov_xx_f32x4 = vaddq_f32(cov_xx_a_f32x4, cov_xx_b_f32x4);
-    float32x4_t cov_xy_f32x4 = vaddq_f32(cov_xy_a_f32x4, cov_xy_b_f32x4);
-    float32x4_t cov_xz_f32x4 = vaddq_f32(cov_xz_a_f32x4, cov_xz_b_f32x4);
-    float32x4_t cov_yx_f32x4 = vaddq_f32(cov_yx_a_f32x4, cov_yx_b_f32x4);
-    float32x4_t cov_yy_f32x4 = vaddq_f32(cov_yy_a_f32x4, cov_yy_b_f32x4);
-    float32x4_t cov_yz_f32x4 = vaddq_f32(cov_yz_a_f32x4, cov_yz_b_f32x4);
-    float32x4_t cov_zx_f32x4 = vaddq_f32(cov_zx_a_f32x4, cov_zx_b_f32x4);
-    float32x4_t cov_zy_f32x4 = vaddq_f32(cov_zy_a_f32x4, cov_zy_b_f32x4);
-    float32x4_t cov_zz_f32x4 = vaddq_f32(cov_zz_a_f32x4, cov_zz_b_f32x4);
 
     // Reduce vector accumulators
     nk_f32_t sum_a_x = vaddvq_f32(sum_a_x_f32x4);
@@ -444,15 +257,17 @@ NK_PUBLIC void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, 
     nk_f32_t sum_b_y = vaddvq_f32(sum_b_y_f32x4);
     nk_f32_t sum_b_z = vaddvq_f32(sum_b_z_f32x4);
 
-    nk_f32_t covariance_x_x = vaddvq_f32(cov_xx_f32x4);
-    nk_f32_t covariance_x_y = vaddvq_f32(cov_xy_f32x4);
-    nk_f32_t covariance_x_z = vaddvq_f32(cov_xz_f32x4);
-    nk_f32_t covariance_y_x = vaddvq_f32(cov_yx_f32x4);
-    nk_f32_t covariance_y_y = vaddvq_f32(cov_yy_f32x4);
-    nk_f32_t covariance_y_z = vaddvq_f32(cov_yz_f32x4);
-    nk_f32_t covariance_z_x = vaddvq_f32(cov_zx_f32x4);
-    nk_f32_t covariance_z_y = vaddvq_f32(cov_zy_f32x4);
-    nk_f32_t covariance_z_z = vaddvq_f32(cov_zz_f32x4);
+    nk_f32_t covariance_x_x = vaddvq_f32(covariance_xx_f32x4);
+    nk_f32_t covariance_x_y = vaddvq_f32(covariance_xy_f32x4);
+    nk_f32_t covariance_x_z = vaddvq_f32(covariance_xz_f32x4);
+    nk_f32_t covariance_y_x = vaddvq_f32(covariance_yx_f32x4);
+    nk_f32_t covariance_y_y = vaddvq_f32(covariance_yy_f32x4);
+    nk_f32_t covariance_y_z = vaddvq_f32(covariance_yz_f32x4);
+    nk_f32_t covariance_z_x = vaddvq_f32(covariance_zx_f32x4);
+    nk_f32_t covariance_z_y = vaddvq_f32(covariance_zy_f32x4);
+    nk_f32_t covariance_z_z = vaddvq_f32(covariance_zz_f32x4);
+    nk_f32_t norm_squared_a = vaddvq_f32(norm_squared_a_f32x4);
+    nk_f32_t norm_squared_b = vaddvq_f32(norm_squared_b_f32x4);
 
     // Compute centroids
     nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
@@ -465,6 +280,16 @@ NK_PUBLIC void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, 
 
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
+
+    // Centered norm-squared via parallel-axis identity; clamp at zero for numeric safety.
+    nk_f32_t centered_norm_squared_a = norm_squared_a -
+                                       (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f32_t centered_norm_squared_b = norm_squared_b -
+                                       (nk_f32_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
+    if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
 
     // Apply centering correction: H_centered = H - n * centroid_a * centroid_bᵀ
     covariance_x_x -= n * centroid_a_x * centroid_b_x;
@@ -480,186 +305,185 @@ NK_PUBLIC void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, 
     // Compute SVD and optimal rotation
     nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
-    nk_f32_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f32_(cross_covariance, svd_u, svd_s, svd_v);
 
-    // R = V * Uᵀ
-    nk_f32_t r[9];
-    r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f32_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f32_t optimal_rotation[9];
+    nk_f32_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-12f * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0f &&
+        cross_covariance[4] > 0.0f && cross_covariance[8] > 0.0f) {
+        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
+        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
+        optimal_rotation[8] = 1;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+    }
+    else {
+        nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
 
-    // Handle reflection: if det(R) < 0, negate third column of V and recompute R
-    if (nk_det3x3_f32_(r) < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+        // R = V * Uᵀ
+        optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+        optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+        optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+        optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+        optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+        optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+        optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+        optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+        optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+
+        // Handle reflection: if det(R) < 0, negate third column of V and recompute R
+        if (nk_det3x3_f32_(optimal_rotation) < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+            optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+            optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+            optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+            optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+            optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+            optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+            optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+            optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+        }
+
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
     }
 
     // Output rotation matrix and scale=1.0
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    // Compute RMSD after optimal rotation
-    nk_f32_t sum_squared = nk_transformed_ssd_bf16_neonbfdot_(a, b, n, r, 1.0f, centroid_a_x, centroid_a_y,
-                                                              centroid_a_z, centroid_b_x, centroid_b_y, centroid_b_z);
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    nk_f32_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0f * trace_rotation_covariance;
+    if (sum_squared < 0.0f) sum_squared = 0.0f;
     *result = nk_f32_sqrt_neon(sum_squared * inv_n);
 }
 
 NK_PUBLIC void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
     float32x4_t const zeros_f32x4 = vdupq_n_f32(0);
+    // bf16 representation of 1.0 is 0x3F80; splatted across 8 lanes for BFDOT-based horizontal sums.
+    // The `nk_u16x8_splat_` wrapper prevents GCC from lowering this to `fmov v.8h, #1.0` (a FEAT_FP16
+    // encoding) that fails to assemble under a `+bf16`-only pragma.
+    bfloat16x8_t const ones_bf16x8 = vreinterpretq_bf16_u16(nk_u16x8_splat_(0x3F80));
 
-    // 2x unrolling with dual accumulators to hide FMA latency.
-    float32x4_t sum_a_x_a_f32x4 = zeros_f32x4, sum_a_y_a_f32x4 = zeros_f32x4, sum_a_z_a_f32x4 = zeros_f32x4;
-    float32x4_t sum_b_x_a_f32x4 = zeros_f32x4, sum_b_y_a_f32x4 = zeros_f32x4, sum_b_z_a_f32x4 = zeros_f32x4;
-    float32x4_t sum_a_x_b_f32x4 = zeros_f32x4, sum_a_y_b_f32x4 = zeros_f32x4, sum_a_z_b_f32x4 = zeros_f32x4;
-    float32x4_t sum_b_x_b_f32x4 = zeros_f32x4, sum_b_y_b_f32x4 = zeros_f32x4, sum_b_z_b_f32x4 = zeros_f32x4;
-
-    float32x4_t cov_xx_a_f32x4 = zeros_f32x4, cov_xy_a_f32x4 = zeros_f32x4, cov_xz_a_f32x4 = zeros_f32x4;
-    float32x4_t cov_yx_a_f32x4 = zeros_f32x4, cov_yy_a_f32x4 = zeros_f32x4, cov_yz_a_f32x4 = zeros_f32x4;
-    float32x4_t cov_zx_a_f32x4 = zeros_f32x4, cov_zy_a_f32x4 = zeros_f32x4, cov_zz_a_f32x4 = zeros_f32x4;
-    float32x4_t cov_xx_b_f32x4 = zeros_f32x4, cov_xy_b_f32x4 = zeros_f32x4, cov_xz_b_f32x4 = zeros_f32x4;
-    float32x4_t cov_yx_b_f32x4 = zeros_f32x4, cov_yy_b_f32x4 = zeros_f32x4, cov_yz_b_f32x4 = zeros_f32x4;
-    float32x4_t cov_zx_b_f32x4 = zeros_f32x4, cov_zy_b_f32x4 = zeros_f32x4, cov_zz_b_f32x4 = zeros_f32x4;
-
-    // Variance of A accumulators
-    float32x4_t variance_a_a_f32x4 = zeros_f32x4;
-    float32x4_t variance_a_b_f32x4 = zeros_f32x4;
+    // Centroid numerators, norm-squared, and 3x3 cross-covariance accumulators.
+    float32x4_t sum_a_x_f32x4 = zeros_f32x4, sum_a_y_f32x4 = zeros_f32x4, sum_a_z_f32x4 = zeros_f32x4;
+    float32x4_t sum_b_x_f32x4 = zeros_f32x4, sum_b_y_f32x4 = zeros_f32x4, sum_b_z_f32x4 = zeros_f32x4;
+    float32x4_t covariance_xx_f32x4 = zeros_f32x4, covariance_xy_f32x4 = zeros_f32x4, covariance_xz_f32x4 = zeros_f32x4;
+    float32x4_t covariance_yx_f32x4 = zeros_f32x4, covariance_yy_f32x4 = zeros_f32x4, covariance_yz_f32x4 = zeros_f32x4;
+    float32x4_t covariance_zx_f32x4 = zeros_f32x4, covariance_zy_f32x4 = zeros_f32x4, covariance_zz_f32x4 = zeros_f32x4;
+    float32x4_t norm_squared_a_f32x4 = zeros_f32x4, norm_squared_b_f32x4 = zeros_f32x4;
 
     nk_size_t i = 0;
-    float32x4_t a1_x_f32x4, a1_y_f32x4, a1_z_f32x4, b1_x_f32x4, b1_y_f32x4, b1_z_f32x4;
-    float32x4_t a2_x_f32x4, a2_y_f32x4, a2_z_f32x4, b2_x_f32x4, b2_y_f32x4, b2_z_f32x4;
 
-    // Main loop: 8 points per iteration (2x unrolled)
+    // Main loop: 8 triplets per iteration via vld3q_u16 + vbfdotq_f32.
+    // Each vld3q_u16 de-interleaves 24 bf16 values into three 8-lane channel vectors.
+    // vbfdotq_f32(acc, p, q) computes per-32bit-lane: acc[l] += p[2l]*q[2l] + p[2l+1]*q[2l+1]
+    // with bf16 inputs and f32 accumulation. Summing the 4 lanes at the end yields the scalar.
     for (; i + 8 <= n; i += 8) {
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(a + i * 3, &a1_x_f32x4, &a1_y_f32x4, &a1_z_f32x4);
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(b + i * 3, &b1_x_f32x4, &b1_y_f32x4, &b1_z_f32x4);
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(a + (i + 4) * 3, &a2_x_f32x4, &a2_y_f32x4, &a2_z_f32x4);
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(b + (i + 4) * 3, &b2_x_f32x4, &b2_y_f32x4, &b2_z_f32x4);
+        uint16x8x3_t a_xyz_u16x8x3 = vld3q_u16((nk_u16_t const *)(a + i * 3));
+        uint16x8x3_t b_xyz_u16x8x3 = vld3q_u16((nk_u16_t const *)(b + i * 3));
+        bfloat16x8_t a_x_bf16x8 = vreinterpretq_bf16_u16(a_xyz_u16x8x3.val[0]);
+        bfloat16x8_t a_y_bf16x8 = vreinterpretq_bf16_u16(a_xyz_u16x8x3.val[1]);
+        bfloat16x8_t a_z_bf16x8 = vreinterpretq_bf16_u16(a_xyz_u16x8x3.val[2]);
+        bfloat16x8_t b_x_bf16x8 = vreinterpretq_bf16_u16(b_xyz_u16x8x3.val[0]);
+        bfloat16x8_t b_y_bf16x8 = vreinterpretq_bf16_u16(b_xyz_u16x8x3.val[1]);
+        bfloat16x8_t b_z_bf16x8 = vreinterpretq_bf16_u16(b_xyz_u16x8x3.val[2]);
 
-        // Interleaved accumulation to hide FMA latency
-        sum_a_x_a_f32x4 = vaddq_f32(sum_a_x_a_f32x4, a1_x_f32x4);
-        sum_a_x_b_f32x4 = vaddq_f32(sum_a_x_b_f32x4, a2_x_f32x4);
-        sum_a_y_a_f32x4 = vaddq_f32(sum_a_y_a_f32x4, a1_y_f32x4);
-        sum_a_y_b_f32x4 = vaddq_f32(sum_a_y_b_f32x4, a2_y_f32x4);
-        sum_a_z_a_f32x4 = vaddq_f32(sum_a_z_a_f32x4, a1_z_f32x4);
-        sum_a_z_b_f32x4 = vaddq_f32(sum_a_z_b_f32x4, a2_z_f32x4);
-        sum_b_x_a_f32x4 = vaddq_f32(sum_b_x_a_f32x4, b1_x_f32x4);
-        sum_b_x_b_f32x4 = vaddq_f32(sum_b_x_b_f32x4, b2_x_f32x4);
-        sum_b_y_a_f32x4 = vaddq_f32(sum_b_y_a_f32x4, b1_y_f32x4);
-        sum_b_y_b_f32x4 = vaddq_f32(sum_b_y_b_f32x4, b2_y_f32x4);
-        sum_b_z_a_f32x4 = vaddq_f32(sum_b_z_a_f32x4, b1_z_f32x4);
-        sum_b_z_b_f32x4 = vaddq_f32(sum_b_z_b_f32x4, b2_z_f32x4);
+        // Centroid numerators: Σ channel values (pairwise via BFDOT against bf16 1.0).
+        sum_a_x_f32x4 = vbfdotq_f32(sum_a_x_f32x4, a_x_bf16x8, ones_bf16x8);
+        sum_a_y_f32x4 = vbfdotq_f32(sum_a_y_f32x4, a_y_bf16x8, ones_bf16x8);
+        sum_a_z_f32x4 = vbfdotq_f32(sum_a_z_f32x4, a_z_bf16x8, ones_bf16x8);
+        sum_b_x_f32x4 = vbfdotq_f32(sum_b_x_f32x4, b_x_bf16x8, ones_bf16x8);
+        sum_b_y_f32x4 = vbfdotq_f32(sum_b_y_f32x4, b_y_bf16x8, ones_bf16x8);
+        sum_b_z_f32x4 = vbfdotq_f32(sum_b_z_f32x4, b_z_bf16x8, ones_bf16x8);
 
-        // Covariance matrix
-        cov_xx_a_f32x4 = vfmaq_f32(cov_xx_a_f32x4, a1_x_f32x4, b1_x_f32x4);
-        cov_xx_b_f32x4 = vfmaq_f32(cov_xx_b_f32x4, a2_x_f32x4, b2_x_f32x4);
-        cov_xy_a_f32x4 = vfmaq_f32(cov_xy_a_f32x4, a1_x_f32x4, b1_y_f32x4);
-        cov_xy_b_f32x4 = vfmaq_f32(cov_xy_b_f32x4, a2_x_f32x4, b2_y_f32x4);
-        cov_xz_a_f32x4 = vfmaq_f32(cov_xz_a_f32x4, a1_x_f32x4, b1_z_f32x4);
-        cov_xz_b_f32x4 = vfmaq_f32(cov_xz_b_f32x4, a2_x_f32x4, b2_z_f32x4);
-        cov_yx_a_f32x4 = vfmaq_f32(cov_yx_a_f32x4, a1_y_f32x4, b1_x_f32x4);
-        cov_yx_b_f32x4 = vfmaq_f32(cov_yx_b_f32x4, a2_y_f32x4, b2_x_f32x4);
-        cov_yy_a_f32x4 = vfmaq_f32(cov_yy_a_f32x4, a1_y_f32x4, b1_y_f32x4);
-        cov_yy_b_f32x4 = vfmaq_f32(cov_yy_b_f32x4, a2_y_f32x4, b2_y_f32x4);
-        cov_yz_a_f32x4 = vfmaq_f32(cov_yz_a_f32x4, a1_y_f32x4, b1_z_f32x4);
-        cov_yz_b_f32x4 = vfmaq_f32(cov_yz_b_f32x4, a2_y_f32x4, b2_z_f32x4);
-        cov_zx_a_f32x4 = vfmaq_f32(cov_zx_a_f32x4, a1_z_f32x4, b1_x_f32x4);
-        cov_zx_b_f32x4 = vfmaq_f32(cov_zx_b_f32x4, a2_z_f32x4, b2_x_f32x4);
-        cov_zy_a_f32x4 = vfmaq_f32(cov_zy_a_f32x4, a1_z_f32x4, b1_y_f32x4);
-        cov_zy_b_f32x4 = vfmaq_f32(cov_zy_b_f32x4, a2_z_f32x4, b2_y_f32x4);
-        cov_zz_a_f32x4 = vfmaq_f32(cov_zz_a_f32x4, a1_z_f32x4, b1_z_f32x4);
-        cov_zz_b_f32x4 = vfmaq_f32(cov_zz_b_f32x4, a2_z_f32x4, b2_z_f32x4);
+        // 3x3 cross-covariance H cells: Σ a_j · b_k.
+        covariance_xx_f32x4 = vbfdotq_f32(covariance_xx_f32x4, a_x_bf16x8, b_x_bf16x8);
+        covariance_xy_f32x4 = vbfdotq_f32(covariance_xy_f32x4, a_x_bf16x8, b_y_bf16x8);
+        covariance_xz_f32x4 = vbfdotq_f32(covariance_xz_f32x4, a_x_bf16x8, b_z_bf16x8);
+        covariance_yx_f32x4 = vbfdotq_f32(covariance_yx_f32x4, a_y_bf16x8, b_x_bf16x8);
+        covariance_yy_f32x4 = vbfdotq_f32(covariance_yy_f32x4, a_y_bf16x8, b_y_bf16x8);
+        covariance_yz_f32x4 = vbfdotq_f32(covariance_yz_f32x4, a_y_bf16x8, b_z_bf16x8);
+        covariance_zx_f32x4 = vbfdotq_f32(covariance_zx_f32x4, a_z_bf16x8, b_x_bf16x8);
+        covariance_zy_f32x4 = vbfdotq_f32(covariance_zy_f32x4, a_z_bf16x8, b_y_bf16x8);
+        covariance_zz_f32x4 = vbfdotq_f32(covariance_zz_f32x4, a_z_bf16x8, b_z_bf16x8);
 
-        // Variance of A
-        variance_a_a_f32x4 = vfmaq_f32(variance_a_a_f32x4, a1_x_f32x4, a1_x_f32x4);
-        variance_a_b_f32x4 = vfmaq_f32(variance_a_b_f32x4, a2_x_f32x4, a2_x_f32x4);
-        variance_a_a_f32x4 = vfmaq_f32(variance_a_a_f32x4, a1_y_f32x4, a1_y_f32x4);
-        variance_a_b_f32x4 = vfmaq_f32(variance_a_b_f32x4, a2_y_f32x4, a2_y_f32x4);
-        variance_a_a_f32x4 = vfmaq_f32(variance_a_a_f32x4, a1_z_f32x4, a1_z_f32x4);
-        variance_a_b_f32x4 = vfmaq_f32(variance_a_b_f32x4, a2_z_f32x4, a2_z_f32x4);
+        // Norm-squared per point set: Σ (x² + y² + z²).
+        norm_squared_a_f32x4 = vbfdotq_f32(norm_squared_a_f32x4, a_x_bf16x8, a_x_bf16x8);
+        norm_squared_a_f32x4 = vbfdotq_f32(norm_squared_a_f32x4, a_y_bf16x8, a_y_bf16x8);
+        norm_squared_a_f32x4 = vbfdotq_f32(norm_squared_a_f32x4, a_z_bf16x8, a_z_bf16x8);
+        norm_squared_b_f32x4 = vbfdotq_f32(norm_squared_b_f32x4, b_x_bf16x8, b_x_bf16x8);
+        norm_squared_b_f32x4 = vbfdotq_f32(norm_squared_b_f32x4, b_y_bf16x8, b_y_bf16x8);
+        norm_squared_b_f32x4 = vbfdotq_f32(norm_squared_b_f32x4, b_z_bf16x8, b_z_bf16x8);
     }
 
-    // 4-point tail
+    // 4-point and partial (1-3) tails: keep the widen+fmaq path on f32x4 channel vectors.
+    // These branches run at most once each, so we skip another vbfdotq variant for them.
+    float32x4_t a_x_f32x4, a_y_f32x4, a_z_f32x4, b_x_f32x4, b_y_f32x4, b_z_f32x4;
     for (; i + 4 <= n; i += 4) {
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(a + i * 3, &a1_x_f32x4, &a1_y_f32x4, &a1_z_f32x4);
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(b + i * 3, &b1_x_f32x4, &b1_y_f32x4, &b1_z_f32x4);
-        sum_a_x_a_f32x4 = vaddq_f32(sum_a_x_a_f32x4, a1_x_f32x4);
-        sum_a_y_a_f32x4 = vaddq_f32(sum_a_y_a_f32x4, a1_y_f32x4);
-        sum_a_z_a_f32x4 = vaddq_f32(sum_a_z_a_f32x4, a1_z_f32x4);
-        sum_b_x_a_f32x4 = vaddq_f32(sum_b_x_a_f32x4, b1_x_f32x4);
-        sum_b_y_a_f32x4 = vaddq_f32(sum_b_y_a_f32x4, b1_y_f32x4);
-        sum_b_z_a_f32x4 = vaddq_f32(sum_b_z_a_f32x4, b1_z_f32x4);
-        cov_xx_a_f32x4 = vfmaq_f32(cov_xx_a_f32x4, a1_x_f32x4, b1_x_f32x4);
-        cov_xy_a_f32x4 = vfmaq_f32(cov_xy_a_f32x4, a1_x_f32x4, b1_y_f32x4);
-        cov_xz_a_f32x4 = vfmaq_f32(cov_xz_a_f32x4, a1_x_f32x4, b1_z_f32x4);
-        cov_yx_a_f32x4 = vfmaq_f32(cov_yx_a_f32x4, a1_y_f32x4, b1_x_f32x4);
-        cov_yy_a_f32x4 = vfmaq_f32(cov_yy_a_f32x4, a1_y_f32x4, b1_y_f32x4);
-        cov_yz_a_f32x4 = vfmaq_f32(cov_yz_a_f32x4, a1_y_f32x4, b1_z_f32x4);
-        cov_zx_a_f32x4 = vfmaq_f32(cov_zx_a_f32x4, a1_z_f32x4, b1_x_f32x4);
-        cov_zy_a_f32x4 = vfmaq_f32(cov_zy_a_f32x4, a1_z_f32x4, b1_y_f32x4);
-        cov_zz_a_f32x4 = vfmaq_f32(cov_zz_a_f32x4, a1_z_f32x4, b1_z_f32x4);
-        variance_a_a_f32x4 = vfmaq_f32(variance_a_a_f32x4, a1_x_f32x4, a1_x_f32x4);
-        variance_a_a_f32x4 = vfmaq_f32(variance_a_a_f32x4, a1_y_f32x4, a1_y_f32x4);
-        variance_a_a_f32x4 = vfmaq_f32(variance_a_a_f32x4, a1_z_f32x4, a1_z_f32x4);
+        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(a + i * 3, &a_x_f32x4, &a_y_f32x4, &a_z_f32x4);
+        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(b + i * 3, &b_x_f32x4, &b_y_f32x4, &b_z_f32x4);
+        sum_a_x_f32x4 = vaddq_f32(sum_a_x_f32x4, a_x_f32x4);
+        sum_a_y_f32x4 = vaddq_f32(sum_a_y_f32x4, a_y_f32x4);
+        sum_a_z_f32x4 = vaddq_f32(sum_a_z_f32x4, a_z_f32x4);
+        sum_b_x_f32x4 = vaddq_f32(sum_b_x_f32x4, b_x_f32x4);
+        sum_b_y_f32x4 = vaddq_f32(sum_b_y_f32x4, b_y_f32x4);
+        sum_b_z_f32x4 = vaddq_f32(sum_b_z_f32x4, b_z_f32x4);
+        covariance_xx_f32x4 = vfmaq_f32(covariance_xx_f32x4, a_x_f32x4, b_x_f32x4);
+        covariance_xy_f32x4 = vfmaq_f32(covariance_xy_f32x4, a_x_f32x4, b_y_f32x4);
+        covariance_xz_f32x4 = vfmaq_f32(covariance_xz_f32x4, a_x_f32x4, b_z_f32x4);
+        covariance_yx_f32x4 = vfmaq_f32(covariance_yx_f32x4, a_y_f32x4, b_x_f32x4);
+        covariance_yy_f32x4 = vfmaq_f32(covariance_yy_f32x4, a_y_f32x4, b_y_f32x4);
+        covariance_yz_f32x4 = vfmaq_f32(covariance_yz_f32x4, a_y_f32x4, b_z_f32x4);
+        covariance_zx_f32x4 = vfmaq_f32(covariance_zx_f32x4, a_z_f32x4, b_x_f32x4);
+        covariance_zy_f32x4 = vfmaq_f32(covariance_zy_f32x4, a_z_f32x4, b_y_f32x4);
+        covariance_zz_f32x4 = vfmaq_f32(covariance_zz_f32x4, a_z_f32x4, b_z_f32x4);
+        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_x_f32x4, a_x_f32x4);
+        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_y_f32x4, a_y_f32x4);
+        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_z_f32x4, a_z_f32x4);
+        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_x_f32x4, b_x_f32x4);
+        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_y_f32x4, b_y_f32x4);
+        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_z_f32x4, b_z_f32x4);
     }
-
-    // Partial tail: handle remaining 1-3 points with vectorized partial deinterleave
     if (i < n) {
-        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(a + i * 3, n - i, &a1_x_f32x4, &a1_y_f32x4, &a1_z_f32x4);
-        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(b + i * 3, n - i, &b1_x_f32x4, &b1_y_f32x4, &b1_z_f32x4);
-        sum_a_x_a_f32x4 = vaddq_f32(sum_a_x_a_f32x4, a1_x_f32x4);
-        sum_a_y_a_f32x4 = vaddq_f32(sum_a_y_a_f32x4, a1_y_f32x4);
-        sum_a_z_a_f32x4 = vaddq_f32(sum_a_z_a_f32x4, a1_z_f32x4);
-        sum_b_x_a_f32x4 = vaddq_f32(sum_b_x_a_f32x4, b1_x_f32x4);
-        sum_b_y_a_f32x4 = vaddq_f32(sum_b_y_a_f32x4, b1_y_f32x4);
-        sum_b_z_a_f32x4 = vaddq_f32(sum_b_z_a_f32x4, b1_z_f32x4);
-        cov_xx_a_f32x4 = vfmaq_f32(cov_xx_a_f32x4, a1_x_f32x4, b1_x_f32x4);
-        cov_xy_a_f32x4 = vfmaq_f32(cov_xy_a_f32x4, a1_x_f32x4, b1_y_f32x4);
-        cov_xz_a_f32x4 = vfmaq_f32(cov_xz_a_f32x4, a1_x_f32x4, b1_z_f32x4);
-        cov_yx_a_f32x4 = vfmaq_f32(cov_yx_a_f32x4, a1_y_f32x4, b1_x_f32x4);
-        cov_yy_a_f32x4 = vfmaq_f32(cov_yy_a_f32x4, a1_y_f32x4, b1_y_f32x4);
-        cov_yz_a_f32x4 = vfmaq_f32(cov_yz_a_f32x4, a1_y_f32x4, b1_z_f32x4);
-        cov_zx_a_f32x4 = vfmaq_f32(cov_zx_a_f32x4, a1_z_f32x4, b1_x_f32x4);
-        cov_zy_a_f32x4 = vfmaq_f32(cov_zy_a_f32x4, a1_z_f32x4, b1_y_f32x4);
-        cov_zz_a_f32x4 = vfmaq_f32(cov_zz_a_f32x4, a1_z_f32x4, b1_z_f32x4);
-        variance_a_a_f32x4 = vfmaq_f32(variance_a_a_f32x4, a1_x_f32x4, a1_x_f32x4);
-        variance_a_a_f32x4 = vfmaq_f32(variance_a_a_f32x4, a1_y_f32x4, a1_y_f32x4);
-        variance_a_a_f32x4 = vfmaq_f32(variance_a_a_f32x4, a1_z_f32x4, a1_z_f32x4);
+        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(a + i * 3, n - i, &a_x_f32x4, &a_y_f32x4, &a_z_f32x4);
+        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(b + i * 3, n - i, &b_x_f32x4, &b_y_f32x4, &b_z_f32x4);
+        sum_a_x_f32x4 = vaddq_f32(sum_a_x_f32x4, a_x_f32x4);
+        sum_a_y_f32x4 = vaddq_f32(sum_a_y_f32x4, a_y_f32x4);
+        sum_a_z_f32x4 = vaddq_f32(sum_a_z_f32x4, a_z_f32x4);
+        sum_b_x_f32x4 = vaddq_f32(sum_b_x_f32x4, b_x_f32x4);
+        sum_b_y_f32x4 = vaddq_f32(sum_b_y_f32x4, b_y_f32x4);
+        sum_b_z_f32x4 = vaddq_f32(sum_b_z_f32x4, b_z_f32x4);
+        covariance_xx_f32x4 = vfmaq_f32(covariance_xx_f32x4, a_x_f32x4, b_x_f32x4);
+        covariance_xy_f32x4 = vfmaq_f32(covariance_xy_f32x4, a_x_f32x4, b_y_f32x4);
+        covariance_xz_f32x4 = vfmaq_f32(covariance_xz_f32x4, a_x_f32x4, b_z_f32x4);
+        covariance_yx_f32x4 = vfmaq_f32(covariance_yx_f32x4, a_y_f32x4, b_x_f32x4);
+        covariance_yy_f32x4 = vfmaq_f32(covariance_yy_f32x4, a_y_f32x4, b_y_f32x4);
+        covariance_yz_f32x4 = vfmaq_f32(covariance_yz_f32x4, a_y_f32x4, b_z_f32x4);
+        covariance_zx_f32x4 = vfmaq_f32(covariance_zx_f32x4, a_z_f32x4, b_x_f32x4);
+        covariance_zy_f32x4 = vfmaq_f32(covariance_zy_f32x4, a_z_f32x4, b_y_f32x4);
+        covariance_zz_f32x4 = vfmaq_f32(covariance_zz_f32x4, a_z_f32x4, b_z_f32x4);
+        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_x_f32x4, a_x_f32x4);
+        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_y_f32x4, a_y_f32x4);
+        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_z_f32x4, a_z_f32x4);
+        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_x_f32x4, b_x_f32x4);
+        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_y_f32x4, b_y_f32x4);
+        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_z_f32x4, b_z_f32x4);
     }
-
-    // Combine dual accumulators
-    float32x4_t sum_a_x_f32x4 = vaddq_f32(sum_a_x_a_f32x4, sum_a_x_b_f32x4);
-    float32x4_t sum_a_y_f32x4 = vaddq_f32(sum_a_y_a_f32x4, sum_a_y_b_f32x4);
-    float32x4_t sum_a_z_f32x4 = vaddq_f32(sum_a_z_a_f32x4, sum_a_z_b_f32x4);
-    float32x4_t sum_b_x_f32x4 = vaddq_f32(sum_b_x_a_f32x4, sum_b_x_b_f32x4);
-    float32x4_t sum_b_y_f32x4 = vaddq_f32(sum_b_y_a_f32x4, sum_b_y_b_f32x4);
-    float32x4_t sum_b_z_f32x4 = vaddq_f32(sum_b_z_a_f32x4, sum_b_z_b_f32x4);
-    float32x4_t cov_xx_f32x4 = vaddq_f32(cov_xx_a_f32x4, cov_xx_b_f32x4);
-    float32x4_t cov_xy_f32x4 = vaddq_f32(cov_xy_a_f32x4, cov_xy_b_f32x4);
-    float32x4_t cov_xz_f32x4 = vaddq_f32(cov_xz_a_f32x4, cov_xz_b_f32x4);
-    float32x4_t cov_yx_f32x4 = vaddq_f32(cov_yx_a_f32x4, cov_yx_b_f32x4);
-    float32x4_t cov_yy_f32x4 = vaddq_f32(cov_yy_a_f32x4, cov_yy_b_f32x4);
-    float32x4_t cov_yz_f32x4 = vaddq_f32(cov_yz_a_f32x4, cov_yz_b_f32x4);
-    float32x4_t cov_zx_f32x4 = vaddq_f32(cov_zx_a_f32x4, cov_zx_b_f32x4);
-    float32x4_t cov_zy_f32x4 = vaddq_f32(cov_zy_a_f32x4, cov_zy_b_f32x4);
-    float32x4_t cov_zz_f32x4 = vaddq_f32(cov_zz_a_f32x4, cov_zz_b_f32x4);
-    float32x4_t variance_a_f32x4 = vaddq_f32(variance_a_a_f32x4, variance_a_b_f32x4);
 
     // Reduce vector accumulators
     nk_f32_t sum_a_x = vaddvq_f32(sum_a_x_f32x4);
@@ -669,16 +493,17 @@ NK_PUBLIC void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b,
     nk_f32_t sum_b_y = vaddvq_f32(sum_b_y_f32x4);
     nk_f32_t sum_b_z = vaddvq_f32(sum_b_z_f32x4);
 
-    nk_f32_t covariance_x_x = vaddvq_f32(cov_xx_f32x4);
-    nk_f32_t covariance_x_y = vaddvq_f32(cov_xy_f32x4);
-    nk_f32_t covariance_x_z = vaddvq_f32(cov_xz_f32x4);
-    nk_f32_t covariance_y_x = vaddvq_f32(cov_yx_f32x4);
-    nk_f32_t covariance_y_y = vaddvq_f32(cov_yy_f32x4);
-    nk_f32_t covariance_y_z = vaddvq_f32(cov_yz_f32x4);
-    nk_f32_t covariance_z_x = vaddvq_f32(cov_zx_f32x4);
-    nk_f32_t covariance_z_y = vaddvq_f32(cov_zy_f32x4);
-    nk_f32_t covariance_z_z = vaddvq_f32(cov_zz_f32x4);
-    nk_f32_t variance_a_sum = vaddvq_f32(variance_a_f32x4);
+    nk_f32_t covariance_x_x = vaddvq_f32(covariance_xx_f32x4);
+    nk_f32_t covariance_x_y = vaddvq_f32(covariance_xy_f32x4);
+    nk_f32_t covariance_x_z = vaddvq_f32(covariance_xz_f32x4);
+    nk_f32_t covariance_y_x = vaddvq_f32(covariance_yx_f32x4);
+    nk_f32_t covariance_y_y = vaddvq_f32(covariance_yy_f32x4);
+    nk_f32_t covariance_y_z = vaddvq_f32(covariance_yz_f32x4);
+    nk_f32_t covariance_z_x = vaddvq_f32(covariance_zx_f32x4);
+    nk_f32_t covariance_z_y = vaddvq_f32(covariance_zy_f32x4);
+    nk_f32_t covariance_z_z = vaddvq_f32(covariance_zz_f32x4);
+    nk_f32_t norm_squared_a = vaddvq_f32(norm_squared_a_f32x4);
+    nk_f32_t norm_squared_b = vaddvq_f32(norm_squared_b_f32x4);
 
     // Compute centroids
     nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
@@ -692,9 +517,15 @@ NK_PUBLIC void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b,
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
 
-    // Compute centered variance of A
-    nk_f32_t variance_a = variance_a_sum * inv_n -
-                          (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y + centroid_a_z * centroid_a_z);
+    // Centered norm-squared via parallel-axis identity; clamp at zero for numeric safety.
+    nk_f32_t centered_norm_squared_a = norm_squared_a -
+                                       (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f32_t centered_norm_squared_b = norm_squared_b -
+                                       (nk_f32_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
+    if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
 
     // Apply centering correction: H_centered = H - n * centroid_a * centroid_bᵀ
     covariance_x_x -= n * centroid_a_x * centroid_b_x;
@@ -710,49 +541,78 @@ NK_PUBLIC void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b,
     // Compute SVD
     nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
-    nk_f32_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f32_(cross_covariance, svd_u, svd_s, svd_v);
 
-    // R = V * Uᵀ
-    nk_f32_t r[9];
-    r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
-
-    // Handle reflection and compute scale: c = trace(D × S) / variance(a)
-    // D = diag(1, 1, det(R)), svd_s contains proper positive singular values on diagonal
-    nk_f32_t rotation_det = nk_det3x3_f32_(r);
-    nk_f32_t sign_det = rotation_det < 0 ? -1.0f : 1.0f;
-    nk_f32_t trace_scaled_s = svd_s[0] + svd_s[4] + sign_det * svd_s[8];
-    nk_f32_t c = trace_scaled_s / ((nk_f32_t)n * variance_a);
-    if (scale) *scale = c;
-
-    if (rotation_det < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f32_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f32_t optimal_rotation[9];
+    nk_f32_t trace_rotation_covariance;
+    nk_f32_t c;
+    if (covariance_offdiagonal_norm_squared < 1e-12f * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0f &&
+        cross_covariance[4] > 0.0f && cross_covariance[8] > 0.0f) {
+        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
+        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
+        optimal_rotation[8] = 1;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+        c = centered_norm_squared_a > 0.0f ? trace_rotation_covariance / centered_norm_squared_a : 0.0f;
     }
+    else {
+        nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+
+        // R = V * Uᵀ
+        optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+        optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+        optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+        optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+        optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+        optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+        optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+        optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+        optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+
+        // Handle reflection and compute scale: c = trace(D · S) / ‖a-ā‖²
+        // D = diag(1, 1, det(R)), svd_diagonal contains proper positive singular values on diagonal
+        nk_f32_t rotation_det = nk_det3x3_f32_(optimal_rotation);
+        nk_f32_t sign_det = rotation_det < 0 ? -1.0f : 1.0f;
+        nk_f32_t trace_scaled_s = svd_diagonal[0] + svd_diagonal[4] + sign_det * svd_diagonal[8];
+        c = centered_norm_squared_a > 0.0f ? trace_scaled_s / centered_norm_squared_a : 0.0f;
+
+        if (rotation_det < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+            optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+            optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+            optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+            optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+            optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+            optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+            optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+            optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+        }
+
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
+    }
+    if (scale) *scale = c;
 
     // Output rotation matrix
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    // Compute RMSD after similarity transform: ‖c × R × a - b‖
-    nk_f32_t sum_squared = nk_transformed_ssd_bf16_neonbfdot_(a, b, n, r, c, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                              centroid_b_x, centroid_b_y, centroid_b_z);
+    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    nk_f32_t sum_squared = c * c * centered_norm_squared_a + centered_norm_squared_b -
+                           2.0f * c * trace_rotation_covariance;
+    if (sum_squared < 0.0f) sum_squared = 0.0f;
     *result = nk_f32_sqrt_neon(sum_squared * inv_n);
 }
 

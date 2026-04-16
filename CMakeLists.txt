@@ -47,7 +47,30 @@
 #     cmake -B build_android -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-android-arm64.cmake \
 #           -D NK_BUILD_SHARED=ON
 #
-cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
+# To build with Intel ICX (Intel oneAPI DPC++/C++ Compiler):
+#
+#     sudo apt-get install -y intel-oneapi-compiler-dpcpp-cpp
+#     source /opt/intel/oneapi/setvars.sh
+#     cmake -B build_icx -D CMAKE_BUILD_TYPE=Release \
+#           -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_COMPILER=icpx \
+#           -D NK_BUILD_TEST=ON
+#     cmake --build build_icx --config Release
+#
+# To build the CUDA interop test (test/test.cu); see that file's docstring for what it covers and the
+# GPU compatibility notes. Requires nvcc on PATH.
+#
+#     cmake -B build_cuda -D NK_BUILD_CUDA_TEST=ON
+#     cmake --build build_cuda
+#     ctest --test-dir build_cuda -R cuda --output-on-failure
+#
+# If your system CMake is older than 3.20, install a recent release from PyPI or the Kitware APT repo.
+#
+#     python -m pip install "cmake>=3.20"
+#
+# NumKong does not support NVHPC (nvc and nvc++): those compilers cannot apply per-function
+# __attribute__((target(...))), which is how SIMD kernels are dispatched in this library.
+#
+cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
 
 # Leverage `ccache` for incremental compilation
 find_program(CCACHE_PROGRAM ccache)
@@ -78,7 +101,7 @@ else ()
     set(CMAKE_C_EXTENSIONS NO)
 endif ()
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 set(CMAKE_CXX_EXTENSIONS NO)
 
@@ -95,15 +118,16 @@ if (CMAKE_SYSTEM_NAME STREQUAL "WASI")
 endif ()
 
 option(NK_BUILD_SHARED "Compile a dynamic library" ${NK_IS_MAIN_PROJECT_})
-option(NK_BUILD_SHARED_TEST "Compile shared-library tests (requires NK_BUILD_SHARED)" OFF)
 option(NK_BUILD_TEST "Compile precision tests with ULP-based error analysis" OFF)
 option(NK_BUILD_BENCH "Compile micro-benchmarks for current ISA" OFF)
+option(NK_BUILD_CUDA_TEST "Compile CUDA tensors & type system interop tests" OFF)
+option(NK_BUILD_SHARED_TEST "Compile shared-library tests, requires NK_BUILD_SHARED" OFF)
 option(NK_WASI_HOSTED "Import capability probes from WASI host environment" OFF)
 
 option(NK_MARCH_NATIVE "Build with -march=native (host-tuned, not portable)" OFF)
 
 # `add_test()` entries are only generated when testing is enabled.
-if (NK_BUILD_TEST OR NK_BUILD_SHARED_TEST)
+if (NK_BUILD_TEST OR NK_BUILD_SHARED_TEST OR NK_BUILD_CUDA_TEST)
     enable_testing()
 endif ()
 
@@ -202,14 +226,13 @@ else ()
     set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
 endif ()
 
-# Compiler-specific flags
-if (CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    # Portable baseline: pin TU ISA floor + forbid auto-vectorization so serial
-    # fallbacks don't get silently promoted to NEON/SSE2/VSX. SIMD kernels use
-    # explicit intrinsics and per-function `target` pragmas; unaffected.
-    # `NK_MARCH_NATIVE=ON` opts out for host-tuned builds.
-    if (NK_MARCH_NATIVE AND NOT MSVC AND NOT CMAKE_CROSSCOMPILING)
-        message(WARNING "NK_MARCH_NATIVE=ON: baking host-specific instructions; result will not run on older CPUs")
+# Portable baseline policy (commits 43e8324d, 453ed5ff, 23f51955): each translation unit gets a per-arch
+# ABI floor, auto-vectorization is forbidden so serial fallbacks stay scalar, and SIMD kernels opt in via
+# per-function __attribute__((target(...))) or #pragma GCC target. NK_MARCH_NATIVE=ON opts out for a
+# host-tuned build. Keep the per-arch table in sync with build.rs, setup.py, and binding.gyp.
+if (NK_MARCH_NATIVE AND NOT MSVC AND NOT CMAKE_CROSSCOMPILING)
+    message(WARNING "NK_MARCH_NATIVE=ON: baking host-specific instructions; result will not run on older CPUs")
+    if (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
         # Apple Clang's `-march=native` only advertises a subset of host features
         # (no SME/SME2/FP16_FML); `-mcpu=native` is the complete knob on macOS.
         # GCC/Clang on Linux/FreeBSD use `-march=native` as usual.
@@ -218,31 +241,22 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$" OR CMAKE_CXX_COMPILER_ID STR
         else ()
             add_compile_options(-march=native)
         endif ()
-    else ()
-        add_compile_options(-fno-tree-vectorize -fno-tree-slp-vectorize)
-        if (NK_IS_64BIT_ARM_)
-            add_compile_options(-march=armv8-a)
-        elseif (NK_IS_64BIT_X86_)
-            add_compile_options(-march=x86-64)
-        elseif (NK_IS_64BIT_RISCV_)
-            add_compile_options(-march=rv64gc)
-        elseif (NK_IS_64BIT_POWER_)
-            add_compile_options(-mcpu=power8)
-        elseif (NK_IS_64BIT_LOONGARCH_)
-            # LASX needs TU-level `-mlasx` until GCC >= 15 / Clang >= 22 ship per-function support.
-            add_compile_options(-march=loongarch64 -mlasx)
-        endif ()
     endif ()
-
-    add_compile_options(-pedantic)
-
-    if (CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
-        add_compile_options(-ferror-limit=1 -Wno-typedef-redefinition)
-    else ()
-        add_compile_options(-fmax-errors=1 -Wno-tautological-constant-compare -Wno-psabi)
+elseif (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
+    # Clang and IntelLLVM accept the GCC spellings as aliases, so one pair covers all three compilers.
+    add_compile_options(-fno-tree-vectorize -fno-tree-slp-vectorize)
+    if (NK_IS_64BIT_ARM_)
+        add_compile_options(-march=armv8-a)
+    elseif (NK_IS_64BIT_X86_)
+        add_compile_options(-march=x86-64)
+    elseif (NK_IS_64BIT_RISCV_)
+        add_compile_options(-march=rv64gc)
+    elseif (NK_IS_64BIT_POWER_)
+        add_compile_options(-mcpu=power8)
+    elseif (NK_IS_64BIT_LOONGARCH_)
+        # LASX needs TU-level `-mlasx` until GCC >= 15 / Clang >= 22 ship per-function support.
+        add_compile_options(-march=loongarch64 -mlasx)
     endif ()
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
-    add_compile_options(-w -ferror-limit=1 -fno-tree-vectorize -fno-tree-slp-vectorize)
 elseif (MSVC)
     # MSVC: no per-function target pragma; these match defaults.
     if (NK_IS_64BIT_X86_)
@@ -250,6 +264,16 @@ elseif (MSVC)
     elseif (NK_IS_64BIT_ARM_)
         add_compile_options(/arch:armv8.0)
     endif ()
+endif ()
+
+if (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
+    add_compile_options(-pedantic)
+endif ()
+
+if (CMAKE_CXX_COMPILER_ID MATCHES "^(Clang|AppleClang|IntelLLVM)$")
+    add_compile_options(-ferror-limit=1 -Wno-typedef-redefinition -Wno-tautological-constant-compare)
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(-fmax-errors=1 -Wno-tautological-constant-compare -Wno-psabi)
 endif ()
 
 # Define the header-only library
@@ -645,6 +669,12 @@ if (NK_BUILD_SHARED)
         if (NK_WASM64_)
             target_link_options(nk_shared PRIVATE "SHELL:-s MEMORY64=1")
         endif ()
+
+        # Under Emscripten nk_shared is an executable (.js/.wasm), not a shared
+        # library. CMake refuses target_link_libraries against an imported
+        # executable unless it exports its symbol table. Upstream projects that
+        # add_subdirectory(numkong) and link to nk_shared need this.
+        set_target_properties(nk_shared PROPERTIES ENABLE_EXPORTS ON)
     else ()
         add_library(nk_shared SHARED ${NK_SOURCES})
         target_include_directories(nk_shared PUBLIC "${PROJECT_SOURCE_DIR}/include")
@@ -754,6 +784,47 @@ if (NK_BUILD_SHARED_TEST)
     )
 
     add_test(NAME nk_shared_test COMMAND nk_shared_test)
+endif ()
+
+# CUDA interop test built from test/test.cu; see that file's docstring for what it covers and the GPU
+# compatibility notes.
+if (NK_BUILD_CUDA_TEST)
+    enable_language(CUDA)
+    if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES 75)
+    endif ()
+    add_executable(nk_cuda_test test/test.cu)
+    target_include_directories(nk_cuda_test PRIVATE "${PROJECT_SOURCE_DIR}/include")
+    set_target_properties(nk_cuda_test PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO)
+
+    # Forward the baseline flags to NVCC's host compiler, scoped to this target.
+    if (NK_IS_64BIT_X86_)
+        target_compile_options(
+            nk_cuda_test PRIVATE -Xcompiler=-march=x86-64 -Xcompiler=-fno-tree-vectorize
+                                 -Xcompiler=-fno-tree-slp-vectorize
+        )
+    elseif (NK_IS_64BIT_ARM_)
+        target_compile_options(
+            nk_cuda_test PRIVATE -Xcompiler=-march=armv8-a -Xcompiler=-fno-tree-vectorize
+                                 -Xcompiler=-fno-tree-slp-vectorize
+        )
+    endif ()
+    if (nk_x86_native_defs_)
+        target_compile_definitions(nk_cuda_test PRIVATE ${nk_x86_native_defs_})
+    endif ()
+    if (nk_arm_native_defs_)
+        target_compile_definitions(nk_cuda_test PRIVATE ${nk_arm_native_defs_})
+    endif ()
+    if (nk_riscv_native_defs_)
+        target_compile_definitions(nk_cuda_test PRIVATE ${nk_riscv_native_defs_})
+    endif ()
+    if (nk_loongarch_native_defs_)
+        target_compile_definitions(nk_cuda_test PRIVATE ${nk_loongarch_native_defs_})
+    endif ()
+    if (nk_power_native_defs_)
+        target_compile_definitions(nk_cuda_test PRIVATE ${nk_power_native_defs_})
+    endif ()
+    add_test(NAME nk_cuda_test COMMAND nk_cuda_test)
 endif ()
 
 install(DIRECTORY include/ DESTINATION include)

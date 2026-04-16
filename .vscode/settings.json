@@ -1,12 +1,12 @@
 {
     "C_Cpp.default.compilerPath": "/usr/bin/g++-14",
-    "C_Cpp.default.cppStandard": "c++23",
+    "C_Cpp.default.cppStandard": "c++20",
     "C_Cpp.default.includePath": [
         "${workspaceFolder}/include"
     ],
     "clangd.arguments": [
         "--compile-commands-dir=${workspaceFolder}",
-        "-std=c++23"
+        "-std=c++20"
     ],
     "clangd.fallbackFlags": [
         "-I${workspaceFolder}/include"

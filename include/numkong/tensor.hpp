@@ -1,5 +1,5 @@
 /**
- *  @brief NumKong Tensor types and tensor-level operations for C++23 and newer.
+ *  @brief NumKong Tensor types and tensor-level operations for C++20 and newer.
  *  @file include/numkong/tensor.hpp
  *  @author Ash Vardanian
  *  @date March 2026
@@ -19,7 +19,8 @@
  *  Features:
  *  - Signed strides (ptrdiff_t) for reversed/transposed views
  *  - Signed indexing (negative = from end)
- *  - C++23 variadic `operator[]` for flat access, exact access, and trailing `slice`
+ *  - Variadic `operator()` for flat/exact access and trailing `slice` (C++20-portable);
+ *    `operator[]` multi-arg sugar provided when the compiler supports P2128 (C++23).
  *  - Axis iteration (rows_views(), rows_spans(), axis_iterator)
  *  - Conversion to vector_view/vector_span for rank-1 tensors
  */
@@ -36,6 +37,14 @@
 #include <type_traits>
 
 #include "vector.hpp" // `aligned_allocator`
+
+// True when the compiler supports C++23 P2128 multi-arg `operator[]`. Under
+// this gate we expose `t[a, b, c]` as sugar that delegates to `operator()`.
+#if defined(__cpp_multidimensional_subscript) && __cpp_multidimensional_subscript >= 202110L
+#define NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_ 1
+#else
+#define NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_ 0
+#endif
 
 namespace ashvardanian::numkong {
 
@@ -300,25 +309,43 @@ struct tensor_view {
         return tensor_flat_lookup_(*this, idx);
     }
 
-    /** @brief Exact multi-dimensional scalar lookup. */
+    /** @brief Exact multi-dimensional scalar lookup via call syntax (C++20-portable). */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
-    decltype(auto) operator[](index_types_... idxs) const noexcept {
+    decltype(auto) operator()(index_types_... idxs) const noexcept {
         nk_assert_(shape_.rank == sizeof...(index_types_));
         auto coords = resolve_tensor_indices_<value_type_>(shape_, std::index_sequence_for<index_types_...> {},
                                                            idxs...);
         return tensor_lookup_resolved_(*this, std::span<std::size_t const, sizeof...(index_types_)>(coords));
     }
 
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    /** @brief C++23 sugar: `t[i, j, k]` scalar lookup, delegates to `operator()`. */
+    template <std::integral... index_types_>
+        requires(sizeof...(index_types_) >= 2)
+    decltype(auto) operator[](index_types_... idxs) const noexcept {
+        return (*this)(idxs...);
+    }
+#endif
+
     /** @brief Trailing `slice` returns the same view. */
     constexpr tensor_view operator[](tensor_slice_t) const noexcept { return *this; }
 
-    /** @brief Prefix leading-axis slicing with a trailing `slice` marker. */
+    /** @brief Prefix leading-axis slicing with a trailing `slice` marker (call syntax, C++20-portable). */
+    template <typename first_type_, typename second_type_, typename... rest_types_>
+        requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
+    tensor_view operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+        return tensor_slice_suffix_(*this, first, second, rest...);
+    }
+
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    /** @brief C++23 sugar: `t[i, nk::slice]` slicing, delegates to `operator()`. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
     tensor_view operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
-        return tensor_slice_suffix_(*this, first, second, rest...);
+        return (*this)(first, second, rest...);
     }
+#endif
 
     /** @brief Rank-0 scalar access. */
     decltype(auto) scalar() const noexcept {
@@ -512,22 +539,36 @@ struct tensor_span {
         return tensor_flat_lookup_(static_cast<tensor_view<value_type_, max_rank_>>(*this), idx);
     }
 
-    /** @brief Exact multi-dimensional scalar lookup. */
+    /** @brief Exact multi-dimensional scalar lookup via call syntax (C++20-portable). */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
-    decltype(auto) operator[](index_types_... idxs) noexcept {
+    decltype(auto) operator()(index_types_... idxs) noexcept {
         nk_assert_(shape_.rank == sizeof...(index_types_));
         auto coords = resolve_tensor_indices_<value_type_>(shape_, std::index_sequence_for<index_types_...> {},
                                                            idxs...);
         return tensor_lookup_resolved_(*this, std::span<std::size_t const, sizeof...(index_types_)>(coords));
     }
 
-    /** @brief Const full-coordinate lookup. */
+    /** @brief Const full-coordinate lookup via call syntax. */
+    template <std::integral... index_types_>
+        requires(sizeof...(index_types_) >= 2)
+    decltype(auto) operator()(index_types_... idxs) const noexcept {
+        return static_cast<tensor_view<value_type_, max_rank_>>(*this)(idxs...);
+    }
+
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    /** @brief C++23 sugar: multi-arg `[]` scalar lookup, delegates to `operator()`. */
+    template <std::integral... index_types_>
+        requires(sizeof...(index_types_) >= 2)
+    decltype(auto) operator[](index_types_... idxs) noexcept {
+        return (*this)(idxs...);
+    }
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
     decltype(auto) operator[](index_types_... idxs) const noexcept {
-        return static_cast<tensor_view<value_type_, max_rank_>>(*this)[idxs...];
+        return (*this)(idxs...);
     }
+#endif
 
     /** @brief Trailing `slice` returns the same span. */
     constexpr tensor_span operator[](tensor_slice_t) noexcept { return *this; }
@@ -535,20 +576,35 @@ struct tensor_span {
         return static_cast<tensor_view<value_type_, max_rank_>>(*this);
     }
 
-    /** @brief Prefix leading-axis slicing with a trailing `slice` marker. */
+    /** @brief Prefix leading-axis slicing via call syntax (C++20-portable). */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    tensor_span operator[](first_type_ first, second_type_ second, rest_types_... rest) noexcept {
+    tensor_span operator()(first_type_ first, second_type_ second, rest_types_... rest) noexcept {
         return tensor_slice_suffix_(*this, first, second, rest...);
     }
 
-    /** @brief Const prefix leading-axis slicing with a trailing `slice` marker. */
+    /** @brief Const prefix leading-axis slicing via call syntax. */
+    template <typename first_type_, typename second_type_, typename... rest_types_>
+        requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
+    tensor_view<value_type_, max_rank_> operator()(first_type_ first, second_type_ second,
+                                                   rest_types_... rest) const noexcept {
+        return tensor_slice_suffix_(static_cast<tensor_view<value_type_, max_rank_>>(*this), first, second, rest...);
+    }
+
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    /** @brief C++23 sugar: multi-arg `[]` slicing, delegates to `operator()`. */
+    template <typename first_type_, typename second_type_, typename... rest_types_>
+        requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
+    tensor_span operator[](first_type_ first, second_type_ second, rest_types_... rest) noexcept {
+        return (*this)(first, second, rest...);
+    }
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
     tensor_view<value_type_, max_rank_> operator[](first_type_ first, second_type_ second,
                                                    rest_types_... rest) const noexcept {
-        return tensor_slice_suffix_(static_cast<tensor_view<value_type_, max_rank_>>(*this), first, second, rest...);
+        return (*this)(first, second, rest...);
     }
+#endif
 
     /** @brief Rank-0 mutable scalar access. */
     decltype(auto) scalar_ref() noexcept {
@@ -1546,37 +1602,65 @@ struct tensor {
         return view()[idx];
     }
 
-    /** @brief Exact multi-dimensional scalar lookup. */
+    /** @brief Exact multi-dimensional scalar lookup via call syntax (C++20-portable). */
+    template <std::integral... index_types_>
+        requires(sizeof...(index_types_) >= 2)
+    decltype(auto) operator()(index_types_... idxs) noexcept {
+        return span()(idxs...);
+    }
+
+    /** @brief Const multidimensional lookup via call syntax. */
+    template <std::integral... index_types_>
+        requires(sizeof...(index_types_) >= 2)
+    decltype(auto) operator()(index_types_... idxs) const noexcept {
+        return view()(idxs...);
+    }
+
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    /** @brief C++23 sugar: multi-arg `[]` scalar lookup, delegates to `operator()`. */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
     decltype(auto) operator[](index_types_... idxs) noexcept {
-        return span()[idxs...];
+        return (*this)(idxs...);
     }
-
-    /** @brief Const multidimensional lookup. */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
     decltype(auto) operator[](index_types_... idxs) const noexcept {
-        return view()[idxs...];
+        return (*this)(idxs...);
     }
+#endif
 
     /** @brief Trailing `slice` returns the same tensor view/span category. */
     span_type operator[](tensor_slice_t) noexcept { return span(); }
     view_type operator[](tensor_slice_t) const noexcept { return view(); }
 
-    /** @brief Prefix leading-axis slicing with a trailing `slice` marker. */
+    /** @brief Prefix leading-axis slicing via call syntax (C++20-portable). */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    span_type operator[](first_type_ first, second_type_ second, rest_types_... rest) noexcept {
+    span_type operator()(first_type_ first, second_type_ second, rest_types_... rest) noexcept {
         return tensor_slice_suffix_(span(), first, second, rest...);
     }
 
-    /** @brief Const prefix leading-axis slicing with a trailing `slice` marker. */
+    /** @brief Const prefix leading-axis slicing via call syntax. */
+    template <typename first_type_, typename second_type_, typename... rest_types_>
+        requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
+    view_type operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+        return tensor_slice_suffix_(view(), first, second, rest...);
+    }
+
+#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+    /** @brief C++23 sugar: multi-arg `[]` slicing, delegates to `operator()`. */
+    template <typename first_type_, typename second_type_, typename... rest_types_>
+        requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
+    span_type operator[](first_type_ first, second_type_ second, rest_types_... rest) noexcept {
+        return (*this)(first, second, rest...);
+    }
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
     view_type operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
-        return tensor_slice_suffix_(view(), first, second, rest...);
+        return (*this)(first, second, rest...);
     }
+#endif
 
     /** @brief Rank-0 mutable scalar access. */
     decltype(auto) scalar_ref() noexcept { return span().scalar_ref(); }

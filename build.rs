@@ -376,6 +376,7 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
 
     // Pin TU baseline to each arch's ABI floor; SIMD kernels carry per-function pragmas.
     // `NK_MARCH_NATIVE=1` opts into a host-tuned, non-portable build (ignored on MSVC).
+    // Keep per-arch table in sync with cmake/nk_compiler_flags.cmake, setup.py, binding.gyp.
     let march_native = env::var("NK_MARCH_NATIVE").is_ok_and(|v| v == "1" || v == "true");
     // Portable baseline: pin TU ISA floor + forbid auto-vectorization so serial
     // fallbacks don't get silently promoted to NEON/SSE2/VSX. SIMD kernels use

@@ -84,6 +84,12 @@ void bench_mesh() {
     run_mesh<bf16_k>("umeyama_bf16_neonbfdot", nk_umeyama_bf16_neonbfdot);
 #endif
 
+#if NK_TARGET_NEONFHM
+    run_mesh<f16_k>("rmsd_f16_neonfhm", nk_rmsd_f16_neonfhm);
+    run_mesh<f16_k>("kabsch_f16_neonfhm", nk_kabsch_f16_neonfhm);
+    run_mesh<f16_k>("umeyama_f16_neonfhm", nk_umeyama_f16_neonfhm);
+#endif
+
 #if NK_TARGET_HASWELL
     run_mesh<f32_k>("rmsd_f32_haswell", nk_rmsd_f32_haswell);
     run_mesh<f32_k>("kabsch_f32_haswell", nk_kabsch_f32_haswell);
@@ -112,6 +118,12 @@ void bench_mesh() {
     run_mesh<bf16_k>("kabsch_bf16_skylake", nk_kabsch_bf16_skylake);
     run_mesh<f16_k>("umeyama_f16_skylake", nk_umeyama_f16_skylake);
     run_mesh<bf16_k>("umeyama_bf16_skylake", nk_umeyama_bf16_skylake);
+#endif
+
+#if NK_TARGET_GENOA
+    run_mesh<bf16_k>("rmsd_bf16_genoa", nk_rmsd_bf16_genoa);
+    run_mesh<bf16_k>("kabsch_bf16_genoa", nk_kabsch_bf16_genoa);
+    run_mesh<bf16_k>("umeyama_bf16_genoa", nk_umeyama_bf16_genoa);
 #endif
 
 #if NK_TARGET_RVV

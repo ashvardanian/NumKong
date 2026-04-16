@@ -266,6 +266,20 @@ NK_PUBLIC void nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, n
                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
 #endif // NK_TARGET_SKYLAKE
 
+/*  SIMD-powered backends for AVX512-BF16 CPUs of AMD Genoa / Intel Sapphire Rapids generation and newer.
+ */
+#if NK_TARGET_GENOA
+/** @copydoc nk_rmsd_bf16 */
+NK_PUBLIC void nk_rmsd_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                  nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
+/** @copydoc nk_kabsch_bf16 */
+NK_PUBLIC void nk_kabsch_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                    nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
+/** @copydoc nk_umeyama_bf16 */
+NK_PUBLIC void nk_umeyama_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                     nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
+#endif // NK_TARGET_GENOA
+
 /*  SIMD-powered backends for AVX2 CPUs of Haswell generation and newer.
  */
 #if NK_TARGET_HASWELL
@@ -356,6 +370,20 @@ NK_PUBLIC void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, 
 NK_PUBLIC void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
 #endif // NK_TARGET_NEONBFDOT
+
+/*  SIMD-powered backends for Arm NEON FHM (FP16 widening FMA) CPUs.
+ */
+#if NK_TARGET_NEONFHM
+/** @copydoc nk_rmsd_f16 */
+NK_PUBLIC void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                   nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
+/** @copydoc nk_kabsch_f16 */
+NK_PUBLIC void nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                     nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
+/** @copydoc nk_umeyama_f16 */
+NK_PUBLIC void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
+#endif // NK_TARGET_NEONFHM
 
 #if NK_TARGET_RVV
 /** @copydoc nk_rmsd_f32 */
@@ -454,8 +482,10 @@ NK_INTERNAL nk_dtype_t nk_mesh_transform_dtype(nk_dtype_t dtype) {
 #include "numkong/mesh/serial.h"
 #include "numkong/mesh/neon.h"
 #include "numkong/mesh/neonbfdot.h"
+#include "numkong/mesh/neonfhm.h"
 #include "numkong/mesh/haswell.h"
 #include "numkong/mesh/skylake.h"
+#include "numkong/mesh/genoa.h"
 #include "numkong/mesh/rvv.h"
 #include "numkong/mesh/v128relaxed.h"
 
@@ -505,6 +535,8 @@ NK_PUBLIC void nk_rmsd_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk
     nk_rmsd_f16_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
 #elif NK_TARGET_HASWELL
     nk_rmsd_f16_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
+#elif NK_TARGET_NEONFHM
+    nk_rmsd_f16_neonfhm(a, b, n, a_centroid, b_centroid, rotation, scale, result);
 #elif NK_TARGET_NEON
     nk_rmsd_f16_neon(a, b, n, a_centroid, b_centroid, rotation, scale, result);
 #elif NK_TARGET_RVV
@@ -517,6 +549,8 @@ NK_PUBLIC void nk_rmsd_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk
 NK_PUBLIC void nk_rmsd_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
 #if NK_TARGET_SKYLAKE
+    //  Skylake f32-widen path wins on Intel where VDPBF16PS throughput matches FMA; on AMD Zen4+
+    //  where VDPBF16PS is faster than FMA, users can call `nk_rmsd_bf16_genoa` directly.
     nk_rmsd_bf16_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
 #elif NK_TARGET_HASWELL
     nk_rmsd_bf16_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
@@ -569,6 +603,8 @@ NK_PUBLIC void nk_kabsch_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, 
     nk_kabsch_f16_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
 #elif NK_TARGET_HASWELL
     nk_kabsch_f16_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
+#elif NK_TARGET_NEONFHM
+    nk_kabsch_f16_neonfhm(a, b, n, a_centroid, b_centroid, rotation, scale, result);
 #elif NK_TARGET_NEON
     nk_kabsch_f16_neon(a, b, n, a_centroid, b_centroid, rotation, scale, result);
 #elif NK_TARGET_RVV
@@ -633,6 +669,8 @@ NK_PUBLIC void nk_umeyama_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
     nk_umeyama_f16_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
 #elif NK_TARGET_HASWELL
     nk_umeyama_f16_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
+#elif NK_TARGET_NEONFHM
+    nk_umeyama_f16_neonfhm(a, b, n, a_centroid, b_centroid, rotation, scale, result);
 #elif NK_TARGET_NEON
     nk_umeyama_f16_neon(a, b, n, a_centroid, b_centroid, rotation, scale, result);
 #elif NK_TARGET_RVV

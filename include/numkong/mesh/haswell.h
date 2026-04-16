@@ -88,10 +88,6 @@ NK_INTERNAL nk_f64_t nk_reduce_stable_f64x4_haswell_(__m256d values_f64x4) {
     return sum + compensation;
 }
 
-NK_INTERNAL void nk_rotation_from_svd_f64_haswell_(nk_f64_t const *svd_u, nk_f64_t const *svd_v, nk_f64_t *rotation) {
-    nk_rotation_from_svd_f64_serial_(svd_u, svd_v, rotation);
-}
-
 NK_INTERNAL void nk_accumulate_square_f64x4_haswell_(__m256d *sum_f64x4, __m256d *compensation_f64x4,
                                                      __m256d values_f64x4) {
     __m256d product_f64x4 = _mm256_mul_pd(values_f64x4, values_f64x4);
@@ -103,208 +99,6 @@ NK_INTERNAL void nk_accumulate_square_f64x4_haswell_(__m256d *sum_f64x4, __m256d
         _mm256_sub_pd(product_f64x4, virtual_addend_f64x4));
     *sum_f64x4 = tentative_sum_f64x4;
     *compensation_f64x4 = _mm256_add_pd(*compensation_f64x4, _mm256_add_pd(sum_error_f64x4, product_error_f64x4));
-}
-
-/*  Compute sum of squared distances after applying rotation (and optional scale).
- *  Used by kabsch (scale=1.0) and umeyama (scale=computed_scale).
- *  Returns sum_squared, caller computes sqrt(sum_squared / n).
- */
-NK_INTERNAL nk_f64_t nk_transformed_ssd_f32_haswell_(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                     nk_f64_t const *r, nk_f64_t scale, nk_f64_t centroid_a_x,
-                                                     nk_f64_t centroid_a_y, nk_f64_t centroid_a_z,
-                                                     nk_f64_t centroid_b_x, nk_f64_t centroid_b_y,
-                                                     nk_f64_t centroid_b_z) {
-    __m256d scaled_rotation_x_x_f64x4 = _mm256_set1_pd(scale * r[0]);
-    __m256d scaled_rotation_x_y_f64x4 = _mm256_set1_pd(scale * r[1]);
-    __m256d scaled_rotation_x_z_f64x4 = _mm256_set1_pd(scale * r[2]);
-    __m256d scaled_rotation_y_x_f64x4 = _mm256_set1_pd(scale * r[3]);
-    __m256d scaled_rotation_y_y_f64x4 = _mm256_set1_pd(scale * r[4]);
-    __m256d scaled_rotation_y_z_f64x4 = _mm256_set1_pd(scale * r[5]);
-    __m256d scaled_rotation_z_x_f64x4 = _mm256_set1_pd(scale * r[6]);
-    __m256d scaled_rotation_z_y_f64x4 = _mm256_set1_pd(scale * r[7]);
-    __m256d scaled_rotation_z_z_f64x4 = _mm256_set1_pd(scale * r[8]);
-    __m256d centroid_a_x_f64x4 = _mm256_set1_pd(centroid_a_x), centroid_a_y_f64x4 = _mm256_set1_pd(centroid_a_y);
-    __m256d centroid_a_z_f64x4 = _mm256_set1_pd(centroid_a_z), centroid_b_x_f64x4 = _mm256_set1_pd(centroid_b_x);
-    __m256d centroid_b_y_f64x4 = _mm256_set1_pd(centroid_b_y), centroid_b_z_f64x4 = _mm256_set1_pd(centroid_b_z);
-    __m256d sum_squared_f64x4 = _mm256_setzero_pd();
-    __m256 a_x_f32x8, a_y_f32x8, a_z_f32x8, b_x_f32x8, b_y_f32x8, b_z_f32x8;
-    nk_size_t index = 0;
-
-    for (; index + 8 <= n; index += 8) {
-        nk_deinterleave_f32x8_haswell_(a + index * 3, &a_x_f32x8, &a_y_f32x8, &a_z_f32x8),
-            nk_deinterleave_f32x8_haswell_(b + index * 3, &b_x_f32x8, &b_y_f32x8, &b_z_f32x8);
-
-        __m256d a_x_low_f64x4 = _mm256_cvtps_pd(_mm256_castps256_ps128(a_x_f32x8));
-        __m256d a_x_high_f64x4 = _mm256_cvtps_pd(_mm256_extractf128_ps(a_x_f32x8, 1));
-        __m256d a_y_low_f64x4 = _mm256_cvtps_pd(_mm256_castps256_ps128(a_y_f32x8));
-        __m256d a_y_high_f64x4 = _mm256_cvtps_pd(_mm256_extractf128_ps(a_y_f32x8, 1));
-        __m256d a_z_low_f64x4 = _mm256_cvtps_pd(_mm256_castps256_ps128(a_z_f32x8));
-        __m256d a_z_high_f64x4 = _mm256_cvtps_pd(_mm256_extractf128_ps(a_z_f32x8, 1));
-        __m256d b_x_low_f64x4 = _mm256_cvtps_pd(_mm256_castps256_ps128(b_x_f32x8));
-        __m256d b_x_high_f64x4 = _mm256_cvtps_pd(_mm256_extractf128_ps(b_x_f32x8, 1));
-        __m256d b_y_low_f64x4 = _mm256_cvtps_pd(_mm256_castps256_ps128(b_y_f32x8));
-        __m256d b_y_high_f64x4 = _mm256_cvtps_pd(_mm256_extractf128_ps(b_y_f32x8, 1));
-        __m256d b_z_low_f64x4 = _mm256_cvtps_pd(_mm256_castps256_ps128(b_z_f32x8));
-        __m256d b_z_high_f64x4 = _mm256_cvtps_pd(_mm256_extractf128_ps(b_z_f32x8, 1));
-
-        __m256d centered_a_x_low_f64x4 = _mm256_sub_pd(a_x_low_f64x4, centroid_a_x_f64x4);
-        __m256d centered_a_x_high_f64x4 = _mm256_sub_pd(a_x_high_f64x4, centroid_a_x_f64x4);
-        __m256d centered_a_y_low_f64x4 = _mm256_sub_pd(a_y_low_f64x4, centroid_a_y_f64x4);
-        __m256d centered_a_y_high_f64x4 = _mm256_sub_pd(a_y_high_f64x4, centroid_a_y_f64x4);
-        __m256d centered_a_z_low_f64x4 = _mm256_sub_pd(a_z_low_f64x4, centroid_a_z_f64x4);
-        __m256d centered_a_z_high_f64x4 = _mm256_sub_pd(a_z_high_f64x4, centroid_a_z_f64x4);
-        __m256d centered_b_x_low_f64x4 = _mm256_sub_pd(b_x_low_f64x4, centroid_b_x_f64x4);
-        __m256d centered_b_x_high_f64x4 = _mm256_sub_pd(b_x_high_f64x4, centroid_b_x_f64x4);
-        __m256d centered_b_y_low_f64x4 = _mm256_sub_pd(b_y_low_f64x4, centroid_b_y_f64x4);
-        __m256d centered_b_y_high_f64x4 = _mm256_sub_pd(b_y_high_f64x4, centroid_b_y_f64x4);
-        __m256d centered_b_z_low_f64x4 = _mm256_sub_pd(b_z_low_f64x4, centroid_b_z_f64x4);
-        __m256d centered_b_z_high_f64x4 = _mm256_sub_pd(b_z_high_f64x4, centroid_b_z_f64x4);
-
-        __m256d rotated_a_x_low_f64x4 = _mm256_fmadd_pd(
-            scaled_rotation_x_z_f64x4, centered_a_z_low_f64x4,
-            _mm256_fmadd_pd(scaled_rotation_x_y_f64x4, centered_a_y_low_f64x4,
-                            _mm256_mul_pd(scaled_rotation_x_x_f64x4, centered_a_x_low_f64x4)));
-        __m256d rotated_a_x_high_f64x4 = _mm256_fmadd_pd(
-            scaled_rotation_x_z_f64x4, centered_a_z_high_f64x4,
-            _mm256_fmadd_pd(scaled_rotation_x_y_f64x4, centered_a_y_high_f64x4,
-                            _mm256_mul_pd(scaled_rotation_x_x_f64x4, centered_a_x_high_f64x4)));
-        __m256d rotated_a_y_low_f64x4 = _mm256_fmadd_pd(
-            scaled_rotation_y_z_f64x4, centered_a_z_low_f64x4,
-            _mm256_fmadd_pd(scaled_rotation_y_y_f64x4, centered_a_y_low_f64x4,
-                            _mm256_mul_pd(scaled_rotation_y_x_f64x4, centered_a_x_low_f64x4)));
-        __m256d rotated_a_y_high_f64x4 = _mm256_fmadd_pd(
-            scaled_rotation_y_z_f64x4, centered_a_z_high_f64x4,
-            _mm256_fmadd_pd(scaled_rotation_y_y_f64x4, centered_a_y_high_f64x4,
-                            _mm256_mul_pd(scaled_rotation_y_x_f64x4, centered_a_x_high_f64x4)));
-        __m256d rotated_a_z_low_f64x4 = _mm256_fmadd_pd(
-            scaled_rotation_z_z_f64x4, centered_a_z_low_f64x4,
-            _mm256_fmadd_pd(scaled_rotation_z_y_f64x4, centered_a_y_low_f64x4,
-                            _mm256_mul_pd(scaled_rotation_z_x_f64x4, centered_a_x_low_f64x4)));
-        __m256d rotated_a_z_high_f64x4 = _mm256_fmadd_pd(
-            scaled_rotation_z_z_f64x4, centered_a_z_high_f64x4,
-            _mm256_fmadd_pd(scaled_rotation_z_y_f64x4, centered_a_y_high_f64x4,
-                            _mm256_mul_pd(scaled_rotation_z_x_f64x4, centered_a_x_high_f64x4)));
-
-        __m256d delta_x_low_f64x4 = _mm256_sub_pd(rotated_a_x_low_f64x4, centered_b_x_low_f64x4);
-        __m256d delta_x_high_f64x4 = _mm256_sub_pd(rotated_a_x_high_f64x4, centered_b_x_high_f64x4);
-        __m256d delta_y_low_f64x4 = _mm256_sub_pd(rotated_a_y_low_f64x4, centered_b_y_low_f64x4);
-        __m256d delta_y_high_f64x4 = _mm256_sub_pd(rotated_a_y_high_f64x4, centered_b_y_high_f64x4);
-        __m256d delta_z_low_f64x4 = _mm256_sub_pd(rotated_a_z_low_f64x4, centered_b_z_low_f64x4);
-        __m256d delta_z_high_f64x4 = _mm256_sub_pd(rotated_a_z_high_f64x4, centered_b_z_high_f64x4);
-
-        __m256d batch_sum_squared_f64x4 = _mm256_add_pd(_mm256_mul_pd(delta_x_low_f64x4, delta_x_low_f64x4),
-                                                        _mm256_mul_pd(delta_x_high_f64x4, delta_x_high_f64x4));
-        batch_sum_squared_f64x4 = _mm256_fmadd_pd(delta_y_low_f64x4, delta_y_low_f64x4, batch_sum_squared_f64x4);
-        batch_sum_squared_f64x4 = _mm256_fmadd_pd(delta_y_high_f64x4, delta_y_high_f64x4, batch_sum_squared_f64x4);
-        batch_sum_squared_f64x4 = _mm256_fmadd_pd(delta_z_low_f64x4, delta_z_low_f64x4, batch_sum_squared_f64x4);
-        batch_sum_squared_f64x4 = _mm256_fmadd_pd(delta_z_high_f64x4, delta_z_high_f64x4, batch_sum_squared_f64x4);
-        sum_squared_f64x4 = _mm256_add_pd(sum_squared_f64x4, batch_sum_squared_f64x4);
-    }
-
-    nk_f64_t sum_squared = nk_reduce_add_f64x4_haswell_(sum_squared_f64x4);
-    for (; index < n; ++index) {
-        nk_f64_t centered_a_x = (nk_f64_t)a[index * 3 + 0] - centroid_a_x,
-                 centered_a_y = (nk_f64_t)a[index * 3 + 1] - centroid_a_y,
-                 centered_a_z = (nk_f64_t)a[index * 3 + 2] - centroid_a_z;
-        nk_f64_t centered_b_x = (nk_f64_t)b[index * 3 + 0] - centroid_b_x,
-                 centered_b_y = (nk_f64_t)b[index * 3 + 1] - centroid_b_y,
-                 centered_b_z = (nk_f64_t)b[index * 3 + 2] - centroid_b_z;
-        nk_f64_t rotated_a_x = scale * (r[0] * centered_a_x + r[1] * centered_a_y + r[2] * centered_a_z),
-                 rotated_a_y = scale * (r[3] * centered_a_x + r[4] * centered_a_y + r[5] * centered_a_z),
-                 rotated_a_z = scale * (r[6] * centered_a_x + r[7] * centered_a_y + r[8] * centered_a_z);
-        nk_f64_t delta_x = rotated_a_x - centered_b_x, delta_y = rotated_a_y - centered_b_y,
-                 delta_z = rotated_a_z - centered_b_z;
-        sum_squared += delta_x * delta_x + delta_y * delta_y + delta_z * delta_z;
-    }
-
-    return sum_squared;
-}
-
-/*  Compute sum of squared distances for f64 after applying rotation (and optional scale).
- *  Rotation matrix, scale and data are all f64 for full precision.
- */
-NK_INTERNAL nk_f64_t nk_transformed_ssd_f64_haswell_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                     nk_f64_t const *r, nk_f64_t scale, nk_f64_t centroid_a_x,
-                                                     nk_f64_t centroid_a_y, nk_f64_t centroid_a_z,
-                                                     nk_f64_t centroid_b_x, nk_f64_t centroid_b_y,
-                                                     nk_f64_t centroid_b_z) {
-    // Broadcast scaled rotation matrix elements
-    __m256d scaled_rotation_x_x_f64x4 = _mm256_set1_pd(scale * r[0]);
-    __m256d scaled_rotation_x_y_f64x4 = _mm256_set1_pd(scale * r[1]);
-    __m256d scaled_rotation_x_z_f64x4 = _mm256_set1_pd(scale * r[2]);
-    __m256d scaled_rotation_y_x_f64x4 = _mm256_set1_pd(scale * r[3]);
-    __m256d scaled_rotation_y_y_f64x4 = _mm256_set1_pd(scale * r[4]);
-    __m256d scaled_rotation_y_z_f64x4 = _mm256_set1_pd(scale * r[5]);
-    __m256d scaled_rotation_z_x_f64x4 = _mm256_set1_pd(scale * r[6]);
-    __m256d scaled_rotation_z_y_f64x4 = _mm256_set1_pd(scale * r[7]);
-    __m256d scaled_rotation_z_z_f64x4 = _mm256_set1_pd(scale * r[8]);
-
-    // Broadcast centroids
-    __m256d centroid_a_x_f64x4 = _mm256_set1_pd(centroid_a_x);
-    __m256d centroid_a_y_f64x4 = _mm256_set1_pd(centroid_a_y);
-    __m256d centroid_a_z_f64x4 = _mm256_set1_pd(centroid_a_z);
-    __m256d centroid_b_x_f64x4 = _mm256_set1_pd(centroid_b_x);
-    __m256d centroid_b_y_f64x4 = _mm256_set1_pd(centroid_b_y);
-    __m256d centroid_b_z_f64x4 = _mm256_set1_pd(centroid_b_z);
-
-    __m256d sum_squared_f64x4 = _mm256_setzero_pd();
-    __m256d sum_squared_compensation_f64x4 = _mm256_setzero_pd();
-    __m256d a_x_f64x4, a_y_f64x4, a_z_f64x4, b_x_f64x4, b_y_f64x4, b_z_f64x4;
-    nk_size_t j = 0;
-
-    for (; j + 4 <= n; j += 4) {
-        nk_deinterleave_f64x4_haswell_(a + j * 3, &a_x_f64x4, &a_y_f64x4, &a_z_f64x4);
-        nk_deinterleave_f64x4_haswell_(b + j * 3, &b_x_f64x4, &b_y_f64x4, &b_z_f64x4);
-
-        // Center points
-        __m256d pa_x_f64x4 = _mm256_sub_pd(a_x_f64x4, centroid_a_x_f64x4);
-        __m256d pa_y_f64x4 = _mm256_sub_pd(a_y_f64x4, centroid_a_y_f64x4);
-        __m256d pa_z_f64x4 = _mm256_sub_pd(a_z_f64x4, centroid_a_z_f64x4);
-        __m256d pb_x_f64x4 = _mm256_sub_pd(b_x_f64x4, centroid_b_x_f64x4);
-        __m256d pb_y_f64x4 = _mm256_sub_pd(b_y_f64x4, centroid_b_y_f64x4);
-        __m256d pb_z_f64x4 = _mm256_sub_pd(b_z_f64x4, centroid_b_z_f64x4);
-
-        // Rotate and scale: ra = scale * R * pa
-        __m256d ra_x_f64x4 = _mm256_fmadd_pd(scaled_rotation_x_z_f64x4, pa_z_f64x4,
-                                             _mm256_fmadd_pd(scaled_rotation_x_y_f64x4, pa_y_f64x4,
-                                                             _mm256_mul_pd(scaled_rotation_x_x_f64x4, pa_x_f64x4)));
-        __m256d ra_y_f64x4 = _mm256_fmadd_pd(scaled_rotation_y_z_f64x4, pa_z_f64x4,
-                                             _mm256_fmadd_pd(scaled_rotation_y_y_f64x4, pa_y_f64x4,
-                                                             _mm256_mul_pd(scaled_rotation_y_x_f64x4, pa_x_f64x4)));
-        __m256d ra_z_f64x4 = _mm256_fmadd_pd(scaled_rotation_z_z_f64x4, pa_z_f64x4,
-                                             _mm256_fmadd_pd(scaled_rotation_z_y_f64x4, pa_y_f64x4,
-                                                             _mm256_mul_pd(scaled_rotation_z_x_f64x4, pa_x_f64x4)));
-
-        // Delta and accumulate
-        __m256d delta_x_f64x4 = _mm256_sub_pd(ra_x_f64x4, pb_x_f64x4);
-        __m256d delta_y_f64x4 = _mm256_sub_pd(ra_y_f64x4, pb_y_f64x4);
-        __m256d delta_z_f64x4 = _mm256_sub_pd(ra_z_f64x4, pb_z_f64x4);
-
-        nk_accumulate_square_f64x4_haswell_(&sum_squared_f64x4, &sum_squared_compensation_f64x4, delta_x_f64x4);
-        nk_accumulate_square_f64x4_haswell_(&sum_squared_f64x4, &sum_squared_compensation_f64x4, delta_y_f64x4);
-        nk_accumulate_square_f64x4_haswell_(&sum_squared_f64x4, &sum_squared_compensation_f64x4, delta_z_f64x4);
-    }
-
-    nk_f64_t sum_squared = nk_dot_stable_sum_f64x4_haswell_(sum_squared_f64x4, sum_squared_compensation_f64x4);
-    nk_f64_t sum_squared_compensation = 0.0;
-
-    // Scalar tail
-    for (; j < n; ++j) {
-        nk_f64_t pa_x = a[j * 3 + 0] - centroid_a_x, pa_y = a[j * 3 + 1] - centroid_a_y,
-                 pa_z = a[j * 3 + 2] - centroid_a_z;
-        nk_f64_t pb_x = b[j * 3 + 0] - centroid_b_x, pb_y = b[j * 3 + 1] - centroid_b_y,
-                 pb_z = b[j * 3 + 2] - centroid_b_z;
-        nk_f64_t ra_x = scale * (r[0] * pa_x + r[1] * pa_y + r[2] * pa_z),
-                 ra_y = scale * (r[3] * pa_x + r[4] * pa_y + r[5] * pa_z),
-                 ra_z = scale * (r[6] * pa_x + r[7] * pa_y + r[8] * pa_z);
-
-        nk_f64_t delta_x = ra_x - pb_x, delta_y = ra_y - pb_y, delta_z = ra_z - pb_z;
-        nk_accumulate_square_f64_(&sum_squared, &sum_squared_compensation, delta_x);
-        nk_accumulate_square_f64_(&sum_squared, &sum_squared_compensation, delta_y);
-        nk_accumulate_square_f64_(&sum_squared, &sum_squared_compensation, delta_z);
-    }
-
-    return sum_squared + sum_squared_compensation;
 }
 
 NK_PUBLIC void nk_rmsd_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
@@ -441,6 +235,7 @@ NK_PUBLIC void nk_kabsch_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_si
     __m256d covariance_11_f64x4 = _mm256_setzero_pd(), covariance_12_f64x4 = _mm256_setzero_pd();
     __m256d covariance_20_f64x4 = _mm256_setzero_pd(), covariance_21_f64x4 = _mm256_setzero_pd();
     __m256d covariance_22_f64x4 = _mm256_setzero_pd();
+    __m256d norm_squared_a_f64x4 = _mm256_setzero_pd(), norm_squared_b_f64x4 = _mm256_setzero_pd();
     __m256 a_x_f32x8, a_y_f32x8, a_z_f32x8, b_x_f32x8, b_y_f32x8, b_z_f32x8;
     nk_size_t index = 0;
 
@@ -494,6 +289,24 @@ NK_PUBLIC void nk_kabsch_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_si
         covariance_22_f64x4 = _mm256_add_pd(
             covariance_22_f64x4,
             _mm256_add_pd(_mm256_mul_pd(a_z_low_f64x4, b_z_low_f64x4), _mm256_mul_pd(a_z_high_f64x4, b_z_high_f64x4)));
+        norm_squared_a_f64x4 = _mm256_add_pd(
+            norm_squared_a_f64x4,
+            _mm256_add_pd(_mm256_mul_pd(a_x_low_f64x4, a_x_low_f64x4), _mm256_mul_pd(a_x_high_f64x4, a_x_high_f64x4)));
+        norm_squared_a_f64x4 = _mm256_add_pd(
+            norm_squared_a_f64x4,
+            _mm256_add_pd(_mm256_mul_pd(a_y_low_f64x4, a_y_low_f64x4), _mm256_mul_pd(a_y_high_f64x4, a_y_high_f64x4)));
+        norm_squared_a_f64x4 = _mm256_add_pd(
+            norm_squared_a_f64x4,
+            _mm256_add_pd(_mm256_mul_pd(a_z_low_f64x4, a_z_low_f64x4), _mm256_mul_pd(a_z_high_f64x4, a_z_high_f64x4)));
+        norm_squared_b_f64x4 = _mm256_add_pd(
+            norm_squared_b_f64x4,
+            _mm256_add_pd(_mm256_mul_pd(b_x_low_f64x4, b_x_low_f64x4), _mm256_mul_pd(b_x_high_f64x4, b_x_high_f64x4)));
+        norm_squared_b_f64x4 = _mm256_add_pd(
+            norm_squared_b_f64x4,
+            _mm256_add_pd(_mm256_mul_pd(b_y_low_f64x4, b_y_low_f64x4), _mm256_mul_pd(b_y_high_f64x4, b_y_high_f64x4)));
+        norm_squared_b_f64x4 = _mm256_add_pd(
+            norm_squared_b_f64x4,
+            _mm256_add_pd(_mm256_mul_pd(b_z_low_f64x4, b_z_low_f64x4), _mm256_mul_pd(b_z_high_f64x4, b_z_high_f64x4)));
     }
 
     nk_f64_t sum_a_x = nk_reduce_add_f64x4_haswell_(sum_a_x_f64x4);
@@ -502,21 +315,25 @@ NK_PUBLIC void nk_kabsch_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_si
     nk_f64_t sum_b_x = nk_reduce_add_f64x4_haswell_(sum_b_x_f64x4);
     nk_f64_t sum_b_y = nk_reduce_add_f64x4_haswell_(sum_b_y_f64x4);
     nk_f64_t sum_b_z = nk_reduce_add_f64x4_haswell_(sum_b_z_f64x4);
-    nk_f64_t h[9] = {
+    nk_f64_t cross_covariance[9] = {
         nk_reduce_add_f64x4_haswell_(covariance_00_f64x4), nk_reduce_add_f64x4_haswell_(covariance_01_f64x4),
         nk_reduce_add_f64x4_haswell_(covariance_02_f64x4), nk_reduce_add_f64x4_haswell_(covariance_10_f64x4),
         nk_reduce_add_f64x4_haswell_(covariance_11_f64x4), nk_reduce_add_f64x4_haswell_(covariance_12_f64x4),
         nk_reduce_add_f64x4_haswell_(covariance_20_f64x4), nk_reduce_add_f64x4_haswell_(covariance_21_f64x4),
         nk_reduce_add_f64x4_haswell_(covariance_22_f64x4)};
+    nk_f64_t norm_squared_a = nk_reduce_add_f64x4_haswell_(norm_squared_a_f64x4);
+    nk_f64_t norm_squared_b = nk_reduce_add_f64x4_haswell_(norm_squared_b_f64x4);
 
     for (; index < n; ++index) {
         nk_f64_t a_x = a[index * 3 + 0], a_y = a[index * 3 + 1], a_z = a[index * 3 + 2];
         nk_f64_t b_x = b[index * 3 + 0], b_y = b[index * 3 + 1], b_z = b[index * 3 + 2];
         sum_a_x += a_x, sum_a_y += a_y, sum_a_z += a_z;
         sum_b_x += b_x, sum_b_y += b_y, sum_b_z += b_z;
-        h[0] += a_x * b_x, h[1] += a_x * b_y, h[2] += a_x * b_z;
-        h[3] += a_y * b_x, h[4] += a_y * b_y, h[5] += a_y * b_z;
-        h[6] += a_z * b_x, h[7] += a_z * b_y, h[8] += a_z * b_z;
+        cross_covariance[0] += a_x * b_x, cross_covariance[1] += a_x * b_y, cross_covariance[2] += a_x * b_z;
+        cross_covariance[3] += a_y * b_x, cross_covariance[4] += a_y * b_y, cross_covariance[5] += a_y * b_z;
+        cross_covariance[6] += a_z * b_x, cross_covariance[7] += a_z * b_y, cross_covariance[8] += a_z * b_z;
+        norm_squared_a += a_x * a_x + a_y * a_y + a_z * a_z;
+        norm_squared_b += b_x * b_x + b_y * b_y + b_z * b_z;
     }
 
     nk_f64_t inv_n = 1.0 / (nk_f64_t)n;
@@ -529,41 +346,81 @@ NK_PUBLIC void nk_kabsch_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_si
         b_centroid[0] = (nk_f32_t)centroid_b_x, b_centroid[1] = (nk_f32_t)centroid_b_y,
         b_centroid[2] = (nk_f32_t)centroid_b_z;
 
-    h[0] -= (nk_f64_t)n * centroid_a_x * centroid_b_x, h[1] -= (nk_f64_t)n * centroid_a_x * centroid_b_y,
-        h[2] -= (nk_f64_t)n * centroid_a_x * centroid_b_z, h[3] -= (nk_f64_t)n * centroid_a_y * centroid_b_x,
-        h[4] -= (nk_f64_t)n * centroid_a_y * centroid_b_y, h[5] -= (nk_f64_t)n * centroid_a_y * centroid_b_z,
-        h[6] -= (nk_f64_t)n * centroid_a_z * centroid_b_x, h[7] -= (nk_f64_t)n * centroid_a_z * centroid_b_y,
-        h[8] -= (nk_f64_t)n * centroid_a_z * centroid_b_z;
+    cross_covariance[0] -= (nk_f64_t)n * centroid_a_x * centroid_b_x,
+        cross_covariance[1] -= (nk_f64_t)n * centroid_a_x * centroid_b_y,
+        cross_covariance[2] -= (nk_f64_t)n * centroid_a_x * centroid_b_z,
+        cross_covariance[3] -= (nk_f64_t)n * centroid_a_y * centroid_b_x,
+        cross_covariance[4] -= (nk_f64_t)n * centroid_a_y * centroid_b_y,
+        cross_covariance[5] -= (nk_f64_t)n * centroid_a_y * centroid_b_z,
+        cross_covariance[6] -= (nk_f64_t)n * centroid_a_z * centroid_b_x,
+        cross_covariance[7] -= (nk_f64_t)n * centroid_a_z * centroid_b_y,
+        cross_covariance[8] -= (nk_f64_t)n * centroid_a_z * centroid_b_z;
 
-    nk_f64_t cross_covariance[9] = {h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], h[8]};
-    nk_f64_t svd_u[9], svd_s[9], svd_v[9], r[9];
-    nk_svd3x3_f64_(cross_covariance, svd_u, svd_s, svd_v);
-    r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
-    if (nk_det3x3_f64_(r) < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    nk_f64_t centered_norm_squared_a = norm_squared_a -
+                                       (nk_f64_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f64_t centered_norm_squared_b = norm_squared_b -
+                                       (nk_f64_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0) centered_norm_squared_a = 0.0;
+    if (centered_norm_squared_b < 0.0) centered_norm_squared_b = 0.0;
+
+    // Identity-dominant short-circuit: R = I, trace(R * H) = H[0]+H[4]+H[8]. Skips SVD + two
+    // rotation_from_svd reconstructions when the inputs are already aligned.
+    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f64_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f64_t optimal_rotation[9];
+    nk_f64_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
+        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
+        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
+        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
+        optimal_rotation[8] = 1;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+    }
+    else {
+        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+        optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+        optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+        optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+        optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+        optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+        optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+        optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+        optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+        if (nk_det3x3_f64_(optimal_rotation) < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+            optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+            optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+            optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+            optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+            optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+            optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+            optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+            optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+        }
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
     }
 
     if (rotation)
-        for (int j = 0; j != 9; ++j) rotation[j] = (nk_f32_t)r[j];
-    nk_f64_t sum_squared = nk_transformed_ssd_f32_haswell_(a, b, n, r, 1.0, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                           centroid_b_x, centroid_b_y, centroid_b_z);
+        for (int j = 0; j != 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
+
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    nk_f64_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0 * trace_rotation_covariance;
+    if (sum_squared < 0.0) sum_squared = 0.0;
     *result = nk_f64_sqrt_haswell(sum_squared / (nk_f64_t)n);
 }
 
@@ -576,14 +433,15 @@ NK_PUBLIC void nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_si
     __m256d sum_b_x_f64x4 = zeros_f64x4, sum_b_y_f64x4 = zeros_f64x4, sum_b_z_f64x4 = zeros_f64x4;
 
     // Accumulators for covariance matrix (sum of outer products)
-    __m256d cov_xx_f64x4 = zeros_f64x4, cov_xy_f64x4 = zeros_f64x4, cov_xz_f64x4 = zeros_f64x4;
-    __m256d cov_yx_f64x4 = zeros_f64x4, cov_yy_f64x4 = zeros_f64x4, cov_yz_f64x4 = zeros_f64x4;
-    __m256d cov_zx_f64x4 = zeros_f64x4, cov_zy_f64x4 = zeros_f64x4, cov_zz_f64x4 = zeros_f64x4;
+    __m256d covariance_xx_f64x4 = zeros_f64x4, covariance_xy_f64x4 = zeros_f64x4, covariance_xz_f64x4 = zeros_f64x4;
+    __m256d covariance_yx_f64x4 = zeros_f64x4, covariance_yy_f64x4 = zeros_f64x4, covariance_yz_f64x4 = zeros_f64x4;
+    __m256d covariance_zx_f64x4 = zeros_f64x4, covariance_zy_f64x4 = zeros_f64x4, covariance_zz_f64x4 = zeros_f64x4;
+    __m256d norm_squared_a_f64x4 = zeros_f64x4, norm_squared_b_f64x4 = zeros_f64x4;
 
     nk_size_t i = 0;
     __m256d a_x_f64x4, a_y_f64x4, a_z_f64x4, b_x_f64x4, b_y_f64x4, b_z_f64x4;
 
-    // Fused single-pass
+    // Fused single-pass (centroids + covariance + norm-squared for folded SSD)
     for (; i + 4 <= n; i += 4) {
         nk_deinterleave_f64x4_haswell_(a + i * 3, &a_x_f64x4, &a_y_f64x4, &a_z_f64x4);
         nk_deinterleave_f64x4_haswell_(b + i * 3, &b_x_f64x4, &b_y_f64x4, &b_z_f64x4);
@@ -595,15 +453,21 @@ NK_PUBLIC void nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_si
         sum_b_y_f64x4 = _mm256_add_pd(sum_b_y_f64x4, b_y_f64x4);
         sum_b_z_f64x4 = _mm256_add_pd(sum_b_z_f64x4, b_z_f64x4);
 
-        cov_xx_f64x4 = _mm256_fmadd_pd(a_x_f64x4, b_x_f64x4, cov_xx_f64x4);
-        cov_xy_f64x4 = _mm256_fmadd_pd(a_x_f64x4, b_y_f64x4, cov_xy_f64x4);
-        cov_xz_f64x4 = _mm256_fmadd_pd(a_x_f64x4, b_z_f64x4, cov_xz_f64x4);
-        cov_yx_f64x4 = _mm256_fmadd_pd(a_y_f64x4, b_x_f64x4, cov_yx_f64x4);
-        cov_yy_f64x4 = _mm256_fmadd_pd(a_y_f64x4, b_y_f64x4, cov_yy_f64x4);
-        cov_yz_f64x4 = _mm256_fmadd_pd(a_y_f64x4, b_z_f64x4, cov_yz_f64x4);
-        cov_zx_f64x4 = _mm256_fmadd_pd(a_z_f64x4, b_x_f64x4, cov_zx_f64x4);
-        cov_zy_f64x4 = _mm256_fmadd_pd(a_z_f64x4, b_y_f64x4, cov_zy_f64x4);
-        cov_zz_f64x4 = _mm256_fmadd_pd(a_z_f64x4, b_z_f64x4, cov_zz_f64x4);
+        covariance_xx_f64x4 = _mm256_fmadd_pd(a_x_f64x4, b_x_f64x4, covariance_xx_f64x4);
+        covariance_xy_f64x4 = _mm256_fmadd_pd(a_x_f64x4, b_y_f64x4, covariance_xy_f64x4);
+        covariance_xz_f64x4 = _mm256_fmadd_pd(a_x_f64x4, b_z_f64x4, covariance_xz_f64x4);
+        covariance_yx_f64x4 = _mm256_fmadd_pd(a_y_f64x4, b_x_f64x4, covariance_yx_f64x4);
+        covariance_yy_f64x4 = _mm256_fmadd_pd(a_y_f64x4, b_y_f64x4, covariance_yy_f64x4);
+        covariance_yz_f64x4 = _mm256_fmadd_pd(a_y_f64x4, b_z_f64x4, covariance_yz_f64x4);
+        covariance_zx_f64x4 = _mm256_fmadd_pd(a_z_f64x4, b_x_f64x4, covariance_zx_f64x4);
+        covariance_zy_f64x4 = _mm256_fmadd_pd(a_z_f64x4, b_y_f64x4, covariance_zy_f64x4);
+        covariance_zz_f64x4 = _mm256_fmadd_pd(a_z_f64x4, b_z_f64x4, covariance_zz_f64x4);
+        norm_squared_a_f64x4 = _mm256_fmadd_pd(a_x_f64x4, a_x_f64x4, norm_squared_a_f64x4);
+        norm_squared_a_f64x4 = _mm256_fmadd_pd(a_y_f64x4, a_y_f64x4, norm_squared_a_f64x4);
+        norm_squared_a_f64x4 = _mm256_fmadd_pd(a_z_f64x4, a_z_f64x4, norm_squared_a_f64x4);
+        norm_squared_b_f64x4 = _mm256_fmadd_pd(b_x_f64x4, b_x_f64x4, norm_squared_b_f64x4);
+        norm_squared_b_f64x4 = _mm256_fmadd_pd(b_y_f64x4, b_y_f64x4, norm_squared_b_f64x4);
+        norm_squared_b_f64x4 = _mm256_fmadd_pd(b_z_f64x4, b_z_f64x4, norm_squared_b_f64x4);
     }
 
     // Reduce vector accumulators
@@ -614,15 +478,19 @@ NK_PUBLIC void nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_si
     nk_f64_t sum_b_y = nk_reduce_stable_f64x4_haswell_(sum_b_y_f64x4), sum_b_y_compensation = 0.0;
     nk_f64_t sum_b_z = nk_reduce_stable_f64x4_haswell_(sum_b_z_f64x4), sum_b_z_compensation = 0.0;
 
-    nk_f64_t covariance_x_x = nk_reduce_stable_f64x4_haswell_(cov_xx_f64x4), covariance_x_x_compensation = 0.0;
-    nk_f64_t covariance_x_y = nk_reduce_stable_f64x4_haswell_(cov_xy_f64x4), covariance_x_y_compensation = 0.0;
-    nk_f64_t covariance_x_z = nk_reduce_stable_f64x4_haswell_(cov_xz_f64x4), covariance_x_z_compensation = 0.0;
-    nk_f64_t covariance_y_x = nk_reduce_stable_f64x4_haswell_(cov_yx_f64x4), covariance_y_x_compensation = 0.0;
-    nk_f64_t covariance_y_y = nk_reduce_stable_f64x4_haswell_(cov_yy_f64x4), covariance_y_y_compensation = 0.0;
-    nk_f64_t covariance_y_z = nk_reduce_stable_f64x4_haswell_(cov_yz_f64x4), covariance_y_z_compensation = 0.0;
-    nk_f64_t covariance_z_x = nk_reduce_stable_f64x4_haswell_(cov_zx_f64x4), covariance_z_x_compensation = 0.0;
-    nk_f64_t covariance_z_y = nk_reduce_stable_f64x4_haswell_(cov_zy_f64x4), covariance_z_y_compensation = 0.0;
-    nk_f64_t covariance_z_z = nk_reduce_stable_f64x4_haswell_(cov_zz_f64x4), covariance_z_z_compensation = 0.0;
+    nk_f64_t covariance_x_x = nk_reduce_stable_f64x4_haswell_(covariance_xx_f64x4), covariance_x_x_compensation = 0.0;
+    nk_f64_t covariance_x_y = nk_reduce_stable_f64x4_haswell_(covariance_xy_f64x4), covariance_x_y_compensation = 0.0;
+    nk_f64_t covariance_x_z = nk_reduce_stable_f64x4_haswell_(covariance_xz_f64x4), covariance_x_z_compensation = 0.0;
+    nk_f64_t covariance_y_x = nk_reduce_stable_f64x4_haswell_(covariance_yx_f64x4), covariance_y_x_compensation = 0.0;
+    nk_f64_t covariance_y_y = nk_reduce_stable_f64x4_haswell_(covariance_yy_f64x4), covariance_y_y_compensation = 0.0;
+    nk_f64_t covariance_y_z = nk_reduce_stable_f64x4_haswell_(covariance_yz_f64x4), covariance_y_z_compensation = 0.0;
+    nk_f64_t covariance_z_x = nk_reduce_stable_f64x4_haswell_(covariance_zx_f64x4), covariance_z_x_compensation = 0.0;
+    nk_f64_t covariance_z_y = nk_reduce_stable_f64x4_haswell_(covariance_zy_f64x4), covariance_z_y_compensation = 0.0;
+    nk_f64_t covariance_z_z = nk_reduce_stable_f64x4_haswell_(covariance_zz_f64x4), covariance_z_z_compensation = 0.0;
+    nk_f64_t norm_squared_a_sum = nk_reduce_stable_f64x4_haswell_(norm_squared_a_f64x4),
+             norm_squared_a_compensation = 0.0;
+    nk_f64_t norm_squared_b_sum = nk_reduce_stable_f64x4_haswell_(norm_squared_b_f64x4),
+             norm_squared_b_compensation = 0.0;
 
     // Scalar tail
     for (; i < n; ++i) {
@@ -643,6 +511,12 @@ NK_PUBLIC void nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_si
         nk_accumulate_product_f64_(&covariance_z_x, &covariance_z_x_compensation, az, bx);
         nk_accumulate_product_f64_(&covariance_z_y, &covariance_z_y_compensation, az, by);
         nk_accumulate_product_f64_(&covariance_z_z, &covariance_z_z_compensation, az, bz);
+        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, ax);
+        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, ay);
+        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, az);
+        nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, bx);
+        nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, by);
+        nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, bz);
     }
 
     sum_a_x += sum_a_x_compensation, sum_a_y += sum_a_y_compensation, sum_a_z += sum_a_z_compensation;
@@ -653,6 +527,8 @@ NK_PUBLIC void nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_si
         covariance_y_z += covariance_y_z_compensation;
     covariance_z_x += covariance_z_x_compensation, covariance_z_y += covariance_z_y_compensation,
         covariance_z_z += covariance_z_z_compensation;
+    norm_squared_a_sum += norm_squared_a_compensation;
+    norm_squared_b_sum += norm_squared_b_compensation;
 
     // Compute centroids
     nk_f64_t inv_n = 1.0 / (nk_f64_t)n;
@@ -677,29 +553,59 @@ NK_PUBLIC void nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_si
     covariance_z_y -= (nk_f64_t)n * centroid_a_z * centroid_b_y;
     covariance_z_z -= (nk_f64_t)n * centroid_a_z * centroid_b_z;
 
-    // Compute SVD and optimal rotation using f64 precision (svd_s is 9-element diagonal matrix)
     nk_f64_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
-    nk_f64_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f64_(cross_covariance, svd_u, svd_s, svd_v);
 
-    nk_f64_t r[9];
-    nk_rotation_from_svd_f64_haswell_(svd_u, svd_v, r);
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    nk_f64_t centered_norm_squared_a = norm_squared_a_sum -
+                                       (nk_f64_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f64_t centered_norm_squared_b = norm_squared_b_sum -
+                                       (nk_f64_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0) centered_norm_squared_a = 0.0;
+    if (centered_norm_squared_b < 0.0) centered_norm_squared_b = 0.0;
 
-    // Handle reflection: if det(R) < 0, negate third column of V and recompute R
-    if (nk_det3x3_f64_(r) < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        nk_rotation_from_svd_f64_haswell_(svd_u, svd_v, r);
+    // Identity-dominant short-circuit: if H is essentially diagonal with positive diagonals, R = I.
+    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f64_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f64_t optimal_rotation[9];
+    nk_f64_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
+        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
+        optimal_rotation[0] = 1.0, optimal_rotation[1] = 0.0, optimal_rotation[2] = 0.0;
+        optimal_rotation[3] = 0.0, optimal_rotation[4] = 1.0, optimal_rotation[5] = 0.0;
+        optimal_rotation[6] = 0.0, optimal_rotation[7] = 0.0, optimal_rotation[8] = 1.0;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+    }
+    else {
+        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        if (nk_det3x3_f64_(optimal_rotation) < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        }
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
     }
 
     // Output rotation matrix and scale=1.0
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0;
 
-    // Compute RMSD after optimal rotation
-    nk_f64_t sum_squared = nk_transformed_ssd_f64_haswell_(a, b, n, r, 1.0, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                           centroid_b_x, centroid_b_y, centroid_b_z);
+    nk_f64_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0 * trace_rotation_covariance;
+    if (sum_squared < 0.0) sum_squared = 0.0;
     *result = nk_f64_sqrt_haswell(sum_squared * inv_n);
 }
 
@@ -712,7 +618,8 @@ NK_PUBLIC void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_s
     __m256d covariance_02_f64x4 = _mm256_setzero_pd(), covariance_10_f64x4 = _mm256_setzero_pd();
     __m256d covariance_11_f64x4 = _mm256_setzero_pd(), covariance_12_f64x4 = _mm256_setzero_pd();
     __m256d covariance_20_f64x4 = _mm256_setzero_pd(), covariance_21_f64x4 = _mm256_setzero_pd();
-    __m256d covariance_22_f64x4 = _mm256_setzero_pd(), variance_a_f64x4 = _mm256_setzero_pd();
+    __m256d covariance_22_f64x4 = _mm256_setzero_pd();
+    __m256d norm_squared_a_f64x4 = _mm256_setzero_pd(), norm_squared_b_f64x4 = _mm256_setzero_pd();
     __m256 a_x_f32x8, a_y_f32x8, a_z_f32x8, b_x_f32x8, b_y_f32x8, b_z_f32x8;
     nk_size_t index = 0;
 
@@ -765,14 +672,22 @@ NK_PUBLIC void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_s
         covariance_22_f64x4 = _mm256_add_pd(
             covariance_22_f64x4,
             _mm256_add_pd(_mm256_mul_pd(a_z_low_f64x4, b_z_low_f64x4), _mm256_mul_pd(a_z_high_f64x4, b_z_high_f64x4)));
-        variance_a_f64x4 = _mm256_add_pd(
-            variance_a_f64x4,
+        norm_squared_a_f64x4 = _mm256_add_pd(
+            norm_squared_a_f64x4,
             _mm256_add_pd(_mm256_add_pd(_mm256_mul_pd(a_x_low_f64x4, a_x_low_f64x4),
                                         _mm256_mul_pd(a_x_high_f64x4, a_x_high_f64x4)),
                           _mm256_add_pd(_mm256_add_pd(_mm256_mul_pd(a_y_low_f64x4, a_y_low_f64x4),
                                                       _mm256_mul_pd(a_y_high_f64x4, a_y_high_f64x4)),
                                         _mm256_add_pd(_mm256_mul_pd(a_z_low_f64x4, a_z_low_f64x4),
                                                       _mm256_mul_pd(a_z_high_f64x4, a_z_high_f64x4)))));
+        norm_squared_b_f64x4 = _mm256_add_pd(
+            norm_squared_b_f64x4,
+            _mm256_add_pd(_mm256_add_pd(_mm256_mul_pd(b_x_low_f64x4, b_x_low_f64x4),
+                                        _mm256_mul_pd(b_x_high_f64x4, b_x_high_f64x4)),
+                          _mm256_add_pd(_mm256_add_pd(_mm256_mul_pd(b_y_low_f64x4, b_y_low_f64x4),
+                                                      _mm256_mul_pd(b_y_high_f64x4, b_y_high_f64x4)),
+                                        _mm256_add_pd(_mm256_mul_pd(b_z_low_f64x4, b_z_low_f64x4),
+                                                      _mm256_mul_pd(b_z_high_f64x4, b_z_high_f64x4)))));
     }
 
     nk_f64_t sum_a_x = nk_reduce_add_f64x4_haswell_(sum_a_x_f64x4);
@@ -781,23 +696,25 @@ NK_PUBLIC void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_s
     nk_f64_t sum_b_x = nk_reduce_add_f64x4_haswell_(sum_b_x_f64x4);
     nk_f64_t sum_b_y = nk_reduce_add_f64x4_haswell_(sum_b_y_f64x4);
     nk_f64_t sum_b_z = nk_reduce_add_f64x4_haswell_(sum_b_z_f64x4);
-    nk_f64_t h[9] = {
+    nk_f64_t cross_covariance[9] = {
         nk_reduce_add_f64x4_haswell_(covariance_00_f64x4), nk_reduce_add_f64x4_haswell_(covariance_01_f64x4),
         nk_reduce_add_f64x4_haswell_(covariance_02_f64x4), nk_reduce_add_f64x4_haswell_(covariance_10_f64x4),
         nk_reduce_add_f64x4_haswell_(covariance_11_f64x4), nk_reduce_add_f64x4_haswell_(covariance_12_f64x4),
         nk_reduce_add_f64x4_haswell_(covariance_20_f64x4), nk_reduce_add_f64x4_haswell_(covariance_21_f64x4),
         nk_reduce_add_f64x4_haswell_(covariance_22_f64x4)};
-    nk_f64_t variance_a = nk_reduce_add_f64x4_haswell_(variance_a_f64x4);
+    nk_f64_t norm_squared_a_sum = nk_reduce_add_f64x4_haswell_(norm_squared_a_f64x4);
+    nk_f64_t norm_squared_b_sum = nk_reduce_add_f64x4_haswell_(norm_squared_b_f64x4);
 
     for (; index < n; ++index) {
         nk_f64_t a_x = a[index * 3 + 0], a_y = a[index * 3 + 1], a_z = a[index * 3 + 2];
         nk_f64_t b_x = b[index * 3 + 0], b_y = b[index * 3 + 1], b_z = b[index * 3 + 2];
         sum_a_x += a_x, sum_a_y += a_y, sum_a_z += a_z;
         sum_b_x += b_x, sum_b_y += b_y, sum_b_z += b_z;
-        h[0] += a_x * b_x, h[1] += a_x * b_y, h[2] += a_x * b_z;
-        h[3] += a_y * b_x, h[4] += a_y * b_y, h[5] += a_y * b_z;
-        h[6] += a_z * b_x, h[7] += a_z * b_y, h[8] += a_z * b_z;
-        variance_a += a_x * a_x + a_y * a_y + a_z * a_z;
+        cross_covariance[0] += a_x * b_x, cross_covariance[1] += a_x * b_y, cross_covariance[2] += a_x * b_z;
+        cross_covariance[3] += a_y * b_x, cross_covariance[4] += a_y * b_y, cross_covariance[5] += a_y * b_z;
+        cross_covariance[6] += a_z * b_x, cross_covariance[7] += a_z * b_y, cross_covariance[8] += a_z * b_z;
+        norm_squared_a_sum += a_x * a_x + a_y * a_y + a_z * a_z;
+        norm_squared_b_sum += b_x * b_x + b_y * b_y + b_z * b_z;
     }
 
     nk_f64_t inv_n = 1.0 / (nk_f64_t)n;
@@ -810,49 +727,89 @@ NK_PUBLIC void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_s
         b_centroid[0] = (nk_f32_t)centroid_b_x, b_centroid[1] = (nk_f32_t)centroid_b_y,
         b_centroid[2] = (nk_f32_t)centroid_b_z;
 
-    variance_a = variance_a * inv_n -
-                 (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y + centroid_a_z * centroid_a_z);
-    h[0] -= (nk_f64_t)n * centroid_a_x * centroid_b_x, h[1] -= (nk_f64_t)n * centroid_a_x * centroid_b_y,
-        h[2] -= (nk_f64_t)n * centroid_a_x * centroid_b_z, h[3] -= (nk_f64_t)n * centroid_a_y * centroid_b_x,
-        h[4] -= (nk_f64_t)n * centroid_a_y * centroid_b_y, h[5] -= (nk_f64_t)n * centroid_a_y * centroid_b_z,
-        h[6] -= (nk_f64_t)n * centroid_a_z * centroid_b_x, h[7] -= (nk_f64_t)n * centroid_a_z * centroid_b_y,
-        h[8] -= (nk_f64_t)n * centroid_a_z * centroid_b_z;
+    nk_f64_t centered_norm_squared_a = norm_squared_a_sum -
+                                       (nk_f64_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f64_t centered_norm_squared_b = norm_squared_b_sum -
+                                       (nk_f64_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0) centered_norm_squared_a = 0.0;
+    if (centered_norm_squared_b < 0.0) centered_norm_squared_b = 0.0;
+    cross_covariance[0] -= (nk_f64_t)n * centroid_a_x * centroid_b_x,
+        cross_covariance[1] -= (nk_f64_t)n * centroid_a_x * centroid_b_y,
+        cross_covariance[2] -= (nk_f64_t)n * centroid_a_x * centroid_b_z,
+        cross_covariance[3] -= (nk_f64_t)n * centroid_a_y * centroid_b_x,
+        cross_covariance[4] -= (nk_f64_t)n * centroid_a_y * centroid_b_y,
+        cross_covariance[5] -= (nk_f64_t)n * centroid_a_y * centroid_b_z,
+        cross_covariance[6] -= (nk_f64_t)n * centroid_a_z * centroid_b_x,
+        cross_covariance[7] -= (nk_f64_t)n * centroid_a_z * centroid_b_y,
+        cross_covariance[8] -= (nk_f64_t)n * centroid_a_z * centroid_b_z;
 
-    nk_f64_t cross_covariance[9] = {h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], h[8]};
-    nk_f64_t svd_u[9], svd_s[9], svd_v[9], r[9];
-    nk_svd3x3_f64_(cross_covariance, svd_u, svd_s, svd_v);
-    r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    // Identity-dominant short-circuit: if H is essentially diagonal with positive diagonals,
+    // R = I and trace(DS) reduces to trace(H) directly.
+    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f64_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f64_t optimal_rotation[9];
+    nk_f64_t applied_scale;
+    nk_f64_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
+        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
+        optimal_rotation[0] = 1.0, optimal_rotation[1] = 0.0, optimal_rotation[2] = 0.0;
+        optimal_rotation[3] = 0.0, optimal_rotation[4] = 1.0, optimal_rotation[5] = 0.0;
+        optimal_rotation[6] = 0.0, optimal_rotation[7] = 0.0, optimal_rotation[8] = 1.0;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+        applied_scale = centered_norm_squared_a > 0.0 ? trace_rotation_covariance / centered_norm_squared_a : 0.0;
+    }
+    else {
+        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+        optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+        optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+        optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+        optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+        optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+        optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+        optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+        optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
 
-    nk_f64_t det = nk_det3x3_f64_(r), sign_correction = det < 0 ? -1.0 : 1.0;
-    if (det < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+        nk_f64_t det = nk_det3x3_f64_(optimal_rotation), sign_correction = det < 0 ? -1.0 : 1.0;
+        if (det < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+            optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+            optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+            optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+            optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+            optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+            optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+            optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+            optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+        }
+        nk_f64_t trace_ds = svd_diagonal[0] + svd_diagonal[4] + sign_correction * svd_diagonal[8];
+        applied_scale = centered_norm_squared_a > 0.0 ? trace_ds / centered_norm_squared_a : 0.0;
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
     }
 
-    nk_f64_t applied_scale = (svd_s[0] + svd_s[4] + sign_correction * svd_s[8]) / ((nk_f64_t)n * variance_a);
     if (rotation)
-        for (int j = 0; j != 9; ++j) rotation[j] = (nk_f32_t)r[j];
+        for (int j = 0; j != 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
     if (scale) *scale = (nk_f32_t)applied_scale;
-    *result = nk_f64_sqrt_haswell(nk_transformed_ssd_f32_haswell_(a, b, n, r, applied_scale, centroid_a_x, centroid_a_y,
-                                                                  centroid_a_z, centroid_b_x, centroid_b_y,
-                                                                  centroid_b_z) /
-                                  (nk_f64_t)n);
+
+    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    nk_f64_t sum_squared = applied_scale * applied_scale * centered_norm_squared_a + centered_norm_squared_b -
+                           2.0 * applied_scale * trace_rotation_covariance;
+    if (sum_squared < 0.0) sum_squared = 0.0;
+    *result = nk_f64_sqrt_haswell(sum_squared / (nk_f64_t)n);
 }
 
 NK_PUBLIC void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
@@ -862,10 +819,10 @@ NK_PUBLIC void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_s
 
     __m256d sum_a_x_f64x4 = zeros_f64x4, sum_a_y_f64x4 = zeros_f64x4, sum_a_z_f64x4 = zeros_f64x4;
     __m256d sum_b_x_f64x4 = zeros_f64x4, sum_b_y_f64x4 = zeros_f64x4, sum_b_z_f64x4 = zeros_f64x4;
-    __m256d cov_xx_f64x4 = zeros_f64x4, cov_xy_f64x4 = zeros_f64x4, cov_xz_f64x4 = zeros_f64x4;
-    __m256d cov_yx_f64x4 = zeros_f64x4, cov_yy_f64x4 = zeros_f64x4, cov_yz_f64x4 = zeros_f64x4;
-    __m256d cov_zx_f64x4 = zeros_f64x4, cov_zy_f64x4 = zeros_f64x4, cov_zz_f64x4 = zeros_f64x4;
-    __m256d variance_a_f64x4 = zeros_f64x4;
+    __m256d covariance_xx_f64x4 = zeros_f64x4, covariance_xy_f64x4 = zeros_f64x4, covariance_xz_f64x4 = zeros_f64x4;
+    __m256d covariance_yx_f64x4 = zeros_f64x4, covariance_yy_f64x4 = zeros_f64x4, covariance_yz_f64x4 = zeros_f64x4;
+    __m256d covariance_zx_f64x4 = zeros_f64x4, covariance_zy_f64x4 = zeros_f64x4, covariance_zz_f64x4 = zeros_f64x4;
+    __m256d norm_squared_a_f64x4 = zeros_f64x4, norm_squared_b_f64x4 = zeros_f64x4;
 
     nk_size_t i = 0;
     __m256d a_x_f64x4, a_y_f64x4, a_z_f64x4, b_x_f64x4, b_y_f64x4, b_z_f64x4;
@@ -881,18 +838,21 @@ NK_PUBLIC void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_s
         sum_b_y_f64x4 = _mm256_add_pd(sum_b_y_f64x4, b_y_f64x4);
         sum_b_z_f64x4 = _mm256_add_pd(sum_b_z_f64x4, b_z_f64x4);
 
-        cov_xx_f64x4 = _mm256_fmadd_pd(a_x_f64x4, b_x_f64x4, cov_xx_f64x4),
-        cov_xy_f64x4 = _mm256_fmadd_pd(a_x_f64x4, b_y_f64x4, cov_xy_f64x4);
-        cov_xz_f64x4 = _mm256_fmadd_pd(a_x_f64x4, b_z_f64x4, cov_xz_f64x4);
-        cov_yx_f64x4 = _mm256_fmadd_pd(a_y_f64x4, b_x_f64x4, cov_yx_f64x4),
-        cov_yy_f64x4 = _mm256_fmadd_pd(a_y_f64x4, b_y_f64x4, cov_yy_f64x4);
-        cov_yz_f64x4 = _mm256_fmadd_pd(a_y_f64x4, b_z_f64x4, cov_yz_f64x4);
-        cov_zx_f64x4 = _mm256_fmadd_pd(a_z_f64x4, b_x_f64x4, cov_zx_f64x4),
-        cov_zy_f64x4 = _mm256_fmadd_pd(a_z_f64x4, b_y_f64x4, cov_zy_f64x4);
-        cov_zz_f64x4 = _mm256_fmadd_pd(a_z_f64x4, b_z_f64x4, cov_zz_f64x4);
-        variance_a_f64x4 = _mm256_fmadd_pd(a_x_f64x4, a_x_f64x4, variance_a_f64x4);
-        variance_a_f64x4 = _mm256_fmadd_pd(a_y_f64x4, a_y_f64x4, variance_a_f64x4);
-        variance_a_f64x4 = _mm256_fmadd_pd(a_z_f64x4, a_z_f64x4, variance_a_f64x4);
+        covariance_xx_f64x4 = _mm256_fmadd_pd(a_x_f64x4, b_x_f64x4, covariance_xx_f64x4),
+        covariance_xy_f64x4 = _mm256_fmadd_pd(a_x_f64x4, b_y_f64x4, covariance_xy_f64x4);
+        covariance_xz_f64x4 = _mm256_fmadd_pd(a_x_f64x4, b_z_f64x4, covariance_xz_f64x4);
+        covariance_yx_f64x4 = _mm256_fmadd_pd(a_y_f64x4, b_x_f64x4, covariance_yx_f64x4),
+        covariance_yy_f64x4 = _mm256_fmadd_pd(a_y_f64x4, b_y_f64x4, covariance_yy_f64x4);
+        covariance_yz_f64x4 = _mm256_fmadd_pd(a_y_f64x4, b_z_f64x4, covariance_yz_f64x4);
+        covariance_zx_f64x4 = _mm256_fmadd_pd(a_z_f64x4, b_x_f64x4, covariance_zx_f64x4),
+        covariance_zy_f64x4 = _mm256_fmadd_pd(a_z_f64x4, b_y_f64x4, covariance_zy_f64x4);
+        covariance_zz_f64x4 = _mm256_fmadd_pd(a_z_f64x4, b_z_f64x4, covariance_zz_f64x4);
+        norm_squared_a_f64x4 = _mm256_fmadd_pd(a_x_f64x4, a_x_f64x4, norm_squared_a_f64x4);
+        norm_squared_a_f64x4 = _mm256_fmadd_pd(a_y_f64x4, a_y_f64x4, norm_squared_a_f64x4);
+        norm_squared_a_f64x4 = _mm256_fmadd_pd(a_z_f64x4, a_z_f64x4, norm_squared_a_f64x4);
+        norm_squared_b_f64x4 = _mm256_fmadd_pd(b_x_f64x4, b_x_f64x4, norm_squared_b_f64x4);
+        norm_squared_b_f64x4 = _mm256_fmadd_pd(b_y_f64x4, b_y_f64x4, norm_squared_b_f64x4);
+        norm_squared_b_f64x4 = _mm256_fmadd_pd(b_z_f64x4, b_z_f64x4, norm_squared_b_f64x4);
     }
 
     // Reduce vector accumulators
@@ -902,16 +862,19 @@ NK_PUBLIC void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_s
     nk_f64_t sum_b_x = nk_reduce_stable_f64x4_haswell_(sum_b_x_f64x4), sum_b_x_compensation = 0.0;
     nk_f64_t sum_b_y = nk_reduce_stable_f64x4_haswell_(sum_b_y_f64x4), sum_b_y_compensation = 0.0;
     nk_f64_t sum_b_z = nk_reduce_stable_f64x4_haswell_(sum_b_z_f64x4), sum_b_z_compensation = 0.0;
-    nk_f64_t covariance_x_x = nk_reduce_stable_f64x4_haswell_(cov_xx_f64x4), covariance_x_x_compensation = 0.0;
-    nk_f64_t covariance_x_y = nk_reduce_stable_f64x4_haswell_(cov_xy_f64x4), covariance_x_y_compensation = 0.0;
-    nk_f64_t covariance_x_z = nk_reduce_stable_f64x4_haswell_(cov_xz_f64x4), covariance_x_z_compensation = 0.0;
-    nk_f64_t covariance_y_x = nk_reduce_stable_f64x4_haswell_(cov_yx_f64x4), covariance_y_x_compensation = 0.0;
-    nk_f64_t covariance_y_y = nk_reduce_stable_f64x4_haswell_(cov_yy_f64x4), covariance_y_y_compensation = 0.0;
-    nk_f64_t covariance_y_z = nk_reduce_stable_f64x4_haswell_(cov_yz_f64x4), covariance_y_z_compensation = 0.0;
-    nk_f64_t covariance_z_x = nk_reduce_stable_f64x4_haswell_(cov_zx_f64x4), covariance_z_x_compensation = 0.0;
-    nk_f64_t covariance_z_y = nk_reduce_stable_f64x4_haswell_(cov_zy_f64x4), covariance_z_y_compensation = 0.0;
-    nk_f64_t covariance_z_z = nk_reduce_stable_f64x4_haswell_(cov_zz_f64x4), covariance_z_z_compensation = 0.0;
-    nk_f64_t variance_a_sum = nk_reduce_stable_f64x4_haswell_(variance_a_f64x4), variance_a_compensation = 0.0;
+    nk_f64_t covariance_x_x = nk_reduce_stable_f64x4_haswell_(covariance_xx_f64x4), covariance_x_x_compensation = 0.0;
+    nk_f64_t covariance_x_y = nk_reduce_stable_f64x4_haswell_(covariance_xy_f64x4), covariance_x_y_compensation = 0.0;
+    nk_f64_t covariance_x_z = nk_reduce_stable_f64x4_haswell_(covariance_xz_f64x4), covariance_x_z_compensation = 0.0;
+    nk_f64_t covariance_y_x = nk_reduce_stable_f64x4_haswell_(covariance_yx_f64x4), covariance_y_x_compensation = 0.0;
+    nk_f64_t covariance_y_y = nk_reduce_stable_f64x4_haswell_(covariance_yy_f64x4), covariance_y_y_compensation = 0.0;
+    nk_f64_t covariance_y_z = nk_reduce_stable_f64x4_haswell_(covariance_yz_f64x4), covariance_y_z_compensation = 0.0;
+    nk_f64_t covariance_z_x = nk_reduce_stable_f64x4_haswell_(covariance_zx_f64x4), covariance_z_x_compensation = 0.0;
+    nk_f64_t covariance_z_y = nk_reduce_stable_f64x4_haswell_(covariance_zy_f64x4), covariance_z_y_compensation = 0.0;
+    nk_f64_t covariance_z_z = nk_reduce_stable_f64x4_haswell_(covariance_zz_f64x4), covariance_z_z_compensation = 0.0;
+    nk_f64_t norm_squared_a_sum = nk_reduce_stable_f64x4_haswell_(norm_squared_a_f64x4),
+             norm_squared_a_compensation = 0.0;
+    nk_f64_t norm_squared_b_sum = nk_reduce_stable_f64x4_haswell_(norm_squared_b_f64x4),
+             norm_squared_b_compensation = 0.0;
 
     // Scalar tail loop for remaining points
     for (; i < n; i++) {
@@ -932,9 +895,12 @@ NK_PUBLIC void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_s
         nk_accumulate_product_f64_(&covariance_z_x, &covariance_z_x_compensation, az, bx);
         nk_accumulate_product_f64_(&covariance_z_y, &covariance_z_y_compensation, az, by);
         nk_accumulate_product_f64_(&covariance_z_z, &covariance_z_z_compensation, az, bz);
-        nk_accumulate_square_f64_(&variance_a_sum, &variance_a_compensation, ax);
-        nk_accumulate_square_f64_(&variance_a_sum, &variance_a_compensation, ay);
-        nk_accumulate_square_f64_(&variance_a_sum, &variance_a_compensation, az);
+        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, ax);
+        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, ay);
+        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, az);
+        nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, bx);
+        nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, by);
+        nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, bz);
     }
 
     sum_a_x += sum_a_x_compensation, sum_a_y += sum_a_y_compensation, sum_a_z += sum_a_z_compensation;
@@ -945,7 +911,8 @@ NK_PUBLIC void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_s
         covariance_y_z += covariance_y_z_compensation;
     covariance_z_x += covariance_z_x_compensation, covariance_z_y += covariance_z_y_compensation,
         covariance_z_z += covariance_z_z_compensation;
-    variance_a_sum += variance_a_compensation;
+    norm_squared_a_sum += norm_squared_a_compensation;
+    norm_squared_b_sum += norm_squared_b_compensation;
 
     // Compute centroids
     nk_f64_t inv_n = 1.0 / (nk_f64_t)n;
@@ -956,9 +923,15 @@ NK_PUBLIC void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_s
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
 
-    // Compute centered covariance and variance
-    nk_f64_t variance_a = variance_a_sum * inv_n -
-                          (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y + centroid_a_z * centroid_a_z);
+    // Centered norm-squared via parallel-axis identity; clamped at zero for numeric safety.
+    nk_f64_t centered_norm_squared_a = norm_squared_a_sum -
+                                       (nk_f64_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f64_t centered_norm_squared_b = norm_squared_b_sum -
+                                       (nk_f64_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0) centered_norm_squared_a = 0.0;
+    if (centered_norm_squared_b < 0.0) centered_norm_squared_b = 0.0;
 
     nk_f64_t cross_covariance[9];
     cross_covariance[0] = covariance_x_x - sum_a_x * sum_b_x * inv_n;
@@ -971,34 +944,56 @@ NK_PUBLIC void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_s
     cross_covariance[7] = covariance_z_y - sum_a_z * sum_b_y * inv_n;
     cross_covariance[8] = covariance_z_z - sum_a_z * sum_b_z * inv_n;
 
-    // SVD using f64 for full precision (svd_s is 9-element diagonal matrix)
-    nk_f64_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f64_(cross_covariance, svd_u, svd_s, svd_v);
+    // Identity-dominant short-circuit: if H is essentially diagonal with positive diagonals,
+    // R = I and trace(DS) reduces to trace(H) directly.
+    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f64_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f64_t optimal_rotation[9];
+    nk_f64_t c;
+    nk_f64_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
+        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
+        optimal_rotation[0] = 1.0, optimal_rotation[1] = 0.0, optimal_rotation[2] = 0.0;
+        optimal_rotation[3] = 0.0, optimal_rotation[4] = 1.0, optimal_rotation[5] = 0.0;
+        optimal_rotation[6] = 0.0, optimal_rotation[7] = 0.0, optimal_rotation[8] = 1.0;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+        c = centered_norm_squared_a > 0.0 ? trace_rotation_covariance / centered_norm_squared_a : 0.0;
+    }
+    else {
+        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
 
-    nk_f64_t r[9];
-    nk_rotation_from_svd_f64_haswell_(svd_u, svd_v, r);
+        nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
+        nk_f64_t d3 = det < 0 ? -1.0 : 1.0;
+        nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8], d3);
+        c = centered_norm_squared_a > 0.0 ? trace_ds / centered_norm_squared_a : 0.0;
 
-    // Scale factor: c = trace(D × S) / (n × variance(a))
-    // svd_s diagonal: [0], [4], [8]
-    nk_f64_t det = nk_det3x3_f64_(r);
-    nk_f64_t d3 = det < 0 ? -1.0 : 1.0;
-    nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_s[0], 1.0, svd_s[4], 1.0, svd_s[8], d3);
-    nk_f64_t c = trace_ds / ((nk_f64_t)n * variance_a);
-    if (scale) *scale = c;
-
-    // Handle reflection
-    if (det < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        nk_rotation_from_svd_f64_haswell_(svd_u, svd_v, r);
+        if (det < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+        }
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
     }
 
-    // Output rotation matrix
+    if (scale) *scale = c;
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    // Compute RMSD with scaling
-    nk_f64_t sum_squared = nk_transformed_ssd_f64_haswell_(a, b, n, r, c, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                           centroid_b_x, centroid_b_y, centroid_b_z);
+    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    nk_f64_t sum_squared = c * c * centered_norm_squared_a + centered_norm_squared_b -
+                           2.0 * c * trace_rotation_covariance;
+    if (sum_squared < 0.0) sum_squared = 0.0;
     *result = nk_f64_sqrt_haswell(sum_squared * inv_n);
 }
 
@@ -1046,237 +1041,34 @@ NK_INTERNAL void nk_deinterleave_bf16x8_to_f32x8_haswell_(nk_bf16_t const *ptr, 
     *z_out = nk_bf16x8_to_f32x8_haswell_(z_vec.xmms[0]);
 }
 
-/*  Compute sum of squared distances for f16 data after applying rotation (and optional scale).
- *  Loads f16 data, converts to f32 during processing.
- *  Note: rotation matrix r is f32 (from SVD), scale and computation done in f32.
- */
-NK_INTERNAL nk_f32_t nk_transformed_ssd_f16_haswell_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                     nk_f32_t const *r, nk_f32_t scale, nk_f32_t centroid_a_x,
-                                                     nk_f32_t centroid_a_y, nk_f32_t centroid_a_z,
-                                                     nk_f32_t centroid_b_x, nk_f32_t centroid_b_y,
-                                                     nk_f32_t centroid_b_z) {
-    // Broadcast scaled rotation matrix elements
-    __m256 scaled_rotation_x_x_f32x8 = _mm256_set1_ps(scale * r[0]);
-    __m256 scaled_rotation_x_y_f32x8 = _mm256_set1_ps(scale * r[1]);
-    __m256 scaled_rotation_x_z_f32x8 = _mm256_set1_ps(scale * r[2]);
-    __m256 scaled_rotation_y_x_f32x8 = _mm256_set1_ps(scale * r[3]);
-    __m256 scaled_rotation_y_y_f32x8 = _mm256_set1_ps(scale * r[4]);
-    __m256 scaled_rotation_y_z_f32x8 = _mm256_set1_ps(scale * r[5]);
-    __m256 scaled_rotation_z_x_f32x8 = _mm256_set1_ps(scale * r[6]);
-    __m256 scaled_rotation_z_y_f32x8 = _mm256_set1_ps(scale * r[7]);
-    __m256 scaled_rotation_z_z_f32x8 = _mm256_set1_ps(scale * r[8]);
-
-    // Broadcast centroids
-    __m256 centroid_a_x_f32x8 = _mm256_set1_ps(centroid_a_x);
-    __m256 centroid_a_y_f32x8 = _mm256_set1_ps(centroid_a_y);
-    __m256 centroid_a_z_f32x8 = _mm256_set1_ps(centroid_a_z);
-    __m256 centroid_b_x_f32x8 = _mm256_set1_ps(centroid_b_x);
-    __m256 centroid_b_y_f32x8 = _mm256_set1_ps(centroid_b_y);
-    __m256 centroid_b_z_f32x8 = _mm256_set1_ps(centroid_b_z);
-
-    __m256 sum_squared_f32x8 = _mm256_setzero_ps();
-    __m256 a_x_f32x8, a_y_f32x8, a_z_f32x8, b_x_f32x8, b_y_f32x8, b_z_f32x8;
-    nk_size_t j = 0;
-
-    for (; j + 8 <= n; j += 8) {
-        nk_deinterleave_f16x8_to_f32x8_haswell_(a + j * 3, &a_x_f32x8, &a_y_f32x8, &a_z_f32x8);
-        nk_deinterleave_f16x8_to_f32x8_haswell_(b + j * 3, &b_x_f32x8, &b_y_f32x8, &b_z_f32x8);
-
-        // Center points
-        __m256 pa_x_f32x8 = _mm256_sub_ps(a_x_f32x8, centroid_a_x_f32x8);
-        __m256 pa_y_f32x8 = _mm256_sub_ps(a_y_f32x8, centroid_a_y_f32x8);
-        __m256 pa_z_f32x8 = _mm256_sub_ps(a_z_f32x8, centroid_a_z_f32x8);
-        __m256 pb_x_f32x8 = _mm256_sub_ps(b_x_f32x8, centroid_b_x_f32x8);
-        __m256 pb_y_f32x8 = _mm256_sub_ps(b_y_f32x8, centroid_b_y_f32x8);
-        __m256 pb_z_f32x8 = _mm256_sub_ps(b_z_f32x8, centroid_b_z_f32x8);
-
-        // Rotate and scale: ra = scale * R * pa
-        __m256 ra_x_f32x8 = _mm256_fmadd_ps(scaled_rotation_x_z_f32x8, pa_z_f32x8,
-                                            _mm256_fmadd_ps(scaled_rotation_x_y_f32x8, pa_y_f32x8,
-                                                            _mm256_mul_ps(scaled_rotation_x_x_f32x8, pa_x_f32x8)));
-        __m256 ra_y_f32x8 = _mm256_fmadd_ps(scaled_rotation_y_z_f32x8, pa_z_f32x8,
-                                            _mm256_fmadd_ps(scaled_rotation_y_y_f32x8, pa_y_f32x8,
-                                                            _mm256_mul_ps(scaled_rotation_y_x_f32x8, pa_x_f32x8)));
-        __m256 ra_z_f32x8 = _mm256_fmadd_ps(scaled_rotation_z_z_f32x8, pa_z_f32x8,
-                                            _mm256_fmadd_ps(scaled_rotation_z_y_f32x8, pa_y_f32x8,
-                                                            _mm256_mul_ps(scaled_rotation_z_x_f32x8, pa_x_f32x8)));
-
-        // Delta and accumulate
-        __m256 delta_x_f32x8 = _mm256_sub_ps(ra_x_f32x8, pb_x_f32x8);
-        __m256 delta_y_f32x8 = _mm256_sub_ps(ra_y_f32x8, pb_y_f32x8);
-        __m256 delta_z_f32x8 = _mm256_sub_ps(ra_z_f32x8, pb_z_f32x8);
-
-        sum_squared_f32x8 = _mm256_fmadd_ps(delta_x_f32x8, delta_x_f32x8, sum_squared_f32x8);
-        sum_squared_f32x8 = _mm256_fmadd_ps(delta_y_f32x8, delta_y_f32x8, sum_squared_f32x8);
-        sum_squared_f32x8 = _mm256_fmadd_ps(delta_z_f32x8, delta_z_f32x8, sum_squared_f32x8);
-    }
-
-    nk_f32_t sum_squared = nk_reduce_add_f32x8_haswell_(sum_squared_f32x8);
-
-    // Scalar tail
-    for (; j < n; ++j) {
-        nk_f32_t a_x_f32, a_y_f32, a_z_f32, b_x_f32, b_y_f32, b_z_f32;
-        nk_f16_to_f32_haswell(&a[j * 3 + 0], &a_x_f32);
-        nk_f16_to_f32_haswell(&a[j * 3 + 1], &a_y_f32);
-        nk_f16_to_f32_haswell(&a[j * 3 + 2], &a_z_f32);
-        nk_f16_to_f32_haswell(&b[j * 3 + 0], &b_x_f32);
-        nk_f16_to_f32_haswell(&b[j * 3 + 1], &b_y_f32);
-        nk_f16_to_f32_haswell(&b[j * 3 + 2], &b_z_f32);
-
-        nk_f32_t pa_x = a_x_f32 - centroid_a_x, pa_y = a_y_f32 - centroid_a_y, pa_z = a_z_f32 - centroid_a_z;
-        nk_f32_t pb_x = b_x_f32 - centroid_b_x, pb_y = b_y_f32 - centroid_b_y, pb_z = b_z_f32 - centroid_b_z;
-        nk_f32_t ra_x = scale * (r[0] * pa_x + r[1] * pa_y + r[2] * pa_z),
-                 ra_y = scale * (r[3] * pa_x + r[4] * pa_y + r[5] * pa_z),
-                 ra_z = scale * (r[6] * pa_x + r[7] * pa_y + r[8] * pa_z);
-
-        nk_f32_t delta_x = ra_x - pb_x, delta_y = ra_y - pb_y, delta_z = ra_z - pb_z;
-        sum_squared += delta_x * delta_x + delta_y * delta_y + delta_z * delta_z;
-    }
-
-    return sum_squared;
-}
-
-/*  Compute sum of squared distances for bf16 data after applying rotation (and optional scale).
- *  Loads bf16 data, converts to f32 during processing.
- *  Note: rotation matrix r is f32 (from SVD), scale and computation done in f32.
- */
-NK_INTERNAL nk_f32_t nk_transformed_ssd_bf16_haswell_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                      nk_f32_t const *r, nk_f32_t scale, nk_f32_t centroid_a_x,
-                                                      nk_f32_t centroid_a_y, nk_f32_t centroid_a_z,
-                                                      nk_f32_t centroid_b_x, nk_f32_t centroid_b_y,
-                                                      nk_f32_t centroid_b_z) {
-    // Broadcast scaled rotation matrix elements
-    __m256 scaled_rotation_x_x_f32x8 = _mm256_set1_ps(scale * r[0]);
-    __m256 scaled_rotation_x_y_f32x8 = _mm256_set1_ps(scale * r[1]);
-    __m256 scaled_rotation_x_z_f32x8 = _mm256_set1_ps(scale * r[2]);
-    __m256 scaled_rotation_y_x_f32x8 = _mm256_set1_ps(scale * r[3]);
-    __m256 scaled_rotation_y_y_f32x8 = _mm256_set1_ps(scale * r[4]);
-    __m256 scaled_rotation_y_z_f32x8 = _mm256_set1_ps(scale * r[5]);
-    __m256 scaled_rotation_z_x_f32x8 = _mm256_set1_ps(scale * r[6]);
-    __m256 scaled_rotation_z_y_f32x8 = _mm256_set1_ps(scale * r[7]);
-    __m256 scaled_rotation_z_z_f32x8 = _mm256_set1_ps(scale * r[8]);
-
-    // Broadcast centroids
-    __m256 centroid_a_x_f32x8 = _mm256_set1_ps(centroid_a_x);
-    __m256 centroid_a_y_f32x8 = _mm256_set1_ps(centroid_a_y);
-    __m256 centroid_a_z_f32x8 = _mm256_set1_ps(centroid_a_z);
-    __m256 centroid_b_x_f32x8 = _mm256_set1_ps(centroid_b_x);
-    __m256 centroid_b_y_f32x8 = _mm256_set1_ps(centroid_b_y);
-    __m256 centroid_b_z_f32x8 = _mm256_set1_ps(centroid_b_z);
-
-    __m256 sum_squared_f32x8 = _mm256_setzero_ps();
-    __m256 a_x_f32x8, a_y_f32x8, a_z_f32x8, b_x_f32x8, b_y_f32x8, b_z_f32x8;
-    nk_size_t j = 0;
-
-    for (; j + 8 <= n; j += 8) {
-        nk_deinterleave_bf16x8_to_f32x8_haswell_(a + j * 3, &a_x_f32x8, &a_y_f32x8, &a_z_f32x8);
-        nk_deinterleave_bf16x8_to_f32x8_haswell_(b + j * 3, &b_x_f32x8, &b_y_f32x8, &b_z_f32x8);
-
-        // Center points
-        __m256 pa_x_f32x8 = _mm256_sub_ps(a_x_f32x8, centroid_a_x_f32x8);
-        __m256 pa_y_f32x8 = _mm256_sub_ps(a_y_f32x8, centroid_a_y_f32x8);
-        __m256 pa_z_f32x8 = _mm256_sub_ps(a_z_f32x8, centroid_a_z_f32x8);
-        __m256 pb_x_f32x8 = _mm256_sub_ps(b_x_f32x8, centroid_b_x_f32x8);
-        __m256 pb_y_f32x8 = _mm256_sub_ps(b_y_f32x8, centroid_b_y_f32x8);
-        __m256 pb_z_f32x8 = _mm256_sub_ps(b_z_f32x8, centroid_b_z_f32x8);
-
-        // Rotate and scale: ra = scale * R * pa
-        __m256 ra_x_f32x8 = _mm256_fmadd_ps(scaled_rotation_x_z_f32x8, pa_z_f32x8,
-                                            _mm256_fmadd_ps(scaled_rotation_x_y_f32x8, pa_y_f32x8,
-                                                            _mm256_mul_ps(scaled_rotation_x_x_f32x8, pa_x_f32x8)));
-        __m256 ra_y_f32x8 = _mm256_fmadd_ps(scaled_rotation_y_z_f32x8, pa_z_f32x8,
-                                            _mm256_fmadd_ps(scaled_rotation_y_y_f32x8, pa_y_f32x8,
-                                                            _mm256_mul_ps(scaled_rotation_y_x_f32x8, pa_x_f32x8)));
-        __m256 ra_z_f32x8 = _mm256_fmadd_ps(scaled_rotation_z_z_f32x8, pa_z_f32x8,
-                                            _mm256_fmadd_ps(scaled_rotation_z_y_f32x8, pa_y_f32x8,
-                                                            _mm256_mul_ps(scaled_rotation_z_x_f32x8, pa_x_f32x8)));
-
-        // Delta and accumulate
-        __m256 delta_x_f32x8 = _mm256_sub_ps(ra_x_f32x8, pb_x_f32x8);
-        __m256 delta_y_f32x8 = _mm256_sub_ps(ra_y_f32x8, pb_y_f32x8);
-        __m256 delta_z_f32x8 = _mm256_sub_ps(ra_z_f32x8, pb_z_f32x8);
-
-        sum_squared_f32x8 = _mm256_fmadd_ps(delta_x_f32x8, delta_x_f32x8, sum_squared_f32x8);
-        sum_squared_f32x8 = _mm256_fmadd_ps(delta_y_f32x8, delta_y_f32x8, sum_squared_f32x8);
-        sum_squared_f32x8 = _mm256_fmadd_ps(delta_z_f32x8, delta_z_f32x8, sum_squared_f32x8);
-    }
-
-    nk_f32_t sum_squared = nk_reduce_add_f32x8_haswell_(sum_squared_f32x8);
-
-    // Scalar tail
-    for (; j < n; ++j) {
-        nk_f32_t a_x_f32, a_y_f32, a_z_f32, b_x_f32, b_y_f32, b_z_f32;
-        nk_bf16_to_f32_serial(&a[j * 3 + 0], &a_x_f32);
-        nk_bf16_to_f32_serial(&a[j * 3 + 1], &a_y_f32);
-        nk_bf16_to_f32_serial(&a[j * 3 + 2], &a_z_f32);
-        nk_bf16_to_f32_serial(&b[j * 3 + 0], &b_x_f32);
-        nk_bf16_to_f32_serial(&b[j * 3 + 1], &b_y_f32);
-        nk_bf16_to_f32_serial(&b[j * 3 + 2], &b_z_f32);
-
-        nk_f32_t pa_x = a_x_f32 - centroid_a_x, pa_y = a_y_f32 - centroid_a_y, pa_z = a_z_f32 - centroid_a_z;
-        nk_f32_t pb_x = b_x_f32 - centroid_b_x, pb_y = b_y_f32 - centroid_b_y, pb_z = b_z_f32 - centroid_b_z;
-        nk_f32_t ra_x = scale * (r[0] * pa_x + r[1] * pa_y + r[2] * pa_z),
-                 ra_y = scale * (r[3] * pa_x + r[4] * pa_y + r[5] * pa_z),
-                 ra_z = scale * (r[6] * pa_x + r[7] * pa_y + r[8] * pa_z);
-
-        nk_f32_t delta_x = ra_x - pb_x, delta_y = ra_y - pb_y, delta_z = ra_z - pb_z;
-        sum_squared += delta_x * delta_x + delta_y * delta_y + delta_z * delta_z;
-    }
-
-    return sum_squared;
-}
-
 NK_PUBLIC void nk_rmsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                    nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
-    // RMSD uses identity rotation and scale=1.0
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0f;
+    if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+    if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
     __m256 const zeros_f32x8 = _mm256_setzero_ps();
-
-    // Accumulators for centroids and squared differences (all in f32)
-    __m256 sum_a_x_f32x8 = zeros_f32x8, sum_a_y_f32x8 = zeros_f32x8, sum_a_z_f32x8 = zeros_f32x8;
-    __m256 sum_b_x_f32x8 = zeros_f32x8, sum_b_y_f32x8 = zeros_f32x8, sum_b_z_f32x8 = zeros_f32x8;
     __m256 sum_squared_x_f32x8 = zeros_f32x8, sum_squared_y_f32x8 = zeros_f32x8, sum_squared_z_f32x8 = zeros_f32x8;
-
     __m256 a_x_f32x8, a_y_f32x8, a_z_f32x8, b_x_f32x8, b_y_f32x8, b_z_f32x8;
     nk_size_t i = 0;
 
-    // Main loop processing 8 points at a time
     for (; i + 8 <= n; i += 8) {
         nk_deinterleave_f16x8_to_f32x8_haswell_(a + i * 3, &a_x_f32x8, &a_y_f32x8, &a_z_f32x8);
         nk_deinterleave_f16x8_to_f32x8_haswell_(b + i * 3, &b_x_f32x8, &b_y_f32x8, &b_z_f32x8);
-
-        sum_a_x_f32x8 = _mm256_add_ps(sum_a_x_f32x8, a_x_f32x8);
-        sum_a_y_f32x8 = _mm256_add_ps(sum_a_y_f32x8, a_y_f32x8);
-        sum_a_z_f32x8 = _mm256_add_ps(sum_a_z_f32x8, a_z_f32x8);
-        sum_b_x_f32x8 = _mm256_add_ps(sum_b_x_f32x8, b_x_f32x8);
-        sum_b_y_f32x8 = _mm256_add_ps(sum_b_y_f32x8, b_y_f32x8);
-        sum_b_z_f32x8 = _mm256_add_ps(sum_b_z_f32x8, b_z_f32x8);
-
         __m256 delta_x_f32x8 = _mm256_sub_ps(a_x_f32x8, b_x_f32x8);
         __m256 delta_y_f32x8 = _mm256_sub_ps(a_y_f32x8, b_y_f32x8);
         __m256 delta_z_f32x8 = _mm256_sub_ps(a_z_f32x8, b_z_f32x8);
-
         sum_squared_x_f32x8 = _mm256_fmadd_ps(delta_x_f32x8, delta_x_f32x8, sum_squared_x_f32x8);
         sum_squared_y_f32x8 = _mm256_fmadd_ps(delta_y_f32x8, delta_y_f32x8, sum_squared_y_f32x8);
         sum_squared_z_f32x8 = _mm256_fmadd_ps(delta_z_f32x8, delta_z_f32x8, sum_squared_z_f32x8);
     }
 
-    // Reduce vectors to scalars
-    nk_f32_t total_ax = nk_reduce_add_f32x8_haswell_(sum_a_x_f32x8);
-    nk_f32_t total_ay = nk_reduce_add_f32x8_haswell_(sum_a_y_f32x8);
-    nk_f32_t total_az = nk_reduce_add_f32x8_haswell_(sum_a_z_f32x8);
-    nk_f32_t total_bx = nk_reduce_add_f32x8_haswell_(sum_b_x_f32x8);
-    nk_f32_t total_by = nk_reduce_add_f32x8_haswell_(sum_b_y_f32x8);
-    nk_f32_t total_bz = nk_reduce_add_f32x8_haswell_(sum_b_z_f32x8);
-    nk_f32_t total_sq_x = nk_reduce_add_f32x8_haswell_(sum_squared_x_f32x8);
-    nk_f32_t total_sq_y = nk_reduce_add_f32x8_haswell_(sum_squared_y_f32x8);
-    nk_f32_t total_sq_z = nk_reduce_add_f32x8_haswell_(sum_squared_z_f32x8);
-
-    // Scalar tail
+    nk_f32_t sum_squared = nk_reduce_add_f32x8_haswell_(sum_squared_x_f32x8) +
+                           nk_reduce_add_f32x8_haswell_(sum_squared_y_f32x8) +
+                           nk_reduce_add_f32x8_haswell_(sum_squared_z_f32x8);
     for (; i < n; ++i) {
         nk_f32_t ax, ay, az, bx, by, bz;
         nk_f16_to_f32_haswell(&a[i * 3 + 0], &ax);
@@ -1285,91 +1077,41 @@ NK_PUBLIC void nk_rmsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size
         nk_f16_to_f32_haswell(&b[i * 3 + 0], &bx);
         nk_f16_to_f32_haswell(&b[i * 3 + 1], &by);
         nk_f16_to_f32_haswell(&b[i * 3 + 2], &bz);
-        total_ax += ax;
-        total_ay += ay;
-        total_az += az;
-        total_bx += bx;
-        total_by += by;
-        total_bz += bz;
         nk_f32_t delta_x = ax - bx, delta_y = ay - by, delta_z = az - bz;
-        total_sq_x += delta_x * delta_x;
-        total_sq_y += delta_y * delta_y;
-        total_sq_z += delta_z * delta_z;
+        sum_squared += delta_x * delta_x + delta_y * delta_y + delta_z * delta_z;
     }
 
-    // Compute centroids
-    nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
-    nk_f32_t centroid_a_x = total_ax * inv_n;
-    nk_f32_t centroid_a_y = total_ay * inv_n;
-    nk_f32_t centroid_a_z = total_az * inv_n;
-    nk_f32_t centroid_b_x = total_bx * inv_n;
-    nk_f32_t centroid_b_y = total_by * inv_n;
-    nk_f32_t centroid_b_z = total_bz * inv_n;
-
-    if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
-    if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
-
-    // Compute RMSD
-    nk_f32_t mean_diff_x = centroid_a_x - centroid_b_x;
-    nk_f32_t mean_diff_y = centroid_a_y - centroid_b_y;
-    nk_f32_t mean_diff_z = centroid_a_z - centroid_b_z;
-    nk_f32_t sum_squared = total_sq_x + total_sq_y + total_sq_z;
-    nk_f32_t mean_diff_sq = mean_diff_x * mean_diff_x + mean_diff_y * mean_diff_y + mean_diff_z * mean_diff_z;
-
-    *result = nk_f32_sqrt_haswell(sum_squared * inv_n - mean_diff_sq);
+    *result = nk_f32_sqrt_haswell(sum_squared / (nk_f32_t)n);
 }
 
 NK_PUBLIC void nk_rmsd_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                     nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
-    // RMSD uses identity rotation and scale=1.0
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0f;
+    if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+    if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
     __m256 const zeros_f32x8 = _mm256_setzero_ps();
-
-    // Accumulators for centroids and squared differences (all in f32)
-    __m256 sum_a_x_f32x8 = zeros_f32x8, sum_a_y_f32x8 = zeros_f32x8, sum_a_z_f32x8 = zeros_f32x8;
-    __m256 sum_b_x_f32x8 = zeros_f32x8, sum_b_y_f32x8 = zeros_f32x8, sum_b_z_f32x8 = zeros_f32x8;
     __m256 sum_squared_x_f32x8 = zeros_f32x8, sum_squared_y_f32x8 = zeros_f32x8, sum_squared_z_f32x8 = zeros_f32x8;
-
     __m256 a_x_f32x8, a_y_f32x8, a_z_f32x8, b_x_f32x8, b_y_f32x8, b_z_f32x8;
     nk_size_t i = 0;
 
-    // Main loop processing 8 points at a time
     for (; i + 8 <= n; i += 8) {
         nk_deinterleave_bf16x8_to_f32x8_haswell_(a + i * 3, &a_x_f32x8, &a_y_f32x8, &a_z_f32x8);
         nk_deinterleave_bf16x8_to_f32x8_haswell_(b + i * 3, &b_x_f32x8, &b_y_f32x8, &b_z_f32x8);
-
-        sum_a_x_f32x8 = _mm256_add_ps(sum_a_x_f32x8, a_x_f32x8);
-        sum_a_y_f32x8 = _mm256_add_ps(sum_a_y_f32x8, a_y_f32x8);
-        sum_a_z_f32x8 = _mm256_add_ps(sum_a_z_f32x8, a_z_f32x8);
-        sum_b_x_f32x8 = _mm256_add_ps(sum_b_x_f32x8, b_x_f32x8);
-        sum_b_y_f32x8 = _mm256_add_ps(sum_b_y_f32x8, b_y_f32x8);
-        sum_b_z_f32x8 = _mm256_add_ps(sum_b_z_f32x8, b_z_f32x8);
-
         __m256 delta_x_f32x8 = _mm256_sub_ps(a_x_f32x8, b_x_f32x8);
         __m256 delta_y_f32x8 = _mm256_sub_ps(a_y_f32x8, b_y_f32x8);
         __m256 delta_z_f32x8 = _mm256_sub_ps(a_z_f32x8, b_z_f32x8);
-
         sum_squared_x_f32x8 = _mm256_fmadd_ps(delta_x_f32x8, delta_x_f32x8, sum_squared_x_f32x8);
         sum_squared_y_f32x8 = _mm256_fmadd_ps(delta_y_f32x8, delta_y_f32x8, sum_squared_y_f32x8);
         sum_squared_z_f32x8 = _mm256_fmadd_ps(delta_z_f32x8, delta_z_f32x8, sum_squared_z_f32x8);
     }
 
-    // Reduce vectors to scalars
-    nk_f32_t total_ax = nk_reduce_add_f32x8_haswell_(sum_a_x_f32x8);
-    nk_f32_t total_ay = nk_reduce_add_f32x8_haswell_(sum_a_y_f32x8);
-    nk_f32_t total_az = nk_reduce_add_f32x8_haswell_(sum_a_z_f32x8);
-    nk_f32_t total_bx = nk_reduce_add_f32x8_haswell_(sum_b_x_f32x8);
-    nk_f32_t total_by = nk_reduce_add_f32x8_haswell_(sum_b_y_f32x8);
-    nk_f32_t total_bz = nk_reduce_add_f32x8_haswell_(sum_b_z_f32x8);
-    nk_f32_t total_sq_x = nk_reduce_add_f32x8_haswell_(sum_squared_x_f32x8);
-    nk_f32_t total_sq_y = nk_reduce_add_f32x8_haswell_(sum_squared_y_f32x8);
-    nk_f32_t total_sq_z = nk_reduce_add_f32x8_haswell_(sum_squared_z_f32x8);
-
-    // Scalar tail
+    nk_f32_t sum_squared = nk_reduce_add_f32x8_haswell_(sum_squared_x_f32x8) +
+                           nk_reduce_add_f32x8_haswell_(sum_squared_y_f32x8) +
+                           nk_reduce_add_f32x8_haswell_(sum_squared_z_f32x8);
     for (; i < n; ++i) {
         nk_f32_t ax, ay, az, bx, by, bz;
         nk_bf16_to_f32_serial(&a[i * 3 + 0], &ax);
@@ -1378,43 +1120,16 @@ NK_PUBLIC void nk_rmsd_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_s
         nk_bf16_to_f32_serial(&b[i * 3 + 0], &bx);
         nk_bf16_to_f32_serial(&b[i * 3 + 1], &by);
         nk_bf16_to_f32_serial(&b[i * 3 + 2], &bz);
-        total_ax += ax;
-        total_ay += ay;
-        total_az += az;
-        total_bx += bx;
-        total_by += by;
-        total_bz += bz;
         nk_f32_t delta_x = ax - bx, delta_y = ay - by, delta_z = az - bz;
-        total_sq_x += delta_x * delta_x;
-        total_sq_y += delta_y * delta_y;
-        total_sq_z += delta_z * delta_z;
+        sum_squared += delta_x * delta_x + delta_y * delta_y + delta_z * delta_z;
     }
 
-    // Compute centroids
-    nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
-    nk_f32_t centroid_a_x = total_ax * inv_n;
-    nk_f32_t centroid_a_y = total_ay * inv_n;
-    nk_f32_t centroid_a_z = total_az * inv_n;
-    nk_f32_t centroid_b_x = total_bx * inv_n;
-    nk_f32_t centroid_b_y = total_by * inv_n;
-    nk_f32_t centroid_b_z = total_bz * inv_n;
-
-    if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
-    if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
-
-    // Compute RMSD
-    nk_f32_t mean_diff_x = centroid_a_x - centroid_b_x;
-    nk_f32_t mean_diff_y = centroid_a_y - centroid_b_y;
-    nk_f32_t mean_diff_z = centroid_a_z - centroid_b_z;
-    nk_f32_t sum_squared = total_sq_x + total_sq_y + total_sq_z;
-    nk_f32_t mean_diff_sq = mean_diff_x * mean_diff_x + mean_diff_y * mean_diff_y + mean_diff_z * mean_diff_z;
-
-    *result = nk_f32_sqrt_haswell(sum_squared * inv_n - mean_diff_sq);
+    *result = nk_f32_sqrt_haswell(sum_squared / (nk_f32_t)n);
 }
 
 NK_PUBLIC void nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
-    // Fused single-pass: load f16, convert to f32, compute centroids and covariance
+    // Fused single-pass: load f16, convert to f32, compute centroids, covariance, and ‖a‖²/‖b‖²
     __m256 const zeros_f32x8 = _mm256_setzero_ps();
 
     // Accumulators for centroids (f32)
@@ -1422,9 +1137,10 @@ NK_PUBLIC void nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_si
     __m256 sum_b_x_f32x8 = zeros_f32x8, sum_b_y_f32x8 = zeros_f32x8, sum_b_z_f32x8 = zeros_f32x8;
 
     // Accumulators for covariance matrix (sum of outer products)
-    __m256 cov_xx_f32x8 = zeros_f32x8, cov_xy_f32x8 = zeros_f32x8, cov_xz_f32x8 = zeros_f32x8;
-    __m256 cov_yx_f32x8 = zeros_f32x8, cov_yy_f32x8 = zeros_f32x8, cov_yz_f32x8 = zeros_f32x8;
-    __m256 cov_zx_f32x8 = zeros_f32x8, cov_zy_f32x8 = zeros_f32x8, cov_zz_f32x8 = zeros_f32x8;
+    __m256 covariance_xx_f32x8 = zeros_f32x8, covariance_xy_f32x8 = zeros_f32x8, covariance_xz_f32x8 = zeros_f32x8;
+    __m256 covariance_yx_f32x8 = zeros_f32x8, covariance_yy_f32x8 = zeros_f32x8, covariance_yz_f32x8 = zeros_f32x8;
+    __m256 covariance_zx_f32x8 = zeros_f32x8, covariance_zy_f32x8 = zeros_f32x8, covariance_zz_f32x8 = zeros_f32x8;
+    __m256 norm_squared_a_f32x8 = zeros_f32x8, norm_squared_b_f32x8 = zeros_f32x8;
 
     nk_size_t i = 0;
     __m256 a_x_f32x8, a_y_f32x8, a_z_f32x8, b_x_f32x8, b_y_f32x8, b_z_f32x8;
@@ -1442,15 +1158,23 @@ NK_PUBLIC void nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_si
         sum_b_z_f32x8 = _mm256_add_ps(sum_b_z_f32x8, b_z_f32x8);
 
         // Accumulate outer products
-        cov_xx_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_x_f32x8, cov_xx_f32x8);
-        cov_xy_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_y_f32x8, cov_xy_f32x8);
-        cov_xz_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_z_f32x8, cov_xz_f32x8);
-        cov_yx_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_x_f32x8, cov_yx_f32x8);
-        cov_yy_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_y_f32x8, cov_yy_f32x8);
-        cov_yz_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_z_f32x8, cov_yz_f32x8);
-        cov_zx_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_x_f32x8, cov_zx_f32x8);
-        cov_zy_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_y_f32x8, cov_zy_f32x8);
-        cov_zz_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_z_f32x8, cov_zz_f32x8);
+        covariance_xx_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_x_f32x8, covariance_xx_f32x8);
+        covariance_xy_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_y_f32x8, covariance_xy_f32x8);
+        covariance_xz_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_z_f32x8, covariance_xz_f32x8);
+        covariance_yx_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_x_f32x8, covariance_yx_f32x8);
+        covariance_yy_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_y_f32x8, covariance_yy_f32x8);
+        covariance_yz_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_z_f32x8, covariance_yz_f32x8);
+        covariance_zx_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_x_f32x8, covariance_zx_f32x8);
+        covariance_zy_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_y_f32x8, covariance_zy_f32x8);
+        covariance_zz_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_z_f32x8, covariance_zz_f32x8);
+
+        // Accumulate ‖a‖² and ‖b‖² for folded SSD
+        norm_squared_a_f32x8 = _mm256_fmadd_ps(a_x_f32x8, a_x_f32x8, norm_squared_a_f32x8);
+        norm_squared_a_f32x8 = _mm256_fmadd_ps(a_y_f32x8, a_y_f32x8, norm_squared_a_f32x8);
+        norm_squared_a_f32x8 = _mm256_fmadd_ps(a_z_f32x8, a_z_f32x8, norm_squared_a_f32x8);
+        norm_squared_b_f32x8 = _mm256_fmadd_ps(b_x_f32x8, b_x_f32x8, norm_squared_b_f32x8);
+        norm_squared_b_f32x8 = _mm256_fmadd_ps(b_y_f32x8, b_y_f32x8, norm_squared_b_f32x8);
+        norm_squared_b_f32x8 = _mm256_fmadd_ps(b_z_f32x8, b_z_f32x8, norm_squared_b_f32x8);
     }
 
     // Reduce vector accumulators
@@ -1461,15 +1185,17 @@ NK_PUBLIC void nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_si
     nk_f32_t sum_b_y = nk_reduce_add_f32x8_haswell_(sum_b_y_f32x8);
     nk_f32_t sum_b_z = nk_reduce_add_f32x8_haswell_(sum_b_z_f32x8);
 
-    nk_f32_t covariance_x_x = nk_reduce_add_f32x8_haswell_(cov_xx_f32x8);
-    nk_f32_t covariance_x_y = nk_reduce_add_f32x8_haswell_(cov_xy_f32x8);
-    nk_f32_t covariance_x_z = nk_reduce_add_f32x8_haswell_(cov_xz_f32x8);
-    nk_f32_t covariance_y_x = nk_reduce_add_f32x8_haswell_(cov_yx_f32x8);
-    nk_f32_t covariance_y_y = nk_reduce_add_f32x8_haswell_(cov_yy_f32x8);
-    nk_f32_t covariance_y_z = nk_reduce_add_f32x8_haswell_(cov_yz_f32x8);
-    nk_f32_t covariance_z_x = nk_reduce_add_f32x8_haswell_(cov_zx_f32x8);
-    nk_f32_t covariance_z_y = nk_reduce_add_f32x8_haswell_(cov_zy_f32x8);
-    nk_f32_t covariance_z_z = nk_reduce_add_f32x8_haswell_(cov_zz_f32x8);
+    nk_f32_t covariance_x_x = nk_reduce_add_f32x8_haswell_(covariance_xx_f32x8);
+    nk_f32_t covariance_x_y = nk_reduce_add_f32x8_haswell_(covariance_xy_f32x8);
+    nk_f32_t covariance_x_z = nk_reduce_add_f32x8_haswell_(covariance_xz_f32x8);
+    nk_f32_t covariance_y_x = nk_reduce_add_f32x8_haswell_(covariance_yx_f32x8);
+    nk_f32_t covariance_y_y = nk_reduce_add_f32x8_haswell_(covariance_yy_f32x8);
+    nk_f32_t covariance_y_z = nk_reduce_add_f32x8_haswell_(covariance_yz_f32x8);
+    nk_f32_t covariance_z_x = nk_reduce_add_f32x8_haswell_(covariance_zx_f32x8);
+    nk_f32_t covariance_z_y = nk_reduce_add_f32x8_haswell_(covariance_zy_f32x8);
+    nk_f32_t covariance_z_z = nk_reduce_add_f32x8_haswell_(covariance_zz_f32x8);
+    nk_f32_t norm_squared_a_sum = nk_reduce_add_f32x8_haswell_(norm_squared_a_f32x8);
+    nk_f32_t norm_squared_b_sum = nk_reduce_add_f32x8_haswell_(norm_squared_b_f32x8);
 
     // Scalar tail
     for (; i < n; ++i) {
@@ -1485,6 +1211,8 @@ NK_PUBLIC void nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_si
         covariance_x_x += ax * bx, covariance_x_y += ax * by, covariance_x_z += ax * bz;
         covariance_y_x += ay * bx, covariance_y_y += ay * by, covariance_y_z += ay * bz;
         covariance_z_x += az * bx, covariance_z_y += az * by, covariance_z_z += az * bz;
+        norm_squared_a_sum += ax * ax + ay * ay + az * az;
+        norm_squared_b_sum += bx * bx + by * by + bz * bz;
     }
 
     // Compute centroids
@@ -1510,52 +1238,84 @@ NK_PUBLIC void nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_si
     covariance_z_y -= (nk_f32_t)n * centroid_a_z * centroid_b_y;
     covariance_z_z -= (nk_f32_t)n * centroid_a_z * centroid_b_z;
 
-    // Compute SVD and optimal rotation
     nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
-    nk_f32_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f32_(cross_covariance, svd_u, svd_s, svd_v);
 
-    // R = V * Uᵀ
-    nk_f32_t r[9];
-    r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    // Centered ‖a-ā‖², ‖b-b̄‖² via the parallel-axis identity
+    nk_f32_t centered_norm_squared_a = norm_squared_a_sum -
+                                       (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f32_t centered_norm_squared_b = norm_squared_b_sum -
+                                       (nk_f32_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
+    if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
 
-    // Handle reflection: if det(R) < 0, negate third column of V and recompute R
-    if (nk_det3x3_f32_(r) < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    // Identity-dominant short-circuit: R = I, trace(R · H) = H[0]+H[4]+H[8]. Skips SVD + two
+    // rotation reconstructions when the inputs are already aligned.
+    nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f32_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f32_t optimal_rotation[9];
+    nk_f32_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-12f * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0f &&
+        cross_covariance[4] > 0.0f && cross_covariance[8] > 0.0f) {
+        optimal_rotation[0] = 1.0f, optimal_rotation[1] = 0.0f, optimal_rotation[2] = 0.0f;
+        optimal_rotation[3] = 0.0f, optimal_rotation[4] = 1.0f, optimal_rotation[5] = 0.0f;
+        optimal_rotation[6] = 0.0f, optimal_rotation[7] = 0.0f, optimal_rotation[8] = 1.0f;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+    }
+    else {
+        nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        // R = V * Uᵀ
+        optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+        optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+        optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+        optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+        optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+        optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+        optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+        optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+        optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+        if (nk_det3x3_f32_(optimal_rotation) < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+            optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+            optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+            optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+            optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+            optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+            optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+            optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+            optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+        }
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
     }
 
     // Output rotation matrix and scale=1.0
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    // Compute RMSD after optimal rotation
-    nk_f32_t sum_squared = nk_transformed_ssd_f16_haswell_(a, b, n, r, 1.0f, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                           centroid_b_x, centroid_b_y, centroid_b_z);
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    nk_f32_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0f * trace_rotation_covariance;
+    if (sum_squared < 0.0f) sum_squared = 0.0f;
     *result = nk_f32_sqrt_haswell(sum_squared * inv_n);
 }
 
 NK_PUBLIC void nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
-    // Fused single-pass: load bf16, convert to f32, compute centroids and covariance
+    // Fused single-pass: load bf16, convert to f32, compute centroids, covariance, and ‖a‖²/‖b‖²
     __m256 const zeros_f32x8 = _mm256_setzero_ps();
 
     // Accumulators for centroids (f32)
@@ -1563,9 +1323,10 @@ NK_PUBLIC void nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk
     __m256 sum_b_x_f32x8 = zeros_f32x8, sum_b_y_f32x8 = zeros_f32x8, sum_b_z_f32x8 = zeros_f32x8;
 
     // Accumulators for covariance matrix (sum of outer products)
-    __m256 cov_xx_f32x8 = zeros_f32x8, cov_xy_f32x8 = zeros_f32x8, cov_xz_f32x8 = zeros_f32x8;
-    __m256 cov_yx_f32x8 = zeros_f32x8, cov_yy_f32x8 = zeros_f32x8, cov_yz_f32x8 = zeros_f32x8;
-    __m256 cov_zx_f32x8 = zeros_f32x8, cov_zy_f32x8 = zeros_f32x8, cov_zz_f32x8 = zeros_f32x8;
+    __m256 covariance_xx_f32x8 = zeros_f32x8, covariance_xy_f32x8 = zeros_f32x8, covariance_xz_f32x8 = zeros_f32x8;
+    __m256 covariance_yx_f32x8 = zeros_f32x8, covariance_yy_f32x8 = zeros_f32x8, covariance_yz_f32x8 = zeros_f32x8;
+    __m256 covariance_zx_f32x8 = zeros_f32x8, covariance_zy_f32x8 = zeros_f32x8, covariance_zz_f32x8 = zeros_f32x8;
+    __m256 norm_squared_a_f32x8 = zeros_f32x8, norm_squared_b_f32x8 = zeros_f32x8;
 
     nk_size_t i = 0;
     __m256 a_x_f32x8, a_y_f32x8, a_z_f32x8, b_x_f32x8, b_y_f32x8, b_z_f32x8;
@@ -1583,15 +1344,23 @@ NK_PUBLIC void nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk
         sum_b_z_f32x8 = _mm256_add_ps(sum_b_z_f32x8, b_z_f32x8);
 
         // Accumulate outer products
-        cov_xx_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_x_f32x8, cov_xx_f32x8);
-        cov_xy_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_y_f32x8, cov_xy_f32x8);
-        cov_xz_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_z_f32x8, cov_xz_f32x8);
-        cov_yx_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_x_f32x8, cov_yx_f32x8);
-        cov_yy_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_y_f32x8, cov_yy_f32x8);
-        cov_yz_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_z_f32x8, cov_yz_f32x8);
-        cov_zx_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_x_f32x8, cov_zx_f32x8);
-        cov_zy_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_y_f32x8, cov_zy_f32x8);
-        cov_zz_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_z_f32x8, cov_zz_f32x8);
+        covariance_xx_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_x_f32x8, covariance_xx_f32x8);
+        covariance_xy_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_y_f32x8, covariance_xy_f32x8);
+        covariance_xz_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_z_f32x8, covariance_xz_f32x8);
+        covariance_yx_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_x_f32x8, covariance_yx_f32x8);
+        covariance_yy_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_y_f32x8, covariance_yy_f32x8);
+        covariance_yz_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_z_f32x8, covariance_yz_f32x8);
+        covariance_zx_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_x_f32x8, covariance_zx_f32x8);
+        covariance_zy_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_y_f32x8, covariance_zy_f32x8);
+        covariance_zz_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_z_f32x8, covariance_zz_f32x8);
+
+        // Accumulate ‖a‖² and ‖b‖² for folded SSD
+        norm_squared_a_f32x8 = _mm256_fmadd_ps(a_x_f32x8, a_x_f32x8, norm_squared_a_f32x8);
+        norm_squared_a_f32x8 = _mm256_fmadd_ps(a_y_f32x8, a_y_f32x8, norm_squared_a_f32x8);
+        norm_squared_a_f32x8 = _mm256_fmadd_ps(a_z_f32x8, a_z_f32x8, norm_squared_a_f32x8);
+        norm_squared_b_f32x8 = _mm256_fmadd_ps(b_x_f32x8, b_x_f32x8, norm_squared_b_f32x8);
+        norm_squared_b_f32x8 = _mm256_fmadd_ps(b_y_f32x8, b_y_f32x8, norm_squared_b_f32x8);
+        norm_squared_b_f32x8 = _mm256_fmadd_ps(b_z_f32x8, b_z_f32x8, norm_squared_b_f32x8);
     }
 
     // Reduce vector accumulators
@@ -1602,15 +1371,17 @@ NK_PUBLIC void nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk
     nk_f32_t sum_b_y = nk_reduce_add_f32x8_haswell_(sum_b_y_f32x8);
     nk_f32_t sum_b_z = nk_reduce_add_f32x8_haswell_(sum_b_z_f32x8);
 
-    nk_f32_t covariance_x_x = nk_reduce_add_f32x8_haswell_(cov_xx_f32x8);
-    nk_f32_t covariance_x_y = nk_reduce_add_f32x8_haswell_(cov_xy_f32x8);
-    nk_f32_t covariance_x_z = nk_reduce_add_f32x8_haswell_(cov_xz_f32x8);
-    nk_f32_t covariance_y_x = nk_reduce_add_f32x8_haswell_(cov_yx_f32x8);
-    nk_f32_t covariance_y_y = nk_reduce_add_f32x8_haswell_(cov_yy_f32x8);
-    nk_f32_t covariance_y_z = nk_reduce_add_f32x8_haswell_(cov_yz_f32x8);
-    nk_f32_t covariance_z_x = nk_reduce_add_f32x8_haswell_(cov_zx_f32x8);
-    nk_f32_t covariance_z_y = nk_reduce_add_f32x8_haswell_(cov_zy_f32x8);
-    nk_f32_t covariance_z_z = nk_reduce_add_f32x8_haswell_(cov_zz_f32x8);
+    nk_f32_t covariance_x_x = nk_reduce_add_f32x8_haswell_(covariance_xx_f32x8);
+    nk_f32_t covariance_x_y = nk_reduce_add_f32x8_haswell_(covariance_xy_f32x8);
+    nk_f32_t covariance_x_z = nk_reduce_add_f32x8_haswell_(covariance_xz_f32x8);
+    nk_f32_t covariance_y_x = nk_reduce_add_f32x8_haswell_(covariance_yx_f32x8);
+    nk_f32_t covariance_y_y = nk_reduce_add_f32x8_haswell_(covariance_yy_f32x8);
+    nk_f32_t covariance_y_z = nk_reduce_add_f32x8_haswell_(covariance_yz_f32x8);
+    nk_f32_t covariance_z_x = nk_reduce_add_f32x8_haswell_(covariance_zx_f32x8);
+    nk_f32_t covariance_z_y = nk_reduce_add_f32x8_haswell_(covariance_zy_f32x8);
+    nk_f32_t covariance_z_z = nk_reduce_add_f32x8_haswell_(covariance_zz_f32x8);
+    nk_f32_t norm_squared_a_sum = nk_reduce_add_f32x8_haswell_(norm_squared_a_f32x8);
+    nk_f32_t norm_squared_b_sum = nk_reduce_add_f32x8_haswell_(norm_squared_b_f32x8);
 
     // Scalar tail
     for (; i < n; ++i) {
@@ -1626,6 +1397,8 @@ NK_PUBLIC void nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk
         covariance_x_x += ax * bx, covariance_x_y += ax * by, covariance_x_z += ax * bz;
         covariance_y_x += ay * bx, covariance_y_y += ay * by, covariance_y_z += ay * bz;
         covariance_z_x += az * bx, covariance_z_y += az * by, covariance_z_z += az * bz;
+        norm_squared_a_sum += ax * ax + ay * ay + az * az;
+        norm_squared_b_sum += bx * bx + by * by + bz * bz;
     }
 
     // Compute centroids
@@ -1651,60 +1424,92 @@ NK_PUBLIC void nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk
     covariance_z_y -= (nk_f32_t)n * centroid_a_z * centroid_b_y;
     covariance_z_z -= (nk_f32_t)n * centroid_a_z * centroid_b_z;
 
-    // Compute SVD and optimal rotation
     nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
-    nk_f32_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f32_(cross_covariance, svd_u, svd_s, svd_v);
 
-    // R = V * Uᵀ
-    nk_f32_t r[9];
-    r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    // Centered ‖a-ā‖², ‖b-b̄‖² via the parallel-axis identity
+    nk_f32_t centered_norm_squared_a = norm_squared_a_sum -
+                                       (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f32_t centered_norm_squared_b = norm_squared_b_sum -
+                                       (nk_f32_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
+    if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
 
-    // Handle reflection: if det(R) < 0, negate third column of V and recompute R
-    if (nk_det3x3_f32_(r) < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    // Identity-dominant short-circuit: R = I, trace(R · H) = H[0]+H[4]+H[8]. Skips SVD + two
+    // rotation reconstructions when the inputs are already aligned.
+    nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f32_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f32_t optimal_rotation[9];
+    nk_f32_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-12f * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0f &&
+        cross_covariance[4] > 0.0f && cross_covariance[8] > 0.0f) {
+        optimal_rotation[0] = 1.0f, optimal_rotation[1] = 0.0f, optimal_rotation[2] = 0.0f;
+        optimal_rotation[3] = 0.0f, optimal_rotation[4] = 1.0f, optimal_rotation[5] = 0.0f;
+        optimal_rotation[6] = 0.0f, optimal_rotation[7] = 0.0f, optimal_rotation[8] = 1.0f;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+    }
+    else {
+        nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        // R = V * Uᵀ
+        optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+        optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+        optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+        optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+        optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+        optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+        optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+        optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+        optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+        if (nk_det3x3_f32_(optimal_rotation) < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+            optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+            optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+            optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+            optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+            optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+            optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+            optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+            optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+        }
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
     }
 
     // Output rotation matrix and scale=1.0
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    // Compute RMSD after optimal rotation
-    nk_f32_t sum_squared = nk_transformed_ssd_bf16_haswell_(a, b, n, r, 1.0f, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                            centroid_b_x, centroid_b_y, centroid_b_z);
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    nk_f32_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0f * trace_rotation_covariance;
+    if (sum_squared < 0.0f) sum_squared = 0.0f;
     *result = nk_f32_sqrt_haswell(sum_squared * inv_n);
 }
 
 NK_PUBLIC void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
-    // Fused single-pass: load f16, convert to f32, compute centroids, covariance, and variance
+    // Fused single-pass: load f16, convert to f32, compute centroids, covariance, and ‖a‖²/‖b‖²
     __m256 const zeros_f32x8 = _mm256_setzero_ps();
 
     __m256 sum_a_x_f32x8 = zeros_f32x8, sum_a_y_f32x8 = zeros_f32x8, sum_a_z_f32x8 = zeros_f32x8;
     __m256 sum_b_x_f32x8 = zeros_f32x8, sum_b_y_f32x8 = zeros_f32x8, sum_b_z_f32x8 = zeros_f32x8;
-    __m256 cov_xx_f32x8 = zeros_f32x8, cov_xy_f32x8 = zeros_f32x8, cov_xz_f32x8 = zeros_f32x8;
-    __m256 cov_yx_f32x8 = zeros_f32x8, cov_yy_f32x8 = zeros_f32x8, cov_yz_f32x8 = zeros_f32x8;
-    __m256 cov_zx_f32x8 = zeros_f32x8, cov_zy_f32x8 = zeros_f32x8, cov_zz_f32x8 = zeros_f32x8;
-    __m256 variance_a_f32x8 = zeros_f32x8;
+    __m256 covariance_xx_f32x8 = zeros_f32x8, covariance_xy_f32x8 = zeros_f32x8, covariance_xz_f32x8 = zeros_f32x8;
+    __m256 covariance_yx_f32x8 = zeros_f32x8, covariance_yy_f32x8 = zeros_f32x8, covariance_yz_f32x8 = zeros_f32x8;
+    __m256 covariance_zx_f32x8 = zeros_f32x8, covariance_zy_f32x8 = zeros_f32x8, covariance_zz_f32x8 = zeros_f32x8;
+    __m256 norm_squared_a_f32x8 = zeros_f32x8, norm_squared_b_f32x8 = zeros_f32x8;
 
     nk_size_t i = 0;
     __m256 a_x_f32x8, a_y_f32x8, a_z_f32x8, b_x_f32x8, b_y_f32x8, b_z_f32x8;
@@ -1722,20 +1527,23 @@ NK_PUBLIC void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_s
         sum_b_z_f32x8 = _mm256_add_ps(sum_b_z_f32x8, b_z_f32x8);
 
         // Accumulate outer products
-        cov_xx_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_x_f32x8, cov_xx_f32x8);
-        cov_xy_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_y_f32x8, cov_xy_f32x8);
-        cov_xz_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_z_f32x8, cov_xz_f32x8);
-        cov_yx_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_x_f32x8, cov_yx_f32x8);
-        cov_yy_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_y_f32x8, cov_yy_f32x8);
-        cov_yz_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_z_f32x8, cov_yz_f32x8);
-        cov_zx_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_x_f32x8, cov_zx_f32x8);
-        cov_zy_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_y_f32x8, cov_zy_f32x8);
-        cov_zz_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_z_f32x8, cov_zz_f32x8);
+        covariance_xx_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_x_f32x8, covariance_xx_f32x8);
+        covariance_xy_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_y_f32x8, covariance_xy_f32x8);
+        covariance_xz_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_z_f32x8, covariance_xz_f32x8);
+        covariance_yx_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_x_f32x8, covariance_yx_f32x8);
+        covariance_yy_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_y_f32x8, covariance_yy_f32x8);
+        covariance_yz_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_z_f32x8, covariance_yz_f32x8);
+        covariance_zx_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_x_f32x8, covariance_zx_f32x8);
+        covariance_zy_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_y_f32x8, covariance_zy_f32x8);
+        covariance_zz_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_z_f32x8, covariance_zz_f32x8);
 
-        // Accumulate variance of A
-        variance_a_f32x8 = _mm256_fmadd_ps(a_x_f32x8, a_x_f32x8, variance_a_f32x8);
-        variance_a_f32x8 = _mm256_fmadd_ps(a_y_f32x8, a_y_f32x8, variance_a_f32x8);
-        variance_a_f32x8 = _mm256_fmadd_ps(a_z_f32x8, a_z_f32x8, variance_a_f32x8);
+        // Accumulate ‖a‖² and ‖b‖² for folded SSD
+        norm_squared_a_f32x8 = _mm256_fmadd_ps(a_x_f32x8, a_x_f32x8, norm_squared_a_f32x8);
+        norm_squared_a_f32x8 = _mm256_fmadd_ps(a_y_f32x8, a_y_f32x8, norm_squared_a_f32x8);
+        norm_squared_a_f32x8 = _mm256_fmadd_ps(a_z_f32x8, a_z_f32x8, norm_squared_a_f32x8);
+        norm_squared_b_f32x8 = _mm256_fmadd_ps(b_x_f32x8, b_x_f32x8, norm_squared_b_f32x8);
+        norm_squared_b_f32x8 = _mm256_fmadd_ps(b_y_f32x8, b_y_f32x8, norm_squared_b_f32x8);
+        norm_squared_b_f32x8 = _mm256_fmadd_ps(b_z_f32x8, b_z_f32x8, norm_squared_b_f32x8);
     }
 
     // Reduce vector accumulators
@@ -1745,16 +1553,17 @@ NK_PUBLIC void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_s
     nk_f32_t sum_b_x = nk_reduce_add_f32x8_haswell_(sum_b_x_f32x8);
     nk_f32_t sum_b_y = nk_reduce_add_f32x8_haswell_(sum_b_y_f32x8);
     nk_f32_t sum_b_z = nk_reduce_add_f32x8_haswell_(sum_b_z_f32x8);
-    nk_f32_t covariance_x_x = nk_reduce_add_f32x8_haswell_(cov_xx_f32x8);
-    nk_f32_t covariance_x_y = nk_reduce_add_f32x8_haswell_(cov_xy_f32x8);
-    nk_f32_t covariance_x_z = nk_reduce_add_f32x8_haswell_(cov_xz_f32x8);
-    nk_f32_t covariance_y_x = nk_reduce_add_f32x8_haswell_(cov_yx_f32x8);
-    nk_f32_t covariance_y_y = nk_reduce_add_f32x8_haswell_(cov_yy_f32x8);
-    nk_f32_t covariance_y_z = nk_reduce_add_f32x8_haswell_(cov_yz_f32x8);
-    nk_f32_t covariance_z_x = nk_reduce_add_f32x8_haswell_(cov_zx_f32x8);
-    nk_f32_t covariance_z_y = nk_reduce_add_f32x8_haswell_(cov_zy_f32x8);
-    nk_f32_t covariance_z_z = nk_reduce_add_f32x8_haswell_(cov_zz_f32x8);
-    nk_f32_t variance_a_sum = nk_reduce_add_f32x8_haswell_(variance_a_f32x8);
+    nk_f32_t covariance_x_x = nk_reduce_add_f32x8_haswell_(covariance_xx_f32x8);
+    nk_f32_t covariance_x_y = nk_reduce_add_f32x8_haswell_(covariance_xy_f32x8);
+    nk_f32_t covariance_x_z = nk_reduce_add_f32x8_haswell_(covariance_xz_f32x8);
+    nk_f32_t covariance_y_x = nk_reduce_add_f32x8_haswell_(covariance_yx_f32x8);
+    nk_f32_t covariance_y_y = nk_reduce_add_f32x8_haswell_(covariance_yy_f32x8);
+    nk_f32_t covariance_y_z = nk_reduce_add_f32x8_haswell_(covariance_yz_f32x8);
+    nk_f32_t covariance_z_x = nk_reduce_add_f32x8_haswell_(covariance_zx_f32x8);
+    nk_f32_t covariance_z_y = nk_reduce_add_f32x8_haswell_(covariance_zy_f32x8);
+    nk_f32_t covariance_z_z = nk_reduce_add_f32x8_haswell_(covariance_zz_f32x8);
+    nk_f32_t norm_squared_a_sum = nk_reduce_add_f32x8_haswell_(norm_squared_a_f32x8);
+    nk_f32_t norm_squared_b_sum = nk_reduce_add_f32x8_haswell_(norm_squared_b_f32x8);
 
     // Scalar tail
     for (; i < n; ++i) {
@@ -1770,7 +1579,8 @@ NK_PUBLIC void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_s
         covariance_x_x += ax * bx, covariance_x_y += ax * by, covariance_x_z += ax * bz;
         covariance_y_x += ay * bx, covariance_y_y += ay * by, covariance_y_z += ay * bz;
         covariance_z_x += az * bx, covariance_z_y += az * by, covariance_z_z += az * bz;
-        variance_a_sum += ax * ax + ay * ay + az * az;
+        norm_squared_a_sum += ax * ax + ay * ay + az * az;
+        norm_squared_b_sum += bx * bx + by * by + bz * bz;
     }
 
     // Compute centroids
@@ -1780,10 +1590,6 @@ NK_PUBLIC void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_s
 
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
-
-    // Compute centered covariance and variance
-    nk_f32_t variance_a = variance_a_sum * inv_n -
-                          (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y + centroid_a_z * centroid_a_z);
 
     // Apply centering correction to covariance matrix
     covariance_x_x -= (nk_f32_t)n * centroid_a_x * centroid_b_x;
@@ -1799,64 +1605,97 @@ NK_PUBLIC void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_s
     nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
 
-    // SVD
-    nk_f32_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f32_(cross_covariance, svd_u, svd_s, svd_v);
+    // Centered ‖a-ā‖², ‖b-b̄‖² via the parallel-axis identity
+    nk_f32_t centered_norm_squared_a = norm_squared_a_sum -
+                                       (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f32_t centered_norm_squared_b = norm_squared_b_sum -
+                                       (nk_f32_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
+    if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
 
-    // R = V * Uᵀ
-    nk_f32_t r[9];
-    r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    // Identity-dominant short-circuit: if H is essentially diagonal with positive diagonals,
+    // R = I and trace(DS) = trace(H).
+    nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f32_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f32_t optimal_rotation[9];
+    nk_f32_t applied_scale;
+    nk_f32_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-12f * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0f &&
+        cross_covariance[4] > 0.0f && cross_covariance[8] > 0.0f) {
+        optimal_rotation[0] = 1.0f, optimal_rotation[1] = 0.0f, optimal_rotation[2] = 0.0f;
+        optimal_rotation[3] = 0.0f, optimal_rotation[4] = 1.0f, optimal_rotation[5] = 0.0f;
+        optimal_rotation[6] = 0.0f, optimal_rotation[7] = 0.0f, optimal_rotation[8] = 1.0f;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+        applied_scale = centered_norm_squared_a > 0.0f ? trace_rotation_covariance / centered_norm_squared_a : 0.0f;
+    }
+    else {
+        nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        // R = V * Uᵀ
+        optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+        optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+        optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+        optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+        optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+        optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+        optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+        optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+        optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
 
-    // Scale factor: c = trace(D × S) / (n × variance(a))
-    nk_f32_t det = nk_det3x3_f32_(r);
-    nk_f32_t d3 = det < 0 ? -1.0f : 1.0f;
-    nk_f32_t trace_ds = svd_s[0] + svd_s[4] + d3 * svd_s[8];
-    nk_f32_t c = trace_ds / ((nk_f32_t)n * variance_a);
-    if (scale) *scale = c;
-
-    // Handle reflection
-    if (det < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+        nk_f32_t det = nk_det3x3_f32_(optimal_rotation);
+        nk_f32_t sign_correction = det < 0 ? -1.0f : 1.0f;
+        if (det < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+            optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+            optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+            optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+            optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+            optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+            optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+            optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+            optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+        }
+        nk_f32_t trace_ds = svd_diagonal[0] + svd_diagonal[4] + sign_correction * svd_diagonal[8];
+        applied_scale = centered_norm_squared_a > 0.0f ? trace_ds / centered_norm_squared_a : 0.0f;
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
     }
 
-    // Output rotation matrix
+    // Output rotation matrix and scale
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
+    if (scale) *scale = applied_scale;
 
-    // Compute RMSD with scaling
-    nk_f32_t sum_squared = nk_transformed_ssd_f16_haswell_(a, b, n, r, c, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                           centroid_b_x, centroid_b_y, centroid_b_z);
+    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    nk_f32_t sum_squared = applied_scale * applied_scale * centered_norm_squared_a + centered_norm_squared_b -
+                           2.0f * applied_scale * trace_rotation_covariance;
+    if (sum_squared < 0.0f) sum_squared = 0.0f;
     *result = nk_f32_sqrt_haswell(sum_squared * inv_n);
 }
 
 NK_PUBLIC void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
-    // Fused single-pass: load bf16, convert to f32, compute centroids, covariance, and variance
+    // Fused single-pass: load bf16, convert to f32, compute centroids, covariance, and ‖a‖²/‖b‖²
     __m256 const zeros_f32x8 = _mm256_setzero_ps();
 
     __m256 sum_a_x_f32x8 = zeros_f32x8, sum_a_y_f32x8 = zeros_f32x8, sum_a_z_f32x8 = zeros_f32x8;
     __m256 sum_b_x_f32x8 = zeros_f32x8, sum_b_y_f32x8 = zeros_f32x8, sum_b_z_f32x8 = zeros_f32x8;
-    __m256 cov_xx_f32x8 = zeros_f32x8, cov_xy_f32x8 = zeros_f32x8, cov_xz_f32x8 = zeros_f32x8;
-    __m256 cov_yx_f32x8 = zeros_f32x8, cov_yy_f32x8 = zeros_f32x8, cov_yz_f32x8 = zeros_f32x8;
-    __m256 cov_zx_f32x8 = zeros_f32x8, cov_zy_f32x8 = zeros_f32x8, cov_zz_f32x8 = zeros_f32x8;
-    __m256 variance_a_f32x8 = zeros_f32x8;
+    __m256 covariance_xx_f32x8 = zeros_f32x8, covariance_xy_f32x8 = zeros_f32x8, covariance_xz_f32x8 = zeros_f32x8;
+    __m256 covariance_yx_f32x8 = zeros_f32x8, covariance_yy_f32x8 = zeros_f32x8, covariance_yz_f32x8 = zeros_f32x8;
+    __m256 covariance_zx_f32x8 = zeros_f32x8, covariance_zy_f32x8 = zeros_f32x8, covariance_zz_f32x8 = zeros_f32x8;
+    __m256 norm_squared_a_f32x8 = zeros_f32x8, norm_squared_b_f32x8 = zeros_f32x8;
 
     nk_size_t i = 0;
     __m256 a_x_f32x8, a_y_f32x8, a_z_f32x8, b_x_f32x8, b_y_f32x8, b_z_f32x8;
@@ -1874,20 +1713,23 @@ NK_PUBLIC void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, n
         sum_b_z_f32x8 = _mm256_add_ps(sum_b_z_f32x8, b_z_f32x8);
 
         // Accumulate outer products
-        cov_xx_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_x_f32x8, cov_xx_f32x8);
-        cov_xy_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_y_f32x8, cov_xy_f32x8);
-        cov_xz_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_z_f32x8, cov_xz_f32x8);
-        cov_yx_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_x_f32x8, cov_yx_f32x8);
-        cov_yy_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_y_f32x8, cov_yy_f32x8);
-        cov_yz_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_z_f32x8, cov_yz_f32x8);
-        cov_zx_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_x_f32x8, cov_zx_f32x8);
-        cov_zy_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_y_f32x8, cov_zy_f32x8);
-        cov_zz_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_z_f32x8, cov_zz_f32x8);
+        covariance_xx_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_x_f32x8, covariance_xx_f32x8);
+        covariance_xy_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_y_f32x8, covariance_xy_f32x8);
+        covariance_xz_f32x8 = _mm256_fmadd_ps(a_x_f32x8, b_z_f32x8, covariance_xz_f32x8);
+        covariance_yx_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_x_f32x8, covariance_yx_f32x8);
+        covariance_yy_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_y_f32x8, covariance_yy_f32x8);
+        covariance_yz_f32x8 = _mm256_fmadd_ps(a_y_f32x8, b_z_f32x8, covariance_yz_f32x8);
+        covariance_zx_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_x_f32x8, covariance_zx_f32x8);
+        covariance_zy_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_y_f32x8, covariance_zy_f32x8);
+        covariance_zz_f32x8 = _mm256_fmadd_ps(a_z_f32x8, b_z_f32x8, covariance_zz_f32x8);
 
-        // Accumulate variance of A
-        variance_a_f32x8 = _mm256_fmadd_ps(a_x_f32x8, a_x_f32x8, variance_a_f32x8);
-        variance_a_f32x8 = _mm256_fmadd_ps(a_y_f32x8, a_y_f32x8, variance_a_f32x8);
-        variance_a_f32x8 = _mm256_fmadd_ps(a_z_f32x8, a_z_f32x8, variance_a_f32x8);
+        // Accumulate ‖a‖² and ‖b‖² for folded SSD
+        norm_squared_a_f32x8 = _mm256_fmadd_ps(a_x_f32x8, a_x_f32x8, norm_squared_a_f32x8);
+        norm_squared_a_f32x8 = _mm256_fmadd_ps(a_y_f32x8, a_y_f32x8, norm_squared_a_f32x8);
+        norm_squared_a_f32x8 = _mm256_fmadd_ps(a_z_f32x8, a_z_f32x8, norm_squared_a_f32x8);
+        norm_squared_b_f32x8 = _mm256_fmadd_ps(b_x_f32x8, b_x_f32x8, norm_squared_b_f32x8);
+        norm_squared_b_f32x8 = _mm256_fmadd_ps(b_y_f32x8, b_y_f32x8, norm_squared_b_f32x8);
+        norm_squared_b_f32x8 = _mm256_fmadd_ps(b_z_f32x8, b_z_f32x8, norm_squared_b_f32x8);
     }
 
     // Reduce vector accumulators
@@ -1897,16 +1739,17 @@ NK_PUBLIC void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, n
     nk_f32_t sum_b_x = nk_reduce_add_f32x8_haswell_(sum_b_x_f32x8);
     nk_f32_t sum_b_y = nk_reduce_add_f32x8_haswell_(sum_b_y_f32x8);
     nk_f32_t sum_b_z = nk_reduce_add_f32x8_haswell_(sum_b_z_f32x8);
-    nk_f32_t covariance_x_x = nk_reduce_add_f32x8_haswell_(cov_xx_f32x8);
-    nk_f32_t covariance_x_y = nk_reduce_add_f32x8_haswell_(cov_xy_f32x8);
-    nk_f32_t covariance_x_z = nk_reduce_add_f32x8_haswell_(cov_xz_f32x8);
-    nk_f32_t covariance_y_x = nk_reduce_add_f32x8_haswell_(cov_yx_f32x8);
-    nk_f32_t covariance_y_y = nk_reduce_add_f32x8_haswell_(cov_yy_f32x8);
-    nk_f32_t covariance_y_z = nk_reduce_add_f32x8_haswell_(cov_yz_f32x8);
-    nk_f32_t covariance_z_x = nk_reduce_add_f32x8_haswell_(cov_zx_f32x8);
-    nk_f32_t covariance_z_y = nk_reduce_add_f32x8_haswell_(cov_zy_f32x8);
-    nk_f32_t covariance_z_z = nk_reduce_add_f32x8_haswell_(cov_zz_f32x8);
-    nk_f32_t variance_a_sum = nk_reduce_add_f32x8_haswell_(variance_a_f32x8);
+    nk_f32_t covariance_x_x = nk_reduce_add_f32x8_haswell_(covariance_xx_f32x8);
+    nk_f32_t covariance_x_y = nk_reduce_add_f32x8_haswell_(covariance_xy_f32x8);
+    nk_f32_t covariance_x_z = nk_reduce_add_f32x8_haswell_(covariance_xz_f32x8);
+    nk_f32_t covariance_y_x = nk_reduce_add_f32x8_haswell_(covariance_yx_f32x8);
+    nk_f32_t covariance_y_y = nk_reduce_add_f32x8_haswell_(covariance_yy_f32x8);
+    nk_f32_t covariance_y_z = nk_reduce_add_f32x8_haswell_(covariance_yz_f32x8);
+    nk_f32_t covariance_z_x = nk_reduce_add_f32x8_haswell_(covariance_zx_f32x8);
+    nk_f32_t covariance_z_y = nk_reduce_add_f32x8_haswell_(covariance_zy_f32x8);
+    nk_f32_t covariance_z_z = nk_reduce_add_f32x8_haswell_(covariance_zz_f32x8);
+    nk_f32_t norm_squared_a_sum = nk_reduce_add_f32x8_haswell_(norm_squared_a_f32x8);
+    nk_f32_t norm_squared_b_sum = nk_reduce_add_f32x8_haswell_(norm_squared_b_f32x8);
 
     // Scalar tail
     for (; i < n; ++i) {
@@ -1922,7 +1765,8 @@ NK_PUBLIC void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, n
         covariance_x_x += ax * bx, covariance_x_y += ax * by, covariance_x_z += ax * bz;
         covariance_y_x += ay * bx, covariance_y_y += ay * by, covariance_y_z += ay * bz;
         covariance_z_x += az * bx, covariance_z_y += az * by, covariance_z_z += az * bz;
-        variance_a_sum += ax * ax + ay * ay + az * az;
+        norm_squared_a_sum += ax * ax + ay * ay + az * az;
+        norm_squared_b_sum += bx * bx + by * by + bz * bz;
     }
 
     // Compute centroids
@@ -1932,10 +1776,6 @@ NK_PUBLIC void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, n
 
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
-
-    // Compute centered covariance and variance
-    nk_f32_t variance_a = variance_a_sum * inv_n -
-                          (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y + centroid_a_z * centroid_a_z);
 
     // Apply centering correction to covariance matrix
     covariance_x_x -= (nk_f32_t)n * centroid_a_x * centroid_b_x;
@@ -1951,50 +1791,83 @@ NK_PUBLIC void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, n
     nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
 
-    // SVD
-    nk_f32_t svd_u[9], svd_s[9], svd_v[9];
-    nk_svd3x3_f32_(cross_covariance, svd_u, svd_s, svd_v);
+    // Centered ‖a-ā‖², ‖b-b̄‖² via the parallel-axis identity
+    nk_f32_t centered_norm_squared_a = norm_squared_a_sum -
+                                       (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
+                                                      centroid_a_z * centroid_a_z);
+    nk_f32_t centered_norm_squared_b = norm_squared_b_sum -
+                                       (nk_f32_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
+                                                      centroid_b_z * centroid_b_z);
+    if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
+    if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
 
-    // R = V * Uᵀ
-    nk_f32_t r[9];
-    r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    // Identity-dominant short-circuit: if H is essentially diagonal with positive diagonals,
+    // R = I and trace(DS) = trace(H).
+    nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
+                                                cross_covariance[4] * cross_covariance[4] +
+                                                cross_covariance[8] * cross_covariance[8];
+    nk_f32_t covariance_offdiagonal_norm_squared =
+        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
+        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
+        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
+    nk_f32_t optimal_rotation[9];
+    nk_f32_t applied_scale;
+    nk_f32_t trace_rotation_covariance;
+    if (covariance_offdiagonal_norm_squared < 1e-12f * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0f &&
+        cross_covariance[4] > 0.0f && cross_covariance[8] > 0.0f) {
+        optimal_rotation[0] = 1.0f, optimal_rotation[1] = 0.0f, optimal_rotation[2] = 0.0f;
+        optimal_rotation[3] = 0.0f, optimal_rotation[4] = 1.0f, optimal_rotation[5] = 0.0f;
+        optimal_rotation[6] = 0.0f, optimal_rotation[7] = 0.0f, optimal_rotation[8] = 1.0f;
+        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
+        applied_scale = centered_norm_squared_a > 0.0f ? trace_rotation_covariance / centered_norm_squared_a : 0.0f;
+    }
+    else {
+        nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
+        nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        // R = V * Uᵀ
+        optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+        optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+        optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+        optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+        optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+        optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+        optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+        optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+        optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
 
-    // Scale factor: c = trace(D × S) / (n × variance(a))
-    nk_f32_t det = nk_det3x3_f32_(r);
-    nk_f32_t d3 = det < 0 ? -1.0f : 1.0f;
-    nk_f32_t trace_ds = svd_s[0] + svd_s[4] + d3 * svd_s[8];
-    nk_f32_t c = trace_ds / ((nk_f32_t)n * variance_a);
-    if (scale) *scale = c;
-
-    // Handle reflection
-    if (det < 0) {
-        svd_v[2] = -svd_v[2], svd_v[5] = -svd_v[5], svd_v[8] = -svd_v[8];
-        r[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        r[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        r[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        r[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        r[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        r[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        r[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        r[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        r[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+        nk_f32_t det = nk_det3x3_f32_(optimal_rotation);
+        nk_f32_t sign_correction = det < 0 ? -1.0f : 1.0f;
+        if (det < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
+            optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
+            optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
+            optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
+            optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
+            optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
+            optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
+            optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
+            optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+        }
+        nk_f32_t trace_ds = svd_diagonal[0] + svd_diagonal[4] + sign_correction * svd_diagonal[8];
+        applied_scale = centered_norm_squared_a > 0.0f ? trace_ds / centered_norm_squared_a : 0.0f;
+        trace_rotation_covariance =
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
+            optimal_rotation[8] * cross_covariance[8];
     }
 
-    // Output rotation matrix
+    // Output rotation matrix and scale
     if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = r[j];
+        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
+    if (scale) *scale = applied_scale;
 
-    // Compute RMSD with scaling
-    nk_f32_t sum_squared = nk_transformed_ssd_bf16_haswell_(a, b, n, r, c, centroid_a_x, centroid_a_y, centroid_a_z,
-                                                            centroid_b_x, centroid_b_y, centroid_b_z);
+    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    nk_f32_t sum_squared = applied_scale * applied_scale * centered_norm_squared_a + centered_norm_squared_b -
+                           2.0f * applied_scale * trace_rotation_covariance;
+    if (sum_squared < 0.0f) sum_squared = 0.0f;
     *result = nk_f32_sqrt_haswell(sum_squared * inv_n);
 }
 
