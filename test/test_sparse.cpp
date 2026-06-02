@@ -102,6 +102,10 @@ void test_sparse() {
     check("sparse_dot_u32f32_icelake", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_icelake);
 #endif // NK_TARGET_ICELAKE
 
+#if NK_TARGET_HASWELL
+    check("sparse_dot_u32f32_haswell", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_haswell);
+#endif // NK_TARGET_HASWELL
+
 #if NK_TARGET_TURIN
     check("sparse_intersect_u16_turin", test_intersect<u16_t>, nk_sparse_intersect_u16_turin);
     check("sparse_intersect_u32_turin", test_intersect<u32_t>, nk_sparse_intersect_u32_turin);

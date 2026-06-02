@@ -187,6 +187,10 @@ void bench_sparse_dot() {
     run_sparse_dot<u32_k, f32_k>("sparse_dot_u32f32_icelake", nk_sparse_dot_u32f32_icelake);
 #endif
 
+#if NK_TARGET_HASWELL
+    run_sparse_dot<u32_k, f32_k>("sparse_dot_u32f32_haswell", nk_sparse_dot_u32f32_haswell);
+#endif
+
 #if NK_TARGET_TURIN
     run_sparse_dot<u16_k, bf16_k>("sparse_dot_u16bf16_turin", nk_sparse_dot_u16bf16_turin);
     run_sparse_dot<u32_k, f32_k>("sparse_dot_u32f32_turin", nk_sparse_dot_u32f32_turin);
