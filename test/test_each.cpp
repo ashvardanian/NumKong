@@ -6,7 +6,8 @@
  */
 
 #include "test.hpp"
-#include "numkong/each.hpp" // `nk::sum`, `nk::scale`, `nk::blend`, `nk::fma`
+#include "numkong/each.hpp"          // `nk::sum`, `nk::scale`, `nk::blend`, `nk::fma`
+#include "numkong/trigonometry.hpp"  // `nk::try_sin`, `nk::try_cos`, `nk::try_atan` wrappers
 
 template <typename scalar_type_, typename generator_type_>
 typename scalar_type_::scale_t random_coef(generator_type_ &gen) {
@@ -150,8 +151,36 @@ error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
     return stats;
 }
 
+/**
+ *  @brief Smoke-test for the tensor-shaped trig wrappers (`nk::try_sin`/`cos`/`atan`).
+ *  Runs allocating + into-span variants on a small zero tensor — just exercises the dispatch
+ *  paths, not the numerical accuracy (the latter is covered by the kernel tests above).
+ */
+template <typename value_type_>
+void test_tensor_trig_for_type() {
+    using tensor_t = nk::tensor<value_type_>;
+    auto a = tensor_t::try_zeros({4, 8});
+    auto out = tensor_t::try_zeros({4, 8});
+    auto av = a.view();
+
+    { [[maybe_unused]] auto r = nk::try_sin<value_type_>(av); }
+    { [[maybe_unused]] auto r = nk::try_cos<value_type_>(av); }
+    { [[maybe_unused]] auto r = nk::try_atan<value_type_>(av); }
+    { [[maybe_unused]] bool ok = nk::sin<value_type_>(av, out.span()); }
+    { [[maybe_unused]] bool ok = nk::cos<value_type_>(av, out.span()); }
+    { [[maybe_unused]] bool ok = nk::atan<value_type_>(av, out.span()); }
+}
+
 void test_each() {
     error_stats_section_t check("Elementwise Operations");
+
+    // Tensor-shaped trig wrappers (float-capable types).
+    test_tensor_trig_for_type<nk::f32_t>();
+    test_tensor_trig_for_type<nk::f64_t>();
+    test_tensor_trig_for_type<nk::f16_t>();
+    test_tensor_trig_for_type<nk::bf16_t>();
+    std::printf("  trig (4 types):               OK\n");
+
 
 #if NK_DYNAMIC_DISPATCH
     // Dynamic dispatch - only test the dispatcher itself

@@ -2108,232 +2108,893 @@ pub trait Euclideans: Dots {
     );
 }
 
-macro_rules! impl_spatial_traits {
-    ($rust_ty:ty, $result_ty:ty, $ptr_ty:ty, $cast:expr,
-     $ang_packed:ident, $ang_sym:ident, $euc_packed:ident, $euc_sym:ident) => {
-        impl Angulars for $rust_ty {
-            type SpatialResult = $result_ty;
+impl Angulars for f32 {
+    type SpatialResult = f64;
 
-            unsafe fn angulars_packed(
-                a: *const Self,
-                packed: *const u8,
-                c: *mut Self::SpatialResult,
-                height: usize,
-                width: usize,
-                depth: usize,
-                a_stride: usize,
-                c_stride: usize,
-            ) {
-                $ang_packed(
-                    $cast(a),
-                    packed,
-                    c,
-                    height,
-                    width,
-                    depth,
-                    a_stride,
-                    c_stride,
-                )
-            }
+    unsafe fn angulars_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_angulars_packed_f32(a, packed, c, height, width, depth, a_stride, c_stride)
+    }
 
-            unsafe fn angulars_symmetric(
-                vectors: *const Self,
-                n_vectors: usize,
-                depth: usize,
-                stride: usize,
-                result: *mut Self::SpatialResult,
-                result_stride: usize,
-                row_start: usize,
-                row_count: usize,
-            ) {
-                $ang_sym(
-                    $cast(vectors),
-                    n_vectors,
-                    depth,
-                    stride,
-                    result,
-                    result_stride,
-                    row_start,
-                    row_count,
-                )
-            }
-        }
-
-        impl Euclideans for $rust_ty {
-            type SpatialResult = $result_ty;
-
-            unsafe fn euclideans_packed(
-                a: *const Self,
-                packed: *const u8,
-                c: *mut Self::SpatialResult,
-                height: usize,
-                width: usize,
-                depth: usize,
-                a_stride: usize,
-                c_stride: usize,
-            ) {
-                $euc_packed(
-                    $cast(a),
-                    packed,
-                    c,
-                    height,
-                    width,
-                    depth,
-                    a_stride,
-                    c_stride,
-                )
-            }
-
-            unsafe fn euclideans_symmetric(
-                vectors: *const Self,
-                n_vectors: usize,
-                depth: usize,
-                stride: usize,
-                result: *mut Self::SpatialResult,
-                result_stride: usize,
-                row_start: usize,
-                row_count: usize,
-            ) {
-                $euc_sym(
-                    $cast(vectors),
-                    n_vectors,
-                    depth,
-                    stride,
-                    result,
-                    result_stride,
-                    row_start,
-                    row_count,
-                )
-            }
-        }
-    };
+    unsafe fn angulars_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_angulars_symmetric_f32(
+            vectors,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
 }
 
-#[inline(always)]
-fn identity_f32(p: *const f32) -> *const f32 {
-    p
-}
-#[inline(always)]
-fn identity_f64(p: *const f64) -> *const f64 {
-    p
-}
-#[inline(always)]
-fn identity_i8(p: *const i8) -> *const i8 {
-    p
-}
-#[inline(always)]
-fn identity_u8(p: *const u8) -> *const u8 {
-    p
-}
-#[inline(always)]
-fn cast_to_u16<Scalar>(p: *const Scalar) -> *const u16 {
-    p as *const u16
-}
-#[inline(always)]
-fn cast_to_u8<Scalar>(p: *const Scalar) -> *const u8 {
-    p as *const u8
+impl Euclideans for f32 {
+    type SpatialResult = f64;
+
+    unsafe fn euclideans_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_euclideans_packed_f32(a, packed, c, height, width, depth, a_stride, c_stride)
+    }
+
+    unsafe fn euclideans_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_euclideans_symmetric_f32(
+            vectors,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
 }
 
-impl_spatial_traits!(
-    f32,
-    f64,
-    *const f32,
-    identity_f32,
-    nk_angulars_packed_f32,
-    nk_angulars_symmetric_f32,
-    nk_euclideans_packed_f32,
-    nk_euclideans_symmetric_f32
-);
-impl_spatial_traits!(
-    f64,
-    f64,
-    *const f64,
-    identity_f64,
-    nk_angulars_packed_f64,
-    nk_angulars_symmetric_f64,
-    nk_euclideans_packed_f64,
-    nk_euclideans_symmetric_f64
-);
-impl_spatial_traits!(
-    f16,
-    f32,
-    *const u16,
-    cast_to_u16,
-    nk_angulars_packed_f16,
-    nk_angulars_symmetric_f16,
-    nk_euclideans_packed_f16,
-    nk_euclideans_symmetric_f16
-);
-impl_spatial_traits!(
-    bf16,
-    f32,
-    *const u16,
-    cast_to_u16,
-    nk_angulars_packed_bf16,
-    nk_angulars_symmetric_bf16,
-    nk_euclideans_packed_bf16,
-    nk_euclideans_symmetric_bf16
-);
-impl_spatial_traits!(
-    i8,
-    f32,
-    *const i8,
-    identity_i8,
-    nk_angulars_packed_i8,
-    nk_angulars_symmetric_i8,
-    nk_euclideans_packed_i8,
-    nk_euclideans_symmetric_i8
-);
-impl_spatial_traits!(
-    u8,
-    f32,
-    *const u8,
-    identity_u8,
-    nk_angulars_packed_u8,
-    nk_angulars_symmetric_u8,
-    nk_euclideans_packed_u8,
-    nk_euclideans_symmetric_u8
-);
-impl_spatial_traits!(
-    e4m3,
-    f32,
-    *const u8,
-    cast_to_u8,
-    nk_angulars_packed_e4m3,
-    nk_angulars_symmetric_e4m3,
-    nk_euclideans_packed_e4m3,
-    nk_euclideans_symmetric_e4m3
-);
-impl_spatial_traits!(
-    e5m2,
-    f32,
-    *const u8,
-    cast_to_u8,
-    nk_angulars_packed_e5m2,
-    nk_angulars_symmetric_e5m2,
-    nk_euclideans_packed_e5m2,
-    nk_euclideans_symmetric_e5m2
-);
-impl_spatial_traits!(
-    e2m3,
-    f32,
-    *const u8,
-    cast_to_u8,
-    nk_angulars_packed_e2m3,
-    nk_angulars_symmetric_e2m3,
-    nk_euclideans_packed_e2m3,
-    nk_euclideans_symmetric_e2m3
-);
-impl_spatial_traits!(
-    e3m2,
-    f32,
-    *const u8,
-    cast_to_u8,
-    nk_angulars_packed_e3m2,
-    nk_angulars_symmetric_e3m2,
-    nk_euclideans_packed_e3m2,
-    nk_euclideans_symmetric_e3m2
-);
+impl Angulars for f64 {
+    type SpatialResult = f64;
+
+    unsafe fn angulars_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_angulars_packed_f64(a, packed, c, height, width, depth, a_stride, c_stride)
+    }
+
+    unsafe fn angulars_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_angulars_symmetric_f64(
+            vectors,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Euclideans for f64 {
+    type SpatialResult = f64;
+
+    unsafe fn euclideans_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_euclideans_packed_f64(a, packed, c, height, width, depth, a_stride, c_stride)
+    }
+
+    unsafe fn euclideans_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_euclideans_symmetric_f64(
+            vectors,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Angulars for f16 {
+    type SpatialResult = f32;
+
+    unsafe fn angulars_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_angulars_packed_f16(
+            a as *const u16,
+            packed,
+            c,
+            height,
+            width,
+            depth,
+            a_stride,
+            c_stride,
+        )
+    }
+
+    unsafe fn angulars_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_angulars_symmetric_f16(
+            vectors as *const u16,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Euclideans for f16 {
+    type SpatialResult = f32;
+
+    unsafe fn euclideans_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_euclideans_packed_f16(
+            a as *const u16,
+            packed,
+            c,
+            height,
+            width,
+            depth,
+            a_stride,
+            c_stride,
+        )
+    }
+
+    unsafe fn euclideans_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_euclideans_symmetric_f16(
+            vectors as *const u16,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Angulars for bf16 {
+    type SpatialResult = f32;
+
+    unsafe fn angulars_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_angulars_packed_bf16(
+            a as *const u16,
+            packed,
+            c,
+            height,
+            width,
+            depth,
+            a_stride,
+            c_stride,
+        )
+    }
+
+    unsafe fn angulars_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_angulars_symmetric_bf16(
+            vectors as *const u16,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Euclideans for bf16 {
+    type SpatialResult = f32;
+
+    unsafe fn euclideans_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_euclideans_packed_bf16(
+            a as *const u16,
+            packed,
+            c,
+            height,
+            width,
+            depth,
+            a_stride,
+            c_stride,
+        )
+    }
+
+    unsafe fn euclideans_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_euclideans_symmetric_bf16(
+            vectors as *const u16,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Angulars for i8 {
+    type SpatialResult = f32;
+
+    unsafe fn angulars_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_angulars_packed_i8(a, packed, c, height, width, depth, a_stride, c_stride)
+    }
+
+    unsafe fn angulars_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_angulars_symmetric_i8(
+            vectors,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Euclideans for i8 {
+    type SpatialResult = f32;
+
+    unsafe fn euclideans_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_euclideans_packed_i8(a, packed, c, height, width, depth, a_stride, c_stride)
+    }
+
+    unsafe fn euclideans_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_euclideans_symmetric_i8(
+            vectors,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Angulars for u8 {
+    type SpatialResult = f32;
+
+    unsafe fn angulars_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_angulars_packed_u8(a, packed, c, height, width, depth, a_stride, c_stride)
+    }
+
+    unsafe fn angulars_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_angulars_symmetric_u8(
+            vectors,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Euclideans for u8 {
+    type SpatialResult = f32;
+
+    unsafe fn euclideans_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_euclideans_packed_u8(a, packed, c, height, width, depth, a_stride, c_stride)
+    }
+
+    unsafe fn euclideans_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_euclideans_symmetric_u8(
+            vectors,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Angulars for e4m3 {
+    type SpatialResult = f32;
+
+    unsafe fn angulars_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_angulars_packed_e4m3(
+            a as *const u8,
+            packed,
+            c,
+            height,
+            width,
+            depth,
+            a_stride,
+            c_stride,
+        )
+    }
+
+    unsafe fn angulars_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_angulars_symmetric_e4m3(
+            vectors as *const u8,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Euclideans for e4m3 {
+    type SpatialResult = f32;
+
+    unsafe fn euclideans_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_euclideans_packed_e4m3(
+            a as *const u8,
+            packed,
+            c,
+            height,
+            width,
+            depth,
+            a_stride,
+            c_stride,
+        )
+    }
+
+    unsafe fn euclideans_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_euclideans_symmetric_e4m3(
+            vectors as *const u8,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Angulars for e5m2 {
+    type SpatialResult = f32;
+
+    unsafe fn angulars_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_angulars_packed_e5m2(
+            a as *const u8,
+            packed,
+            c,
+            height,
+            width,
+            depth,
+            a_stride,
+            c_stride,
+        )
+    }
+
+    unsafe fn angulars_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_angulars_symmetric_e5m2(
+            vectors as *const u8,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Euclideans for e5m2 {
+    type SpatialResult = f32;
+
+    unsafe fn euclideans_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_euclideans_packed_e5m2(
+            a as *const u8,
+            packed,
+            c,
+            height,
+            width,
+            depth,
+            a_stride,
+            c_stride,
+        )
+    }
+
+    unsafe fn euclideans_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_euclideans_symmetric_e5m2(
+            vectors as *const u8,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Angulars for e2m3 {
+    type SpatialResult = f32;
+
+    unsafe fn angulars_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_angulars_packed_e2m3(
+            a as *const u8,
+            packed,
+            c,
+            height,
+            width,
+            depth,
+            a_stride,
+            c_stride,
+        )
+    }
+
+    unsafe fn angulars_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_angulars_symmetric_e2m3(
+            vectors as *const u8,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Euclideans for e2m3 {
+    type SpatialResult = f32;
+
+    unsafe fn euclideans_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_euclideans_packed_e2m3(
+            a as *const u8,
+            packed,
+            c,
+            height,
+            width,
+            depth,
+            a_stride,
+            c_stride,
+        )
+    }
+
+    unsafe fn euclideans_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_euclideans_symmetric_e2m3(
+            vectors as *const u8,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Angulars for e3m2 {
+    type SpatialResult = f32;
+
+    unsafe fn angulars_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_angulars_packed_e3m2(
+            a as *const u8,
+            packed,
+            c,
+            height,
+            width,
+            depth,
+            a_stride,
+            c_stride,
+        )
+    }
+
+    unsafe fn angulars_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_angulars_symmetric_e3m2(
+            vectors as *const u8,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Euclideans for e3m2 {
+    type SpatialResult = f32;
+
+    unsafe fn euclideans_packed(
+        a: *const Self,
+        packed: *const u8,
+        c: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        a_stride: usize,
+        c_stride: usize,
+    ) {
+        nk_euclideans_packed_e3m2(
+            a as *const u8,
+            packed,
+            c,
+            height,
+            width,
+            depth,
+            a_stride,
+            c_stride,
+        )
+    }
+
+    unsafe fn euclideans_symmetric(
+        vectors: *const Self,
+        n_vectors: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_euclideans_symmetric_e3m2(
+            vectors as *const u8,
+            n_vectors,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
 // Manual impls for 4-bit packed types: k must be multiplied by 2 (storage → nibbles).
 
 impl Angulars for u4x2 {

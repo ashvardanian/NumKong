@@ -85,7 +85,7 @@ endif ()
 #
 project(
     numkong
-    VERSION 7.5.0
+    VERSION 7.7.0
     LANGUAGES C CXX
     DESCRIPTION "Portable mixed-precision BLAS-like vector math library for x86 and ARM"
     HOMEPAGE_URL "https://github.com/ashvardanian/NumKong"
@@ -224,6 +224,17 @@ if (MSVC)
 else ()
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
     set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
+endif ()
+
+# Probe link-time optimization once and reuse it: the shared library, the tests, and the
+# benchmarks all get IPO for Release builds so the exact `-O3 + LTO` codegen that ships also
+# runs in the test suite. LTO-only miscompiles are otherwise invisible — e.g. cross-TU
+# unrolling of a runtime-bounded loop can speculatively divide by a tensor shape's zero-filled
+# spare extents and trap (#DE / SIGFPE); see shape_storage_::normalize_spare_.
+include(CheckIPOSupported)
+check_ipo_supported(RESULT NK_IPO_SUPPORTED_ OUTPUT NK_IPO_SUPPORT_OUTPUT_)
+if (NOT NK_IPO_SUPPORTED_)
+    message(STATUS "Link-time optimization not available: ${NK_IPO_SUPPORT_OUTPUT_}")
 endif ()
 
 # Portable baseline policy (commits 43e8324d, 453ed5ff, 23f51955): each translation unit gets a per-arch
@@ -481,6 +492,11 @@ if (NK_BUILD_BENCH)
     )
     target_link_libraries(nk_bench numkong Threads::Threads benchmark)
 
+    # Mirror the shipped Release codegen.
+    if (NK_IPO_SUPPORTED_)
+        set_target_properties(nk_bench PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+    endif ()
+
     # WASI-specific configuration for benchmarks
     if (NK_IS_WASI_PROJECT_)
         if (NK_WASI_HOSTED)
@@ -553,6 +569,11 @@ if (NK_BUILD_TEST)
         test/test_cross_loongarch.cpp test/test_cross_wasm.cpp test/test_maxsim.cpp test/test_tensor.cpp
     )
     target_link_libraries(nk_test numkong ${NK_CXX_MATH_LIB_})
+
+    # Mirror the shipped Release codegen.
+    if (NK_IPO_SUPPORTED_)
+        set_target_properties(nk_test PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+    endif ()
 
     # WASI-specific configuration
     if (NK_IS_WASI_PROJECT_)
@@ -699,9 +720,7 @@ if (NK_BUILD_SHARED)
             target_compile_definitions(nk_shared PRIVATE _ARM64_)
         endif ()
 
-        # Enable link-time optimization for Release builds.
-        include(CheckIPOSupported)
-        check_ipo_supported(RESULT NK_IPO_SUPPORTED_)
+        # Mirror the shipped Release codegen.
         if (NK_IPO_SUPPORTED_)
             set_target_properties(nk_shared PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
         endif ()
@@ -765,6 +784,11 @@ if (NK_BUILD_SHARED_TEST)
     target_include_directories(nk_shared_test PRIVATE "${PROJECT_SOURCE_DIR}/include")
     target_compile_definitions(nk_shared_test PRIVATE NK_DYNAMIC_DISPATCH=1)
     target_link_libraries(nk_shared_test nk_shared ${NK_CXX_MATH_LIB_})
+
+    # Mirror the shipped Release codegen.
+    if (NK_IPO_SUPPORTED_)
+        set_target_properties(nk_shared_test PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+    endif ()
 
     # The shared-library test must exercise only the DLL dispatch path, so compile
     # the test binary at the platform baseline (no SIMD extensions).  This prevents

@@ -5049,11 +5049,13 @@ struct sub_byte_ref<u1x8_t> {
     constexpr bool get() const noexcept { return (*raw_ptr_ & bit_mask_) != 0; }
     constexpr operator bool() const noexcept { return get(); }
 
-    constexpr sub_byte_ref &operator=(bool value) noexcept {
-        if (value) *raw_ptr_ |= bit_mask_;
+    template <std::integral integral_type_>
+    constexpr sub_byte_ref &operator=(integral_type_ value) noexcept {
+        if (value != integral_type_ {0}) *raw_ptr_ |= bit_mask_;
         else *raw_ptr_ &= static_cast<nk_u1x8_t>(~bit_mask_);
         return *this;
     }
+    constexpr sub_byte_ref &operator=(u8_t value) noexcept { return *this = value.raw(); }
 
     constexpr void flip() noexcept { *raw_ptr_ ^= bit_mask_; }
 };
@@ -5073,11 +5075,21 @@ struct sub_byte_ref<i4x2_t> {
     }
     constexpr operator std::int8_t() const noexcept { return get(); }
 
-    constexpr sub_byte_ref &operator=(std::int8_t value) noexcept {
-        if (high_nibble_) *raw_ptr_ = static_cast<nk_i4x2_t>((*raw_ptr_ & 0x0F) | ((value & 0x0F) << 4));
-        else *raw_ptr_ = static_cast<nk_i4x2_t>((*raw_ptr_ & 0xF0) | (value & 0x0F));
+    template <std::integral integral_type_>
+    constexpr sub_byte_ref &operator=(integral_type_ value) noexcept {
+        std::int8_t clamped;
+        if constexpr (std::is_signed_v<integral_type_>) {
+            clamped = value < integral_type_(-8) ? std::int8_t(-8)
+                      : value > integral_type_(7) ? std::int8_t(7)
+                                                  : static_cast<std::int8_t>(value);
+        }
+        else { clamped = value > integral_type_(7) ? std::int8_t(7) : static_cast<std::int8_t>(value); }
+        auto nibble = static_cast<nk_i4x2_t>(clamped & 0x0F);
+        if (high_nibble_) *raw_ptr_ = static_cast<nk_i4x2_t>((*raw_ptr_ & 0x0F) | (nibble << 4));
+        else *raw_ptr_ = static_cast<nk_i4x2_t>((*raw_ptr_ & 0xF0) | nibble);
         return *this;
     }
+    constexpr sub_byte_ref &operator=(i8_t value) noexcept { return *this = value.raw(); }
 };
 
 /** @brief Unsigned 4-bit access for u4x2_t vectors (2 nibbles packed per byte). */
@@ -5092,11 +5104,20 @@ struct sub_byte_ref<u4x2_t> {
     constexpr std::uint8_t get() const noexcept { return high_nibble_ ? (*raw_ptr_ >> 4) : (*raw_ptr_ & 0x0F); }
     constexpr operator std::uint8_t() const noexcept { return get(); }
 
-    constexpr sub_byte_ref &operator=(std::uint8_t value) noexcept {
-        if (high_nibble_) *raw_ptr_ = static_cast<nk_u4x2_t>((*raw_ptr_ & 0x0F) | ((value & 0x0F) << 4));
-        else *raw_ptr_ = static_cast<nk_u4x2_t>((*raw_ptr_ & 0xF0) | (value & 0x0F));
+    template <std::integral integral_type_>
+    constexpr sub_byte_ref &operator=(integral_type_ value) noexcept {
+        std::uint8_t clamped;
+        if constexpr (std::is_signed_v<integral_type_>) {
+            clamped = value < integral_type_(0) ? std::uint8_t(0)
+                      : value > integral_type_(15) ? std::uint8_t(15)
+                                                   : static_cast<std::uint8_t>(value);
+        }
+        else { clamped = value > integral_type_(15) ? std::uint8_t(15) : static_cast<std::uint8_t>(value); }
+        if (high_nibble_) *raw_ptr_ = static_cast<nk_u4x2_t>((*raw_ptr_ & 0x0F) | (clamped << 4));
+        else *raw_ptr_ = static_cast<nk_u4x2_t>((*raw_ptr_ & 0xF0) | clamped);
         return *this;
     }
+    constexpr sub_byte_ref &operator=(u8_t value) noexcept { return *this = value.raw(); }
 };
 
 /** @brief Raw-nibble access for e2m1x2_t vectors (2 nibbles packed per byte). */

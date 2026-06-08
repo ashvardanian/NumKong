@@ -192,8 +192,8 @@ NK_INTERNAL void nk_dot_i8x32_finalize_alder(                                   
     nk_dot_i8x32_state_alder_t const *state_c, nk_dot_i8x32_state_alder_t const *state_d, //
     nk_size_t total_dimensions,                                                           //
     nk_i32_t a_sum, /* A row sum (unused for i8) */                                       //
-    nk_b128_vec_t b_sums, /* 4 × i32 B column sums */                                     //
-    nk_b128_vec_t *results) {
+    nk_b128_vec_t const *b_sums_vec, /* 4 × i32 B column sums */                          //
+    nk_b128_vec_t *result_vec) {
     nk_unused_(total_dimensions);
     nk_unused_(a_sum);
 
@@ -217,8 +217,8 @@ NK_INTERNAL void nk_dot_i8x32_finalize_alder(                                   
         _mm_add_epi32(_mm_unpacklo_epi64(t_ab_high, t_cd_high), _mm_unpackhi_epi64(t_ab_high, t_cd_high)));
 
     // Apply compensation: result = biased − 128 × Σb
-    __m128i correction_i32x4 = _mm_slli_epi32(b_sums.xmm, 7); // × 128
-    results->xmm = _mm_sub_epi32(biased_i32x4, correction_i32x4);
+    __m128i correction_i32x4 = _mm_slli_epi32(b_sums_vec->xmm, 7); // × 128
+    result_vec->xmm = _mm_sub_epi32(biased_i32x4, correction_i32x4);
 }
 
 NK_PUBLIC void nk_dot_u8_alder(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
@@ -312,8 +312,8 @@ NK_INTERNAL void nk_dot_u8x32_finalize_alder(                                   
     nk_dot_u8x32_state_alder_t const *state_c, nk_dot_u8x32_state_alder_t const *state_d, //
     nk_size_t total_dimensions,                                                           //
     nk_i32_t a_sum, /* A row sum (unused for u8) */                                       //
-    nk_b128_vec_t b_sums, /* 4 × u32 B column sums */                                     //
-    nk_b128_vec_t *result) {
+    nk_b128_vec_t const *b_sums_vec, /* 4 × u32 B column sums */                          //
+    nk_b128_vec_t *result_vec) {
     nk_unused_(total_dimensions);
     nk_unused_(a_sum);
 
@@ -337,8 +337,8 @@ NK_INTERNAL void nk_dot_u8x32_finalize_alder(                                   
         _mm_add_epi32(_mm_unpacklo_epi64(t_ab_high, t_cd_high), _mm_unpackhi_epi64(t_ab_high, t_cd_high)));
 
     // Apply compensation: result = biased + 128 × Σb
-    __m128i correction_i32x4 = _mm_slli_epi32(b_sums.xmm, 7); // × 128
-    result->xmm = _mm_add_epi32(biased_i32x4, correction_i32x4);
+    __m128i correction_i32x4 = _mm_slli_epi32(b_sums_vec->xmm, 7); // × 128
+    result_vec->xmm = _mm_add_epi32(biased_i32x4, correction_i32x4);
 }
 
 /**

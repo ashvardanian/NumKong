@@ -95,7 +95,7 @@
 #include "numkong/types.h" // `nk_u64_t`, `NK_DEFINED_LINUX_`
 
 #define NK_VERSION_MAJOR 7
-#define NK_VERSION_MINOR 5
+#define NK_VERSION_MINOR 7
 #define NK_VERSION_PATCH 0
 
 /**

@@ -144,7 +144,7 @@ PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positi
     if (!kernel || !capability) {
         PyErr_Format( //
             PyExc_LookupError,
-            "Unsupported kernel '%c' and dtype combination across vectors ('%s'/'%s') and " "`dtype` override " "('%s'/" "'%s')",
+            "Unsupported kernel '%c' and dtype combination across vectors ('%s'/'%s') and `dtype` override ('%s'/'%s')",
             kernel_kind,                                                                             //
             a_buffer.format ? a_buffer.format : "nil", nk_dtype_to_pybuffer_typestr(a_parsed.dtype), //
             nk_dtype_to_pybuffer_typestr(dtype), nk_dtype_to_pybuffer_typestr(dtype));
@@ -308,7 +308,7 @@ PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     if (!kernel || !capability) {
         PyErr_Format( //
             PyExc_LookupError,
-            "Unsupported kernel '%c' and dtype combination across vectors ('%s'/'%s') and " "`dtype` override " "('%s'/" "'%s')",
+            "Unsupported kernel '%c' and dtype combination across vectors ('%s'/'%s') and `dtype` override ('%s'/'%s')",
             kernel_kind,                                                                             //
             a_buffer.format ? a_buffer.format : "nil", nk_dtype_to_pybuffer_typestr(a_parsed.dtype), //
             nk_dtype_to_pybuffer_typestr(dtype), nk_dtype_to_pybuffer_typestr(dtype));
@@ -464,7 +464,7 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     if (!kernel || !capability) {
         PyErr_Format( //
             PyExc_LookupError,
-            "Unsupported kernel '%c' and dtype combination across vectors ('%s'/'%s') and " "`dtype` override " "('%s'/" "'%s')",
+            "Unsupported kernel '%c' and dtype combination across vectors ('%s'/'%s') and `dtype` override ('%s'/'%s')",
             kernel_kind,                                                                             //
             a_buffer.format ? a_buffer.format : "nil", nk_dtype_to_pybuffer_typestr(a_parsed.dtype), //
             nk_dtype_to_pybuffer_typestr(dtype), nk_dtype_to_pybuffer_typestr(dtype));

@@ -33,8 +33,7 @@
  *  nk_jaccard_u1x128_init_powervsx(&state_first);
  *  // ... stream through packed binary vectors ...
  *  nk_jaccard_u1x128_finalize_powervsx(&state_first, &state_second, &state_third, &state_fourth,
- *      query_popcount, target_popcount_a, target_popcount_b, target_popcount_c, target_popcount_d,
- *      total_dimensions, &results);
+ *      query_popcount, &target_popcounts_vec, total_dimensions, &result_vec);
  *  @endcode
  */
 #ifndef NK_SET_POWERVSX_H
@@ -224,8 +223,8 @@ NK_INTERNAL void nk_jaccard_u1x128_update_powervsx(nk_jaccard_u1x128_state_power
 NK_INTERNAL void nk_jaccard_u1x128_finalize_powervsx( //
     nk_jaccard_u1x128_state_powervsx_t const *state_a, nk_jaccard_u1x128_state_powervsx_t const *state_b,
     nk_jaccard_u1x128_state_powervsx_t const *state_c, nk_jaccard_u1x128_state_powervsx_t const *state_d,
-    nk_f32_t query_popcount, nk_f32_t target_popcount_a, nk_f32_t target_popcount_b, nk_f32_t target_popcount_c,
-    nk_f32_t target_popcount_d, nk_size_t total_dimensions, nk_b128_vec_t *result) {
+    nk_f32_t query_popcount, nk_b128_vec_t const *target_popcounts_vec, nk_size_t total_dimensions,
+    nk_b128_vec_t *result_vec) {
     nk_unused_(total_dimensions);
 
     // Transpose-based 4-way horizontal sum of u32x4 intersection counts
@@ -247,12 +246,7 @@ NK_INTERNAL void nk_jaccard_u1x128_finalize_powervsx( //
                                              vec_add(sum_lane2_u32x4, sum_lane3_u32x4));
     nk_vf32x4_t intersection_f32x4 = vec_ctf(intersection_u32x4, 0);
 
-    // Build target popcounts vector via vec_insert
-    nk_vf32x4_t targets_f32x4 = vec_splats(0.0f);
-    targets_f32x4 = vec_insert(target_popcount_a, targets_f32x4, 0);
-    targets_f32x4 = vec_insert(target_popcount_b, targets_f32x4, 1);
-    targets_f32x4 = vec_insert(target_popcount_c, targets_f32x4, 2);
-    targets_f32x4 = vec_insert(target_popcount_d, targets_f32x4, 3);
+    nk_vf32x4_t targets_f32x4 = target_popcounts_vec->vf32x4;
     nk_vf32x4_t query_f32x4 = vec_splats(query_popcount);
 
     // Compute union using |A union B| = |A| + |B| - |A intersection B|
@@ -274,25 +268,25 @@ NK_INTERNAL void nk_jaccard_u1x128_finalize_powervsx( //
     // Compute Jaccard distance = 1 - intersection / union
     nk_vf32x4_t ratio_f32x4 = vec_mul(intersection_f32x4, union_reciprocal_f32x4);
     nk_vf32x4_t jaccard_f32x4 = vec_sub(one_f32x4, ratio_f32x4);
-    result->vf32x4 = vec_sel(jaccard_f32x4, zero_f32x4, zero_union_mask_u32x4);
+    result_vec->vf32x4 = vec_sel(jaccard_f32x4, zero_f32x4, zero_union_mask_u32x4);
 }
 
 /** @brief Hamming from_dot: computes pop_a + pop_b - 2 × dot for 4 pairs (Power VSX). */
-NK_INTERNAL void nk_hamming_u32x4_from_dot_powervsx_(nk_b128_vec_t dots, nk_u32_t query_pop, nk_b128_vec_t target_pops,
-                                                     nk_b128_vec_t *results) {
-    nk_vu32x4_t dots_u32x4 = dots.vu32x4;
+NK_INTERNAL void nk_hamming_u32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                     nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
+    nk_vu32x4_t dots_u32x4 = dots_vec->vu32x4;
     nk_vu32x4_t query_u32x4 = vec_splats(query_pop);
-    nk_vu32x4_t target_u32x4 = target_pops.vu32x4;
+    nk_vu32x4_t target_u32x4 = target_pops_vec->vu32x4;
     nk_vu32x4_t two_dots_u32x4 = vec_add(dots_u32x4, dots_u32x4);
-    results->vu32x4 = vec_sub(vec_add(query_u32x4, target_u32x4), two_dots_u32x4);
+    result_vec->vu32x4 = vec_sub(vec_add(query_u32x4, target_u32x4), two_dots_u32x4);
 }
 
 /** @brief Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Power VSX). */
-NK_INTERNAL void nk_jaccard_f32x4_from_dot_powervsx_(nk_b128_vec_t dots, nk_u32_t query_pop, nk_b128_vec_t target_pops,
-                                                     nk_b128_vec_t *results) {
-    nk_vf32x4_t dot_f32x4 = vec_ctf(dots.vu32x4, 0);
+NK_INTERNAL void nk_jaccard_f32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                     nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
+    nk_vf32x4_t dot_f32x4 = vec_ctf(dots_vec->vu32x4, 0);
     nk_vf32x4_t query_f32x4 = vec_splats((nk_f32_t)query_pop);
-    nk_vf32x4_t target_f32x4 = vec_ctf(target_pops.vu32x4, 0);
+    nk_vf32x4_t target_f32x4 = vec_ctf(target_pops_vec->vu32x4, 0);
     nk_vf32x4_t union_f32x4 = vec_sub(vec_add(query_f32x4, target_f32x4), dot_f32x4);
 
     nk_vf32x4_t one_f32x4 = vec_splats(1.0f);
@@ -308,7 +302,7 @@ NK_INTERNAL void nk_jaccard_f32x4_from_dot_powervsx_(nk_b128_vec_t dots, nk_u32_
 
     nk_vf32x4_t ratio_f32x4 = vec_mul(dot_f32x4, union_reciprocal_f32x4);
     nk_vf32x4_t jaccard_f32x4 = vec_sub(one_f32x4, ratio_f32x4);
-    results->vf32x4 = vec_sel(jaccard_f32x4, zero_f32x4, zero_union_mask_u32x4);
+    result_vec->vf32x4 = vec_sel(jaccard_f32x4, zero_f32x4, zero_union_mask_u32x4);
 }
 
 #if defined(__clang__)

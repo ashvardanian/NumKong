@@ -46,5 +46,18 @@ void test_cross_amx() {
           nk_dots_pack_f16_graniteamx, nk_euclideans_packed_f16_graniteamx);
     check("euclideans_symmetric_f16_graniteamx", test_euclideans_symmetric<f16_t>,
           nk_euclideans_symmetric_f16_graniteamx);
+
+    check("dots_packed_e5m2_graniteamx", test_dots_packed<e5m2_t>, nk_dots_packed_size_e5m2_graniteamx,
+          nk_dots_pack_e5m2_graniteamx, nk_dots_packed_e5m2_graniteamx);
+    check("dots_symmetric_e5m2_graniteamx", test_dots_symmetric<e5m2_t>, nk_dots_symmetric_e5m2_graniteamx);
+
+    check("angulars_packed_e5m2_graniteamx", test_angulars_packed<e5m2_t>, nk_dots_packed_size_e5m2_graniteamx,
+          nk_dots_pack_e5m2_graniteamx, nk_angulars_packed_e5m2_graniteamx);
+    check("angulars_symmetric_e5m2_graniteamx", test_angulars_symmetric<e5m2_t>, nk_angulars_symmetric_e5m2_graniteamx);
+
+    check("euclideans_packed_e5m2_graniteamx", test_euclideans_packed<e5m2_t>, nk_dots_packed_size_e5m2_graniteamx,
+          nk_dots_pack_e5m2_graniteamx, nk_euclideans_packed_e5m2_graniteamx);
+    check("euclideans_symmetric_e5m2_graniteamx", test_euclideans_symmetric<e5m2_t>,
+          nk_euclideans_symmetric_e5m2_graniteamx);
 #endif
 }

@@ -144,20 +144,22 @@ NK_PUBLIC void nk_hamming_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_
 #pragma region Batched Finalizers
 
 /** @brief Hamming from_dot: computes pop_a + pop_b − 2 × dot for 4 pairs (LSX). */
-NK_INTERNAL void nk_hamming_u32x4_from_dot_loongsonasx_(nk_b128_vec_t dots, nk_u32_t query_pop,
-                                                        nk_b128_vec_t target_pops, nk_b128_vec_t *results) {
-    __m128i dots_u32x4 = dots.xmm;
+NK_INTERNAL void nk_hamming_u32x4_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                        nk_b128_vec_t const *target_pops_vec,
+                                                        nk_b128_vec_t *result_vec) {
+    __m128i dots_u32x4 = dots_vec->xmm;
     __m128i query_u32x4 = __lsx_vreplgr2vr_w((int)query_pop);
-    __m128i target_u32x4 = target_pops.xmm;
-    results->xmm = __lsx_vsub_w(__lsx_vadd_w(query_u32x4, target_u32x4), __lsx_vslli_w(dots_u32x4, 1));
+    __m128i target_u32x4 = target_pops_vec->xmm;
+    result_vec->xmm = __lsx_vsub_w(__lsx_vadd_w(query_u32x4, target_u32x4), __lsx_vslli_w(dots_u32x4, 1));
 }
 
 /** @brief Jaccard from_dot: computes 1 − dot / (pop_a + pop_b − dot) for 4 pairs (LSX). */
-NK_INTERNAL void nk_jaccard_f32x4_from_dot_loongsonasx_(nk_b128_vec_t dots, nk_u32_t query_pop,
-                                                        nk_b128_vec_t target_pops, nk_b128_vec_t *results) {
-    __m128 dot_f32x4 = __lsx_vffint_s_wu(dots.xmm);
+NK_INTERNAL void nk_jaccard_f32x4_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                        nk_b128_vec_t const *target_pops_vec,
+                                                        nk_b128_vec_t *result_vec) {
+    __m128 dot_f32x4 = __lsx_vffint_s_wu(dots_vec->xmm);
     __m128 query_f32x4 = nk_xvreplgr2vr_s_128_((nk_f32_t)query_pop);
-    __m128 target_f32x4 = __lsx_vffint_s_wu(target_pops.xmm);
+    __m128 target_f32x4 = __lsx_vffint_s_wu(target_pops_vec->xmm);
     __m128 union_f32x4 = __lsx_vfsub_s(__lsx_vfadd_s(query_f32x4, target_f32x4), dot_f32x4);
 
     __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
@@ -167,7 +169,7 @@ NK_INTERNAL void nk_jaccard_f32x4_from_dot_loongsonasx_(nk_b128_vec_t dots, nk_u
 
     __m128 ratio_f32x4 = __lsx_vfdiv_s(dot_f32x4, safe_union_f32x4);
     __m128 jaccard_f32x4 = __lsx_vfsub_s(one_f32x4, ratio_f32x4);
-    results->xmm_ps = (__m128)__lsx_vbitsel_v((__m128i)jaccard_f32x4, (__m128i)zero_f32x4, zero_union_mask_u32x4);
+    result_vec->xmm_ps = (__m128)__lsx_vbitsel_v((__m128i)jaccard_f32x4, (__m128i)zero_f32x4, zero_union_mask_u32x4);
 }
 
 #pragma endregion Batched Finalizers

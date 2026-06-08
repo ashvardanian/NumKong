@@ -31,7 +31,7 @@
 #include <array>   // `std::array`
 #include <cstdio>  // `std::fprintf`, `stderr`
 #include <cstdlib> // `std::abort`
-#include <cstring> // `std::memset`
+#include <cstring> // `std::memcpy`, `std::memcmp`, `std::memset`
 #include <span>    // `std::span`
 #include <tuple>   // `std::tuple_element_t`
 #include <type_traits>
@@ -117,6 +117,22 @@ struct shape_storage_ {
         return offset;
     }
 
+    /**
+     *  @brief Reset the spare slots [rank, max_rank_) to a harmless 1x0 layout.
+     *
+     *  `tensor_flat_lookup_` iterates a runtime `rank` bound (`flat % extents[d]; flat /= extents[d]`),
+     *  but under `-flto` the compiler unrolls/vectorises that loop to `max_rank_` iterations and
+     *  speculatively evaluates `flat / extents[d]` for every `d` - including `d >= rank`. Leaving
+     *  those extents at the in-class `= {}` zero turns the unused speculative quotient into a
+     *  hardware divide-by-zero trap. Any builder that produces a reduced-rank shape must call this.
+     */
+    constexpr void normalize_spare_() noexcept {
+        for (std::size_t d = rank; d < max_rank_; ++d) {
+            extents[d] = 1;
+            strides[d] = 0;
+        }
+    }
+
     /** @brief Create contiguous (row-major) shape storage. */
     static constexpr shape_storage_ contiguous(std::size_t const *exts, std::size_t rank_val,
                                                std::size_t elem_bytes) noexcept {
@@ -128,6 +144,7 @@ struct shape_storage_ {
             s.strides[i - 1] = stride;
             stride *= static_cast<std::ptrdiff_t>(exts[i - 1]);
         }
+        s.normalize_spare_();
         return s;
     }
 };
@@ -160,6 +177,7 @@ constexpr shape_storage_<max_rank_> make_contiguous_shape_(std::size_t const *ex
                                                  : static_cast<std::size_t>(exts[i - 1]);
         stride *= static_cast<std::ptrdiff_t>(extent_factor);
     }
+    s.normalize_spare_();
     return s;
 }
 
@@ -294,6 +312,7 @@ struct tensor_view {
             sub.extents[d] = shape_.extents[d + 1];
             sub.strides[d] = shape_.strides[d + 1];
         }
+        sub.normalize_spare_(); // keep [rank, max_rank_) at 1x0 so -flto's speculative divides are harmless
         return {data_ + offset, sub};
     }
 
@@ -361,10 +380,11 @@ struct tensor_view {
         return {data_, shape_.extents[0], shape_.strides[0]};
     }
 
-    /** @brief Reinterpret as a 2D matrix view. Requires rank >= 2. */
+    /** @brief Narrow an already-2D handle to a rank-2 type. Requires rank == 2; use reshape<2>({...}) to collapse a
+     *  higher-rank tensor. */
     tensor_view<value_type_, 2> as_matrix() const noexcept {
-        nk_assert_(shape_.rank >= 2);
-        if (shape_.rank < 2) return {};
+        nk_assert_(shape_.rank == 2);
+        if (shape_.rank != 2) return {};
         shape_storage_<2> matrix_shape;
         matrix_shape.rank = 2;
         matrix_shape.extents[0] = shape_.extents[0];
@@ -391,12 +411,14 @@ struct tensor_view {
         return {data_, transposed};
     }
 
-    /** @brief Reshape to new extents (requires contiguous layout and matching element count).
+    /** @brief Reshape to new extents (requires contiguous layout and matching element count). The output rank may
+     *  differ from the source; pass it as the template argument when narrowing or widening.
      *  Returns an empty view if the tensor is not contiguous or element counts don't match. */
-    tensor_view reshape(std::initializer_list<size_type> new_extents) const noexcept {
+    template <std::size_t out_rank_ = max_rank_>
+    tensor_view<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) const noexcept {
         auto new_rank = new_extents.size();
-        if (!is_contiguous() || new_rank > max_rank_ || new_rank == 0) return {};
-        auto new_shape = make_contiguous_shape_<value_type, max_rank_>(new_extents.begin(), new_rank);
+        if (!is_contiguous() || new_rank > out_rank_ || new_rank == 0) return {};
+        auto new_shape = make_contiguous_shape_<value_type, out_rank_>(new_extents.begin(), new_rank);
         if (storage_values_for_shape_<value_type>(new_shape) != storage_values_for_shape_<value_type>(shape_))
             return {};
         return {data_, new_shape};
@@ -444,6 +466,7 @@ struct tensor_view {
             result.strides[0] = static_cast<difference_type>(sizeof(value_type));
         }
         result.rank = new_rank;
+        result.normalize_spare_(); // the copy of `shape_` may carry zeros in [new_rank, max_rank_)
         return {data_, result};
     }
 };
@@ -459,6 +482,9 @@ struct tensor_view {
  */
 template <typename value_type_, std::size_t max_rank_ = 8>
 struct tensor_span {
+    static_assert(!std::is_const_v<value_type_>,
+                  "tensor_span requires a non-const value_type_; use tensor_view<value_type_> for read-only access");
+
     using value_type = value_type_;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
@@ -492,11 +518,9 @@ struct tensor_span {
     constexpr bool empty() const noexcept { return data_ == nullptr || shape_.numel() == 0; }
 
     /** @brief Raw byte pointer. */
-    constexpr char *byte_data() noexcept { return data_; }
-    constexpr char const *byte_data() const noexcept { return data_; }
+    constexpr char *byte_data() const noexcept { return data_; }
     /** @brief Typed pointer (assumes data is contiguous from this pointer). */
-    constexpr value_type *data() noexcept { return reinterpret_cast<value_type *>(data_); }
-    constexpr value_type const *data() const noexcept { return reinterpret_cast<value_type const *>(data_); }
+    constexpr value_type *data() const noexcept { return reinterpret_cast<value_type *>(data_); }
     /** @brief Access the shape storage. */
     constexpr shape_storage_<max_rank_> const &shape() const noexcept { return shape_; }
 
@@ -518,6 +542,7 @@ struct tensor_span {
             sub.extents[d] = shape_.extents[d + 1];
             sub.strides[d] = shape_.strides[d + 1];
         }
+        sub.normalize_spare_(); // keep [rank, max_rank_) at 1x0 so -flto's speculative divides are harmless
         return {data_ + offset, sub};
     }
 
@@ -529,40 +554,22 @@ struct tensor_span {
 
     /** @brief Flat logical scalar access. */
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) noexcept {
-        return tensor_flat_lookup_(*this, idx);
-    }
-
-    /** @brief Const flat logical scalar access. */
-    template <std::integral index_type_>
     decltype(auto) operator[](index_type_ idx) const noexcept {
-        return tensor_flat_lookup_(static_cast<tensor_view<value_type_, max_rank_>>(*this), idx);
+        return tensor_flat_lookup_(*this, idx);
     }
 
     /** @brief Exact multi-dimensional scalar lookup via call syntax (C++20-portable). */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
-    decltype(auto) operator()(index_types_... idxs) noexcept {
+    decltype(auto) operator()(index_types_... idxs) const noexcept {
         nk_assert_(shape_.rank == sizeof...(index_types_));
         auto coords = resolve_tensor_indices_<value_type_>(shape_, std::index_sequence_for<index_types_...> {},
                                                            idxs...);
         return tensor_lookup_resolved_(*this, std::span<std::size_t const, sizeof...(index_types_)>(coords));
     }
 
-    /** @brief Const full-coordinate lookup via call syntax. */
-    template <std::integral... index_types_>
-        requires(sizeof...(index_types_) >= 2)
-    decltype(auto) operator()(index_types_... idxs) const noexcept {
-        return static_cast<tensor_view<value_type_, max_rank_>>(*this)(idxs...);
-    }
-
 #if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     /** @brief C++23 sugar: multi-arg `[]` scalar lookup, delegates to `operator()`. */
-    template <std::integral... index_types_>
-        requires(sizeof...(index_types_) >= 2)
-    decltype(auto) operator[](index_types_... idxs) noexcept {
-        return (*this)(idxs...);
-    }
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
     decltype(auto) operator[](index_types_... idxs) const noexcept {
@@ -571,43 +578,26 @@ struct tensor_span {
 #endif
 
     /** @brief Trailing `slice` returns the same span. */
-    constexpr tensor_span operator[](tensor_slice_t) noexcept { return *this; }
-    constexpr tensor_view<value_type_, max_rank_> operator[](tensor_slice_t) const noexcept {
-        return static_cast<tensor_view<value_type_, max_rank_>>(*this);
-    }
+    constexpr tensor_span operator[](tensor_slice_t) const noexcept { return *this; }
 
     /** @brief Prefix leading-axis slicing via call syntax (C++20-portable). */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    tensor_span operator()(first_type_ first, second_type_ second, rest_types_... rest) noexcept {
+    tensor_span operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
         return tensor_slice_suffix_(*this, first, second, rest...);
-    }
-
-    /** @brief Const prefix leading-axis slicing via call syntax. */
-    template <typename first_type_, typename second_type_, typename... rest_types_>
-        requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    tensor_view<value_type_, max_rank_> operator()(first_type_ first, second_type_ second,
-                                                   rest_types_... rest) const noexcept {
-        return tensor_slice_suffix_(static_cast<tensor_view<value_type_, max_rank_>>(*this), first, second, rest...);
     }
 
 #if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     /** @brief C++23 sugar: multi-arg `[]` slicing, delegates to `operator()`. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    tensor_span operator[](first_type_ first, second_type_ second, rest_types_... rest) noexcept {
-        return (*this)(first, second, rest...);
-    }
-    template <typename first_type_, typename second_type_, typename... rest_types_>
-        requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    tensor_view<value_type_, max_rank_> operator[](first_type_ first, second_type_ second,
-                                                   rest_types_... rest) const noexcept {
+    tensor_span operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
         return (*this)(first, second, rest...);
     }
 #endif
 
     /** @brief Rank-0 mutable scalar access. */
-    decltype(auto) scalar_ref() noexcept {
+    decltype(auto) scalar_ref() const noexcept {
         nk_assert_(shape_.rank == 0);
         nk_assert_(data_ != nullptr);
         return *reinterpret_cast<value_type_ *>(data_);
@@ -617,23 +607,17 @@ struct tensor_span {
     decltype(auto) scalar() const noexcept { return static_cast<tensor_view<value_type_, max_rank_>>(*this).scalar(); }
 
     /** @brief Convert to vector_span (requires rank == 1). */
-    vector_span<value_type> as_vector() noexcept {
+    vector_span<value_type> as_vector() const noexcept {
         nk_assert_(shape_.rank == 1);
         if (shape_.rank != 1) return {};
         return {data_, shape_.extents[0], shape_.strides[0]};
     }
 
-    /** @brief Convert to vector_view (requires rank == 1). */
-    vector_view<value_type> as_vector() const noexcept {
-        nk_assert_(shape_.rank == 1);
-        if (shape_.rank != 1) return {};
-        return {static_cast<char const *>(data_), shape_.extents[0], shape_.strides[0]};
-    }
-
-    /** @brief Reinterpret as a 2D matrix span. Requires rank >= 2. */
-    tensor_span<value_type_, 2> as_matrix() noexcept {
-        nk_assert_(shape_.rank >= 2);
-        if (shape_.rank < 2) return {};
+    /** @brief Narrow an already-2D handle to a rank-2 type. Requires rank == 2; use reshape<2>({...}) to collapse a
+     *  higher-rank tensor. */
+    tensor_span<value_type_, 2> as_matrix() const noexcept {
+        nk_assert_(shape_.rank == 2);
+        if (shape_.rank != 2) return {};
         shape_storage_<2> matrix_shape;
         matrix_shape.rank = 2;
         matrix_shape.extents[0] = shape_.extents[0];
@@ -643,24 +627,11 @@ struct tensor_span {
         return {data_, matrix_shape};
     }
 
-    /** @brief Reinterpret as a 2D const matrix view. Requires rank >= 2. */
-    tensor_view<value_type_, 2> as_matrix() const noexcept {
-        nk_assert_(shape_.rank >= 2);
-        if (shape_.rank < 2) return {};
-        shape_storage_<2> matrix_shape;
-        matrix_shape.rank = 2;
-        matrix_shape.extents[0] = shape_.extents[0];
-        matrix_shape.extents[1] = shape_.extents[1];
-        matrix_shape.strides[0] = shape_.strides[0];
-        matrix_shape.strides[1] = shape_.strides[1];
-        return {static_cast<char const *>(data_), matrix_shape};
-    }
-
     /** @brief Check if contiguous in memory. */
     constexpr bool is_contiguous() const noexcept { return is_tensor_contiguous_<value_type>(shape_); }
 
     /** @brief Transpose: reverse the order of all dimensions (swap extents and strides). */
-    constexpr tensor_span transpose() noexcept {
+    constexpr tensor_span transpose() const noexcept {
         if constexpr (dimensions_per_value<value_type>() > 1) {
             if (shape_.rank >= 2) return {};
         }
@@ -673,12 +644,14 @@ struct tensor_span {
         return {data_, transposed};
     }
 
-    /** @brief Reshape to new extents (requires contiguous layout and matching element count).
+    /** @brief Reshape to new extents (requires contiguous layout and matching element count). The output rank may
+     *  differ from the source; pass it as the template argument when narrowing or widening.
      *  Returns an empty span if not contiguous or element counts don't match. */
-    tensor_span reshape(std::initializer_list<size_type> new_extents) noexcept {
+    template <std::size_t out_rank_ = max_rank_>
+    tensor_span<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) const noexcept {
         auto new_rank = new_extents.size();
-        if (!is_contiguous() || new_rank > max_rank_ || new_rank == 0) return {};
-        auto new_shape = make_contiguous_shape_<value_type, max_rank_>(new_extents.begin(), new_rank);
+        if (!is_contiguous() || new_rank > out_rank_ || new_rank == 0) return {};
+        auto new_shape = make_contiguous_shape_<value_type, out_rank_>(new_extents.begin(), new_rank);
         if (storage_values_for_shape_<value_type>(new_shape) != storage_values_for_shape_<value_type>(shape_))
             return {};
         return {data_, new_shape};
@@ -687,56 +660,37 @@ struct tensor_span {
     /** @brief Range of mutable sub-spans along the leading dimension. */
     struct rows_spans_t {
         tensor_span parent;
-        axis_iterator<tensor_span> begin() noexcept { return {parent, 0}; }
-        axis_iterator<tensor_span> end() noexcept { return {parent, parent.extent(0)}; }
+        axis_iterator<tensor_span> begin() const noexcept { return {parent, 0}; }
+        axis_iterator<tensor_span> end() const noexcept { return {parent, parent.extent(0)}; }
     };
 
-    rows_spans_t rows() noexcept { return {*this}; }
-
-    /** @brief Range of immutable sub-views along the leading dimension. */
-    struct rows_views_t {
-        tensor_view<value_type_, max_rank_> parent;
-        axis_iterator<tensor_view<value_type_, max_rank_>> begin() const noexcept { return {parent, 0}; }
-        axis_iterator<tensor_view<value_type_, max_rank_>> end() const noexcept { return {parent, parent.extent(0)}; }
-    };
-
-    rows_views_t rows() const noexcept {
-        tensor_view<value_type_, max_rank_> v = *this;
-        return {v};
-    }
+    rows_spans_t rows() const noexcept { return {*this}; }
 
     static constexpr std::size_t max_rank = max_rank_;
 
     /** @brief Mutable element iterator (begin): yields `(position, ref_or_proxy)` pairs. */
-    tensor_span_iterator_<tensor_span> begin() noexcept { return {*this}; }
+    tensor_span_iterator_<tensor_span> begin() const noexcept { return {const_cast<tensor_span &>(*this)}; }
     /** @brief Mutable element iterator (end). */
-    tensor_span_iterator_<tensor_span> end() noexcept { return {*this, true}; }
-    /** @brief Const element iterator (begin): yields `(position, scalar)` pairs. */
-    tensor_view_iterator_<tensor_view<value_type_, max_rank_>> begin() const noexcept {
-        return {static_cast<tensor_view<value_type_, max_rank_>>(*this)};
-    }
-    /** @brief Const element iterator (end). */
-    tensor_view_iterator_<tensor_view<value_type_, max_rank_>> end() const noexcept {
-        return {static_cast<tensor_view<value_type_, max_rank_>>(*this), true};
-    }
+    tensor_span_iterator_<tensor_span> end() const noexcept { return {const_cast<tensor_span &>(*this), true}; }
     /** @brief Number of logical scalar elements. */
     constexpr size_type size() const noexcept { return numel(); }
     /** @brief Mutable dimension-only view. */
-    tensor_dims_view_<tensor_span_iterator_<tensor_span>> dims() noexcept {
-        return {tensor_span_iterator_<tensor_span> {*this}, numel()};
-    }
-    /** @brief Const dimension-only view. */
-    tensor_dims_view_<tensor_view_iterator_<tensor_view<value_type_, max_rank_>>> dims() const noexcept {
-        return {tensor_view_iterator_<tensor_view<value_type_, max_rank_>> {
-                    static_cast<tensor_view<value_type_, max_rank_>>(*this)},
-                numel()};
+    tensor_dims_view_<tensor_span_iterator_<tensor_span>> dims() const noexcept {
+        return {tensor_span_iterator_<tensor_span> {const_cast<tensor_span &>(*this)}, numel()};
     }
 
     /** @brief Flatten to 1D span (requires contiguous layout). Returns empty span if not contiguous. */
-    tensor_span flatten() noexcept { return reshape({numel()}); }
+    tensor_span flatten() const noexcept { return reshape({numel()}); }
+
+    /** @brief Zero-fill every element (declared here, defined after the free `fill_zeros`). */
+    bool fill_zeros() noexcept;
+    /** @brief Fill every element with `value` (declared here, defined after the free `fill`). */
+    bool fill(value_type value) noexcept;
+    /** @brief Copy from a same-shape view (declared here, defined after the free `copy`). */
+    bool copy_from(tensor_view<value_type_, max_rank_> input) noexcept;
 
     /** @brief Remove dimensions of size 1. */
-    tensor_span squeeze() noexcept {
+    tensor_span squeeze() const noexcept {
         auto result = shape_;
         size_type new_rank = 0;
         for (size_type i = 0; i < shape_.rank; ++i) {
@@ -752,6 +706,7 @@ struct tensor_span {
             result.strides[0] = static_cast<difference_type>(sizeof(value_type));
         }
         result.rank = new_rank;
+        result.normalize_spare_(); // the copy of `shape_` may carry zeros in [new_rank, max_rank_)
         return {data_, result};
     }
 };
@@ -887,6 +842,7 @@ tensor_type_ tensor_slice_suffix_(tensor_type_ input, all_t, rest_types_... rest
         result_shape.extents[1 + d] = inner.extent(d);
         result_shape.strides[1 + d] = inner.stride_bytes(d);
     }
+    result_shape.normalize_spare_(); // see shape_storage_::normalize_spare_ — -flto speculative-divide guard
 
     // The data pointer is the inner slice's offset relative to the first row,
     // applied to the original data pointer.
@@ -926,6 +882,7 @@ tensor_type_ tensor_slice_suffix_(tensor_type_ input, range r, rest_types_... re
             result_shape.extents[d] = input.extent(d);
             result_shape.strides[d] = input.stride_bytes(d);
         }
+        result_shape.normalize_spare_();
         using byte_ptr = decltype(input.byte_data());
         return {const_cast<byte_ptr>(input.byte_data() + data_offset), result_shape};
     }
@@ -942,6 +899,7 @@ tensor_type_ tensor_slice_suffix_(tensor_type_ input, range r, rest_types_... re
             result_shape.extents[1 + d] = inner.extent(d);
             result_shape.strides[1 + d] = inner.stride_bytes(d);
         }
+        result_shape.normalize_spare_();
 
         using byte_ptr = decltype(input.byte_data());
         auto inner_byte_offset = inner.byte_data() - first_row.byte_data();
@@ -1555,13 +1513,19 @@ struct tensor {
     /** @brief Transpose: reverse dimension order (mutable span). */
     span_type transpose() noexcept { return span().transpose(); }
 
-    /** @brief Reshape (immutable view). Requires contiguous layout and matching element count. */
-    view_type reshape(std::initializer_list<size_type> new_extents) const noexcept {
-        return view().reshape(new_extents);
+    /** @brief Reshape (immutable view). The output rank may differ from the source; pass it as the template
+     *  argument when narrowing or widening. Requires contiguous layout and matching element count. */
+    template <std::size_t out_rank_ = max_rank_>
+    tensor_view<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) const noexcept {
+        return view().template reshape<out_rank_>(new_extents);
     }
 
-    /** @brief Reshape (mutable span). Requires contiguous layout and matching element count. */
-    span_type reshape(std::initializer_list<size_type> new_extents) noexcept { return span().reshape(new_extents); }
+    /** @brief Reshape (mutable span). The output rank may differ from the source; pass it as the template
+     *  argument when narrowing or widening. Requires contiguous layout and matching element count. */
+    template <std::size_t out_rank_ = max_rank_>
+    tensor_span<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) noexcept {
+        return span().template reshape<out_rank_>(new_extents);
+    }
 
     /** @brief Check if contiguous in memory. Always true for freshly-constructed tensors. */
     constexpr bool is_contiguous() const noexcept { return view().is_contiguous(); }
@@ -1685,6 +1649,15 @@ struct tensor {
 
     /** @brief Squeeze (mutable span). Removes size-1 dimensions. */
     span_type squeeze() noexcept { return span().squeeze(); }
+
+    /** @brief Zero-fill every element. */
+    bool fill_zeros() noexcept { return span().fill_zeros(); }
+
+    /** @brief Fill every element with `value`. */
+    bool fill(value_type value) noexcept { return span().fill(value); }
+
+    /** @brief Copy from a same-shape view. */
+    bool copy_from(view_type input) noexcept { return span().copy_from(input); }
 };
 
 /** @brief Non-member swap. */
@@ -1856,6 +1829,7 @@ bool for_each_axis_lane_(tensor_view<value_type_, max_rank_> input, std::size_t 
     lane_shape.rank = 1;
     lane_shape.extents[0] = input.extent(axis);
     lane_shape.strides[0] = input.stride_bytes(axis);
+    lane_shape.normalize_spare_();
 
     std::size_t remaining_dims[max_rank_] = {};
     std::size_t remaining_count = 0;
@@ -1949,6 +1923,7 @@ tensor_view<value_type_, max_rank_> collapse_contiguous_tail_(tensor_view<value_
     for (std::size_t i = input.rank() - tail_dims; i < input.rank(); ++i) product *= input.extent(i);
     s.extents[s.rank - 1] = product;
     s.strides[s.rank - 1] = static_cast<std::ptrdiff_t>(sizeof(value_type_));
+    s.normalize_spare_();
     return {input.byte_data(), s};
 }
 
@@ -1966,6 +1941,7 @@ tensor_span<value_type_, max_rank_> collapse_contiguous_tail_(tensor_span<value_
     for (std::size_t i = input.rank() - tail_dims; i < input.rank(); ++i) product *= input.extent(i);
     s.extents[s.rank - 1] = product;
     s.strides[s.rank - 1] = static_cast<std::ptrdiff_t>(sizeof(value_type_));
+    s.normalize_spare_();
     return {input.byte_data(), s};
 }
 
@@ -2058,7 +2034,144 @@ bool elementwise_into_(tensor_view<value_type_, max_rank_> a, tensor_view<value_
     return true;
 }
 
+/** @brief Output-only traversal: walks a span, collapses contiguous tail dims, and invokes
+ *  `leaf(byte_data, byte_count)` on each maximal contiguous byte run. Strided rank-1 leaves
+ *  invoke `leaf` once per element. Sub-byte dtypes require a fully contiguous span. */
+template <typename value_type_, std::size_t max_rank_, typename leaf_function_>
+bool span_for_each_contiguous_run_(tensor_span<value_type_, max_rank_> output, leaf_function_ &&leaf) noexcept {
+    if (!tensor_layout_supported_(output)) return false;
+    if (output.empty()) return true;
+    if (output.rank() >= 2) {
+        auto tail_dims = shared_contiguous_tail_dims_<value_type_, max_rank_>(output.rank(), output.shape().extents,
+                                                                              {output.shape().strides});
+        if (tail_dims >= 2)
+            return span_for_each_contiguous_run_<value_type_, max_rank_>(collapse_contiguous_tail_(output, tail_dims),
+                                                                         std::forward<leaf_function_>(leaf));
+        for (std::size_t row_index = 0; row_index < output.extent(0); ++row_index) {
+            auto signed_index = static_cast<std::ptrdiff_t>(row_index);
+            if (!span_for_each_contiguous_run_<value_type_, max_rank_>(output.slice_leading(signed_index), leaf))
+                return false;
+        }
+        return true;
+    }
+    if (output.byte_data() == nullptr) return false;
+    auto element_count = output.extent(0);
+    if (element_count == 0) return true;
+    if constexpr (dimensions_per_value<value_type_>() > 1) {
+        if (!output.is_contiguous()) return false;
+        auto byte_count = dims_to_values_<value_type_>(element_count) * sizeof(value_type_);
+        leaf(output.byte_data(), byte_count);
+        return true;
+    }
+    else {
+        auto element_stride_bytes = output.stride_bytes(0);
+        if (element_stride_bytes == static_cast<std::ptrdiff_t>(sizeof(value_type_))) {
+            leaf(output.byte_data(), element_count * sizeof(value_type_));
+            return true;
+        }
+        auto *base_byte_data = output.byte_data();
+        for (std::size_t element_index = 0; element_index < element_count; ++element_index)
+            leaf(base_byte_data + static_cast<std::ptrdiff_t>(element_index) * element_stride_bytes,
+                 sizeof(value_type_));
+        return true;
+    }
+}
+
 #pragma endregion Helpers
+
+#pragma region Tensor Fill and Copy
+
+/** @brief Zero-fill every element of `output` via memset on each maximal contiguous run.
+ *  Works for every dtype since `is_memset_zero_safe_v` is true across all numeric_dtypes.
+ *  Returns false on unsupported layout. */
+template <typename value_type_, std::size_t max_rank_>
+bool fill_zeros(tensor_span<value_type_, max_rank_> output) noexcept {
+    static_assert(is_memset_zero_safe_v<value_type_>,
+                  "fill_zeros requires a dtype whose binary-zero is the value-zero");
+    return span_for_each_contiguous_run_<value_type_, max_rank_>(
+        output, [](char *byte_data, std::size_t byte_count) noexcept {
+            std::memset(static_cast<void *>(byte_data), 0, byte_count);
+        });
+}
+
+/** @brief Fill every element of `output` with `value`. Two-step strategy: first memsets the
+ *  buffer to binary zero (avoiding NaN/inf propagation from uninitialised memory), then
+ *  overlays the value via memset (1-byte storage) or a typed scalar broadcast loop
+ *  (multi-byte storage). Returns false on unsupported layout. */
+template <typename value_type_, std::size_t max_rank_>
+bool fill(tensor_span<value_type_, max_rank_> output, value_type_ value) noexcept {
+    if (!fill_zeros<value_type_, max_rank_>(output)) return false;
+    // Skip the overlay when `value` is bitwise-equal to a default-constructed `value_type_`,
+    // since the memset above has already produced exactly that pattern.
+    value_type_ const default_value {};
+    if (std::memcmp(&value, &default_value, sizeof(value_type_)) == 0) return true;
+    if constexpr (sizeof(value_type_) == 1) {
+        unsigned char byte_pattern;
+        std::memcpy(&byte_pattern, &value, 1);
+        return span_for_each_contiguous_run_<value_type_, max_rank_>(
+            output, [byte_pattern](char *byte_data, std::size_t byte_count) noexcept {
+                std::memset(static_cast<void *>(byte_data), byte_pattern, byte_count);
+            });
+    }
+    else {
+        return span_for_each_contiguous_run_<value_type_, max_rank_>(
+            output, [&value](char *byte_data, std::size_t byte_count) noexcept {
+                auto *typed_data = reinterpret_cast<value_type_ *>(byte_data);
+                auto element_count = byte_count / sizeof(value_type_);
+                for (std::size_t element_index = 0; element_index < element_count; ++element_index)
+                    typed_data[element_index] = value;
+            });
+    }
+}
+
+/** @brief Copy `input` element-by-element into `output`. Recursive traversal collapses
+ *  contiguous tail dims into one memcpy per leaf; strided outer dims still recurse.
+ *  Returns false on shape mismatch or unsupported layout. */
+template <typename value_type_, std::size_t max_rank_>
+bool copy(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
+    return elementwise_into_<value_type_, max_rank_>(
+        input, output,
+        [](tensor_view<value_type_, max_rank_> input_leaf, tensor_span<value_type_, max_rank_> output_leaf) {
+            auto byte_count = dims_to_values_<value_type_>(input_leaf.extent(0)) * sizeof(value_type_);
+            std::memcpy(static_cast<void *>(output_leaf.byte_data()), static_cast<void const *>(input_leaf.byte_data()),
+                        byte_count);
+        });
+}
+
+/** @brief Allocating copy: returns a fresh contiguous tensor with the same shape and contents
+ *  as `input`. Returns an empty tensor on allocation failure or empty input. */
+template <typename value_type_, std::size_t max_rank_ = 8, typename allocator_type_ = aligned_allocator<value_type_>>
+[[nodiscard]] tensor<value_type_, allocator_type_, max_rank_> try_copy(
+    tensor_view<value_type_, max_rank_> input) noexcept {
+    using out_tensor_t = tensor<value_type_, allocator_type_, max_rank_>;
+    if (input.empty()) return out_tensor_t {};
+    auto const &input_shape = input.shape();
+    auto result = out_tensor_t::try_empty(input_shape.extents, input_shape.rank);
+    if (result.empty()) return result;
+    if (!copy<value_type_, max_rank_>(input, result.span())) return out_tensor_t {};
+    return result;
+}
+
+#pragma endregion Tensor Fill and Copy
+
+#pragma region Tensor Span Member Sugar
+
+template <typename value_type_, std::size_t max_rank_>
+bool tensor_span<value_type_, max_rank_>::fill_zeros() noexcept {
+    return ashvardanian::numkong::fill_zeros<value_type_, max_rank_>(*this);
+}
+
+template <typename value_type_, std::size_t max_rank_>
+bool tensor_span<value_type_, max_rank_>::fill(value_type value) noexcept {
+    return ashvardanian::numkong::fill<value_type_, max_rank_>(*this, value);
+}
+
+template <typename value_type_, std::size_t max_rank_>
+bool tensor_span<value_type_, max_rank_>::copy_from(tensor_view<value_type_, max_rank_> input) noexcept {
+    return ashvardanian::numkong::copy<value_type_, max_rank_>(input, *this);
+}
+
+#pragma endregion Tensor Span Member Sugar
 
 } // namespace ashvardanian::numkong
 

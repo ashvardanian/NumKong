@@ -159,9 +159,10 @@ static napi_value dense(napi_env env, napi_callback_info info, nk_kernel_kind_t 
             // Auto-detect from N-API TypedArray type (backward-compatible 4-type whitelist)
             if (type_a != napi_float64_array && type_a != napi_float32_array && type_a != napi_int8_array &&
                 type_a != napi_uint8_array) {
-                napi_throw_error(
+                napi_throw_error( //
                     env, NULL,
-                    "Only f64, f32, i8, u8 arrays are auto-detected; pass dtype string as 3rd argument " "for other " "types");
+                    "Only f64, f32, i8, u8 arrays are auto-detected; " //
+                    "pass dtype string as 3rd argument for other types");
                 return NULL;
             }
             switch (type_a) {

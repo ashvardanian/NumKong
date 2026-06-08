@@ -139,106 +139,114 @@ NK_INTERNAL __m128 nk_sqrt_f32x4_loongsonasx_(__m128 x_f32x4) {
 }
 
 /** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq × target_sumsq) for 4 pairs (LSX 128-bit f32). */
-NK_INTERNAL void nk_angular_through_f32_from_dot_loongsonasx_(nk_b128_vec_t dots, nk_f32_t query_sumsq,
-                                                              nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    __m128 dots_f32x4 = dots.xmm_ps;
+NK_INTERNAL void nk_angular_through_f32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                              nk_b128_vec_t const *target_sumsqs_vec,
+                                                              nk_b128_vec_t *result_vec) {
+    __m128 dots_f32x4 = dots_vec->xmm_ps;
     __m128 query_sumsq_f32x4 = nk_xvreplgr2vr_s_128_(query_sumsq);
-    __m128 products_f32x4 = __lsx_vfmul_s(query_sumsq_f32x4, target_sumsqs.xmm_ps);
+    __m128 products_f32x4 = __lsx_vfmul_s(query_sumsq_f32x4, target_sumsqs_vec->xmm_ps);
     __m128 rsqrt_f32x4 = __lsx_vfrsqrt_s(products_f32x4);
     __m128 normalized_f32x4 = __lsx_vfmul_s(dots_f32x4, rsqrt_f32x4);
     __m128 one_f32x4 = nk_xvreplgr2vr_s_128_(1.0f);
     __m128 angular_f32x4 = __lsx_vfsub_s(one_f32x4, normalized_f32x4);
     __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
-    results->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
+    result_vec->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
 }
 
 /** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs (LSX 128-bit f32). */
-NK_INTERNAL void nk_euclidean_through_f32_from_dot_loongsonasx_(nk_b128_vec_t dots, nk_f32_t query_sumsq,
-                                                                nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    __m128 dots_f32x4 = dots.xmm_ps;
+NK_INTERNAL void nk_euclidean_through_f32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                                nk_b128_vec_t const *target_sumsqs_vec,
+                                                                nk_b128_vec_t *result_vec) {
+    __m128 dots_f32x4 = dots_vec->xmm_ps;
     __m128 query_sumsq_f32x4 = nk_xvreplgr2vr_s_128_(query_sumsq);
-    __m128 sum_sq_f32x4 = __lsx_vfadd_s(query_sumsq_f32x4, target_sumsqs.xmm_ps);
+    __m128 sum_sq_f32x4 = __lsx_vfadd_s(query_sumsq_f32x4, target_sumsqs_vec->xmm_ps);
     __m128 two_f32x4 = nk_xvreplgr2vr_s_128_(2.0f);
     // dist_sq = sum_sq − 2 × dots = -(2 × dots − sum_sq)
     __m128 dist_sq_f32x4 = __lsx_vfnmsub_s(two_f32x4, dots_f32x4, sum_sq_f32x4);
-    results->xmm_ps = nk_sqrt_f32x4_loongsonasx_(dist_sq_f32x4);
+    result_vec->xmm_ps = nk_sqrt_f32x4_loongsonasx_(dist_sq_f32x4);
 }
 
 /** @brief Angular from_dot for native f64: 1 − dot / √(query_sumsq × target_sumsq) for 4 pairs (LASX 256-bit). */
-NK_INTERNAL void nk_angular_through_f64_from_dot_loongsonasx_(nk_b256_vec_t dots, nk_f64_t query_sumsq,
-                                                              nk_b256_vec_t target_sumsqs, nk_b256_vec_t *results) {
-    __m256d dots_f64x4 = dots.ymm_pd;
+NK_INTERNAL void nk_angular_through_f64_from_dot_loongsonasx_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
+                                                              nk_b256_vec_t const *target_sumsqs_vec,
+                                                              nk_b256_vec_t *result_vec) {
+    __m256d dots_f64x4 = dots_vec->ymm_pd;
     __m256d query_sumsq_f64x4 = nk_xvfreplgr2vr_d_(query_sumsq);
-    __m256d products_f64x4 = __lasx_xvfmul_d(query_sumsq_f64x4, target_sumsqs.ymm_pd);
+    __m256d products_f64x4 = __lasx_xvfmul_d(query_sumsq_f64x4, target_sumsqs_vec->ymm_pd);
     __m256d sqrt_products_f64x4 = __lasx_xvfsqrt_d(products_f64x4);
     __m256d normalized_f64x4 = __lasx_xvfdiv_d(dots_f64x4, sqrt_products_f64x4);
     __m256d one_f64x4 = nk_xvfreplgr2vr_d_(1.0);
     __m256d angular_f64x4 = __lasx_xvfsub_d(one_f64x4, normalized_f64x4);
     __m256d zero_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
-    results->ymm_pd = __lasx_xvfmax_d(angular_f64x4, zero_f64x4);
+    result_vec->ymm_pd = __lasx_xvfmax_d(angular_f64x4, zero_f64x4);
 }
 
 /** @brief Euclidean from_dot for native f64: √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs (LASX 256-bit). */
-NK_INTERNAL void nk_euclidean_through_f64_from_dot_loongsonasx_(nk_b256_vec_t dots, nk_f64_t query_sumsq,
-                                                                nk_b256_vec_t target_sumsqs, nk_b256_vec_t *results) {
-    __m256d dots_f64x4 = dots.ymm_pd;
+NK_INTERNAL void nk_euclidean_through_f64_from_dot_loongsonasx_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
+                                                                nk_b256_vec_t const *target_sumsqs_vec,
+                                                                nk_b256_vec_t *result_vec) {
+    __m256d dots_f64x4 = dots_vec->ymm_pd;
     __m256d query_sumsq_f64x4 = nk_xvfreplgr2vr_d_(query_sumsq);
-    __m256d sum_sq_f64x4 = __lasx_xvfadd_d(query_sumsq_f64x4, target_sumsqs.ymm_pd);
+    __m256d sum_sq_f64x4 = __lasx_xvfadd_d(query_sumsq_f64x4, target_sumsqs_vec->ymm_pd);
     __m256d two_f64x4 = nk_xvfreplgr2vr_d_(2.0);
     // dist_sq = sum_sq − 2 × dots = -(2 × dots − sum_sq)
     __m256d dist_sq_f64x4 = __lasx_xvfnmsub_d(two_f64x4, dots_f64x4, sum_sq_f64x4);
     __m256d zero_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
-    results->ymm_pd = __lasx_xvfsqrt_d(__lasx_xvfmax_d(dist_sq_f64x4, zero_f64x4));
+    result_vec->ymm_pd = __lasx_xvfsqrt_d(__lasx_xvfmax_d(dist_sq_f64x4, zero_f64x4));
 }
 
 /** @brief Angular from_dot for i32 accumulators: cast i32 → f32, rsqrt+NR, clamp. 4 pairs (LSX 128-bit). */
-NK_INTERNAL void nk_angular_through_i32_from_dot_loongsonasx_(nk_b128_vec_t dots, nk_i32_t query_sumsq,
-                                                              nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    __m128 dots_f32x4 = __lsx_vffint_s_w(dots.xmm);
+NK_INTERNAL void nk_angular_through_i32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+                                                              nk_b128_vec_t const *target_sumsqs_vec,
+                                                              nk_b128_vec_t *result_vec) {
+    __m128 dots_f32x4 = __lsx_vffint_s_w(dots_vec->xmm);
     __m128 query_sumsq_f32x4 = nk_xvreplgr2vr_s_128_((nk_f32_t)query_sumsq);
-    __m128 products_f32x4 = __lsx_vfmul_s(query_sumsq_f32x4, __lsx_vffint_s_w(target_sumsqs.xmm));
+    __m128 products_f32x4 = __lsx_vfmul_s(query_sumsq_f32x4, __lsx_vffint_s_w(target_sumsqs_vec->xmm));
     __m128 rsqrt_f32x4 = __lsx_vfrsqrt_s(products_f32x4);
     __m128 normalized_f32x4 = __lsx_vfmul_s(dots_f32x4, rsqrt_f32x4);
     __m128 one_f32x4 = nk_xvreplgr2vr_s_128_(1.0f);
     __m128 angular_f32x4 = __lsx_vfsub_s(one_f32x4, normalized_f32x4);
     __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
-    results->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
+    result_vec->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
 }
 
 /** @brief Euclidean from_dot for i32 accumulators: cast i32 → f32, then √(a² + b² − 2ab). 4 pairs (LSX 128-bit). */
-NK_INTERNAL void nk_euclidean_through_i32_from_dot_loongsonasx_(nk_b128_vec_t dots, nk_i32_t query_sumsq,
-                                                                nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    __m128 dots_f32x4 = __lsx_vffint_s_w(dots.xmm);
+NK_INTERNAL void nk_euclidean_through_i32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+                                                                nk_b128_vec_t const *target_sumsqs_vec,
+                                                                nk_b128_vec_t *result_vec) {
+    __m128 dots_f32x4 = __lsx_vffint_s_w(dots_vec->xmm);
     __m128 query_sumsq_f32x4 = nk_xvreplgr2vr_s_128_((nk_f32_t)query_sumsq);
-    __m128 sum_sq_f32x4 = __lsx_vfadd_s(query_sumsq_f32x4, __lsx_vffint_s_w(target_sumsqs.xmm));
+    __m128 sum_sq_f32x4 = __lsx_vfadd_s(query_sumsq_f32x4, __lsx_vffint_s_w(target_sumsqs_vec->xmm));
     __m128 two_f32x4 = nk_xvreplgr2vr_s_128_(2.0f);
     __m128 dist_sq_f32x4 = __lsx_vfnmsub_s(two_f32x4, dots_f32x4, sum_sq_f32x4);
-    results->xmm_ps = nk_sqrt_f32x4_loongsonasx_(dist_sq_f32x4);
+    result_vec->xmm_ps = nk_sqrt_f32x4_loongsonasx_(dist_sq_f32x4);
 }
 
 /** @brief Angular from_dot for u32 accumulators: cast u32 → f32, rsqrt+NR, clamp. 4 pairs (LSX 128-bit). */
-NK_INTERNAL void nk_angular_through_u32_from_dot_loongsonasx_(nk_b128_vec_t dots, nk_u32_t query_sumsq,
-                                                              nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    __m128 dots_f32x4 = __lsx_vffint_s_w(dots.xmm);
+NK_INTERNAL void nk_angular_through_u32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
+                                                              nk_b128_vec_t const *target_sumsqs_vec,
+                                                              nk_b128_vec_t *result_vec) {
+    __m128 dots_f32x4 = __lsx_vffint_s_w(dots_vec->xmm);
     __m128 query_sumsq_f32x4 = nk_xvreplgr2vr_s_128_((nk_f32_t)query_sumsq);
-    __m128 products_f32x4 = __lsx_vfmul_s(query_sumsq_f32x4, __lsx_vffint_s_w(target_sumsqs.xmm));
+    __m128 products_f32x4 = __lsx_vfmul_s(query_sumsq_f32x4, __lsx_vffint_s_w(target_sumsqs_vec->xmm));
     __m128 rsqrt_f32x4 = __lsx_vfrsqrt_s(products_f32x4);
     __m128 normalized_f32x4 = __lsx_vfmul_s(dots_f32x4, rsqrt_f32x4);
     __m128 one_f32x4 = nk_xvreplgr2vr_s_128_(1.0f);
     __m128 angular_f32x4 = __lsx_vfsub_s(one_f32x4, normalized_f32x4);
     __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
-    results->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
+    result_vec->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
 }
 
 /** @brief Euclidean from_dot for u32 accumulators: cast u32 → f32, then √(a² + b² − 2ab). 4 pairs (LSX 128-bit). */
-NK_INTERNAL void nk_euclidean_through_u32_from_dot_loongsonasx_(nk_b128_vec_t dots, nk_u32_t query_sumsq,
-                                                                nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    __m128 dots_f32x4 = __lsx_vffint_s_w(dots.xmm);
+NK_INTERNAL void nk_euclidean_through_u32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
+                                                                nk_b128_vec_t const *target_sumsqs_vec,
+                                                                nk_b128_vec_t *result_vec) {
+    __m128 dots_f32x4 = __lsx_vffint_s_w(dots_vec->xmm);
     __m128 query_sumsq_f32x4 = nk_xvreplgr2vr_s_128_((nk_f32_t)query_sumsq);
-    __m128 sum_sq_f32x4 = __lsx_vfadd_s(query_sumsq_f32x4, __lsx_vffint_s_w(target_sumsqs.xmm));
+    __m128 sum_sq_f32x4 = __lsx_vfadd_s(query_sumsq_f32x4, __lsx_vffint_s_w(target_sumsqs_vec->xmm));
     __m128 two_f32x4 = nk_xvreplgr2vr_s_128_(2.0f);
     __m128 dist_sq_f32x4 = __lsx_vfnmsub_s(two_f32x4, dots_f32x4, sum_sq_f32x4);
-    results->xmm_ps = nk_sqrt_f32x4_loongsonasx_(dist_sq_f32x4);
+    result_vec->xmm_ps = nk_sqrt_f32x4_loongsonasx_(dist_sq_f32x4);
 }
 
 #pragma endregion Vectorized From Dot Helpers

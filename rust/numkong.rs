@@ -141,10 +141,15 @@ pub use set::{BinarySimilarity, Hamming, Jaccard};
 pub use probability::{JensenShannon, KullbackLeibler, ProbabilitySimilarity};
 
 // Re-export elementwise and trig traits
-pub use each::{EachATan, EachBlend, EachCos, EachFMA, EachScale, EachSin, EachSum, Trigonometry};
+pub use each::{
+    AllCloseOps, BlendOps, EachATan, EachBlend, EachCos, EachFMA, EachScale, EachSin, EachSum,
+    FmaOps, ScaleOps, SumOps, TrigAtanOps, TrigCosOps, TrigSinOps, Trigonometry,
+};
 
 // Re-export reduction traits
-pub use reduce::{ReduceMinMax, ReduceMoments, Reductions};
+pub use reduce::{
+    BitwiseReductions, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, Reductions, SumSqToF64,
+};
 
 // Re-export curved metric traits
 pub use curved::{Bilinear, Mahalanobis};
@@ -159,7 +164,7 @@ pub use geospatial::{Geospatial, Haversine, Vincenty};
 pub use sparse::{SparseDot, SparseIntersect};
 
 // Re-export cast operations
-pub use cast::{cast, CastDtype};
+pub use cast::{cast, CastDtype, CastOps};
 
 // Re-export capabilities
 pub use capabilities::cap;
@@ -167,11 +172,10 @@ pub use capabilities::{available, configure_thread, uses_dynamic_dispatch};
 
 // Re-export tensor types
 pub use tensor::{
-    AllCloseOps, Allocator, AxisIterator, AxisIteratorMut, BlendOps, CastOps, FmaOps, Global,
-    Matrix, MatrixSpan, MatrixView, MinMaxOps, MinMaxResult, MomentsOps, RangeStep, ScaleOps,
-    SliceArg, SliceRange, SliceSpec, SumOps, Tensor, TensorDims, TensorError, TensorIterator,
-    TensorMut, TensorRef, TensorSpan, TensorSpanDims, TensorSpanIterator, TensorView,
-    TensorViewDims, TensorViewIterator, TrigAtanOps, TrigCosOps, TrigSinOps, DEFAULT_MAX_RANK,
+    Allocator, AxisIterator, AxisIteratorMut, CopyFrom, Fill, Global, Matrix, MatrixSpan,
+    MatrixView, MinMaxResult, RangeStep, SliceArg, SliceRange, SliceSpec, Tensor, TensorDims,
+    TensorError, TensorIterator, TensorMut, TensorRef, TensorSpan, TensorSpanDims,
+    TensorSpanIterator, TensorView, TensorViewDims, TensorViewIterator, DEFAULT_MAX_RANK,
     SIMD_ALIGNMENT,
 };
 

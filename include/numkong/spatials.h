@@ -759,6 +759,23 @@ NK_PUBLIC void nk_euclideans_packed_f16_graniteamx(nk_f16_t const *a, void const
 NK_PUBLIC void nk_euclideans_symmetric_f16_graniteamx(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
                                                       nk_size_t row_start, nk_size_t row_count);
+/** @copydoc nk_angulars_packed_f16 */
+NK_PUBLIC void nk_angulars_packed_e5m2_graniteamx(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
+/** @copydoc nk_angulars_symmetric_f16 */
+NK_PUBLIC void nk_angulars_symmetric_e5m2_graniteamx(nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                     nk_size_t row_start, nk_size_t row_count);
+/** @copydoc nk_euclideans_packed_f16 */
+NK_PUBLIC void nk_euclideans_packed_e5m2_graniteamx(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
+/** @copydoc nk_euclideans_symmetric_f16 */
+NK_PUBLIC void nk_euclideans_symmetric_e5m2_graniteamx(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count);
 #endif // NK_TARGET_GRANITEAMX
 
 /*  ARM SME backends using Scalable Matrix Extension.

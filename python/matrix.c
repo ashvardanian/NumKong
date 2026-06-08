@@ -153,7 +153,7 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
     Tensor *a = (Tensor *)self;
 
     if (!PyObject_TypeCheck(other, &PackedMatrixType)) {
-        PyErr_SetString(PyExc_TypeError, "matmul requires PackedMatrix as right operand " "(use nk.dots_pack() first)");
+        PyErr_SetString(PyExc_TypeError, "matmul requires PackedMatrix as right operand (use nk.dots_pack() first)");
         return NULL;
     }
 
@@ -186,7 +186,7 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
     // Require matching dtype and row-contiguous input
     if (a->dtype != packed->dtype) {
         PyErr_Format(PyExc_TypeError,
-                     "dtype mismatch: tensor is '%s' but packed matrix is '%s'. " "Use .astype('%s') to convert first.",
+                     "dtype mismatch: tensor is '%s' but packed matrix is '%s'. Use .astype('%s') to convert first.",
                      nk_dtype_to_pybuffer_typestr(a->dtype), nk_dtype_to_pybuffer_typestr(packed->dtype),
                      nk_dtype_to_pybuffer_typestr(packed->dtype));
         return NULL;

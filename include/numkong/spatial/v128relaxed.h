@@ -618,75 +618,81 @@ nk_angular_e3m2_v128relaxed_cycle:
 #pragma region Spatial From Dot Helpers
 
 /** @brief Angular from_dot: computes 1 − dot / √(query_sumsq × target_sumsq) for 4 pairs in f32. */
-NK_INTERNAL void nk_angular_through_f32_from_dot_v128relaxed_(nk_b128_vec_t dots, nk_f32_t query_sumsq,
-                                                              nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    v128_t dots_f32x4 = dots.v128;
+NK_INTERNAL void nk_angular_through_f32_from_dot_v128relaxed_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                              nk_b128_vec_t const *target_sumsqs_vec,
+                                                              nk_b128_vec_t *result_vec) {
+    v128_t dots_f32x4 = dots_vec->v128;
     v128_t query_sumsq_f32x4 = wasm_f32x4_splat(query_sumsq);
-    v128_t products_f32x4 = wasm_f32x4_mul(query_sumsq_f32x4, target_sumsqs.v128);
+    v128_t products_f32x4 = wasm_f32x4_mul(query_sumsq_f32x4, target_sumsqs_vec->v128);
     v128_t sqrt_products_f32x4 = wasm_f32x4_sqrt(products_f32x4);
     v128_t normalized_f32x4 = wasm_f32x4_div(dots_f32x4, sqrt_products_f32x4);
     v128_t angular_f32x4 = wasm_f32x4_sub(wasm_f32x4_splat(1.0f), normalized_f32x4);
-    results->v128 = wasm_f32x4_max(angular_f32x4, wasm_f32x4_splat(0.0f));
+    result_vec->v128 = wasm_f32x4_max(angular_f32x4, wasm_f32x4_splat(0.0f));
 }
 
 /** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs in f32. */
-NK_INTERNAL void nk_euclidean_through_f32_from_dot_v128relaxed_(nk_b128_vec_t dots, nk_f32_t query_sumsq,
-                                                                nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    v128_t dots_f32x4 = dots.v128;
+NK_INTERNAL void nk_euclidean_through_f32_from_dot_v128relaxed_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                                nk_b128_vec_t const *target_sumsqs_vec,
+                                                                nk_b128_vec_t *result_vec) {
+    v128_t dots_f32x4 = dots_vec->v128;
     v128_t query_sumsq_f32x4 = wasm_f32x4_splat(query_sumsq);
     v128_t two_f32x4 = wasm_f32x4_splat(2.0f);
-    v128_t sum_sq_f32x4 = wasm_f32x4_add(query_sumsq_f32x4, target_sumsqs.v128);
+    v128_t sum_sq_f32x4 = wasm_f32x4_add(query_sumsq_f32x4, target_sumsqs_vec->v128);
     v128_t dist_sq_f32x4 = wasm_f32x4_relaxed_nmadd(two_f32x4, dots_f32x4, sum_sq_f32x4);
     dist_sq_f32x4 = wasm_f32x4_max(dist_sq_f32x4, wasm_f32x4_splat(0.0f));
-    results->v128 = wasm_f32x4_sqrt(dist_sq_f32x4);
+    result_vec->v128 = wasm_f32x4_sqrt(dist_sq_f32x4);
 }
 
 /** @brief Angular from_dot for i32 accumulators: cast to f32, then angular normalization. 4 pairs. */
-NK_INTERNAL void nk_angular_through_i32_from_dot_v128relaxed_(nk_b128_vec_t dots, nk_i32_t query_sumsq,
-                                                              nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    v128_t dots_f32x4 = wasm_f32x4_convert_i32x4(dots.v128);
+NK_INTERNAL void nk_angular_through_i32_from_dot_v128relaxed_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+                                                              nk_b128_vec_t const *target_sumsqs_vec,
+                                                              nk_b128_vec_t *result_vec) {
+    v128_t dots_f32x4 = wasm_f32x4_convert_i32x4(dots_vec->v128);
     v128_t query_sumsq_f32x4 = wasm_f32x4_splat((nk_f32_t)query_sumsq);
-    v128_t products_f32x4 = wasm_f32x4_mul(query_sumsq_f32x4, wasm_f32x4_convert_i32x4(target_sumsqs.v128));
+    v128_t products_f32x4 = wasm_f32x4_mul(query_sumsq_f32x4, wasm_f32x4_convert_i32x4(target_sumsqs_vec->v128));
     v128_t sqrt_products_f32x4 = wasm_f32x4_sqrt(products_f32x4);
     v128_t normalized_f32x4 = wasm_f32x4_div(dots_f32x4, sqrt_products_f32x4);
     v128_t angular_f32x4 = wasm_f32x4_sub(wasm_f32x4_splat(1.0f), normalized_f32x4);
-    results->v128 = wasm_f32x4_max(angular_f32x4, wasm_f32x4_splat(0.0f));
+    result_vec->v128 = wasm_f32x4_max(angular_f32x4, wasm_f32x4_splat(0.0f));
 }
 
 /** @brief Euclidean from_dot for i32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
-NK_INTERNAL void nk_euclidean_through_i32_from_dot_v128relaxed_(nk_b128_vec_t dots, nk_i32_t query_sumsq,
-                                                                nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    v128_t dots_f32x4 = wasm_f32x4_convert_i32x4(dots.v128);
+NK_INTERNAL void nk_euclidean_through_i32_from_dot_v128relaxed_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+                                                                nk_b128_vec_t const *target_sumsqs_vec,
+                                                                nk_b128_vec_t *result_vec) {
+    v128_t dots_f32x4 = wasm_f32x4_convert_i32x4(dots_vec->v128);
     v128_t query_sumsq_f32x4 = wasm_f32x4_splat((nk_f32_t)query_sumsq);
     v128_t two_f32x4 = wasm_f32x4_splat(2.0f);
-    v128_t sum_sq_f32x4 = wasm_f32x4_add(query_sumsq_f32x4, wasm_f32x4_convert_i32x4(target_sumsqs.v128));
+    v128_t sum_sq_f32x4 = wasm_f32x4_add(query_sumsq_f32x4, wasm_f32x4_convert_i32x4(target_sumsqs_vec->v128));
     v128_t dist_sq_f32x4 = wasm_f32x4_relaxed_nmadd(two_f32x4, dots_f32x4, sum_sq_f32x4);
     dist_sq_f32x4 = wasm_f32x4_max(dist_sq_f32x4, wasm_f32x4_splat(0.0f));
-    results->v128 = wasm_f32x4_sqrt(dist_sq_f32x4);
+    result_vec->v128 = wasm_f32x4_sqrt(dist_sq_f32x4);
 }
 
 /** @brief Angular from_dot for u32 accumulators: cast to f32, then angular normalization. 4 pairs. */
-NK_INTERNAL void nk_angular_through_u32_from_dot_v128relaxed_(nk_b128_vec_t dots, nk_u32_t query_sumsq,
-                                                              nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    v128_t dots_f32x4 = wasm_f32x4_convert_u32x4(dots.v128);
+NK_INTERNAL void nk_angular_through_u32_from_dot_v128relaxed_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
+                                                              nk_b128_vec_t const *target_sumsqs_vec,
+                                                              nk_b128_vec_t *result_vec) {
+    v128_t dots_f32x4 = wasm_f32x4_convert_u32x4(dots_vec->v128);
     v128_t query_sumsq_f32x4 = wasm_f32x4_splat((nk_f32_t)query_sumsq);
-    v128_t products_f32x4 = wasm_f32x4_mul(query_sumsq_f32x4, wasm_f32x4_convert_u32x4(target_sumsqs.v128));
+    v128_t products_f32x4 = wasm_f32x4_mul(query_sumsq_f32x4, wasm_f32x4_convert_u32x4(target_sumsqs_vec->v128));
     v128_t sqrt_products_f32x4 = wasm_f32x4_sqrt(products_f32x4);
     v128_t normalized_f32x4 = wasm_f32x4_div(dots_f32x4, sqrt_products_f32x4);
     v128_t angular_f32x4 = wasm_f32x4_sub(wasm_f32x4_splat(1.0f), normalized_f32x4);
-    results->v128 = wasm_f32x4_max(angular_f32x4, wasm_f32x4_splat(0.0f));
+    result_vec->v128 = wasm_f32x4_max(angular_f32x4, wasm_f32x4_splat(0.0f));
 }
 
 /** @brief Euclidean from_dot for u32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
-NK_INTERNAL void nk_euclidean_through_u32_from_dot_v128relaxed_(nk_b128_vec_t dots, nk_u32_t query_sumsq,
-                                                                nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    v128_t dots_f32x4 = wasm_f32x4_convert_u32x4(dots.v128);
+NK_INTERNAL void nk_euclidean_through_u32_from_dot_v128relaxed_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
+                                                                nk_b128_vec_t const *target_sumsqs_vec,
+                                                                nk_b128_vec_t *result_vec) {
+    v128_t dots_f32x4 = wasm_f32x4_convert_u32x4(dots_vec->v128);
     v128_t query_sumsq_f32x4 = wasm_f32x4_splat((nk_f32_t)query_sumsq);
     v128_t two_f32x4 = wasm_f32x4_splat(2.0f);
-    v128_t sum_sq_f32x4 = wasm_f32x4_add(query_sumsq_f32x4, wasm_f32x4_convert_u32x4(target_sumsqs.v128));
+    v128_t sum_sq_f32x4 = wasm_f32x4_add(query_sumsq_f32x4, wasm_f32x4_convert_u32x4(target_sumsqs_vec->v128));
     v128_t dist_sq_f32x4 = wasm_f32x4_relaxed_nmadd(two_f32x4, dots_f32x4, sum_sq_f32x4);
     dist_sq_f32x4 = wasm_f32x4_max(dist_sq_f32x4, wasm_f32x4_splat(0.0f));
-    results->v128 = wasm_f32x4_sqrt(dist_sq_f32x4);
+    result_vec->v128 = wasm_f32x4_sqrt(dist_sq_f32x4);
 }
 
 #pragma endregion Spatial From Dot Helpers

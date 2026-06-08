@@ -30,8 +30,7 @@
  *  nk_jaccard_u1x512_init_icelake(&state_first);
  *  // ... stream through packed binary vectors ...
  *  nk_jaccard_u1x512_finalize_icelake(&state_first, &state_second, &state_third, &state_fourth,
- *      query_popcount, target_popcount_a, target_popcount_b, target_popcount_c, target_popcount_d,
- *      total_dimensions, &results);
+ *      query_popcount, &target_popcounts_vec, total_dimensions, &result_vec);
  *  @endcode
  */
 #ifndef NK_SET_ICELAKE_H
@@ -370,8 +369,8 @@ NK_INTERNAL void nk_jaccard_u1x512_update_icelake(nk_jaccard_u1x512_state_icelak
 NK_INTERNAL void nk_jaccard_u1x512_finalize_icelake( //
     nk_jaccard_u1x512_state_icelake_t const *state_a, nk_jaccard_u1x512_state_icelake_t const *state_b,
     nk_jaccard_u1x512_state_icelake_t const *state_c, nk_jaccard_u1x512_state_icelake_t const *state_d,
-    nk_f32_t query_popcount, nk_f32_t target_popcount_a, nk_f32_t target_popcount_b, nk_f32_t target_popcount_c,
-    nk_f32_t target_popcount_d, nk_size_t total_dimensions, nk_b128_vec_t *result) {
+    nk_f32_t query_popcount, nk_b128_vec_t const *target_popcounts_vec, nk_size_t total_dimensions,
+    nk_b128_vec_t *result_vec) {
     nk_unused_(total_dimensions);
 
     // Port-optimized 4-way horizontal reduction using early i64 → i32 truncation.
@@ -415,7 +414,7 @@ NK_INTERNAL void nk_jaccard_u1x512_finalize_icelake( //
     // Compute Jaccard distance: 1 - intersection ÷ union
     // where union = query_popcount + target_popcount - intersection
     __m128 query_f32x4 = _mm_set1_ps(query_popcount);
-    __m128 targets_f32x4 = _mm_setr_ps(target_popcount_a, target_popcount_b, target_popcount_c, target_popcount_d);
+    __m128 targets_f32x4 = target_popcounts_vec->xmm_ps;
     __m128 union_f32x4 = _mm_sub_ps(_mm_add_ps(query_f32x4, targets_f32x4), intersection_f32x4);
 
     // Handle zero-union edge case: if union == 0, result = 0.0
@@ -435,24 +434,24 @@ NK_INTERNAL void nk_jaccard_u1x512_finalize_icelake( //
 
     __m128 ratio_f32x4 = _mm_mul_ps(intersection_f32x4, union_reciprocal_f32x4);
     __m128 jaccard_f32x4 = _mm_sub_ps(one_f32x4, ratio_f32x4);
-    result->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_mask);
+    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_mask);
 }
 
 /** @brief Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (Icelake). */
-NK_INTERNAL void nk_hamming_u32x4_from_dot_icelake_(nk_b128_vec_t dots, nk_u32_t query_pop, nk_b128_vec_t target_pops,
-                                                    nk_b128_vec_t *results) {
-    __m128i dots_i32x4 = dots.xmm;
+NK_INTERNAL void nk_hamming_u32x4_from_dot_icelake_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                    nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
+    __m128i dots_i32x4 = dots_vec->xmm;
     __m128i query_i32x4 = _mm_set1_epi32((int)query_pop);
-    __m128i target_i32x4 = target_pops.xmm;
-    results->xmm = _mm_sub_epi32(_mm_add_epi32(query_i32x4, target_i32x4), _mm_slli_epi32(dots_i32x4, 1));
+    __m128i target_i32x4 = target_pops_vec->xmm;
+    result_vec->xmm = _mm_sub_epi32(_mm_add_epi32(query_i32x4, target_i32x4), _mm_slli_epi32(dots_i32x4, 1));
 }
 
 /** @brief Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Icelake). */
-NK_INTERNAL void nk_jaccard_f32x4_from_dot_icelake_(nk_b128_vec_t dots, nk_u32_t query_pop, nk_b128_vec_t target_pops,
-                                                    nk_b128_vec_t *results) {
-    __m128 dot_f32x4 = _mm_cvtepi32_ps(dots.xmm);
+NK_INTERNAL void nk_jaccard_f32x4_from_dot_icelake_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                    nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
+    __m128 dot_f32x4 = _mm_cvtepi32_ps(dots_vec->xmm);
     __m128 query_f32x4 = _mm_set1_ps((nk_f32_t)query_pop);
-    __m128 target_f32x4 = _mm_cvtepi32_ps(target_pops.xmm);
+    __m128 target_f32x4 = _mm_cvtepi32_ps(target_pops_vec->xmm);
     __m128 union_f32x4 = _mm_sub_ps(_mm_add_ps(query_f32x4, target_f32x4), dot_f32x4);
 
     __m128 zero_union_mask = _mm_cmpeq_ps(union_f32x4, _mm_setzero_ps());
@@ -465,7 +464,7 @@ NK_INTERNAL void nk_jaccard_f32x4_from_dot_icelake_(nk_b128_vec_t dots, nk_u32_t
 
     __m128 ratio_f32x4 = _mm_mul_ps(dot_f32x4, union_reciprocal_f32x4);
     __m128 jaccard_f32x4 = _mm_sub_ps(one_f32x4, ratio_f32x4);
-    results->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_mask);
+    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_mask);
 }
 
 #pragma endregion Stateful Streaming

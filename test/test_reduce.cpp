@@ -62,8 +62,59 @@ error_stats_t test_reduce_minmax(typename input_type_::reduce_minmax_kernel_t ke
     return stats;
 }
 
+/**
+ *  @brief Smoke-test for the vector-shaped reduction wrappers (`nk::moments`/`minmax`/`sum`/...).
+ *  Exercises every accessor variant on a small random vector. Numerical accuracy of the
+ *  underlying kernels is validated by `test_reduce_moments` / `test_reduce_minmax` above.
+ */
+template <typename value_type_>
+void test_vector_reductions_for_type() {
+    auto v = make_vector<value_type_>(32);
+    std::mt19937 generator(42);
+    fill_random(generator, v);
+    auto view = nk::vector_view<value_type_>(v.values_data(), static_cast<std::size_t>(v.size()));
+
+    { [[maybe_unused]] auto r = nk::moments(view); }
+    { [[maybe_unused]] auto r = nk::minmax(view); }
+    { [[maybe_unused]] auto r = nk::sum(view); }
+    { [[maybe_unused]] auto r = nk::min(view); }
+    { [[maybe_unused]] auto r = nk::max(view); }
+    { [[maybe_unused]] auto r = nk::argmin(view); }
+    { [[maybe_unused]] auto r = nk::argmax(view); }
+}
+
+/**
+ *  @brief Golden-value test for the vector-shaped reduction wrappers.
+ */
+inline void test_vector_reductions_correctness() {
+    nk::f32_t data[] = {nk::f32_t(1), nk::f32_t(2), nk::f32_t(3), nk::f32_t(4), nk::f32_t(5)};
+    auto view = nk::vector_view<nk::f32_t>(data, std::size_t {5});
+
+    auto m = nk::moments(view);
+    assert(m.sum.raw_ == 15.0 && "vector moments sum");
+    assert(m.sumsq.raw_ == 55.0 && "vector moments sumsq");
+
+    auto mm = nk::minmax(view);
+    assert(mm.min_value.raw_ == 1.0f && "vector min");
+    assert(mm.max_value.raw_ == 5.0f && "vector max");
+    assert(mm.min_index == 0 && "vector argmin");
+    assert(mm.max_index == 4 && "vector argmax");
+}
+
 void test_reduce() {
     error_stats_section_t check("Reductions");
+
+    // Tensor- and vector-shaped wrapper smoke tests (independent of ISA dispatch).
+    test_vector_reductions_for_type<nk::f32_t>();
+    test_vector_reductions_for_type<nk::f64_t>();
+    test_vector_reductions_for_type<nk::f16_t>();
+    test_vector_reductions_for_type<nk::bf16_t>();
+    test_vector_reductions_for_type<nk::i8_t>();
+    test_vector_reductions_for_type<nk::u8_t>();
+    std::printf("  vector reductions (6 types):  OK\n");
+
+    test_vector_reductions_correctness();
+    std::printf("  vector reductions correct:    OK\n");
 
 #if NK_DYNAMIC_DISPATCH
     check("reduce_moments_f32", test_reduce_moments<f32_t>, nk_reduce_moments_f32, nk_reduce_moments_f32_serial);

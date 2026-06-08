@@ -698,25 +698,39 @@ nk_dot_e4m3_haswell_cycle:
 
 NK_PUBLIC void nk_dot_e5m2_haswell(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars, nk_size_t count_scalars,
                                    nk_f32_t *result) {
-    __m256 a_f32x8, b_f32x8;
-    __m256 sum_f32x8 = _mm256_setzero_ps();
+    // E5M2 shares F16 bias; inline the free-shift unpack for the two 8-lane halves.
+    __m256 first_chain_f32x8 = _mm256_setzero_ps();
+    __m256 second_chain_f32x8 = _mm256_setzero_ps();
+    __m128i const zero_u8x16 = _mm_setzero_si128();
+    __m128i a_u8x16, b_u8x16;
+
 nk_dot_e5m2_haswell_cycle:
-    if (count_scalars < 8) {
-        nk_b256_vec_t a_vec, b_vec;
-        nk_partial_load_e5m2x8_to_f32x8_haswell_(a_scalars, &a_vec, count_scalars);
-        nk_partial_load_e5m2x8_to_f32x8_haswell_(b_scalars, &b_vec, count_scalars);
-        a_f32x8 = a_vec.ymm_ps;
-        b_f32x8 = b_vec.ymm_ps;
+    if (count_scalars < 16) {
+        nk_b128_vec_t a_vec, b_vec;
+        nk_partial_load_b8x16_serial_(a_scalars, &a_vec, count_scalars);
+        nk_partial_load_b8x16_serial_(b_scalars, &b_vec, count_scalars);
+        a_u8x16 = a_vec.xmm;
+        b_u8x16 = b_vec.xmm;
         count_scalars = 0;
     }
     else {
-        a_f32x8 = nk_e5m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)a_scalars));
-        b_f32x8 = nk_e5m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)b_scalars));
-        a_scalars += 8, b_scalars += 8, count_scalars -= 8;
+        a_u8x16 = _mm_loadu_si128((__m128i const *)a_scalars);
+        b_u8x16 = _mm_loadu_si128((__m128i const *)b_scalars);
+        a_scalars += 16, b_scalars += 16, count_scalars -= 16;
     }
-    sum_f32x8 = _mm256_fmadd_ps(a_f32x8, b_f32x8, sum_f32x8);
+    __m128i a_even_f16x8 = _mm_unpacklo_epi8(zero_u8x16, a_u8x16);
+    __m128i a_odd_f16x8 = _mm_unpackhi_epi8(zero_u8x16, a_u8x16);
+    __m128i b_even_f16x8 = _mm_unpacklo_epi8(zero_u8x16, b_u8x16);
+    __m128i b_odd_f16x8 = _mm_unpackhi_epi8(zero_u8x16, b_u8x16);
+    __m256 a_first_f32x8 = _mm256_cvtph_ps(a_even_f16x8);
+    __m256 a_second_f32x8 = _mm256_cvtph_ps(a_odd_f16x8);
+    __m256 b_first_f32x8 = _mm256_cvtph_ps(b_even_f16x8);
+    __m256 b_second_f32x8 = _mm256_cvtph_ps(b_odd_f16x8);
+    first_chain_f32x8 = _mm256_fmadd_ps(a_first_f32x8, b_first_f32x8, first_chain_f32x8);
+    second_chain_f32x8 = _mm256_fmadd_ps(a_second_f32x8, b_second_f32x8, second_chain_f32x8);
     if (count_scalars) goto nk_dot_e5m2_haswell_cycle;
-    *result = (nk_f32_t)nk_reduce_add_f32x8_haswell_(sum_f32x8);
+
+    *result = (nk_f32_t)nk_reduce_add_f32x8_haswell_(_mm256_add_ps(first_chain_f32x8, second_chain_f32x8));
 }
 
 NK_PUBLIC void nk_dot_e2m3_haswell(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars, nk_size_t count_scalars,
@@ -908,6 +922,71 @@ NK_INTERNAL void nk_dot_through_f32_update_haswell_(nk_dot_through_f32_state_has
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     state->sum_f32x8 = _mm256_fmadd_ps(a.ymm_ps, b.ymm_ps, state->sum_f32x8);
+}
+
+/**
+ *  @brief E5M2 byte-batched update: consumes 32 raw E5M2 bytes per call and widens inline.
+ *  Two independent FMA chains (each 2-deep) merge into the single __m256 state accumulator.
+ */
+NK_INTERNAL void nk_dot_e5m2x32_update_haswell_(nk_dot_through_f32_state_haswell_t_ *state, nk_b256_vec_t a_bytes,
+                                                nk_b256_vec_t b_bytes, nk_size_t depth_offset,
+                                                nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    __m128i const zero_u8x16 = _mm_setzero_si128();
+    __m128i a_low_u8x16 = _mm256_castsi256_si128(a_bytes.ymm);
+    __m128i a_high_u8x16 = _mm256_extracti128_si256(a_bytes.ymm, 1);
+    __m128i b_low_u8x16 = _mm256_castsi256_si128(b_bytes.ymm);
+    __m128i b_high_u8x16 = _mm256_extracti128_si256(b_bytes.ymm, 1);
+    __m128i a_first_f16x8 = _mm_unpacklo_epi8(zero_u8x16, a_low_u8x16);
+    __m128i a_second_f16x8 = _mm_unpackhi_epi8(zero_u8x16, a_low_u8x16);
+    __m128i a_third_f16x8 = _mm_unpacklo_epi8(zero_u8x16, a_high_u8x16);
+    __m128i a_fourth_f16x8 = _mm_unpackhi_epi8(zero_u8x16, a_high_u8x16);
+    __m128i b_first_f16x8 = _mm_unpacklo_epi8(zero_u8x16, b_low_u8x16);
+    __m128i b_second_f16x8 = _mm_unpackhi_epi8(zero_u8x16, b_low_u8x16);
+    __m128i b_third_f16x8 = _mm_unpacklo_epi8(zero_u8x16, b_high_u8x16);
+    __m128i b_fourth_f16x8 = _mm_unpackhi_epi8(zero_u8x16, b_high_u8x16);
+    __m256 a_first_f32x8 = _mm256_cvtph_ps(a_first_f16x8);
+    __m256 a_second_f32x8 = _mm256_cvtph_ps(a_second_f16x8);
+    __m256 a_third_f32x8 = _mm256_cvtph_ps(a_third_f16x8);
+    __m256 a_fourth_f32x8 = _mm256_cvtph_ps(a_fourth_f16x8);
+    __m256 b_first_f32x8 = _mm256_cvtph_ps(b_first_f16x8);
+    __m256 b_second_f32x8 = _mm256_cvtph_ps(b_second_f16x8);
+    __m256 b_third_f32x8 = _mm256_cvtph_ps(b_third_f16x8);
+    __m256 b_fourth_f32x8 = _mm256_cvtph_ps(b_fourth_f16x8);
+    __m256 first_chain_f32x8 = _mm256_mul_ps(a_first_f32x8, b_first_f32x8);
+    __m256 second_chain_f32x8 = _mm256_mul_ps(a_second_f32x8, b_second_f32x8);
+    first_chain_f32x8 = _mm256_fmadd_ps(a_third_f32x8, b_third_f32x8, first_chain_f32x8);
+    second_chain_f32x8 = _mm256_fmadd_ps(a_fourth_f32x8, b_fourth_f32x8, second_chain_f32x8);
+    state->sum_f32x8 = _mm256_add_ps(state->sum_f32x8, _mm256_add_ps(first_chain_f32x8, second_chain_f32x8));
+}
+
+/**
+ *  @brief E4M3 byte-batched update: consumes 32 raw E4M3 bytes per call. Widens through the
+ *  Giesen cast helper. Two independent FMA chains merge into the single state accumulator.
+ */
+NK_INTERNAL void nk_dot_e4m3x32_update_haswell_(nk_dot_through_f32_state_haswell_t_ *state, nk_b256_vec_t a_bytes,
+                                                nk_b256_vec_t b_bytes, nk_size_t depth_offset,
+                                                nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    __m128i a_low_u8x16 = _mm256_castsi256_si128(a_bytes.ymm);
+    __m128i a_high_u8x16 = _mm256_extracti128_si256(a_bytes.ymm, 1);
+    __m128i b_low_u8x16 = _mm256_castsi256_si128(b_bytes.ymm);
+    __m128i b_high_u8x16 = _mm256_extracti128_si256(b_bytes.ymm, 1);
+    __m256 a_first_f32x8 = nk_e4m3x8_to_f32x8_haswell_(a_low_u8x16);
+    __m256 a_second_f32x8 = nk_e4m3x8_to_f32x8_haswell_(_mm_unpackhi_epi64(a_low_u8x16, a_low_u8x16));
+    __m256 a_third_f32x8 = nk_e4m3x8_to_f32x8_haswell_(a_high_u8x16);
+    __m256 a_fourth_f32x8 = nk_e4m3x8_to_f32x8_haswell_(_mm_unpackhi_epi64(a_high_u8x16, a_high_u8x16));
+    __m256 b_first_f32x8 = nk_e4m3x8_to_f32x8_haswell_(b_low_u8x16);
+    __m256 b_second_f32x8 = nk_e4m3x8_to_f32x8_haswell_(_mm_unpackhi_epi64(b_low_u8x16, b_low_u8x16));
+    __m256 b_third_f32x8 = nk_e4m3x8_to_f32x8_haswell_(b_high_u8x16);
+    __m256 b_fourth_f32x8 = nk_e4m3x8_to_f32x8_haswell_(_mm_unpackhi_epi64(b_high_u8x16, b_high_u8x16));
+    __m256 first_chain_f32x8 = _mm256_mul_ps(a_first_f32x8, b_first_f32x8);
+    __m256 second_chain_f32x8 = _mm256_mul_ps(a_second_f32x8, b_second_f32x8);
+    first_chain_f32x8 = _mm256_fmadd_ps(a_third_f32x8, b_third_f32x8, first_chain_f32x8);
+    second_chain_f32x8 = _mm256_fmadd_ps(a_fourth_f32x8, b_fourth_f32x8, second_chain_f32x8);
+    state->sum_f32x8 = _mm256_add_ps(state->sum_f32x8, _mm256_add_ps(first_chain_f32x8, second_chain_f32x8));
 }
 
 /**
@@ -1558,8 +1637,8 @@ NK_INTERNAL void nk_dot_i4x32_finalize_haswell(                                 
     nk_dot_i4x32_state_haswell_t const *state_c, nk_dot_i4x32_state_haswell_t const *state_d, //
     nk_size_t total_dimensions,                                                               //
     nk_i32_t a_sum, /* A row sum (signed sum of i4 values) */                                 //
-    nk_b128_vec_t b_sums, /* 4 × i32 B column sums */                                         //
-    nk_b128_vec_t *result) {
+    nk_b128_vec_t const *b_sums_vec, /* 4 × i32 B column sums */                              //
+    nk_b128_vec_t *result_vec) {
 
     // Compensated 4-way reduction with external correction sums.
     // Formula: result = biased_product − 8×(Σa + Σb) − 64×depth_padded
@@ -1587,10 +1666,10 @@ NK_INTERNAL void nk_dot_i4x32_finalize_haswell(                                 
 
     // Apply compensation: result = biased − 8×(Σa + Σb) − 64×depth_padded
     __m128i a_sum_broadcast_i32x4 = _mm_set1_epi32(a_sum);
-    __m128i ab_sums_i32x4 = _mm_add_epi32(a_sum_broadcast_i32x4, b_sums.xmm);
+    __m128i ab_sums_i32x4 = _mm_add_epi32(a_sum_broadcast_i32x4, b_sums_vec->xmm);
     __m128i correction_i32x4 = _mm_slli_epi32(ab_sums_i32x4, 3); // × 8
     __m128i offset_i32x4 = _mm_set1_epi32((nk_i32_t)(-64LL * (nk_i64_t)depth_nibbles));
-    result->xmm = _mm_add_epi32(_mm_sub_epi32(biased_i32x4, correction_i32x4), offset_i32x4);
+    result_vec->xmm = _mm_add_epi32(_mm_sub_epi32(biased_i32x4, correction_i32x4), offset_i32x4);
 }
 
 /**

@@ -604,12 +604,6 @@ NK_PUBLIC void nk_euclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, n
 NK_PUBLIC void nk_sqeuclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
 NK_PUBLIC void nk_angular_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_PUBLIC void nk_euclidean_e5m2_genoa(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_sqeuclidean_f64 */
-NK_PUBLIC void nk_sqeuclidean_e5m2_genoa(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_angular_f64 */
-NK_PUBLIC void nk_angular_e5m2_genoa(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_GENOA
 
 #if NK_TARGET_DIAMOND
@@ -1263,8 +1257,6 @@ NK_PUBLIC void nk_euclidean_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size
     nk_euclidean_e5m2_neonfp8(a, b, n, result);
 #elif NK_TARGET_DIAMOND
     nk_euclidean_e5m2_diamond(a, b, n, result);
-#elif NK_TARGET_GENOA
-    nk_euclidean_e5m2_genoa(a, b, n, result);
 #elif NK_TARGET_SKYLAKE
     nk_euclidean_e5m2_skylake(a, b, n, result);
 #elif NK_TARGET_RVV
@@ -1281,8 +1273,6 @@ NK_PUBLIC void nk_sqeuclidean_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_si
     nk_sqeuclidean_e5m2_neonfp8(a, b, n, result);
 #elif NK_TARGET_DIAMOND
     nk_sqeuclidean_e5m2_diamond(a, b, n, result);
-#elif NK_TARGET_GENOA
-    nk_sqeuclidean_e5m2_genoa(a, b, n, result);
 #elif NK_TARGET_SKYLAKE
     nk_sqeuclidean_e5m2_skylake(a, b, n, result);
 #elif NK_TARGET_RVV
@@ -1299,8 +1289,6 @@ NK_PUBLIC void nk_angular_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t
     nk_angular_e5m2_neonfp8(a, b, n, result);
 #elif NK_TARGET_DIAMOND
     nk_angular_e5m2_diamond(a, b, n, result);
-#elif NK_TARGET_GENOA
-    nk_angular_e5m2_genoa(a, b, n, result);
 #elif NK_TARGET_SKYLAKE
     nk_angular_e5m2_skylake(a, b, n, result);
 #elif NK_TARGET_RVV

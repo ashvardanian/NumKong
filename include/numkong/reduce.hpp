@@ -629,6 +629,44 @@ std::size_t argmax(vector_view<value_type_> input) noexcept {
     return minmax(input).max_index;
 }
 
+/** @brief Population count of a packed bit tensor — number of set bits.
+ *  Wraps `nk_reduce_moments_u1` via `sum`; returns 0 for empty inputs. */
+template <std::size_t max_rank_ = 8>
+u64_t popcount(tensor_view<u1x8_t, max_rank_> input) noexcept {
+    return sum<u1x8_t, max_rank_>(input);
+}
+
+/** @brief True if any bit of the packed bit tensor is set. Suffixed `_set` to
+ *  avoid colliding with the `all_t`/`all` slice marker in `vector.hpp`. */
+template <std::size_t max_rank_ = 8>
+bool any_set(tensor_view<u1x8_t, max_rank_> input) noexcept {
+    return popcount<max_rank_>(input).raw_ != 0;
+}
+
+/** @brief True if no bit of the packed bit tensor is set. */
+template <std::size_t max_rank_ = 8>
+bool none_set(tensor_view<u1x8_t, max_rank_> input) noexcept {
+    return !any_set<max_rank_>(input);
+}
+
+/** @brief True if every bit of the packed bit tensor is set. */
+template <std::size_t max_rank_ = 8>
+bool all_set(tensor_view<u1x8_t, max_rank_> input) noexcept {
+    return popcount<max_rank_>(input).raw_ == input.numel();
+}
+
+/** @brief Population count over a 1D bit-vector view. */
+inline u64_t popcount(vector_view<u1x8_t> input) noexcept { return sum<u1x8_t>(input); }
+
+/** @brief True if any bit of the 1D bit-vector view is set. */
+inline bool any_set(vector_view<u1x8_t> input) noexcept { return popcount(input).raw_ != 0; }
+
+/** @brief True if no bit of the 1D bit-vector view is set. */
+inline bool none_set(vector_view<u1x8_t> input) noexcept { return !any_set(input); }
+
+/** @brief True if every bit of the 1D bit-vector view is set. */
+inline bool all_set(vector_view<u1x8_t> input) noexcept { return popcount(input).raw_ == input.size(); }
+
 #pragma endregion Scalar Reductions
 
 #pragma region Axis Reductions

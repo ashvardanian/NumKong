@@ -58,5 +58,17 @@ void bench_cross_amx() {
     run_euclideans_packed<f16_k>("euclideans_packed_f16_graniteamx", nk_dots_packed_size_f16_graniteamx,
                                  nk_dots_pack_f16_graniteamx, nk_euclideans_packed_f16_graniteamx);
     run_euclideans_symmetric<f16_k>("euclideans_symmetric_f16_graniteamx", nk_euclideans_symmetric_f16_graniteamx);
+
+    run_dots_packed<e5m2_k>("dots_packed_e5m2_graniteamx", nk_dots_packed_size_e5m2_graniteamx,
+                            nk_dots_pack_e5m2_graniteamx, nk_dots_packed_e5m2_graniteamx);
+    run_dots_symmetric<e5m2_k>("dots_symmetric_e5m2_graniteamx", nk_dots_symmetric_e5m2_graniteamx);
+
+    run_angulars_packed<e5m2_k>("angulars_packed_e5m2_graniteamx", nk_dots_packed_size_e5m2_graniteamx,
+                                nk_dots_pack_e5m2_graniteamx, nk_angulars_packed_e5m2_graniteamx);
+    run_angulars_symmetric<e5m2_k>("angulars_symmetric_e5m2_graniteamx", nk_angulars_symmetric_e5m2_graniteamx);
+
+    run_euclideans_packed<e5m2_k>("euclideans_packed_e5m2_graniteamx", nk_dots_packed_size_e5m2_graniteamx,
+                                  nk_dots_pack_e5m2_graniteamx, nk_euclideans_packed_e5m2_graniteamx);
+    run_euclideans_symmetric<e5m2_k>("euclideans_symmetric_e5m2_graniteamx", nk_euclideans_symmetric_e5m2_graniteamx);
 #endif
 }

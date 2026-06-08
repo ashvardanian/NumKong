@@ -1,9 +1,11 @@
-//! Type casting between scalar formats.
+//! Type casting between scalar formats — slice traits and tensor-shaped wrappers.
 //!
 //! This module provides:
 //!
 //! - [`CastDtype`]: Trait marking types eligible for bulk casting
 //! - [`cast`]: Bulk-converts a slice from one scalar format to another
+//! - [`CastOps`]: Tensor-shaped extension trait — auto-implemented on every
+//!   [`crate::tensor::TensorRef`] so any container can do `tensor.try_cast_dtype::<Destination>()`
 
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
 
@@ -214,6 +216,34 @@ pub fn cast<S: CastDtype, D: CastDtype>(source: &[S], dest: &mut [D]) -> Option<
     Some(())
 }
 
+// region: Tensor-shaped cast (moved from crate::tensor)
+
+use crate::tensor::{try_reborrow_tensor_into, Global, Tensor, TensorError, TensorRef};
+
+/// Extension trait: type casting for any [`TensorRef`] implementor.
+pub trait CastOps<Source: Clone + CastDtype, const MAX_RANK: usize>:
+    TensorRef<Source, MAX_RANK>
+{
+    fn try_cast_dtype<Destination: Clone + CastDtype>(
+        &self,
+    ) -> Result<Tensor<Destination, Global, MAX_RANK>, TensorError> {
+        self.view().try_cast_dtype()
+    }
+}
+
+impl<Source: Clone + CastDtype, const R: usize, C: TensorRef<Source, R>> CastOps<Source, R> for C {}
+
+impl<Source: Clone + CastDtype, const MAX_RANK: usize> Tensor<Source, Global, MAX_RANK> {
+    pub fn try_cast_dtype_into<Destination: Clone + CastDtype>(
+        &self,
+        out: &mut Tensor<Destination, Global, MAX_RANK>,
+    ) -> Result<(), TensorError> {
+        try_reborrow_tensor_into(self, out, |view, span| view.try_cast_dtype_into(span))
+    }
+}
+
+// endregion: Tensor-shaped cast
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -310,5 +340,26 @@ mod tests {
         assert_eq!(narrowed[0].im.to_f32(), bf16::from_f32(-2.5).to_f32());
         assert_eq!(narrowed[1].re.to_f32(), bf16::from_f32(-3.5).to_f32());
         assert_eq!(narrowed[1].im.to_f32(), bf16::from_f32(4.25).to_f32());
+    }
+
+    #[test]
+    fn cast_via_tensor_view_round_trip() {
+        // Exercises `CastOps::try_cast_dtype` on a strided `TensorView`,
+        // mirroring how callers reach the trait through the tensor-shaped wrapper.
+        use crate::tensor::{SliceRange, Tensor};
+        let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
+        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let even_columns = source
+            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .unwrap();
+
+        let widened = even_columns.try_cast_dtype::<f64>().unwrap();
+        assert_eq!(widened.shape(), &[3, 2]);
+        assert_eq!(widened.as_slice(), &[0.0, 2.0, 4.0, 6.0, 8.0, 10.0]);
+
+        let complexified = even_columns.try_cast_dtype::<f32c>().unwrap();
+        assert_eq!(complexified.shape(), &[3, 2]);
+        assert_eq!(complexified.as_slice()[0], f32c::from_real_imag(0.0, 0.0));
+        assert_eq!(complexified.as_slice()[5], f32c::from_real_imag(10.0, 0.0));
     }
 }

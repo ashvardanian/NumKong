@@ -254,98 +254,108 @@ NK_PUBLIC void nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_s
 }
 
 /** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq × target_sumsq) for 4 pairs (serial). */
-NK_INTERNAL void nk_angular_through_f32_from_dot_serial_(nk_b128_vec_t dots, nk_f32_t query_sumsq,
-                                                         nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
+NK_INTERNAL void nk_angular_through_f32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                         nk_b128_vec_t const *target_sumsqs_vec,
+                                                         nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
-        nk_f32_t product = query_sumsq * target_sumsqs.f32s[i];
+        nk_f32_t product = query_sumsq * target_sumsqs_vec->f32s[i];
         if (product > 0) {
             nk_f32_t rsqrt_val = nk_f32_rsqrt_serial(product);
-            nk_f32_t normalized = dots.f32s[i] * rsqrt_val;
+            nk_f32_t normalized = dots_vec->f32s[i] * rsqrt_val;
             nk_f32_t result = 1.0f - normalized;
-            results->f32s[i] = result > 0 ? result : 0;
+            result_vec->f32s[i] = result > 0 ? result : 0;
         }
-        else { results->f32s[i] = (dots.f32s[i] == 0) ? 0.0f : 1.0f; }
+        else { result_vec->f32s[i] = (dots_vec->f32s[i] == 0) ? 0.0f : 1.0f; }
     }
 }
 
 /** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs (serial). */
-NK_INTERNAL void nk_euclidean_through_f32_from_dot_serial_(nk_b128_vec_t dots, nk_f32_t query_sumsq,
-                                                           nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
+NK_INTERNAL void nk_euclidean_through_f32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                           nk_b128_vec_t const *target_sumsqs_vec,
+                                                           nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
-        nk_f32_t dist_sq = query_sumsq + target_sumsqs.f32s[i] - 2.0f * dots.f32s[i];
-        results->f32s[i] = dist_sq > 0 ? nk_f32_sqrt_serial(dist_sq) : 0.0f;
+        nk_f32_t dist_sq = query_sumsq + target_sumsqs_vec->f32s[i] - 2.0f * dots_vec->f32s[i];
+        result_vec->f32s[i] = dist_sq > 0 ? nk_f32_sqrt_serial(dist_sq) : 0.0f;
     }
 }
 
 /** @brief Angular from_dot for f64 precision. */
-NK_INTERNAL void nk_angular_through_f64_from_dot_serial_(nk_b256_vec_t dots, nk_f64_t query_sumsq,
-                                                         nk_b256_vec_t target_sumsqs, nk_b256_vec_t *results) {
+NK_INTERNAL void nk_angular_through_f64_from_dot_serial_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
+                                                         nk_b256_vec_t const *target_sumsqs_vec,
+                                                         nk_b256_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
-        nk_f64_t product = query_sumsq * target_sumsqs.f64s[i];
+        nk_f64_t product = query_sumsq * target_sumsqs_vec->f64s[i];
         if (product > 0) {
             nk_f64_t rsqrt_val = nk_f64_rsqrt_serial(product);
-            nk_f64_t normalized = dots.f64s[i] * rsqrt_val;
+            nk_f64_t normalized = dots_vec->f64s[i] * rsqrt_val;
             nk_f64_t result = 1.0 - normalized;
-            results->f64s[i] = result > 0 ? result : 0;
+            result_vec->f64s[i] = result > 0 ? result : 0;
         }
-        else { results->f64s[i] = (dots.f64s[i] == 0) ? 0.0 : 1.0; }
+        else { result_vec->f64s[i] = (dots_vec->f64s[i] == 0) ? 0.0 : 1.0; }
     }
 }
 
 /** @brief Euclidean from_dot for f64 precision. */
-NK_INTERNAL void nk_euclidean_through_f64_from_dot_serial_(nk_b256_vec_t dots, nk_f64_t query_sumsq,
-                                                           nk_b256_vec_t target_sumsqs, nk_b256_vec_t *results) {
+NK_INTERNAL void nk_euclidean_through_f64_from_dot_serial_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
+                                                           nk_b256_vec_t const *target_sumsqs_vec,
+                                                           nk_b256_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
-        nk_f64_t dist_sq = query_sumsq + target_sumsqs.f64s[i] - 2.0 * dots.f64s[i];
-        results->f64s[i] = dist_sq > 0 ? nk_f64_sqrt_serial(dist_sq) : 0.0;
+        nk_f64_t dist_sq = query_sumsq + target_sumsqs_vec->f64s[i] - 2.0 * dots_vec->f64s[i];
+        result_vec->f64s[i] = dist_sq > 0 ? nk_f64_sqrt_serial(dist_sq) : 0.0;
     }
 }
 
 /** @brief Angular from_dot for i32 accumulators: cast to f32, then same math as f32 variant. */
-NK_INTERNAL void nk_angular_through_i32_from_dot_serial_(nk_b128_vec_t dots, nk_i32_t query_sumsq,
-                                                         nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
+NK_INTERNAL void nk_angular_through_i32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+                                                         nk_b128_vec_t const *target_sumsqs_vec,
+                                                         nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
-        nk_f32_t product = (nk_f32_t)query_sumsq * (nk_f32_t)target_sumsqs.i32s[i];
+        nk_f32_t product = (nk_f32_t)query_sumsq * (nk_f32_t)target_sumsqs_vec->i32s[i];
         if (product > 0) {
             nk_f32_t rsqrt_val = nk_f32_rsqrt_serial(product);
-            nk_f32_t normalized = (nk_f32_t)dots.i32s[i] * rsqrt_val;
+            nk_f32_t normalized = (nk_f32_t)dots_vec->i32s[i] * rsqrt_val;
             nk_f32_t result = 1.0f - normalized;
-            results->f32s[i] = result > 0 ? result : 0;
+            result_vec->f32s[i] = result > 0 ? result : 0;
         }
-        else { results->f32s[i] = (dots.i32s[i] == 0) ? 0.0f : 1.0f; }
+        else { result_vec->f32s[i] = (dots_vec->i32s[i] == 0) ? 0.0f : 1.0f; }
     }
 }
 
 /** @brief Euclidean from_dot for i32 accumulators: cast to f32, then same math as f32 variant. */
-NK_INTERNAL void nk_euclidean_through_i32_from_dot_serial_(nk_b128_vec_t dots, nk_i32_t query_sumsq,
-                                                           nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
+NK_INTERNAL void nk_euclidean_through_i32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+                                                           nk_b128_vec_t const *target_sumsqs_vec,
+                                                           nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
-        nk_f32_t dist_sq = (nk_f32_t)query_sumsq + (nk_f32_t)target_sumsqs.i32s[i] - 2.0f * (nk_f32_t)dots.i32s[i];
-        results->f32s[i] = dist_sq > 0 ? nk_f32_sqrt_serial(dist_sq) : 0.0f;
+        nk_f32_t dist_sq = (nk_f32_t)query_sumsq + (nk_f32_t)target_sumsqs_vec->i32s[i] -
+                           2.0f * (nk_f32_t)dots_vec->i32s[i];
+        result_vec->f32s[i] = dist_sq > 0 ? nk_f32_sqrt_serial(dist_sq) : 0.0f;
     }
 }
 
 /** @brief Angular from_dot for u32 accumulators: cast to f32, then same math as f32 variant. */
-NK_INTERNAL void nk_angular_through_u32_from_dot_serial_(nk_b128_vec_t dots, nk_u32_t query_sumsq,
-                                                         nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
+NK_INTERNAL void nk_angular_through_u32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
+                                                         nk_b128_vec_t const *target_sumsqs_vec,
+                                                         nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
-        nk_f32_t product = (nk_f32_t)query_sumsq * (nk_f32_t)target_sumsqs.u32s[i];
+        nk_f32_t product = (nk_f32_t)query_sumsq * (nk_f32_t)target_sumsqs_vec->u32s[i];
         if (product > 0) {
             nk_f32_t rsqrt_val = nk_f32_rsqrt_serial(product);
-            nk_f32_t normalized = (nk_f32_t)dots.u32s[i] * rsqrt_val;
+            nk_f32_t normalized = (nk_f32_t)dots_vec->u32s[i] * rsqrt_val;
             nk_f32_t result = 1.0f - normalized;
-            results->f32s[i] = result > 0 ? result : 0;
+            result_vec->f32s[i] = result > 0 ? result : 0;
         }
-        else { results->f32s[i] = (dots.u32s[i] == 0) ? 0.0f : 1.0f; }
+        else { result_vec->f32s[i] = (dots_vec->u32s[i] == 0) ? 0.0f : 1.0f; }
     }
 }
 
 /** @brief Euclidean from_dot for u32 accumulators: cast to f32, then same math as f32 variant. */
-NK_INTERNAL void nk_euclidean_through_u32_from_dot_serial_(nk_b128_vec_t dots, nk_u32_t query_sumsq,
-                                                           nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
+NK_INTERNAL void nk_euclidean_through_u32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
+                                                           nk_b128_vec_t const *target_sumsqs_vec,
+                                                           nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
-        nk_f32_t dist_sq = (nk_f32_t)query_sumsq + (nk_f32_t)target_sumsqs.u32s[i] - 2.0f * (nk_f32_t)dots.u32s[i];
-        results->f32s[i] = dist_sq > 0 ? nk_f32_sqrt_serial(dist_sq) : 0.0f;
+        nk_f32_t dist_sq = (nk_f32_t)query_sumsq + (nk_f32_t)target_sumsqs_vec->u32s[i] -
+                           2.0f * (nk_f32_t)dots_vec->u32s[i];
+        result_vec->f32s[i] = dist_sq > 0 ? nk_f32_sqrt_serial(dist_sq) : 0.0f;
     }
 }
 

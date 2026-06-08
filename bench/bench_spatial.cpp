@@ -232,9 +232,6 @@ void bench_spatial() {
     run_dense<bf16_k, f32_k>("angular_bf16_genoa", nk_angular_bf16_genoa);
     run_dense<bf16_k, f32_k>("sqeuclidean_bf16_genoa", nk_sqeuclidean_bf16_genoa);
     run_dense<bf16_k, f32_k>("euclidean_bf16_genoa", nk_euclidean_bf16_genoa);
-    run_dense<e5m2_k, f32_k>("angular_e5m2_genoa", nk_angular_e5m2_genoa);
-    run_dense<e5m2_k, f32_k>("sqeuclidean_e5m2_genoa", nk_sqeuclidean_e5m2_genoa);
-    run_dense<e5m2_k, f32_k>("euclidean_e5m2_genoa", nk_euclidean_e5m2_genoa);
 #endif
 
 #if NK_TARGET_DIAMOND

@@ -1,13 +1,18 @@
-//! Elementwise operations and trigonometry.
+//! Elementwise operations and trigonometry — slice traits and tensor-shaped wrappers.
 //!
 //! This module provides:
 //!
-//! - [`EachSin`], [`EachCos`], [`EachATan`]: Trigonometric functions
-//! - [`EachScale`]: Linear scaling (alpha * x + beta)
-//! - [`EachSum`]: Elementwise addition of two vectors
-//! - [`EachBlend`]: Weighted blend of two vectors
-//! - [`EachFMA`]: Fused multiply-add (a * alpha + b * beta)
-//! - [`Trigonometry`]: Blanket trait combining `EachSin + EachCos + EachATan`
+//! - Slice-level traits:
+//!   - [`EachScale`]: Linear scaling (alpha * x + beta)
+//!   - [`EachSum`]: Elementwise addition of two vectors
+//!   - [`EachBlend`]: Weighted blend of two vectors
+//!   - [`EachFMA`]: Fused multiply-add (a * alpha + b * beta)
+//!   - [`EachSin`], [`EachCos`], [`EachATan`]: Trigonometric functions
+//!   - [`Trigonometry`]: Blanket trait combining `EachSin + EachCos + EachATan`
+//! - Tensor-shaped extension traits (auto-implemented on every [`crate::tensor::TensorRef`]):
+//!   - [`ScaleOps`], [`SumOps`], [`BlendOps`], [`FmaOps`]: Tensor wrappers around the slice traits
+//!   - [`TrigSinOps`], [`TrigCosOps`], [`TrigAtanOps`]: Tensor wrappers around the trig traits
+//!   - [`AllCloseOps`]: Tolerance-based equality for any [`crate::tensor::TensorRef`]
 //!
 //! # In-Place vs Allocating Semantics
 //!
@@ -43,6 +48,9 @@
 //! assert_eq!(output, [2.5, 4.5, 6.5, 8.5]);
 //! ```
 
+use crate::tensor::{
+    try_reborrow_tensor_inplace, try_reborrow_tensor_into, Global, Tensor, TensorError, TensorRef,
+};
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
 
 #[link(name = "numkong")]
@@ -2403,6 +2411,395 @@ impl EachFMA for bf16c {
 pub trait Trigonometry: EachSin + EachCos + EachATan {}
 impl<Scalar: EachSin + EachCos + EachATan> Trigonometry for Scalar {}
 
+// region: Tensor-shaped trigonometry (moved from crate::tensor)
+
+/// Extension trait: element-wise sine for any [`TensorRef`] implementor.
+pub trait TrigSinOps<Scalar: Clone + EachSin, const MAX_RANK: usize>:
+    TensorRef<Scalar, MAX_RANK>
+{
+    fn try_sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().try_sin()
+    }
+}
+
+impl<Scalar: Clone + EachSin, const R: usize, C: TensorRef<Scalar, R>> TrigSinOps<Scalar, R> for C {}
+
+/// Extension trait: element-wise cosine for any [`TensorRef`] implementor.
+pub trait TrigCosOps<Scalar: Clone + EachCos, const MAX_RANK: usize>:
+    TensorRef<Scalar, MAX_RANK>
+{
+    fn try_cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().try_cos()
+    }
+}
+
+impl<Scalar: Clone + EachCos, const R: usize, C: TensorRef<Scalar, R>> TrigCosOps<Scalar, R> for C {}
+
+/// Extension trait: element-wise arctangent for any [`TensorRef`] implementor.
+pub trait TrigAtanOps<Scalar: Clone + EachATan, const MAX_RANK: usize>:
+    TensorRef<Scalar, MAX_RANK>
+{
+    fn try_atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().try_atan()
+    }
+}
+
+impl<Scalar: Clone + EachATan, const R: usize, C: TensorRef<Scalar, R>> TrigAtanOps<Scalar, R>
+    for C
+{
+}
+
+impl<Scalar: Clone + EachSin, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
+    /// Element-wise sine: result\[i\] = sin(self\[i\])
+    pub fn sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().try_sin()
+    }
+
+    /// Element-wise sine in-place (infallible — self vs self always matches).
+    pub fn sin_inplace(&mut self) {
+        try_reborrow_tensor_inplace(self, |view, span| view.try_sin_into(span))
+            .expect("inplace trig op on self cannot fail")
+    }
+
+    pub fn try_sin_inplace(&mut self) -> Result<(), TensorError> {
+        self.sin_inplace();
+        Ok(())
+    }
+}
+
+impl<Scalar: Clone + EachCos, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
+    /// Element-wise cosine: result\[i\] = cos(self\[i\])
+    pub fn cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().try_cos()
+    }
+
+    /// Element-wise cosine in-place (infallible — self vs self always matches).
+    pub fn cos_inplace(&mut self) {
+        try_reborrow_tensor_inplace(self, |view, span| view.try_cos_into(span))
+            .expect("inplace trig op on self cannot fail")
+    }
+
+    pub fn try_cos_inplace(&mut self) -> Result<(), TensorError> {
+        self.cos_inplace();
+        Ok(())
+    }
+}
+
+impl<Scalar: Clone + EachATan, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
+    /// Element-wise arctangent: result\[i\] = atan(self\[i\])
+    pub fn atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().try_atan()
+    }
+
+    /// Element-wise arctangent in-place (infallible — self vs self always matches).
+    pub fn atan_inplace(&mut self) {
+        try_reborrow_tensor_inplace(self, |view, span| view.try_atan_into(span))
+            .expect("inplace trig op on self cannot fail")
+    }
+
+    pub fn try_atan_inplace(&mut self) -> Result<(), TensorError> {
+        self.atan_inplace();
+        Ok(())
+    }
+}
+
+// endregion: Tensor-shaped trigonometry
+
+// region: Tensor-shaped tolerance equality (moved from crate::tensor)
+
+use crate::types::{is_close, FloatConvertible, NumberLike};
+
+/// Extension trait: tolerance-based equality for any [`TensorRef`] implementor.
+///
+/// Uses the formula `|a - b| <= atol + rtol * |b|` per element.
+/// Returns `false` if shapes differ.
+pub trait AllCloseOps<Scalar: FloatConvertible, const MAX_RANK: usize>:
+    TensorRef<Scalar, MAX_RANK>
+where
+    Scalar::DimScalar: NumberLike,
+{
+    fn allclose(
+        &self,
+        other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
+        atol: f64,
+        rtol: f64,
+    ) -> bool {
+        let a = self.view();
+        let b = other.view();
+        a.ndim() == b.ndim()
+            && a.shape() == b.shape()
+            && a.iter()
+                .dims()
+                .zip(b.iter().dims())
+                .all(|(x, y)| is_close((*x).to_f64(), (*y).to_f64(), atol, rtol))
+    }
+}
+
+impl<C, Scalar: FloatConvertible, const R: usize> AllCloseOps<Scalar, R> for C
+where
+    C: TensorRef<Scalar, R>,
+    Scalar::DimScalar: NumberLike,
+{
+}
+
+// endregion: Tensor-shaped tolerance equality
+
+// region: Tensor-shaped scale / sum / blend / fma (moved from crate::tensor)
+
+/// Extension trait: scalar arithmetic for any [`TensorRef`] implementor.
+pub trait ScaleOps<Scalar: Clone + EachScale, const MAX_RANK: usize>:
+    TensorRef<Scalar, MAX_RANK>
+where
+    Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
+{
+    fn try_add_scalar(
+        &self,
+        scalar: Scalar::Scalar,
+    ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().try_add_scalar(scalar)
+    }
+
+    fn try_sub_scalar(
+        &self,
+        scalar: Scalar::Scalar,
+    ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().try_sub_scalar(scalar)
+    }
+
+    fn try_mul_scalar(
+        &self,
+        scalar: Scalar::Scalar,
+    ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().try_mul_scalar(scalar)
+    }
+}
+
+impl<Scalar: Clone + EachScale, const R: usize, C: TensorRef<Scalar, R>> ScaleOps<Scalar, R> for C where
+    Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy
+{
+}
+
+impl<Scalar: Clone + EachScale, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK>
+where
+    Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
+{
+    pub fn try_add_scalar_into(
+        &self,
+        scalar: Scalar::Scalar,
+        out: &mut Tensor<Scalar, Global, MAX_RANK>,
+    ) -> Result<(), TensorError> {
+        try_reborrow_tensor_into(self, out, |view, span| {
+            view.try_add_scalar_into(scalar, span)
+        })
+    }
+
+    pub fn try_sub_scalar_into(
+        &self,
+        scalar: Scalar::Scalar,
+        out: &mut Tensor<Scalar, Global, MAX_RANK>,
+    ) -> Result<(), TensorError> {
+        try_reborrow_tensor_into(self, out, |view, span| {
+            view.try_sub_scalar_into(scalar, span)
+        })
+    }
+
+    pub fn try_mul_scalar_into(
+        &self,
+        scalar: Scalar::Scalar,
+        out: &mut Tensor<Scalar, Global, MAX_RANK>,
+    ) -> Result<(), TensorError> {
+        try_reborrow_tensor_into(self, out, |view, span| {
+            view.try_mul_scalar_into(scalar, span)
+        })
+    }
+
+    pub fn try_add_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
+        self.add_scalar_inplace(scalar);
+        Ok(())
+    }
+
+    pub fn try_sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
+        self.sub_scalar_inplace(scalar);
+        Ok(())
+    }
+
+    pub fn try_mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
+        self.mul_scalar_inplace(scalar);
+        Ok(())
+    }
+
+    /// Element-wise add scalar in-place (infallible — self vs self always matches).
+    pub fn add_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
+        try_reborrow_tensor_inplace(self, |view, span| view.try_add_scalar_into(scalar, span))
+            .expect("inplace scalar op on self cannot fail")
+    }
+
+    /// Element-wise subtract scalar in-place (infallible — self vs self always matches).
+    pub fn sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
+        try_reborrow_tensor_inplace(self, |view, span| view.try_sub_scalar_into(scalar, span))
+            .expect("inplace scalar op on self cannot fail")
+    }
+
+    /// Element-wise multiply scalar in-place (infallible — self vs self always matches).
+    pub fn mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
+        try_reborrow_tensor_inplace(self, |view, span| view.try_mul_scalar_into(scalar, span))
+            .expect("inplace scalar op on self cannot fail")
+    }
+}
+
+impl<Scalar: Clone + EachScale, const MAX_RANK: usize> core::ops::AddAssign<Scalar::Scalar>
+    for Tensor<Scalar, Global, MAX_RANK>
+where
+    Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
+{
+    fn add_assign(&mut self, scalar: Scalar::Scalar) {
+        self.add_scalar_inplace(scalar);
+    }
+}
+
+impl<Scalar: Clone + EachScale, const MAX_RANK: usize> core::ops::SubAssign<Scalar::Scalar>
+    for Tensor<Scalar, Global, MAX_RANK>
+where
+    Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
+{
+    fn sub_assign(&mut self, scalar: Scalar::Scalar) {
+        self.sub_scalar_inplace(scalar);
+    }
+}
+
+impl<Scalar: Clone + EachScale, const MAX_RANK: usize> core::ops::MulAssign<Scalar::Scalar>
+    for Tensor<Scalar, Global, MAX_RANK>
+where
+    Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
+{
+    fn mul_assign(&mut self, scalar: Scalar::Scalar) {
+        self.mul_scalar_inplace(scalar);
+    }
+}
+
+/// Extension trait: element-wise addition for any [`TensorRef`] implementor.
+pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>:
+    TensorRef<Scalar, MAX_RANK>
+{
+    fn try_add_tensor(
+        &self,
+        other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
+    ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().try_add_tensor(&other.view())
+    }
+}
+
+impl<Scalar: Clone + EachSum, const R: usize, C: TensorRef<Scalar, R>> SumOps<Scalar, R> for C {}
+
+impl<Scalar: Clone + EachSum, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
+    pub fn try_add_tensor_into(
+        &self,
+        other: &Tensor<Scalar, Global, MAX_RANK>,
+        out: &mut Tensor<Scalar, Global, MAX_RANK>,
+    ) -> Result<(), TensorError> {
+        try_reborrow_tensor_into(self, out, |view, span| {
+            view.try_add_tensor_into(&other.view(), span)
+        })
+    }
+
+    pub fn try_add_tensor_inplace(
+        &mut self,
+        other: &Tensor<Scalar, Global, MAX_RANK>,
+    ) -> Result<(), TensorError> {
+        try_reborrow_tensor_inplace(self, |view, span| {
+            view.try_add_tensor_into(&other.view(), span)
+        })
+    }
+}
+
+/// Extension trait: element-wise subtraction for any [`TensorRef`] implementor.
+pub trait BlendOps<Scalar: Clone + EachBlend, const MAX_RANK: usize>:
+    TensorRef<Scalar, MAX_RANK>
+where
+    Scalar::Scalar: From<f32> + Copy,
+{
+    fn try_sub_tensor(
+        &self,
+        other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
+    ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().try_sub_tensor(&other.view())
+    }
+}
+
+impl<Scalar: Clone + EachBlend, const R: usize, C: TensorRef<Scalar, R>> BlendOps<Scalar, R> for C where
+    Scalar::Scalar: From<f32> + Copy
+{
+}
+
+impl<Scalar: Clone + EachBlend, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK>
+where
+    Scalar::Scalar: From<f32> + Copy,
+{
+    pub fn try_sub_tensor_into(
+        &self,
+        other: &Tensor<Scalar, Global, MAX_RANK>,
+        out: &mut Tensor<Scalar, Global, MAX_RANK>,
+    ) -> Result<(), TensorError> {
+        try_reborrow_tensor_into(self, out, |view, span| {
+            view.try_sub_tensor_into(&other.view(), span)
+        })
+    }
+
+    pub fn try_sub_tensor_inplace(
+        &mut self,
+        other: &Tensor<Scalar, Global, MAX_RANK>,
+    ) -> Result<(), TensorError> {
+        try_reborrow_tensor_inplace(self, |view, span| {
+            view.try_sub_tensor_into(&other.view(), span)
+        })
+    }
+}
+
+/// Extension trait: element-wise multiplication for any [`TensorRef`] implementor.
+pub trait FmaOps<Scalar: Clone + EachFMA, const MAX_RANK: usize>:
+    TensorRef<Scalar, MAX_RANK>
+where
+    Scalar::Scalar: From<f32> + Copy,
+{
+    fn try_mul_tensor(
+        &self,
+        other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
+    ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().try_mul_tensor(&other.view())
+    }
+}
+
+impl<Scalar: Clone + EachFMA, const R: usize, C: TensorRef<Scalar, R>> FmaOps<Scalar, R> for C where
+    Scalar::Scalar: From<f32> + Copy
+{
+}
+
+impl<Scalar: Clone + EachFMA, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK>
+where
+    Scalar::Scalar: From<f32> + Copy,
+{
+    pub fn try_mul_tensor_into(
+        &self,
+        other: &Tensor<Scalar, Global, MAX_RANK>,
+        out: &mut Tensor<Scalar, Global, MAX_RANK>,
+    ) -> Result<(), TensorError> {
+        try_reborrow_tensor_into(self, out, |view, span| {
+            view.try_mul_tensor_into(&other.view(), span)
+        })
+    }
+
+    pub fn try_mul_tensor_inplace(
+        &mut self,
+        other: &Tensor<Scalar, Global, MAX_RANK>,
+    ) -> Result<(), TensorError> {
+        try_reborrow_tensor_inplace(self, |view, span| {
+            view.try_mul_tensor_into(&other.view(), span)
+        })
+    }
+}
+
+// endregion: Tensor-shaped scale / sum / blend / fma
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2715,6 +3112,82 @@ mod tests {
         check_each_atan::<f32>(100);
         check_each_atan::<f64>(100);
         check_each_atan::<f16>(100);
+    }
+
+    // endregion
+
+    // region: tensor-shaped wrappers (ScaleOps / SumOps / TrigSinOps)
+
+    #[test]
+    fn tensor_add_tensor_via_sum_ops() {
+        use crate::tensor::{SliceRange, Tensor};
+        let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
+        let left = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let right = Tensor::<f32>::try_full(&[3, 4], 2.0).unwrap();
+
+        let left_even = left
+            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .unwrap();
+        let right_even = right
+            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .unwrap();
+
+        let added = left_even.try_add_tensor(&right_even).unwrap();
+        assert_eq!(added.shape(), &[3, 2]);
+        assert_eq!(added.as_slice(), &[2.0, 4.0, 6.0, 8.0, 10.0, 12.0]);
+    }
+
+    #[test]
+    fn tensor_add_tensor_into_owning_destination() {
+        use crate::tensor::Tensor;
+        let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
+        let left = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let right = Tensor::<f32>::try_full(&[3, 4], 2.0).unwrap();
+
+        let mut out = Tensor::<f32>::try_full(&[3, 4], 0.0).unwrap();
+        left.try_add_tensor_into(&right, &mut out).unwrap();
+        assert_eq!(out.as_slice()[0], 2.0);
+        assert_eq!(out.as_slice()[11], 13.0);
+    }
+
+    #[test]
+    fn tensor_mul_scalar_via_scale_ops() {
+        use crate::tensor::{SliceRange, Tensor};
+        let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
+        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let even = source
+            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .unwrap();
+        let scaled = even.try_mul_scalar(0.5).unwrap();
+        assert_eq!(scaled.as_slice(), &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+    }
+
+    #[test]
+    fn tensor_add_scalar_inplace_via_scale_ops() {
+        use crate::tensor::Tensor;
+        let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
+        let mut tensor = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        tensor.try_add_scalar_inplace(1.0).unwrap();
+        assert_eq!(tensor.as_slice()[0], 1.0);
+        assert_eq!(tensor.as_slice()[11], 12.0);
+    }
+
+    #[test]
+    fn tensor_sin_into_via_trig_sin_ops() {
+        use crate::tensor::{SliceRange, Tensor};
+        let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
+        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let even = source
+            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .unwrap();
+        let mut sin_out = Tensor::<f32>::try_full(&[3, 2], 0.0).unwrap();
+        {
+            let mut span = sin_out.span();
+            even.try_sin_into(&mut span).unwrap();
+        }
+        assert_eq!(sin_out.shape(), &[3, 2]);
+        // First element is sin(0) which is exactly 0.
+        assert!((sin_out.as_slice()[0] - 0.0).abs() < 1e-6);
     }
 
     // endregion

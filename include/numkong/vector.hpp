@@ -411,6 +411,9 @@ struct vector_view {
  */
 template <typename value_type_>
 struct vector_span {
+    static_assert(!std::is_const_v<value_type_>,
+                  "vector_span requires a non-const value_type_; use vector_view<value_type_> for read-only access");
+
     using value_type = value_type_;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
@@ -451,12 +454,10 @@ struct vector_span {
     }
 
     /** @brief Raw byte pointer. */
-    constexpr char *byte_data() noexcept { return data_; }
-    constexpr char const *byte_data() const noexcept { return data_; }
+    constexpr char *byte_data() const noexcept { return data_; }
 
     /** @brief Typed pointer (only valid if contiguous). */
-    constexpr value_type *data() noexcept { return reinterpret_cast<value_type *>(data_); }
-    constexpr value_type const *data() const noexcept { return reinterpret_cast<value_type const *>(data_); }
+    constexpr value_type *data() const noexcept { return reinterpret_cast<value_type *>(data_); }
 
     /** @brief Implicit conversion to const view. */
     constexpr operator vector_view<value_type>() const noexcept {
@@ -465,7 +466,7 @@ struct vector_span {
 
     /** @brief Mutable integral indexing. Signed negatives wrap from end. */
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) noexcept {
+    decltype(auto) operator[](index_type_ idx) const noexcept {
         auto i = resolve_index_(idx, dimensions_);
         if constexpr (dimensions_per_value<value_type>() > 1) {
             constexpr auto dims_per_value = dimensions_per_value<value_type>();
@@ -479,37 +480,120 @@ struct vector_span {
         else { return *reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(i) * stride_bytes_); }
     }
 
-    /** @brief Const integral indexing. Signed negatives wrap from end. */
-    template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) const noexcept {
-        return static_cast<vector_view<value_type>>(*this)[idx];
-    }
-
     /** @brief Sub-slice via range. */
-    vector_span operator[](range r) noexcept {
+    vector_span operator[](range r) const noexcept {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
         return {data_ + static_cast<difference_type>(start) * stride_bytes_, count, stride_bytes_ * r.step};
     }
 
-    /** @brief Const sub-slice via range. */
-    vector_view<value_type> operator[](range r) const noexcept {
-        return static_cast<vector_view<value_type>>(*this)[r];
-    }
-
     /** @brief Select all elements. */
-    vector_span operator[](all_t) noexcept { return *this; }
+    vector_span operator[](all_t) const noexcept { return *this; }
 
-    /** @brief Dimension iterator to beginning. */
-    iterator begin() noexcept { return {*this, 0}; }
-    const_iterator begin() const noexcept { return {*this, 0}; }
+    /** @brief Dimension iterator to beginning. The handle is shallow-const, so iteration yields mutable refs. */
+    iterator begin() const noexcept { return {const_cast<vector_span &>(*this), 0}; }
     const_iterator cbegin() const noexcept { return {*this, 0}; }
 
     /** @brief Dimension iterator to end. */
-    iterator end() noexcept { return {*this, dimensions_}; }
-    const_iterator end() const noexcept { return {*this, dimensions_}; }
+    iterator end() const noexcept { return {const_cast<vector_span &>(*this), dimensions_}; }
     const_iterator cend() const noexcept { return {*this, dimensions_}; }
+
+    /** @brief Zero-fill every element. memset on the contiguous fast path,
+     *  one memset per element on the strided slow path. */
+    bool fill_zeros() noexcept {
+        static_assert(is_memset_zero_safe_v<value_type>,
+                      "fill_zeros requires a dtype whose binary-zero is the value-zero");
+        if (data_ == nullptr || dimensions_ == 0) return true;
+        if constexpr (dimensions_per_value<value_type>() > 1) {
+            if (!is_contiguous()) return false;
+            auto byte_count = divide_round_up(dimensions_, dimensions_per_value<value_type>()) * sizeof(value_type);
+            std::memset(static_cast<void *>(data_), 0, byte_count);
+            return true;
+        }
+        else {
+            if (is_contiguous()) {
+                std::memset(static_cast<void *>(data_), 0, dimensions_ * sizeof(value_type));
+                return true;
+            }
+            for (size_type element_index = 0; element_index < dimensions_; ++element_index)
+                std::memset(static_cast<void *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_),
+                            0, sizeof(value_type));
+            return true;
+        }
+    }
+
+    /** @brief Fill every element with `value`. memset-then-overlay strategy mirroring the
+     *  free `fill` on tensor_span: 1-byte storage uses a single byte_pattern memset, multi-byte
+     *  storage uses a typed scalar broadcast loop. */
+    bool fill(value_type value) noexcept {
+        if (!fill_zeros()) return false;
+        value_type const default_value {};
+        if (std::memcmp(&value, &default_value, sizeof(value_type)) == 0) return true;
+        if constexpr (sizeof(value_type) == 1) {
+            unsigned char byte_pattern;
+            std::memcpy(&byte_pattern, &value, 1);
+            if constexpr (dimensions_per_value<value_type>() > 1) {
+                auto byte_count = divide_round_up(dimensions_, dimensions_per_value<value_type>()) * sizeof(value_type);
+                std::memset(static_cast<void *>(data_), byte_pattern, byte_count);
+                return true;
+            }
+            else {
+                if (is_contiguous()) {
+                    std::memset(static_cast<void *>(data_), byte_pattern, dimensions_ * sizeof(value_type));
+                    return true;
+                }
+                for (size_type element_index = 0; element_index < dimensions_; ++element_index)
+                    std::memset(
+                        static_cast<void *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_),
+                        byte_pattern, sizeof(value_type));
+                return true;
+            }
+        }
+        else {
+            if (is_contiguous()) {
+                auto *typed_data = reinterpret_cast<value_type *>(data_);
+                for (size_type element_index = 0; element_index < dimensions_; ++element_index)
+                    typed_data[element_index] = value;
+                return true;
+            }
+            for (size_type element_index = 0; element_index < dimensions_; ++element_index) {
+                auto *target =
+                    reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_);
+                *target = value;
+            }
+            return true;
+        }
+    }
+
+    /** @brief Copy from a same-size view. memcpy on the contiguous fast path,
+     *  per-element copy on the strided slow path. Returns false on size mismatch. */
+    bool copy_from(vector_view<value_type> input) noexcept {
+        if (input.size() != dimensions_) return false;
+        if (dimensions_ == 0) return true;
+        if constexpr (dimensions_per_value<value_type>() > 1) {
+            if (!is_contiguous() || !input.is_contiguous()) return false;
+            auto byte_count = divide_round_up(dimensions_, dimensions_per_value<value_type>()) * sizeof(value_type);
+            std::memcpy(static_cast<void *>(data_), static_cast<void const *>(input.byte_data()), byte_count);
+            return true;
+        }
+        else {
+            if (is_contiguous() && input.is_contiguous()) {
+                std::memcpy(static_cast<void *>(data_), static_cast<void const *>(input.byte_data()),
+                            dimensions_ * sizeof(value_type));
+                return true;
+            }
+            auto input_stride_bytes = input.stride_bytes();
+            for (size_type element_index = 0; element_index < dimensions_; ++element_index) {
+                auto *target =
+                    reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_);
+                auto const *source = reinterpret_cast<value_type const *>(
+                    input.byte_data() + static_cast<difference_type>(element_index) * input_stride_bytes);
+                *target = *source;
+            }
+            return true;
+        }
+    }
 };
 
 #pragma endregion Vector Span
@@ -751,6 +835,15 @@ struct vector {
     iterator end() noexcept { return {*this, dimensions_}; }
     const_iterator end() const noexcept { return {*this, dimensions_}; }
     const_iterator cend() const noexcept { return {*this, dimensions_}; }
+
+    /** @brief Zero-fill every element. */
+    bool fill_zeros() noexcept { return span().fill_zeros(); }
+
+    /** @brief Fill every element with `value`. */
+    bool fill(value_type value) noexcept { return span().fill(value); }
+
+    /** @brief Copy from a same-size view. */
+    bool copy_from(vector_view<value_type> input) noexcept { return span().copy_from(input); }
 };
 
 /** @brief Non-member swap. */

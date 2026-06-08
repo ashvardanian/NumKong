@@ -717,21 +717,6 @@ void test_tensor_ops_for_type() {
 }
 
 template <typename value_type_>
-void test_tensor_trig_for_type() {
-    using tensor_t = nk::tensor<value_type_>;
-    auto a = tensor_t::try_zeros({4, 8});
-    auto out = tensor_t::try_zeros({4, 8});
-    auto av = a.view();
-
-    { [[maybe_unused]] auto r = nk::try_sin<value_type_>(av); }
-    { [[maybe_unused]] auto r = nk::try_cos<value_type_>(av); }
-    { [[maybe_unused]] auto r = nk::try_atan<value_type_>(av); }
-    { [[maybe_unused]] bool ok = nk::sin<value_type_>(av, out.span()); }
-    { [[maybe_unused]] bool ok = nk::cos<value_type_>(av, out.span()); }
-    { [[maybe_unused]] bool ok = nk::atan<value_type_>(av, out.span()); }
-}
-
-template <typename value_type_>
 void test_tensor_symmetric_for_type() {
     using tensor_t = nk::tensor<value_type_>;
     auto a = tensor_t::try_zeros({4, 8});
@@ -796,37 +781,6 @@ void test_custom_allocator_try_fns() {
 
     using sum_alloc_t = nk::aligned_allocator<nk::f64_t, 128>;
     { auto r = nk::try_sum<nk::f32_t, 8, sum_alloc_t>(av, 0); }
-}
-
-template <typename value_type_>
-void test_vector_reductions_for_type() {
-    auto v = make_vector<value_type_>(32);
-    std::mt19937 generator(42);
-    fill_random(generator, v);
-    auto view = nk::vector_view<value_type_>(v.values_data(), static_cast<std::size_t>(v.size()));
-
-    { [[maybe_unused]] auto r = nk::moments(view); }
-    { [[maybe_unused]] auto r = nk::minmax(view); }
-    { [[maybe_unused]] auto r = nk::sum(view); }
-    { [[maybe_unused]] auto r = nk::min(view); }
-    { [[maybe_unused]] auto r = nk::max(view); }
-    { [[maybe_unused]] auto r = nk::argmin(view); }
-    { [[maybe_unused]] auto r = nk::argmax(view); }
-}
-
-void test_vector_reductions_correctness() {
-    nk::f32_t data[] = {nk::f32_t(1), nk::f32_t(2), nk::f32_t(3), nk::f32_t(4), nk::f32_t(5)};
-    auto view = nk::vector_view<nk::f32_t>(data, std::size_t {5});
-
-    auto m = nk::moments(view);
-    assert(m.sum.raw_ == 15.0 && "vector moments sum");
-    assert(m.sumsq.raw_ == 55.0 && "vector moments sumsq");
-
-    auto mm = nk::minmax(view);
-    assert(mm.min_value.raw_ == 1.0f && "vector min");
-    assert(mm.max_value.raw_ == 5.0f && "vector max");
-    assert(mm.min_index == 0 && "vector argmin");
-    assert(mm.max_index == 4 && "vector argmax");
 }
 
 template <typename from_type_, typename to_type_>
@@ -921,12 +875,7 @@ void test_tensor_ops() {
     test_packed_tensor_fail_closed_views();
     std::printf("  tensor fail-closed views:     OK\n");
 
-    // Trig (float-capable types)
-    test_tensor_trig_for_type<nk::f32_t>();
-    test_tensor_trig_for_type<nk::f64_t>();
-    test_tensor_trig_for_type<nk::f16_t>();
-    test_tensor_trig_for_type<nk::bf16_t>();
-    std::printf("  trig (4 types):               OK\n");
+    // (Trig wrappers moved to test_each.cpp — they are elementwise operations.)
 
     // Symmetric distances
     test_tensor_symmetric_for_type<nk::f32_t>();
@@ -956,17 +905,7 @@ void test_tensor_ops() {
     test_custom_allocator_try_fns();
     std::printf("  custom allocator try_fns:     OK\n");
 
-    // Vector-level reductions
-    test_vector_reductions_for_type<nk::f32_t>();
-    test_vector_reductions_for_type<nk::f64_t>();
-    test_vector_reductions_for_type<nk::f16_t>();
-    test_vector_reductions_for_type<nk::bf16_t>();
-    test_vector_reductions_for_type<nk::i8_t>();
-    test_vector_reductions_for_type<nk::u8_t>();
-    std::printf("  vector reductions (6 types):  OK\n");
-
-    test_vector_reductions_correctness();
-    std::printf("  vector reductions correct:    OK\n");
+    // (Vector-level reduction wrappers moved to test_reduce.cpp.)
 
     // Cast wrapper
     test_cast_for_types<nk::f32_t, nk::f16_t>();

@@ -1190,7 +1190,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
                         result_vec_type result_vector;                                                                 \
                         for (nk_size_t r = 0; r < register_row_count; ++r) {                                           \
                             compensated_finalize_fn(&acc[r][0], &acc[r][1], &acc[r][2], &acc[r][3], depth, a_sums[r],  \
-                                                    b_sum_vec, &result_vector);                                        \
+                                                    &b_sum_vec, &result_vector);                                       \
                             nk_##result_value_type##_t *c_row =                                                        \
                                 (nk_##result_value_type##_t *)((char *)c_matrix + (tr + r) * c_stride_in_bytes);       \
                             store_fn(&result_vector, c_row + tc);                                                      \
@@ -1270,9 +1270,9 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
                         result_vec_type rv;                                                                            \
                         nk_##result_value_type##_t *c_row = (nk_##result_value_type##_t *)((char *)c_matrix +          \
                                                                                            ri * c_stride_in_bytes);    \
-                        compensated_finalize_fn(&s0, &s1, &s2, &s3, depth, a_sum_val, b_sum_low, &rv);                 \
+                        compensated_finalize_fn(&s0, &s1, &s2, &s3, depth, a_sum_val, &b_sum_low, &rv);                \
                         store_fn(&rv, c_row + tc);                                                                     \
-                        compensated_finalize_fn(&s4, &s5, &s6, &s7, depth, a_sum_val, b_sum_high, &rv);                \
+                        compensated_finalize_fn(&s4, &s5, &s6, &s7, depth, a_sum_val, &b_sum_high, &rv);               \
                         store_fn(&rv, c_row + tc + 4);                                                                 \
                     }                                                                                                  \
                 }                                                                                                      \
@@ -1445,7 +1445,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
                         for (nk_size_t rr = 0; rr < tile_row_count; ++rr) {                                            \
                             result_vec_type rv;                                                                        \
                             compensated_finalize_fn(&acc[rr][0], &acc[rr][1], &acc[rr][2], &acc[rr][3], depth,         \
-                                                    a_sums[rr], b_sum_vec, &rv);                                       \
+                                                    a_sums[rr], &b_sum_vec, &rv);                                      \
                             nk_##result_value_type##_t *c_row =                                                        \
                                 (nk_##result_value_type##_t *)((char *)c_matrix + (tr + rr) * c_stride_in_bytes);      \
                             partial_store_fn(&rv, c_row + tc, tile_col_count);                                         \
@@ -1715,7 +1715,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
                     compensated_finalize_fn(                                                                           \
                         &accumulators[row][is_diag ? row : 0], &accumulators[row][(is_diag ? row : 0) + 1],            \
                         &accumulators[row][(is_diag ? row : 0) + 2], &accumulators[row][(is_diag ? row : 0) + 3],      \
-                        depth, row_sums[row], col_sum_vec, &rv);                                                       \
+                        depth, row_sums[row], &col_sum_vec, &rv);                                                      \
                     nk_size_t global_row = i_macro + tile_row_start + row;                                             \
                     nk_size_t global_col_start = i_macro + tile_col_start + (is_diag ? row : 0);                       \
                     nk_size_t store_count = is_diag ? (tile_cols - row) : tile_cols;                                   \
@@ -1875,7 +1875,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
                 for (nk_size_t row = 0; row < tile_rows; row++) {                                                      \
                     result_vec_type rv;                                                                                \
                     compensated_finalize_fn(&accumulators[row][0], &accumulators[row][1], &accumulators[row][2],       \
-                                            &accumulators[row][3], depth, row_sums[tile_row_start + row], cs_vec,      \
+                                            &accumulators[row][3], depth, row_sums[tile_row_start + row], &cs_vec,     \
                                             &rv);                                                                      \
                     nk_##result_value_type##_t *dest = result +                                                        \
                                                        (i_macro + tile_row_start + row) * result_stride_values +       \
@@ -2786,14 +2786,14 @@ NK_PUBLIC void nk_dots_compact_i8_serial(void *c, nk_size_t row_count, nk_size_t
                 vec_type dots_vec, norms_vec, results_vec;                                                            \
                 load_fn(r_row_dots + column_index, &dots_vec);                                                        \
                 load_fn(b_norms + column_index, &norms_vec);                                                          \
-                from_dot_fn(dots_vec, query_norm, norms_vec, &results_vec);                                           \
+                from_dot_fn(&dots_vec, query_norm, &norms_vec, &results_vec);                                         \
                 store_fn(&results_vec, r_row_out + column_index);                                                     \
             }                                                                                                         \
             if (column_index < column_count) {                                                                        \
                 vec_type dots_vec = {0}, norms_vec = {0}, results_vec;                                                \
                 partial_load_fn(r_row_dots + column_index, &dots_vec, column_count - column_index);                   \
                 partial_load_fn(b_norms + column_index, &norms_vec, column_count - column_index);                     \
-                from_dot_fn(dots_vec, query_norm, norms_vec, &results_vec);                                           \
+                from_dot_fn(&dots_vec, query_norm, &norms_vec, &results_vec);                                         \
                 partial_store_fn(&results_vec, r_row_out + column_index, column_count - column_index);                \
             }                                                                                                         \
         }                                                                                                             \
@@ -2849,7 +2849,7 @@ NK_PUBLIC void nk_dots_compact_i8_serial(void *c, nk_size_t row_count, nk_size_t
                     load_fn(&column_norms[j - column_chunk_start], &target_norms_vec);                                 \
                     vec_type dots_vec, results_vec;                                                                    \
                     load_fn(r_dots + j, &dots_vec);                                                                    \
-                    from_dot_fn(dots_vec, sumsq_i, target_norms_vec, &results_vec);                                    \
+                    from_dot_fn(&dots_vec, sumsq_i, &target_norms_vec, &results_vec);                                  \
                     store_fn(&results_vec, r_out + j);                                                                 \
                 }                                                                                                      \
                 /* Remainder */                                                                                        \
@@ -2857,7 +2857,7 @@ NK_PUBLIC void nk_dots_compact_i8_serial(void *c, nk_size_t row_count, nk_size_t
                     vec_type dots_vec = {0}, norms_vec = {0}, results_vec;                                             \
                     partial_load_fn(r_dots + j, &dots_vec, column_chunk_end - j);                                      \
                     partial_load_fn(&column_norms[j - column_chunk_start], &norms_vec, column_chunk_end - j);          \
-                    from_dot_fn(dots_vec, sumsq_i, norms_vec, &results_vec);                                           \
+                    from_dot_fn(&dots_vec, sumsq_i, &norms_vec, &results_vec);                                         \
                     partial_store_fn(&results_vec, r_out + j, column_chunk_end - j);                                   \
                 }                                                                                                      \
             }                                                                                                          \

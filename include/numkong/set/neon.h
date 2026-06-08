@@ -34,8 +34,7 @@
  *  nk_jaccard_u1x128_init_neon(&state_first);
  *  // ... stream through packed binary vectors ...
  *  nk_jaccard_u1x128_finalize_neon(&state_first, &state_second, &state_third, &state_fourth,
- *      query_popcount, target_popcount_a, target_popcount_b, target_popcount_c, target_popcount_d,
- *      total_dimensions, &results);
+ *      query_popcount, &target_popcounts_vec, total_dimensions, &result_vec);
  *  @endcode
  */
 #ifndef NK_SET_NEON_H
@@ -274,8 +273,8 @@ NK_INTERNAL void nk_jaccard_u1x128_update_neon(nk_jaccard_u1x128_state_neon_t *s
 NK_INTERNAL void nk_jaccard_u1x128_finalize_neon( //
     nk_jaccard_u1x128_state_neon_t const *state_a, nk_jaccard_u1x128_state_neon_t const *state_b,
     nk_jaccard_u1x128_state_neon_t const *state_c, nk_jaccard_u1x128_state_neon_t const *state_d,
-    nk_f32_t query_popcount, nk_f32_t target_popcount_a, nk_f32_t target_popcount_b, nk_f32_t target_popcount_c,
-    nk_f32_t target_popcount_d, nk_size_t total_dimensions, nk_b128_vec_t *result) {
+    nk_f32_t query_popcount, nk_b128_vec_t const *target_popcounts_vec, nk_size_t total_dimensions,
+    nk_b128_vec_t *result_vec) {
     nk_unused_(total_dimensions);
 
     // Horizontal sum using pairwise adds instead of `vaddvq_u32` (ADDV).
@@ -290,11 +289,8 @@ NK_INTERNAL void nk_jaccard_u1x128_finalize_neon( //
     float32x4_t intersection_f32x4 = vcvtq_f32_u32(intersection_u32x4);
 
     // Compute union using |A ∪ B| = |A| + |B| - |A ∩ B|
-    // Build target popcounts vector from two independent halves (avoids serial lane insertion chain).
     float32x4_t query_f32x4 = vdupq_n_f32(query_popcount);
-    float32x2_t targets_ab_f32x2 = vset_lane_f32(target_popcount_b, vdup_n_f32(target_popcount_a), 1);
-    float32x2_t targets_cd_f32x2 = vset_lane_f32(target_popcount_d, vdup_n_f32(target_popcount_c), 1);
-    float32x4_t targets_f32x4 = vcombine_f32(targets_ab_f32x2, targets_cd_f32x2);
+    float32x4_t targets_f32x4 = target_popcounts_vec->f32x4;
     float32x4_t union_f32x4 = vsubq_f32(vaddq_f32(query_f32x4, targets_f32x4), intersection_f32x4);
 
     // Handle zero-union edge case (empty vectors → distance = 0.0, matching scipy convention)
@@ -314,24 +310,24 @@ NK_INTERNAL void nk_jaccard_u1x128_finalize_neon( //
     // Compute Jaccard distance = 1 - intersection ÷ union
     float32x4_t ratio_f32x4 = vmulq_f32(intersection_f32x4, union_reciprocal_f32x4);
     float32x4_t jaccard_f32x4 = vsubq_f32(one_f32x4, ratio_f32x4);
-    result->f32x4 = vbslq_f32(zero_union_mask, vdupq_n_f32(0.0f), jaccard_f32x4);
+    result_vec->f32x4 = vbslq_f32(zero_union_mask, vdupq_n_f32(0.0f), jaccard_f32x4);
 }
 
 /** @brief Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (NEON). */
-NK_INTERNAL void nk_hamming_u32x4_from_dot_neon_(nk_b128_vec_t dots, nk_u32_t query_pop, nk_b128_vec_t target_pops,
-                                                 nk_b128_vec_t *results) {
-    uint32x4_t dots_u32x4 = dots.u32x4;
+NK_INTERNAL void nk_hamming_u32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                 nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
+    uint32x4_t dots_u32x4 = dots_vec->u32x4;
     uint32x4_t query_u32x4 = vdupq_n_u32(query_pop);
-    uint32x4_t target_u32x4 = target_pops.u32x4;
-    results->u32x4 = vsubq_u32(vaddq_u32(query_u32x4, target_u32x4), vshlq_n_u32(dots_u32x4, 1));
+    uint32x4_t target_u32x4 = target_pops_vec->u32x4;
+    result_vec->u32x4 = vsubq_u32(vaddq_u32(query_u32x4, target_u32x4), vshlq_n_u32(dots_u32x4, 1));
 }
 
 /** @brief Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (NEON). */
-NK_INTERNAL void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t dots, nk_u32_t query_pop, nk_b128_vec_t target_pops,
-                                                 nk_b128_vec_t *results) {
-    float32x4_t dot_f32x4 = vcvtq_f32_u32(dots.u32x4);
+NK_INTERNAL void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                 nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
+    float32x4_t dot_f32x4 = vcvtq_f32_u32(dots_vec->u32x4);
     float32x4_t query_f32x4 = vdupq_n_f32((nk_f32_t)query_pop);
-    float32x4_t target_f32x4 = vcvtq_f32_u32(target_pops.u32x4);
+    float32x4_t target_f32x4 = vcvtq_f32_u32(target_pops_vec->u32x4);
     float32x4_t union_f32x4 = vsubq_f32(vaddq_f32(query_f32x4, target_f32x4), dot_f32x4);
 
     float32x4_t one_f32x4 = vdupq_n_f32(1.0f);
@@ -343,7 +339,7 @@ NK_INTERNAL void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t dots, nk_u32_t qu
 
     float32x4_t ratio_f32x4 = vmulq_f32(dot_f32x4, union_reciprocal_f32x4);
     float32x4_t jaccard_f32x4 = vsubq_f32(one_f32x4, ratio_f32x4);
-    results->f32x4 = vbslq_f32(zero_union_mask, vdupq_n_f32(0.0f), jaccard_f32x4);
+    result_vec->f32x4 = vbslq_f32(zero_union_mask, vdupq_n_f32(0.0f), jaccard_f32x4);
 }
 
 #pragma endregion Stateful Streaming

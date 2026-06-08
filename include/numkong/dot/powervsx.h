@@ -599,7 +599,7 @@ NK_INTERNAL void nk_dot_i8x16_finalize_powervsx(                                
     nk_dot_i8x16_state_powervsx_t const *state_a, nk_dot_i8x16_state_powervsx_t const *state_b, //
     nk_dot_i8x16_state_powervsx_t const *state_c, nk_dot_i8x16_state_powervsx_t const *state_d, //
     nk_size_t total_dimensions,                                                                 //
-    nk_i32_t a_sum, nk_b128_vec_t b_sums, nk_b128_vec_t *result) {
+    nk_i32_t a_sum, nk_b128_vec_t const *b_sums_vec, nk_b128_vec_t *result_vec) {
     nk_unused_(total_dimensions);
     nk_unused_(a_sum);
 
@@ -624,8 +624,8 @@ NK_INTERNAL void nk_dot_i8x16_finalize_powervsx(                                
     // Correction: VMSUMMBM(b, a⊕0x80) = Σ(b_i·(a_i+128)) = a·b + 128·Σb
     // So a·b = biased − 128·Σb. B column sums are precomputed during packing.
     nk_vu32x4_t shift_u32x4 = vec_splats((nk_u32_t)7);
-    nk_vi32x4_t correction_i32x4 = (nk_vi32x4_t)vec_sl((nk_vu32x4_t)b_sums.vi32x4, shift_u32x4);
-    result->vi32x4 = vec_sub(biased_i32x4, correction_i32x4);
+    nk_vi32x4_t correction_i32x4 = (nk_vi32x4_t)vec_sl((nk_vu32x4_t)b_sums_vec->vi32x4, shift_u32x4);
+    result_vec->vi32x4 = vec_sub(biased_i32x4, correction_i32x4);
 }
 
 /** @brief Running state for i8 column sum precomputation on Power VSX. */

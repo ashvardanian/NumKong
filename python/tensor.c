@@ -28,9 +28,10 @@ int buffers_shapes_match(Py_buffer const *first, Py_buffer const *second) {
     }
     for (int dimension = 0; dimension < first->ndim; ++dimension) {
         if (first->shape[dimension] != second->shape[dimension]) {
-            PyErr_Format(
+            PyErr_Format( //
                 PyExc_ValueError,
-                "Input tensor shapes don't match at dimension %d (%zd vs %zd). " "NumKong does not support " "implicit " "shape " "broadcasting.",
+                "Input tensor shapes don't match at dimension %d (%zd vs %zd). " //
+                "NumKong does not support implicit shape broadcasting.",
                 dimension, first->shape[dimension], second->shape[dimension]);
             return 0;
         }
@@ -2017,7 +2018,7 @@ static PyObject *Tensor___array__(PyObject *self_obj, PyObject *const *args, Py_
         same_string(fmt, "Ze") || same_string(fmt, "i4") ||           //
         same_string(fmt, "u4") || same_string(fmt, "?")) {
         PyErr_Format(PyExc_TypeError,
-                     "Cannot convert NumKong tensor of dtype '%s' to NumPy array. " "Use .astype('float32') first.",
+                     "Cannot convert NumKong tensor of dtype '%s' to NumPy array. Use .astype('float32') first.",
                      info->name);
         return NULL;
     }

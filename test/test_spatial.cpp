@@ -312,9 +312,6 @@ void test_spatial() {
     check("angular_bf16_genoa", test_angular<bf16_t>, nk_angular_bf16_genoa);
     check("sqeuclidean_bf16_genoa", test_sqeuclidean<bf16_t>, nk_sqeuclidean_bf16_genoa);
     check("euclidean_bf16_genoa", test_euclidean<bf16_t>, nk_euclidean_bf16_genoa);
-    check("angular_e5m2_genoa", test_angular<e5m2_t>, nk_angular_e5m2_genoa);
-    check("sqeuclidean_e5m2_genoa", test_sqeuclidean<e5m2_t>, nk_sqeuclidean_e5m2_genoa);
-    check("euclidean_e5m2_genoa", test_euclidean<e5m2_t>, nk_euclidean_e5m2_genoa);
 #endif // NK_TARGET_GENOA
 
 #if NK_TARGET_DIAMOND

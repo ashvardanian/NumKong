@@ -691,21 +691,22 @@ NK_INTERNAL void nk_dot_u8x16_update_v128relaxed(nk_dot_u8x16_state_v128relaxed_
 NK_INTERNAL void nk_dot_u8x16_finalize_v128relaxed(                                                   //
     nk_dot_u8x16_state_v128relaxed_t const *state_a, nk_dot_u8x16_state_v128relaxed_t const *state_b, //
     nk_dot_u8x16_state_v128relaxed_t const *state_c, nk_dot_u8x16_state_v128relaxed_t const *state_d, //
-    nk_size_t total_dimensions, nk_u32_t a_sum, nk_b128_vec_t b_sums, nk_b128_vec_t *result) {
+    nk_size_t total_dimensions, nk_u32_t a_sum, nk_b128_vec_t const *b_sums_vec, nk_b128_vec_t *result_vec) {
+    nk_unused_(total_dimensions);
     nk_unused_(a_sum);
     // Σ a·b = reduce(lo) + 128·reduce(hi) + 128·Σb
-    result->u32s[0] = (nk_u32_t)(nk_reduce_add_i32x4_v128relaxed_(state_a->product_low_i32x4) +
-                                 128 * nk_reduce_add_i32x4_v128relaxed_(state_a->product_high_i32x4) +
-                                 128 * (nk_i32_t)b_sums.u32s[0]);
-    result->u32s[1] = (nk_u32_t)(nk_reduce_add_i32x4_v128relaxed_(state_b->product_low_i32x4) +
-                                 128 * nk_reduce_add_i32x4_v128relaxed_(state_b->product_high_i32x4) +
-                                 128 * (nk_i32_t)b_sums.u32s[1]);
-    result->u32s[2] = (nk_u32_t)(nk_reduce_add_i32x4_v128relaxed_(state_c->product_low_i32x4) +
-                                 128 * nk_reduce_add_i32x4_v128relaxed_(state_c->product_high_i32x4) +
-                                 128 * (nk_i32_t)b_sums.u32s[2]);
-    result->u32s[3] = (nk_u32_t)(nk_reduce_add_i32x4_v128relaxed_(state_d->product_low_i32x4) +
-                                 128 * nk_reduce_add_i32x4_v128relaxed_(state_d->product_high_i32x4) +
-                                 128 * (nk_i32_t)b_sums.u32s[3]);
+    result_vec->u32s[0] = (nk_u32_t)(nk_reduce_add_i32x4_v128relaxed_(state_a->product_low_i32x4) +
+                                     128 * nk_reduce_add_i32x4_v128relaxed_(state_a->product_high_i32x4) +
+                                     128 * (nk_i32_t)b_sums_vec->u32s[0]);
+    result_vec->u32s[1] = (nk_u32_t)(nk_reduce_add_i32x4_v128relaxed_(state_b->product_low_i32x4) +
+                                     128 * nk_reduce_add_i32x4_v128relaxed_(state_b->product_high_i32x4) +
+                                     128 * (nk_i32_t)b_sums_vec->u32s[1]);
+    result_vec->u32s[2] = (nk_u32_t)(nk_reduce_add_i32x4_v128relaxed_(state_c->product_low_i32x4) +
+                                     128 * nk_reduce_add_i32x4_v128relaxed_(state_c->product_high_i32x4) +
+                                     128 * (nk_i32_t)b_sums_vec->u32s[2]);
+    result_vec->u32s[3] = (nk_u32_t)(nk_reduce_add_i32x4_v128relaxed_(state_d->product_low_i32x4) +
+                                     128 * nk_reduce_add_i32x4_v128relaxed_(state_d->product_high_i32x4) +
+                                     128 * (nk_i32_t)b_sums_vec->u32s[3]);
 }
 
 typedef struct nk_sum_u8x16_state_v128relaxed_t {
@@ -1099,18 +1100,18 @@ NK_INTERNAL void nk_dot_i4x32_finalize_v128relaxed(                             
     nk_dot_i4x32_state_v128relaxed_t const *state_c, nk_dot_i4x32_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions,                                                                       //
     nk_i32_t a_sum, /* Row sum of A (signed sum of i4 values) */                                      //
-    nk_b128_vec_t b_sums, /* 4 × i32 column sums of B */                                              //
-    nk_b128_vec_t *result) {
+    nk_b128_vec_t const *b_sums_vec, /* 4 × i32 column sums of B */                                   //
+    nk_b128_vec_t *result_vec) {
     // Match x86 compensated i4 finalizers: result = biased_dot - 8*(a_sum + b_sum) - 64*depth_padded
     nk_i64_t depth_padded = (nk_i64_t)nk_size_round_up_to_multiple_(total_dimensions, 32);
-    result->i32s[0] = nk_reduce_add_i32x4_v128relaxed_(state_a->biased_product_sum_i32x4) -
-                      8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums.i32s[0]) - 64 * depth_padded;
-    result->i32s[1] = nk_reduce_add_i32x4_v128relaxed_(state_b->biased_product_sum_i32x4) -
-                      8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums.i32s[1]) - 64 * depth_padded;
-    result->i32s[2] = nk_reduce_add_i32x4_v128relaxed_(state_c->biased_product_sum_i32x4) -
-                      8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums.i32s[2]) - 64 * depth_padded;
-    result->i32s[3] = nk_reduce_add_i32x4_v128relaxed_(state_d->biased_product_sum_i32x4) -
-                      8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums.i32s[3]) - 64 * depth_padded;
+    result_vec->i32s[0] = nk_reduce_add_i32x4_v128relaxed_(state_a->biased_product_sum_i32x4) -
+                          8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums_vec->i32s[0]) - 64 * depth_padded;
+    result_vec->i32s[1] = nk_reduce_add_i32x4_v128relaxed_(state_b->biased_product_sum_i32x4) -
+                          8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums_vec->i32s[1]) - 64 * depth_padded;
+    result_vec->i32s[2] = nk_reduce_add_i32x4_v128relaxed_(state_c->biased_product_sum_i32x4) -
+                          8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums_vec->i32s[2]) - 64 * depth_padded;
+    result_vec->i32s[3] = nk_reduce_add_i32x4_v128relaxed_(state_d->biased_product_sum_i32x4) -
+                          8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums_vec->i32s[3]) - 64 * depth_padded;
 }
 
 typedef struct nk_sum_i4x32_state_v128relaxed_t {

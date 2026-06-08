@@ -224,61 +224,64 @@ nk_angular_f64_skylake_cycle:
 }
 
 /** @brief Angular from_dot for native f64: 1 − dot / √(query_sumsq × target_sumsq) for 4 pairs. */
-NK_INTERNAL void nk_angular_f64x4_from_dot_skylake_(nk_b256_vec_t dots, nk_f64_t query_sumsq,
-                                                    nk_b256_vec_t target_sumsqs, nk_b256_vec_t *results) {
-    __m256d dots_f64x4 = dots.ymm_pd;
+NK_INTERNAL void nk_angular_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
+                                                    nk_b256_vec_t const *target_sumsqs_vec, nk_b256_vec_t *result_vec) {
+    __m256d dots_f64x4 = dots_vec->ymm_pd;
     __m256d query_sumsq_f64x4 = _mm256_set1_pd(query_sumsq);
-    __m256d products_f64x4 = _mm256_mul_pd(query_sumsq_f64x4, target_sumsqs.ymm_pd);
+    __m256d products_f64x4 = _mm256_mul_pd(query_sumsq_f64x4, target_sumsqs_vec->ymm_pd);
     __m256d sqrt_products_f64x4 = _mm256_sqrt_pd(products_f64x4);
     __m256d normalized_f64x4 = _mm256_div_pd(dots_f64x4, sqrt_products_f64x4);
     __m256d ones_f64x4 = _mm256_set1_pd(1.0);
     __m256d angular_f64x4 = _mm256_sub_pd(ones_f64x4, normalized_f64x4);
-    results->ymm_pd = _mm256_max_pd(angular_f64x4, _mm256_setzero_pd());
+    result_vec->ymm_pd = _mm256_max_pd(angular_f64x4, _mm256_setzero_pd());
 }
 
 /** @brief Euclidean from_dot for native f64: √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs. */
-NK_INTERNAL void nk_euclidean_f64x4_from_dot_skylake_(nk_b256_vec_t dots, nk_f64_t query_sumsq,
-                                                      nk_b256_vec_t target_sumsqs, nk_b256_vec_t *results) {
-    __m256d dots_f64x4 = dots.ymm_pd;
+NK_INTERNAL void nk_euclidean_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
+                                                      nk_b256_vec_t const *target_sumsqs_vec,
+                                                      nk_b256_vec_t *result_vec) {
+    __m256d dots_f64x4 = dots_vec->ymm_pd;
     __m256d query_sumsq_f64x4 = _mm256_set1_pd(query_sumsq);
     __m256d two_f64x4 = _mm256_set1_pd(2.0);
-    __m256d sum_sq_f64x4 = _mm256_add_pd(query_sumsq_f64x4, target_sumsqs.ymm_pd);
+    __m256d sum_sq_f64x4 = _mm256_add_pd(query_sumsq_f64x4, target_sumsqs_vec->ymm_pd);
     __m256d dist_sq_f64x4 = _mm256_fnmadd_pd(two_f64x4, dots_f64x4, sum_sq_f64x4);
     __m256d zeros_f64x4 = _mm256_setzero_pd();
     __m256d clamped_f64x4 = _mm256_max_pd(dist_sq_f64x4, zeros_f64x4);
-    results->ymm_pd = _mm256_sqrt_pd(clamped_f64x4);
+    result_vec->ymm_pd = _mm256_sqrt_pd(clamped_f64x4);
 }
 
 /** @brief Angular from_dot: f32 dots upcast to f64 for precision. Output via nk_b128_vec_t (f32). */
-NK_INTERNAL void nk_angular_through_f64_from_dot_skylake_(nk_b128_vec_t dots, nk_f32_t query_sumsq,
-                                                          nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    __m128 dots_f32x4 = dots.xmm_ps;
+NK_INTERNAL void nk_angular_through_f64_from_dot_skylake_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                          nk_b128_vec_t const *target_sumsqs_vec,
+                                                          nk_b128_vec_t *result_vec) {
+    __m128 dots_f32x4 = dots_vec->xmm_ps;
     __m256d dots_f64x4 = _mm256_cvtps_pd(dots_f32x4);
     __m256d query_sumsq_f64x4 = _mm256_set1_pd((nk_f64_t)query_sumsq);
-    __m256d target_sumsqs_f64x4 = _mm256_cvtps_pd(target_sumsqs.xmm_ps);
+    __m256d target_sumsqs_f64x4 = _mm256_cvtps_pd(target_sumsqs_vec->xmm_ps);
     __m256d products_f64x4 = _mm256_mul_pd(query_sumsq_f64x4, target_sumsqs_f64x4);
     __m256d sqrt_products_f64x4 = _mm256_sqrt_pd(products_f64x4);
     __m256d normalized_f64x4 = _mm256_div_pd(dots_f64x4, sqrt_products_f64x4);
     __m256d ones_f64x4 = _mm256_set1_pd(1.0);
     __m256d angular_f64x4 = _mm256_sub_pd(ones_f64x4, normalized_f64x4);
     angular_f64x4 = _mm256_max_pd(angular_f64x4, _mm256_setzero_pd());
-    results->xmm_ps = _mm256_cvtpd_ps(angular_f64x4);
+    result_vec->xmm_ps = _mm256_cvtpd_ps(angular_f64x4);
 }
 
 /** @brief Euclidean from_dot: f32 dots upcast to f64 for precision. Output via nk_b128_vec_t (f32). */
-NK_INTERNAL void nk_euclidean_through_f64_from_dot_skylake_(nk_b128_vec_t dots, nk_f32_t query_sumsq,
-                                                            nk_b128_vec_t target_sumsqs, nk_b128_vec_t *results) {
-    __m128 dots_f32x4 = dots.xmm_ps;
+NK_INTERNAL void nk_euclidean_through_f64_from_dot_skylake_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                            nk_b128_vec_t const *target_sumsqs_vec,
+                                                            nk_b128_vec_t *result_vec) {
+    __m128 dots_f32x4 = dots_vec->xmm_ps;
     __m256d dots_f64x4 = _mm256_cvtps_pd(dots_f32x4);
     __m256d query_sumsq_f64x4 = _mm256_set1_pd((nk_f64_t)query_sumsq);
-    __m256d target_sumsqs_f64x4 = _mm256_cvtps_pd(target_sumsqs.xmm_ps);
+    __m256d target_sumsqs_f64x4 = _mm256_cvtps_pd(target_sumsqs_vec->xmm_ps);
     __m256d two_f64x4 = _mm256_set1_pd(2.0);
     __m256d sum_sq_f64x4 = _mm256_add_pd(query_sumsq_f64x4, target_sumsqs_f64x4);
     __m256d dist_sq_f64x4 = _mm256_fnmadd_pd(two_f64x4, dots_f64x4, sum_sq_f64x4);
     __m256d zeros_f64x4 = _mm256_setzero_pd();
     __m256d clamped_f64x4 = _mm256_max_pd(dist_sq_f64x4, zeros_f64x4);
     __m256d dist_f64x4 = _mm256_sqrt_pd(clamped_f64x4);
-    results->xmm_ps = _mm256_cvtpd_ps(dist_f64x4);
+    result_vec->xmm_ps = _mm256_cvtpd_ps(dist_f64x4);
 }
 
 #pragma endregion F32 and F64 Floats
@@ -346,28 +349,36 @@ nk_angular_f16_skylake_cycle:
 }
 
 NK_PUBLIC void nk_sqeuclidean_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
-    __m512 sum_f32x16 = _mm512_setzero_ps();
-    __m128i a_e4m3_u8x16, b_e4m3_u8x16;
+    // E4M3 has no free widen shift (its 4-bit exponent doesn't line up with F16's 5-bit
+    // at bit 10), so we call the Giesen-based 16-lane cast helper twice per iter and
+    // run with two F32 accumulators to break the FMA dependency chain.
+    __m512 first_acc_f32x16 = _mm512_setzero_ps();
+    __m512 second_acc_f32x16 = _mm512_setzero_ps();
+    __m256i a_u8x32, b_u8x32;
 
 nk_sqeuclidean_e4m3_skylake_cycle:
-    if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_e4m3_u8x16 = _mm_maskz_loadu_epi8(mask, a);
-        b_e4m3_u8x16 = _mm_maskz_loadu_epi8(mask, b);
+    if (n < 32) {
+        __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
+        a_u8x32 = _mm256_maskz_loadu_epi8(mask, a);
+        b_u8x32 = _mm256_maskz_loadu_epi8(mask, b);
         n = 0;
     }
     else {
-        a_e4m3_u8x16 = _mm_loadu_si128((__m128i const *)a);
-        b_e4m3_u8x16 = _mm_loadu_si128((__m128i const *)b);
-        a += 16, b += 16, n -= 16;
+        a_u8x32 = _mm256_loadu_si256((__m256i const *)a);
+        b_u8x32 = _mm256_loadu_si256((__m256i const *)b);
+        a += 32, b += 32, n -= 32;
     }
-    __m512 a_f32x16 = nk_e4m3x16_to_f32x16_skylake_(a_e4m3_u8x16);
-    __m512 b_f32x16 = nk_e4m3x16_to_f32x16_skylake_(b_e4m3_u8x16);
-    __m512 diff_f32x16 = _mm512_sub_ps(a_f32x16, b_f32x16);
-    sum_f32x16 = _mm512_fmadd_ps(diff_f32x16, diff_f32x16, sum_f32x16);
+    __m512 a_low_f32x16 = nk_e4m3x16_to_f32x16_skylake_(_mm256_castsi256_si128(a_u8x32));
+    __m512 a_high_f32x16 = nk_e4m3x16_to_f32x16_skylake_(_mm256_extracti128_si256(a_u8x32, 1));
+    __m512 b_low_f32x16 = nk_e4m3x16_to_f32x16_skylake_(_mm256_castsi256_si128(b_u8x32));
+    __m512 b_high_f32x16 = nk_e4m3x16_to_f32x16_skylake_(_mm256_extracti128_si256(b_u8x32, 1));
+    __m512 diff_low_f32x16 = _mm512_sub_ps(a_low_f32x16, b_low_f32x16);
+    __m512 diff_high_f32x16 = _mm512_sub_ps(a_high_f32x16, b_high_f32x16);
+    first_acc_f32x16 = _mm512_fmadd_ps(diff_low_f32x16, diff_low_f32x16, first_acc_f32x16);
+    second_acc_f32x16 = _mm512_fmadd_ps(diff_high_f32x16, diff_high_f32x16, second_acc_f32x16);
     if (n) goto nk_sqeuclidean_e4m3_skylake_cycle;
 
-    *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
+    *result = nk_reduce_add_f32x16_skylake_(_mm512_add_ps(first_acc_f32x16, second_acc_f32x16));
 }
 
 NK_PUBLIC void nk_euclidean_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
@@ -379,25 +390,30 @@ NK_PUBLIC void nk_angular_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, n
     __m512 dot_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_norm_sq_f32x16 = _mm512_setzero_ps();
-    __m128i a_e4m3_u8x16, b_e4m3_u8x16;
+    __m256i a_u8x32, b_u8x32;
 
 nk_angular_e4m3_skylake_cycle:
-    if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_e4m3_u8x16 = _mm_maskz_loadu_epi8(mask, a);
-        b_e4m3_u8x16 = _mm_maskz_loadu_epi8(mask, b);
+    if (n < 32) {
+        __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
+        a_u8x32 = _mm256_maskz_loadu_epi8(mask, a);
+        b_u8x32 = _mm256_maskz_loadu_epi8(mask, b);
         n = 0;
     }
     else {
-        a_e4m3_u8x16 = _mm_loadu_si128((__m128i const *)a);
-        b_e4m3_u8x16 = _mm_loadu_si128((__m128i const *)b);
-        a += 16, b += 16, n -= 16;
+        a_u8x32 = _mm256_loadu_si256((__m256i const *)a);
+        b_u8x32 = _mm256_loadu_si256((__m256i const *)b);
+        a += 32, b += 32, n -= 32;
     }
-    __m512 a_f32x16 = nk_e4m3x16_to_f32x16_skylake_(a_e4m3_u8x16);
-    __m512 b_f32x16 = nk_e4m3x16_to_f32x16_skylake_(b_e4m3_u8x16);
-    dot_f32x16 = _mm512_fmadd_ps(a_f32x16, b_f32x16, dot_f32x16);
-    a_norm_sq_f32x16 = _mm512_fmadd_ps(a_f32x16, a_f32x16, a_norm_sq_f32x16);
-    b_norm_sq_f32x16 = _mm512_fmadd_ps(b_f32x16, b_f32x16, b_norm_sq_f32x16);
+    __m512 a_low_f32x16 = nk_e4m3x16_to_f32x16_skylake_(_mm256_castsi256_si128(a_u8x32));
+    __m512 a_high_f32x16 = nk_e4m3x16_to_f32x16_skylake_(_mm256_extracti128_si256(a_u8x32, 1));
+    __m512 b_low_f32x16 = nk_e4m3x16_to_f32x16_skylake_(_mm256_castsi256_si128(b_u8x32));
+    __m512 b_high_f32x16 = nk_e4m3x16_to_f32x16_skylake_(_mm256_extracti128_si256(b_u8x32, 1));
+    dot_f32x16 = _mm512_fmadd_ps(a_low_f32x16, b_low_f32x16, dot_f32x16);
+    dot_f32x16 = _mm512_fmadd_ps(a_high_f32x16, b_high_f32x16, dot_f32x16);
+    a_norm_sq_f32x16 = _mm512_fmadd_ps(a_low_f32x16, a_low_f32x16, a_norm_sq_f32x16);
+    a_norm_sq_f32x16 = _mm512_fmadd_ps(a_high_f32x16, a_high_f32x16, a_norm_sq_f32x16);
+    b_norm_sq_f32x16 = _mm512_fmadd_ps(b_low_f32x16, b_low_f32x16, b_norm_sq_f32x16);
+    b_norm_sq_f32x16 = _mm512_fmadd_ps(b_high_f32x16, b_high_f32x16, b_norm_sq_f32x16);
     if (n) goto nk_angular_e4m3_skylake_cycle;
 
     nk_f32_t dot_f32 = nk_reduce_add_f32x16_skylake_(dot_f32x16);
@@ -407,28 +423,53 @@ nk_angular_e4m3_skylake_cycle:
 }
 
 NK_PUBLIC void nk_sqeuclidean_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
-    __m512 sum_f32x16 = _mm512_setzero_ps();
-    __m128i a_e5m2_u8x16, b_e5m2_u8x16;
+    // E5M2 shares F16's exponent bias (15): `byte << 8` equals the matching F16 bit-pattern
+    // for normals, subnormals, zero, Inf, and NaN. We expose that shift for free by unpacking
+    // against zero — the zero byte lands in the low half of each 16-bit lane, the E5M2 byte
+    // in the high half. `vpunpck*bw` is per-128-bit-lane so the F32 outputs are lane-scrambled
+    // across 512 bits, but the commutative sum reduction is invariant under that.
+    __m512 first_acc_f32x16 = _mm512_setzero_ps();
+    __m512 second_acc_f32x16 = _mm512_setzero_ps();
+    __m512i const zero_u8x64 = _mm512_setzero_si512();
+    __m512i a_u8x64, b_u8x64;
 
 nk_sqeuclidean_e5m2_skylake_cycle:
-    if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_e5m2_u8x16 = _mm_maskz_loadu_epi8(mask, a);
-        b_e5m2_u8x16 = _mm_maskz_loadu_epi8(mask, b);
+    if (n < 64) {
+        __mmask64 mask = _bzhi_u64(0xFFFFFFFFFFFFFFFFULL, (unsigned int)n);
+        a_u8x64 = _mm512_maskz_loadu_epi8(mask, a);
+        b_u8x64 = _mm512_maskz_loadu_epi8(mask, b);
         n = 0;
     }
     else {
-        a_e5m2_u8x16 = _mm_loadu_si128((__m128i const *)a);
-        b_e5m2_u8x16 = _mm_loadu_si128((__m128i const *)b);
-        a += 16, b += 16, n -= 16;
+        a_u8x64 = _mm512_loadu_si512((__m512i const *)a);
+        b_u8x64 = _mm512_loadu_si512((__m512i const *)b);
+        a += 64, b += 64, n -= 64;
     }
-    __m512 a_f32x16 = nk_e5m2x16_to_f32x16_skylake_(a_e5m2_u8x16);
-    __m512 b_f32x16 = nk_e5m2x16_to_f32x16_skylake_(b_e5m2_u8x16);
-    __m512 diff_f32x16 = _mm512_sub_ps(a_f32x16, b_f32x16);
-    sum_f32x16 = _mm512_fmadd_ps(diff_f32x16, diff_f32x16, sum_f32x16);
+    __m512i a_even_f16x32 = _mm512_unpacklo_epi8(zero_u8x64, a_u8x64);
+    __m512i a_odd_f16x32 = _mm512_unpackhi_epi8(zero_u8x64, a_u8x64);
+    __m512i b_even_f16x32 = _mm512_unpacklo_epi8(zero_u8x64, b_u8x64);
+    __m512i b_odd_f16x32 = _mm512_unpackhi_epi8(zero_u8x64, b_u8x64);
+
+    __m512 a_first_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(a_even_f16x32));
+    __m512 a_second_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(a_even_f16x32, 1));
+    __m512 a_third_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(a_odd_f16x32));
+    __m512 a_fourth_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(a_odd_f16x32, 1));
+    __m512 b_first_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(b_even_f16x32));
+    __m512 b_second_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(b_even_f16x32, 1));
+    __m512 b_third_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(b_odd_f16x32));
+    __m512 b_fourth_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(b_odd_f16x32, 1));
+
+    __m512 diff_first_f32x16 = _mm512_sub_ps(a_first_f32x16, b_first_f32x16);
+    __m512 diff_second_f32x16 = _mm512_sub_ps(a_second_f32x16, b_second_f32x16);
+    __m512 diff_third_f32x16 = _mm512_sub_ps(a_third_f32x16, b_third_f32x16);
+    __m512 diff_fourth_f32x16 = _mm512_sub_ps(a_fourth_f32x16, b_fourth_f32x16);
+    first_acc_f32x16 = _mm512_fmadd_ps(diff_first_f32x16, diff_first_f32x16, first_acc_f32x16);
+    second_acc_f32x16 = _mm512_fmadd_ps(diff_second_f32x16, diff_second_f32x16, second_acc_f32x16);
+    first_acc_f32x16 = _mm512_fmadd_ps(diff_third_f32x16, diff_third_f32x16, first_acc_f32x16);
+    second_acc_f32x16 = _mm512_fmadd_ps(diff_fourth_f32x16, diff_fourth_f32x16, second_acc_f32x16);
     if (n) goto nk_sqeuclidean_e5m2_skylake_cycle;
 
-    *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
+    *result = nk_reduce_add_f32x16_skylake_(_mm512_add_ps(first_acc_f32x16, second_acc_f32x16));
 }
 
 NK_PUBLIC void nk_euclidean_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
@@ -440,25 +481,47 @@ NK_PUBLIC void nk_angular_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, n
     __m512 dot_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_norm_sq_f32x16 = _mm512_setzero_ps();
-    __m128i a_e5m2_u8x16, b_e5m2_u8x16;
+    __m512i const zero_u8x64 = _mm512_setzero_si512();
+    __m512i a_u8x64, b_u8x64;
 
 nk_angular_e5m2_skylake_cycle:
-    if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_e5m2_u8x16 = _mm_maskz_loadu_epi8(mask, a);
-        b_e5m2_u8x16 = _mm_maskz_loadu_epi8(mask, b);
+    if (n < 64) {
+        __mmask64 mask = _bzhi_u64(0xFFFFFFFFFFFFFFFFULL, (unsigned int)n);
+        a_u8x64 = _mm512_maskz_loadu_epi8(mask, a);
+        b_u8x64 = _mm512_maskz_loadu_epi8(mask, b);
         n = 0;
     }
     else {
-        a_e5m2_u8x16 = _mm_loadu_si128((__m128i const *)a);
-        b_e5m2_u8x16 = _mm_loadu_si128((__m128i const *)b);
-        a += 16, b += 16, n -= 16;
+        a_u8x64 = _mm512_loadu_si512((__m512i const *)a);
+        b_u8x64 = _mm512_loadu_si512((__m512i const *)b);
+        a += 64, b += 64, n -= 64;
     }
-    __m512 a_f32x16 = nk_e5m2x16_to_f32x16_skylake_(a_e5m2_u8x16);
-    __m512 b_f32x16 = nk_e5m2x16_to_f32x16_skylake_(b_e5m2_u8x16);
-    dot_f32x16 = _mm512_fmadd_ps(a_f32x16, b_f32x16, dot_f32x16);
-    a_norm_sq_f32x16 = _mm512_fmadd_ps(a_f32x16, a_f32x16, a_norm_sq_f32x16);
-    b_norm_sq_f32x16 = _mm512_fmadd_ps(b_f32x16, b_f32x16, b_norm_sq_f32x16);
+    __m512i a_even_f16x32 = _mm512_unpacklo_epi8(zero_u8x64, a_u8x64);
+    __m512i a_odd_f16x32 = _mm512_unpackhi_epi8(zero_u8x64, a_u8x64);
+    __m512i b_even_f16x32 = _mm512_unpacklo_epi8(zero_u8x64, b_u8x64);
+    __m512i b_odd_f16x32 = _mm512_unpackhi_epi8(zero_u8x64, b_u8x64);
+
+    __m512 a_first_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(a_even_f16x32));
+    __m512 a_second_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(a_even_f16x32, 1));
+    __m512 a_third_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(a_odd_f16x32));
+    __m512 a_fourth_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(a_odd_f16x32, 1));
+    __m512 b_first_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(b_even_f16x32));
+    __m512 b_second_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(b_even_f16x32, 1));
+    __m512 b_third_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(b_odd_f16x32));
+    __m512 b_fourth_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(b_odd_f16x32, 1));
+
+    dot_f32x16 = _mm512_fmadd_ps(a_first_f32x16, b_first_f32x16, dot_f32x16);
+    dot_f32x16 = _mm512_fmadd_ps(a_second_f32x16, b_second_f32x16, dot_f32x16);
+    dot_f32x16 = _mm512_fmadd_ps(a_third_f32x16, b_third_f32x16, dot_f32x16);
+    dot_f32x16 = _mm512_fmadd_ps(a_fourth_f32x16, b_fourth_f32x16, dot_f32x16);
+    a_norm_sq_f32x16 = _mm512_fmadd_ps(a_first_f32x16, a_first_f32x16, a_norm_sq_f32x16);
+    a_norm_sq_f32x16 = _mm512_fmadd_ps(a_second_f32x16, a_second_f32x16, a_norm_sq_f32x16);
+    a_norm_sq_f32x16 = _mm512_fmadd_ps(a_third_f32x16, a_third_f32x16, a_norm_sq_f32x16);
+    a_norm_sq_f32x16 = _mm512_fmadd_ps(a_fourth_f32x16, a_fourth_f32x16, a_norm_sq_f32x16);
+    b_norm_sq_f32x16 = _mm512_fmadd_ps(b_first_f32x16, b_first_f32x16, b_norm_sq_f32x16);
+    b_norm_sq_f32x16 = _mm512_fmadd_ps(b_second_f32x16, b_second_f32x16, b_norm_sq_f32x16);
+    b_norm_sq_f32x16 = _mm512_fmadd_ps(b_third_f32x16, b_third_f32x16, b_norm_sq_f32x16);
+    b_norm_sq_f32x16 = _mm512_fmadd_ps(b_fourth_f32x16, b_fourth_f32x16, b_norm_sq_f32x16);
     if (n) goto nk_angular_e5m2_skylake_cycle;
 
     nk_f32_t dot_f32 = nk_reduce_add_f32x16_skylake_(dot_f32x16);

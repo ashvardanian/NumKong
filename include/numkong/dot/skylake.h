@@ -157,6 +157,36 @@ NK_INTERNAL void nk_dot_through_f32_update_skylake_(nk_dot_through_f32_state_sky
 }
 
 /**
+ *  @brief E5M2 byte-batched update: consumes 64 raw E5M2 bytes per call and widens inline.
+ *  Two independent FMA chains (each 2-deep) merge into the single state accumulator at exit.
+ *  Keeps register pressure at one __m512 across calls while breaking the FMA dep chain.
+ */
+NK_INTERNAL void nk_dot_e5m2x64_update_skylake_(nk_dot_through_f32_state_skylake_t_ *state, nk_b512_vec_t a_bytes,
+                                                nk_b512_vec_t b_bytes, nk_size_t depth_offset,
+                                                nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    __m512i const zero_u8x64 = _mm512_setzero_si512();
+    __m512i a_even_f16x32 = _mm512_unpacklo_epi8(zero_u8x64, a_bytes.zmm);
+    __m512i a_odd_f16x32 = _mm512_unpackhi_epi8(zero_u8x64, a_bytes.zmm);
+    __m512i b_even_f16x32 = _mm512_unpacklo_epi8(zero_u8x64, b_bytes.zmm);
+    __m512i b_odd_f16x32 = _mm512_unpackhi_epi8(zero_u8x64, b_bytes.zmm);
+    __m512 a_first_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(a_even_f16x32));
+    __m512 a_second_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(a_even_f16x32, 1));
+    __m512 a_third_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(a_odd_f16x32));
+    __m512 a_fourth_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(a_odd_f16x32, 1));
+    __m512 b_first_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(b_even_f16x32));
+    __m512 b_second_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(b_even_f16x32, 1));
+    __m512 b_third_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(b_odd_f16x32));
+    __m512 b_fourth_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(b_odd_f16x32, 1));
+    __m512 first_chain_f32x16 = _mm512_mul_ps(a_first_f32x16, b_first_f32x16);
+    __m512 second_chain_f32x16 = _mm512_mul_ps(a_second_f32x16, b_second_f32x16);
+    first_chain_f32x16 = _mm512_fmadd_ps(a_third_f32x16, b_third_f32x16, first_chain_f32x16);
+    second_chain_f32x16 = _mm512_fmadd_ps(a_fourth_f32x16, b_fourth_f32x16, second_chain_f32x16);
+    state->sum_f32x16 = _mm512_add_ps(state->sum_f32x16, _mm512_add_ps(first_chain_f32x16, second_chain_f32x16));
+}
+
+/**
  *  @brief Finalizes 4x low-precision dot-products placing them into 4x consecutive 32-bit slots.
  *  @sa nk_dot_f16x16_udpate_skylake, nk_dot_bf16x16_udpate_skylake
  *  @sa nk_dot_e4m3x16_udpate_skylake, nk_dot_e5m2x16_udpate_skylake
@@ -543,7 +573,7 @@ NK_PUBLIC void nk_dot_e4m3_skylake(nk_e4m3_t const *a_scalars, nk_e4m3_t const *
 
 nk_dot_e4m3_skylake_cycle:
     if (count_scalars < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, count_scalars);
+        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)count_scalars);
         a_e4m3_u8x16 = _mm_maskz_loadu_epi8(mask, a_scalars);
         b_e4m3_u8x16 = _mm_maskz_loadu_epi8(mask, b_scalars);
         count_scalars = 0;
@@ -563,27 +593,44 @@ nk_dot_e4m3_skylake_cycle:
 
 NK_PUBLIC void nk_dot_e5m2_skylake(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars, nk_size_t count_scalars,
                                    nk_f32_t *result) {
-    __m128i a_e5m2_u8x16, b_e5m2_u8x16;
-    __m512 sum_f32x16 = _mm512_setzero_ps();
+    // E5M2 shares F16 bias (15): vpunpck*bw against zero places the byte as F16 encoding,
+    // so we inline the widen rather than calling the helper 4× — same ops, cleaner code.
+    __m512 first_chain_f32x16 = _mm512_setzero_ps();
+    __m512 second_chain_f32x16 = _mm512_setzero_ps();
+    __m512i const zero_u8x64 = _mm512_setzero_si512();
+    __m512i a_u8x64, b_u8x64;
 
 nk_dot_e5m2_skylake_cycle:
-    if (count_scalars < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, count_scalars);
-        a_e5m2_u8x16 = _mm_maskz_loadu_epi8(mask, a_scalars);
-        b_e5m2_u8x16 = _mm_maskz_loadu_epi8(mask, b_scalars);
+    if (count_scalars < 64) {
+        __mmask64 mask = _bzhi_u64(0xFFFFFFFFFFFFFFFFULL, (unsigned int)count_scalars);
+        a_u8x64 = _mm512_maskz_loadu_epi8(mask, a_scalars);
+        b_u8x64 = _mm512_maskz_loadu_epi8(mask, b_scalars);
         count_scalars = 0;
     }
     else {
-        a_e5m2_u8x16 = _mm_loadu_si128((__m128i const *)a_scalars);
-        b_e5m2_u8x16 = _mm_loadu_si128((__m128i const *)b_scalars);
-        a_scalars += 16, b_scalars += 16, count_scalars -= 16;
+        a_u8x64 = _mm512_loadu_si512((__m512i const *)a_scalars);
+        b_u8x64 = _mm512_loadu_si512((__m512i const *)b_scalars);
+        a_scalars += 64, b_scalars += 64, count_scalars -= 64;
     }
-    __m512 a_f32x16 = nk_e5m2x16_to_f32x16_skylake_(a_e5m2_u8x16);
-    __m512 b_f32x16 = nk_e5m2x16_to_f32x16_skylake_(b_e5m2_u8x16);
-    sum_f32x16 = _mm512_fmadd_ps(a_f32x16, b_f32x16, sum_f32x16);
+    __m512i a_even_f16x32 = _mm512_unpacklo_epi8(zero_u8x64, a_u8x64);
+    __m512i a_odd_f16x32 = _mm512_unpackhi_epi8(zero_u8x64, a_u8x64);
+    __m512i b_even_f16x32 = _mm512_unpacklo_epi8(zero_u8x64, b_u8x64);
+    __m512i b_odd_f16x32 = _mm512_unpackhi_epi8(zero_u8x64, b_u8x64);
+    __m512 a_first_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(a_even_f16x32));
+    __m512 a_second_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(a_even_f16x32, 1));
+    __m512 a_third_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(a_odd_f16x32));
+    __m512 a_fourth_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(a_odd_f16x32, 1));
+    __m512 b_first_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(b_even_f16x32));
+    __m512 b_second_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(b_even_f16x32, 1));
+    __m512 b_third_f32x16 = _mm512_cvtph_ps(_mm512_castsi512_si256(b_odd_f16x32));
+    __m512 b_fourth_f32x16 = _mm512_cvtph_ps(_mm512_extracti64x4_epi64(b_odd_f16x32, 1));
+    first_chain_f32x16 = _mm512_fmadd_ps(a_first_f32x16, b_first_f32x16, first_chain_f32x16);
+    second_chain_f32x16 = _mm512_fmadd_ps(a_second_f32x16, b_second_f32x16, second_chain_f32x16);
+    first_chain_f32x16 = _mm512_fmadd_ps(a_third_f32x16, b_third_f32x16, first_chain_f32x16);
+    second_chain_f32x16 = _mm512_fmadd_ps(a_fourth_f32x16, b_fourth_f32x16, second_chain_f32x16);
     if (count_scalars) goto nk_dot_e5m2_skylake_cycle;
 
-    *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
+    *result = nk_reduce_add_f32x16_skylake_(_mm512_add_ps(first_chain_f32x16, second_chain_f32x16));
 }
 
 NK_PUBLIC void nk_dot_e2m3_skylake(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars, nk_size_t count_scalars,

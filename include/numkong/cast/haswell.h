@@ -172,72 +172,36 @@ NK_INTERNAL __m128i nk_f32x8_to_u8x8_haswell_(__m256 f32x8) {
     return _mm_packus_epi16(u16x8, _mm_setzero_si128());
 }
 
-/** @brief Convert 8x e4m3 → 8x f32 via bit manipulation (AVX2).
- *  E4M3 format: S EEEE MMM (bias=7). F32: sign<<31, (exp+120)<<23, mant<<20.
- *  Subnormals (exp=0): looked up via vpermps from an 8-entry register LUT.
- *  NaN detection uses a single comparison on the 7-bit magnitude (0x7F). */
+/** @brief Convert 8x e4m3 → 8x f32 via Giesen-style fake-F16 cast (AVX2 + F16C).
+ *  E4M3 `byte = S EEEE MMM` (bias 7). Shifting the magnitude into F16 positions
+ *  `((byte & 0x7F) << 7) | ((byte & 0x80) << 8)` yields a fake F16 whose F16 value
+ *  differs from the true E4M3 magnitude by exactly 2⁸ (bias delta 15 − 7). The
+ *  fake F16 is widened via `vcvtph2ps` and corrected by ×256 in F32. Subnormal
+ *  handling falls out for free via F16 subnormal semantics. NaN (|byte|==0x7F)
+ *  is blended explicitly with F16 quiet-NaN bits. */
 NK_INTERNAL __m256 nk_e4m3x8_to_f32x8_haswell_(__m128i e4m3_i8x8) {
-    __m256i e4m3_i32x8 = _mm256_cvtepu8_epi32(e4m3_i8x8);
-
-    // Extract fields
-    __m256i exp_i32x8 = _mm256_and_si256(_mm256_srli_epi32(e4m3_i32x8, 3), _mm256_set1_epi32(0x0F));
-    __m256i mant_i32x8 = _mm256_and_si256(e4m3_i32x8, _mm256_set1_epi32(0x07));
-
-    // Build F32 sign bit
-    __m256i f32_sign_i32x8 = _mm256_slli_epi32(_mm256_srli_epi32(e4m3_i32x8, 7), 31);
-
-    // Normal path: sign | ((exp+120)<<23) | (mant<<20)
-    __m256i f32_exp_i32x8 = _mm256_slli_epi32(_mm256_add_epi32(exp_i32x8, _mm256_set1_epi32(120)), 23);
-    __m256i f32_mant_i32x8 = _mm256_slli_epi32(mant_i32x8, 20);
-    __m256i normal_bits_i32x8 = _mm256_or_si256(f32_sign_i32x8, _mm256_or_si256(f32_exp_i32x8, f32_mant_i32x8));
-
-    // Subnormal path: vpermps from 8-entry register LUT (3 cy latency, no memory access)
-    __m256 subnorm_lut_f32x8 = _mm256_setr_ps(0, 1.0f / 512, 2.0f / 512, 3.0f / 512, //
-                                              4.0f / 512, 5.0f / 512, 6.0f / 512, 7.0f / 512);
-    __m256i subnorm_bits_i32x8 = _mm256_or_si256( //
-        _mm256_castps_si256(_mm256_permutevar8x32_ps(subnorm_lut_f32x8, mant_i32x8)), f32_sign_i32x8);
-
-    // Bitwise select: if exp==0, use subnormal; otherwise use normal
-    __m256i exp_zero_mask = _mm256_cmpeq_epi32(exp_i32x8, _mm256_setzero_si256());
-    __m256i result_i32x8 = _mm256_or_si256(                  //
-        _mm256_and_si256(exp_zero_mask, subnorm_bits_i32x8), //
-        _mm256_andnot_si256(exp_zero_mask, normal_bits_i32x8));
-
-    // NaN: E4M3FN has NaN only at magnitude 0x7F (exp=15, mant=7)
-    __m256i lower7_i32x8 = _mm256_and_si256(e4m3_i32x8, _mm256_set1_epi32(0x7F));
-    __m256i is_nan_mask = _mm256_cmpeq_epi32(lower7_i32x8, _mm256_set1_epi32(0x7F));
-    __m256i nan_i32x8 = _mm256_or_si256(f32_sign_i32x8, _mm256_set1_epi32(0x7FC00000));
-    result_i32x8 = _mm256_or_si256(               //
-        _mm256_and_si256(is_nan_mask, nan_i32x8), //
-        _mm256_andnot_si256(is_nan_mask, result_i32x8));
-    return _mm256_castsi256_ps(result_i32x8);
+    __m128i const magnitude_mask_u16x8 = _mm_set1_epi16(0x7F);
+    __m128i const sign_mask_u16x8 = _mm_set1_epi16((short)0x80);
+    __m128i const f16_nan_u16x8 = _mm_set1_epi16(0x7E00);
+    __m128i word_u16x8 = _mm_cvtepu8_epi16(e4m3_i8x8);
+    __m128i magnitude_u16x8 = _mm_and_si128(word_u16x8, magnitude_mask_u16x8);
+    __m128i is_nan_u16x8 = _mm_cmpeq_epi16(magnitude_u16x8, magnitude_mask_u16x8);
+    __m128i shifted_magnitude_u16x8 = _mm_slli_epi16(magnitude_u16x8, 7);
+    __m128i shifted_sign_u16x8 = _mm_slli_epi16(_mm_and_si128(word_u16x8, sign_mask_u16x8), 8);
+    __m128i f16_bits_u16x8 = _mm_or_si128(shifted_magnitude_u16x8, shifted_sign_u16x8);
+    f16_bits_u16x8 = _mm_blendv_epi8(f16_bits_u16x8, f16_nan_u16x8, is_nan_u16x8);
+    __m256 fake_f32x8 = _mm256_cvtph_ps(f16_bits_u16x8);
+    return _mm256_mul_ps(fake_f32x8, _mm256_set1_ps(256.0f));
 }
 
-/** @brief Convert 8x e5m2 → 8x f32 via bit manipulation (AVX2).
- *  E5M2 format: S EEEEE MM (bias=15). F32: sign<<31, (exp+112)<<23, mant<<21.
- *  Subnormals (exp=0): value = mantissa × 2⁽¹⁻¹⁵⁾ × 2⁻² = mantissa ÷ 65536. */
+/** @brief Convert 8x e5m2 → 8x f32 via free-shift widen (AVX2 + F16C).
+ *  E5M2 shares F16's exponent bias (15): `(byte << 8)` is the matching F16 bit
+ *  pattern for every E5M2 value (normals, subnormals, zero, ±Inf, NaN — all
+ *  bit-exact). Widen u8 → u16, shift, then VCVTPH2PS to F32. Three ops total. */
 NK_INTERNAL __m256 nk_e5m2x8_to_f32x8_haswell_(__m128i e5m2_i8x8) {
-    __m256i e5m2_i32x8 = _mm256_cvtepu8_epi32(e5m2_i8x8);
-
-    // Extract fields
-    __m256i exp_i32x8 = _mm256_and_si256(_mm256_srli_epi32(e5m2_i32x8, 2), _mm256_set1_epi32(0x1F));
-    __m256i mant_i32x8 = _mm256_and_si256(e5m2_i32x8, _mm256_set1_epi32(0x03));
-
-    // Build F32 sign bit
-    __m256i f32_sign_i32x8 = _mm256_slli_epi32(_mm256_srli_epi32(e5m2_i32x8, 7), 31);
-
-    // Normal path: sign | ((exp+112)<<23) | (mant<<21)
-    __m256i f32_exp_i32x8 = _mm256_slli_epi32(_mm256_add_epi32(exp_i32x8, _mm256_set1_epi32(112)), 23);
-    __m256i f32_mant_i32x8 = _mm256_slli_epi32(mant_i32x8, 21);
-    __m256i normal_bits_i32x8 = _mm256_or_si256(f32_sign_i32x8, _mm256_or_si256(f32_exp_i32x8, f32_mant_i32x8));
-
-    // Subnormal path: value = mantissa / 65536.0f, then apply sign
-    __m256 subnorm_abs_f32x8 = _mm256_mul_ps(_mm256_cvtepi32_ps(mant_i32x8), _mm256_set1_ps(1.0f / 65536.0f));
-    __m256 subnorm_f32x8 = _mm256_or_ps(subnorm_abs_f32x8, _mm256_castsi256_ps(f32_sign_i32x8));
-
-    // Blend: if exp==0, use subnormal result; otherwise use normal bits
-    __m256i exp_zero_mask = _mm256_cmpeq_epi32(exp_i32x8, _mm256_setzero_si256());
-    return _mm256_blendv_ps(_mm256_castsi256_ps(normal_bits_i32x8), subnorm_f32x8, _mm256_castsi256_ps(exp_zero_mask));
+    __m128i e5m2_u16x8 = _mm_cvtepu8_epi16(e5m2_i8x8);
+    __m128i f16_bits_u16x8 = _mm_slli_epi16(e5m2_u16x8, 8);
+    return _mm256_cvtph_ps(f16_bits_u16x8);
 }
 
 /** @brief Convert 8x f32 → 8x e4m3 via bit manipulation (AVX2).

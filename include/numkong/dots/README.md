@@ -72,6 +72,8 @@ Int8 data is quad-interleaved: [a₀, a₁, a₂, a₃, a₀, a₁, a₂, a₃, 
 Tile configuration via `LDTILECFG` sets row counts and column byte-widths per tile — allows undersized tiles at matrix edges without masking.
 Morton Z-curve ordering for tile traversal improves cache reuse when both A and B exceed L2.
 This eliminates the explicit M×N×K loop nesting and register file pressure of vector ISAs — the entire dot-product reduction happens inside the tile instruction.
+FP8 inputs on Sapphire AMX go through an on-the-fly E4M3/E5M2 → BF16 pack via the Ice Lake `VPERMI2W` LUT helpers — port-5-bound but the simplest correct route to feed `TDPBF16PS` tiles.
+Granite Rapids adds `TDPFP16PS` (same tile shape, FP16 operands); the E5M2 variant widens inputs with a single `VPUNPCK*BW` against zero into FP16 tiles at pack time and then reuses the native FP16 compute loop — keeps the intermediate at FP16 precision instead of truncating to BF16 like the Sapphire path.
 
 ### SME Outer-Product Streaming
 
@@ -103,17 +105,17 @@ The 4×4 tile accumulates 16 dot products in registers, then stores results 4-wi
 A finalizer function pointer processes 4 results simultaneously, amortizing horizontal reductions and type conversions:
 
 ```
-// 4-wide finalizer signature
-void finalizer(nk_b128_vec_t dots,          // 4 dot products
-               nk_f32_t query_norm,         // precomputed query squared-norm
-               nk_b128_vec_t target_norms,  // 4 target squared-norms
-               nk_b128_vec_t *results)      // 4 output distances
+// 4-wide finalizer signature — per-lane arrays always pass as `nk_bXXX_vec_t const *`
+void finalizer(nk_b128_vec_t const *dots_vec,          // 4 dot products
+               nk_f32_t query_norm,                    // precomputed query squared-norm (scalar)
+               nk_b128_vec_t const *target_norms_vec,  // 4 target squared-norms
+               nk_b128_vec_t *result_vec)              // 4 output distances
 
 // Angular: 4 divisions + 4 subtractions in one call
-results->f32s[i] = 1 - dots.f32s[i] / sqrt(query_norm * target_norms.f32s[i])
+result_vec->f32s[i] = 1 - dots_vec->f32s[i] / sqrt(query_norm * target_norms_vec->f32s[i])
 
 // Euclidean: 4 sqrt(a² + b² - 2ab) in one call
-results->f32s[i] = sqrt(query_norm + target_norms.f32s[i] - 2 * dots.f32s[i])
+result_vec->f32s[i] = sqrt(query_norm + target_norms_vec->f32s[i] - 2 * dots_vec->f32s[i])
 ```
 
 The 4×4 tile emits 4 rows of 4 results each — the finalizer is called 4 times per tile, once per query row.

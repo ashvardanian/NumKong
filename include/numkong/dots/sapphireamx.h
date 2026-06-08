@@ -73,7 +73,7 @@
 #if NK_TARGET_SAPPHIREAMX
 
 #include "numkong/cast/icelake.h" // For FP8 ↔ BF16 conversions
-#include "numkong/dots/serial.h"  // For nk_dots_reduce_sumsq_bf16_
+#include "numkong/dots/serial.h"  // `nk_dots_reduce_sumsq_bf16_`
 
 #if defined(__cplusplus)
 extern "C" {
