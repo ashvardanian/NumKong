@@ -737,8 +737,8 @@ nk_sqeuclidean_e2m3_haswell_cycle:
         distance_sq_f32x8 = _mm256_fmadd_ps(diff_f32x8, diff_f32x8, distance_sq_f32x8);
     }
     else {
-        __m256 a_f32x8 = nk_e2m3x8_to_f32x8_haswell_(_mm_loadu_si128((__m128i const *)a));
-        __m256 b_f32x8 = nk_e2m3x8_to_f32x8_haswell_(_mm_loadu_si128((__m128i const *)b));
+        __m256 a_f32x8 = nk_e2m3x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)a));
+        __m256 b_f32x8 = nk_e2m3x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)b));
         __m256 diff_f32x8 = _mm256_sub_ps(a_f32x8, b_f32x8);
         distance_sq_f32x8 = _mm256_fmadd_ps(diff_f32x8, diff_f32x8, distance_sq_f32x8);
         n -= 8, a += 8, b += 8;
@@ -770,8 +770,8 @@ nk_angular_e2m3_haswell_cycle:
         b_norm_sq_f32x8 = _mm256_fmadd_ps(b_f32x8, b_f32x8, b_norm_sq_f32x8);
     }
     else {
-        __m256 a_f32x8 = nk_e2m3x8_to_f32x8_haswell_(_mm_loadu_si128((__m128i const *)a));
-        __m256 b_f32x8 = nk_e2m3x8_to_f32x8_haswell_(_mm_loadu_si128((__m128i const *)b));
+        __m256 a_f32x8 = nk_e2m3x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)a));
+        __m256 b_f32x8 = nk_e2m3x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)b));
         dot_product_f32x8 = _mm256_fmadd_ps(a_f32x8, b_f32x8, dot_product_f32x8);
         a_norm_sq_f32x8 = _mm256_fmadd_ps(a_f32x8, a_f32x8, a_norm_sq_f32x8);
         b_norm_sq_f32x8 = _mm256_fmadd_ps(b_f32x8, b_f32x8, b_norm_sq_f32x8);
@@ -799,8 +799,8 @@ nk_sqeuclidean_e3m2_haswell_cycle:
         distance_sq_f32x8 = _mm256_fmadd_ps(diff_f32x8, diff_f32x8, distance_sq_f32x8);
     }
     else {
-        __m256 a_f32x8 = nk_e3m2x8_to_f32x8_haswell_(_mm_loadu_si128((__m128i const *)a));
-        __m256 b_f32x8 = nk_e3m2x8_to_f32x8_haswell_(_mm_loadu_si128((__m128i const *)b));
+        __m256 a_f32x8 = nk_e3m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)a));
+        __m256 b_f32x8 = nk_e3m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)b));
         __m256 diff_f32x8 = _mm256_sub_ps(a_f32x8, b_f32x8);
         distance_sq_f32x8 = _mm256_fmadd_ps(diff_f32x8, diff_f32x8, distance_sq_f32x8);
         n -= 8, a += 8, b += 8;
@@ -832,8 +832,8 @@ nk_angular_e3m2_haswell_cycle:
         b_norm_sq_f32x8 = _mm256_fmadd_ps(b_f32x8, b_f32x8, b_norm_sq_f32x8);
     }
     else {
-        __m256 a_f32x8 = nk_e3m2x8_to_f32x8_haswell_(_mm_loadu_si128((__m128i const *)a));
-        __m256 b_f32x8 = nk_e3m2x8_to_f32x8_haswell_(_mm_loadu_si128((__m128i const *)b));
+        __m256 a_f32x8 = nk_e3m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)a));
+        __m256 b_f32x8 = nk_e3m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)b));
         dot_product_f32x8 = _mm256_fmadd_ps(a_f32x8, b_f32x8, dot_product_f32x8);
         a_norm_sq_f32x8 = _mm256_fmadd_ps(a_f32x8, a_f32x8, a_norm_sq_f32x8);
         b_norm_sq_f32x8 = _mm256_fmadd_ps(b_f32x8, b_f32x8, b_norm_sq_f32x8);

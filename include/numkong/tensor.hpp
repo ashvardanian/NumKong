@@ -1686,6 +1686,296 @@ using matrix_span = tensor_span<value_type_, 2>;
 
 #pragma endregion Matrix Aliases
 
+#pragma region Scaled Tensor
+
+/**
+ *  @brief A block-scaled tensor = packed micro-float @b elements + per-block @b scales + an
+ *         optional per-tensor @b scale, all on the last (quantized) axis.
+ *
+ *  Composes two ordinary tensors rather than inventing a parallel container family:
+ *      - `elements()` — `tensor<format::element_t>` of the logical shape, packed sub-byte.
+ *      - `block_scales()` — `tensor<format::scale_t>` of the same shape with the last extent
+ *        divided by `block_size`; one scale per block.
+ *      - `tensor_scale()` — a scalar `float` multiplier (NVFP4 only; the call is removed by a
+ *        `requires` clause for the MX family, which has no per-tensor scale).
+ *
+ *  Because the scales are a real reduced-shape tensor, slicing reuses the tensor machinery and
+ *  slices both components in lockstep; a last-axis (column) range is divided by `block_size`.
+ *  Encode / decode / transcode all go through `cast()` in `cast.hpp`; `scaled_tensor` itself is
+ *  pure storage and never calls a kernel. The struct-of-arrays layout is exactly the NVFP4/MXFP8
+ *  GPU representation — `elements()` and `block_scales()` each export DLPack / CUDA-array-interface.
+ *
+ *  Shape convention: `elements()` reports the @b logical shape `(rows, columns)` because its
+ *  value type is the sub-byte-aware packed scalar (e.g. `e2m1x2_t`), so `extent(last)` is the
+ *  element count even though storage is packed. Array-protocol bindings without a sub-byte scalar
+ *  (the Python `ScaledTensor.elements` ndarray, Rust's packed slice) instead expose the @b packed
+ *  byte shape `(rows, columns·element_bits/8)` — same bytes, reported per their type system.
+ *
+ *  @tparam format_ A block-scaled format tag from `types.hpp` (`nvfp4_t`, `mxfp4_t`, … `mxint8_t`).
+ */
+template <typename format_, std::size_t max_rank_ = 8>
+struct scaled_tensor_view;
+template <typename format_, std::size_t max_rank_ = 8>
+struct scaled_tensor_span;
+
+/** @brief Non-owning, immutable view of a block-scaled tensor. */
+template <typename format_, std::size_t max_rank_>
+struct scaled_tensor_view {
+    using format_type = format_;
+    using element_type = typename format_::element_t;
+    using scale_type = typename format_::scale_t;
+    using element_view_type = tensor_view<element_type, max_rank_>;
+    using scale_view_type = tensor_view<scale_type, max_rank_>;
+    using size_type = std::size_t;
+    using difference_type = std::ptrdiff_t;
+
+    static constexpr size_type block_size = format_::elements();
+
+  private:
+    element_view_type elements_;
+    scale_view_type block_scales_;
+    float tensor_scale_ = 1.0f;
+
+  public:
+    constexpr scaled_tensor_view() noexcept = default;
+    constexpr scaled_tensor_view(element_view_type elements, scale_view_type block_scales,
+                                 float tensor_scale = 1.0f) noexcept
+        : elements_(elements), block_scales_(block_scales), tensor_scale_(tensor_scale) {}
+
+    /** @brief Number of dimensions. */
+    constexpr size_type rank() const noexcept { return elements_.rank(); }
+    /** @brief Logical extent along dimension i. */
+    constexpr size_type extent(size_type i) const noexcept { return elements_.extent(i); }
+    /** @brief Total number of logical elements. */
+    constexpr size_type numel() const noexcept { return elements_.numel(); }
+    /** @brief True if empty. */
+    constexpr bool empty() const noexcept { return elements_.empty(); }
+
+    /** @brief Immutable view of the packed micro-float elements (DLPack/CAI-exportable). */
+    constexpr element_view_type elements() const noexcept { return elements_; }
+    /** @brief Immutable view of the per-block scales (one per `block_size` on the last axis). */
+    constexpr scale_view_type block_scales() const noexcept { return block_scales_; }
+    /** @brief Per-tensor multiplier (NVFP4 only; the call is absent for the MX family). */
+    constexpr float tensor_scale() const noexcept
+        requires(format_::has_tensor_scale())
+    {
+        return tensor_scale_;
+    }
+
+    /** @brief Slice along the leading axis (rank-reducing); shares the per-tensor scale. */
+    template <std::integral index_type_>
+    scaled_tensor_view slice_leading(index_type_ i) const noexcept {
+        return {elements_.slice_leading(i), block_scales_.slice_leading(i), tensor_scale_};
+    }
+
+    /** @brief Row access (alias for `slice_leading`). */
+    template <std::integral index_type_>
+    scaled_tensor_view row(index_type_ i) const noexcept {
+        return slice_leading(i);
+    }
+
+    /**
+     *  @brief Block-aligned last-axis (column) range; preserves every leading axis. Zero-copy.
+     *
+     *  @p start and @p stop must be multiples of `block_size` so both the element and the scale
+     *  offsets stay integral and land on container boundaries (essential for packed sub-byte
+     *  elements). Returns an empty view otherwise; sub-block ranges require materialization via
+     *  `cast()`.
+     */
+    scaled_tensor_view columns(size_type start, size_type stop) const noexcept {
+        auto r = rank();
+        if (r == 0 || stop <= start || start % block_size != 0 || stop % block_size != 0) return {};
+        size_type const last = r - 1;
+        if (stop > extent(last)) return {};
+
+        auto element_shape = elements_.shape();
+        auto element_offset = static_cast<difference_type>(start / dimensions_per_value<element_type>()) *
+                              static_cast<difference_type>(sizeof(element_type));
+        element_shape.extents[last] = stop - start;
+        element_view_type element_tile {elements_.byte_data() + element_offset, element_shape};
+
+        auto scale_shape = block_scales_.shape();
+        auto scale_offset = static_cast<difference_type>(start / block_size) *
+                            static_cast<difference_type>(sizeof(scale_type));
+        scale_shape.extents[last] = (stop - start) / block_size;
+        scale_view_type scale_tile {block_scales_.byte_data() + scale_offset, scale_shape};
+
+        return {element_tile, scale_tile, tensor_scale_};
+    }
+
+    /** @brief Forward iterator over leading-axis row views. */
+    struct row_iterator_t {
+        scaled_tensor_view parent;
+        size_type index;
+        scaled_tensor_view operator*() const noexcept { return parent.row(index); }
+        row_iterator_t &operator++() noexcept {
+            ++index;
+            return *this;
+        }
+        bool operator!=(row_iterator_t const &other) const noexcept { return index != other.index; }
+    };
+
+    /** @brief Range of leading-axis row views (each carries the per-tensor scale). */
+    struct rows_views_t {
+        scaled_tensor_view parent;
+        row_iterator_t begin() const noexcept { return {parent, 0}; }
+        row_iterator_t end() const noexcept { return {parent, parent.extent(0)}; }
+    };
+
+    rows_views_t rows_views() const noexcept { return {*this}; }
+};
+
+/** @brief Non-owning, mutable span of a block-scaled tensor (write target for `cast()`). */
+template <typename format_, std::size_t max_rank_>
+struct scaled_tensor_span {
+    using format_type = format_;
+    using element_type = typename format_::element_t;
+    using scale_type = typename format_::scale_t;
+    using element_span_type = tensor_span<element_type, max_rank_>;
+    using scale_span_type = tensor_span<scale_type, max_rank_>;
+    using view_type = scaled_tensor_view<format_, max_rank_>;
+    using size_type = std::size_t;
+
+    static constexpr size_type block_size = format_::elements();
+
+  private:
+    element_span_type elements_;
+    scale_span_type block_scales_;
+    float *tensor_scale_ = nullptr;
+
+  public:
+    constexpr scaled_tensor_span() noexcept = default;
+    constexpr scaled_tensor_span(element_span_type elements, scale_span_type block_scales,
+                                 float *tensor_scale = nullptr) noexcept
+        : elements_(elements), block_scales_(block_scales), tensor_scale_(tensor_scale) {}
+
+    constexpr size_type rank() const noexcept { return elements_.rank(); }
+    constexpr size_type extent(size_type i) const noexcept { return elements_.extent(i); }
+    constexpr size_type numel() const noexcept { return elements_.numel(); }
+    constexpr bool empty() const noexcept { return elements_.empty(); }
+
+    /** @brief Mutable span of the packed micro-float elements. */
+    constexpr element_span_type elements() const noexcept { return elements_; }
+    /** @brief Mutable span of the per-block scales. */
+    constexpr scale_span_type block_scales() const noexcept { return block_scales_; }
+    /** @brief Pointer to the per-tensor multiplier slot (NVFP4 only); kernels write the derived value here. */
+    constexpr float *tensor_scale_slot() const noexcept
+        requires(format_::has_tensor_scale())
+    {
+        return tensor_scale_;
+    }
+
+    /** @brief Decay to an immutable view. */
+    view_type view() const noexcept {
+        return {element_view_of_(elements_), scale_view_of_(block_scales_), tensor_scale_ ? *tensor_scale_ : 1.0f};
+    }
+
+  private:
+    static tensor_view<element_type, max_rank_> element_view_of_(element_span_type s) noexcept {
+        return {s.byte_data(), s.shape()};
+    }
+    static tensor_view<scale_type, max_rank_> scale_view_of_(scale_span_type s) noexcept {
+        return {s.byte_data(), s.shape()};
+    }
+};
+
+/** @brief Owning, allocating block-scaled tensor. */
+template <typename format_, typename element_allocator_ = aligned_allocator<typename format_::element_t>,
+          typename scale_allocator_ = aligned_allocator<typename format_::scale_t>, std::size_t max_rank_ = 8>
+struct scaled_tensor {
+    using format_type = format_;
+    using element_type = typename format_::element_t;
+    using scale_type = typename format_::scale_t;
+    using element_tensor_type = tensor<element_type, element_allocator_, max_rank_>;
+    using scale_tensor_type = tensor<scale_type, scale_allocator_, max_rank_>;
+    using view_type = scaled_tensor_view<format_, max_rank_>;
+    using span_type = scaled_tensor_span<format_, max_rank_>;
+    using size_type = std::size_t;
+
+    static constexpr size_type block_size = format_::elements();
+
+  private:
+    element_tensor_type elements_;
+    scale_tensor_type block_scales_;
+    float tensor_scale_ = 1.0f;
+
+  public:
+    scaled_tensor() noexcept = default;
+    scaled_tensor(scaled_tensor &&) noexcept = default;
+    scaled_tensor &operator=(scaled_tensor &&) noexcept = default;
+    scaled_tensor(scaled_tensor const &) = delete;
+    scaled_tensor &operator=(scaled_tensor const &) = delete;
+
+    /**
+     *  @brief Factory: allocate an uninitialized block-scaled tensor with the given logical extents.
+     *  @param extents Logical extents; the last one must be a multiple of `block_size`.
+     *  @return Non-empty tensor on success, empty on bad shape or allocation failure.
+     */
+    [[nodiscard]] static scaled_tensor try_empty(size_type const *extents, size_type rank) noexcept {
+        scaled_tensor result;
+        if (rank == 0 || rank > max_rank_) return result;
+        size_type scale_extents[max_rank_];
+        for (size_type d = 0; d < rank; ++d) scale_extents[d] = extents[d];
+        if (extents[rank - 1] % block_size != 0) return result;
+        scale_extents[rank - 1] = extents[rank - 1] / block_size;
+
+        result.elements_ = element_tensor_type::try_empty(extents, rank);
+        result.block_scales_ = scale_tensor_type::try_empty(scale_extents, rank);
+        if (result.elements_.empty() || result.block_scales_.empty()) return scaled_tensor {};
+        return result;
+    }
+
+    /** @copydoc try_empty(size_type const *, size_type) */
+    [[nodiscard]] static scaled_tensor try_empty(std::initializer_list<size_type> extents) noexcept {
+        return try_empty(extents.begin(), extents.size());
+    }
+
+    /** @brief Adopt already-built component tensors and a per-tensor scale. */
+    [[nodiscard]] static scaled_tensor from_components(element_tensor_type elements, scale_tensor_type block_scales,
+                                                       float tensor_scale = 1.0f) noexcept {
+        scaled_tensor result;
+        result.elements_ = std::move(elements);
+        result.block_scales_ = std::move(block_scales);
+        result.tensor_scale_ = tensor_scale;
+        return result;
+    }
+
+    constexpr size_type rank() const noexcept { return elements_.rank(); }
+    constexpr size_type extent(size_type i) const noexcept { return elements_.extent(i); }
+    constexpr size_type numel() const noexcept { return elements_.numel(); }
+    constexpr bool empty() const noexcept { return elements_.empty(); }
+
+    /** @brief Immutable component accessors. */
+    typename element_tensor_type::view_type elements() const noexcept { return elements_.view(); }
+    typename scale_tensor_type::view_type block_scales() const noexcept { return block_scales_.view(); }
+    /** @brief Per-tensor multiplier (NVFP4 only; absent for the MX family). `cast()` derives and
+     *  writes it on encode through `span().tensor_scale_slot()`. */
+    float tensor_scale() const noexcept
+        requires(format_::has_tensor_scale())
+    {
+        return tensor_scale_;
+    }
+
+    /** @brief Immutable whole-tensor view. */
+    view_type view() const noexcept { return {elements_.view(), block_scales_.view(), tensor_scale_}; }
+    /** @brief Mutable whole-tensor span (writes through to the per-tensor scale). */
+    span_type span() noexcept { return {elements_.span(), block_scales_.span(), &tensor_scale_}; }
+
+    /** @brief Leading-axis row view. */
+    template <std::integral index_type_>
+    view_type row(index_type_ i) const noexcept {
+        return view().row(i);
+    }
+
+    /** @brief Block-aligned last-axis (column) range view. */
+    view_type columns(size_type start, size_type stop) const noexcept { return view().columns(start, stop); }
+
+    /** @brief Iterate leading-axis rows as immutable views. */
+    typename view_type::rows_views_t rows_views() const noexcept { return view().rows_views(); }
+};
+
+#pragma endregion Scaled Tensor
+
 } // namespace ashvardanian::numkong
 
 namespace ashvardanian::numkong {

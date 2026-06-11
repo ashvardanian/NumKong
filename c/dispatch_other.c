@@ -11,6 +11,7 @@ void nk_dispatch_cast_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
 #if NK_TARGET_NEON
     if (v & nk_cap_neon_k) switch (k) {
         case nk_kernel_cast_k: *m = (m_t)&nk_cast_neon, *c = nk_cap_neon_k; return;
+        case nk_kernel_cast_block_scaled_k: *m = (m_t)&nk_cast_block_scaled_neon, *c = nk_cap_neon_k; return;
         default: break;
         }
 #endif
@@ -23,18 +24,21 @@ void nk_dispatch_cast_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
 #if NK_TARGET_ICELAKE
     if (v & nk_cap_icelake_k) switch (k) {
         case nk_kernel_cast_k: *m = (m_t)&nk_cast_icelake, *c = nk_cap_icelake_k; return;
+        case nk_kernel_cast_block_scaled_k: *m = (m_t)&nk_cast_block_scaled_icelake, *c = nk_cap_icelake_k; return;
         default: break;
         }
 #endif
 #if NK_TARGET_SKYLAKE
     if (v & nk_cap_skylake_k) switch (k) {
         case nk_kernel_cast_k: *m = (m_t)&nk_cast_skylake, *c = nk_cap_skylake_k; return;
+        case nk_kernel_cast_block_scaled_k: *m = (m_t)&nk_cast_block_scaled_skylake, *c = nk_cap_skylake_k; return;
         default: break;
         }
 #endif
 #if NK_TARGET_HASWELL
     if (v & nk_cap_haswell_k) switch (k) {
         case nk_kernel_cast_k: *m = (m_t)&nk_cast_haswell, *c = nk_cap_haswell_k; return;
+        case nk_kernel_cast_block_scaled_k: *m = (m_t)&nk_cast_block_scaled_haswell, *c = nk_cap_haswell_k; return;
         default: break;
         }
 #endif
@@ -46,6 +50,7 @@ void nk_dispatch_cast_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
 #endif
     if (v & nk_cap_serial_k) switch (k) {
         case nk_kernel_cast_k: *m = (m_t)&nk_cast_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_cast_block_scaled_k: *m = (m_t)&nk_cast_block_scaled_serial, *c = nk_cap_serial_k; return;
         default: break;
         }
 
@@ -59,6 +64,9 @@ void nk_dispatch_cast_init_(nk_capability_t caps) {
 
     // Type casting (buffer-to-buffer)
     nk_dispatch_cast_find_(caps, nk_kernel_cast_k, (nk_kernel_punned_t *)&t->cast, &used);
+
+    // Block-scaled cast (MX / NVFP4)
+    nk_dispatch_cast_find_(caps, nk_kernel_cast_block_scaled_k, (nk_kernel_punned_t *)&t->cast_block_scaled, &used);
 
     // Scalar conversions: bf16 ↔ f32
     t->bf16_to_f32 = &nk_bf16_to_f32_serial;

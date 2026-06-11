@@ -53,7 +53,7 @@ __arm_new("za") static void nk_dots_packed_u1_smebi32_streaming_( //
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
     // handles one u32 (32 bits) across all row×column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
-    nk_size_t const depth_bytes = depth_bits / 8;
+    nk_size_t const depth_bytes = nk_size_divide_round_up_(depth_bits, NK_BITS_PER_BYTE);
 
     nk_u32_t const *b_tiles = (nk_u32_t const *)((char const *)b_packed + sizeof(nk_sets_smebi32_packed_header_t));
     nk_u32_t const *b_norms = header->norms_offset ? (nk_u32_t const *)((char const *)b_packed + header->norms_offset)
@@ -226,7 +226,7 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
     // handles one u32 (32 bits) across all row×column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
-    nk_size_t const depth_bytes = depth_bits / 8;
+    nk_size_t const depth_bytes = nk_size_divide_round_up_(depth_bits, NK_BITS_PER_BYTE);
     nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth_words, depth_tile_size);
 
     svbool_t const predicate_all_b32x = svptrue_b32();

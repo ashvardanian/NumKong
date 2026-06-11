@@ -75,8 +75,43 @@ typedef struct TensorIter {
     Py_ssize_t index;
 } TensorIter;
 
+/**
+ *  @brief Block-scaled tensor (OCP MX family + NVIDIA NVFP4).
+ *
+ *  Wraps two ordinary @ref Tensor objects — the packed sub-byte @ref elements and the
+ *  per-block @ref block_scales — plus a composite @p dtype, the @p block_size, and an
+ *  optional per-tensor @p tensor_scale (NVFP4 only; absent for the MX family).
+ *
+ *  Quantization is always along the last axis: the last dimension of @ref elements counts
+ *  packed bytes, and the last dimension of @ref block_scales counts blocks
+ *  (`last_dim / block_size`). Leading dimensions match the dense source. Both child tensors
+ *  own their storage and DLPack-export zero-copy (e2m1/e8m0/ue4m3 codes), so a ScaledTensor
+ *  is fully self-contained and caller-free.
+ *
+ *  Produced by `dense_tensor.astype("nvfp4")` and materialized back via
+ *  `scaled.astype("float32")`.
+ */
+typedef struct ScaledTensor {
+    PyObject_HEAD
+    /** Packed sub-byte element bytes (Tensor of element dtype, e.g. e2m1). */
+    Tensor *elements;
+    /** Per-block scale bytes (Tensor of scale dtype, e.g. ue4m3 / ue8m0). */
+    Tensor *block_scales;
+    /** Composite block-scaled dtype enum (e.g. nk_nvfp4_k) — drives `.dtype`. */
+    nk_dtype_t dtype;
+    /** Elements per block: 16 (NVFP4) or 32 (MX). */
+    size_t block_size;
+    /** Per-tensor f32 multiplier (NVFP4). Ignored when @ref has_tensor_scale is 0. */
+    float tensor_scale;
+    /** 1 when @ref tensor_scale is meaningful (NVFP4); 0 for the MX family (`.tensor_scale is None`). */
+    int has_tensor_scale;
+} ScaledTensor;
+
 /** @brief Tensor Python type object.  */
 extern PyTypeObject TensorType;
+
+/** @brief Block-scaled tensor Python type object.  */
+extern PyTypeObject ScaledTensorType;
 
 /** @brief Tensor iterator Python type object.  */
 extern PyTypeObject TensorIterType;

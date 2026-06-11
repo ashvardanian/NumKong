@@ -363,8 +363,8 @@ NK_PUBLIC void nk_cast_powervsx(void const *from, nk_dtype_t from_type, nk_size_
     }
 
     // F32 hub with predicated loads/stores — no serial fallback needed
-    nk_size_t from_element_bytes = nk_dtype_bits(from_type) / 8;
-    nk_size_t to_element_bytes = nk_dtype_bits(to_type) / 8;
+    nk_size_t from_element_bytes = nk_size_divide_round_up_(nk_dtype_bits(from_type), NK_BITS_PER_BYTE);
+    nk_size_t to_element_bytes = nk_size_divide_round_up_(nk_dtype_bits(to_type), NK_BITS_PER_BYTE);
     nk_u8_t const *from_ptr = (nk_u8_t const *)from;
     nk_u8_t *to_ptr = (nk_u8_t *)to;
 

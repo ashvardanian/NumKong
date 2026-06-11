@@ -122,10 +122,10 @@ NK_PUBLIC void nk_ue4m3_to_f32_serial(nk_ue4m3_t const *src, nk_f32_t *dest);
 /** @brief Convert f32 magnitude to UE4M3 (takes absolute value). */
 NK_PUBLIC void nk_f32_to_ue4m3_serial(nk_f32_t const *src, nk_ue4m3_t *dest);
 
-/** @brief Decode one NVFP4 block (16 elements) to f32. `global` is the per-tensor multiplier. */
-NK_PUBLIC void nk_nvfp4_to_f32x16_serial(nk_nvfp4_t const *src, nk_f32_t global, nk_f32_t *dest);
+/** @brief Decode one NVFP4 block (16 elements) to f32. `tensor_scale` is the per-tensor multiplier. */
+NK_PUBLIC void nk_nvfp4_to_f32x16_serial(nk_nvfp4_t const *src, nk_f32_t tensor_scale, nk_f32_t *dest);
 /** @brief Encode 16 f32 values into one NVFP4 block, deriving a UE4M3 scale via per-block amax. */
-NK_PUBLIC void nk_f32x16_to_nvfp4_serial(nk_f32_t const *src, nk_f32_t global, nk_nvfp4_t *dest);
+NK_PUBLIC void nk_f32x16_to_nvfp4_serial(nk_f32_t const *src, nk_f32_t tensor_scale, nk_nvfp4_t *dest);
 
 /** @brief Decode one MXFP4 block (32 elements) to f32. */
 NK_PUBLIC void nk_mxfp4_to_f32x32_serial(nk_mxfp4_t const *src, nk_f32_t *dest);
@@ -166,29 +166,29 @@ NK_PUBLIC void nk_f32x32_to_mxint8_serial(nk_f32_t const *src, nk_mxint8_t *dest
  *      - block-scaled source, plain dest → decode (read scale, dequantize to plain dtype)
  *      - both block-scaled               → transcode (decode → encode)
  *
- *  @param from             Source element bytes.
- *  @param from_scales      One scale byte per block (NULL when `from_format` is plain).
- *  @param from_global      Per-tensor multiplier value (NULL when `from_format` has no global).
- *  @param from_format      Source layout descriptor (`nk_plain(dtype)` for plain).
- *  @param to               Destination element bytes.
- *  @param to_scales        One scale byte per block (NULL when `to_format` is plain).
- *  @param to_global        Per-tensor multiplier (NULL when `to_format` has no global).
- *                          When non-NULL with a non-zero value, applies it. When non-NULL with
- *                          a zero value on encode, kernel derives the global from the tensor.
- *  @param to_format        Destination layout descriptor.
- *  @param count            Logical element count. Must be a multiple of both block sizes.
+ *  @param from Source element bytes.
+ *  @param from_scales One scale byte per block (NULL when `from_format` is plain).
+ *  @param from_tensor_scale Per-tensor multiplier value (NULL when `from_format` has no tensor_scale).
+ *  @param from_format Source layout descriptor (`nk_plain(dtype)` for plain).
+ *  @param to Destination element bytes.
+ *  @param to_scales One scale byte per block (NULL when `to_format` is plain).
+ *  @param to_tensor_scale Per-tensor multiplier (NULL when `to_format` has no tensor_scale).
+ *      When non-NULL with a non-zero value, applies it. When non-NULL with
+ *      a zero value on encode, kernel derives the tensor_scale from the tensor.
+ *  @param to_format Destination layout descriptor.
+ *  @param count Logical element count. Must be a multiple of both block sizes.
  */
-NK_DYNAMIC void nk_cast_block_scaled(                                                                    //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_global,                    //
-    nk_block_scaled_format_t const *from_format,                                                         //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_global, nk_block_scaled_format_t const *to_format, //
+NK_DYNAMIC void nk_cast_block_scaled(                                                                          //
+    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
+    nk_block_scaled_format_t const *from_format,                                                               //
+    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count);
 
 /** @copydoc nk_cast_block_scaled */
-NK_PUBLIC void nk_cast_block_scaled_serial(                                                              //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_global,                    //
-    nk_block_scaled_format_t const *from_format,                                                         //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_global, nk_block_scaled_format_t const *to_format, //
+NK_PUBLIC void nk_cast_block_scaled_serial(                                                                    //
+    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
+    nk_block_scaled_format_t const *from_format,                                                               //
+    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count);
 
 /** @brief Number of element storage bytes needed for @p count logical elements of @p format. */
@@ -218,37 +218,43 @@ NK_PUBLIC nk_block_scaled_format_t nk_plain(nk_dtype_t element_dtype);
 NK_PUBLIC nk_block_scaled_format_t nk_block_scaled_format_of_dtype(nk_dtype_t dtype);
 
 #if NK_TARGET_NEON
-/** @copydoc nk_cast */
-NK_PUBLIC void nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type);
 /** @copydoc nk_f16_to_f32 */
 NK_PUBLIC void nk_f16_to_f32_neon(nk_f16_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_f16 */
 NK_PUBLIC void nk_f32_to_f16_neon(nk_f32_t const *src, nk_f16_t *dest);
+/** @copydoc nk_cast */
+NK_PUBLIC void nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type);
 /** @copydoc nk_cast_block_scaled */
-NK_PUBLIC void nk_cast_block_scaled_neon(                                                                //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_global,                    //
-    nk_block_scaled_format_t const *from_format,                                                         //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_global, nk_block_scaled_format_t const *to_format, //
+NK_PUBLIC void nk_cast_block_scaled_neon(                                                                      //
+    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
+    nk_block_scaled_format_t const *from_format,                                                               //
+    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count);
 #endif // NK_TARGET_NEON
 
 #if NK_TARGET_HASWELL
-/** @copydoc nk_cast */
-NK_PUBLIC void nk_cast_haswell(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type);
 /** @copydoc nk_f16_to_f32 */
 NK_PUBLIC void nk_f16_to_f32_haswell(nk_f16_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_f16 */
 NK_PUBLIC void nk_f32_to_f16_haswell(nk_f32_t const *src, nk_f16_t *dest);
+/** @copydoc nk_cast */
+NK_PUBLIC void nk_cast_haswell(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type);
+/** @copydoc nk_cast_block_scaled */
+NK_PUBLIC void nk_cast_block_scaled_haswell(                                                                   //
+    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
+    nk_block_scaled_format_t const *from_format,                                                               //
+    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
+    nk_size_t count);
 #endif // NK_TARGET_HASWELL
 
 #if NK_TARGET_SKYLAKE
 /** @copydoc nk_cast */
 NK_PUBLIC void nk_cast_skylake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type);
 /** @copydoc nk_cast_block_scaled */
-NK_PUBLIC void nk_cast_block_scaled_skylake(                                                             //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_global,                    //
-    nk_block_scaled_format_t const *from_format,                                                         //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_global, nk_block_scaled_format_t const *to_format, //
+NK_PUBLIC void nk_cast_block_scaled_skylake(                                                                   //
+    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
+    nk_block_scaled_format_t const *from_format,                                                               //
+    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count);
 #endif // NK_TARGET_SKYLAKE
 
@@ -256,10 +262,10 @@ NK_PUBLIC void nk_cast_block_scaled_skylake(                                    
 /** @copydoc nk_cast */
 NK_PUBLIC void nk_cast_icelake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type);
 /** @copydoc nk_cast_block_scaled */
-NK_PUBLIC void nk_cast_block_scaled_icelake(                                                             //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_global,                    //
-    nk_block_scaled_format_t const *from_format,                                                         //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_global, nk_block_scaled_format_t const *to_format, //
+NK_PUBLIC void nk_cast_block_scaled_icelake(                                                                   //
+    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
+    nk_block_scaled_format_t const *from_format,                                                               //
+    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count);
 #endif // NK_TARGET_ICELAKE
 
@@ -373,22 +379,26 @@ NK_PUBLIC void nk_f32_to_e2m3(nk_f32_t const *src, nk_e2m3_t *dest) { nk_f32_to_
 NK_PUBLIC void nk_e3m2_to_f32(nk_e3m2_t const *src, nk_f32_t *dest) { nk_e3m2_to_f32_serial(src, dest); }
 NK_PUBLIC void nk_f32_to_e3m2(nk_f32_t const *src, nk_e3m2_t *dest) { nk_f32_to_e3m2_serial(src, dest); }
 
-NK_PUBLIC void nk_cast_block_scaled(                                                                     //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_global,                    //
-    nk_block_scaled_format_t const *from_format,                                                         //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_global, nk_block_scaled_format_t const *to_format, //
+NK_PUBLIC void nk_cast_block_scaled(                                                                           //
+    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
+    nk_block_scaled_format_t const *from_format,                                                               //
+    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count) {
 #if NK_TARGET_ICELAKE
-    nk_cast_block_scaled_icelake(from, from_scales, from_global, from_format, to, to_scales, to_global, to_format,
-                                 count);
+    nk_cast_block_scaled_icelake(from, from_scales, from_tensor_scale, from_format, to, to_scales, to_tensor_scale,
+                                 to_format, count);
 #elif NK_TARGET_SKYLAKE
-    nk_cast_block_scaled_skylake(from, from_scales, from_global, from_format, to, to_scales, to_global, to_format,
-                                 count);
+    nk_cast_block_scaled_skylake(from, from_scales, from_tensor_scale, from_format, to, to_scales, to_tensor_scale,
+                                 to_format, count);
+#elif NK_TARGET_HASWELL
+    nk_cast_block_scaled_haswell(from, from_scales, from_tensor_scale, from_format, to, to_scales, to_tensor_scale,
+                                 to_format, count);
 #elif NK_TARGET_NEON
-    nk_cast_block_scaled_neon(from, from_scales, from_global, from_format, to, to_scales, to_global, to_format, count);
+    nk_cast_block_scaled_neon(from, from_scales, from_tensor_scale, from_format, to, to_scales, to_tensor_scale,
+                              to_format, count);
 #else
-    nk_cast_block_scaled_serial(from, from_scales, from_global, from_format, to, to_scales, to_global, to_format,
-                                count);
+    nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales, to_tensor_scale,
+                                to_format, count);
 #endif
 }
 

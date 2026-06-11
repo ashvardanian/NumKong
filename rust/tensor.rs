@@ -1836,6 +1836,7 @@ impl<
 ///
 /// The `'a` lifetime ties the view to the source tensor (or outer view),
 /// ensuring the referenced memory outlives the view itself.
+#[derive(Clone, Copy)]
 pub struct TensorView<'a, Scalar, const MAX_RANK: usize = DEFAULT_MAX_RANK> {
     /// Pointer to first element of view.
     data: *const Scalar,
@@ -2083,6 +2084,45 @@ impl<'a, Scalar: Clone + StorageElement, const MAX_RANK: usize> TensorView<'a, S
     /// Convert to slice (only valid for contiguous views).
     pub fn as_contiguous_slice(&self) -> Option<&[Scalar]> {
         if self.is_contiguous() {
+            Some(unsafe { core::slice::from_raw_parts(self.data, self.storage_len()) })
+        } else {
+            None
+        }
+    }
+
+    /// True when the underlying storage *bytes* are densely packed in memory.
+    ///
+    /// Unlike [`is_contiguous`](Self::is_contiguous), this accounts for sub-byte packing: the
+    /// innermost-axis extent is measured in storage values (`shape / dimensions_per_value`), so
+    /// a freshly-allocated `e2m1x2` tensor — whose row stride is `cols / 2` bytes — is recognized
+    /// as packed. Used by the block-scaled casts, which hand raw byte buffers to the C kernel.
+    pub fn is_packed_contiguous(&self) -> bool {
+        if self.ndim == 0 {
+            return true;
+        }
+        let elem_size = core::mem::size_of::<Scalar>() as isize;
+        let dims_per_value = Scalar::dimensions_per_value();
+        let mut expected_stride = elem_size;
+        for i in (0..self.ndim).rev() {
+            if self.strides[i] != expected_stride {
+                return false;
+            }
+            let extent = if i == self.ndim - 1 && dims_per_value > 1 {
+                self.shape[i] / dims_per_value
+            } else {
+                self.shape[i]
+            };
+            expected_stride *= extent as isize;
+        }
+        true
+    }
+
+    /// Storage values as a slice when the bytes are packed (sub-byte aware).
+    ///
+    /// Returns `None` for strided/transposed views. This is the sub-byte-aware companion to
+    /// [`as_contiguous_slice`](Self::as_contiguous_slice).
+    pub fn as_packed_slice(&self) -> Option<&[Scalar]> {
+        if self.is_packed_contiguous() {
             Some(unsafe { core::slice::from_raw_parts(self.data, self.storage_len()) })
         } else {
             None
@@ -6506,6 +6546,179 @@ impl<const MAX_RANK: usize> Tensor<f64, Global, MAX_RANK> {
 }
 
 // endregion: Tensor Reductions
+
+// region: Block-Scaled Tensor
+
+use crate::cast::BlockScaledFormat;
+
+/// An owning block-scaled tensor: two composed [`Tensor`]s plus an optional per-tensor scale.
+///
+/// A block-scaled tensor stores quantized values in blocks along its last axis. It is exactly:
+///
+/// - `elements`: a `Tensor<F::Element>` of logical shape `(rows, columns)` (sub-byte packed
+///   for FP4 formats), and
+/// - `block_scales`: a `Tensor<F::Scale>` of shape `(rows, columns / F::BLOCK_SIZE)` — one
+///   scale byte per block, and
+/// - `tensor_scale`: an `Option<f32>` per-tensor multiplier (`Some` for NVFP4, `None` for MX).
+///
+/// This composes the existing tensor family rather than introducing a parallel hierarchy; the
+/// scale newtypes ([`crate::Ue4m3`] / [`crate::Ue8m0`]) and the packed element scalars are plain
+/// [`StorageElement`]s. Construct one with `dense.view().try_cast_to_scaled::<F>()` and decode it
+/// back with `scaled.view().try_cast_dense::<f32>()`.
+pub struct ScaledTensor<F: BlockScaledFormat, A: Allocator = Global> {
+    elements: Tensor<F::Element, A>,
+    block_scales: Tensor<F::Scale, A>,
+    tensor_scale: Option<f32>,
+}
+
+impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
+    /// Assemble a block-scaled tensor from its two component tensors and an optional scale.
+    ///
+    /// The cast verbs in [`crate::cast`] are the usual way to build these; this constructor is
+    /// public so callers holding pre-quantized buffers can wrap them without a re-encode.
+    pub fn from_parts(
+        elements: Tensor<F::Element, A>,
+        block_scales: Tensor<F::Scale, A>,
+        tensor_scale: Option<f32>,
+    ) -> Self {
+        ScaledTensor {
+            elements,
+            block_scales,
+            tensor_scale,
+        }
+    }
+
+    /// Borrow the packed element values.
+    pub fn elements(&self) -> TensorView<'_, F::Element> {
+        self.elements.view()
+    }
+
+    /// Borrow the per-block scale bytes.
+    pub fn block_scales(&self) -> TensorView<'_, F::Scale> {
+        self.block_scales.view()
+    }
+
+    /// The per-tensor multiplier (`Some` for NVFP4, `None` for the MX family).
+    pub fn tensor_scale(&self) -> Option<f32> {
+        self.tensor_scale
+    }
+
+    /// Logical `(rows, columns)` shape of the elements tensor.
+    pub fn shape(&self) -> &[usize] {
+        self.elements.shape()
+    }
+
+    /// Borrow the whole tensor as a [`ScaledTensorView`].
+    pub fn view(&self) -> ScaledTensorView<'_, F> {
+        ScaledTensorView {
+            elements: self.elements.view(),
+            block_scales: self.block_scales.view(),
+            tensor_scale: self.tensor_scale,
+        }
+    }
+
+    /// Borrow the whole tensor mutably as a [`ScaledTensorSpan`].
+    pub fn span(&mut self) -> ScaledTensorSpan<'_, F> {
+        ScaledTensorSpan {
+            elements: self.elements.span(),
+            block_scales: self.block_scales.span(),
+            tensor_scale: self.tensor_scale,
+        }
+    }
+}
+
+/// A borrowed, read-only view into a [`ScaledTensor`] — composed [`TensorView`]s plus the scale.
+pub struct ScaledTensorView<'a, F: BlockScaledFormat> {
+    elements: TensorView<'a, F::Element>,
+    block_scales: TensorView<'a, F::Scale>,
+    tensor_scale: Option<f32>,
+}
+
+impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
+    /// Borrow the packed element values.
+    pub fn elements(&self) -> TensorView<'_, F::Element> {
+        self.elements
+    }
+
+    /// Borrow the per-block scale bytes.
+    pub fn block_scales(&self) -> TensorView<'_, F::Scale> {
+        self.block_scales
+    }
+
+    /// The per-tensor multiplier (`Some` for NVFP4, `None` for the MX family).
+    pub fn tensor_scale(&self) -> Option<f32> {
+        self.tensor_scale
+    }
+
+    /// Logical `(rows, columns)` shape.
+    pub fn shape(&self) -> &[usize] {
+        self.elements.shape()
+    }
+
+    /// Borrow leading-axis index `i` as a new [`ScaledTensorView`], slicing BOTH sub-tensors in
+    /// lockstep and keeping the rank (the leading extent becomes 1, so the last axis stays present).
+    pub fn row(&self, i: usize) -> Result<ScaledTensorView<'a, F>, TensorError> {
+        self.rows(i, i + 1)
+    }
+
+    /// Slice a contiguous leading-axis range `start..end`, slicing BOTH sub-tensors in lockstep.
+    pub fn rows(&self, start: usize, end: usize) -> Result<ScaledTensorView<'a, F>, TensorError> {
+        let leading = self.elements.shape().first().copied().unwrap_or(0);
+        if end > leading || start > end {
+            return Err(TensorError::IndexOutOfBounds {
+                index: end,
+                size: leading,
+            });
+        }
+        // Slice the leading axis; keep every trailing axis (incl. the quantized last axis) intact.
+        let ndim = self.elements.ndim();
+        let mut spec = Vec::with_capacity(ndim);
+        spec.push(SliceRange::range(start, end));
+        spec.extend(core::iter::repeat(SliceRange::full()).take(ndim.saturating_sub(1)));
+        let elements = self.elements.slice(spec.as_slice())?;
+        let block_scales = self.block_scales.slice(spec.as_slice())?;
+        Ok(ScaledTensorView {
+            elements,
+            block_scales,
+            tensor_scale: self.tensor_scale,
+        })
+    }
+}
+
+/// A borrowed, mutable view into a [`ScaledTensor`] — composed [`TensorSpan`]s plus the scale.
+pub struct ScaledTensorSpan<'a, F: BlockScaledFormat> {
+    elements: TensorSpan<'a, F::Element>,
+    block_scales: TensorSpan<'a, F::Scale>,
+    tensor_scale: Option<f32>,
+}
+
+impl<'a, F: BlockScaledFormat> ScaledTensorSpan<'a, F> {
+    /// Mutably borrow the packed element values.
+    pub fn elements(&mut self) -> &mut TensorSpan<'a, F::Element> {
+        &mut self.elements
+    }
+
+    /// Mutably borrow the per-block scale bytes.
+    pub fn block_scales(&mut self) -> &mut TensorSpan<'a, F::Scale> {
+        &mut self.block_scales
+    }
+
+    /// The per-tensor multiplier (`Some` for NVFP4, `None` for the MX family).
+    pub fn tensor_scale(&self) -> Option<f32> {
+        self.tensor_scale
+    }
+
+    /// Reborrow as a read-only [`ScaledTensorView`].
+    pub fn as_view(&self) -> ScaledTensorView<'_, F> {
+        ScaledTensorView {
+            elements: self.elements.as_view(),
+            block_scales: self.block_scales.as_view(),
+            tensor_scale: self.tensor_scale,
+        }
+    }
+}
+
+// endregion: Block-Scaled Tensor
 
 // region: Tests
 

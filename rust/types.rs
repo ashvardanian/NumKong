@@ -1269,6 +1269,146 @@ impl core::cmp::PartialOrd for e3m2 {
 
 // endregion: e3m2 Type
 
+// region: Block-Scale Bytes (Ue4m3, Ue8m0)
+
+/// NVFP4 per-block scale byte: an unsigned E4M3 magnitude (sign bit forced to 0).
+///
+/// Stores one scale per 16-element NVFP4 block. Layout matches `nk_ue4m3_t` (1 byte).
+/// Decodes to a positive `f32` multiplier; `from_f32` takes the absolute value.
+///
+/// # Examples
+///
+/// ```
+/// use numkong::Ue4m3;
+///
+/// let scale = Ue4m3::from_f32(2.0);
+/// assert_eq!(scale.to_f32(), 2.0);
+/// ```
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub struct Ue4m3(pub u8);
+
+impl Ue4m3 {
+    /// The all-zero byte (decodes to 0.0).
+    pub const ZERO: Self = Ue4m3(0x00);
+
+    /// Encodes an `f32` magnitude into a UE4M3 scale byte (absolute value, round-to-nearest).
+    ///
+    /// UE4M3 is E4M3 with the sign bit forced to 0, so this reuses the linkable E4M3 encoder
+    /// on `|value|` and masks off the sign. NaN maps to the E4M3 NaN code (`0x7F`).
+    #[inline(always)]
+    pub fn from_f32(value: f32) -> Self {
+        if value.is_nan() {
+            return Ue4m3(0x7F);
+        }
+        let encoded = e4m3::from_f32(f32_abs_compat(value));
+        Ue4m3(encoded.0 & 0x7F)
+    }
+
+    /// Decodes this UE4M3 scale byte to a non-negative `f32` multiplier.
+    #[inline(always)]
+    pub fn to_f32(self) -> f32 {
+        e4m3(self.0 & 0x7F).to_f32()
+    }
+}
+
+impl core::fmt::Debug for Ue4m3 {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Ue4m3({}, 0x{:02x})", self.to_f32(), self.0)
+    }
+}
+
+impl StorageElement for Ue4m3 {
+    fn zero() -> Self {
+        Ue4m3(0)
+    }
+    fn one() -> Self {
+        Ue4m3::from_f32(1.0)
+    }
+}
+
+/// MX-family per-block scale byte: an unsigned power-of-two exponent (UE8M0).
+///
+/// Stores one scale per 32-element MX block. Layout matches `nk_ue8m0_t` (1 byte).
+/// Decodes to a positive power-of-two `f32` multiplier; `from_f32` rounds the
+/// magnitude UP to the smallest power of two that is ≥ `|value|`.
+///
+/// # Examples
+///
+/// ```
+/// use numkong::Ue8m0;
+///
+/// let scale = Ue8m0::from_f32(4.0);
+/// assert_eq!(scale.to_f32(), 4.0);
+/// ```
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub struct Ue8m0(pub u8);
+
+impl Ue8m0 {
+    /// Encodes an `f32` magnitude into a UE8M0 scale byte.
+    ///
+    /// Rounds the magnitude to the NEAREST power of two (round-to-nearest in log2 space, the
+    /// OCP MX convention; the split point is the geometric midpoint √2·2ᵉ). NaN → `0xFF`
+    /// (block-NaN sentinel), zero/subnormal → `0x00`, overflow/±∞ → `0xFE`.
+    #[inline(always)]
+    pub fn from_f32(value: f32) -> Self {
+        let abs_bits = value.to_bits() & 0x7FFF_FFFF;
+        if abs_bits > 0x7F80_0000 {
+            return Ue8m0(0xFF); // NaN
+        }
+        if abs_bits < 0x0080_0000 {
+            return Ue8m0(0x00); // zero or subnormal
+        }
+        if abs_bits == 0x7F80_0000 {
+            return Ue8m0(0xFE); // +Inf → saturate
+        }
+        let mut exp_biased = abs_bits >> 23;
+        let mantissa = abs_bits & 0x7F_FFFF;
+        // Round exponent to nearest: midpoint mantissa fraction √2-1 ≈ 0x3504F4.
+        if mantissa >= 0x3504F4 {
+            exp_biased += 1;
+        }
+        if exp_biased > 0xFE {
+            return Ue8m0(0xFE); // saturate
+        }
+        Ue8m0(exp_biased as u8)
+    }
+
+    /// Decodes this UE8M0 scale byte to a power-of-two `f32` multiplier.
+    ///
+    /// `0x00` → `0.0`, `0xFF` → NaN, otherwise `2^(byte - 127)`.
+    #[inline(always)]
+    pub fn to_f32(self) -> f32 {
+        let raw = self.0;
+        if raw == 0 {
+            return 0.0;
+        }
+        if raw == 0xFF {
+            return f32::from_bits(0x7FC0_0000); // quiet NaN
+        }
+        // Power of two: f32 with biased exponent = raw, mantissa = 0.
+        f32::from_bits((raw as u32) << 23)
+    }
+}
+
+impl core::fmt::Debug for Ue8m0 {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Ue8m0({}, 0x{:02x})", self.to_f32(), self.0)
+    }
+}
+
+impl StorageElement for Ue8m0 {
+    fn zero() -> Self {
+        Ue8m0(0)
+    }
+    fn one() -> Self {
+        Ue8m0::from_f32(1.0)
+    }
+}
+
+// endregion: Block-Scale Bytes (Ue4m3, Ue8m0)
+
 // region: From<f32> Conversions
 
 impl From<f32> for f16 {

@@ -83,10 +83,14 @@ typedef struct {
  *  Codes deliberately omitted (we never emit or accept them):
  *  3 (`kDLOpaqueHandle`), 6 (`kDLBool`), 7 (`kDLFloat8_e3m4`),
  *  8 (`kDLFloat8_e4m3`), 9 (`kDLFloat8_e4m3b11fnuz`),
- *  11 (`kDLFloat8_e4m3fnuz`), 13 (`kDLFloat8_e5m2fnuz`),
- *  14 (`kDLFloat8_e8m0fnu`), 17 (`kDLFloat4_e2m1fn`).
+ *  11 (`kDLFloat8_e4m3fnuz`), 13 (`kDLFloat8_e5m2fnuz`).
  *
  *  Adding any of those is a deliberate, reviewable change.
+ *
+ *  Codes 14 (`kDLFloat8_e8m0fnu`) and 17 (`kDLFloat4_e2m1fn`) carry the
+ *  block-scaled element/scale bytes (MX UE8M0 scale, FP4 E2M1 element). We
+ *  exchange the raw element buffer; the per-block scales and any per-tensor
+ *  global travel separately through the `block_scaled_*` module functions.
  */
 typedef enum {
     kDLInt = 0,
@@ -96,8 +100,10 @@ typedef enum {
     kDLComplex = 5,
     kDLFloat8_e4m3fn = 10,
     kDLFloat8_e5m2 = 12,
+    kDLFloat8_e8m0fnu = 14,
     kDLFloat6_e2m3fn = 15,
     kDLFloat6_e3m2fn = 16,
+    kDLFloat4_e2m1fn = 17,
 } DLDataTypeCode;
 
 /**

@@ -128,7 +128,7 @@ NK_PUBLIC void nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t row_count, 
     nk_size_t const tile_dim = nk_smebi32_tile_dim_();        // 16 rows per tile
     nk_size_t const depth_tile_size = nk_smebi32_tile_dim_(); // 16 u32 per depth tile
     nk_size_t const tile_elements = tile_dim * depth_tile_size;
-    nk_size_t const depth_bytes = depth_bits / 8;
+    nk_size_t const depth_bytes = nk_size_divide_round_up_(depth_bits, NK_BITS_PER_BYTE);
 
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
     // handles one u32 (32 bits) across all row×column pairs simultaneously.
@@ -216,7 +216,7 @@ __arm_new("za") static void nk_hammings_packed_u1_smebi32_streaming_( //
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
     // handles one u32 (32 bits) across all row×column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
-    nk_size_t const depth_bytes = depth_bits / 8;
+    nk_size_t const depth_bytes = nk_size_divide_round_up_(depth_bits, NK_BITS_PER_BYTE);
 
     nk_u32_t const *b_tiles = (nk_u32_t const *)((char const *)b_packed + sizeof(nk_sets_smebi32_packed_header_t));
 
@@ -367,7 +367,7 @@ __arm_new("za") static void nk_hammings_symmetric_u1_smebi32_streaming_( //
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
     // handles one u32 (32 bits) across all row×column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
-    nk_size_t const depth_bytes = depth_bits / 8;
+    nk_size_t const depth_bytes = nk_size_divide_round_up_(depth_bits, NK_BITS_PER_BYTE);
     nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth_words, depth_tile_size);
 
     svbool_t const predicate_all_b32x = svptrue_b32();
@@ -597,7 +597,7 @@ __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
     // handles one u32 (32 bits) across all row×column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
-    nk_size_t const depth_bytes = depth_bits / 8;
+    nk_size_t const depth_bytes = nk_size_divide_round_up_(depth_bits, NK_BITS_PER_BYTE);
 
     nk_u32_t const *b_tiles = (nk_u32_t const *)((char const *)b_packed + sizeof(nk_sets_smebi32_packed_header_t));
     nk_u32_t const *b_norms = header->norms_offset ? (nk_u32_t const *)((char const *)b_packed + header->norms_offset)
@@ -822,7 +822,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
     // handles one u32 (32 bits) across all row×column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
     nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth_words, depth_tile_size);
-    nk_size_t const depth_bytes = depth_bits / 8;
+    nk_size_t const depth_bytes = nk_size_divide_round_up_(depth_bits, NK_BITS_PER_BYTE);
 
     svbool_t const predicate_all_b32x = svptrue_b32();
     svfloat32_t const depth_f32x = svdup_f32((nk_f32_t)(depth_words * 32));

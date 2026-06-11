@@ -1652,8 +1652,10 @@ NK_PUBLIC void nk_ue8m0_to_f32_serial(nk_ue8m0_t const *src, nk_f32_t *dest) {
 }
 
 /** @brief Convert f32 magnitude to UE8M0 pow-2 scale byte.
- *  Rounds UP to the smallest power of two ≥ |x| so the block's max-magnitude element does not clip.
- *  NaN → 0xFF (block-NaN sentinel). Zero or subnormal → 0x00. Overflow → 0xFE. */
+ *  Rounds to the NEAREST power of two (round-to-nearest-even in log2 space) — the OCP MX / NVIDIA /
+ *  AMD convention. Plain ceil/floor biases the block's dynamic range (floor underestimates it), so
+ *  we split at the geometric midpoint sqrt(2)·2^e. NaN → 0xFF (block-NaN sentinel). Zero or
+ *  subnormal → 0x00. Overflow → 0xFE. */
 NK_PUBLIC void nk_f32_to_ue8m0_serial(nk_f32_t const *src, nk_ue8m0_t *dest) {
     nk_fui32_t conv;
     conv.f = *src;
@@ -1672,12 +1674,40 @@ NK_PUBLIC void nk_f32_to_ue8m0_serial(nk_f32_t const *src, nk_ue8m0_t *dest) {
     } // +Inf → saturate
     nk_u32_t exp_biased = abs_bits >> 23;
     nk_u32_t mantissa = abs_bits & 0x7FFFFFu;
-    if (mantissa != 0) ++exp_biased; // ceil to next pow-2
+    // Round exponent to nearest: midpoint is the mantissa fraction sqrt(2)-1 ≈ 0.41421356,
+    // i.e. mantissa >= (sqrt(2)-1)*2^23 = 0x3504F4. (sqrt(2) is irrational → no exact tie.)
+    if (mantissa >= 0x3504F4u) ++exp_biased;
     if (exp_biased > 0xFE) {
         *dest = 0xFE;
         return;
-    } // saturate after round-up
+    } // saturate
     *dest = (nk_ue8m0_t)exp_biased;
+}
+
+/** @brief OCP MX v1.0 shared-scale byte for a block of abs-max @p amax whose element format has
+ *  largest magnitude @p element_max: `X = 2^(floor(log2 amax) - floor(log2 element_max))`.
+ *
+ *  This is the spec/reference formula (microxcaling, NVIDIA/AMD HW), computed on the f32 exponent
+ *  fields directly — no division, no rounding of the scale itself. Picking the scale on exponents
+ *  alone keeps the element format's mantissa headroom (e.g. E4M3 reaches 1.75·2^8) as anti-clip
+ *  margin: `amax / X = mantissa(amax) · 2^emax_elem ∈ [2^emax_elem, 2^(emax_elem+1))`, so only an
+ *  amax whose mantissa exceeds the element's max mantissa saturates (≤12.5% on E4M3), versus the
+ *  up-to-2× clip you get from rounding `amax/element_max` to the nearest power of two.
+ *  NaN/Inf amax → 0xFF (block-NaN sentinel); zero/subnormal amax → 0x00. */
+NK_INTERNAL nk_u8_t nk_f32_block_amax_to_ue8m0_serial_(nk_f32_t amax, nk_f32_t element_max) {
+    nk_fui32_t amax_conv, element_conv;
+    amax_conv.f = amax;
+    element_conv.f = element_max;
+    nk_u32_t amax_abs = amax_conv.u & 0x7FFFFFFFu;
+    if (amax_abs > 0x7F800000u) return 0xFF;                           // NaN → block-NaN sentinel
+    if (amax_abs == 0x7F800000u) return 0xFE;                          // Inf → saturate to the largest scale (OCP SAT)
+    if (amax_abs < 0x00800000u) return 0x00;                           // zero or subnormal → smallest scale
+    nk_i32_t amax_exp = (nk_i32_t)(amax_abs >> 23);                    // 127 + floor(log2 amax)
+    nk_i32_t element_exp = (nk_i32_t)((element_conv.u >> 23) & 0xFFu); // 127 + floor(log2 element_max)
+    nk_i32_t scale_byte = amax_exp - element_exp + 127;                // 127 + (floor log2 amax - floor log2 max)
+    if (scale_byte < 0) scale_byte = 0;
+    if (scale_byte > 0xFE) scale_byte = 0xFE; // 0xFF reserved for the NaN sentinel
+    return (nk_u8_t)scale_byte;
 }
 
 /** @brief Convert UE4M3 (NVFP4 scale byte: E4M3 with sign bit forced to 0) to f32. */
@@ -1686,14 +1716,19 @@ NK_PUBLIC void nk_ue4m3_to_f32_serial(nk_ue4m3_t const *src, nk_f32_t *dest) {
     nk_e4m3_to_f32_serial(&raw, dest);
 }
 
-/** @brief Convert f32 magnitude to UE4M3 scale byte.
- *  Negative inputs saturate to 0 (sign bit is not representable). NaN → NaN-encoding of E4M3. */
+/** @brief Convert f32 magnitude to UE4M3 (NVFP4) scale byte.
+ *  Round-to-nearest-even, matching the NVFP4 / OCP scale convention (the underlying E4M3 encoder is
+ *  RNE). Negative inputs saturate to 0 (sign bit is not representable). NaN → E4M3 NaN code (0x7F). */
 NK_PUBLIC void nk_f32_to_ue4m3_serial(nk_f32_t const *src, nk_ue4m3_t *dest) {
     nk_fui32_t conv;
     conv.f = *src;
     conv.u &= 0x7FFFFFFFu; // take absolute value before encoding
+    if (conv.u > 0x7F800000u) {
+        *dest = 0x7F;
+        return;
+    } // NaN → E4M3 NaN code
     nk_e4m3_t encoded;
-    nk_f32_to_e4m3_serial(&conv.f, &encoded);
+    nk_f32_to_e4m3_serial(&conv.f, &encoded); // RNE
     *dest = (nk_ue4m3_t)((nk_u8_t)encoded & 0x7F);
 }
 
@@ -2007,7 +2042,7 @@ NK_INTERNAL void nk_scalar_buffers_to_f64c_(                           //
     // variable-length memcpy and type-punned read on the same union —
     // a pattern that triggers an ICE in MSVC's ARM64 optimizer (C1001).
     default: {
-        nk_size_t stride = nk_dtype_bits(from_dtype) / NK_BITS_PER_BYTE;
+        nk_size_t stride = nk_size_divide_round_up_(nk_dtype_bits(from_dtype), NK_BITS_PER_BYTE);
         nk_scalar_buffer_t staged;
         for (i = 0; i < from_count; ++i) {
             staged.u64 = 0;
@@ -2143,7 +2178,7 @@ NK_INTERNAL void nk_scalar_buffers_from_f64c_(              //
     } break;
     // All byte-or-larger types: convert, then store relevant bytes
     default: {
-        nk_size_t stride = nk_dtype_bits(to_dtype) / NK_BITS_PER_BYTE;
+        nk_size_t stride = nk_size_divide_round_up_(nk_dtype_bits(to_dtype), NK_BITS_PER_BYTE);
         nk_scalar_buffer_t tmp;
         for (i = 0; i < to_count; ++i) {
             nk_scalar_buffer_from_f64c(&from_buffers[i].f64c, &tmp, to_dtype);
@@ -2499,6 +2534,18 @@ NK_INTERNAL nk_f32_t nk_element_max_representable_(nk_dtype_t element_dtype) {
     }
 }
 
+/** @brief Block abs-max over n f32 values; propagates NaN so a NaN-containing block yields the
+ *  scale dtype's NaN sentinel (0xFF for UE8M0) instead of silently dropping the NaN. */
+NK_INTERNAL nk_f32_t nk_block_amax_f32_serial_(nk_f32_t const *src, nk_size_t n) {
+    nk_f32_t amax = 0.0f;
+    for (nk_size_t i = 0; i < n; ++i) {
+        nk_f32_t a = src[i] < 0 ? -src[i] : src[i];
+        if (a != a) return a; // NaN → scale becomes the format's NaN sentinel
+        if (a > amax) amax = a;
+    }
+    return amax;
+}
+
 /** @brief Decode a block's scale byte into f32 (UE8M0 or UE4M3). */
 NK_INTERNAL nk_f32_t nk_block_scaled_decode_scale_serial_(nk_u8_t raw_scale, nk_dtype_t scale_dtype) {
     nk_f32_t result = 0.0f;
@@ -2507,18 +2554,28 @@ NK_INTERNAL nk_f32_t nk_block_scaled_decode_scale_serial_(nk_u8_t raw_scale, nk_
     return result;
 }
 
-/** @brief Encode a block scale from f32 into the scale_dtype byte representation. */
-NK_INTERNAL nk_u8_t nk_block_scaled_encode_scale_serial_(nk_f32_t value, nk_dtype_t scale_dtype) {
+/** @brief Pick a block's scale byte from its abs-max @p block_amax (element format max @p element_max,
+ *  per-tensor multiplier @p tensor_scale, scale dtype @p scale_dtype).
+ *
+ *  - UE8M0 (OCP MX): spec floor formula via `nk_f32_block_amax_to_ue8m0_serial_` (MX carries no
+ *    per-tensor scale, so @p tensor_scale is 1 here and unused).
+ *  - UE4M3 (NVFP4): per-block scale relative to the per-tensor f32 scale, round-to-nearest-even
+ *    (UE4M3's 3 mantissa bits make scale clipping negligible). */
+NK_INTERNAL nk_u8_t nk_block_scaled_encode_scale_serial_(nk_f32_t block_amax, nk_f32_t element_max,
+                                                         nk_f32_t tensor_scale, nk_dtype_t scale_dtype) {
     nk_u8_t raw = 0;
-    if (scale_dtype == nk_ue8m0_k) nk_f32_to_ue8m0_serial(&value, &raw);
-    else if (scale_dtype == nk_ue4m3_k) nk_f32_to_ue4m3_serial(&value, &raw);
+    if (scale_dtype == nk_ue8m0_k) { raw = nk_f32_block_amax_to_ue8m0_serial_(block_amax, element_max); }
+    else if (scale_dtype == nk_ue4m3_k) {
+        nk_f32_t scale_target = block_amax / element_max / tensor_scale;
+        nk_f32_to_ue4m3_serial(&scale_target, &raw);
+    }
     return raw;
 }
 
-NK_PUBLIC void nk_nvfp4_to_f32x16_serial(nk_nvfp4_t const *src, nk_f32_t global, nk_f32_t *dest) {
+NK_PUBLIC void nk_nvfp4_to_f32x16_serial(nk_nvfp4_t const *src, nk_f32_t tensor_scale, nk_f32_t *dest) {
     nk_f32_t scale_f32;
     nk_ue4m3_to_f32_serial(&src->scale_, &scale_f32);
-    nk_f32_t effective_scale = scale_f32 * global;
+    nk_f32_t effective_scale = scale_f32 * tensor_scale;
     for (nk_size_t i = 0; i < 16; i += 2) {
         nk_e2m1x2_to_f32x2_serial(&src->elements_[i / 2], dest + i);
         dest[i] *= effective_scale;
@@ -2526,17 +2583,13 @@ NK_PUBLIC void nk_nvfp4_to_f32x16_serial(nk_nvfp4_t const *src, nk_f32_t global,
     }
 }
 
-NK_PUBLIC void nk_f32x16_to_nvfp4_serial(nk_f32_t const *src, nk_f32_t global, nk_nvfp4_t *dest) {
-    nk_f32_t block_amax = 0.0f;
-    for (nk_size_t i = 0; i < 16; ++i) {
-        nk_f32_t absolute = src[i] < 0 ? -src[i] : src[i];
-        if (absolute > block_amax) block_amax = absolute;
-    }
-    nk_f32_t scale_target = block_amax / 6.0f / (global != 0.0f ? global : 1.0f);
+NK_PUBLIC void nk_f32x16_to_nvfp4_serial(nk_f32_t const *src, nk_f32_t tensor_scale, nk_nvfp4_t *dest) {
+    nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 16);
+    nk_f32_t scale_target = block_amax / 6.0f / (tensor_scale != 0.0f ? tensor_scale : 1.0f);
     nk_f32_to_ue4m3_serial(&scale_target, &dest->scale_);
     nk_f32_t scale_f32;
     nk_ue4m3_to_f32_serial(&dest->scale_, &scale_f32);
-    nk_f32_t effective_scale = scale_f32 * global;
+    nk_f32_t effective_scale = scale_f32 * tensor_scale;
     nk_f32_t reciprocal = effective_scale > 0.0f ? 1.0f / effective_scale : 0.0f;
     nk_f32_t scaled[2];
     for (nk_size_t i = 0; i < 16; i += 2) {
@@ -2557,13 +2610,8 @@ NK_PUBLIC void nk_mxfp4_to_f32x32_serial(nk_mxfp4_t const *src, nk_f32_t *dest) 
 }
 
 NK_PUBLIC void nk_f32x32_to_mxfp4_serial(nk_f32_t const *src, nk_mxfp4_t *dest) {
-    nk_f32_t block_amax = 0.0f;
-    for (nk_size_t i = 0; i < 32; ++i) {
-        nk_f32_t absolute = src[i] < 0 ? -src[i] : src[i];
-        if (absolute > block_amax) block_amax = absolute;
-    }
-    nk_f32_t scale_target = block_amax / 6.0f;
-    nk_f32_to_ue8m0_serial(&scale_target, &dest->scale_);
+    nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
+    dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 6.0f);
     nk_f32_t scale_f32;
     nk_ue8m0_to_f32_serial(&dest->scale_, &scale_f32);
     nk_f32_t reciprocal = scale_f32 > 0.0f ? 1.0f / scale_f32 : 0.0f;
@@ -2585,13 +2633,8 @@ NK_PUBLIC void nk_mxfp6_e2m3_to_f32x32_serial(nk_mxfp6_e2m3_t const *src, nk_f32
 }
 
 NK_PUBLIC void nk_f32x32_to_mxfp6_e2m3_serial(nk_f32_t const *src, nk_mxfp6_e2m3_t *dest) {
-    nk_f32_t block_amax = 0.0f;
-    for (nk_size_t i = 0; i < 32; ++i) {
-        nk_f32_t absolute = src[i] < 0 ? -src[i] : src[i];
-        if (absolute > block_amax) block_amax = absolute;
-    }
-    nk_f32_t scale_target = block_amax / 7.5f;
-    nk_f32_to_ue8m0_serial(&scale_target, &dest->scale_);
+    nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
+    dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 7.5f);
     nk_f32_t scale_f32;
     nk_ue8m0_to_f32_serial(&dest->scale_, &scale_f32);
     nk_f32_t reciprocal = scale_f32 > 0.0f ? 1.0f / scale_f32 : 0.0f;
@@ -2611,13 +2654,8 @@ NK_PUBLIC void nk_mxfp6_e3m2_to_f32x32_serial(nk_mxfp6_e3m2_t const *src, nk_f32
 }
 
 NK_PUBLIC void nk_f32x32_to_mxfp6_e3m2_serial(nk_f32_t const *src, nk_mxfp6_e3m2_t *dest) {
-    nk_f32_t block_amax = 0.0f;
-    for (nk_size_t i = 0; i < 32; ++i) {
-        nk_f32_t absolute = src[i] < 0 ? -src[i] : src[i];
-        if (absolute > block_amax) block_amax = absolute;
-    }
-    nk_f32_t scale_target = block_amax / 28.0f;
-    nk_f32_to_ue8m0_serial(&scale_target, &dest->scale_);
+    nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
+    dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 28.0f);
     nk_f32_t scale_f32;
     nk_ue8m0_to_f32_serial(&dest->scale_, &scale_f32);
     nk_f32_t reciprocal = scale_f32 > 0.0f ? 1.0f / scale_f32 : 0.0f;
@@ -2637,13 +2675,8 @@ NK_PUBLIC void nk_mxfp8_e4m3_to_f32x32_serial(nk_mxfp8_e4m3_t const *src, nk_f32
 }
 
 NK_PUBLIC void nk_f32x32_to_mxfp8_e4m3_serial(nk_f32_t const *src, nk_mxfp8_e4m3_t *dest) {
-    nk_f32_t block_amax = 0.0f;
-    for (nk_size_t i = 0; i < 32; ++i) {
-        nk_f32_t absolute = src[i] < 0 ? -src[i] : src[i];
-        if (absolute > block_amax) block_amax = absolute;
-    }
-    nk_f32_t scale_target = block_amax / 448.0f;
-    nk_f32_to_ue8m0_serial(&scale_target, &dest->scale_);
+    nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
+    dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 448.0f);
     nk_f32_t scale_f32;
     nk_ue8m0_to_f32_serial(&dest->scale_, &scale_f32);
     nk_f32_t reciprocal = scale_f32 > 0.0f ? 1.0f / scale_f32 : 0.0f;
@@ -2663,13 +2696,8 @@ NK_PUBLIC void nk_mxfp8_e5m2_to_f32x32_serial(nk_mxfp8_e5m2_t const *src, nk_f32
 }
 
 NK_PUBLIC void nk_f32x32_to_mxfp8_e5m2_serial(nk_f32_t const *src, nk_mxfp8_e5m2_t *dest) {
-    nk_f32_t block_amax = 0.0f;
-    for (nk_size_t i = 0; i < 32; ++i) {
-        nk_f32_t absolute = src[i] < 0 ? -src[i] : src[i];
-        if (absolute > block_amax) block_amax = absolute;
-    }
-    nk_f32_t scale_target = block_amax / 57344.0f;
-    nk_f32_to_ue8m0_serial(&scale_target, &dest->scale_);
+    nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
+    dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 57344.0f);
     nk_f32_t scale_f32;
     nk_ue8m0_to_f32_serial(&dest->scale_, &scale_f32);
     nk_f32_t reciprocal = scale_f32 > 0.0f ? 1.0f / scale_f32 : 0.0f;
@@ -2686,13 +2714,8 @@ NK_PUBLIC void nk_mxint8_to_f32x32_serial(nk_mxint8_t const *src, nk_f32_t *dest
 }
 
 NK_PUBLIC void nk_f32x32_to_mxint8_serial(nk_f32_t const *src, nk_mxint8_t *dest) {
-    nk_f32_t block_amax = 0.0f;
-    for (nk_size_t i = 0; i < 32; ++i) {
-        nk_f32_t absolute = src[i] < 0 ? -src[i] : src[i];
-        if (absolute > block_amax) block_amax = absolute;
-    }
-    nk_f32_t scale_target = block_amax / 127.0f;
-    nk_f32_to_ue8m0_serial(&scale_target, &dest->scale_);
+    nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
+    dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 127.0f);
     nk_f32_t scale_f32;
     nk_ue8m0_to_f32_serial(&dest->scale_, &scale_f32);
     nk_f32_t reciprocal = scale_f32 > 0.0f ? 1.0f / scale_f32 : 0.0f;
@@ -2764,16 +2787,16 @@ NK_PUBLIC nk_block_scaled_format_t nk_block_scaled_format_of_dtype(nk_dtype_t dt
  *  Shape of the inner loop (unified across encode / decode / transcode):
  *
  *      for each chunk of lcm(from_block, to_block) elements:
- *          decode the chunk into an f32 scratch buffer (apply source scale + global if block-scaled)
+ *          decode the chunk into an f32 scratch buffer (apply source scale + tensor_scale if block-scaled)
  *          encode the scratch buffer into destination (derive per-block amax + scale if block-scaled)
  *
  *  Element codec steps reuse `nk_cast_serial` for correctness across every element dtype
  *  (including packed E2M1) rather than duplicating per-dtype logic here.
  */
-NK_PUBLIC void nk_cast_block_scaled_serial(                                                              //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_global,                    //
-    nk_block_scaled_format_t const *from_format,                                                         //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_global, nk_block_scaled_format_t const *to_format, //
+NK_PUBLIC void nk_cast_block_scaled_serial(                                                                    //
+    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
+    nk_block_scaled_format_t const *from_format,                                                               //
+    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count) {
 
     int from_plain = (from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0);
@@ -2790,18 +2813,19 @@ NK_PUBLIC void nk_cast_block_scaled_serial(                                     
     nk_size_t chunk = from_block > to_block ? from_block : to_block; // LCM of {16, 32, 1}
 
     // Global multipliers (NVFP4 tensor-scale). Absent → identity.
-    nk_f32_t from_global_f32 = 1.0f;
-    if (from_global != NULL && !from_plain && from_format->global_dtype == nk_f32_k) from_global_f32 = from_global->f32;
+    nk_f32_t from_tensor_scale_f32 = 1.0f;
+    if (from_tensor_scale != NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k)
+        from_tensor_scale_f32 = from_tensor_scale->f32;
 
-    // If a non-plain destination has a zero-initialised global pointer, derive it from the tensor
+    // If a non-plain destination has a zero-initialised tensor_scale pointer, derive it from the tensor
     // amax so block scales stay within the scale dtype's range (NVFP4 calibration convention).
-    nk_f32_t to_global_f32 = 1.0f;
-    int to_has_global = (!to_plain && to_global != NULL && to_format->global_dtype == nk_f32_k);
-    if (to_has_global) {
-        to_global_f32 = to_global->f32;
-        if (to_global_f32 == 0.0f) {
+    nk_f32_t to_tensor_scale_f32 = 1.0f;
+    int to_has_tensor_scale = (!to_plain && to_tensor_scale != NULL && to_format->tensor_scale_dtype == nk_f32_k);
+    if (to_has_tensor_scale) {
+        to_tensor_scale_f32 = to_tensor_scale->f32;
+        if (to_tensor_scale_f32 == 0.0f) {
             nk_f32_t tensor_amax = 0.0f;
-            // Scan source (may be plain or block-scaled) to find global amax.
+            // Scan source (may be plain or block-scaled) to find tensor_scale amax.
             for (nk_size_t i = 0; i < count; i += from_block) {
                 nk_f32_t block_f32[32];
                 nk_size_t block_count = (i + from_block <= count) ? from_block : (count - i);
@@ -2811,7 +2835,8 @@ NK_PUBLIC void nk_cast_block_scaled_serial(                                     
                 nk_f32_t src_scale = 1.0f;
                 if (!from_plain) {
                     nk_u8_t raw = ((nk_u8_t const *)from_scales)[i / from_block];
-                    src_scale = nk_block_scaled_decode_scale_serial_(raw, from_format->scale_dtype) * from_global_f32;
+                    src_scale = nk_block_scaled_decode_scale_serial_(raw, from_format->scale_dtype) *
+                                from_tensor_scale_f32;
                 }
                 for (nk_size_t k = 0; k < block_count; ++k) {
                     nk_f32_t v = block_f32[k] * src_scale;
@@ -2819,11 +2844,11 @@ NK_PUBLIC void nk_cast_block_scaled_serial(                                     
                     if (a > tensor_amax) tensor_amax = a;
                 }
             }
-            // NVFP4 spec: global = tensor_amax / (element_max × scale_max)
+            // NVFP4 spec: tensor_scale = tensor_amax / (element_max × scale_max)
             nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
             nk_f32_t scale_max = (to_format->scale_dtype == nk_ue4m3_k) ? 448.0f : 1.0f;
-            to_global_f32 = tensor_amax > 0 ? tensor_amax / (element_max * scale_max) : 1.0f;
-            to_global->f32 = to_global_f32;
+            to_tensor_scale_f32 = tensor_amax > 0 ? tensor_amax / (element_max * scale_max) : 1.0f;
+            to_tensor_scale->f32 = to_tensor_scale_f32;
         }
     }
 
@@ -2843,14 +2868,15 @@ NK_PUBLIC void nk_cast_block_scaled_serial(                                     
         }
         else {
             for (nk_size_t b = 0; b < chunk_count; b += from_block) {
+                nk_size_t valid = (chunk_count - b) < from_block ? (chunk_count - b) : from_block;
                 nk_size_t block_idx = (chunk_start + b) / from_block;
                 nk_u8_t raw = from_scales_bytes[block_idx];
                 nk_f32_t scale_f32 = nk_block_scaled_decode_scale_serial_(raw, from_format->scale_dtype) *
-                                     from_global_f32;
+                                     from_tensor_scale_f32;
                 void const *src = (nk_u8_t const *)from +
                                   ((chunk_start + b) * from_bits_per_element / NK_BITS_PER_BYTE);
-                nk_cast_serial(src, from_format->element_dtype, from_block, scratch + b, nk_f32_k);
-                for (nk_size_t k = 0; k < from_block; ++k) scratch[b + k] *= scale_f32;
+                nk_cast_serial(src, from_format->element_dtype, valid, scratch + b, nk_f32_k);
+                for (nk_size_t k = 0; k < valid; ++k) scratch[b + k] *= scale_f32;
             }
         }
 
@@ -2862,24 +2888,29 @@ NK_PUBLIC void nk_cast_block_scaled_serial(                                     
         else {
             nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
             for (nk_size_t b = 0; b < chunk_count; b += to_block) {
-                nk_f32_t block_amax = 0.0f;
-                for (nk_size_t k = 0; k < to_block; ++k) {
-                    nk_f32_t a = scratch[b + k] < 0 ? -scratch[b + k] : scratch[b + k];
-                    if (a > block_amax) block_amax = a;
-                }
-                // Target scale = amax / (element_max × global). For UE8M0 this rounds up to pow-2.
-                nk_f32_t scale_target = block_amax / element_max / to_global_f32;
-                nk_u8_t raw = nk_block_scaled_encode_scale_serial_(scale_target, to_format->scale_dtype);
+                nk_size_t valid = (chunk_count - b) < to_block ? (chunk_count - b) : to_block;
+                // amax over the valid lanes only (the trailing block may be partial; NaN propagates).
+                nk_f32_t block_amax = nk_block_amax_f32_serial_(scratch + b, valid);
+                nk_u8_t raw = nk_block_scaled_encode_scale_serial_(block_amax, element_max, to_tensor_scale_f32,
+                                                                   to_format->scale_dtype);
                 nk_size_t block_idx = (chunk_start + b) / to_block;
                 to_scales_bytes[block_idx] = raw;
                 // Recover the exact effective scale after rounding to apply the reciprocal.
                 nk_f32_t effective_scale = nk_block_scaled_decode_scale_serial_(raw, to_format->scale_dtype) *
-                                           to_global_f32;
+                                           to_tensor_scale_f32;
                 nk_f32_t reciprocal = effective_scale > 0 ? (1.0f / effective_scale) : 0.0f;
                 nk_f32_t encoded_scratch[32];
-                for (nk_size_t k = 0; k < to_block; ++k) encoded_scratch[k] = scratch[b + k] * reciprocal;
+                for (nk_size_t k = 0; k < valid; ++k) encoded_scratch[k] = scratch[b + k] * reciprocal;
                 void *dst = (nk_u8_t *)to + ((chunk_start + b) * to_bits_per_element / NK_BITS_PER_BYTE);
-                nk_cast_serial(encoded_scratch, nk_f32_k, to_block, dst, to_format->element_dtype);
+                // Write only the valid elements: the elements buffer is sized for `count` (rounded to
+                // bytes), not whole blocks, so writing a full to_block on a partial tail overflows.
+                /* Saturate to element_max: finite inputs must not overflow to +/-inf (E5M2 has inf; OCP SAT). */
+                for (nk_size_t saturate_index = 0; saturate_index < valid; ++saturate_index) {
+                    if (encoded_scratch[saturate_index] > element_max) encoded_scratch[saturate_index] = element_max;
+                    else if (encoded_scratch[saturate_index] < -element_max)
+                        encoded_scratch[saturate_index] = -element_max;
+                }
+                nk_cast_serial(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype);
             }
         }
     }

@@ -472,12 +472,12 @@ NK_PUBLIC void nk_cast_v128relaxed(void const *from, nk_dtype_t from_type, nk_si
     // F32 hub: 4 elements per iteration
     nk_size_t batches = n / 4;
     nk_size_t tail = n % 4;
-    nk_size_t from_step = 4 * nk_dtype_bits(from_type) / 8;
-    nk_size_t to_step = 4 * nk_dtype_bits(to_type) / 8;
+    nk_size_t from_step = nk_size_divide_round_up_(4 * nk_dtype_bits(from_type), NK_BITS_PER_BYTE);
+    nk_size_t to_step = nk_size_divide_round_up_(4 * nk_dtype_bits(to_type), NK_BITS_PER_BYTE);
     nk_u8_t const *from_ptr = (nk_u8_t const *)from;
     nk_u8_t *to_ptr = (nk_u8_t *)to;
 
-    for (nk_size_t idx = 0; idx < batches; ++idx, from_ptr += from_step, to_ptr += to_step) {
+    for (nk_size_t i = 0; i < batches; ++i, from_ptr += from_step, to_ptr += to_step) {
         nk_b128_vec_t hub_vec;
 
         // Upcast to f32x4 hub using size-appropriate loads

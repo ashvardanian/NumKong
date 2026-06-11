@@ -2834,7 +2834,7 @@ struct ue8m0_t {
 /**
  *  @brief Unsigned 8-bit E4M3 scale (NVFP4): sign-bit forced to 0, otherwise identical to E4M3.
  *
- *  Range: [0, +448]. Paired with an f32 global multiplier in NVFP4 (block=16) block-scaled format.
+ *  Range: [0, +448]. Paired with an f32 tensor_scale multiplier in NVFP4 (block=16) block-scaled format.
  */
 struct ue4m3_t {
     using raw_t = nk_ue4m3_t;
@@ -5079,7 +5079,7 @@ struct sub_byte_ref<i4x2_t> {
     constexpr sub_byte_ref &operator=(integral_type_ value) noexcept {
         std::int8_t clamped;
         if constexpr (std::is_signed_v<integral_type_>) {
-            clamped = value < integral_type_(-8) ? std::int8_t(-8)
+            clamped = value < integral_type_(-8)  ? std::int8_t(-8)
                       : value > integral_type_(7) ? std::int8_t(7)
                                                   : static_cast<std::int8_t>(value);
         }
@@ -5108,7 +5108,7 @@ struct sub_byte_ref<u4x2_t> {
     constexpr sub_byte_ref &operator=(integral_type_ value) noexcept {
         std::uint8_t clamped;
         if constexpr (std::is_signed_v<integral_type_>) {
-            clamped = value < integral_type_(0) ? std::uint8_t(0)
+            clamped = value < integral_type_(0)    ? std::uint8_t(0)
                       : value > integral_type_(15) ? std::uint8_t(15)
                                                    : static_cast<std::uint8_t>(value);
         }
@@ -5672,15 +5672,16 @@ struct e2m1x2_t {
 /**
  *  @brief NVIDIA NVFP4 block value: 16 E2M1 nibbles + 1 UE4M3 scale byte per value.
  *
- *  Per-tensor f32 global multiplier lives on the enclosing tensor (not per block) and is
+ *  Per-tensor f32 tensor_scale multiplier lives on the enclosing tensor (not per block) and is
  *  passed explicitly to `decode_to` / `encode_from`. `sizeof(nvfp4_t) == 9`, and one value
  *  represents 16 logical elements — `nk::tensor<nvfp4_t>(n)` allocates `⌈n/16⌉ × 9` bytes.
  */
 struct nvfp4_t {
     using raw_t = nk_nvfp4_t;
     using component_t = f32_t;
+    using element_t = e2m1x2_t;
     using scale_t = ue4m3_t;
-    using global_t = f32_t;
+    using tensor_scale_t = f32_t;
     using sub_byte_ref_t = sub_byte_ref<nvfp4_t>;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_nvfp4_k; }
@@ -5698,7 +5699,7 @@ struct nvfp4_t {
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return false; }
     static constexpr bool has_nan() noexcept { return false; }
-    static constexpr bool has_tensor_global() noexcept { return true; }
+    static constexpr bool has_tensor_scale() noexcept { return true; }
 
     static constexpr component_t component_min() noexcept { return component_t(-6.0f); }
     static constexpr component_t component_max() noexcept { return component_t(6.0f); }
@@ -5709,10 +5710,12 @@ struct nvfp4_t {
     constexpr explicit nvfp4_t(raw_t v) noexcept : raw_(v) {}
     static constexpr nvfp4_t from_raw(raw_t r) noexcept { return nvfp4_t {r}; }
 
-    inline void decode_to(float *dest, float global) const noexcept { nk_nvfp4_to_f32x16_serial(&raw_, global, dest); }
-    static inline nvfp4_t encode_from(float const *src, float global) noexcept {
+    inline void decode_to(float *dest, float tensor_scale) const noexcept {
+        nk_nvfp4_to_f32x16_serial(&raw_, tensor_scale, dest);
+    }
+    static inline nvfp4_t encode_from(float const *src, float tensor_scale) noexcept {
         nvfp4_t result;
-        nk_f32x16_to_nvfp4_serial(src, global, &result.raw_);
+        nk_f32x16_to_nvfp4_serial(src, tensor_scale, &result.raw_);
         return result;
     }
 
@@ -5723,8 +5726,9 @@ struct nvfp4_t {
 struct mxfp4_t {
     using raw_t = nk_mxfp4_t;
     using component_t = f32_t;
+    using element_t = e2m1x2_t;
     using scale_t = ue8m0_t;
-    using global_t = void;
+    using tensor_scale_t = void;
     using sub_byte_ref_t = sub_byte_ref<mxfp4_t>;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_mxfp4_k; }
@@ -5742,7 +5746,7 @@ struct mxfp4_t {
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return false; }
     static constexpr bool has_nan() noexcept { return false; }
-    static constexpr bool has_tensor_global() noexcept { return false; }
+    static constexpr bool has_tensor_scale() noexcept { return false; }
 
     static constexpr component_t component_min() noexcept { return component_t(-6.0f); }
     static constexpr component_t component_max() noexcept { return component_t(6.0f); }
@@ -5767,8 +5771,9 @@ struct mxfp4_t {
 struct mxfp6_e2m3_t {
     using raw_t = nk_mxfp6_e2m3_t;
     using component_t = f32_t;
+    using element_t = e2m3_t;
     using scale_t = ue8m0_t;
-    using global_t = void;
+    using tensor_scale_t = void;
     using sub_byte_ref_t = sub_byte_ref<mxfp6_e2m3_t>;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_mxfp6_e2m3_k; }
@@ -5786,7 +5791,7 @@ struct mxfp6_e2m3_t {
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return false; }
     static constexpr bool has_nan() noexcept { return false; }
-    static constexpr bool has_tensor_global() noexcept { return false; }
+    static constexpr bool has_tensor_scale() noexcept { return false; }
 
     static constexpr component_t component_min() noexcept { return component_t(-7.5f); }
     static constexpr component_t component_max() noexcept { return component_t(7.5f); }
@@ -5811,8 +5816,9 @@ struct mxfp6_e2m3_t {
 struct mxfp6_e3m2_t {
     using raw_t = nk_mxfp6_e3m2_t;
     using component_t = f32_t;
+    using element_t = e3m2_t;
     using scale_t = ue8m0_t;
-    using global_t = void;
+    using tensor_scale_t = void;
     using sub_byte_ref_t = sub_byte_ref<mxfp6_e3m2_t>;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_mxfp6_e3m2_k; }
@@ -5830,7 +5836,7 @@ struct mxfp6_e3m2_t {
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return false; }
     static constexpr bool has_nan() noexcept { return false; }
-    static constexpr bool has_tensor_global() noexcept { return false; }
+    static constexpr bool has_tensor_scale() noexcept { return false; }
 
     static constexpr component_t component_min() noexcept { return component_t(-28.0f); }
     static constexpr component_t component_max() noexcept { return component_t(28.0f); }
@@ -5855,8 +5861,9 @@ struct mxfp6_e3m2_t {
 struct mxfp8_e4m3_t {
     using raw_t = nk_mxfp8_e4m3_t;
     using component_t = f32_t;
+    using element_t = e4m3_t;
     using scale_t = ue8m0_t;
-    using global_t = void;
+    using tensor_scale_t = void;
     using sub_byte_ref_t = sub_byte_ref<mxfp8_e4m3_t>;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_mxfp8_e4m3_k; }
@@ -5874,7 +5881,7 @@ struct mxfp8_e4m3_t {
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return false; }
     static constexpr bool has_nan() noexcept { return true; }
-    static constexpr bool has_tensor_global() noexcept { return false; }
+    static constexpr bool has_tensor_scale() noexcept { return false; }
 
     static constexpr component_t component_min() noexcept { return component_t(-448.0f); }
     static constexpr component_t component_max() noexcept { return component_t(448.0f); }
@@ -5899,8 +5906,9 @@ struct mxfp8_e4m3_t {
 struct mxfp8_e5m2_t {
     using raw_t = nk_mxfp8_e5m2_t;
     using component_t = f32_t;
+    using element_t = e5m2_t;
     using scale_t = ue8m0_t;
-    using global_t = void;
+    using tensor_scale_t = void;
     using sub_byte_ref_t = sub_byte_ref<mxfp8_e5m2_t>;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_mxfp8_e5m2_k; }
@@ -5918,7 +5926,7 @@ struct mxfp8_e5m2_t {
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return true; }
     static constexpr bool has_nan() noexcept { return true; }
-    static constexpr bool has_tensor_global() noexcept { return false; }
+    static constexpr bool has_tensor_scale() noexcept { return false; }
 
     static constexpr component_t component_min() noexcept { return component_t(-57344.0f); }
     static constexpr component_t component_max() noexcept { return component_t(57344.0f); }
@@ -5943,8 +5951,9 @@ struct mxfp8_e5m2_t {
 struct mxint8_t {
     using raw_t = nk_mxint8_t;
     using component_t = i8_t;
+    using element_t = i8_t;
     using scale_t = ue8m0_t;
-    using global_t = void;
+    using tensor_scale_t = void;
     using sub_byte_ref_t = sub_byte_ref<mxint8_t>;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_mxint8_k; }
@@ -5960,7 +5969,7 @@ struct mxint8_t {
     static constexpr bool is_exact() noexcept { return true; }
     static constexpr bool has_infinity() noexcept { return false; }
     static constexpr bool has_nan() noexcept { return false; }
-    static constexpr bool has_tensor_global() noexcept { return false; }
+    static constexpr bool has_tensor_scale() noexcept { return false; }
 
     static constexpr component_t component_min() noexcept { return component_t(-128); }
     static constexpr component_t component_max() noexcept { return component_t(127); }
@@ -6058,10 +6067,17 @@ constexpr unsigned bits_per_dimension() noexcept {
     else return sizeof(scalar_type_) * NK_BITS_PER_BYTE;
 }
 
-/** @brief Dimensions per container value. For normal types = 1, for sub-byte packed types > 1. */
+/** @brief Dimensions per container value. For normal types = 1, for sub-byte packed types > 1.
+ *
+ *  Block-scaled values (MX / NVFP4) carry a per-block scale byte inside the struct, so
+ *  `bits_per_value / bits_per_dimension` would over-count by the scale overhead (e.g. NVFP4 is a
+ *  9-byte struct holding 16 four-bit dims → the ratio yields 18, not 16). Every packed/block type
+ *  exposes the authoritative logical-dimension count via `elements()`; prefer it when available and
+ *  fall back to the bit ratio (which is correct, = 1) for plain scalar types. */
 template <typename scalar_type_>
 constexpr unsigned dimensions_per_value() noexcept {
-    return bits_per_value<scalar_type_>() / bits_per_dimension<scalar_type_>();
+    if constexpr (requires { scalar_type_::elements(); }) return scalar_type_::elements();
+    else return bits_per_value<scalar_type_>() / bits_per_dimension<scalar_type_>();
 }
 
 /**

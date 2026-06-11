@@ -128,7 +128,7 @@ pub mod vector;
 // Re-export scalar types at crate root
 pub use types::{
     bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, is_close, u1x8, u4x2, DimMut,
-    DimRef, FloatConvertible, FloatLike, NumberLike, StorageElement,
+    DimRef, FloatConvertible, FloatLike, NumberLike, StorageElement, Ue4m3, Ue8m0,
 };
 
 // Re-export spatial traits
@@ -166,6 +166,13 @@ pub use sparse::{SparseDot, SparseIntersect};
 // Re-export cast operations
 pub use cast::{cast, CastDtype, CastOps};
 
+// Re-export block-scaled formats and casts
+pub use cast::{
+    e2m1x2, BlockScaledDescriptor, BlockScaledFormat, Mxfp4, Mxfp6E2m3, Mxfp6E3m2, Mxfp8E4m3,
+    Mxfp8E5m2, Mxint8, Nvfp4,
+};
+
+
 // Re-export capabilities
 pub use capabilities::cap;
 pub use capabilities::{available, configure_thread, uses_dynamic_dispatch};
@@ -173,10 +180,10 @@ pub use capabilities::{available, configure_thread, uses_dynamic_dispatch};
 // Re-export tensor types
 pub use tensor::{
     Allocator, AxisIterator, AxisIteratorMut, CopyFrom, Fill, Global, Matrix, MatrixSpan,
-    MatrixView, MinMaxResult, RangeStep, SliceArg, SliceRange, SliceSpec, Tensor, TensorDims,
-    TensorError, TensorIterator, TensorMut, TensorRef, TensorSpan, TensorSpanDims,
-    TensorSpanIterator, TensorView, TensorViewDims, TensorViewIterator, DEFAULT_MAX_RANK,
-    SIMD_ALIGNMENT,
+    MatrixView, MinMaxResult, RangeStep, ScaledTensor, ScaledTensorSpan, ScaledTensorView,
+    SliceArg, SliceRange, SliceSpec, Tensor, TensorDims, TensorError, TensorIterator, TensorMut,
+    TensorRef, TensorSpan, TensorSpanDims, TensorSpanIterator, TensorView, TensorViewDims,
+    TensorViewIterator, DEFAULT_MAX_RANK, SIMD_ALIGNMENT,
 };
 
 // Re-export matrix types

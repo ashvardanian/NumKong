@@ -823,7 +823,7 @@ typedef unsigned char nk_e2m1x2_t;
  *  Used as the per-block scale byte for MXFP4, MXFP6, MXFP8, MXINT8. */
 typedef unsigned char nk_ue8m0_t;
 /** @brief Unsigned 8-bit E4M3 scale (NVFP4): sign-bit forced to 0, otherwise identical to E4M3.
- *  Range: [0, +448]. Used as the per-block scale byte for NVFP4 (block=16) alongside an f32 global. */
+ *  Range: [0, +448]. Used as the per-block scale byte for NVFP4 (block=16) alongside an f32 "tensor scale". */
 typedef unsigned char nk_ue4m3_t;
 
 /** @brief Signed 8-bit integer. Range: [−128, +127]. */
@@ -977,7 +977,7 @@ typedef enum {
     // Composite block-scaled formats encoded as `element_dtype | scale_dtype`. Each OR is unique
     // (popcount = 2) and cannot collide with any singleton (popcount = 1). Block size is implicit
     // from the scale dtype: `ue4m3` → 16 (NVFP4), `ue8m0` → 32 (MX family).
-    nk_nvfp4_k = nk_e2m1_k | nk_ue4m3_k,      ///< NVIDIA NVFP4 (block=16, f32 tensor-global)
+    nk_nvfp4_k = nk_e2m1_k | nk_ue4m3_k,      ///< NVIDIA NVFP4 (block=16, f32 tensor scale)
     nk_mxfp4_k = nk_e2m1_k | nk_ue8m0_k,      ///< OCP MXFP4 (block=32)
     nk_mxfp6_e2m3_k = nk_e2m3_k | nk_ue8m0_k, ///< OCP MXFP6 (E2M3 variant, block=32)
     nk_mxfp6_e3m2_k = nk_e3m2_k | nk_ue8m0_k, ///< OCP MXFP6 (E3M2 variant, block=32)
@@ -990,17 +990,17 @@ typedef enum {
  *  @brief  Descriptor for a block-scaled tensor layout (OCP MX family + NVIDIA NVFP4).
  *
  *  Elements are grouped in fixed-size contiguous blocks; each block has its own @p scale_dtype
- *  scale byte stored in a separate scales buffer. An optional @p global_dtype scalar multiplier
+ *  scale byte stored in a separate scales buffer. An optional @p tensor_scale_dtype scalar multiplier
  *  applies to the whole tensor (NVFP4's per-tensor FP32 factor; absent for the MX family).
  *
  *  Plain (non-block-scaled) buffers are described by `scale_dtype = nk_dtype_unknown_k`,
- *  `global_dtype = nk_dtype_unknown_k`, and `block_size = 0` — use the `nk_plain()` factory.
+ *  `tensor_scale_dtype = nk_dtype_unknown_k`, and `block_size = 0` — use the `nk_plain()` factory.
  */
 typedef struct {
-    nk_dtype_t element_dtype; ///< Per-element dtype: e2m1/e4m3/e5m2/e2m3/e3m2/i8 (or any for plain)
-    nk_dtype_t scale_dtype;   ///< Per-block scale: ue8m0 (MX) or ue4m3 (NVFP4); unknown for plain
-    nk_dtype_t global_dtype;  ///< Per-tensor multiplier: f32 (NVFP4) or unknown (MX, plain)
-    nk_size_t block_size;     ///< Elements per block: 16 (NVFP4) or 32 (MX); 0 for plain
+    nk_dtype_t element_dtype;      ///< Per-element dtype: e2m1/e4m3/e5m2/e2m3/e3m2/i8 (or any for plain)
+    nk_dtype_t scale_dtype;        ///< Per-block scale: ue8m0 (MX) or ue4m3 (NVFP4); unknown for plain
+    nk_dtype_t tensor_scale_dtype; ///< Per-tensor multiplier: f32 (NVFP4) or unknown (MX, plain)
+    nk_size_t block_size;          ///< Elements per block: 16 (NVFP4) or 32 (MX); 0 for plain
 } nk_block_scaled_format_t;
 
 typedef enum {
@@ -1278,7 +1278,7 @@ typedef unsigned short nk_bf16_t;
  *  one element. Storage in containers strides by `sizeof(struct)`; logical element count per
  *  value is reported by `nk_dimensions_per_value(composite_dtype)` (16 for NVFP4, 32 for MX).
  *
- *  The NVFP4 per-tensor f32 global multiplier is not part of the block value — it lives on the
+ *  The NVFP4 per-tensor f32 tensor scale multiplier is not part of the block value — it lives on the
  *  enclosing tensor and is passed explicitly to encode/decode helpers.
  */
 typedef struct NK_MAY_ALIAS_ {

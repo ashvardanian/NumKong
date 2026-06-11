@@ -248,7 +248,8 @@ typedef enum {
     nk_kernel_maxsim_pack_k = 'l',        ///< MaxSim vector packing
     nk_kernel_maxsim_packed_k = 'T',      ///< MaxSim late-interaction computation
 
-    nk_kernel_cast_k = '-', ///< Type casting from one type to another
+    nk_kernel_cast_k = '-',              ///< Type casting from one type to another
+    nk_kernel_cast_block_scaled_k = '~', ///< Block-scaled cast (MX / NVFP4 encode / decode / transcode)
 
 } nk_kernel_kind_t;
 
@@ -385,6 +386,13 @@ typedef void (*nk_maxsim_packed_punned_t)(void const *q_packed, void const *d_pa
 
 typedef void (*nk_kernel_cast_punned_t)(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
                                         nk_dtype_t to_type);
+
+typedef void (*nk_kernel_cast_block_scaled_punned_t)(                                         //
+    void const *from, void const *from_scales,                                                //
+    nk_scalar_buffer_t const *from_tensor_scale, nk_block_scaled_format_t const *from_format, //
+    void *to, void *to_scales,                                                                //
+    nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format,           //
+    nk_size_t count);
 
 typedef void (*nk_kernel_punned_t)(void *);
 

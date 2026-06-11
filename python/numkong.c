@@ -114,6 +114,12 @@ nk_dtype_conversion_info_t const nk_dtype_conversion_infos[] = {
     {nk_e3m2_k, "e3m2", "e3m2", "|V1", sizeof(nk_e3m2_t)},
     {nk_i4_k, "int4", "i4", "|V1", sizeof(nk_i4x2_t)},
     {nk_u4_k, "uint4", "u4", "|V1", sizeof(nk_u4x2_t)},
+    // Block-scaled building blocks: packed FP4 element nibble + the two scale-byte formats.
+    // E2M1 is a 4-bit nibble packed 2/byte, mirroring the int4/uint4 "|V1" byte-container view.
+    // UE8M0 (MX pow-2 scale) and UE4M3 (NVFP4 scale) are whole bytes viewed as opaque "|u1".
+    {nk_e2m1_k, "float4_e2m1", "e2m1", "|V1", sizeof(nk_e2m1x2_t)},
+    {nk_ue8m0_k, "float8_e8m0", "e8m0", "|u1", sizeof(nk_ue8m0_t)},
+    {nk_ue4m3_k, "ue4m3", "ue4m3", "|u1", sizeof(nk_ue4m3_t)},
     {nk_f64c_k, "complex128", "Zd", "<c16", sizeof(nk_f64_t) * 2},
     {nk_f32c_k, "complex64", "Zf", "<c8", sizeof(nk_f32_t) * 2},
     {nk_f16c_k, "complex32", "Ze", "|V4", sizeof(nk_f16_t) * 2},
@@ -419,6 +425,9 @@ nk_dtype_t py_string_to_nk_dtype(char const *name, Py_ssize_t len) {
         if (same_literal_(name, len, "e5m2")) return nk_e5m2_k;
         if (same_literal_(name, len, "e2m3")) return nk_e2m3_k;
         if (same_literal_(name, len, "e3m2")) return nk_e3m2_k;
+        // Block-scaled element & scale singletons
+        if (same_literal_(name, len, "e2m1")) return nk_e2m1_k;
+        if (same_literal_(name, len, "e8m0")) return nk_ue8m0_k;
         // Sub-byte integers
         if (same_literal_(name, len, "int4")) return nk_i4_k;
         if (same_literal_(name, len, "int8")) return nk_i8_k;
@@ -434,12 +443,16 @@ nk_dtype_t py_string_to_nk_dtype(char const *name, Py_ssize_t len) {
         if (same_literal_(name, len, "uint4")) return nk_u4_k;
         if (same_literal_(name, len, "uint8")) return nk_u8_k;
         if (same_literal_(name, len, "bf16c")) return nk_bf16c_k;
+        // Composite block-scaled formats (block size implied by the scale dtype)
+        if (same_literal_(name, len, "nvfp4")) return nk_nvfp4_k;
+        if (same_literal_(name, len, "mxfp4")) return nk_mxfp4_k;
         break;
 
     case 6:
         if (same_literal_(name, len, "uint16")) return nk_u16_k;
         if (same_literal_(name, len, "uint32")) return nk_u32_k;
         if (same_literal_(name, len, "uint64")) return nk_u64_k;
+        if (same_literal_(name, len, "mxint8")) return nk_mxint8_k;
         break;
 
     case 7:
@@ -461,6 +474,11 @@ nk_dtype_t py_string_to_nk_dtype(char const *name, Py_ssize_t len) {
     case 10:
         if (same_literal_(name, len, "complex128")) return nk_f64c_k;
         if (same_literal_(name, len, "bcomplex32")) return nk_bf16c_k;
+        // Composite block-scaled MXFP6 / MXFP8 variants
+        if (same_literal_(name, len, "mxfp6_e2m3")) return nk_mxfp6_e2m3_k;
+        if (same_literal_(name, len, "mxfp6_e3m2")) return nk_mxfp6_e3m2_k;
+        if (same_literal_(name, len, "mxfp8_e4m3")) return nk_mxfp8_e4m3_k;
+        if (same_literal_(name, len, "mxfp8_e5m2")) return nk_mxfp8_e5m2_k;
         break;
 
     case 11:
@@ -468,12 +486,22 @@ nk_dtype_t py_string_to_nk_dtype(char const *name, Py_ssize_t len) {
         if (same_literal_(name, len, "float8_e5m2")) return nk_e5m2_k;
         if (same_literal_(name, len, "float6_e2m3")) return nk_e2m3_k;
         if (same_literal_(name, len, "float6_e3m2")) return nk_e3m2_k;
+        // ml_dtypes element/scale typestrings for block-scaled buffers
+        if (same_literal_(name, len, "float4_e2m1")) return nk_e2m1_k;
+        if (same_literal_(name, len, "float8_e8m0")) return nk_ue8m0_k;
         break;
 
     case 13:
         if (same_literal_(name, len, "float8_e4m3fn")) return nk_e4m3_k;
         if (same_literal_(name, len, "float6_e2m3fn")) return nk_e2m3_k;
         if (same_literal_(name, len, "float6_e3m2fn")) return nk_e3m2_k;
+        // ml_dtypes canonical FP4 element name
+        if (same_literal_(name, len, "float4_e2m1fn")) return nk_e2m1_k;
+        break;
+
+    case 14:
+        // ml_dtypes canonical UE8M0 MX scale name
+        if (same_literal_(name, len, "float8_e8m0fnu")) return nk_ue8m0_k;
         break;
 
     default: break;
@@ -1121,6 +1149,9 @@ static PyMethodDef nk_methods[] = {
     {"add", (PyCFunction)api_add, METH_FASTCALL | METH_KEYWORDS, doc_add},
     {"multiply", (PyCFunction)api_multiply, METH_FASTCALL | METH_KEYWORDS, doc_multiply},
 
+    // Block-scaled (OCP MX family + NVIDIA NVFP4) encode / decode / transcode.
+    // Allocation-free: the caller sizes element/scale buffers with the size helpers.
+
     // Element-wise trigonometric functions
     {"sin", (PyCFunction)api_sin, METH_FASTCALL | METH_KEYWORDS, doc_sin},
     {"cos", (PyCFunction)api_cos, METH_FASTCALL | METH_KEYWORDS, doc_cos},
@@ -1188,6 +1219,7 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     PyObject *m;
 
     if (PyType_Ready(&TensorType) < 0) return NULL;
+    if (PyType_Ready(&ScaledTensorType) < 0) return NULL;
     if (PyType_Ready(&TensorIterType) < 0) return NULL;
     if (PyType_Ready(&PackedMatrixType) < 0) return NULL;
     if (PyType_Ready(&MaxSimPackedMatrixType) < 0) return NULL;
@@ -1216,6 +1248,14 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     Py_INCREF(&TensorType);
     if (PyModule_AddObject(m, "Tensor", (PyObject *)&TensorType) < 0) {
         Py_XDECREF(&TensorType);
+        Py_XDECREF(m);
+        return NULL;
+    }
+
+    // Register ScaledTensor type
+    Py_INCREF(&ScaledTensorType);
+    if (PyModule_AddObject(m, "ScaledTensor", (PyObject *)&ScaledTensorType) < 0) {
+        Py_XDECREF(&ScaledTensorType);
         Py_XDECREF(m);
         return NULL;
     }

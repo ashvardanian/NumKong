@@ -771,6 +771,16 @@ NK_DYNAMIC void nk_cast(void const *from, nk_dtype_t from_type, nk_size_t n, voi
     nk_dispatch_table.cast(from, from_type, n, to, to_type);
 }
 
+NK_DYNAMIC void nk_cast_block_scaled(                                                         //
+    void const *from, void const *from_scales,                                                //
+    nk_scalar_buffer_t const *from_tensor_scale, nk_block_scaled_format_t const *from_format, //
+    void *to, void *to_scales,                                                                //
+    nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format,           //
+    nk_size_t count) {
+    nk_dispatch_table.cast_block_scaled(from, from_scales, from_tensor_scale, from_format, to, to_scales,
+                                        to_tensor_scale, to_format, count);
+}
+
 // Forward declarations for dtype-specific dispatch initialization functions
 void nk_dispatch_f64c_init_(nk_capability_t caps);
 void nk_dispatch_f32c_init_(nk_capability_t caps);

@@ -77,7 +77,7 @@ error_stats_t test_cast_block_scaled(block_scaled_cast_t kernel, block_scaled_fo
     nk_block_scaled_format_t const plain_f32_format = nk_plain(nk_f32_k);
     std::size_t const dimensions = (global_config.dense_dimensions / target_format.block_size) *
                                    target_format.block_size;
-    bool const has_global = (target_format.global_dtype == nk_f32_k);
+    bool const has_tensor_scale = (target_format.tensor_scale_dtype == nk_f32_k);
 
     auto source_vec = make_vector<f32_t>(dimensions);
     auto target_elements_vec = make_vector<u8_t>(nk_block_scaled_elements_size(dimensions, target_format));
@@ -89,18 +89,18 @@ error_stats_t test_cast_block_scaled(block_scaled_cast_t kernel, block_scaled_fo
         fill_random(generator, source_vec);
 
         // Pre-populated global so both kernels skip the auto-derive calibration path.
-        nk_scalar_buffer_t global_target = {}, global_reference = {};
-        global_target.f32 = 1.0f;
-        global_reference.f32 = 1.0f;
+        nk_scalar_buffer_t tensor_scale_target = {}, tensor_scale_reference = {};
+        tensor_scale_target.f32 = 1.0f;
+        tensor_scale_reference.f32 = 1.0f;
 
         nk_cast_block_scaled_serial(                                                          //
             source_vec.raw_values_data(), nullptr, nullptr, &plain_f32_format,                //
             reference_elements_vec.raw_values_data(), reference_scales_vec.raw_values_data(), //
-            has_global ? &global_reference : nullptr, &target_format, dimensions);
+            has_tensor_scale ? &tensor_scale_reference : nullptr, &target_format, dimensions);
         kernel(                                                                         //
             source_vec.raw_values_data(), nullptr, nullptr, &plain_f32_format,          //
             target_elements_vec.raw_values_data(), target_scales_vec.raw_values_data(), //
-            has_global ? &global_target : nullptr, &target_format, dimensions);
+            has_tensor_scale ? &tensor_scale_target : nullptr, &target_format, dimensions);
 
         auto const *target_elements_raw = target_elements_vec.raw_values_data();
         auto const *reference_elements_raw = reference_elements_vec.raw_values_data();
@@ -177,6 +177,13 @@ void test_casts() {
     check("cast_f32_to_u16_haswell", test_cast<f32_t, u16_t>, nk_cast_haswell);
     check("cast_u8_to_f32_haswell", test_cast<u8_t, f32_t>, nk_cast_haswell);
     check("cast_f32_to_u8_haswell", test_cast<f32_t, u8_t>, nk_cast_haswell);
+    check("cast_block_scaled_nvfp4_haswell", test_cast_block_scaled, nk_cast_block_scaled_haswell, nk_nvfp4);
+    check("cast_block_scaled_mxfp4_haswell", test_cast_block_scaled, nk_cast_block_scaled_haswell, nk_mxfp4);
+    check("cast_block_scaled_mxfp6_e2m3_haswell", test_cast_block_scaled, nk_cast_block_scaled_haswell, nk_mxfp6_e2m3);
+    check("cast_block_scaled_mxfp6_e3m2_haswell", test_cast_block_scaled, nk_cast_block_scaled_haswell, nk_mxfp6_e3m2);
+    check("cast_block_scaled_mxfp8_e4m3_haswell", test_cast_block_scaled, nk_cast_block_scaled_haswell, nk_mxfp8_e4m3);
+    check("cast_block_scaled_mxfp8_e5m2_haswell", test_cast_block_scaled, nk_cast_block_scaled_haswell, nk_mxfp8_e5m2);
+    check("cast_block_scaled_mxint8_haswell", test_cast_block_scaled, nk_cast_block_scaled_haswell, nk_mxint8);
     // Verify serial fallbacks for rare paths
     check("cast_i32_to_f64_haswell", test_cast<i32_t, f64_t>, nk_cast_haswell);
     check("cast_f64_to_f32_haswell", test_cast<f64_t, f32_t>, nk_cast_haswell);
@@ -247,6 +254,17 @@ void test_casts() {
     check("cast_f32_to_e4m3_icelake", test_cast<f32_t, e4m3_t>, nk_cast_icelake);
     check("cast_f16_to_f32_icelake", test_cast<f16_t, f32_t>, nk_cast_icelake);
     check("cast_f32_to_f16_icelake", test_cast<f32_t, f16_t>, nk_cast_icelake);
+    check("cast_e2m3_to_f32_icelake", test_cast<e2m3_t, f32_t>, nk_cast_icelake);
+    check("cast_f32_to_e2m3_icelake", test_cast<f32_t, e2m3_t>, nk_cast_icelake);
+    check("cast_e3m2_to_f32_icelake", test_cast<e3m2_t, f32_t>, nk_cast_icelake);
+    check("cast_f32_to_e3m2_icelake", test_cast<f32_t, e3m2_t>, nk_cast_icelake);
+    check("cast_block_scaled_nvfp4_icelake", test_cast_block_scaled, nk_cast_block_scaled_icelake, nk_nvfp4);
+    check("cast_block_scaled_mxfp4_icelake", test_cast_block_scaled, nk_cast_block_scaled_icelake, nk_mxfp4);
+    check("cast_block_scaled_mxfp6_e2m3_icelake", test_cast_block_scaled, nk_cast_block_scaled_icelake, nk_mxfp6_e2m3);
+    check("cast_block_scaled_mxfp6_e3m2_icelake", test_cast_block_scaled, nk_cast_block_scaled_icelake, nk_mxfp6_e3m2);
+    check("cast_block_scaled_mxfp8_e4m3_icelake", test_cast_block_scaled, nk_cast_block_scaled_icelake, nk_mxfp8_e4m3);
+    check("cast_block_scaled_mxfp8_e5m2_icelake", test_cast_block_scaled, nk_cast_block_scaled_icelake, nk_mxfp8_e5m2);
+    check("cast_block_scaled_mxint8_icelake", test_cast_block_scaled, nk_cast_block_scaled_icelake, nk_mxint8);
 #endif
 
 #if NK_TARGET_SAPPHIRE

@@ -403,6 +403,7 @@ typedef struct {
     nk_maxsim_packed_punned_t maxsim_packed_f16;
     // Type casting
     nk_kernel_cast_punned_t cast;
+    nk_kernel_cast_block_scaled_punned_t cast_block_scaled;
     // Scalar conversions
     void (*bf16_to_f32)(nk_bf16_t const *, nk_f32_t *);
     void (*f32_to_bf16)(nk_f32_t const *, nk_bf16_t *);

@@ -1026,12 +1026,12 @@ NK_PUBLIC void nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n,
     if (from_f16_hub && to_f16_hub && !is_bf16_f16) {
         // F16 hub: 8 elements per iteration (float16x8_t intermediate)
         nk_size_t batches = n / 8;
-        nk_size_t from_step = 8 * nk_dtype_bits(from_type) / 8;
-        nk_size_t to_step = 8 * nk_dtype_bits(to_type) / 8;
+        nk_size_t from_step = nk_size_divide_round_up_(8 * nk_dtype_bits(from_type), NK_BITS_PER_BYTE);
+        nk_size_t to_step = nk_size_divide_round_up_(8 * nk_dtype_bits(to_type), NK_BITS_PER_BYTE);
         nk_u8_t const *from_ptr = (nk_u8_t const *)from;
         nk_u8_t *to_ptr = (nk_u8_t *)to;
 
-        for (nk_size_t idx = 0; idx < batches; ++idx, from_ptr += from_step, to_ptr += to_step) {
+        for (nk_size_t i = 0; i < batches; ++i, from_ptr += from_step, to_ptr += to_step) {
             nk_b128_vec_t hub_vec;
 
             // Upcast to f16x8 hub
@@ -1078,12 +1078,12 @@ NK_PUBLIC void nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n,
     // F32 hub: 4 elements per iteration (f32x4 intermediate)
     nk_size_t batches = n / 4;
     nk_size_t tail = n % 4;
-    nk_size_t from_step = 4 * nk_dtype_bits(from_type) / 8;
-    nk_size_t to_step = 4 * nk_dtype_bits(to_type) / 8;
+    nk_size_t from_step = nk_size_divide_round_up_(4 * nk_dtype_bits(from_type), NK_BITS_PER_BYTE);
+    nk_size_t to_step = nk_size_divide_round_up_(4 * nk_dtype_bits(to_type), NK_BITS_PER_BYTE);
     nk_u8_t const *from_ptr = (nk_u8_t const *)from;
     nk_u8_t *to_ptr = (nk_u8_t *)to;
 
-    for (nk_size_t idx = 0; idx < batches; ++idx, from_ptr += from_step, to_ptr += to_step) {
+    for (nk_size_t i = 0; i < batches; ++i, from_ptr += from_step, to_ptr += to_step) {
         nk_b128_vec_t hub_vec;
 
         // Upcast to f32x4 hub
@@ -1159,15 +1159,21 @@ NK_PUBLIC void nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n,
 
 /** @brief Reduce `block_count` f32s to `max(|x|)` via NEON (f32x4 horizontal max). */
 NK_INTERNAL nk_f32_t nk_block_amax_f32_neon_(nk_f32_t const *block, nk_size_t block_count) {
+    nk_fui32_t qnan;
+    qnan.u = 0x7FC00000u; // NaN in any lane → propagate so the block scale becomes the NaN sentinel
     float32x4_t running_max_vec = vdupq_n_f32(0.0f);
     nk_size_t i = 0;
     for (; i + 4 <= block_count; i += 4) {
         float32x4_t values_vec = vld1q_f32(block + i);
+        // vmaxq_f32 follows IEEE maxNum (drops NaN), so detect NaN lanes explicitly (v != v).
+        if (vmaxvq_u32(vmvnq_u32(vceqq_f32(values_vec, values_vec)))) return qnan.f;
         running_max_vec = vmaxq_f32(running_max_vec, vabsq_f32(values_vec));
     }
     nk_f32_t result = vmaxvq_f32(running_max_vec);
     for (; i < block_count; ++i) {
-        nk_f32_t absolute = block[i] < 0 ? -block[i] : block[i];
+        nk_f32_t v = block[i];
+        if (v != v) return qnan.f;
+        nk_f32_t absolute = v < 0 ? -v : v;
         if (absolute > result) result = absolute;
     }
     return result;
@@ -1176,9 +1182,9 @@ NK_INTERNAL nk_f32_t nk_block_amax_f32_neon_(nk_f32_t const *block, nk_size_t bl
 /** @brief NEON block-scaled cast. Uses f32x4 amax reduction + broadcast reciprocal multiply around
  *  the NEON element codec hub. `nk_cast_neon` already handles E2M1 / E4M3 / etc. element packing. */
 NK_PUBLIC void nk_cast_block_scaled_neon(                                                                //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_global,                    //
+    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                         //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_global, nk_block_scaled_format_t const *to_format, //
+    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count) {
 
     int from_plain = (from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0);
@@ -1193,15 +1199,15 @@ NK_PUBLIC void nk_cast_block_scaled_neon(                                       
     nk_size_t to_block = to_plain ? 1u : to_format->block_size;
     nk_size_t chunk = from_block > to_block ? from_block : to_block;
 
-    nk_f32_t from_global_f32 = 1.0f;
-    if (from_global != NULL && !from_plain && from_format->global_dtype == nk_f32_k) from_global_f32 = from_global->f32;
+    nk_f32_t from_tensor_scale_f32 = 1.0f;
+    if (from_tensor_scale != NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k) from_tensor_scale_f32 = from_tensor_scale->f32;
 
-    nk_f32_t to_global_f32 = 1.0f;
-    int to_has_global = (!to_plain && to_global != NULL && to_format->global_dtype == nk_f32_k);
-    if (to_has_global) {
-        to_global_f32 = to_global->f32;
-        if (to_global_f32 == 0.0f) {
-            nk_cast_block_scaled_serial(from, from_scales, from_global, from_format, to, to_scales, to_global,
+    nk_f32_t to_tensor_scale_f32 = 1.0f;
+    int to_has_tensor_scale = (!to_plain && to_tensor_scale != NULL && to_format->tensor_scale_dtype == nk_f32_k);
+    if (to_has_tensor_scale) {
+        to_tensor_scale_f32 = to_tensor_scale->f32;
+        if (to_tensor_scale_f32 == 0.0f) {
+            nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales, to_tensor_scale,
                                         to_format, count);
             return;
         }
@@ -1222,18 +1228,21 @@ NK_PUBLIC void nk_cast_block_scaled_neon(                                       
         }
         else {
             for (nk_size_t b = 0; b < chunk_count; b += from_block) {
+                nk_size_t valid = (chunk_count - b) < from_block ? (chunk_count - b) : from_block;
                 nk_size_t block_idx = (chunk_start + b) / from_block;
                 nk_u8_t raw = from_scales_bytes[block_idx];
                 nk_f32_t scale_f32 = nk_block_scaled_decode_scale_serial_(raw, from_format->scale_dtype) *
-                                     from_global_f32;
+                                     from_tensor_scale_f32;
                 void const *src = (nk_u8_t const *)from +
                                   ((chunk_start + b) * from_bits_per_element / NK_BITS_PER_BYTE);
-                nk_cast_neon(src, from_format->element_dtype, from_block, scratch + b, nk_f32_k);
+                nk_cast_neon(src, from_format->element_dtype, valid, scratch + b, nk_f32_k);
                 float32x4_t scale_bcast_vec = vdupq_n_f32(scale_f32);
-                for (nk_size_t k = 0; k < from_block; k += 4) {
+                nk_size_t k = 0;
+                for (; k + 4 <= valid; k += 4) {
                     float32x4_t values_vec = vld1q_f32(scratch + b + k);
                     vst1q_f32(scratch + b + k, vmulq_f32(values_vec, scale_bcast_vec));
                 }
+                for (; k < valid; ++k) scratch[b + k] *= scale_f32;
             }
         }
 
@@ -1244,22 +1253,31 @@ NK_PUBLIC void nk_cast_block_scaled_neon(                                       
         else {
             nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
             for (nk_size_t b = 0; b < chunk_count; b += to_block) {
-                nk_f32_t block_amax = nk_block_amax_f32_neon_(scratch + b, to_block);
-                nk_f32_t scale_target = block_amax / element_max / to_global_f32;
-                nk_u8_t raw = nk_block_scaled_encode_scale_serial_(scale_target, to_format->scale_dtype);
+                nk_size_t valid = (chunk_count - b) < to_block ? (chunk_count - b) : to_block;
+                nk_f32_t block_amax = nk_block_amax_f32_neon_(scratch + b, valid);
+                nk_u8_t raw = nk_block_scaled_encode_scale_serial_(block_amax, element_max, to_tensor_scale_f32,
+                                                                   to_format->scale_dtype);
                 nk_size_t block_idx = (chunk_start + b) / to_block;
                 to_scales_bytes[block_idx] = raw;
                 nk_f32_t effective_scale = nk_block_scaled_decode_scale_serial_(raw, to_format->scale_dtype) *
-                                           to_global_f32;
+                                           to_tensor_scale_f32;
                 nk_f32_t reciprocal = effective_scale > 0 ? (1.0f / effective_scale) : 0.0f;
                 float32x4_t reciprocal_bcast_vec = vdupq_n_f32(reciprocal);
                 nk_f32_t encoded_scratch[32];
-                for (nk_size_t k = 0; k < to_block; k += 4) {
+                nk_size_t k = 0;
+                for (; k + 4 <= valid; k += 4) {
                     float32x4_t values_vec = vld1q_f32(scratch + b + k);
                     vst1q_f32(encoded_scratch + k, vmulq_f32(values_vec, reciprocal_bcast_vec));
                 }
+                for (; k < valid; ++k) encoded_scratch[k] = scratch[b + k] * reciprocal;
                 void *dst = (nk_u8_t *)to + ((chunk_start + b) * to_bits_per_element / NK_BITS_PER_BYTE);
-                nk_cast_neon(encoded_scratch, nk_f32_k, to_block, dst, to_format->element_dtype);
+                // Write only valid elements: dst is sized for `count` (bytes), not whole blocks.
+                /* Saturate to element_max: finite inputs must not overflow to +/-inf (E5M2 has inf; OCP SAT). */
+                for (nk_size_t saturate_index = 0; saturate_index < valid; ++saturate_index) {
+                    if (encoded_scratch[saturate_index] > element_max) encoded_scratch[saturate_index] = element_max;
+                    else if (encoded_scratch[saturate_index] < -element_max) encoded_scratch[saturate_index] = -element_max;
+                }
+                nk_cast_neon(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype);
             }
         }
     }

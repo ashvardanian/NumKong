@@ -1415,3 +1415,88 @@ def test_gil_free_dots_symmetric_threading():
         reference[mask],
         err_msg="Multi-threaded dots_symmetric upper triangle differs from single-threaded",
     )
+
+
+# region Block-Scaled (ScaledTensor)
+
+# (dtype name, block size, per-element relative resolution = 2**-mantissa_bits)
+_SCALED_FORMATS = [
+    ("nvfp4", 16, 0.5),
+    ("mxfp4", 32, 0.5),
+    ("mxfp6_e2m3", 32, 0.125),
+    ("mxfp6_e3m2", 32, 0.25),
+    ("mxfp8_e4m3", 32, 0.125),
+    ("mxfp8_e5m2", 32, 0.25),
+    ("mxint8", 32, 0.05),
+]
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is required for block-scaled tests")
+@pytest.mark.parametrize("dtype_name, block_size, relative_bound", _SCALED_FORMATS)
+def test_scaled_tensor_roundtrip(dtype_name, block_size, relative_bound):
+    """`astype` quantize/dequantize: powers of two are near-exact and a narrow range stays within
+    the element resolution (the OCP MX scale never clips a block whose amax mantissa fits the
+    element format). Also checks the read-only attribute surface."""
+    # B — powers of two (amax = 2.0 is a power of two; no scale clipping).
+    powers = np.array([2.0 if i % 2 == 0 else 1.0 for i in range(block_size)], np.float32).reshape(1, block_size)
+    quantized = nk.Tensor(powers).astype(dtype_name)
+    restored = np.asarray(quantized.astype("float32")).reshape(-1)
+    relative = np.max(np.abs(restored - powers.reshape(-1)) / np.abs(powers.reshape(-1)))
+    assert relative <= relative_bound + 1e-6, f"{dtype_name} power-of-two round-trip rel={relative}"
+
+    # C — narrow range [1, 1.5): nothing clips, error bounded by the element resolution.
+    narrow = np.array([1.0 + 0.5 * ((i % 4) / 4.0) for i in range(block_size)], np.float32).reshape(1, block_size)
+    restored = np.asarray(nk.Tensor(narrow).astype(dtype_name).astype("float32")).reshape(-1)
+    relative = np.max(np.abs(restored - narrow.reshape(-1)) / np.abs(narrow.reshape(-1)))
+    assert relative <= relative_bound + 1e-6, f"{dtype_name} narrow-range round-trip rel={relative}"
+
+    # Read-only attribute surface.
+    assert quantized.dtype == dtype_name
+    assert quantized.block_size == block_size
+    assert quantized.block_scales.shape[-1] == block_size // block_size  # one block per single-block row
+    if dtype_name == "nvfp4":
+        assert isinstance(quantized.tensor_scale, float)
+    else:
+        assert quantized.tensor_scale is None
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is required for block-scaled tests")
+@pytest.mark.parametrize("dtype_name, block_size, relative_bound", _SCALED_FORMATS)
+def test_scaled_tensor_slicing(dtype_name, block_size, relative_bound):
+    """Row and block-aligned column slices materialize to the same values as the full decode;
+    a sub-block (misaligned) column range is rejected rather than silently truncated."""
+    rows, cols = 4, 4 * block_size
+    dense = np.asarray(
+        [[1.0 + 0.5 * (((r * 7 + c * 3) % 5) / 5.0) for c in range(cols)] for r in range(rows)],
+        dtype=np.float32,
+    )
+    quantized = nk.Tensor(dense).astype(dtype_name)
+    full = np.asarray(quantized.astype("float32"))
+
+    # Row slice.
+    row1 = np.asarray(quantized[1].astype("float32")).reshape(-1)
+    assert np.array_equal(row1, full[1])
+
+    # Block-aligned column tile.
+    tile = np.asarray(quantized[:, block_size : 3 * block_size].astype("float32"))
+    assert np.array_equal(tile, full[:, block_size : 3 * block_size])
+
+    # Misaligned column range → IndexError (not silent truncation).
+    with pytest.raises((IndexError, ValueError)):
+        quantized[:, 1 : block_size + 1]
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is required for block-scaled tests")
+def test_scaled_tensor_dlpack_components():
+    """The struct-of-arrays components export zero-copy (the GPU-interop contract): both
+    `block_scales` and the packed `elements` round-trip through DLPack preserving shape. (NumPy
+    can't reinterpret the custom 'ue4m3'/'ue8m0'/'e2m1' buffer formats, so the contract is asserted
+    via shape rather than a uint8 view.)"""
+    dense = np.random.randn(2, 64).astype(np.float32)
+    quantized = nk.Tensor(dense).astype("nvfp4")
+    scales = quantized.block_scales
+    assert tuple(nk.from_dlpack(scales).shape) == tuple(scales.shape)
+    assert tuple(nk.from_dlpack(quantized.elements).shape) == tuple(quantized.elements.shape)
+
+
+# endregion Block-Scaled (ScaledTensor)

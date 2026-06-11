@@ -217,13 +217,13 @@ NK_PUBLIC void nk_cast_sapphire(void const *from, nk_dtype_t from_type, nk_size_
     if (to_type == nk_f16_k && (from_type == nk_e4m3_k || from_type == nk_e5m2_k)) {
         nk_e4m3_t const *from_ptr = (nk_e4m3_t const *)from;
         nk_f16_t *to_ptr = (nk_f16_t *)to;
-        for (nk_size_t idx = 0; idx < n; idx += 16) {
-            nk_size_t remaining = n - idx;
+        for (nk_size_t i = 0; i < n; i += 16) {
+            nk_size_t remaining = n - i;
             __mmask16 mask = (remaining >= 16) ? 0xFFFF : (unsigned short)_bzhi_u32(0xFFFF, (unsigned)remaining);
-            __m128i in_f8x16 = _mm_maskz_loadu_epi8(mask, from_ptr + idx);
+            __m128i in_f8x16 = _mm_maskz_loadu_epi8(mask, from_ptr + i);
             __m256h out_f16x16 = (from_type == nk_e4m3_k) ? nk_e4m3x16_to_f16x16_sapphire_(in_f8x16)
                                                           : nk_e5m2x16_to_f16x16_sapphire_(in_f8x16);
-            _mm256_mask_storeu_epi16(to_ptr + idx, mask, _mm256_castph_si256(out_f16x16));
+            _mm256_mask_storeu_epi16(to_ptr + i, mask, _mm256_castph_si256(out_f16x16));
         }
     }
 
@@ -231,13 +231,13 @@ NK_PUBLIC void nk_cast_sapphire(void const *from, nk_dtype_t from_type, nk_size_
     else if (from_type == nk_f16_k && (to_type == nk_e4m3_k || to_type == nk_e5m2_k)) {
         nk_f16_t const *from_ptr = (nk_f16_t const *)from;
         nk_e4m3_t *to_ptr = (nk_e4m3_t *)to;
-        for (nk_size_t idx = 0; idx < n; idx += 16) {
-            nk_size_t remaining = n - idx;
+        for (nk_size_t i = 0; i < n; i += 16) {
+            nk_size_t remaining = n - i;
             __mmask16 mask = (remaining >= 16) ? 0xFFFF : (unsigned short)_bzhi_u32(0xFFFF, (unsigned)remaining);
-            __m256h in_f16x16 = _mm256_castsi256_ph(_mm256_maskz_loadu_epi16(mask, from_ptr + idx));
+            __m256h in_f16x16 = _mm256_castsi256_ph(_mm256_maskz_loadu_epi16(mask, from_ptr + i));
             __m128i out_f8x16 = (to_type == nk_e4m3_k) ? nk_f16x16_to_e4m3x16_sapphire_(in_f16x16)
                                                        : nk_f16x16_to_e5m2x16_sapphire_(in_f16x16);
-            _mm_mask_storeu_epi8(to_ptr + idx, mask, out_f8x16);
+            _mm_mask_storeu_epi8(to_ptr + i, mask, out_f8x16);
         }
     }
 

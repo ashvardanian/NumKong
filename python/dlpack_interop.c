@@ -124,6 +124,13 @@ static DLDataType nk_dtype_to_dl(nk_dtype_t dtype, int versioned) {
     case nk_e5m2_k: return (DLDataType) {kDLFloat8_e5m2, 8, 1};
     case nk_e2m3_k: return versioned ? (DLDataType) {kDLFloat6_e2m3fn, 6, 1} : none;
     case nk_e3m2_k: return versioned ? (DLDataType) {kDLFloat6_e3m2fn, 6, 1} : none;
+    // Block-scaled element & scale bytes. E2M1 is a 4-bit sub-byte element; like FP6 it is
+    // byte-padded in our storage, so it needs a versioned capsule + the SUBBYTE_PADDED flag.
+    // UE8M0 (MX pow-2 scale) is a whole byte. UE4M3 (NVFP4 scale) has no dedicated DLPack code,
+    // so its byte is exported through the E4M3 view (it is an E4M3 byte with the sign forced 0).
+    case nk_e2m1_k: return versioned ? (DLDataType) {kDLFloat4_e2m1fn, 4, 1} : none;
+    case nk_ue8m0_k: return (DLDataType) {kDLFloat8_e8m0fnu, 8, 1};
+    case nk_ue4m3_k: return (DLDataType) {kDLFloat8_e4m3fn, 8, 1};
     case nk_i8_k: return (DLDataType) {kDLInt, 8, 1};
     case nk_i16_k: return (DLDataType) {kDLInt, 16, 1};
     case nk_i32_k: return (DLDataType) {kDLInt, 32, 1};
@@ -193,6 +200,10 @@ static nk_dtype_t nk_dl_to_dtype(DLDataType dl, uint64_t flags) {
         return (dl.bits == 6 && (flags & DLPACK_FLAG_BITMASK_IS_SUBBYTE_TYPE_PADDED)) ? nk_e2m3_k : nk_dtype_unknown_k;
     case kDLFloat6_e3m2fn:
         return (dl.bits == 6 && (flags & DLPACK_FLAG_BITMASK_IS_SUBBYTE_TYPE_PADDED)) ? nk_e3m2_k : nk_dtype_unknown_k;
+    case kDLFloat4_e2m1fn:
+        // Only accept byte-padded FP4 (our storage layout), matching the FP6 sub-byte handling.
+        return (dl.bits == 4 && (flags & DLPACK_FLAG_BITMASK_IS_SUBBYTE_TYPE_PADDED)) ? nk_e2m1_k : nk_dtype_unknown_k;
+    case kDLFloat8_e8m0fnu: return dl.bits == 8 ? nk_ue8m0_k : nk_dtype_unknown_k;
     default: return nk_dtype_unknown_k;
     }
 }
@@ -257,10 +268,10 @@ static void nk_dlpack_capsule_destructor(PyObject *capsule) {
 static int nk_fill_dl_tensor(Tensor *tensor, DLTensor *out, nk_dlpack_export_ctx_t *ctx, int versioned) {
     DLDataType dl_dtype = nk_dtype_to_dl(tensor->dtype, versioned);
     if (dl_dtype.bits == 0) {
-        if (!versioned && (tensor->dtype == nk_e2m3_k || tensor->dtype == nk_e3m2_k)) {
+        if (!versioned && (tensor->dtype == nk_e2m3_k || tensor->dtype == nk_e3m2_k || tensor->dtype == nk_e2m1_k)) {
             PyErr_SetString( //
-                PyExc_TypeError, "FP6 (e2m3/e3m2) DLPack export requires max_version >= (1, 0) so the "
-                                 "IS_SUBBYTE_TYPE_PADDED flag can be set");
+                PyExc_TypeError, "Sub-byte FP4/FP6 (e2m1/e2m3/e3m2) DLPack export requires max_version >= (1, 0) so "
+                                 "the IS_SUBBYTE_TYPE_PADDED flag can be set");
         }
         else { PyErr_Format(PyExc_TypeError, "dtype %d has no DLPack mapping", (int)tensor->dtype); }
         return -1;
@@ -412,7 +423,7 @@ PyObject *Tensor_dlpack(PyObject *self, PyObject *args, PyObject *kwargs) {
     // FP6 requires the IS_SUBBYTE_TYPE_PADDED flag, only available on
     // versioned capsules. If the consumer didn't opt in to v1, upgrade
     // silently — better to exchange correctly than to refuse.
-    int needs_versioned = (tensor->dtype == nk_e2m3_k || tensor->dtype == nk_e3m2_k);
+    int needs_versioned = (tensor->dtype == nk_e2m3_k || tensor->dtype == nk_e3m2_k || tensor->dtype == nk_e2m1_k);
     int versioned = want_versioned || needs_versioned;
     uint64_t flags = needs_versioned ? DLPACK_FLAG_BITMASK_IS_SUBBYTE_TYPE_PADDED : 0;
 

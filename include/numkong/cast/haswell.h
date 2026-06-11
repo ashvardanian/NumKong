@@ -488,6 +488,111 @@ NK_INTERNAL __m128i nk_f32x8_to_e3m2x8_haswell_(__m256 f32x8) {
     return packed_i8x8;
 }
 
+/** @brief Convert 8× e2m1 → 8× f32 via 8-magnitude LUT + sign flip (AVX2).
+ *  Input: 4 bytes (low 32 bits of @p packed) holding 8 nibbles, high nibble of byte → even lane.
+ *  E2M1 magnitudes {0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0} indexed by nibble bits 2..0; bit 3 → sign. */
+NK_INTERNAL __m256 nk_e2m1x8_to_f32x8_haswell_(__m128i packed) {
+    // Expand 4 packed bytes to 8 nibble bytes via shift + mask + unpack interleave
+    __m128i low_nibbles = _mm_and_si128(packed, _mm_set1_epi8(0x0F));
+    __m128i high_nibbles = _mm_and_si128(_mm_srli_epi32(packed, 4), _mm_set1_epi8(0x0F));
+    __m128i nibbles_b8x8 = _mm_unpacklo_epi8(high_nibbles, low_nibbles);
+    __m256i nibbles_i32x8 = _mm256_cvtepu8_epi32(nibbles_b8x8);
+
+    // Magnitude LUT indexed by bits 2..0 (8 entries, gathered via permutevar within a 256-bit lane).
+    __m256 magnitude_lut = _mm256_setr_ps(0.0f, 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f);
+    __m256i magnitude_idx_i32x8 = _mm256_and_si256(nibbles_i32x8, _mm256_set1_epi32(0x07));
+    __m256 magnitudes_f32x8 = _mm256_permutevar8x32_ps(magnitude_lut, magnitude_idx_i32x8);
+
+    // Sign: bit 3 of the nibble → bit 31 of the f32
+    __m256i sign_f32_bits_i32x8 = _mm256_slli_epi32(_mm256_and_si256(nibbles_i32x8, _mm256_set1_epi32(0x08)), 28);
+    return _mm256_castsi256_ps(_mm256_xor_si256(_mm256_castps_si256(magnitudes_f32x8), sign_f32_bits_i32x8));
+}
+
+/** @brief Convert 8× f32 → 8× e2m1 via bit manipulation, packed to 4 bytes (AVX2).
+ *  Output: 4 bytes in the low 32 bits of the result. Lane 0 → high nibble of byte 0, lane 1 → low nibble. */
+NK_INTERNAL __m128i nk_f32x8_to_e2m1x8_haswell_(__m256 f32x8) {
+    __m256i bits_i32x8 = _mm256_castps_si256(f32x8);
+    __m256i sign_i32x8 = _mm256_srli_epi32(bits_i32x8, 31);
+    __m256i f32_exp_i32x8 = _mm256_and_si256(_mm256_srli_epi32(bits_i32x8, 23), _mm256_set1_epi32(0xFF));
+
+    // Normal path: round 23-bit mantissa to 1 bit using RNE (cut at bit 22).
+    __m256i significand_i32x8 = _mm256_or_si256(_mm256_and_si256(bits_i32x8, _mm256_set1_epi32(0x007FFFFF)),
+                                                _mm256_set1_epi32(0x00800000));
+    __m256i lsb_i32x8 = _mm256_and_si256(_mm256_srli_epi32(significand_i32x8, 22), _mm256_set1_epi32(1));
+    __m256i rounding_bias_i32x8 = _mm256_add_epi32(_mm256_set1_epi32(0x001FFFFF), lsb_i32x8);
+    __m256i rounded_sig_i32x8 = _mm256_add_epi32(significand_i32x8, rounding_bias_i32x8);
+    __m256i carry_i32x8 = _mm256_srli_epi32(rounded_sig_i32x8, 24);
+    __m256i normal_mantissa_i32x8 = _mm256_and_si256(_mm256_srli_epi32(rounded_sig_i32x8, 22), _mm256_set1_epi32(0x01));
+    __m256i e2m1_exp_i32x8 = _mm256_sub_epi32(_mm256_add_epi32(f32_exp_i32x8, carry_i32x8), _mm256_set1_epi32(126));
+
+    __m256i is_subnormal_i32x8 = _mm256_cmpgt_epi32(_mm256_set1_epi32(1), e2m1_exp_i32x8);
+    __m256i overflow_i32x8 = _mm256_cmpgt_epi32(e2m1_exp_i32x8, _mm256_set1_epi32(3));
+
+    __m256i clamped_exp_i32x8 = _mm256_max_epi32(e2m1_exp_i32x8, _mm256_set1_epi32(1));
+    clamped_exp_i32x8 = _mm256_min_epi32(clamped_exp_i32x8, _mm256_set1_epi32(3));
+    normal_mantissa_i32x8 = _mm256_blendv_epi8(normal_mantissa_i32x8, _mm256_set1_epi32(0x01), overflow_i32x8);
+    __m256i normal_nibble_i32x8 = _mm256_or_si256(
+        _mm256_slli_epi32(sign_i32x8, 3),
+        _mm256_or_si256(_mm256_slli_epi32(clamped_exp_i32x8, 1), normal_mantissa_i32x8));
+
+    // Subnormal path: round(|x| * 2), clamp to {0, 1}. Promotion to first normal (0x02) when it rounds up to 2.
+    __m256 abs_f32x8 = _mm256_and_ps(f32x8, _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF)));
+    __m256 scaled_f32x8 = _mm256_mul_ps(abs_f32x8, _mm256_set1_ps(2.0f));
+    __m256i subnorm_mantissa_i32x8 = _mm256_cvtps_epi32(scaled_f32x8);
+    __m256i promotes_to_normal_i32x8 = _mm256_cmpgt_epi32(subnorm_mantissa_i32x8, _mm256_set1_epi32(1));
+    subnorm_mantissa_i32x8 = _mm256_max_epi32(_mm256_min_epi32(subnorm_mantissa_i32x8, _mm256_set1_epi32(1)),
+                                              _mm256_setzero_si256());
+    __m256i subnorm_nibble_i32x8 = _mm256_or_si256(_mm256_slli_epi32(sign_i32x8, 3), subnorm_mantissa_i32x8);
+    __m256i first_normal_nibble_i32x8 = _mm256_or_si256(_mm256_slli_epi32(sign_i32x8, 3), _mm256_set1_epi32(0x02));
+    subnorm_nibble_i32x8 = _mm256_blendv_epi8(subnorm_nibble_i32x8, first_normal_nibble_i32x8,
+                                              promotes_to_normal_i32x8);
+
+    __m256i nibble_i32x8 = _mm256_blendv_epi8(normal_nibble_i32x8, subnorm_nibble_i32x8, is_subnormal_i32x8);
+
+    // Pack 8 nibbles (each in low 4 bits of a byte) to 4 bytes: even idx → high nibble, odd → low.
+    __m128i low_i32x4 = _mm256_castsi256_si128(nibble_i32x8);
+    __m128i high_i32x4 = _mm256_extracti128_si256(nibble_i32x8, 1);
+    __m128i nibble_i16x8 = _mm_packus_epi32(low_i32x4, high_i32x4);
+    __m128i nibble_b8x8 = _mm_packus_epi16(nibble_i16x8, _mm_setzero_si128());
+    __m128i pack_coeff = _mm_set1_epi16(0x0110); // byte 0 coefficient 0x10, byte 1 coefficient 0x01
+    __m128i packed_i16x4 = _mm_maddubs_epi16(nibble_b8x8, pack_coeff);
+    return _mm_packus_epi16(packed_i16x4, _mm_setzero_si128());
+}
+
+/** @brief Reduce a block of `block_count` f32s to `amax = max(|x|)`. `block_count` ≤ 32.
+ *  Propagates NaN (returns a NaN when any lane is NaN) so the block scale becomes the NaN sentinel. */
+NK_INTERNAL nk_f32_t nk_block_amax_f32_haswell_(nk_f32_t const *block, nk_size_t block_count) {
+    __m256 const abs_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF));
+    nk_fui32_t qnan;
+    qnan.u = 0x7FC00000u; // NaN in any lane → propagate so the block scale becomes the NaN sentinel
+    __m256 amax_f32x8 = _mm256_setzero_ps();
+    __m256 nan_acc_f32x8 = _mm256_setzero_ps(); // accumulates unordered (NaN) comparisons
+    nk_size_t i = 0;
+    for (; i + 8 <= block_count; i += 8) {
+        __m256 v = _mm256_loadu_ps(block + i);
+        nan_acc_f32x8 = _mm256_or_ps(nan_acc_f32x8, _mm256_cmp_ps(v, v, _CMP_UNORD_Q));
+        amax_f32x8 = _mm256_max_ps(amax_f32x8, _mm256_and_ps(v, abs_mask));
+    }
+    if (_mm256_movemask_ps(nan_acc_f32x8)) return qnan.f;
+
+    // Horizontal max of the 8 lanes: fold high half into low, then shuffle-reduce.
+    __m128 lo_f32x4 = _mm256_castps256_ps128(amax_f32x8);
+    __m128 hi_f32x4 = _mm256_extractf128_ps(amax_f32x8, 1);
+    __m128 m_f32x4 = _mm_max_ps(lo_f32x4, hi_f32x4);
+    m_f32x4 = _mm_max_ps(m_f32x4, _mm_movehl_ps(m_f32x4, m_f32x4));
+    m_f32x4 = _mm_max_ss(m_f32x4, _mm_shuffle_ps(m_f32x4, m_f32x4, 0x1));
+    nk_f32_t amax = _mm_cvtss_f32(m_f32x4);
+
+    // Scalar tail (block_count not a multiple of 8).
+    for (; i < block_count; ++i) {
+        nk_f32_t x = block[i];
+        if (x != x) return qnan.f;
+        nk_f32_t a = x < 0 ? -x : x;
+        if (a > amax) amax = a;
+    }
+    return amax;
+}
+
 #pragma endregion Vectorized Conversions
 
 #pragma region Converting Loads and Stores
@@ -618,6 +723,29 @@ NK_PUBLIC void nk_cast_haswell(void const *from, nk_dtype_t from_type, nk_size_t
         return;
     }
 
+    // E2M1 (4-bit) ↔ f32 — sub-byte, so it rides a dedicated 8-wide loop instead of the byte-stride
+    // hub; only the f32 peer is vectorised here (matches the block-scaled element codec). Any other
+    // e2m1 pairing falls through to the unsupported-type check below and routes to serial.
+    if ((from_type == nk_e2m1_k && to_type == nk_f32_k) || (from_type == nk_f32_k && to_type == nk_e2m1_k)) {
+        // 8 e2m1 = 4 bytes; f32 steps 32 bytes. Process whole groups of 8 with SIMD.
+        nk_size_t from_step = nk_size_divide_round_up_(8 * nk_dtype_bits(from_type), NK_BITS_PER_BYTE);
+        nk_size_t to_step = nk_size_divide_round_up_(8 * nk_dtype_bits(to_type), NK_BITS_PER_BYTE);
+        nk_u8_t const *from_ptr = (nk_u8_t const *)from;
+        nk_u8_t *to_ptr = (nk_u8_t *)to;
+        nk_size_t batches = n / 8;
+        for (nk_size_t i = 0; i < batches; ++i, from_ptr += from_step, to_ptr += to_step) {
+            __m256 f32x8;
+            if (from_type == nk_e2m1_k) f32x8 = nk_e2m1x8_to_f32x8_haswell_(_mm_cvtsi32_si128(*(int const *)from_ptr));
+            else f32x8 = _mm256_loadu_ps((float const *)from_ptr);
+            if (to_type == nk_e2m1_k) *(int *)to_ptr = _mm_cvtsi128_si32(nk_f32x8_to_e2m1x8_haswell_(f32x8));
+            else _mm256_storeu_ps((float *)to_ptr, f32x8);
+        }
+        // Tail (< 8): delegate to serial so packed-nibble writes match the serial reference byte-for-byte.
+        nk_size_t tail = n % 8;
+        if (tail) nk_cast_serial(from_ptr, from_type, tail, to_ptr, to_type);
+        return;
+    }
+
     // Supported types: floats (f32, f16, bf16, e4m3, e5m2, e2m3, e3m2) and integers (i8, u8, i16, u16, i32, u32)
     int from_supported = (from_type == nk_f32_k || from_type == nk_f16_k || from_type == nk_bf16_k ||
                           from_type == nk_e4m3_k || from_type == nk_e5m2_k || from_type == nk_e2m3_k ||
@@ -642,8 +770,8 @@ NK_PUBLIC void nk_cast_haswell(void const *from, nk_dtype_t from_type, nk_size_t
     }
 
     // Byte steps per 8 elements
-    nk_size_t from_step = 8 * nk_dtype_bits(from_type) / NK_BITS_PER_BYTE;
-    nk_size_t to_step = 8 * nk_dtype_bits(to_type) / NK_BITS_PER_BYTE;
+    nk_size_t from_step = nk_size_divide_round_up_(8 * nk_dtype_bits(from_type), NK_BITS_PER_BYTE);
+    nk_size_t to_step = nk_size_divide_round_up_(8 * nk_dtype_bits(to_type), NK_BITS_PER_BYTE);
 
     nk_u8_t const *from_ptr = (nk_u8_t const *)from;
     nk_u8_t *to_ptr = (nk_u8_t *)to;
@@ -651,7 +779,7 @@ NK_PUBLIC void nk_cast_haswell(void const *from, nk_dtype_t from_type, nk_size_t
     nk_size_t tail = n % 8;
     nk_b256_vec_t hub;
 
-    for (nk_size_t idx = 0; idx < batches; ++idx, from_ptr += from_step, to_ptr += to_step) {
+    for (nk_size_t i = 0; i < batches; ++i, from_ptr += from_step, to_ptr += to_step) {
         // Upcast to f32x8
         if (from_type == nk_f32_k) hub.ymm_ps = _mm256_loadu_ps((float const *)from_ptr);
         else if (from_type == nk_f16_k) hub.ymm_ps = _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)from_ptr));
@@ -766,6 +894,121 @@ NK_PUBLIC void nk_cast_haswell(void const *from, nk_dtype_t from_type, nk_size_t
         else if (to_type == nk_u32_k) {
             hub.ymm = nk_f32x8_to_u32x8_haswell_(hub.ymm_ps);
             nk_partial_store_b32x8_serial_(&hub, to_ptr, tail);
+        }
+    }
+}
+
+/** @brief Build an AVX2 lane mask selecting the low @p valid (≤ 8) f32 lanes. */
+NK_INTERNAL __m256i nk_lane_mask_f32x8_haswell_(nk_size_t valid) {
+    __m256i idx_i32x8 = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+    return _mm256_cmpgt_epi32(_mm256_set1_epi32((int)valid), idx_i32x8);
+}
+
+/** @brief Haswell-optimised block-scaled cast. Uses AVX2 amax + broadcast reciprocal multiply
+ *  around the serial element codec hub, mirroring `nk_cast_block_scaled_skylake` at x8 width. */
+NK_PUBLIC void nk_cast_block_scaled_haswell(                                                                   //
+    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
+    nk_block_scaled_format_t const *from_format,                                                               //
+    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
+    nk_size_t count) {
+
+    int from_plain = (from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0);
+    int to_plain = (to_format->scale_dtype == nk_dtype_unknown_k || to_format->block_size == 0);
+
+    if (from_plain && to_plain) {
+        nk_cast_haswell(from, from_format->element_dtype, count, to, to_format->element_dtype);
+        return;
+    }
+
+    nk_size_t from_block = from_plain ? 1u : from_format->block_size;
+    nk_size_t to_block = to_plain ? 1u : to_format->block_size;
+    nk_size_t chunk = from_block > to_block ? from_block : to_block;
+
+    nk_f32_t from_tensor_scale_f32 = 1.0f;
+    if (from_tensor_scale != NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k)
+        from_tensor_scale_f32 = from_tensor_scale->f32;
+
+    nk_f32_t to_tensor_scale_f32 = 1.0f;
+    int to_has_tensor_scale = (!to_plain && to_tensor_scale != NULL && to_format->tensor_scale_dtype == nk_f32_k);
+    if (to_has_tensor_scale) {
+        to_tensor_scale_f32 = to_tensor_scale->f32;
+        if (to_tensor_scale_f32 == 0.0f) {
+            // Fall back to serial for auto-derive (needs a full tensor scan; rare calibration path).
+            nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales,
+                                        to_tensor_scale, to_format, count);
+            return;
+        }
+    }
+
+    nk_f32_t scratch[32];
+    nk_size_t from_bits_per_element = nk_dtype_bits(from_format->element_dtype);
+    nk_size_t to_bits_per_element = nk_dtype_bits(to_format->element_dtype);
+    nk_u8_t const *from_scales_bytes = (nk_u8_t const *)from_scales;
+    nk_u8_t *to_scales_bytes = (nk_u8_t *)to_scales;
+
+    for (nk_size_t chunk_start = 0; chunk_start < count; chunk_start += chunk) {
+        nk_size_t chunk_count = (chunk_start + chunk <= count) ? chunk : (count - chunk_start);
+
+        // Decode source chunk into f32 scratch.
+        if (from_plain) {
+            void const *src = (nk_u8_t const *)from + (chunk_start * from_bits_per_element / NK_BITS_PER_BYTE);
+            nk_cast_haswell(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k);
+        }
+        else {
+            for (nk_size_t b = 0; b < chunk_count; b += from_block) {
+                nk_size_t valid = (chunk_count - b) < from_block ? (chunk_count - b) : from_block;
+                nk_size_t block_idx = (chunk_start + b) / from_block;
+                nk_u8_t raw = from_scales_bytes[block_idx];
+                nk_f32_t scale_f32 = nk_block_scaled_decode_scale_serial_(raw, from_format->scale_dtype) *
+                                     from_tensor_scale_f32;
+                void const *src = (nk_u8_t const *)from +
+                                  ((chunk_start + b) * from_bits_per_element / NK_BITS_PER_BYTE);
+                nk_cast_haswell(src, from_format->element_dtype, valid, scratch + b, nk_f32_k);
+                __m256 scale_bcast = _mm256_set1_ps(scale_f32);
+                for (nk_size_t e = 0; e < valid; e += 8) {
+                    nk_size_t lanes = (valid - e) < 8 ? (valid - e) : 8;
+                    __m256i mask = nk_lane_mask_f32x8_haswell_(lanes);
+                    __m256 v = _mm256_maskload_ps(scratch + b + e, mask);
+                    _mm256_maskstore_ps(scratch + b + e, mask, _mm256_mul_ps(v, scale_bcast));
+                }
+            }
+        }
+
+        // Encode f32 scratch into destination chunk.
+        if (to_plain) {
+            void *dst = (nk_u8_t *)to + (chunk_start * to_bits_per_element / NK_BITS_PER_BYTE);
+            nk_cast_haswell(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype);
+        }
+        else {
+            nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
+            for (nk_size_t b = 0; b < chunk_count; b += to_block) {
+                nk_size_t valid = (chunk_count - b) < to_block ? (chunk_count - b) : to_block;
+                nk_f32_t block_amax = nk_block_amax_f32_haswell_(scratch + b, valid);
+                nk_u8_t raw = nk_block_scaled_encode_scale_serial_(block_amax, element_max, to_tensor_scale_f32,
+                                                                   to_format->scale_dtype);
+                nk_size_t block_idx = (chunk_start + b) / to_block;
+                to_scales_bytes[block_idx] = raw;
+                nk_f32_t effective_scale = nk_block_scaled_decode_scale_serial_(raw, to_format->scale_dtype) *
+                                           to_tensor_scale_f32;
+                nk_f32_t reciprocal = effective_scale > 0 ? (1.0f / effective_scale) : 0.0f;
+                __m256 reciprocal_bcast = _mm256_set1_ps(reciprocal);
+                nk_f32_t encoded_scratch[32];
+                for (nk_size_t e = 0; e < valid; e += 8) {
+                    nk_size_t lanes = (valid - e) < 8 ? (valid - e) : 8;
+                    __m256i mask = nk_lane_mask_f32x8_haswell_(lanes);
+                    __m256 v = _mm256_maskload_ps(scratch + b + e, mask);
+                    _mm256_maskstore_ps(encoded_scratch + e, mask, _mm256_mul_ps(v, reciprocal_bcast));
+                }
+                void *dst = (nk_u8_t *)to + ((chunk_start + b) * to_bits_per_element / NK_BITS_PER_BYTE);
+                // Write only valid elements: dst is sized for `count` (bytes), not whole blocks.
+                /* Saturate to element_max: finite inputs must not overflow to +/-inf (E5M2 has inf; OCP SAT). */
+                for (nk_size_t saturate_index = 0; saturate_index < valid; ++saturate_index) {
+                    if (encoded_scratch[saturate_index] > element_max) encoded_scratch[saturate_index] = element_max;
+                    else if (encoded_scratch[saturate_index] < -element_max)
+                        encoded_scratch[saturate_index] = -element_max;
+                }
+                nk_cast_haswell(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype);
+            }
         }
     }
 }

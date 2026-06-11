@@ -744,8 +744,8 @@ NK_PUBLIC void nk_cast_skylake(void const *from, nk_dtype_t from_type, nk_size_t
 
     // Hub 1: f32x16 - float types + small integers (16 elements/batch)
     if (from_f32_hub && to_f32_hub) {
-        nk_size_t from_bytes = nk_dtype_bits(from_type) / NK_BITS_PER_BYTE;
-        nk_size_t to_bytes = nk_dtype_bits(to_type) / NK_BITS_PER_BYTE;
+        nk_size_t from_bytes = nk_size_divide_round_up_(nk_dtype_bits(from_type), NK_BITS_PER_BYTE);
+        nk_size_t to_bytes = nk_size_divide_round_up_(nk_dtype_bits(to_type), NK_BITS_PER_BYTE);
         while (n > 0) {
             nk_size_t batch = n < 16 ? n : 16;
             __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)batch);
@@ -804,8 +804,8 @@ NK_PUBLIC void nk_cast_skylake(void const *from, nk_dtype_t from_type, nk_size_t
 
     // Hub 2: u64x8 - unsigned ↔ unsigned integers (8 elements/batch)
     if (from_unsigned && to_unsigned) {
-        nk_size_t from_bytes = nk_dtype_bits(from_type) / NK_BITS_PER_BYTE;
-        nk_size_t to_bytes = nk_dtype_bits(to_type) / NK_BITS_PER_BYTE;
+        nk_size_t from_bytes = nk_size_divide_round_up_(nk_dtype_bits(from_type), NK_BITS_PER_BYTE);
+        nk_size_t to_bytes = nk_size_divide_round_up_(nk_dtype_bits(to_type), NK_BITS_PER_BYTE);
         while (n > 0) {
             nk_size_t batch = n < 8 ? n : 8;
             __mmask8 mask = (__mmask8)_bzhi_u32(0xFF, (unsigned int)batch);
@@ -835,8 +835,8 @@ NK_PUBLIC void nk_cast_skylake(void const *from, nk_dtype_t from_type, nk_size_t
 
     // Hub 3: i64x8 - signed/mixed integer conversions (8 elements/batch)
     if ((from_signed || from_unsigned) && (to_signed || to_unsigned)) {
-        nk_size_t from_bytes = nk_dtype_bits(from_type) / NK_BITS_PER_BYTE;
-        nk_size_t to_bytes = nk_dtype_bits(to_type) / NK_BITS_PER_BYTE;
+        nk_size_t from_bytes = nk_size_divide_round_up_(nk_dtype_bits(from_type), NK_BITS_PER_BYTE);
+        nk_size_t to_bytes = nk_size_divide_round_up_(nk_dtype_bits(to_type), NK_BITS_PER_BYTE);
         while (n > 0) {
             nk_size_t batch = n < 8 ? n : 8;
             __mmask8 mask = (__mmask8)_bzhi_u32(0xFF, (unsigned int)batch);
@@ -879,8 +879,8 @@ NK_PUBLIC void nk_cast_skylake(void const *from, nk_dtype_t from_type, nk_size_t
     if ((from_f64 || to_f64) &&                                                                               //
         (from_type == nk_f64_k || from_type == nk_f32_k || from_type == nk_i32_k || from_type == nk_u32_k) && //
         (to_type == nk_f64_k || to_type == nk_f32_k || to_type == nk_i32_k || to_type == nk_u32_k)) {
-        nk_size_t from_bytes = nk_dtype_bits(from_type) / NK_BITS_PER_BYTE;
-        nk_size_t to_bytes = nk_dtype_bits(to_type) / NK_BITS_PER_BYTE;
+        nk_size_t from_bytes = nk_size_divide_round_up_(nk_dtype_bits(from_type), NK_BITS_PER_BYTE);
+        nk_size_t to_bytes = nk_size_divide_round_up_(nk_dtype_bits(to_type), NK_BITS_PER_BYTE);
         while (n > 0) {
             nk_size_t batch = n < 8 ? n : 8;
             __mmask8 mask = (__mmask8)_bzhi_u32(0xFF, (unsigned int)batch);
@@ -986,10 +986,14 @@ NK_INTERNAL __m128i nk_f32x16_to_e2m1x16_skylake_(__m512 f32x16) {
 NK_INTERNAL nk_f32_t nk_block_amax_f32_skylake_(nk_f32_t const *block, nk_size_t block_count) {
     __m512i abs_mask = _mm512_set1_epi32(0x7FFFFFFF);
     __mmask16 const full_mask = 0xFFFF;
+    nk_fui32_t qnan;
+    qnan.u = 0x7FC00000u; // NaN in any lane → propagate so the block scale becomes the NaN sentinel
     __m512 block_low = _mm512_maskz_loadu_ps(block_count >= 16 ? full_mask : ((1u << block_count) - 1u), block);
+    if (_mm512_cmp_ps_mask(block_low, block_low, _CMP_UNORD_Q)) return qnan.f; // masked-off lanes are 0 (ordered)
     __m512 abs_low = _mm512_and_ps(block_low, _mm512_castsi512_ps(abs_mask));
     if (block_count <= 16) return _mm512_reduce_max_ps(abs_low);
     __m512 block_high = _mm512_maskz_loadu_ps((1u << (block_count - 16)) - 1u, block + 16);
+    if (_mm512_cmp_ps_mask(block_high, block_high, _CMP_UNORD_Q)) return qnan.f;
     __m512 abs_high = _mm512_and_ps(block_high, _mm512_castsi512_ps(abs_mask));
     return _mm512_reduce_max_ps(_mm512_max_ps(abs_low, abs_high));
 }
@@ -998,9 +1002,9 @@ NK_INTERNAL nk_f32_t nk_block_amax_f32_skylake_(nk_f32_t const *block, nk_size_t
  *  around the serial element codec hub, which vectorises the dominant scale-derivation cost for
  *  MXFP8 / MXFP6 / MXFP4 / MXINT8 / NVFP4 without duplicating per-format packing logic. */
 NK_PUBLIC void nk_cast_block_scaled_skylake(                                                             //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_global,                    //
+    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                         //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_global, nk_block_scaled_format_t const *to_format, //
+    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count) {
 
     int from_plain = (from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0);
@@ -1015,16 +1019,16 @@ NK_PUBLIC void nk_cast_block_scaled_skylake(                                    
     nk_size_t to_block = to_plain ? 1u : to_format->block_size;
     nk_size_t chunk = from_block > to_block ? from_block : to_block;
 
-    nk_f32_t from_global_f32 = 1.0f;
-    if (from_global != NULL && !from_plain && from_format->global_dtype == nk_f32_k) from_global_f32 = from_global->f32;
+    nk_f32_t from_tensor_scale_f32 = 1.0f;
+    if (from_tensor_scale != NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k) from_tensor_scale_f32 = from_tensor_scale->f32;
 
-    nk_f32_t to_global_f32 = 1.0f;
-    int to_has_global = (!to_plain && to_global != NULL && to_format->global_dtype == nk_f32_k);
-    if (to_has_global) {
-        to_global_f32 = to_global->f32;
-        if (to_global_f32 == 0.0f) {
+    nk_f32_t to_tensor_scale_f32 = 1.0f;
+    int to_has_tensor_scale = (!to_plain && to_tensor_scale != NULL && to_format->tensor_scale_dtype == nk_f32_k);
+    if (to_has_tensor_scale) {
+        to_tensor_scale_f32 = to_tensor_scale->f32;
+        if (to_tensor_scale_f32 == 0.0f) {
             // Fall back to serial for auto-derive (needs a full tensor scan; rare calibration path).
-            nk_cast_block_scaled_serial(from, from_scales, from_global, from_format, to, to_scales, to_global,
+            nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales, to_tensor_scale,
                                         to_format, count);
             return;
         }
@@ -1046,20 +1050,21 @@ NK_PUBLIC void nk_cast_block_scaled_skylake(                                    
         }
         else {
             for (nk_size_t b = 0; b < chunk_count; b += from_block) {
+                nk_size_t valid = (chunk_count - b) < from_block ? (chunk_count - b) : from_block;
                 nk_size_t block_idx = (chunk_start + b) / from_block;
                 nk_u8_t raw = from_scales_bytes[block_idx];
                 nk_f32_t scale_f32 = nk_block_scaled_decode_scale_serial_(raw, from_format->scale_dtype) *
-                                     from_global_f32;
+                                     from_tensor_scale_f32;
                 void const *src = (nk_u8_t const *)from +
                                   ((chunk_start + b) * from_bits_per_element / NK_BITS_PER_BYTE);
-                nk_cast_skylake(src, from_format->element_dtype, from_block, scratch + b, nk_f32_k);
+                nk_cast_skylake(src, from_format->element_dtype, valid, scratch + b, nk_f32_k);
                 __m512 scale_bcast = _mm512_set1_ps(scale_f32);
-                __m512 v_low = _mm512_maskz_loadu_ps(from_block >= 16 ? 0xFFFF : (1u << from_block) - 1u, scratch + b);
-                _mm512_mask_storeu_ps(scratch + b, from_block >= 16 ? 0xFFFF : (1u << from_block) - 1u,
+                __m512 v_low = _mm512_maskz_loadu_ps(valid >= 16 ? 0xFFFF : (1u << valid) - 1u, scratch + b);
+                _mm512_mask_storeu_ps(scratch + b, valid >= 16 ? 0xFFFF : (1u << valid) - 1u,
                                       _mm512_mul_ps(v_low, scale_bcast));
-                if (from_block > 16) {
-                    __m512 v_high = _mm512_maskz_loadu_ps((1u << (from_block - 16)) - 1u, scratch + b + 16);
-                    _mm512_mask_storeu_ps(scratch + b + 16, (1u << (from_block - 16)) - 1u,
+                if (valid > 16) {
+                    __m512 v_high = _mm512_maskz_loadu_ps((1u << (valid - 16)) - 1u, scratch + b + 16);
+                    _mm512_mask_storeu_ps(scratch + b + 16, (1u << (valid - 16)) - 1u,
                                           _mm512_mul_ps(v_high, scale_bcast));
                 }
             }
@@ -1073,26 +1078,33 @@ NK_PUBLIC void nk_cast_block_scaled_skylake(                                    
         else {
             nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
             for (nk_size_t b = 0; b < chunk_count; b += to_block) {
-                nk_f32_t block_amax = nk_block_amax_f32_skylake_(scratch + b, to_block);
-                nk_f32_t scale_target = block_amax / element_max / to_global_f32;
-                nk_u8_t raw = nk_block_scaled_encode_scale_serial_(scale_target, to_format->scale_dtype);
+                nk_size_t valid = (chunk_count - b) < to_block ? (chunk_count - b) : to_block;
+                nk_f32_t block_amax = nk_block_amax_f32_skylake_(scratch + b, valid);
+                nk_u8_t raw = nk_block_scaled_encode_scale_serial_(block_amax, element_max, to_tensor_scale_f32,
+                                                                   to_format->scale_dtype);
                 nk_size_t block_idx = (chunk_start + b) / to_block;
                 to_scales_bytes[block_idx] = raw;
                 nk_f32_t effective_scale = nk_block_scaled_decode_scale_serial_(raw, to_format->scale_dtype) *
-                                           to_global_f32;
+                                           to_tensor_scale_f32;
                 nk_f32_t reciprocal = effective_scale > 0 ? (1.0f / effective_scale) : 0.0f;
                 __m512 reciprocal_bcast = _mm512_set1_ps(reciprocal);
                 nk_f32_t encoded_scratch[32];
-                __m512 v_low = _mm512_maskz_loadu_ps(to_block >= 16 ? 0xFFFF : (1u << to_block) - 1u, scratch + b);
-                _mm512_mask_storeu_ps(encoded_scratch, to_block >= 16 ? 0xFFFF : (1u << to_block) - 1u,
+                __m512 v_low = _mm512_maskz_loadu_ps(valid >= 16 ? 0xFFFF : (1u << valid) - 1u, scratch + b);
+                _mm512_mask_storeu_ps(encoded_scratch, valid >= 16 ? 0xFFFF : (1u << valid) - 1u,
                                       _mm512_mul_ps(v_low, reciprocal_bcast));
-                if (to_block > 16) {
-                    __m512 v_high = _mm512_maskz_loadu_ps((1u << (to_block - 16)) - 1u, scratch + b + 16);
-                    _mm512_mask_storeu_ps(encoded_scratch + 16, (1u << (to_block - 16)) - 1u,
+                if (valid > 16) {
+                    __m512 v_high = _mm512_maskz_loadu_ps((1u << (valid - 16)) - 1u, scratch + b + 16);
+                    _mm512_mask_storeu_ps(encoded_scratch + 16, (1u << (valid - 16)) - 1u,
                                           _mm512_mul_ps(v_high, reciprocal_bcast));
                 }
                 void *dst = (nk_u8_t *)to + ((chunk_start + b) * to_bits_per_element / NK_BITS_PER_BYTE);
-                nk_cast_skylake(encoded_scratch, nk_f32_k, to_block, dst, to_format->element_dtype);
+                // Write only valid elements: dst is sized for `count` (bytes), not whole blocks.
+                /* Saturate to element_max: finite inputs must not overflow to +/-inf (E5M2 has inf; OCP SAT). */
+                for (nk_size_t saturate_index = 0; saturate_index < valid; ++saturate_index) {
+                    if (encoded_scratch[saturate_index] > element_max) encoded_scratch[saturate_index] = element_max;
+                    else if (encoded_scratch[saturate_index] < -element_max) encoded_scratch[saturate_index] = -element_max;
+                }
+                nk_cast_skylake(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype);
             }
         }
     }
