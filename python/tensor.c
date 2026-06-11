@@ -2538,12 +2538,12 @@ static PyObject *Tensor_tp_new(PyTypeObject *type, PyObject *args, PyObject *kwd
 
     if (PyBuffer_IsContiguous(&buf, 'C')) { memcpy(tensor->data, buf.buf, (size_t)buf.len); }
     else {
-        size_t row_bytes = (size_t)buf.itemsize;
-        for (int d = 1; d < buf.ndim; d++) row_bytes *= (size_t)buf.shape[d];
-        Py_ssize_t dst_stride = (Py_ssize_t)row_bytes;
-        Py_ssize_t src_stride = buf.strides[0];
-        for (Py_ssize_t i = 0; i < buf.shape[0]; i++)
-            memcpy(tensor->data + i * dst_stride, (char *)buf.buf + i * src_stride, row_bytes);
+        // Non-C-contiguous input (Fortran-order, transposed, or strided): walk every axis' stride.
+        // Same dtype on both sides — `linearize_cast_into` compacts the strided bytes without a cast.
+        size_t total_elements = 1;
+        for (int d = 0; d < buf.ndim; d++) total_elements *= (size_t)buf.shape[d];
+        linearize_cast_into((char const *)buf.buf, dtype, tensor->data, dtype, (size_t)buf.ndim, buf.shape,
+                            buf.strides, total_elements);
     }
 
     PyBuffer_Release(&buf);
@@ -2658,16 +2658,107 @@ char const doc_method_scaled_astype[] =                                         
     "Signature:\n"                                                                   //
     "    >>> def astype(self, dtype, /): ...";
 
-/** @brief Decode a `ScaledTensor` into a dense `Tensor` of @p target_dtype (dequantize). */
+/** @brief Transcode a `ScaledTensor` into another block-scaled format (e.g. NVFP4 -> MXFP8). */
+static PyObject *ScaledTensor_transcode(ScaledTensor *scaled, nk_dtype_t target_dtype) {
+    nk_block_scaled_format_t to_format = nk_block_scaled_format_of_dtype(target_dtype);
+    size_t to_block_size = to_format.block_size;
+
+    Tensor *src_elements = scaled->elements;
+    Tensor *src_scales = scaled->block_scales;
+    size_t rank = src_scales->rank;
+
+    // Logical shape: leading dims from the scales tensor, last dim = blocks * source block_size.
+    Py_ssize_t out_shape[NK_TENSOR_MAX_RANK];
+    size_t total = 1;
+    for (size_t i = 0; i < rank; i++) {
+        Py_ssize_t dim = src_scales->shape[i];
+        if (i + 1 == rank) dim *= (Py_ssize_t)scaled->block_size;
+        out_shape[i] = dim;
+        total *= (size_t)dim;
+    }
+    Py_ssize_t last_dim = rank ? out_shape[rank - 1] : 0;
+    if (to_block_size == 0 || (size_t)last_dim % to_block_size != 0) {
+        PyErr_Format(PyExc_ValueError, "last dimension %zd must be a multiple of block size %zu for '%s'", last_dim,
+                     to_block_size, nk_dtype_name(target_dtype));
+        return NULL;
+    }
+
+    // Compact the (possibly strided) source child tensors for the flat-buffer kernel.
+    size_t elem_total = 1, scale_total = 1;
+    for (size_t i = 0; i < rank; i++) {
+        elem_total *= (size_t)src_elements->shape[i];
+        scale_total *= (size_t)src_scales->shape[i];
+    }
+    int elem_free = 0, scale_free = 0;
+    char *elem_buf = ensure_contiguous_buffer(src_elements->data, src_elements->dtype, src_elements->dtype, rank,
+                                              src_elements->shape, src_elements->strides, elem_total, &elem_free);
+    char *scale_buf = scale_total ? ensure_contiguous_buffer(src_scales->data, src_scales->dtype, src_scales->dtype,
+                                                             rank, src_scales->shape, src_scales->strides, scale_total,
+                                                             &scale_free)
+                                  : src_scales->data;
+    if (!elem_buf || (scale_total && !scale_buf)) {
+        if (elem_free) PyMem_Free(elem_buf);
+        if (scale_free) PyMem_Free(scale_buf);
+        return NULL;
+    }
+
+    // Destination child shapes from the target format: leading dims preserved, last dim in storage units.
+    size_t dst_elements_last = nk_block_scaled_elements_size((nk_size_t)last_dim, to_format);
+    size_t dst_scales_last = nk_block_scaled_scales_size((nk_size_t)last_dim, to_format);
+    Py_ssize_t dst_elements_shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t dst_scales_shape[NK_TENSOR_MAX_RANK];
+    for (size_t i = 0; i + 1 < rank; i++) {
+        dst_elements_shape[i] = out_shape[i];
+        dst_scales_shape[i] = out_shape[i];
+    }
+    dst_elements_shape[rank - 1] = (Py_ssize_t)dst_elements_last;
+    dst_scales_shape[rank - 1] = (Py_ssize_t)dst_scales_last;
+
+    Tensor *dst_elements = Tensor_new(to_format.element_dtype, rank, dst_elements_shape);
+    Tensor *dst_scales = Tensor_new(to_format.scale_dtype, rank, dst_scales_shape);
+    ScaledTensor *result = dst_elements && dst_scales ? PyObject_New(ScaledTensor, &ScaledTensorType) : NULL;
+    if (!result) {
+        Py_XDECREF(dst_elements);
+        Py_XDECREF(dst_scales);
+        if (elem_free) PyMem_Free(elem_buf);
+        if (scale_free) PyMem_Free(scale_buf);
+        return NULL;
+    }
+
+    nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(scaled->dtype);
+    int to_has_tensor_scale = (to_format.tensor_scale_dtype == nk_f32_k);
+    nk_scalar_buffer_t from_tensor_scale, to_tensor_scale;
+    memset(&from_tensor_scale, 0, sizeof(from_tensor_scale));
+    memset(&to_tensor_scale, 0, sizeof(to_tensor_scale));
+    from_tensor_scale.f32 = scaled->tensor_scale;
+    to_tensor_scale.f32 = 0.0f; // zero → kernel derives the destination per-tensor scale (NVFP4)
+
+    PyThreadState *gil = PyEval_SaveThread();
+    nk_cast_block_scaled(elem_buf, scale_buf, scaled->has_tensor_scale ? &from_tensor_scale : NULL, &from_format, //
+                         dst_elements->data, dst_scales->data, to_has_tensor_scale ? &to_tensor_scale : NULL,     //
+                         &to_format, (nk_size_t)total);
+    PyEval_RestoreThread(gil);
+
+    if (elem_free) PyMem_Free(elem_buf);
+    if (scale_free) PyMem_Free(scale_buf);
+
+    result->elements = dst_elements;
+    result->block_scales = dst_scales;
+    result->dtype = target_dtype;
+    result->block_size = to_block_size;
+    result->tensor_scale = to_has_tensor_scale ? to_tensor_scale.f32 : 1.0f;
+    result->has_tensor_scale = to_has_tensor_scale;
+    return (PyObject *)result;
+}
+
+/** @brief Decode a `ScaledTensor` into a dense `Tensor` of @p target_dtype, or transcode to another
+ *  block-scaled format when @p target_dtype is itself block-scaled. */
 static PyObject *ScaledTensor_astype(PyObject *self, PyObject *dtype_arg) {
     ScaledTensor *scaled = (ScaledTensor *)self;
 
     nk_dtype_t target_dtype = py_object_to_nk_dtype(dtype_arg);
     if (target_dtype == nk_dtype_unknown_k) return NULL;
-    if (nk_dtype_is_block_scaled(target_dtype)) {
-        PyErr_SetString(PyExc_ValueError, "ScaledTensor.astype targets a dense dtype; re-quantizing is unsupported");
-        return NULL;
-    }
+    if (nk_dtype_is_block_scaled(target_dtype)) return ScaledTensor_transcode(scaled, target_dtype);
 
     Tensor *elements = scaled->elements;
     Tensor *block_scales = scaled->block_scales;

@@ -1500,3 +1500,47 @@ def test_scaled_tensor_dlpack_components():
 
 
 # endregion Block-Scaled (ScaledTensor)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is required for buffer-ingestion tests")
+@pytest.mark.parametrize("order", ["C", "F", "transpose", "strided"])
+def test_tensor_construct_non_contiguous(order):
+    """`Tensor(buffer)` must ingest non-C-contiguous inputs (Fortran-order, transposed, strided)
+    correctly — each axis' stride is honored rather than assuming packed inner dimensions."""
+    base = np.arange(24, dtype=np.float32).reshape(4, 6)
+    if order == "C":
+        arr = base
+    elif order == "F":
+        arr = np.asfortranarray(base)
+    elif order == "transpose":
+        arr = base.T
+    else:
+        arr = base[:, ::2]  # strided slice on the last axis
+    tensor = nk.Tensor(arr)
+    assert tuple(tensor.shape) == arr.shape
+    restored = np.asarray(tensor.astype("float32"))
+    assert np.array_equal(restored, np.ascontiguousarray(arr)), f"{order} ingestion corrupted data"
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is required for block-scaled tests")
+@pytest.mark.parametrize("src_dtype, dst_dtype", [
+    ("nvfp4", "mxfp8_e4m3"),
+    ("mxfp8_e4m3", "nvfp4"),
+    ("mxfp4", "mxfp8_e5m2"),
+    ("mxfp8_e5m2", "mxint8"),
+])
+def test_scaled_tensor_transcode(src_dtype, dst_dtype):
+    """`ScaledTensor.astype("<block-scaled>")` transcodes between block-scaled formats and must equal
+    decoding the source to dense and re-encoding to the destination (the kernel does exactly that)."""
+    dense = np.asarray(
+        [[1.0 + 0.5 * (((r + c) % 7) / 7.0) for c in range(64)] for r in range(3)], dtype=np.float32
+    )
+    scaled = nk.Tensor(dense).astype(src_dtype)
+    transcoded = scaled.astype(dst_dtype)
+    assert transcoded.dtype == dst_dtype
+
+    # Transcode == decode-to-dense-then-re-encode (both go through the same f32 intermediate).
+    decode_then_encode = nk.Tensor(np.asarray(scaled.astype("float32"))).astype(dst_dtype)
+    direct = np.asarray(transcoded.astype("float32"))
+    two_step = np.asarray(decode_then_encode.astype("float32"))
+    assert np.array_equal(direct, two_step), f"transcode {src_dtype}->{dst_dtype} != decode-then-encode"

@@ -6748,6 +6748,25 @@ mod tests {
     }
 
     #[test]
+    fn transposed_view_to_owned_roundtrips() {
+        // Materializing a non-contiguous (transposed) view must honor every stride, not assume the
+        // inner axis is packed.
+        let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
+        let arr = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let transposed = arr.view().transpose().unwrap();
+        assert_eq!(transposed.shape(), &[4, 3]);
+
+        let owned = transposed.to_owned().unwrap();
+        assert_eq!(owned.shape(), &[4, 3]);
+        let got = owned.as_slice();
+        for i in 0..4 {
+            for j in 0..3 {
+                assert_eq!(got[i * 3 + j], data[j * 4 + i], "transpose materialization at ({i}, {j})");
+            }
+        }
+    }
+
+    #[test]
     fn tensor_clone() {
         let arr = Tensor::<f32>::try_full(&[3, 4], 2.5f32).unwrap();
         let cloned = arr.clone();

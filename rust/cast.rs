@@ -11,24 +11,25 @@ extern crate alloc;
 
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
 use alloc::vec::Vec;
+use core::ffi::c_void;
 
 #[link(name = "numkong")]
 extern "C" {
     fn nk_cast(
-        from: *const core::ffi::c_void,
+        from: *const c_void,
         from_type: u32,
         n: usize,
-        to: *mut core::ffi::c_void,
+        to: *mut c_void,
         to_type: u32,
     );
 
     fn nk_cast_block_scaled(
-        from: *const core::ffi::c_void,
-        from_scales: *const core::ffi::c_void,
+        from: *const c_void,
+        from_scales: *const c_void,
         from_tensor_scale: *const ScalarBuffer,
         from_format: *const BlockScaledDescriptor,
-        to: *mut core::ffi::c_void,
-        to_scales: *mut core::ffi::c_void,
+        to: *mut c_void,
+        to_scales: *mut c_void,
         to_tensor_scale: *mut ScalarBuffer,
         to_format: *const BlockScaledDescriptor,
         count: usize,
@@ -233,10 +234,10 @@ pub fn cast<S: CastDtype, D: CastDtype>(source: &[S], dest: &mut [D]) -> Option<
     }
     unsafe {
         nk_cast(
-            source.as_ptr() as *const core::ffi::c_void,
+            source.as_ptr() as *const c_void,
             S::dtype_code(),
             source.len(),
-            dest.as_mut_ptr() as *mut core::ffi::c_void,
+            dest.as_mut_ptr() as *mut c_void,
             D::dtype_code(),
         );
     }
@@ -563,12 +564,12 @@ fn blocked_scales_shape(shape: &[usize], block_size: usize) -> Result<Vec<usize>
 /// destination scale when `to_derives_scale` is set. `count` is the logical element total (`numel`).
 #[allow(clippy::too_many_arguments)]
 fn block_scaled_cast_(
-    from_elements: *const core::ffi::c_void,
-    from_scales: *const core::ffi::c_void,
+    from_elements: *const c_void,
+    from_scales: *const c_void,
     from_tensor_scale: Option<f32>,
     from_format: &BlockScaledDescriptor,
-    to_elements: *mut core::ffi::c_void,
-    to_scales: *mut core::ffi::c_void,
+    to_elements: *mut c_void,
+    to_scales: *mut c_void,
     to_derives_scale: bool,
     to_format: &BlockScaledDescriptor,
     count: usize,
@@ -623,12 +624,12 @@ impl<'a, const MAX_RANK: usize> TensorView<'a, f32, MAX_RANK> {
         let mut elements = Tensor::<F::Element>::try_zeros(shape)?;
         let mut block_scales = Tensor::<F::Scale>::try_zeros(&scales_shape)?;
         let tensor_scale = block_scaled_cast_(
-            source.as_ptr() as *const core::ffi::c_void,
+            source.as_ptr() as *const c_void,
             core::ptr::null(),
             None,
             &BlockScaledDescriptor::plain(dtype::F32),
-            elements.as_mut_ptr() as *mut core::ffi::c_void,
-            block_scales.as_mut_ptr() as *mut core::ffi::c_void,
+            elements.as_mut_ptr() as *mut c_void,
+            block_scales.as_mut_ptr() as *mut c_void,
             F::HAS_TENSOR_SCALE,
             &F::descriptor(),
             count,
@@ -655,11 +656,11 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
 
         let mut out = Tensor::<T>::try_zeros(shape)?;
         block_scaled_cast_(
-            elements.as_ptr() as *const core::ffi::c_void,
-            scales.as_ptr() as *const core::ffi::c_void,
+            elements.as_ptr() as *const c_void,
+            scales.as_ptr() as *const c_void,
             self.tensor_scale(),
             &F::descriptor(),
-            out.as_mut_ptr() as *mut core::ffi::c_void,
+            out.as_mut_ptr() as *mut c_void,
             core::ptr::null_mut(),
             false,
             &BlockScaledDescriptor::plain(T::dtype_code()),
@@ -688,12 +689,12 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
         let mut elements = Tensor::<G::Element>::try_zeros(shape)?;
         let mut block_scales = Tensor::<G::Scale>::try_zeros(&scales_shape)?;
         let tensor_scale = block_scaled_cast_(
-            src_elements.as_ptr() as *const core::ffi::c_void,
-            src_scales.as_ptr() as *const core::ffi::c_void,
+            src_elements.as_ptr() as *const c_void,
+            src_scales.as_ptr() as *const c_void,
             self.tensor_scale(),
             &F::descriptor(),
-            elements.as_mut_ptr() as *mut core::ffi::c_void,
-            block_scales.as_mut_ptr() as *mut core::ffi::c_void,
+            elements.as_mut_ptr() as *mut c_void,
+            block_scales.as_mut_ptr() as *mut c_void,
             G::HAS_TENSOR_SCALE,
             &G::descriptor(),
             count,
@@ -934,6 +935,34 @@ mod tests {
     }
 
     #[test]
+    fn transcode_equals_decode_then_encode() {
+        // Transcoding a block-scaled tensor must equal decoding it to dense and re-encoding (the
+        // kernel does exactly that). Destination is MX (no per-tensor scale) so it's byte-exact.
+        let (data, shape) = sample_matrix();
+        let dense = Tensor::<f32>::try_from_slice(&data, &shape).unwrap();
+        let nvfp4 = dense.view().try_cast_to_scaled::<Nvfp4>().unwrap();
+
+        let direct = nvfp4.view().try_cast_to_scaled::<Mxfp8E4m3>().unwrap();
+        let decoded = nvfp4.view().try_cast_dense::<f32>().unwrap();
+        let two_step = decoded.view().try_cast_to_scaled::<Mxfp8E4m3>().unwrap();
+
+        let direct_elements = direct.elements();
+        let two_step_elements = two_step.elements();
+        assert_eq!(
+            direct_elements.as_packed_slice().unwrap(),
+            two_step_elements.as_packed_slice().unwrap(),
+            "transcode elements differ from decode-then-encode"
+        );
+        let direct_scales = direct.block_scales();
+        let two_step_scales = two_step.block_scales();
+        assert_eq!(
+            direct_scales.as_packed_slice().unwrap(),
+            two_step_scales.as_packed_slice().unwrap(),
+            "transcode scales differ from decode-then-encode"
+        );
+    }
+
+    #[test]
     fn rank1_vector_roundtrips() {
         // A bare 1-D vector (no leading axis): the verbs block the last axis only.
         let cols = 32usize;
@@ -1025,12 +1054,12 @@ mod tests {
         let mut ref_scale_buf = ScalarBuffer::from_f32(0.0);
         unsafe {
             nk_cast_block_scaled(
-                data.as_ptr() as *const core::ffi::c_void,
+                data.as_ptr() as *const c_void,
                 core::ptr::null(),
                 core::ptr::null(),
                 &from_format,
-                ref_elements.as_mut_ptr() as *mut core::ffi::c_void,
-                ref_scales.as_mut_ptr() as *mut core::ffi::c_void,
+                ref_elements.as_mut_ptr() as *mut c_void,
+                ref_scales.as_mut_ptr() as *mut c_void,
                 &mut ref_scale_buf,
                 &to_format,
                 count,
