@@ -1748,6 +1748,14 @@ NK_PUBLIC nk_size_t nk_size_round_up_to_multiple_(nk_size_t number, nk_size_t di
     return nk_size_divide_round_up_(number, divisor) * divisor;
 }
 
+/** @brief Multiplies two sizes with overflow detection. Writes the product and returns 1 on success;
+ *         returns 0 (leaving @p product unchanged) when @p a * @p b would overflow `nk_size_t`. */
+NK_PUBLIC int nk_size_mul_checked_(nk_size_t a, nk_size_t b, nk_size_t *product) NK_STREAMING_COMPATIBLE_ {
+    if (b != 0 && a > NK_SIZE_MAX / b) return 0;
+    *product = a * b;
+    return 1;
+}
+
 NK_INTERNAL nk_f32_t nk_f32_abs_(nk_f32_t x) { return x < 0 ? -x : x; }
 NK_INTERNAL nk_f64_t nk_f64_abs_(nk_f64_t x) { return x < 0 ? -x : x; }
 NK_INTERNAL nk_i64_t nk_i64_abs_(nk_i64_t x) { return x < 0 ? -x : x; }

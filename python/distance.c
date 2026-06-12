@@ -815,7 +815,11 @@ static PyObject *implement_cdist(                        //
         goto cleanup;
     }
 
-    size_t const count_pairs = a_parsed.rows * b_parsed.rows;
+    size_t count_pairs;
+    if (!nk_size_mul_checked_(a_parsed.rows, b_parsed.rows, &count_pairs)) {
+        PyErr_SetString(PyExc_OverflowError, "cdist result size (a_rows * b_rows) overflows size_t");
+        goto cleanup;
+    }
     char *distances_start = NULL;
     size_t distances_rows_stride_bytes = 0;
     size_t distances_cols_stride_bytes = 0;

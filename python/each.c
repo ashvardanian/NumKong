@@ -536,7 +536,11 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
 
     nk_dtype_t dtype = resolve_nk_dtype_in_py_buffer(&a_buffer);
     if (out_dtype_obj) { dtype = py_object_to_nk_dtype(out_dtype_obj); }
-    if (dtype == nk_dtype_unknown_k) goto cleanup;
+    if (dtype == nk_dtype_unknown_k) {
+        if (!PyErr_Occurred())
+            PyErr_SetString(PyExc_TypeError, "unsupported buffer dtype for the requested elementwise operation");
+        goto cleanup;
+    }
 
     nk_each_scale_punned_t scale_kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
@@ -555,7 +559,11 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
     size_t total_elements = 1;
-    for (int dim = 0; dim < a_buffer.ndim; dim++) total_elements *= (size_t)a_buffer.shape[dim];
+    for (int dim = 0; dim < a_buffer.ndim; dim++)
+        if (!nk_size_mul_checked_(total_elements, (size_t)a_buffer.shape[dim], &total_elements)) {
+            PyErr_SetString(PyExc_OverflowError, "tensor element count overflows size_t");
+            goto cleanup;
+        }
 
     char *result_data = NULL;
     Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
@@ -655,7 +663,11 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
     }
 
     if (out_dtype_obj) { dtype = py_object_to_nk_dtype(out_dtype_obj); }
-    if (dtype == nk_dtype_unknown_k) goto cleanup;
+    if (dtype == nk_dtype_unknown_k) {
+        if (!PyErr_Occurred())
+            PyErr_SetString(PyExc_TypeError, "unsupported buffer dtype for the requested elementwise operation");
+        goto cleanup;
+    }
 
     nk_each_sum_punned_t sum_kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
@@ -668,7 +680,11 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
 
     int const num_dims = a_buffer.ndim;
     size_t total_elements = 1;
-    for (int dim = 0; dim < num_dims; dim++) total_elements *= (size_t)a_buffer.shape[dim];
+    for (int dim = 0; dim < num_dims; dim++)
+        if (!nk_size_mul_checked_(total_elements, (size_t)a_buffer.shape[dim], &total_elements)) {
+            PyErr_SetString(PyExc_OverflowError, "tensor element count overflows size_t");
+            goto cleanup;
+        }
 
     a_promoted = ensure_contiguous_buffer(a_buffer.buf, a_dtype, dtype, num_dims, a_buffer.shape, a_buffer.strides,
                                           total_elements, &a_needs_free);
@@ -827,7 +843,11 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
 
     nk_dtype_t dtype = resolve_nk_dtype_in_py_buffer(&a_buffer);
     if (out_dtype_obj) { dtype = py_object_to_nk_dtype(out_dtype_obj); }
-    if (dtype == nk_dtype_unknown_k) goto cleanup;
+    if (dtype == nk_dtype_unknown_k) {
+        if (!PyErr_Occurred())
+            PyErr_SetString(PyExc_TypeError, "unsupported buffer dtype for the requested elementwise operation");
+        goto cleanup;
+    }
 
     nk_each_scale_punned_t scale_kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
@@ -846,7 +866,11 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
     size_t total_elements = 1;
-    for (int dim = 0; dim < a_buffer.ndim; dim++) total_elements *= (size_t)a_buffer.shape[dim];
+    for (int dim = 0; dim < a_buffer.ndim; dim++)
+        if (!nk_size_mul_checked_(total_elements, (size_t)a_buffer.shape[dim], &total_elements)) {
+            PyErr_SetString(PyExc_OverflowError, "tensor element count overflows size_t");
+            goto cleanup;
+        }
 
     char *result_data = NULL;
     Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
@@ -946,7 +970,11 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     }
 
     if (out_dtype_obj) { dtype = py_object_to_nk_dtype(out_dtype_obj); }
-    if (dtype == nk_dtype_unknown_k) goto cleanup;
+    if (dtype == nk_dtype_unknown_k) {
+        if (!PyErr_Occurred())
+            PyErr_SetString(PyExc_TypeError, "unsupported buffer dtype for the requested elementwise operation");
+        goto cleanup;
+    }
 
     nk_each_fma_punned_t fma_kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
@@ -965,7 +993,11 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
 
     int const num_dims = a_buffer.ndim;
     size_t total_elements = 1;
-    for (int dim = 0; dim < num_dims; dim++) total_elements *= (size_t)a_buffer.shape[dim];
+    for (int dim = 0; dim < num_dims; dim++)
+        if (!nk_size_mul_checked_(total_elements, (size_t)a_buffer.shape[dim], &total_elements)) {
+            PyErr_SetString(PyExc_OverflowError, "tensor element count overflows size_t");
+            goto cleanup;
+        }
 
     a_promoted = ensure_contiguous_buffer(a_buffer.buf, a_dtype, dtype, num_dims, a_buffer.shape, a_buffer.strides,
                                           total_elements, &a_needs_free);

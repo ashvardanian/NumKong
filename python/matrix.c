@@ -454,6 +454,7 @@ static PyObject *api_packed_common( //
     if (end_row < 0) end_row = (Py_ssize_t)height;
     if (start_row > (Py_ssize_t)height || end_row > (Py_ssize_t)height || start_row > end_row) {
         PyBuffer_Release(&a_buffer);
+        if (owns_result) Py_DECREF(result);
         PyErr_Format(PyExc_ValueError, "Invalid row range [%zd, %zd) for matrix with %zu rows", start_row, end_row,
                      (size_t)height);
         return NULL;
@@ -597,6 +598,7 @@ static PyObject *api_symmetric_common( //
         if (row_start > n_vectors || row_end > n_vectors || row_start > row_end) {
             PyErr_Format(PyExc_ValueError, "Invalid row range [%zu, %zu) for %zu vectors", (size_t)row_start,
                          (size_t)row_end, (size_t)n_vectors);
+            if (owns_result) Py_DECREF(result);
             goto cleanup;
         }
         nk_size_t row_count_val = (nk_size_t)(row_end - row_start);

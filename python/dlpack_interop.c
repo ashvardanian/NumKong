@@ -271,10 +271,16 @@ static int nk_fill_dl_tensor(Tensor *tensor, DLTensor *out, nk_dlpack_export_ctx
         if (!versioned && (tensor->dtype == nk_e2m3_k || tensor->dtype == nk_e3m2_k || tensor->dtype == nk_e2m1_k)) {
             PyErr_SetString( //
                 PyExc_TypeError,
-                "Sub-byte FP4/FP6 (e2m1/e2m3/e3m2) DLPack export requires max_version >= (1, 0) so " "the "
-                                                                                                     "IS_SUBBYTE_TYPE_"
-                                                                                                     "PADDED flag can "
-                                                                                                     "be set");
+                "Sub-byte FP4/FP6 (e2m1/e2m3/e3m2) DLPack export requires max_version >= (1, 0) so " "the " "IS_"
+                                                                                                            "SUBBYTE_"
+                                                                                                            "TYPE_" "PA"
+                                                                                                                    "DD"
+                                                                                                                    "ED"
+                                                                                                                    " f"
+                                                                                                                    "la"
+                                                                                                                    "g "
+                                                                                                                    "ca"
+                                                                                                                    "n " "be set");
         }
         else { PyErr_Format(PyExc_TypeError, "dtype %d has no DLPack mapping", (int)tensor->dtype); }
         return -1;
@@ -393,7 +399,9 @@ PyObject *Tensor_dlpack(PyObject *self, PyObject *args, PyObject *kwargs) {
 
     Tensor *tensor = (Tensor *)self;
 
-    if (copy != Py_None && PyObject_IsTrue(copy)) {
+    int const requested_copy = (copy != Py_None) ? PyObject_IsTrue(copy) : 0;
+    if (requested_copy < 0) return NULL; // bool(copy) raised
+    if (requested_copy) {
         PyErr_SetString(PyExc_BufferError, "NumKong DLPack exporter only supports zero-copy (copy=False)");
         return NULL;
     }
@@ -630,13 +638,24 @@ PyObject *api_from_dlpack(PyObject *self, PyObject *obj) {
     nk_dlpack_owner_t *owner = PyObject_New(nk_dlpack_owner_t, &DLPackOwnerType);
     if (!owner) goto fail;
     owner->is_versioned = is_versioned;
+    // Rename the capsule so the producer's destructor becomes a no-op and ownership transfers to `owner`.
+    // If the rename fails, leave the capsule's original name so the producer still frees it, and null
+    // `owner->managed` so our dealloc does not free it a second time.
     if (is_versioned) {
         owner->managed = PyCapsule_GetPointer(capsule, "dltensor_versioned");
-        PyCapsule_SetName(capsule, "used_dltensor_versioned");
+        if (PyCapsule_SetName(capsule, "used_dltensor_versioned") != 0) {
+            owner->managed = NULL;
+            Py_DECREF(owner);
+            goto fail;
+        }
     }
     else {
         owner->managed = PyCapsule_GetPointer(capsule, "dltensor");
-        PyCapsule_SetName(capsule, "used_dltensor");
+        if (PyCapsule_SetName(capsule, "used_dltensor") != 0) {
+            owner->managed = NULL;
+            Py_DECREF(owner);
+            goto fail;
+        }
     }
 
     // Build the Tensor view directly (parallels Tensor_view_object in tensor.c,
