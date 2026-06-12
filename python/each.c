@@ -558,9 +558,9 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
     if (!py_number_to_nk_scalar_buffer(scalar_obj, &beta_buf, scalar_dtype)) goto cleanup;
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
-    size_t total_elements = 1;
+    nk_size_t total_elements = 1;
     for (int dim = 0; dim < a_buffer.ndim; dim++)
-        if (!nk_size_mul_checked_(total_elements, (size_t)a_buffer.shape[dim], &total_elements)) {
+        if (!nk_size_mul_checked_(total_elements, (nk_size_t)a_buffer.shape[dim], &total_elements)) {
             PyErr_SetString(PyExc_OverflowError, "tensor element count overflows size_t");
             goto cleanup;
         }
@@ -608,7 +608,7 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
     each_scale_recursive(scale_kernel, a_buffer.buf, result_data, &alpha_buf, &beta_buf, //
                          a_buffer.shape, a_buffer.strides, result_strides,               //
                          a_buffer.ndim, contiguous_tail);
-    if (cast_staging) { nk_cast(cast_staging, dtype, (nk_size_t)total_elements, out_buffer.buf, out_buf_dtype); }
+    if (cast_staging) { nk_cast(cast_staging, dtype, total_elements, out_buffer.buf, out_buf_dtype); }
     PyEval_RestoreThread(gil);
 
 cleanup:
@@ -679,9 +679,9 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
     }
 
     int const num_dims = a_buffer.ndim;
-    size_t total_elements = 1;
+    nk_size_t total_elements = 1;
     for (int dim = 0; dim < num_dims; dim++)
-        if (!nk_size_mul_checked_(total_elements, (size_t)a_buffer.shape[dim], &total_elements)) {
+        if (!nk_size_mul_checked_(total_elements, (nk_size_t)a_buffer.shape[dim], &total_elements)) {
             PyErr_SetString(PyExc_OverflowError, "tensor element count overflows size_t");
             goto cleanup;
         }
@@ -739,7 +739,7 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
     PyThreadState *gil = PyEval_SaveThread();
     each_sum_recursive(sum_kernel, a_promoted, b_promoted, result_data, a_buffer.shape, promoted_strides,
                        promoted_strides, result_strides, num_dims, contiguous_tail);
-    if (cast_staging) { nk_cast(cast_staging, dtype, (nk_size_t)total_elements, out_buffer.buf, out_buf_dtype); }
+    if (cast_staging) { nk_cast(cast_staging, dtype, total_elements, out_buffer.buf, out_buf_dtype); }
     PyEval_RestoreThread(gil);
 
 cleanup:
@@ -865,9 +865,9 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     nk_scalar_buffer_from_f64(&beta_buf.f64, &beta_buf, scalar_dtype);
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
-    size_t total_elements = 1;
+    nk_size_t total_elements = 1;
     for (int dim = 0; dim < a_buffer.ndim; dim++)
-        if (!nk_size_mul_checked_(total_elements, (size_t)a_buffer.shape[dim], &total_elements)) {
+        if (!nk_size_mul_checked_(total_elements, (nk_size_t)a_buffer.shape[dim], &total_elements)) {
             PyErr_SetString(PyExc_OverflowError, "tensor element count overflows size_t");
             goto cleanup;
         }
@@ -915,7 +915,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     each_scale_recursive(scale_kernel, a_buffer.buf, result_data, &alpha_buf, &beta_buf, //
                          a_buffer.shape, a_buffer.strides, result_strides,               //
                          a_buffer.ndim, contiguous_tail);
-    if (cast_staging) { nk_cast(cast_staging, dtype, (nk_size_t)total_elements, out_buffer.buf, out_buf_dtype); }
+    if (cast_staging) { nk_cast(cast_staging, dtype, total_elements, out_buffer.buf, out_buf_dtype); }
     PyEval_RestoreThread(gil);
 
 cleanup:
@@ -992,9 +992,9 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     nk_scalar_buffer_from_f64(&beta_buf.f64, &beta_buf, scalar_dtype);
 
     int const num_dims = a_buffer.ndim;
-    size_t total_elements = 1;
+    nk_size_t total_elements = 1;
     for (int dim = 0; dim < num_dims; dim++)
-        if (!nk_size_mul_checked_(total_elements, (size_t)a_buffer.shape[dim], &total_elements)) {
+        if (!nk_size_mul_checked_(total_elements, (nk_size_t)a_buffer.shape[dim], &total_elements)) {
             PyErr_SetString(PyExc_OverflowError, "tensor element count overflows size_t");
             goto cleanup;
         }
@@ -1055,7 +1055,7 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     each_fma_recursive(fma_kernel, a_promoted, b_promoted, result_data, result_data, &alpha_buf, &beta_buf,
                        a_buffer.shape, promoted_strides, promoted_strides, result_strides, result_strides, num_dims,
                        contiguous_tail);
-    if (cast_staging) { nk_cast(cast_staging, dtype, (nk_size_t)total_elements, out_buffer.buf, out_buf_dtype); }
+    if (cast_staging) { nk_cast(cast_staging, dtype, total_elements, out_buffer.buf, out_buf_dtype); }
     PyEval_RestoreThread(gil);
 
 cleanup:

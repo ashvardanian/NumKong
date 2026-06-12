@@ -815,7 +815,7 @@ static PyObject *implement_cdist(                        //
         goto cleanup;
     }
 
-    size_t count_pairs;
+    nk_size_t count_pairs;
     if (!nk_size_mul_checked_(a_parsed.rows, b_parsed.rows, &count_pairs)) {
         PyErr_SetString(PyExc_OverflowError, "cdist result size (a_rows * b_rows) overflows size_t");
         goto cleanup;
