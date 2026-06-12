@@ -289,12 +289,11 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Drop
     for Tensor<Scalar, Alloc, MAX_RANK>
 {
     fn drop(&mut self) {
-        let storage_count = if self.ndim == 0 {
-            0
-        } else {
-            let total: usize = self.shape[..self.ndim].iter().product();
-            total / Scalar::dimensions_per_value()
-        };
+        // Mirror construction's storage sizing exactly: the product of a rank-0 shape is the
+        // empty product, 1, so a rank-0 tensor owns one storage element and must be freed here.
+        // Special-casing `ndim == 0` to 0 skipped that deallocation and leaked the element.
+        let total: usize = self.shape[..self.ndim].iter().product();
+        let storage_count = total / Scalar::dimensions_per_value();
         if storage_count > 0 {
             unsafe {
                 core::ptr::drop_in_place(core::ptr::slice_from_raw_parts_mut(
