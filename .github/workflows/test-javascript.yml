@@ -298,16 +298,21 @@ jobs:
           cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasi.cmake -DNK_BUILD_TEST=ON
           cmake --build build-wasi
 
-      - name: Install Wasmer (HEAD for relaxed-SIMD support, not yet in stable)
+      # Install the latest released Wasmer (which now ships relaxed-SIMD). Building
+      # `--git main` broke: upstream's main pulls a private SSH submodule
+      # (git@github.com:wasmerio/quickjs.git) that fails to authenticate in CI.
+      - name: Install Wasmer
         uses: nick-fields/retry@v4
         with:
-          max_attempts: 2
-          retry_wait_seconds: 30
-          timeout_minutes: 180
-          command: cargo install wasmer-cli --git https://github.com/wasmerio/wasmer.git --branch main --features cranelift
+          max_attempts: 3
+          retry_wait_seconds: 15
+          timeout_minutes: 10
+          command: curl https://get.wasmer.io -sSfL | sh
 
       - name: Test Wasmer runtime
-        run: wasmer run --enable-simd --enable-relaxed-simd --forward-host-env ./build-wasi/nk_test.wasm
+        run: |
+          export PATH="$HOME/.wasmer/bin:$PATH"
+          wasmer run --enable-simd --enable-relaxed-simd --forward-host-env ./build-wasi/nk_test.wasm
         env:
           NK_BUDGET_SECS: 0.1
 
