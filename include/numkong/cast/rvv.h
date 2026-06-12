@@ -136,33 +136,80 @@ NK_INTERNAL vfloat32m2_t nk_f16m1_to_f32m2_rvv_(vuint16m1_t f16_u16m1, nk_size_t
  *  Conversion: Rebias exponent from 127 to 15, truncate mantissa from 23 to 10 bits with rounding.
  */
 NK_INTERNAL vuint16m1_t nk_f32m2_to_f16m1_rvv_(vfloat32m2_t f32_f32m2, nk_size_t vector_length) {
-    vuint32m2_t bits_u32m2 = __riscv_vreinterpret_v_f32m2_u32m2(f32_f32m2);
-    // Extract sign: (raw >> 31) << 15
-    vuint32m2_t sign_u32m2 = __riscv_vsll_vx_u32m2(__riscv_vsrl_vx_u32m2(bits_u32m2, 31, vector_length), 15,
-                                                   vector_length);
-    // Extract exponent: (raw >> 23) & 0xFF
-    vuint32m2_t exponent_u32m2 = __riscv_vand_vx_u32m2(__riscv_vsrl_vx_u32m2(bits_u32m2, 23, vector_length), 0xFF,
-                                                       vector_length);
-    // Extract mantissa: raw & 0x7FFFFF
-    vuint32m2_t mantissa_u32m2 = __riscv_vand_vx_u32m2(bits_u32m2, 0x7FFFFF, vector_length);
-    // Rebias exponent (127 → 15): subtract 112, clamp to [0, 31]
-    // Note: This is a simplified conversion that doesn't handle subnormals or overflow properly
-    vint32m2_t exponent_i32m2 = __riscv_vsub_vx_i32m2(__riscv_vreinterpret_v_u32m2_i32m2(exponent_u32m2), 112,
-                                                      vector_length);
-    exponent_i32m2 = __riscv_vmax_vx_i32m2(exponent_i32m2, 0, vector_length);
-    vuint32m2_t f16_exponent_u32m2 = __riscv_vreinterpret_v_i32m2_u32m2(
-        __riscv_vmin_vx_i32m2(exponent_i32m2, 31, vector_length));
-    // Round mantissa: add 0x1000 (half of truncated bits) then shift
-    vuint32m2_t rounded_mantissa_u32m2 = __riscv_vadd_vx_u32m2(mantissa_u32m2, 0x1000, vector_length);
-    vuint32m2_t f16_mantissa_u32m2 = __riscv_vsrl_vx_u32m2(rounded_mantissa_u32m2, 13, vector_length);
-    f16_mantissa_u32m2 = __riscv_vand_vx_u32m2(f16_mantissa_u32m2, 0x3FF, vector_length);
-    // Combine: sign | (exponent << 10) | mantissa
-    vuint32m2_t result_u32m2 = __riscv_vor_vv_u32m2(
-        sign_u32m2,
-        __riscv_vor_vv_u32m2(__riscv_vsll_vx_u32m2(f16_exponent_u32m2, 10, vector_length), f16_mantissa_u32m2,
-                             vector_length),
-        vector_length);
-    return __riscv_vncvt_x_x_w_u16m1(result_u32m2, vector_length);
+    // Full IEEE-754 f32→f16 with round-to-nearest-even, mirroring nk_f32_to_f16_serial. Each lane's
+    // f32 exponent falls in exactly one bucket; per-bucket f16 magnitudes are computed unconditionally
+    // and merged by mask. Sign is applied last; the result is narrowed u32m2 → u16m1.
+    nk_size_t vl = vector_length;
+    vuint32m2_t bits = __riscv_vreinterpret_v_f32m2_u32m2(f32_f32m2);
+    vuint32m2_t sign = __riscv_vsll_vx_u32m2(__riscv_vsrl_vx_u32m2(bits, 31, vl), 15, vl);
+    vuint32m2_t exp = __riscv_vand_vx_u32m2(__riscv_vsrl_vx_u32m2(bits, 23, vl), 0xFF, vl);
+    vuint32m2_t mant = __riscv_vand_vx_u32m2(bits, 0x7FFFFF, vl);
+    vuint32m2_t zeros = __riscv_vmv_v_x_u32m2(0, vl);
+
+    // Exponent buckets: under [≤102], denormal [103..112], normal [113..142], overflow [143..255],
+    // inf/nan [255]. exp==0 falls under "under" but yields 0 there, matching the serial zero case.
+    vbool16_t m_under = __riscv_vmsleu_vx_u32m2_b16(exp, 102, vl);
+    vbool16_t m_denorm = __riscv_vmand_mm_b16(__riscv_vmsgtu_vx_u32m2_b16(exp, 102, vl),
+                                              __riscv_vmsleu_vx_u32m2_b16(exp, 112, vl), vl);
+    vbool16_t m_normal = __riscv_vmand_mm_b16(__riscv_vmsgtu_vx_u32m2_b16(exp, 112, vl),
+                                              __riscv_vmsleu_vx_u32m2_b16(exp, 142, vl), vl);
+    vbool16_t m_over = __riscv_vmsgtu_vx_u32m2_b16(exp, 142, vl);
+    vbool16_t m_infnan = __riscv_vmseq_vx_u32m2_b16(exp, 255, vl);
+
+    // Inf/NaN: 0x7C00 | (mant>>13), bumping a truncated-to-zero NaN payload back to 1.
+    vuint32m2_t payload = __riscv_vsrl_vx_u32m2(mant, 13, vl);
+    vbool16_t need_qnan = __riscv_vmand_mm_b16(__riscv_vmsne_vx_u32m2_b16(mant, 0, vl),
+                                               __riscv_vmseq_vx_u32m2_b16(payload, 0, vl), vl);
+    payload = __riscv_vmerge_vxm_u32m2(payload, 1, need_qnan, vl);
+    vuint32m2_t res_infnan = __riscv_vor_vx_u32m2(payload, 0x7C00, vl);
+
+    // Underflow: smallest denormal (1) only at exp==102 with nonzero mantissa, else zero.
+    vbool16_t under_one = __riscv_vmand_mm_b16(__riscv_vmseq_vx_u32m2_b16(exp, 102, vl),
+                                               __riscv_vmsne_vx_u32m2_b16(mant, 0, vl), vl);
+    vuint32m2_t res_under = __riscv_vmerge_vxm_u32m2(zeros, 1, under_one, vl);
+
+    // f16 denormal range (exp 103..112): variable right-shift by sa = 126-exp (14..23) with RNE.
+    vuint32m2_t sa = __riscv_vrsub_vx_u32m2(exp, 126, vl);
+    vuint32m2_t sa1 = __riscv_vsub_vx_u32m2(sa, 1, vl);
+    vuint32m2_t full = __riscv_vor_vx_u32m2(mant, 0x800000, vl);
+    vuint32m2_t dmant = __riscv_vsrl_vv_u32m2(full, sa, vl);
+    vuint32m2_t d_round = __riscv_vand_vx_u32m2(__riscv_vsrl_vv_u32m2(full, sa1, vl), 1, vl);
+    vuint32m2_t d_stickymask = __riscv_vsub_vx_u32m2(__riscv_vsll_vv_u32m2(__riscv_vmv_v_x_u32m2(1, vl), sa1, vl), 1,
+                                                     vl);
+    vuint32m2_t d_sticky = __riscv_vand_vv_u32m2(full, d_stickymask, vl);
+    vbool16_t d_roundup = __riscv_vmand_mm_b16(
+        __riscv_vmsne_vx_u32m2_b16(d_round, 0, vl),
+        __riscv_vmor_mm_b16(__riscv_vmsne_vx_u32m2_b16(d_sticky, 0, vl),
+                            __riscv_vmsne_vx_u32m2_b16(__riscv_vand_vx_u32m2(dmant, 1, vl), 0, vl), vl),
+        vl);
+    vuint32m2_t res_denorm = __riscv_vadd_vv_u32m2(dmant, __riscv_vmerge_vxm_u32m2(zeros, 1, d_roundup, vl), vl);
+
+    // Normal range (exp 113..142): rebias to exp-112, mantissa >>13 with RNE; carry can push to overflow.
+    vuint32m2_t f16_exp = __riscv_vsub_vx_u32m2(exp, 112, vl);
+    vuint32m2_t f16_mant = __riscv_vsrl_vx_u32m2(mant, 13, vl);
+    vuint32m2_t n_round = __riscv_vand_vx_u32m2(__riscv_vsrl_vx_u32m2(mant, 12, vl), 1, vl);
+    vuint32m2_t n_sticky = __riscv_vand_vx_u32m2(mant, 0xFFF, vl);
+    vbool16_t n_roundup = __riscv_vmand_mm_b16(
+        __riscv_vmsne_vx_u32m2_b16(n_round, 0, vl),
+        __riscv_vmor_mm_b16(__riscv_vmsne_vx_u32m2_b16(n_sticky, 0, vl),
+                            __riscv_vmsne_vx_u32m2_b16(__riscv_vand_vx_u32m2(f16_mant, 1, vl), 0, vl), vl),
+        vl);
+    f16_mant = __riscv_vadd_vv_u32m2(f16_mant, __riscv_vmerge_vxm_u32m2(zeros, 1, n_roundup, vl), vl);
+    vbool16_t n_carry = __riscv_vmsgtu_vx_u32m2_b16(f16_mant, 0x3FF, vl);
+    f16_mant = __riscv_vmerge_vxm_u32m2(f16_mant, 0, n_carry, vl);
+    f16_exp = __riscv_vadd_vv_u32m2(f16_exp, __riscv_vmerge_vxm_u32m2(zeros, 1, n_carry, vl), vl);
+    vuint32m2_t res_normal = __riscv_vor_vv_u32m2(__riscv_vsll_vx_u32m2(f16_exp, 10, vl), f16_mant, vl);
+    res_normal = __riscv_vmerge_vxm_u32m2(res_normal, 0x7C00, __riscv_vmsgtu_vx_u32m2_b16(f16_exp, 30, vl), vl);
+
+    // Merge buckets (default 0 = zero/underflow-to-zero); inf/nan merged last to win over overflow at exp==255.
+    vuint32m2_t res = zeros;
+    res = __riscv_vmerge_vvm_u32m2(res, res_under, m_under, vl);
+    res = __riscv_vmerge_vvm_u32m2(res, res_denorm, m_denorm, vl);
+    res = __riscv_vmerge_vvm_u32m2(res, res_normal, m_normal, vl);
+    res = __riscv_vmerge_vxm_u32m2(res, 0x7C00, m_over, vl);
+    res = __riscv_vmerge_vvm_u32m2(res, res_infnan, m_infnan, vl);
+    res = __riscv_vor_vv_u32m2(res, sign, vl);
+    return __riscv_vncvt_x_x_w_u16m1(res, vl);
 }
 
 /**
@@ -897,6 +944,12 @@ NK_PUBLIC void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size_t cou
             vint8m1x2_t unpacked_i8m1x2 = nk_i4m1_to_i8m2_rvv_(packed_u8m1, vector_length);
             __riscv_vsseg2e8_v_i8m1x2(destination, unpacked_i8m1x2, vector_length);
         }
+        // Odd count: the final element (the high nibble of byte count/2) is not covered by the
+        // count/2 full-byte loop. Unpack it to match the serial oracle (high nibble first).
+        if (count & 1) {
+            int nibble = (*(nk_u8_t const *)source >> 4) & 0x0F;
+            *(nk_i8_t *)destination = (nk_i8_t)((nibble & 0x08) ? (nibble | 0xF0) : nibble);
+        }
         return;
     }
 
@@ -912,6 +965,8 @@ NK_PUBLIC void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size_t cou
             vuint8m1x2_t unpacked_u8m1x2 = nk_u4m1_to_u8m2_rvv_(packed_u8m1, vector_length);
             __riscv_vsseg2e8_v_u8m1x2(destination, unpacked_u8m1x2, vector_length);
         }
+        // Odd count: unpack the trailing high nibble of byte count/2 (high nibble first).
+        if (count & 1) *(nk_u8_t *)destination = (nk_u8_t)((*(nk_u8_t const *)source >> 4) & 0x0F);
         return;
     }
 
@@ -929,6 +984,13 @@ NK_PUBLIC void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size_t cou
             vuint8m1_t packed_u8m1 = nk_i8m2_to_i4m1_rvv_(high_i8m1, low_i8m1, vector_length);
             __riscv_vse8_v_u8m1((nk_u8_t *)destination, packed_u8m1, vector_length);
         }
+        // Odd count: pack the trailing element into the high nibble of byte count/2 (low nibble 0),
+        // clamping to [-8, 7] to match nk_i8m2_to_i4m1_rvv_.
+        if (count & 1) {
+            int v = *(nk_i8_t const *)source;
+            v = v > 7 ? 7 : (v < -8 ? -8 : v);
+            *(nk_u8_t *)destination = (nk_u8_t)((v & 0x0F) << 4);
+        }
         return;
     }
 
@@ -945,6 +1007,12 @@ NK_PUBLIC void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size_t cou
             vuint8m1_t low_u8m1 = __riscv_vget_v_u8m1x2_u8m1(loaded_u8m1x2, 1);
             vuint8m1_t packed_u8m1 = nk_u8m2_to_u4m1_rvv_(high_u8m1, low_u8m1, vector_length);
             __riscv_vse8_v_u8m1((nk_u8_t *)destination, packed_u8m1, vector_length);
+        }
+        // Odd count: pack the trailing element into the high nibble of byte count/2 (low nibble 0),
+        // clamping to [0, 15] to match nk_u8m2_to_u4m1_rvv_.
+        if (count & 1) {
+            unsigned v = *(nk_u8_t const *)source;
+            *(nk_u8_t *)destination = (nk_u8_t)((v > 15 ? 15 : v) << 4);
         }
         return;
     }
