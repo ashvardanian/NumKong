@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     strategy:
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -118,7 +118,7 @@ jobs:
     runs-on: macos-26
     strategy:
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -161,7 +161,7 @@ jobs:
     runs-on: macos-26
     strategy:
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -204,7 +204,7 @@ jobs:
     runs-on: windows-2025
     strategy:
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
         architecture: [AMD64]
         include:
           - python-version: "310"
@@ -214,8 +214,6 @@ jobs:
           - python-version: "312"
             architecture: ARM64
           - python-version: "313"
-            architecture: ARM64
-          - python-version: "313t"
             architecture: ARM64
           - python-version: "314"
             architecture: ARM64
@@ -269,7 +267,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
         architecture: [ppc64le, s390x, i686]
     steps:
       - name: Checkout
@@ -316,7 +314,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
