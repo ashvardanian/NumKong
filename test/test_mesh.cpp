@@ -24,6 +24,19 @@ error_stats_t test_rmsd(typename scalar_type_::mesh_kernel_t kernel) {
     std::size_t n = global_config.mesh_points;
     auto a = make_vector<scalar_t>(n * 3), b = make_vector<scalar_t>(n * 3);
 
+    // Degenerate empty cloud (n == 0): the kernel must match the serial oracle's neutral result
+    // (0) instead of a 1/n-induced NaN/Inf — the rmsd/kabsch/umeyama empty-input hazard.
+    {
+        transform_t a_centroid[3], b_centroid[3], rot[9], scale;
+        metric_t result;
+        kernel(a.raw_values_data(), b.raw_values_data(), 0, &a_centroid[0].raw_, &b_centroid[0].raw_, &rot[0].raw_,
+               &scale.raw_, &result.raw_);
+        reference_t a_centroid_ref[3], b_centroid_ref[3], rot_ref[9], scale_ref, reference;
+        nk::rmsd<scalar_t, reference_t, reference_t, nk::no_simd_k>(a.values_data(), b.values_data(), 0, a_centroid_ref,
+                                                                    b_centroid_ref, rot_ref, &scale_ref, &reference);
+        stats.accumulate(result, reference);
+    }
+
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, a);
         fill_random(generator, b);
@@ -57,6 +70,19 @@ error_stats_t test_kabsch(typename scalar_type_::mesh_kernel_t kernel) {
     std::size_t n = global_config.mesh_points;
     auto a = make_vector<scalar_t>(n * 3), b = make_vector<scalar_t>(n * 3);
 
+    // Degenerate empty cloud (n == 0): the kernel must match the serial oracle's neutral result
+    // (0) instead of a 1/n-induced NaN/Inf — the rmsd/kabsch/umeyama empty-input hazard.
+    {
+        transform_t a_centroid[3], b_centroid[3], rot[9], scale;
+        metric_t result;
+        kernel(a.raw_values_data(), b.raw_values_data(), 0, &a_centroid[0].raw_, &b_centroid[0].raw_, &rot[0].raw_,
+               &scale.raw_, &result.raw_);
+        reference_t a_centroid_ref[3], b_centroid_ref[3], rot_ref[9], scale_ref, reference;
+        nk::kabsch<scalar_t, reference_t, reference_t, nk::no_simd_k>(
+            a.values_data(), b.values_data(), 0, a_centroid_ref, b_centroid_ref, rot_ref, &scale_ref, &reference);
+        stats.accumulate(result, reference);
+    }
+
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, a);
         fill_random(generator, b);
@@ -89,6 +115,19 @@ error_stats_t test_umeyama(typename scalar_type_::mesh_kernel_t kernel) {
 
     std::size_t n = global_config.mesh_points;
     auto a = make_vector<scalar_t>(n * 3), b = make_vector<scalar_t>(n * 3);
+
+    // Degenerate empty cloud (n == 0): the kernel must match the serial oracle's neutral result
+    // (0) instead of a 1/n-induced NaN/Inf — the rmsd/kabsch/umeyama empty-input hazard.
+    {
+        transform_t a_centroid[3], b_centroid[3], rot[9], scale;
+        metric_t result;
+        kernel(a.raw_values_data(), b.raw_values_data(), 0, &a_centroid[0].raw_, &b_centroid[0].raw_, &rot[0].raw_,
+               &scale.raw_, &result.raw_);
+        reference_t a_centroid_ref[3], b_centroid_ref[3], rot_ref[9], scale_ref, reference;
+        nk::umeyama<scalar_t, reference_t, reference_t, nk::no_simd_k>(
+            a.values_data(), b.values_data(), 0, a_centroid_ref, b_centroid_ref, rot_ref, &scale_ref, &reference);
+        stats.accumulate(result, reference);
+    }
 
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, a);

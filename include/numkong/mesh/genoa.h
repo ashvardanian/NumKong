@@ -48,6 +48,11 @@ NK_PUBLIC void nk_rmsd_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_siz
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0f;
+
+    if (n == 0) {
+        *result = 0;
+        return;
+    }
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
@@ -112,6 +117,17 @@ NK_PUBLIC void nk_rmsd_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_siz
 
 NK_PUBLIC void nk_kabsch_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                     nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     __m512i const idx_channel_group_i16x32 = NK_MESH_GENOA_CHANNEL_GROUP_INDICES_;
     __m512i const idx_rotation_1_i16x32 = NK_MESH_GENOA_ROTATION_1_INDICES_;
     __m512i const idx_rotation_2_i16x32 = NK_MESH_GENOA_ROTATION_2_INDICES_;
@@ -276,6 +292,17 @@ NK_PUBLIC void nk_kabsch_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_s
 
 NK_PUBLIC void nk_umeyama_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     __m512i const idx_channel_group_i16x32 = NK_MESH_GENOA_CHANNEL_GROUP_INDICES_;
     __m512i const idx_rotation_1_i16x32 = NK_MESH_GENOA_ROTATION_1_INDICES_;
     __m512i const idx_rotation_2_i16x32 = NK_MESH_GENOA_ROTATION_2_INDICES_;

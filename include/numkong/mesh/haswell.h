@@ -110,6 +110,11 @@ NK_PUBLIC void nk_rmsd_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0f;
 
+    if (n == 0) {
+        *result = 0;
+        return;
+    }
+
     __m256d sum_squared_f64x4 = _mm256_setzero_pd();
     __m256 a_x_f32x8, a_y_f32x8, a_z_f32x8, b_x_f32x8, b_y_f32x8, b_z_f32x8;
     nk_size_t index = 0;
@@ -160,6 +165,11 @@ NK_PUBLIC void nk_rmsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0;
+
+    if (n == 0) {
+        *result = 0;
+        return;
+    }
     __m256d const zeros_f64x4 = _mm256_setzero_pd();
 
     __m256d sum_squared_x_f64x4 = zeros_f64x4, sum_squared_y_f64x4 = zeros_f64x4, sum_squared_z_f64x4 = zeros_f64x4;
@@ -226,6 +236,17 @@ NK_PUBLIC void nk_rmsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size
 
 NK_PUBLIC void nk_kabsch_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     if (scale) *scale = 1.0f;
     __m256d sum_a_x_f64x4 = _mm256_setzero_pd(), sum_a_y_f64x4 = _mm256_setzero_pd();
     __m256d sum_a_z_f64x4 = _mm256_setzero_pd(), sum_b_x_f64x4 = _mm256_setzero_pd();
@@ -426,6 +447,17 @@ NK_PUBLIC void nk_kabsch_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_si
 
 NK_PUBLIC void nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
                                      nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0;
+        *result = 0;
+        return;
+    }
+
     __m256d const zeros_f64x4 = _mm256_setzero_pd();
 
     // Accumulators for centroids
@@ -611,6 +643,17 @@ NK_PUBLIC void nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_si
 
 NK_PUBLIC void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     __m256d sum_a_x_f64x4 = _mm256_setzero_pd(), sum_a_y_f64x4 = _mm256_setzero_pd();
     __m256d sum_a_z_f64x4 = _mm256_setzero_pd(), sum_b_x_f64x4 = _mm256_setzero_pd();
     __m256d sum_b_y_f64x4 = _mm256_setzero_pd(), sum_b_z_f64x4 = _mm256_setzero_pd();
@@ -814,6 +857,17 @@ NK_PUBLIC void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_s
 
 NK_PUBLIC void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
                                       nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0;
+        *result = 0;
+        return;
+    }
+
     // Fused single-pass: centroids, covariance, and variance of A
     __m256d const zeros_f64x4 = _mm256_setzero_pd();
 
@@ -1047,6 +1101,11 @@ NK_PUBLIC void nk_rmsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0f;
+
+    if (n == 0) {
+        *result = 0;
+        return;
+    }
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
@@ -1090,6 +1149,11 @@ NK_PUBLIC void nk_rmsd_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_s
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0f;
+
+    if (n == 0) {
+        *result = 0;
+        return;
+    }
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
@@ -1129,6 +1193,17 @@ NK_PUBLIC void nk_rmsd_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_s
 
 NK_PUBLIC void nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     // Fused single-pass: load f16, convert to f32, compute centroids, covariance, and ‖a‖²/‖b‖²
     __m256 const zeros_f32x8 = _mm256_setzero_ps();
 
@@ -1315,6 +1390,17 @@ NK_PUBLIC void nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_si
 
 NK_PUBLIC void nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     // Fused single-pass: load bf16, convert to f32, compute centroids, covariance, and ‖a‖²/‖b‖²
     __m256 const zeros_f32x8 = _mm256_setzero_ps();
 
@@ -1501,6 +1587,17 @@ NK_PUBLIC void nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk
 
 NK_PUBLIC void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     // Fused single-pass: load f16, convert to f32, compute centroids, covariance, and ‖a‖²/‖b‖²
     __m256 const zeros_f32x8 = _mm256_setzero_ps();
 
@@ -1687,6 +1784,17 @@ NK_PUBLIC void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_s
 
 NK_PUBLIC void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     // Fused single-pass: load bf16, convert to f32, compute centroids, covariance, and ‖a‖²/‖b‖²
     __m256 const zeros_f32x8 = _mm256_setzero_ps();
 

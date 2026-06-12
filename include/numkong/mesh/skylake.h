@@ -279,6 +279,11 @@ NK_PUBLIC void nk_rmsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0f;
+
+    if (n == 0) {
+        *result = 0;
+        return;
+    }
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
@@ -323,6 +328,17 @@ NK_PUBLIC void nk_rmsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size
 
 NK_PUBLIC void nk_kabsch_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     // Single pass over (a, b) via streaming-stats helper — no deinterleave, no second SSD pass.
     nk_f64_t sum_a[3], sum_b[3], raw_covariance[9], norm_squared_a, norm_squared_b;
     nk_mesh_streaming_stats_f32_skylake_(a, b, n, sum_a, sum_b, raw_covariance, &norm_squared_a, &norm_squared_b);
@@ -410,6 +426,11 @@ NK_PUBLIC void nk_rmsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0;
+
+    if (n == 0) {
+        *result = 0;
+        return;
+    }
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
@@ -502,6 +523,17 @@ NK_PUBLIC void nk_rmsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size
 
 NK_PUBLIC void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
                                      nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0;
+        *result = 0;
+        return;
+    }
+
     // Optimized fused single-pass implementation for f64.
     // Computes centroids and covariance matrix in one pass using the identity:
     //   Hᵢⱼ = Σ((aᵢ - ā) × (bⱼ - b̄))
@@ -725,6 +757,17 @@ NK_PUBLIC void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_si
 
 NK_PUBLIC void nk_umeyama_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     // Single pass over (a, b) via streaming-stats helper — no deinterleave, no second SSD pass.
     nk_f64_t sum_a[3], sum_b[3], raw_covariance[9], norm_squared_a, norm_squared_b;
     nk_mesh_streaming_stats_f32_skylake_(a, b, n, sum_a, sum_b, raw_covariance, &norm_squared_a, &norm_squared_b);
@@ -819,6 +862,17 @@ NK_PUBLIC void nk_umeyama_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_s
 
 NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
                                       nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0;
+        *result = 0;
+        return;
+    }
+
     // Fused single-pass: centroids, covariance, and variance of A
     __m512i const gather_idx_i64x8 = _mm512_setr_epi64(0, 3, 6, 9, 12, 15, 18, 21);
     __m512d const zeros_f64x8 = _mm512_setzero_pd();
@@ -1048,6 +1102,11 @@ NK_PUBLIC void nk_rmsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0f;
+
+    if (n == 0) {
+        *result = 0;
+        return;
+    }
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
@@ -1084,6 +1143,11 @@ NK_PUBLIC void nk_rmsd_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_s
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0f;
+
+    if (n == 0) {
+        *result = 0;
+        return;
+    }
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
@@ -1116,6 +1180,17 @@ NK_PUBLIC void nk_rmsd_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_s
 
 NK_PUBLIC void nk_kabsch_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     // 15-lane stride-3 layout: one masked epi16 load + widen gives {a_f32x16, b_f32x16} with
     // channel phase [x,y,z, x,y,z, x,y,z, x,y,z, x,y,z, _] constant across all chunks. The 9
     // H-cells come from three product accumulators a*b, a*rot1(b), a*rot2(b) demuxed per channel.
@@ -1241,6 +1316,17 @@ NK_PUBLIC void nk_kabsch_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_si
 
 NK_PUBLIC void nk_kabsch_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     // 15-lane stride-3 layout: one masked epi16 load + widen gives {a_f32x16, b_f32x16} with
     // channel phase [x,y,z, x,y,z, x,y,z, x,y,z, x,y,z, _] constant across all chunks. The 9
     // H-cells come from three product accumulators a*b, a*rot1(b), a*rot2(b) demuxed per channel.
@@ -1366,6 +1452,17 @@ NK_PUBLIC void nk_kabsch_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk
 
 NK_PUBLIC void nk_umeyama_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     // Same 15-lane streaming-stats pattern as kabsch_f16_skylake; adds the Umeyama scale.
     __m512i const idx_rotation_1_i32x16 = _mm512_setr_epi32(1, 2, 0, 4, 5, 3, 7, 8, 6, 10, 11, 9, 13, 14, 12, 15);
     __m512i const idx_rotation_2_i32x16 = _mm512_setr_epi32(2, 0, 1, 5, 3, 4, 8, 6, 7, 11, 9, 10, 14, 12, 13, 15);
@@ -1495,6 +1592,17 @@ NK_PUBLIC void nk_umeyama_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_s
 
 NK_PUBLIC void nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     // Same 15-lane streaming-stats pattern as kabsch_bf16_skylake; adds the Umeyama scale.
     __m512i const idx_rotation_1_i32x16 = _mm512_setr_epi32(1, 2, 0, 4, 5, 3, 7, 8, 6, 10, 11, 9, 13, 14, 12, 15);
     __m512i const idx_rotation_2_i32x16 = _mm512_setr_epi32(2, 0, 1, 5, 3, 4, 8, 6, 7, 11, 9, 10, 14, 12, 13, 15);

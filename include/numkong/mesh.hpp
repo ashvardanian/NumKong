@@ -377,7 +377,7 @@ void rmsd(                                               //
             sum_squared = sum_squared + dx * dx + dy * dy + dz * dz;
         }
 
-        *metric = (sum_squared / metric_type_(static_cast<double>(n))).sqrt();
+        *metric = n == 0 ? metric_type_(0.0) : (sum_squared / metric_type_(static_cast<double>(n))).sqrt();
     }
 }
 
@@ -420,6 +420,26 @@ void kabsch(                                             //
                        &metric->raw_);
     // Scalar fallback
     else {
+        // Degenerate empty cloud: the neutral identity, no 1/n division.
+        if (n == 0) {
+            if (a_centroid)
+                a_centroid[0] = transform_type_(0.0), a_centroid[1] = transform_type_(0.0),
+                a_centroid[2] = transform_type_(0.0);
+            if (b_centroid)
+                b_centroid[0] = transform_type_(0.0), b_centroid[1] = transform_type_(0.0),
+                b_centroid[2] = transform_type_(0.0);
+            if (rotation) {
+                rotation[0] = transform_type_(1.0), rotation[1] = transform_type_(0.0),
+                rotation[2] = transform_type_(0.0);
+                rotation[3] = transform_type_(0.0), rotation[4] = transform_type_(1.0),
+                rotation[5] = transform_type_(0.0);
+                rotation[6] = transform_type_(0.0), rotation[7] = transform_type_(0.0),
+                rotation[8] = transform_type_(1.0);
+            }
+            if (scale) *scale = transform_type_(1.0);
+            *metric = metric_type_(0.0);
+            return;
+        }
         // Compute centroids
         metric_type_ sum_a_x {}, sum_a_y {}, sum_a_z {};
         metric_type_ sum_b_x {}, sum_b_y {}, sum_b_z {};
@@ -570,6 +590,26 @@ void umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type
                         &metric->raw_);
     // Scalar fallback
     else {
+        // Degenerate empty cloud: the neutral identity, no 1/n division.
+        if (n == 0) {
+            if (a_centroid)
+                a_centroid[0] = transform_type_(0.0), a_centroid[1] = transform_type_(0.0),
+                a_centroid[2] = transform_type_(0.0);
+            if (b_centroid)
+                b_centroid[0] = transform_type_(0.0), b_centroid[1] = transform_type_(0.0),
+                b_centroid[2] = transform_type_(0.0);
+            if (rotation) {
+                rotation[0] = transform_type_(1.0), rotation[1] = transform_type_(0.0),
+                rotation[2] = transform_type_(0.0);
+                rotation[3] = transform_type_(0.0), rotation[4] = transform_type_(1.0),
+                rotation[5] = transform_type_(0.0);
+                rotation[6] = transform_type_(0.0), rotation[7] = transform_type_(0.0),
+                rotation[8] = transform_type_(1.0);
+            }
+            if (scale) *scale = transform_type_(1.0);
+            *metric = metric_type_(0.0);
+            return;
+        }
         // Compute centroids
         metric_type_ sum_a_x {}, sum_a_y {}, sum_a_z {};
         metric_type_ sum_b_x {}, sum_b_y {}, sum_b_z {};

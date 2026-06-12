@@ -87,6 +87,11 @@ NK_PUBLIC void nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
     if (scale) *scale = 1.0f;
+
+    if (n == 0) {
+        *result = 0;
+        return;
+    }
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
@@ -137,6 +142,17 @@ NK_PUBLIC void nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk
 
 NK_PUBLIC void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     float32x4_t const zeros_f32x4 = vdupq_n_f32(0);
     // bf16 representation of 1.0 is 0x3F80; splatted across 8 lanes for BFDOT-based horizontal sums.
     // The `nk_u16x8_splat_` wrapper prevents GCC from lowering this to `fmov v.8h, #1.0` (a FEAT_FP16
@@ -373,6 +389,17 @@ NK_PUBLIC void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, 
 
 NK_PUBLIC void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+    if (n == 0) {
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+        if (rotation)
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+        if (scale) *scale = 1.0f;
+        *result = 0;
+        return;
+    }
+
     float32x4_t const zeros_f32x4 = vdupq_n_f32(0);
     // bf16 representation of 1.0 is 0x3F80; splatted across 8 lanes for BFDOT-based horizontal sums.
     // The `nk_u16x8_splat_` wrapper prevents GCC from lowering this to `fmov v.8h, #1.0` (a FEAT_FP16
