@@ -818,6 +818,20 @@ tensor_type_ tensor_slice_suffix_(tensor_type_ input, index_type_ idx, rest_type
     return tensor_slice_suffix_(input.slice_leading(idx), rest...);
 }
 
+/** @brief Byte offset of a recursively-sliced inner view relative to its first row.
+ *
+ *  Returns `false` when either operand's data pointer is null — i.e. the inner slice
+ *  over-sliced to an empty tensor — so callers bail before computing
+ *  `inner.byte_data() - first_row.byte_data()`, which is undefined behavior when one
+ *  operand is a null pointer. Shared by the `all_t` and `range` slice overloads. */
+template <typename tensor_type_>
+bool slice_inner_byte_offset_(tensor_type_ const &inner, tensor_type_ const &first_row,
+                              typename tensor_type_::difference_type &offset) noexcept {
+    if (inner.byte_data() == nullptr || first_row.byte_data() == nullptr) return false;
+    offset = inner.byte_data() - first_row.byte_data();
+    return true;
+}
+
 template <typename tensor_type_, typename... rest_types_>
 tensor_type_ tensor_slice_suffix_(tensor_type_ input, all_t, rest_types_... rest) noexcept {
     // `all` keeps the leading dimension intact — apply remaining args to inner dimensions.
@@ -833,10 +847,10 @@ tensor_type_ tensor_slice_suffix_(tensor_type_ input, all_t, rest_types_... rest
     auto first_row = input.slice_leading(static_cast<size_type>(0));
     auto inner = tensor_slice_suffix_(first_row, rest...);
 
-    // A null inner means `rest...` over-sliced the row to an empty tensor, so the whole `all`
-    // slice is degenerate. Returning early also avoids `inner.byte_data() - first_row.byte_data()`
-    // below, which is undefined behavior when one operand is a null pointer.
-    if (inner.byte_data() == nullptr) return {};
+    // A degenerate inner (over-sliced to a null/empty tensor) makes the whole `all` slice
+    // degenerate; bail before the pointer subtraction, which is UB with a null operand.
+    difference_type inner_byte_offset;
+    if (!slice_inner_byte_offset_(inner, first_row, inner_byte_offset)) return {};
 
     // Build the output shape: leading dimension + inner dimensions.
     shape_type result_shape;
@@ -852,7 +866,6 @@ tensor_type_ tensor_slice_suffix_(tensor_type_ input, all_t, rest_types_... rest
     // The data pointer is the inner slice's offset relative to the first row,
     // applied to the original data pointer.
     using byte_ptr = decltype(input.byte_data());
-    auto inner_byte_offset = inner.byte_data() - first_row.byte_data();
     return {const_cast<byte_ptr>(input.byte_data() + inner_byte_offset), result_shape};
 }
 
@@ -896,6 +909,11 @@ tensor_type_ tensor_slice_suffix_(tensor_type_ input, range r, rest_types_... re
         auto first_row = input.slice_leading(static_cast<size_type>(start));
         auto inner = tensor_slice_suffix_(first_row, rest...);
 
+        // Same degenerate-inner guard as the `all_t` overload: bail before the pointer
+        // subtraction, which is UB with a null operand.
+        difference_type inner_byte_offset;
+        if (!slice_inner_byte_offset_(inner, first_row, inner_byte_offset)) return {};
+
         shape_type result_shape;
         result_shape.rank = 1 + inner.rank();
         result_shape.extents[0] = range_extent;
@@ -907,7 +925,6 @@ tensor_type_ tensor_slice_suffix_(tensor_type_ input, range r, rest_types_... re
         result_shape.normalize_spare_();
 
         using byte_ptr = decltype(input.byte_data());
-        auto inner_byte_offset = inner.byte_data() - first_row.byte_data();
         return {const_cast<byte_ptr>(input.byte_data() + data_offset + inner_byte_offset), result_shape};
     }
 }
