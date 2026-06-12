@@ -86,13 +86,7 @@ pub trait Haversine: Sized {
     /// // Approximate NY→LA great-circle distance ≈ 3 914 km.
     /// assert!((distance_meters[0] - 3_914_000.0).abs() < 30_000.0);
     /// ```
-    fn haversine(
-        a_lat: &[Self],
-        a_lon: &[Self],
-        b_lat: &[Self],
-        b_lon: &[Self],
-        result: &mut [Self],
-    ) -> Option<()>;
+    fn haversine(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()>;
 }
 
 /// Computes **Vincenty geodesic distances** on the WGS84 ellipsoid.
@@ -109,26 +103,14 @@ pub trait Haversine: Sized {
 /// ~20× more accurate than Haversine for long distances.
 /// Inputs are in radians, outputs in meters.
 pub trait Vincenty: Sized {
-    fn vincenty(
-        a_lat: &[Self],
-        a_lon: &[Self],
-        b_lat: &[Self],
-        b_lon: &[Self],
-        result: &mut [Self],
-    ) -> Option<()>;
+    fn vincenty(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()>;
 }
 
 /// Combined trait for all geospatial distance computations.
 pub trait Geospatial: Haversine + Vincenty {}
 
 impl Haversine for f64 {
-    fn haversine(
-        a_lat: &[Self],
-        a_lon: &[Self],
-        b_lat: &[Self],
-        b_lon: &[Self],
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn haversine(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()> {
         let coordinate_count = a_lat.len();
         if a_lon.len() != coordinate_count
             || b_lat.len() != coordinate_count
@@ -152,13 +134,7 @@ impl Haversine for f64 {
 }
 
 impl Vincenty for f64 {
-    fn vincenty(
-        a_lat: &[Self],
-        a_lon: &[Self],
-        b_lat: &[Self],
-        b_lon: &[Self],
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn vincenty(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()> {
         let coordinate_count = a_lat.len();
         if a_lon.len() != coordinate_count
             || b_lat.len() != coordinate_count
@@ -184,13 +160,7 @@ impl Vincenty for f64 {
 impl Geospatial for f64 {}
 
 impl Haversine for f32 {
-    fn haversine(
-        a_lat: &[Self],
-        a_lon: &[Self],
-        b_lat: &[Self],
-        b_lon: &[Self],
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn haversine(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()> {
         let coordinate_count = a_lat.len();
         if a_lon.len() != coordinate_count
             || b_lat.len() != coordinate_count
@@ -214,13 +184,7 @@ impl Haversine for f32 {
 }
 
 impl Vincenty for f32 {
-    fn vincenty(
-        a_lat: &[Self],
-        a_lon: &[Self],
-        b_lat: &[Self],
-        b_lon: &[Self],
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn vincenty(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()> {
         let coordinate_count = a_lat.len();
         if a_lon.len() != coordinate_count
             || b_lat.len() != coordinate_count
@@ -307,37 +271,9 @@ mod tests {
         // Vincenty uses the WGS-84 ellipsoid → ~3,944,422m
         let hav_expected = 3_914_000.0;
         let vin_expected = 3_944_000.0;
-        check_haversine::<f64>(
-            40.7128,
-            -74.0060,
-            34.0522,
-            -118.2437,
-            hav_expected,
-            20_000.0,
-        );
-        check_haversine::<f32>(
-            40.7128,
-            -74.0060,
-            34.0522,
-            -118.2437,
-            hav_expected,
-            50_000.0,
-        );
-        check_vincenty::<f64>(
-            40.7128,
-            -74.0060,
-            34.0522,
-            -118.2437,
-            vin_expected,
-            20_000.0,
-        );
-        check_vincenty::<f32>(
-            40.7128,
-            -74.0060,
-            34.0522,
-            -118.2437,
-            vin_expected,
-            50_000.0,
-        );
+        check_haversine::<f64>(40.7128, -74.0060, 34.0522, -118.2437, hav_expected, 20_000.0);
+        check_haversine::<f32>(40.7128, -74.0060, 34.0522, -118.2437, hav_expected, 50_000.0);
+        check_vincenty::<f64>(40.7128, -74.0060, 34.0522, -118.2437, vin_expected, 20_000.0);
+        check_vincenty::<f32>(40.7128, -74.0060, 34.0522, -118.2437, vin_expected, 50_000.0);
     }
 }

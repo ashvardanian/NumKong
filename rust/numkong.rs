@@ -127,8 +127,8 @@ pub mod vector;
 
 // Re-export scalar types at crate root
 pub use types::{
-    bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, is_close, u1x8, u4x2, DimMut,
-    DimRef, FloatConvertible, FloatLike, NumberLike, StorageElement, Ue4m3, Ue8m0,
+    bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, is_close, u1x8, u4x2, DimMut, DimRef,
+    FloatConvertible, FloatLike, NumberLike, StorageElement, Ue4m3, Ue8m0,
 };
 
 // Re-export spatial traits
@@ -142,14 +142,12 @@ pub use probability::{JensenShannon, KullbackLeibler, ProbabilitySimilarity};
 
 // Re-export elementwise and trig traits
 pub use each::{
-    AllCloseOps, BlendOps, EachATan, EachBlend, EachCos, EachFMA, EachScale, EachSin, EachSum,
-    FmaOps, ScaleOps, SumOps, TrigAtanOps, TrigCosOps, TrigSinOps, Trigonometry,
+    AllCloseOps, BlendOps, EachATan, EachBlend, EachCos, EachFMA, EachScale, EachSin, EachSum, FmaOps, ScaleOps,
+    SumOps, TrigAtanOps, TrigCosOps, TrigSinOps, Trigonometry,
 };
 
 // Re-export reduction traits
-pub use reduce::{
-    BitwiseReductions, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, Reductions, SumSqToF64,
-};
+pub use reduce::{BitwiseReductions, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, Reductions, SumSqToF64};
 
 // Re-export curved metric traits
 pub use curved::{Bilinear, Mahalanobis};
@@ -168,10 +166,8 @@ pub use cast::{cast, CastDtype, CastOps};
 
 // Re-export block-scaled formats and casts
 pub use cast::{
-    e2m1x2, BlockScaledDescriptor, BlockScaledFormat, Mxfp4, Mxfp6E2m3, Mxfp6E3m2, Mxfp8E4m3,
-    Mxfp8E5m2, Mxint8, Nvfp4,
+    e2m1x2, BlockScaledDescriptor, BlockScaledFormat, Mxfp4, Mxfp6E2m3, Mxfp6E3m2, Mxfp8E4m3, Mxfp8E5m2, Mxint8, Nvfp4,
 };
-
 
 // Re-export capabilities
 pub use capabilities::cap;
@@ -179,11 +175,10 @@ pub use capabilities::{available, configure_thread, uses_dynamic_dispatch};
 
 // Re-export tensor types
 pub use tensor::{
-    Allocator, AxisIterator, AxisIteratorMut, CopyFrom, Fill, Global, Matrix, MatrixSpan,
-    MatrixView, MinMaxResult, RangeStep, ScaledTensor, ScaledTensorSpan, ScaledTensorView,
-    SliceArg, SliceRange, SliceSpec, Tensor, TensorDims, TensorError, TensorIterator, TensorMut,
-    TensorRef, TensorSpan, TensorSpanDims, TensorSpanIterator, TensorView, TensorViewDims,
-    TensorViewIterator, DEFAULT_MAX_RANK, SIMD_ALIGNMENT,
+    Allocator, AxisIterator, AxisIteratorMut, CopyFrom, Fill, Global, Matrix, MatrixSpan, MatrixView, MinMaxResult,
+    RangeStep, ScaledTensor, ScaledTensorSpan, ScaledTensorView, SliceArg, SliceRange, SliceSpec, Tensor, TensorDims,
+    TensorError, TensorIterator, TensorMut, TensorRef, TensorSpan, TensorSpanDims, TensorSpanIterator, TensorView,
+    TensorViewDims, TensorViewIterator, DEFAULT_MAX_RANK, SIMD_ALIGNMENT,
 };
 
 // Re-export matrix types
@@ -193,10 +188,7 @@ pub use matrix::{
 };
 
 // Re-export vector types
-pub use vector::{
-    Vector, VectorIndex, VectorIterator, VectorSpan, VectorSpanIterator, VectorView,
-    VectorViewIterator,
-};
+pub use vector::{Vector, VectorIndex, VectorIterator, VectorSpan, VectorSpanIterator, VectorView, VectorViewIterator};
 
 // Re-export maxsim types
 pub use maxsim::{MaxSim, MaxSimPackedMatrix};
@@ -241,10 +233,7 @@ mod tests {
         assert_eq!(queries_packed.dims(), (4, 16));
         assert_eq!(docs_packed.dims(), (8, 16));
         let score = queries_packed.score(&docs_packed);
-        assert!(
-            score.is_finite(),
-            "MaxSim score must be finite, got {score}"
-        );
+        assert!(score.is_finite(), "MaxSim score must be finite, got {score}");
     }
 
     #[test]
@@ -269,9 +258,7 @@ mod tests {
 mod wasm_runtime_tests {
     use std::fs;
     use std::path::Path;
-    use wasmtime::{
-        Config, Engine, Extern, ExternType, Linker, Memory, MemoryType, Module, SharedMemory, Store,
-    };
+    use wasmtime::{Config, Engine, Extern, ExternType, Linker, Memory, MemoryType, Module, SharedMemory, Store};
     use wasmtime_wasi::WasiCtx;
 
     fn resolve_wasi_module() -> Option<String> {
@@ -352,17 +339,13 @@ mod wasm_runtime_tests {
             };
 
             let minimum = u32::try_from(memory_ty.minimum()).map_err(|_| {
-                wasmtime::Error::msg(format!(
-                    "memory minimum {} does not fit in u32",
-                    memory_ty.minimum()
-                ))
+                wasmtime::Error::msg(format!("memory minimum {} does not fit in u32", memory_ty.minimum()))
             })?;
             let maximum = memory_ty
                 .maximum()
                 .ok_or_else(|| wasmtime::Error::msg("shared memory import is missing a maximum"))?;
-            let maximum = u32::try_from(maximum).map_err(|_| {
-                wasmtime::Error::msg(format!("memory maximum {maximum} does not fit in u32"))
-            })?;
+            let maximum = u32::try_from(maximum)
+                .map_err(|_| wasmtime::Error::msg(format!("memory maximum {maximum} does not fit in u32")))?;
 
             if memory_ty.is_shared() {
                 let memory = SharedMemory::new(&engine, MemoryType::shared(minimum, maximum))?;

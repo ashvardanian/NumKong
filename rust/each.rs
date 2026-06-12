@@ -48,9 +48,7 @@
 //! assert_eq!(output, [2.5, 4.5, 6.5, 8.5]);
 //! ```
 
-use crate::tensor::{
-    try_reborrow_tensor_into, Global, Tensor, TensorError, TensorRef,
-};
+use crate::tensor::{try_reborrow_tensor_into, Global, Tensor, TensorError, TensorRef};
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
 
 #[link(name = "numkong")]
@@ -67,118 +65,22 @@ extern "C" {
     fn nk_each_atan_f16(inputs: *const u16, n: usize, outputs: *mut u16);
 
     // Elementwise operations
-    fn nk_each_scale_f64(
-        a: *const f64,
-        n: usize,
-        alpha: *const f64,
-        beta: *const f64,
-        result: *mut f64,
-    );
-    fn nk_each_scale_f32(
-        a: *const f32,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut f32,
-    );
-    fn nk_each_scale_f16(
-        a: *const u16,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u16,
-    );
-    fn nk_each_scale_bf16(
-        a: *const u16,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u16,
-    );
-    fn nk_each_scale_i8(
-        a: *const i8,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut i8,
-    );
-    fn nk_each_scale_u8(
-        a: *const u8,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u8,
-    );
-    fn nk_each_scale_i16(
-        a: *const i16,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut i16,
-    );
-    fn nk_each_scale_u16(
-        a: *const u16,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u16,
-    );
-    fn nk_each_scale_i32(
-        a: *const i32,
-        n: usize,
-        alpha: *const f64,
-        beta: *const f64,
-        result: *mut i32,
-    );
-    fn nk_each_scale_u32(
-        a: *const u32,
-        n: usize,
-        alpha: *const f64,
-        beta: *const f64,
-        result: *mut u32,
-    );
-    fn nk_each_scale_i64(
-        a: *const i64,
-        n: usize,
-        alpha: *const f64,
-        beta: *const f64,
-        result: *mut i64,
-    );
-    fn nk_each_scale_u64(
-        a: *const u64,
-        n: usize,
-        alpha: *const f64,
-        beta: *const f64,
-        result: *mut u64,
-    );
-    fn nk_each_scale_e4m3(
-        a: *const u8,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u8,
-    );
-    fn nk_each_scale_e5m2(
-        a: *const u8,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u8,
-    );
-    fn nk_each_scale_e2m3(
-        a: *const u8,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u8,
-    );
-    fn nk_each_scale_e3m2(
-        a: *const u8,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u8,
-    );
+    fn nk_each_scale_f64(a: *const f64, n: usize, alpha: *const f64, beta: *const f64, result: *mut f64);
+    fn nk_each_scale_f32(a: *const f32, n: usize, alpha: *const f32, beta: *const f32, result: *mut f32);
+    fn nk_each_scale_f16(a: *const u16, n: usize, alpha: *const f32, beta: *const f32, result: *mut u16);
+    fn nk_each_scale_bf16(a: *const u16, n: usize, alpha: *const f32, beta: *const f32, result: *mut u16);
+    fn nk_each_scale_i8(a: *const i8, n: usize, alpha: *const f32, beta: *const f32, result: *mut i8);
+    fn nk_each_scale_u8(a: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
+    fn nk_each_scale_i16(a: *const i16, n: usize, alpha: *const f32, beta: *const f32, result: *mut i16);
+    fn nk_each_scale_u16(a: *const u16, n: usize, alpha: *const f32, beta: *const f32, result: *mut u16);
+    fn nk_each_scale_i32(a: *const i32, n: usize, alpha: *const f64, beta: *const f64, result: *mut i32);
+    fn nk_each_scale_u32(a: *const u32, n: usize, alpha: *const f64, beta: *const f64, result: *mut u32);
+    fn nk_each_scale_i64(a: *const i64, n: usize, alpha: *const f64, beta: *const f64, result: *mut i64);
+    fn nk_each_scale_u64(a: *const u64, n: usize, alpha: *const f64, beta: *const f64, result: *mut u64);
+    fn nk_each_scale_e4m3(a: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
+    fn nk_each_scale_e5m2(a: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
+    fn nk_each_scale_e2m3(a: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
+    fn nk_each_scale_e3m2(a: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
 
     fn nk_each_sum_f64(a: *const f64, b: *const f64, n: usize, result: *mut f64);
     fn nk_each_sum_f32(a: *const f32, b: *const f32, n: usize, result: *mut f32);
@@ -197,30 +99,9 @@ extern "C" {
     fn nk_each_sum_e2m3(a: *const u8, b: *const u8, n: usize, result: *mut u8);
     fn nk_each_sum_e3m2(a: *const u8, b: *const u8, n: usize, result: *mut u8);
 
-    fn nk_each_blend_f64(
-        a: *const f64,
-        b: *const f64,
-        n: usize,
-        alpha: *const f64,
-        beta: *const f64,
-        result: *mut f64,
-    );
-    fn nk_each_blend_f32(
-        a: *const f32,
-        b: *const f32,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut f32,
-    );
-    fn nk_each_blend_f16(
-        a: *const u16,
-        b: *const u16,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u16,
-    );
+    fn nk_each_blend_f64(a: *const f64, b: *const f64, n: usize, alpha: *const f64, beta: *const f64, result: *mut f64);
+    fn nk_each_blend_f32(a: *const f32, b: *const f32, n: usize, alpha: *const f32, beta: *const f32, result: *mut f32);
+    fn nk_each_blend_f16(a: *const u16, b: *const u16, n: usize, alpha: *const f32, beta: *const f32, result: *mut u16);
     fn nk_each_blend_bf16(
         a: *const u16,
         b: *const u16,
@@ -229,102 +110,18 @@ extern "C" {
         beta: *const f32,
         result: *mut u16,
     );
-    fn nk_each_blend_i8(
-        a: *const i8,
-        b: *const i8,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut i8,
-    );
-    fn nk_each_blend_u8(
-        a: *const u8,
-        b: *const u8,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u8,
-    );
-    fn nk_each_blend_i16(
-        a: *const i16,
-        b: *const i16,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut i16,
-    );
-    fn nk_each_blend_u16(
-        a: *const u16,
-        b: *const u16,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u16,
-    );
-    fn nk_each_blend_i32(
-        a: *const i32,
-        b: *const i32,
-        n: usize,
-        alpha: *const f64,
-        beta: *const f64,
-        result: *mut i32,
-    );
-    fn nk_each_blend_u32(
-        a: *const u32,
-        b: *const u32,
-        n: usize,
-        alpha: *const f64,
-        beta: *const f64,
-        result: *mut u32,
-    );
-    fn nk_each_blend_i64(
-        a: *const i64,
-        b: *const i64,
-        n: usize,
-        alpha: *const f64,
-        beta: *const f64,
-        result: *mut i64,
-    );
-    fn nk_each_blend_u64(
-        a: *const u64,
-        b: *const u64,
-        n: usize,
-        alpha: *const f64,
-        beta: *const f64,
-        result: *mut u64,
-    );
-    fn nk_each_blend_e4m3(
-        a: *const u8,
-        b: *const u8,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u8,
-    );
-    fn nk_each_blend_e5m2(
-        a: *const u8,
-        b: *const u8,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u8,
-    );
-    fn nk_each_blend_e2m3(
-        a: *const u8,
-        b: *const u8,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u8,
-    );
-    fn nk_each_blend_e3m2(
-        a: *const u8,
-        b: *const u8,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut u8,
-    );
+    fn nk_each_blend_i8(a: *const i8, b: *const i8, n: usize, alpha: *const f32, beta: *const f32, result: *mut i8);
+    fn nk_each_blend_u8(a: *const u8, b: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
+    fn nk_each_blend_i16(a: *const i16, b: *const i16, n: usize, alpha: *const f32, beta: *const f32, result: *mut i16);
+    fn nk_each_blend_u16(a: *const u16, b: *const u16, n: usize, alpha: *const f32, beta: *const f32, result: *mut u16);
+    fn nk_each_blend_i32(a: *const i32, b: *const i32, n: usize, alpha: *const f64, beta: *const f64, result: *mut i32);
+    fn nk_each_blend_u32(a: *const u32, b: *const u32, n: usize, alpha: *const f64, beta: *const f64, result: *mut u32);
+    fn nk_each_blend_i64(a: *const i64, b: *const i64, n: usize, alpha: *const f64, beta: *const f64, result: *mut i64);
+    fn nk_each_blend_u64(a: *const u64, b: *const u64, n: usize, alpha: *const f64, beta: *const f64, result: *mut u64);
+    fn nk_each_blend_e4m3(a: *const u8, b: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
+    fn nk_each_blend_e5m2(a: *const u8, b: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
+    fn nk_each_blend_e2m3(a: *const u8, b: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
+    fn nk_each_blend_e3m2(a: *const u8, b: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
 
     fn nk_each_fma_f64(
         a: *const f64,
@@ -474,20 +271,8 @@ extern "C" {
     // Complex elementwise operations (interleaved real/imag layout, n = number of complex pairs)
     fn nk_each_sum_f32c(a: *const f32, b: *const f32, n: usize, result: *mut f32);
     fn nk_each_sum_f64c(a: *const f64, b: *const f64, n: usize, result: *mut f64);
-    fn nk_each_scale_f32c(
-        a: *const f32,
-        n: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        result: *mut f32,
-    );
-    fn nk_each_scale_f64c(
-        a: *const f64,
-        n: usize,
-        alpha: *const f64,
-        beta: *const f64,
-        result: *mut f64,
-    );
+    fn nk_each_scale_f32c(a: *const f32, n: usize, alpha: *const f32, beta: *const f32, result: *mut f32);
+    fn nk_each_scale_f64c(a: *const f64, n: usize, alpha: *const f64, beta: *const f64, result: *mut f64);
     fn nk_each_blend_f32c(
         a: *const f32,
         b: *const f32,
@@ -526,11 +311,7 @@ extern "C" {
 
 // Complex fallback helpers
 
-fn complex_each_sum_fallback<Scalar>(
-    a: &[Scalar],
-    b: &[Scalar],
-    result: &mut [Scalar],
-) -> Option<()>
+fn complex_each_sum_fallback<Scalar>(a: &[Scalar], b: &[Scalar], result: &mut [Scalar]) -> Option<()>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar>,
 {
@@ -543,12 +324,7 @@ where
     Some(())
 }
 
-fn complex_each_scale_fallback<Scalar>(
-    a: &[Scalar],
-    alpha: Scalar,
-    beta: Scalar,
-    result: &mut [Scalar],
-) -> Option<()>
+fn complex_each_scale_fallback<Scalar>(a: &[Scalar], alpha: Scalar, beta: Scalar, result: &mut [Scalar]) -> Option<()>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
@@ -594,8 +370,7 @@ where
     if a.len() != b.len() || a.len() != c.len() || a.len() != result.len() {
         return None;
     }
-    for (((left, right), third), out) in a.iter().zip(b.iter()).zip(c.iter()).zip(result.iter_mut())
-    {
+    for (((left, right), third), out) in a.iter().zip(b.iter()).zip(c.iter()).zip(result.iter_mut()) {
         *out = alpha * *left * *right + beta * *third;
     }
     Some(())
@@ -617,11 +392,7 @@ where
     Some(())
 }
 
-fn complex_each_scale_inplace_fallback<Scalar>(
-    data: &mut [Scalar],
-    alpha: Scalar,
-    beta: Scalar,
-) -> Option<()>
+fn complex_each_scale_inplace_fallback<Scalar>(data: &mut [Scalar], alpha: Scalar, beta: Scalar) -> Option<()>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
@@ -914,19 +685,13 @@ pub trait EachScale: Sized + StorageElement {
     /// f32::each_scale(&input, 1.0, -2.0, &mut output).unwrap();
     /// assert_eq!(output, [-1.0, 0.0, 1.0]);
     /// ```
-    fn each_scale(
-        a: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-        result: &mut [Self],
-    ) -> Option<()>;
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()>;
 
     /// In-place affine: `data[i] = alpha * data[i] + beta`.
     ///
     /// Both source and destination pointers are derived from the single `&mut`,
     /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
-    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar)
-        -> Option<()>;
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()>;
 }
 
 impl EachScale for f64 {
@@ -1267,12 +1032,7 @@ impl EachScale for e3m2 {
 
 impl EachScale for f64c {
     type Scalar = f64c;
-    fn each_scale(
-        a: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
         if a.len() != result.len() {
             return None;
         }
@@ -1288,11 +1048,7 @@ impl EachScale for f64c {
         Some(())
     }
 
-    fn each_scale_inplace(
-        data: &mut [Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe { nk_each_scale_f64c(p as *const f64, len, &alpha.re, &beta.re, p as *mut f64) };
@@ -1302,12 +1058,7 @@ impl EachScale for f64c {
 
 impl EachScale for f32c {
     type Scalar = f32c;
-    fn each_scale(
-        a: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
         if a.len() != result.len() {
             return None;
         }
@@ -1323,11 +1074,7 @@ impl EachScale for f32c {
         Some(())
     }
 
-    fn each_scale_inplace(
-        data: &mut [Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe { nk_each_scale_f32c(p as *const f32, len, &alpha.re, &beta.re, p as *mut f32) };
@@ -1337,40 +1084,22 @@ impl EachScale for f32c {
 
 impl EachScale for f16c {
     type Scalar = f16c;
-    fn each_scale(
-        a: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
         complex_each_scale_fallback(a, alpha, beta, result)
     }
 
-    fn each_scale_inplace(
-        data: &mut [Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         complex_each_scale_inplace_fallback(data, alpha, beta)
     }
 }
 
 impl EachScale for bf16c {
     type Scalar = bf16c;
-    fn each_scale(
-        a: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
         complex_each_scale_fallback(a, alpha, beta, result)
     }
 
-    fn each_scale_inplace(
-        data: &mut [Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         complex_each_scale_inplace_fallback(data, alpha, beta)
     }
 }
@@ -1487,9 +1216,7 @@ impl EachSum for bf16 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_sum_bf16(p as *const u16, other.as_ptr() as *const u16, len, p as *mut u16)
-        };
+        unsafe { nk_each_sum_bf16(p as *const u16, other.as_ptr() as *const u16, len, p as *mut u16) };
         Some(())
     }
 }
@@ -1817,9 +1544,7 @@ impl EachSum for f32c {
 }
 
 impl EachSum for f16c {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        complex_each_sum_fallback(a, b, result)
-    }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> { complex_each_sum_fallback(a, b, result) }
 
     fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
         complex_each_sum_inplace_fallback(data, other)
@@ -1827,9 +1552,7 @@ impl EachSum for f16c {
 }
 
 impl EachSum for bf16c {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        complex_each_sum_fallback(a, b, result)
-    }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> { complex_each_sum_fallback(a, b, result) }
 
     fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
         complex_each_sum_inplace_fallback(data, other)
@@ -1850,58 +1573,27 @@ impl EachSum for bf16c {
 /// `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `e4m3`, `e5m2`, `e2m3`, `e3m2`.
 pub trait EachBlend: Sized + StorageElement {
     type Scalar;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-        result: &mut [Self],
-    ) -> Option<()>;
+    fn each_blend(a: &[Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()>;
 
     /// In-place blend: `data[i] = alpha * data[i] + beta * other[i]`.
     ///
     /// `data` is both the `a` operand and the result; its source and destination
     /// pointers come from the single `&mut`, while `other` is disjoint storage —
     /// no aliased `&[Self]` + `&mut [Self]` over the same buffer is formed.
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()>;
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()>;
 }
 
 impl EachBlend for f64 {
     type Scalar = f64;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe {
-            nk_each_blend_f64(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &alpha,
-                &beta,
-                result.as_mut_ptr(),
-            )
-        };
+        unsafe { nk_each_blend_f64(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f64,
-        beta: f64,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
@@ -1914,35 +1606,15 @@ impl EachBlend for f64 {
 
 impl EachBlend for f32 {
     type Scalar = f32;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe {
-            nk_each_blend_f32(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &alpha,
-                &beta,
-                result.as_mut_ptr(),
-            )
-        };
+        unsafe { nk_each_blend_f32(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
@@ -1955,13 +1627,7 @@ impl EachBlend for f32 {
 
 impl EachBlend for f16 {
     type Scalar = f32;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
@@ -1978,31 +1644,29 @@ impl EachBlend for f16 {
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_f16(p as *const u16, other.as_ptr() as *const u16, len, &alpha, &beta, p as *mut u16) };
+        unsafe {
+            nk_each_blend_f16(
+                p as *const u16,
+                other.as_ptr() as *const u16,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u16,
+            )
+        };
         Some(())
     }
 }
 
 impl EachBlend for bf16 {
     type Scalar = f32;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
@@ -2019,53 +1683,37 @@ impl EachBlend for bf16 {
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_bf16(p as *const u16, other.as_ptr() as *const u16, len, &alpha, &beta, p as *mut u16) };
+        unsafe {
+            nk_each_blend_bf16(
+                p as *const u16,
+                other.as_ptr() as *const u16,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u16,
+            )
+        };
         Some(())
     }
 }
 
 impl EachBlend for i8 {
     type Scalar = f32;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe {
-            nk_each_blend_i8(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &alpha,
-                &beta,
-                result.as_mut_ptr(),
-            )
-        };
+        unsafe { nk_each_blend_i8(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
@@ -2078,35 +1726,15 @@ impl EachBlend for i8 {
 
 impl EachBlend for u8 {
     type Scalar = f32;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe {
-            nk_each_blend_u8(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &alpha,
-                &beta,
-                result.as_mut_ptr(),
-            )
-        };
+        unsafe { nk_each_blend_u8(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
@@ -2119,35 +1747,15 @@ impl EachBlend for u8 {
 
 impl EachBlend for i16 {
     type Scalar = f32;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe {
-            nk_each_blend_i16(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &alpha,
-                &beta,
-                result.as_mut_ptr(),
-            )
-        };
+        unsafe { nk_each_blend_i16(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
@@ -2160,35 +1768,15 @@ impl EachBlend for i16 {
 
 impl EachBlend for u16 {
     type Scalar = f32;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe {
-            nk_each_blend_u16(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &alpha,
-                &beta,
-                result.as_mut_ptr(),
-            )
-        };
+        unsafe { nk_each_blend_u16(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
@@ -2201,35 +1789,15 @@ impl EachBlend for u16 {
 
 impl EachBlend for i32 {
     type Scalar = f64;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe {
-            nk_each_blend_i32(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &alpha,
-                &beta,
-                result.as_mut_ptr(),
-            )
-        };
+        unsafe { nk_each_blend_i32(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f64,
-        beta: f64,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
@@ -2242,35 +1810,15 @@ impl EachBlend for i32 {
 
 impl EachBlend for u32 {
     type Scalar = f64;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe {
-            nk_each_blend_u32(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &alpha,
-                &beta,
-                result.as_mut_ptr(),
-            )
-        };
+        unsafe { nk_each_blend_u32(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f64,
-        beta: f64,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
@@ -2283,35 +1831,15 @@ impl EachBlend for u32 {
 
 impl EachBlend for i64 {
     type Scalar = f64;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe {
-            nk_each_blend_i64(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &alpha,
-                &beta,
-                result.as_mut_ptr(),
-            )
-        };
+        unsafe { nk_each_blend_i64(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f64,
-        beta: f64,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
@@ -2324,35 +1852,15 @@ impl EachBlend for i64 {
 
 impl EachBlend for u64 {
     type Scalar = f64;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe {
-            nk_each_blend_u64(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &alpha,
-                &beta,
-                result.as_mut_ptr(),
-            )
-        };
+        unsafe { nk_each_blend_u64(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f64,
-        beta: f64,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
@@ -2365,13 +1873,7 @@ impl EachBlend for u64 {
 
 impl EachBlend for e4m3 {
     type Scalar = f32;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
@@ -2388,31 +1890,29 @@ impl EachBlend for e4m3 {
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_e4m3(p as *const u8, other.as_ptr() as *const u8, len, &alpha, &beta, p as *mut u8) };
+        unsafe {
+            nk_each_blend_e4m3(
+                p as *const u8,
+                other.as_ptr() as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u8,
+            )
+        };
         Some(())
     }
 }
 
 impl EachBlend for e5m2 {
     type Scalar = f32;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
@@ -2429,31 +1929,29 @@ impl EachBlend for e5m2 {
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_e5m2(p as *const u8, other.as_ptr() as *const u8, len, &alpha, &beta, p as *mut u8) };
+        unsafe {
+            nk_each_blend_e5m2(
+                p as *const u8,
+                other.as_ptr() as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u8,
+            )
+        };
         Some(())
     }
 }
 
 impl EachBlend for e2m3 {
     type Scalar = f32;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
@@ -2470,31 +1968,29 @@ impl EachBlend for e2m3 {
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_e2m3(p as *const u8, other.as_ptr() as *const u8, len, &alpha, &beta, p as *mut u8) };
+        unsafe {
+            nk_each_blend_e2m3(
+                p as *const u8,
+                other.as_ptr() as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u8,
+            )
+        };
         Some(())
     }
 }
 
 impl EachBlend for e3m2 {
     type Scalar = f32;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
@@ -2511,31 +2007,29 @@ impl EachBlend for e3m2 {
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_e3m2(p as *const u8, other.as_ptr() as *const u8, len, &alpha, &beta, p as *mut u8) };
+        unsafe {
+            nk_each_blend_e3m2(
+                p as *const u8,
+                other.as_ptr() as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u8,
+            )
+        };
         Some(())
     }
 }
 
 impl EachBlend for f64c {
     type Scalar = f64c;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
@@ -2552,12 +2046,7 @@ impl EachBlend for f64c {
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
@@ -2579,13 +2068,7 @@ impl EachBlend for f64c {
 
 impl EachBlend for f32c {
     type Scalar = f32c;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
@@ -2602,12 +2085,7 @@ impl EachBlend for f32c {
         Some(())
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         if data.len() != other.len() {
             return None;
         }
@@ -2629,44 +2107,22 @@ impl EachBlend for f32c {
 
 impl EachBlend for f16c {
     type Scalar = f16c;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
         complex_each_blend_fallback(a, b, alpha, beta, result)
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         complex_each_blend_inplace_fallback(data, other, alpha, beta)
     }
 }
 
 impl EachBlend for bf16c {
     type Scalar = bf16c;
-    fn each_blend(
-        a: &[Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
         complex_each_blend_fallback(a, b, alpha, beta, result)
     }
 
-    fn each_blend_inplace(
-        data: &mut [Self],
-        other: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         complex_each_blend_inplace_fallback(data, other, alpha, beta)
     }
 }
@@ -2701,24 +2157,12 @@ pub trait EachFMA: Sized + StorageElement {
     /// from the single `&mut`, while `b` is disjoint storage. This matches
     /// out-of-place `mul_tensor`, which wires `c = self` and is the only in-place
     /// FMA caller. No aliased `&[Self]` + `&mut [Self]` over the same buffer is formed.
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()>;
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()>;
 }
 
 impl EachFMA for f64 {
     type Scalar = f64;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -2736,12 +2180,7 @@ impl EachFMA for f64 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f64,
-        beta: f64,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -2754,14 +2193,7 @@ impl EachFMA for f64 {
 
 impl EachFMA for f32 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -2779,12 +2211,7 @@ impl EachFMA for f32 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -2797,14 +2224,7 @@ impl EachFMA for f32 {
 
 impl EachFMA for f16 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -2822,12 +2242,7 @@ impl EachFMA for f16 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -2850,14 +2265,7 @@ impl EachFMA for f16 {
 
 impl EachFMA for bf16 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -2875,12 +2283,7 @@ impl EachFMA for bf16 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -2903,14 +2306,7 @@ impl EachFMA for bf16 {
 
 impl EachFMA for i8 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -2928,12 +2324,7 @@ impl EachFMA for i8 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -2946,14 +2337,7 @@ impl EachFMA for i8 {
 
 impl EachFMA for u8 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -2971,12 +2355,7 @@ impl EachFMA for u8 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -2989,14 +2368,7 @@ impl EachFMA for u8 {
 
 impl EachFMA for e4m3 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -3014,12 +2386,7 @@ impl EachFMA for e4m3 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -3042,14 +2409,7 @@ impl EachFMA for e4m3 {
 
 impl EachFMA for e5m2 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -3067,12 +2427,7 @@ impl EachFMA for e5m2 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -3095,14 +2450,7 @@ impl EachFMA for e5m2 {
 
 impl EachFMA for e2m3 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -3120,12 +2468,7 @@ impl EachFMA for e2m3 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -3148,14 +2491,7 @@ impl EachFMA for e2m3 {
 
 impl EachFMA for e3m2 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -3173,12 +2509,7 @@ impl EachFMA for e3m2 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -3201,14 +2532,7 @@ impl EachFMA for e3m2 {
 
 impl EachFMA for i16 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -3226,12 +2550,7 @@ impl EachFMA for i16 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -3244,14 +2563,7 @@ impl EachFMA for i16 {
 
 impl EachFMA for u16 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -3269,12 +2581,7 @@ impl EachFMA for u16 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f32,
-        beta: f32,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -3287,14 +2594,7 @@ impl EachFMA for u16 {
 
 impl EachFMA for i32 {
     type Scalar = f64;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -3312,12 +2612,7 @@ impl EachFMA for i32 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f64,
-        beta: f64,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -3330,14 +2625,7 @@ impl EachFMA for i32 {
 
 impl EachFMA for u32 {
     type Scalar = f64;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -3355,12 +2643,7 @@ impl EachFMA for u32 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f64,
-        beta: f64,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -3373,14 +2656,7 @@ impl EachFMA for u32 {
 
 impl EachFMA for i64 {
     type Scalar = f64;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -3398,12 +2674,7 @@ impl EachFMA for i64 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f64,
-        beta: f64,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -3416,14 +2687,7 @@ impl EachFMA for i64 {
 
 impl EachFMA for u64 {
     type Scalar = f64;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Option<()> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
         if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
             return None;
         }
@@ -3441,12 +2705,7 @@ impl EachFMA for u64 {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: f64,
-        beta: f64,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -3484,12 +2743,7 @@ impl EachFMA for f64c {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -3537,12 +2791,7 @@ impl EachFMA for f32c {
         Some(())
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         if data.len() != b.len() {
             return None;
         }
@@ -3576,12 +2825,7 @@ impl EachFMA for f16c {
         complex_each_fma_fallback(a, b, c, alpha, beta, result)
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         complex_each_fma_inplace_fallback(data, b, alpha, beta)
     }
 }
@@ -3599,12 +2843,7 @@ impl EachFMA for bf16c {
         complex_each_fma_fallback(a, b, c, alpha, beta, result)
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Option<()> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         complex_each_fma_inplace_fallback(data, b, alpha, beta)
     }
 }
@@ -3618,51 +2857,32 @@ impl<Scalar: EachSin + EachCos + EachATan> Trigonometry for Scalar {}
 // region: Tensor-shaped trigonometry (moved from crate::tensor)
 
 /// Extension trait: element-wise sine for any [`TensorRef`] implementor.
-pub trait TrigSinOps<Scalar: Clone + EachSin, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
-{
-    fn try_sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
-        self.view().try_sin()
-    }
+pub trait TrigSinOps<Scalar: Clone + EachSin, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    fn try_sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_sin() }
 }
 
 impl<Scalar: Clone + EachSin, const R: usize, C: TensorRef<Scalar, R>> TrigSinOps<Scalar, R> for C {}
 
 /// Extension trait: element-wise cosine for any [`TensorRef`] implementor.
-pub trait TrigCosOps<Scalar: Clone + EachCos, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
-{
-    fn try_cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
-        self.view().try_cos()
-    }
+pub trait TrigCosOps<Scalar: Clone + EachCos, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    fn try_cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_cos() }
 }
 
 impl<Scalar: Clone + EachCos, const R: usize, C: TensorRef<Scalar, R>> TrigCosOps<Scalar, R> for C {}
 
 /// Extension trait: element-wise arctangent for any [`TensorRef`] implementor.
-pub trait TrigAtanOps<Scalar: Clone + EachATan, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
-{
-    fn try_atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
-        self.view().try_atan()
-    }
+pub trait TrigAtanOps<Scalar: Clone + EachATan, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    fn try_atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_atan() }
 }
 
-impl<Scalar: Clone + EachATan, const R: usize, C: TensorRef<Scalar, R>> TrigAtanOps<Scalar, R>
-    for C
-{
-}
+impl<Scalar: Clone + EachATan, const R: usize, C: TensorRef<Scalar, R>> TrigAtanOps<Scalar, R> for C {}
 
 impl<Scalar: Clone + EachSin, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
     /// Element-wise sine: result\[i\] = sin(self\[i\])
-    pub fn sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
-        self.view().try_sin()
-    }
+    pub fn sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_sin() }
 
     /// Element-wise sine in-place (infallible — self vs self always matches).
-    pub fn sin_inplace(&mut self) {
-        self.span().sin_inplace();
-    }
+    pub fn sin_inplace(&mut self) { self.span().sin_inplace(); }
 
     pub fn try_sin_inplace(&mut self) -> Result<(), TensorError> {
         self.sin_inplace();
@@ -3672,14 +2892,10 @@ impl<Scalar: Clone + EachSin, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_
 
 impl<Scalar: Clone + EachCos, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
     /// Element-wise cosine: result\[i\] = cos(self\[i\])
-    pub fn cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
-        self.view().try_cos()
-    }
+    pub fn cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_cos() }
 
     /// Element-wise cosine in-place (infallible — self vs self always matches).
-    pub fn cos_inplace(&mut self) {
-        self.span().cos_inplace();
-    }
+    pub fn cos_inplace(&mut self) { self.span().cos_inplace(); }
 
     pub fn try_cos_inplace(&mut self) -> Result<(), TensorError> {
         self.cos_inplace();
@@ -3689,14 +2905,10 @@ impl<Scalar: Clone + EachCos, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_
 
 impl<Scalar: Clone + EachATan, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
     /// Element-wise arctangent: result\[i\] = atan(self\[i\])
-    pub fn atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
-        self.view().try_atan()
-    }
+    pub fn atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_atan() }
 
     /// Element-wise arctangent in-place (infallible — self vs self always matches).
-    pub fn atan_inplace(&mut self) {
-        self.span().atan_inplace();
-    }
+    pub fn atan_inplace(&mut self) { self.span().atan_inplace(); }
 
     pub fn try_atan_inplace(&mut self) -> Result<(), TensorError> {
         self.atan_inplace();
@@ -3714,17 +2926,11 @@ use crate::types::{is_close, FloatConvertible, NumberLike};
 ///
 /// Uses the formula `|a - b| <= atol + rtol * |b|` per element.
 /// Returns `false` if shapes differ.
-pub trait AllCloseOps<Scalar: FloatConvertible, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
+pub trait AllCloseOps<Scalar: FloatConvertible, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
 where
     Scalar::DimScalar: NumberLike,
 {
-    fn allclose(
-        &self,
-        other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
-        atol: f64,
-        rtol: f64,
-    ) -> bool {
+    fn allclose(&self, other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized), atol: f64, rtol: f64) -> bool {
         let a = self.view();
         let b = other.view();
         a.ndim() == b.ndim()
@@ -3748,29 +2954,19 @@ where
 // region: Tensor-shaped scale / sum / blend / fma (moved from crate::tensor)
 
 /// Extension trait: scalar arithmetic for any [`TensorRef`] implementor.
-pub trait ScaleOps<Scalar: Clone + EachScale, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
+pub trait ScaleOps<Scalar: Clone + EachScale, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
-    fn try_add_scalar(
-        &self,
-        scalar: Scalar::Scalar,
-    ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+    fn try_add_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         self.view().try_add_scalar(scalar)
     }
 
-    fn try_sub_scalar(
-        &self,
-        scalar: Scalar::Scalar,
-    ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+    fn try_sub_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         self.view().try_sub_scalar(scalar)
     }
 
-    fn try_mul_scalar(
-        &self,
-        scalar: Scalar::Scalar,
-    ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+    fn try_mul_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         self.view().try_mul_scalar(scalar)
     }
 }
@@ -3789,9 +2985,7 @@ where
         scalar: Scalar::Scalar,
         out: &mut Tensor<Scalar, Global, MAX_RANK>,
     ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| {
-            view.try_add_scalar_into(scalar, span)
-        })
+        try_reborrow_tensor_into(self, out, |view, span| view.try_add_scalar_into(scalar, span))
     }
 
     pub fn try_sub_scalar_into(
@@ -3799,9 +2993,7 @@ where
         scalar: Scalar::Scalar,
         out: &mut Tensor<Scalar, Global, MAX_RANK>,
     ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| {
-            view.try_sub_scalar_into(scalar, span)
-        })
+        try_reborrow_tensor_into(self, out, |view, span| view.try_sub_scalar_into(scalar, span))
     }
 
     pub fn try_mul_scalar_into(
@@ -3809,9 +3001,7 @@ where
         scalar: Scalar::Scalar,
         out: &mut Tensor<Scalar, Global, MAX_RANK>,
     ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| {
-            view.try_mul_scalar_into(scalar, span)
-        })
+        try_reborrow_tensor_into(self, out, |view, span| view.try_mul_scalar_into(scalar, span))
     }
 
     pub fn try_add_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
@@ -3830,19 +3020,13 @@ where
     }
 
     /// Element-wise add scalar in-place (infallible — self vs self always matches).
-    pub fn add_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
-        self.span().add_scalar_inplace(scalar);
-    }
+    pub fn add_scalar_inplace(&mut self, scalar: Scalar::Scalar) { self.span().add_scalar_inplace(scalar); }
 
     /// Element-wise subtract scalar in-place (infallible — self vs self always matches).
-    pub fn sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
-        self.span().sub_scalar_inplace(scalar);
-    }
+    pub fn sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) { self.span().sub_scalar_inplace(scalar); }
 
     /// Element-wise multiply scalar in-place (infallible — self vs self always matches).
-    pub fn mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
-        self.span().mul_scalar_inplace(scalar);
-    }
+    pub fn mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) { self.span().mul_scalar_inplace(scalar); }
 }
 
 impl<Scalar: Clone + EachScale, const MAX_RANK: usize> core::ops::AddAssign<Scalar::Scalar>
@@ -3850,9 +3034,7 @@ impl<Scalar: Clone + EachScale, const MAX_RANK: usize> core::ops::AddAssign<Scal
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
-    fn add_assign(&mut self, scalar: Scalar::Scalar) {
-        self.add_scalar_inplace(scalar);
-    }
+    fn add_assign(&mut self, scalar: Scalar::Scalar) { self.add_scalar_inplace(scalar); }
 }
 
 impl<Scalar: Clone + EachScale, const MAX_RANK: usize> core::ops::SubAssign<Scalar::Scalar>
@@ -3860,9 +3042,7 @@ impl<Scalar: Clone + EachScale, const MAX_RANK: usize> core::ops::SubAssign<Scal
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
-    fn sub_assign(&mut self, scalar: Scalar::Scalar) {
-        self.sub_scalar_inplace(scalar);
-    }
+    fn sub_assign(&mut self, scalar: Scalar::Scalar) { self.sub_scalar_inplace(scalar); }
 }
 
 impl<Scalar: Clone + EachScale, const MAX_RANK: usize> core::ops::MulAssign<Scalar::Scalar>
@@ -3870,15 +3050,11 @@ impl<Scalar: Clone + EachScale, const MAX_RANK: usize> core::ops::MulAssign<Scal
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
-    fn mul_assign(&mut self, scalar: Scalar::Scalar) {
-        self.mul_scalar_inplace(scalar);
-    }
+    fn mul_assign(&mut self, scalar: Scalar::Scalar) { self.mul_scalar_inplace(scalar); }
 }
 
 /// Extension trait: element-wise addition for any [`TensorRef`] implementor.
-pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
-{
+pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     fn try_add_tensor(
         &self,
         other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
@@ -3895,23 +3071,17 @@ impl<Scalar: Clone + EachSum, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_
         other: &Tensor<Scalar, Global, MAX_RANK>,
         out: &mut Tensor<Scalar, Global, MAX_RANK>,
     ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| {
-            view.try_add_tensor_into(&other.view(), span)
-        })
+        try_reborrow_tensor_into(self, out, |view, span| view.try_add_tensor_into(&other.view(), span))
     }
 
-    pub fn try_add_tensor_inplace(
-        &mut self,
-        other: &Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
+    pub fn try_add_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().add_inplace(&other_view)
     }
 }
 
 /// Extension trait: element-wise subtraction for any [`TensorRef`] implementor.
-pub trait BlendOps<Scalar: Clone + EachBlend, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
+pub trait BlendOps<Scalar: Clone + EachBlend, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
 where
     Scalar::Scalar: From<f32> + Copy,
 {
@@ -3937,23 +3107,17 @@ where
         other: &Tensor<Scalar, Global, MAX_RANK>,
         out: &mut Tensor<Scalar, Global, MAX_RANK>,
     ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| {
-            view.try_sub_tensor_into(&other.view(), span)
-        })
+        try_reborrow_tensor_into(self, out, |view, span| view.try_sub_tensor_into(&other.view(), span))
     }
 
-    pub fn try_sub_tensor_inplace(
-        &mut self,
-        other: &Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
+    pub fn try_sub_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().sub_inplace(&other_view)
     }
 }
 
 /// Extension trait: element-wise multiplication for any [`TensorRef`] implementor.
-pub trait FmaOps<Scalar: Clone + EachFMA, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
+pub trait FmaOps<Scalar: Clone + EachFMA, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
 where
     Scalar::Scalar: From<f32> + Copy,
 {
@@ -3979,15 +3143,10 @@ where
         other: &Tensor<Scalar, Global, MAX_RANK>,
         out: &mut Tensor<Scalar, Global, MAX_RANK>,
     ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| {
-            view.try_mul_tensor_into(&other.view(), span)
-        })
+        try_reborrow_tensor_into(self, out, |view, span| view.try_mul_tensor_into(&other.view(), span))
     }
 
-    pub fn try_mul_tensor_inplace(
-        &mut self,
-        other: &Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
+    pub fn try_mul_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().mul_inplace(&other_view)
     }
@@ -3998,9 +3157,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{
-        assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16, FloatLike, NumberLike, TestableType,
-    };
+    use crate::types::{assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16, FloatLike, NumberLike, TestableType};
     /// Test a binary elementwise op: convert inputs, apply `op`, compare element-wise.
     pub(crate) fn check_each_binary<Scalar, F>(
         a_vals: &[f32],
@@ -4083,13 +3240,7 @@ mod tests {
     where
         Scalar: FloatLike + TestableType + EachSum,
     {
-        check_each_binary::<Scalar, _>(
-            values_a,
-            values_b,
-            Scalar::each_sum,
-            |a, b| a + b,
-            "each_sum",
-        );
+        check_each_binary::<Scalar, _>(values_a, values_b, Scalar::each_sum, |a, b| a + b, "each_sum");
     }
 
     fn check_each_blend<Scalar>(values_a: &[f32], values_b: &[f32], alpha: f32, beta: f32)
@@ -4115,13 +3266,8 @@ mod tests {
         }
     }
 
-    fn check_each_fma<Scalar>(
-        values_a: &[f32],
-        values_b: &[f32],
-        values_c: &[f32],
-        alpha: f32,
-        beta: f32,
-    ) where
+    fn check_each_fma<Scalar>(values_a: &[f32], values_b: &[f32], values_c: &[f32], alpha: f32, beta: f32)
+    where
         Scalar: FloatLike + TestableType + EachFMA,
         <Scalar as EachFMA>::Scalar: FloatLike,
     {
@@ -4133,8 +3279,7 @@ mod tests {
         let beta_s = <<Scalar as EachFMA>::Scalar>::from_f32(beta);
         Scalar::each_fma(&a, &b, &c, alpha_s, beta_s, &mut result).unwrap();
         for (i, r) in result.iter().enumerate() {
-            let expected = alpha as f64 * values_a[i] as f64 * values_b[i] as f64
-                + beta as f64 * values_c[i] as f64;
+            let expected = alpha as f64 * values_a[i] as f64 * values_b[i] as f64 + beta as f64 * values_c[i] as f64;
             assert_close(
                 r.to_f64(),
                 expected,

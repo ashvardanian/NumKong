@@ -219,12 +219,7 @@ impl SparseDot for u16 {
     type Weight = bf16;
     type Output = f32;
 
-    fn sparse_dot(
-        a_indices: &[Self],
-        b_indices: &[Self],
-        a_weights: &[bf16],
-        b_weights: &[bf16],
-    ) -> Self::Output {
+    fn sparse_dot(a_indices: &[Self], b_indices: &[Self], a_weights: &[bf16], b_weights: &[bf16]) -> Self::Output {
         let mut product: f32 = 0.0;
         unsafe {
             nk_sparse_dot_u16bf16(
@@ -245,12 +240,7 @@ impl SparseDot for u32 {
     type Weight = f32;
     type Output = f64;
 
-    fn sparse_dot(
-        a_indices: &[Self],
-        b_indices: &[Self],
-        a_weights: &[f32],
-        b_weights: &[f32],
-    ) -> Self::Output {
+    fn sparse_dot(a_indices: &[Self], b_indices: &[Self], a_weights: &[f32], b_weights: &[f32]) -> Self::Output {
         let mut product: f64 = 0.0;
         unsafe {
             nk_sparse_dot_u32f32(
@@ -363,23 +353,17 @@ mod tests {
             (10..50).map(|x| Scalar::try_from(x * 2).unwrap()).collect(),
             (0..45).map(|x| Scalar::try_from(x * 3).unwrap()).collect(),
             (0..100).map(|x| Scalar::try_from(x * 2).unwrap()).collect(),
-            (50..150)
-                .map(|x| Scalar::try_from(x * 2).unwrap())
-                .collect(),
+            (50..150).map(|x| Scalar::try_from(x * 2).unwrap()).collect(),
             (0..100).map(|x| Scalar::try_from(x * 5).unwrap()).collect(),
             (0..150)
                 .filter(|x| x % 7 == 0)
                 .map(|x| Scalar::try_from(x).unwrap())
                 .collect(),
             (0..500).map(|x| Scalar::try_from(x * 3).unwrap()).collect(),
-            (100..600)
-                .map(|x| Scalar::try_from(x * 3).unwrap())
-                .collect(),
+            (100..600).map(|x| Scalar::try_from(x * 3).unwrap()).collect(),
             (0..600).map(|x| Scalar::try_from(x * 7).unwrap()).collect(),
             (0..50).map(|x| Scalar::try_from(x * 2).unwrap()).collect(),
-            (1000..1050)
-                .map(|x| Scalar::try_from(x * 2).unwrap())
-                .collect(),
+            (1000..1050).map(|x| Scalar::try_from(x * 2).unwrap()).collect(),
             (0..16).map(|x| Scalar::try_from(x).unwrap()).collect(),
             (0..32).map(|x| Scalar::try_from(x).unwrap()).collect(),
             (0..64).map(|x| Scalar::try_from(x).unwrap()).collect(),
@@ -447,18 +431,9 @@ mod tests {
         let boundary_16: Vec<u32> = (0..16).collect();
         let boundary_32: Vec<u32> = (0..32).collect();
         let boundary_64: Vec<u32> = (0..64).collect();
-        assert_eq!(
-            u32::sparse_intersection_size(&boundary_16, &boundary_16),
-            16
-        );
-        assert_eq!(
-            u32::sparse_intersection_size(&boundary_32, &boundary_32),
-            32
-        );
-        assert_eq!(
-            u32::sparse_intersection_size(&boundary_64, &boundary_64),
-            64
-        );
+        assert_eq!(u32::sparse_intersection_size(&boundary_16, &boundary_16), 16);
+        assert_eq!(u32::sparse_intersection_size(&boundary_32, &boundary_32), 32);
+        assert_eq!(u32::sparse_intersection_size(&boundary_64, &boundary_64), 64);
 
         let first_half: Vec<u32> = (0..32).collect();
         let second_half: Vec<u32> = (16..48).collect();
@@ -477,21 +452,13 @@ mod tests {
         let first_weights: Vec<f32> = vec![1.0, 2.0, 3.0];
         let second_weights: Vec<f32> = vec![4.0, 5.0, 6.0, 7.0];
         // Overlap at indices 3 and 5: 2.0*5.0 + 3.0*6.0 = 28.0
-        let result = u32::sparse_dot(
-            &first_indices,
-            &second_indices,
-            &first_weights,
-            &second_weights,
-        );
+        let result = u32::sparse_dot(&first_indices, &second_indices, &first_weights, &second_weights);
         assert!((result - 28.0).abs() < 0.01, "sparse_dot u32f32: {result}");
 
         // u16 indices with bf16 weights
         let first_indices_u16: Vec<u16> = vec![1, 3, 5];
         let second_indices_u16: Vec<u16> = vec![2, 3, 5, 7];
-        let first_weights_bf16: Vec<bf16> = vec![1.0, 2.0, 3.0]
-            .iter()
-            .map(|&value| bf16::from_f32(value))
-            .collect();
+        let first_weights_bf16: Vec<bf16> = vec![1.0, 2.0, 3.0].iter().map(|&value| bf16::from_f32(value)).collect();
         let second_weights_bf16: Vec<bf16> = vec![4.0, 5.0, 6.0, 7.0]
             .iter()
             .map(|&value| bf16::from_f32(value))

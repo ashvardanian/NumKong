@@ -72,7 +72,11 @@ impl private::Sealed for usize {}
 impl VectorIndex for usize {
     #[inline]
     fn resolve(self, len: usize) -> Option<usize> {
-        if self < len { Some(self) } else { None }
+        if self < len {
+            Some(self)
+        } else {
+            None
+        }
     }
 }
 
@@ -81,7 +85,11 @@ impl VectorIndex for u8 {
     #[inline]
     fn resolve(self, len: usize) -> Option<usize> {
         let index = self as usize;
-        if index < len { Some(index) } else { None }
+        if index < len {
+            Some(index)
+        } else {
+            None
+        }
     }
 }
 
@@ -90,7 +98,11 @@ impl VectorIndex for u16 {
     #[inline]
     fn resolve(self, len: usize) -> Option<usize> {
         let index = self as usize;
-        if index < len { Some(index) } else { None }
+        if index < len {
+            Some(index)
+        } else {
+            None
+        }
     }
 }
 
@@ -99,7 +111,11 @@ impl VectorIndex for u32 {
     #[inline]
     fn resolve(self, len: usize) -> Option<usize> {
         let index = self as usize;
-        if index < len { Some(index) } else { None }
+        if index < len {
+            Some(index)
+        } else {
+            None
+        }
     }
 }
 
@@ -108,7 +124,11 @@ impl VectorIndex for u64 {
     #[inline]
     fn resolve(self, len: usize) -> Option<usize> {
         let index = self as usize;
-        if index < len { Some(index) } else { None }
+        if index < len {
+            Some(index)
+        } else {
+            None
+        }
     }
 }
 
@@ -121,10 +141,16 @@ impl VectorIndex for isize {
             self as usize
         } else {
             let negation = (-self) as usize;
-            if negation > len { return None; }
+            if negation > len {
+                return None;
+            }
             len - negation
         };
-        if index < len { Some(index) } else { None }
+        if index < len {
+            Some(index)
+        } else {
+            None
+        }
     }
 }
 
@@ -136,10 +162,16 @@ impl VectorIndex for i8 {
             self as usize
         } else {
             let negation = (-(self as isize)) as usize;
-            if negation > len { return None; }
+            if negation > len {
+                return None;
+            }
             len - negation
         };
-        if index < len { Some(index) } else { None }
+        if index < len {
+            Some(index)
+        } else {
+            None
+        }
     }
 }
 
@@ -151,10 +183,16 @@ impl VectorIndex for i16 {
             self as usize
         } else {
             let negation = (-(self as isize)) as usize;
-            if negation > len { return None; }
+            if negation > len {
+                return None;
+            }
             len - negation
         };
-        if index < len { Some(index) } else { None }
+        if index < len {
+            Some(index)
+        } else {
+            None
+        }
     }
 }
 
@@ -166,10 +204,16 @@ impl VectorIndex for i32 {
             self as usize
         } else {
             let negation = (-(self as isize)) as usize;
-            if negation > len { return None; }
+            if negation > len {
+                return None;
+            }
             len - negation
         };
-        if index < len { Some(index) } else { None }
+        if index < len {
+            Some(index)
+        } else {
+            None
+        }
     }
 }
 
@@ -181,10 +225,16 @@ impl VectorIndex for i64 {
             self as usize
         } else {
             let negation = (-(self as isize)) as usize;
-            if negation > len { return None; }
+            if negation > len {
+                return None;
+            }
             len - negation
         };
-        if index < len { Some(index) } else { None }
+        if index < len {
+            Some(index)
+        } else {
+            None
+        }
     }
 }
 
@@ -304,9 +354,7 @@ impl<'a> NibbleRefMut<'a> {
 
     /// Set the nibble to a signed value (low 4 bits used).
     #[inline]
-    pub fn set_signed(&self, value: i8) {
-        self.set_unsigned(value as u8);
-    }
+    pub fn set_signed(&self, value: i8) { self.set_unsigned(value as u8); }
 }
 
 /// Immutable reference to a single bit within a packed byte.
@@ -415,18 +463,14 @@ impl<Scalar: StorageElement, Alloc: Allocator> Drop for Vector<Scalar, Alloc> {
     fn drop(&mut self) {
         let storage_count = dims_to_values::<Scalar>(self.dims);
         if storage_count > 0 {
-            let layout = alloc::alloc::Layout::from_size_align(
-                storage_count * core::mem::size_of::<Scalar>(),
-                SIMD_ALIGNMENT,
-            )
-            .unwrap();
+            let layout =
+                alloc::alloc::Layout::from_size_align(storage_count * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
+                    .unwrap();
             // SAFETY: data was allocated with this layout in try_zeros_in,
             // and storage_count > 0 guarantees the pointer is non-dangling.
             unsafe {
-                self.alloc.deallocate(
-                    NonNull::new_unchecked(self.data.as_ptr() as *mut u8),
-                    layout,
-                );
+                self.alloc
+                    .deallocate(NonNull::new_unchecked(self.data.as_ptr() as *mut u8), layout);
             }
         }
     }
@@ -437,9 +481,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Drop for Vector<Scalar, Alloc> {
 /// For sub-byte types where `dimensions_per_value() > 1`, this is a ceiling
 /// division via [`usize::div_ceil`].
 #[inline]
-fn dims_to_values<Scalar: StorageElement>(dims: usize) -> usize {
-    dims.div_ceil(Scalar::dimensions_per_value())
-}
+fn dims_to_values<Scalar: StorageElement>(dims: usize) -> usize { dims.div_ceil(Scalar::dimensions_per_value()) }
 
 impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// Construct a vector from raw parts, taking ownership of the allocation.
@@ -464,11 +506,9 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
             });
         }
         let size = storage_count * core::mem::size_of::<Scalar>();
-        let layout = alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
-            .map_err(|_| TensorError::AllocationFailed)?;
-        let ptr = alloc
-            .allocate(layout)
-            .ok_or(TensorError::AllocationFailed)?;
+        let layout =
+            alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
+        let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         unsafe { core::ptr::write_bytes(ptr.as_ptr(), 0, size) };
         Ok(Self {
             data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) },
@@ -513,11 +553,9 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
             });
         }
         let size = storage_count * core::mem::size_of::<Scalar>();
-        let layout = alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
-            .map_err(|_| TensorError::AllocationFailed)?;
-        let ptr = alloc
-            .allocate(layout)
-            .ok_or(TensorError::AllocationFailed)?;
+        let layout =
+            alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
+        let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         Ok(Self {
             data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) },
             dims,
@@ -543,10 +581,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// Try to create a vector from a slice of per-dimension scalars.
     ///
     /// Each element in `dim_values` corresponds to one logical dimension.
-    pub fn try_from_dims_in(
-        dim_values: &[Scalar::DimScalar],
-        alloc: Alloc,
-    ) -> Result<Self, TensorError>
+    pub fn try_from_dims_in(dim_values: &[Scalar::DimScalar], alloc: Alloc) -> Result<Self, TensorError>
     where
         Scalar: FloatConvertible,
     {
@@ -560,45 +595,31 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
     /// Number of logical dimensions.
     #[inline]
-    pub fn dims(&self) -> usize {
-        self.dims
-    }
+    pub fn dims(&self) -> usize { self.dims }
 
     /// Number of logical dimensions (same as `dims()`).
     #[inline]
-    pub fn size(&self) -> usize {
-        self.dims
-    }
+    pub fn size(&self) -> usize { self.dims }
 
     /// Number of underlying storage values (`Scalar` instances).
     #[inline]
-    pub fn size_values(&self) -> usize {
-        dims_to_values::<Scalar>(self.dims)
-    }
+    pub fn size_values(&self) -> usize { dims_to_values::<Scalar>(self.dims) }
 
     /// Returns true if the vector has zero dimensions.
     #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.dims == 0
-    }
+    pub fn is_empty(&self) -> bool { self.dims == 0 }
 
     /// Raw pointer to the underlying data.
     #[inline]
-    pub fn as_ptr(&self) -> *const Scalar {
-        self.data.as_ptr()
-    }
+    pub fn as_ptr(&self) -> *const Scalar { self.data.as_ptr() }
 
     /// Mutable raw pointer to the underlying data.
     #[inline]
-    pub fn as_mut_ptr(&mut self) -> *mut Scalar {
-        self.data.as_ptr()
-    }
+    pub fn as_mut_ptr(&mut self) -> *mut Scalar { self.data.as_ptr() }
 
     /// Size in bytes.
     #[inline]
-    pub fn size_bytes(&self) -> usize {
-        dims_to_values::<Scalar>(self.dims) * core::mem::size_of::<Scalar>()
-    }
+    pub fn size_bytes(&self) -> usize { dims_to_values::<Scalar>(self.dims) * core::mem::size_of::<Scalar>() }
 
     /// Create an immutable view of this vector.
     #[inline]
@@ -642,19 +663,14 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// assert!(v.try_get(-6_i32).is_err());
     /// ```
     #[inline]
-    pub fn try_get<AnyIndex: VectorIndex>(
-        &self,
-        index: AnyIndex,
-    ) -> Result<Scalar::DimScalar, TensorError>
+    pub fn try_get<AnyIndex: VectorIndex>(&self, index: AnyIndex) -> Result<Scalar::DimScalar, TensorError>
     where
         Scalar: FloatConvertible,
     {
-        let i = index
-            .resolve(self.dims)
-            .ok_or(TensorError::IndexOutOfBounds {
-                index: 0,
-                size: self.dims,
-            })?;
+        let i = index.resolve(self.dims).ok_or(TensorError::IndexOutOfBounds {
+            index: 0,
+            size: self.dims,
+        })?;
         let dims_per_value = Scalar::dimensions_per_value();
         let value_index = i / dims_per_value;
         let sub_index = i % dims_per_value;
@@ -688,12 +704,10 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     where
         Scalar: FloatConvertible,
     {
-        let i = index
-            .resolve(self.dims)
-            .ok_or(TensorError::IndexOutOfBounds {
-                index: 0,
-                size: self.dims,
-            })?;
+        let i = index.resolve(self.dims).ok_or(TensorError::IndexOutOfBounds {
+            index: 0,
+            size: self.dims,
+        })?;
         let dims_per_value = Scalar::dimensions_per_value();
         let value_index = i / dims_per_value;
         let sub_index = i % dims_per_value;
@@ -745,9 +759,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
 impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// Convert this vector into a 1D tensor, transferring ownership without copying.
-    pub fn try_into_tensor<const MAX_RANK: usize>(
-        self,
-    ) -> Result<Tensor<Scalar, Alloc, MAX_RANK>, TensorError> {
+    pub fn try_into_tensor<const MAX_RANK: usize>(self) -> Result<Tensor<Scalar, Alloc, MAX_RANK>, TensorError> {
         if MAX_RANK == 0 {
             return Err(TensorError::TooManyRanks { got: 1 });
         }
@@ -767,14 +779,10 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
 impl<Scalar: StorageElement> Vector<Scalar, Global> {
     /// Create a zero-initialized vector with the global allocator.
-    pub fn try_zeros(dims: usize) -> Result<Self, TensorError> {
-        Self::try_zeros_in(dims, Global)
-    }
+    pub fn try_zeros(dims: usize) -> Result<Self, TensorError> { Self::try_zeros_in(dims, Global) }
 
     /// Create a vector filled with `value`.
-    pub fn try_full(dims: usize, value: Scalar) -> Result<Self, TensorError> {
-        Self::try_full_in(dims, value, Global)
-    }
+    pub fn try_full(dims: usize, value: Scalar) -> Result<Self, TensorError> { Self::try_full_in(dims, value, Global) }
 
     /// Create a vector filled with ones.
     pub fn try_ones(dims: usize) -> Result<Self, TensorError>
@@ -789,9 +797,7 @@ impl<Scalar: StorageElement> Vector<Scalar, Global> {
     /// # Safety
     /// The returned vector's contents are uninitialized. Reading from it before
     /// writing is undefined behavior.
-    pub unsafe fn try_empty(dims: usize) -> Result<Self, TensorError> {
-        unsafe { Self::try_empty_in(dims, Global) }
-    }
+    pub unsafe fn try_empty(dims: usize) -> Result<Self, TensorError> { unsafe { Self::try_empty_in(dims, Global) } }
 
     /// Create a vector from scalar f32 values.
     pub fn try_from_scalars(scalars: &[f32]) -> Result<Self, TensorError>
@@ -818,9 +824,7 @@ impl<AnyIndex: VectorIndex, Scalar: StorageElement, Alloc: Allocator> core::ops:
 
     #[inline]
     fn index(&self, index: AnyIndex) -> &Scalar {
-        let i = index
-            .resolve(self.dims)
-            .expect("vector index out of bounds");
+        let i = index.resolve(self.dims).expect("vector index out of bounds");
         debug_assert_eq!(
             Scalar::dimensions_per_value(),
             1,
@@ -835,9 +839,7 @@ impl<AnyIndex: VectorIndex, Scalar: StorageElement, Alloc: Allocator> core::ops:
 {
     #[inline]
     fn index_mut(&mut self, index: AnyIndex) -> &mut Scalar {
-        let i = index
-            .resolve(self.dims)
-            .expect("vector index out of bounds");
+        let i = index.resolve(self.dims).expect("vector index out of bounds");
         debug_assert_eq!(
             Scalar::dimensions_per_value(),
             1,
@@ -859,12 +861,9 @@ impl<Scalar: StorageElement + Clone, Alloc: Allocator + Clone> Vector<Scalar, Al
             });
         }
         let size = storage_count * core::mem::size_of::<Scalar>();
-        let layout = alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
-            .map_err(|_| TensorError::AllocationFailed)?;
-        let ptr = self
-            .alloc
-            .allocate(layout)
-            .ok_or(TensorError::AllocationFailed)?;
+        let layout =
+            alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
+        let ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         unsafe {
             core::ptr::copy_nonoverlapping(self.data.as_ptr() as *const u8, ptr.as_ptr(), size);
         }
@@ -877,9 +876,7 @@ impl<Scalar: StorageElement + Clone, Alloc: Allocator + Clone> Vector<Scalar, Al
 }
 
 impl<Scalar: StorageElement + Clone, Alloc: Allocator + Clone> Clone for Vector<Scalar, Alloc> {
-    fn clone(&self) -> Self {
-        self.try_clone().expect("vector clone allocation failed")
-    }
+    fn clone(&self) -> Self { self.try_clone().expect("vector clone allocation failed") }
 }
 
 impl<Scalar: StorageElement> Default for Vector<Scalar, Global> {
@@ -923,9 +920,7 @@ unsafe impl<'a, Scalar: StorageElement + Sync> Send for VectorView<'a, Scalar> {
 unsafe impl<'a, Scalar: StorageElement + Sync> Sync for VectorView<'a, Scalar> {}
 
 impl<'a, Scalar: StorageElement> Clone for VectorView<'a, Scalar> {
-    fn clone(&self) -> Self {
-        *self
-    }
+    fn clone(&self) -> Self { *self }
 }
 impl<'a, Scalar: StorageElement> Copy for VectorView<'a, Scalar> {}
 
@@ -948,39 +943,27 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
 
     /// Number of logical dimensions.
     #[inline]
-    pub fn dims(&self) -> usize {
-        self.dims
-    }
+    pub fn dims(&self) -> usize { self.dims }
 
     /// Number of logical dimensions (alias for dims).
     #[inline]
-    pub fn size(&self) -> usize {
-        self.dims
-    }
+    pub fn size(&self) -> usize { self.dims }
 
     /// Returns true if empty.
     #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.dims == 0
-    }
+    pub fn is_empty(&self) -> bool { self.dims == 0 }
 
     /// Stride in bytes between consecutive elements.
     #[inline]
-    pub fn stride_bytes(&self) -> isize {
-        self.stride_bytes
-    }
+    pub fn stride_bytes(&self) -> isize { self.stride_bytes }
 
     /// Returns true if elements are stored contiguously (stride == sizeof(Scalar)).
     #[inline]
-    pub fn is_contiguous(&self) -> bool {
-        self.stride_bytes == core::mem::size_of::<Scalar>() as isize
-    }
+    pub fn is_contiguous(&self) -> bool { self.stride_bytes == core::mem::size_of::<Scalar>() as isize }
 
     /// Get the underlying pointer.
     #[inline]
-    pub fn as_ptr(&self) -> *const Scalar {
-        self.data
-    }
+    pub fn as_ptr(&self) -> *const Scalar { self.data }
 
     /// Get a contiguous slice, if this view is contiguous.
     #[inline]
@@ -997,27 +980,19 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
     /// Returns the native `DimScalar` type. For sub-byte types, uses value_index
     /// for stride-based pointer walks to avoid buffer overread.
     #[inline]
-    pub fn try_get<AnyIndex: VectorIndex>(
-        &self,
-        index: AnyIndex,
-    ) -> Result<Scalar::DimScalar, TensorError>
+    pub fn try_get<AnyIndex: VectorIndex>(&self, index: AnyIndex) -> Result<Scalar::DimScalar, TensorError>
     where
         Scalar: FloatConvertible,
     {
-        let i = index
-            .resolve(self.dims)
-            .ok_or(TensorError::IndexOutOfBounds {
-                index: 0,
-                size: self.dims,
-            })?;
+        let i = index.resolve(self.dims).ok_or(TensorError::IndexOutOfBounds {
+            index: 0,
+            size: self.dims,
+        })?;
         let dims_per_value = Scalar::dimensions_per_value();
         let value_index = i / dims_per_value;
         let sub_index = i % dims_per_value;
         // SAFETY: stride * value_index stays within allocation
-        let ptr = unsafe {
-            (self.data as *const u8).offset(self.stride_bytes * value_index as isize)
-                as *const Scalar
-        };
+        let ptr = unsafe { (self.data as *const u8).offset(self.stride_bytes * value_index as isize) as *const Scalar };
         Ok(unsafe { *ptr }.unpack().as_ref()[sub_index])
     }
 
@@ -1061,9 +1036,7 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
         } else {
             0
         };
-        let new_data = unsafe {
-            (self.data as *const u8).offset(self.stride_bytes * start as isize) as *const Scalar
-        };
+        let new_data = unsafe { (self.data as *const u8).offset(self.stride_bytes * start as isize) as *const Scalar };
         Ok(Self {
             data: new_data,
             dims: count,
@@ -1087,9 +1060,7 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
     }
 }
 
-impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::Index<AnyIndex>
-    for VectorView<'a, Scalar>
-{
+impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::Index<AnyIndex> for VectorView<'a, Scalar> {
     type Output = Scalar;
 
     #[inline]
@@ -1100,9 +1071,7 @@ impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::Index<AnyInde
             1,
             "Index trait not supported for sub-byte types"
         );
-        unsafe {
-            &*((self.data as *const u8).offset(self.stride_bytes * i as isize) as *const Scalar)
-        }
+        unsafe { &*((self.data as *const u8).offset(self.stride_bytes * i as isize) as *const Scalar) }
     }
 }
 
@@ -1153,45 +1122,31 @@ impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
 
     /// Number of logical dimensions.
     #[inline]
-    pub fn dims(&self) -> usize {
-        self.dims
-    }
+    pub fn dims(&self) -> usize { self.dims }
 
     /// Number of logical dimensions (alias for dims).
     #[inline]
-    pub fn size(&self) -> usize {
-        self.dims
-    }
+    pub fn size(&self) -> usize { self.dims }
 
     /// Returns true if empty.
     #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.dims == 0
-    }
+    pub fn is_empty(&self) -> bool { self.dims == 0 }
 
     /// Stride in bytes.
     #[inline]
-    pub fn stride_bytes(&self) -> isize {
-        self.stride_bytes
-    }
+    pub fn stride_bytes(&self) -> isize { self.stride_bytes }
 
     /// Returns true if contiguous.
     #[inline]
-    pub fn is_contiguous(&self) -> bool {
-        self.stride_bytes == core::mem::size_of::<Scalar>() as isize
-    }
+    pub fn is_contiguous(&self) -> bool { self.stride_bytes == core::mem::size_of::<Scalar>() as isize }
 
     /// Get the underlying pointer.
     #[inline]
-    pub fn as_ptr(&self) -> *const Scalar {
-        self.data
-    }
+    pub fn as_ptr(&self) -> *const Scalar { self.data }
 
     /// Get the mutable underlying pointer.
     #[inline]
-    pub fn as_mut_ptr(&mut self) -> *mut Scalar {
-        self.data
-    }
+    pub fn as_mut_ptr(&mut self) -> *mut Scalar { self.data }
 
     /// Reborrow as an immutable view, sharing the same data pointer and stride.
     pub fn as_view(&self) -> VectorView<'_, Scalar> {
@@ -1205,10 +1160,7 @@ impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
 
     /// Try to get element at index.
     #[inline]
-    pub fn try_get<AnyIndex: VectorIndex>(
-        &self,
-        index: AnyIndex,
-    ) -> Result<Scalar::DimScalar, TensorError>
+    pub fn try_get<AnyIndex: VectorIndex>(&self, index: AnyIndex) -> Result<Scalar::DimScalar, TensorError>
     where
         Scalar: FloatConvertible,
     {
@@ -1228,19 +1180,15 @@ impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
     where
         Scalar: FloatConvertible,
     {
-        let i = index
-            .resolve(self.dims)
-            .ok_or(TensorError::IndexOutOfBounds {
-                index: 0,
-                size: self.dims,
-            })?;
+        let i = index.resolve(self.dims).ok_or(TensorError::IndexOutOfBounds {
+            index: 0,
+            size: self.dims,
+        })?;
         let dims_per_value = Scalar::dimensions_per_value();
         let value_index = i / dims_per_value;
         let sub_index = i % dims_per_value;
         // SAFETY: stride * value_index stays within allocation
-        let ptr = unsafe {
-            (self.data as *mut u8).offset(self.stride_bytes * value_index as isize) as *mut Scalar
-        };
+        let ptr = unsafe { (self.data as *mut u8).offset(self.stride_bytes * value_index as isize) as *mut Scalar };
         let mut unpacked = unsafe { *ptr }.unpack();
         unpacked.as_mut()[sub_index] = value;
         unsafe { ptr.write(Scalar::pack(unpacked)) };
@@ -1296,9 +1244,7 @@ impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
     }
 }
 
-impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::Index<AnyIndex>
-    for VectorSpan<'a, Scalar>
-{
+impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::Index<AnyIndex> for VectorSpan<'a, Scalar> {
     type Output = Scalar;
 
     #[inline]
@@ -1309,15 +1255,11 @@ impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::Index<AnyInde
             1,
             "Index trait not supported for sub-byte types"
         );
-        unsafe {
-            &*((self.data as *const u8).offset(self.stride_bytes * i as isize) as *const Scalar)
-        }
+        unsafe { &*((self.data as *const u8).offset(self.stride_bytes * i as isize) as *const Scalar) }
     }
 }
 
-impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::IndexMut<AnyIndex>
-    for VectorSpan<'a, Scalar>
-{
+impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::IndexMut<AnyIndex> for VectorSpan<'a, Scalar> {
     #[inline]
     fn index_mut(&mut self, index: AnyIndex) -> &mut Scalar {
         let i = index.resolve(self.dims).expect("span index out of bounds");
@@ -1326,9 +1268,7 @@ impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::IndexMut<AnyI
             1,
             "IndexMut trait not supported for sub-byte types"
         );
-        unsafe {
-            &mut *((self.data as *mut u8).offset(self.stride_bytes * i as isize) as *mut Scalar)
-        }
+        unsafe { &mut *((self.data as *mut u8).offset(self.stride_bytes * i as isize) as *mut Scalar) }
     }
 }
 
@@ -1357,25 +1297,18 @@ impl<Alloc: Allocator> Vector<u1x8, Alloc> {
     /// Number of set bits across the entire vector.
     pub fn popcount(&self) -> u64 {
         let storage_count = self.dims.div_ceil(u1x8::dimensions_per_value());
-        let storage =
-            unsafe { core::slice::from_raw_parts(self.data.as_ptr(), storage_count) };
+        let storage = unsafe { core::slice::from_raw_parts(self.data.as_ptr(), storage_count) };
         popcount_u1x8_storage(storage)
     }
 
     /// `true` if at least one bit in the vector is set.
-    pub fn any_set(&self) -> bool {
-        self.popcount() != 0
-    }
+    pub fn any_set(&self) -> bool { self.popcount() != 0 }
 
     /// `true` if no bit in the vector is set.
-    pub fn none_set(&self) -> bool {
-        !self.any_set()
-    }
+    pub fn none_set(&self) -> bool { !self.any_set() }
 
     /// `true` if every bit in the vector is set.
-    pub fn all_set(&self) -> bool {
-        self.popcount() == self.dims as u64
-    }
+    pub fn all_set(&self) -> bool { self.popcount() == self.dims as u64 }
 }
 
 impl<'a> VectorView<'a, u1x8> {
@@ -1387,19 +1320,13 @@ impl<'a> VectorView<'a, u1x8> {
     }
 
     /// `true` if at least one bit in the vector view is set.
-    pub fn any_set(&self) -> bool {
-        self.popcount() != 0
-    }
+    pub fn any_set(&self) -> bool { self.popcount() != 0 }
 
     /// `true` if no bit in the vector view is set.
-    pub fn none_set(&self) -> bool {
-        !self.any_set()
-    }
+    pub fn none_set(&self) -> bool { !self.any_set() }
 
     /// `true` if every bit in the vector view is set.
-    pub fn all_set(&self) -> bool {
-        self.popcount() == self.dims as u64
-    }
+    pub fn all_set(&self) -> bool { self.popcount() == self.dims as u64 }
 }
 
 impl<'a> VectorSpan<'a, u1x8> {
@@ -1411,19 +1338,13 @@ impl<'a> VectorSpan<'a, u1x8> {
     }
 
     /// `true` if at least one bit in the vector span is set.
-    pub fn any_set(&self) -> bool {
-        self.popcount() != 0
-    }
+    pub fn any_set(&self) -> bool { self.popcount() != 0 }
 
     /// `true` if no bit in the vector span is set.
-    pub fn none_set(&self) -> bool {
-        !self.any_set()
-    }
+    pub fn none_set(&self) -> bool { !self.any_set() }
 
     /// `true` if every bit in the vector span is set.
-    pub fn all_set(&self) -> bool {
-        self.popcount() == self.dims as u64
-    }
+    pub fn all_set(&self) -> bool { self.popcount() == self.dims as u64 }
 }
 
 // endregion: Bit Reductions on u1x8 vectors
@@ -1450,10 +1371,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Fill<Scalar> for Vector<Scalar, A
         // Skip overlay when `value` matches the freshly-zeroed bit pattern.
         let default_value = Scalar::default();
         let value_bytes = unsafe {
-            core::slice::from_raw_parts(
-                (&value as *const Scalar) as *const u8,
-                core::mem::size_of::<Scalar>(),
-            )
+            core::slice::from_raw_parts((&value as *const Scalar) as *const u8, core::mem::size_of::<Scalar>())
         };
         let default_bytes = unsafe {
             core::slice::from_raw_parts(
@@ -1513,9 +1431,7 @@ impl<'a, Scalar: StorageElement> Fill<Scalar> for VectorSpan<'a, Scalar> {
         // Strided: zero one element at a time.
         for storage_index in 0..storage_count {
             unsafe {
-                let ptr = (self.data as *mut u8)
-                    .offset(self.stride_bytes * storage_index as isize)
-                    as *mut Scalar;
+                let ptr = (self.data as *mut u8).offset(self.stride_bytes * storage_index as isize) as *mut Scalar;
                 core::ptr::write_bytes(ptr, 0, 1);
             }
         }
@@ -1529,10 +1445,7 @@ impl<'a, Scalar: StorageElement> Fill<Scalar> for VectorSpan<'a, Scalar> {
         }
         let default_value = Scalar::default();
         let value_bytes = unsafe {
-            core::slice::from_raw_parts(
-                (&value as *const Scalar) as *const u8,
-                core::mem::size_of::<Scalar>(),
-            )
+            core::slice::from_raw_parts((&value as *const Scalar) as *const u8, core::mem::size_of::<Scalar>())
         };
         let default_bytes = unsafe {
             core::slice::from_raw_parts(
@@ -1560,18 +1473,14 @@ impl<'a, Scalar: StorageElement> Fill<Scalar> for VectorSpan<'a, Scalar> {
         // Strided typed broadcast.
         for storage_index in 0..storage_count {
             unsafe {
-                let ptr = (self.data as *mut u8)
-                    .offset(self.stride_bytes * storage_index as isize)
-                    as *mut Scalar;
+                let ptr = (self.data as *mut u8).offset(self.stride_bytes * storage_index as isize) as *mut Scalar;
                 core::ptr::write(ptr, value);
             }
         }
     }
 }
 
-impl<'a, 'b, Scalar: StorageElement> CopyFrom<&'b VectorView<'_, Scalar>>
-    for VectorSpan<'a, Scalar>
-{
+impl<'a, 'b, Scalar: StorageElement> CopyFrom<&'b VectorView<'_, Scalar>> for VectorSpan<'a, Scalar> {
     fn copy_from(&mut self, source: &'b VectorView<'_, Scalar>) -> Result<(), TensorError> {
         if source.size() != self.dims {
             return Err(TensorError::ShapeMismatch {
@@ -1593,11 +1502,9 @@ impl<'a, 'b, Scalar: StorageElement> CopyFrom<&'b VectorView<'_, Scalar>>
         }
         for storage_index in 0..storage_count {
             unsafe {
-                let destination_ptr = (self.data as *mut u8)
-                    .offset(self.stride_bytes * storage_index as isize)
-                    as *mut Scalar;
-                let source_ptr = (source.as_ptr() as *const u8)
-                    .offset(source.stride_bytes() * storage_index as isize)
+                let destination_ptr =
+                    (self.data as *mut u8).offset(self.stride_bytes * storage_index as isize) as *mut Scalar;
+                let source_ptr = (source.as_ptr() as *const u8).offset(source.stride_bytes() * storage_index as isize)
                     as *const Scalar;
                 core::ptr::write(destination_ptr, *source_ptr);
             }
@@ -1638,10 +1545,7 @@ impl<'a, Scalar: FloatConvertible> Iterator for VectorViewIterator<'a, Scalar> {
         let value_index = self.front / dims_per_value;
         let sub_index = self.front % dims_per_value;
         // SAFETY: value_index < values, stride * value_index within allocation
-        let ptr = unsafe {
-            (self.data as *const u8).offset(self.stride_bytes * value_index as isize)
-                as *const Scalar
-        };
+        let ptr = unsafe { (self.data as *const u8).offset(self.stride_bytes * value_index as isize) as *const Scalar };
         let scalar = unsafe { *ptr }.unpack().as_ref()[sub_index];
         self.front += 1;
         Some(DimRef::new(scalar))
@@ -1667,10 +1571,7 @@ impl<'a, Scalar: FloatConvertible> DoubleEndedIterator for VectorViewIterator<'a
         let dims_per_value = Scalar::dimensions_per_value();
         let value_index = self.back / dims_per_value;
         let sub_index = self.back % dims_per_value;
-        let ptr = unsafe {
-            (self.data as *const u8).offset(self.stride_bytes * value_index as isize)
-                as *const Scalar
-        };
+        let ptr = unsafe { (self.data as *const u8).offset(self.stride_bytes * value_index as isize) as *const Scalar };
         Some(DimRef::new(unsafe { *ptr }.unpack().as_ref()[sub_index]))
     }
 }
@@ -1699,9 +1600,7 @@ impl<'a, Scalar: FloatConvertible> Iterator for VectorSpanIterator<'a, Scalar> {
         let dims_per_value = Scalar::dimensions_per_value();
         let value_index = self.front / dims_per_value;
         let sub_index = self.front % dims_per_value;
-        let ptr = unsafe {
-            (self.data as *mut u8).offset(self.stride_bytes * value_index as isize) as *mut Scalar
-        };
+        let ptr = unsafe { (self.data as *mut u8).offset(self.stride_bytes * value_index as isize) as *mut Scalar };
         let scalar = unsafe { *ptr }.unpack().as_ref()[sub_index];
         self.front += 1;
         Some(unsafe { DimMut::new(ptr, sub_index, scalar) })
@@ -1727,9 +1626,7 @@ impl<'a, Scalar: FloatConvertible> DoubleEndedIterator for VectorSpanIterator<'a
         let dims_per_value = Scalar::dimensions_per_value();
         let value_index = self.back / dims_per_value;
         let sub_index = self.back % dims_per_value;
-        let ptr = unsafe {
-            (self.data as *mut u8).offset(self.stride_bytes * value_index as isize) as *mut Scalar
-        };
+        let ptr = unsafe { (self.data as *mut u8).offset(self.stride_bytes * value_index as isize) as *mut Scalar };
         let scalar = unsafe { *ptr }.unpack().as_ref()[sub_index];
         Some(unsafe { DimMut::new(ptr, sub_index, scalar) })
     }
@@ -1742,47 +1639,35 @@ impl<'a, Scalar: FloatConvertible> DoubleEndedIterator for VectorSpanIterator<'a
 impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a Vector<Scalar, Alloc> {
     type Item = DimRef<'a, Scalar>;
     type IntoIter = VectorViewIterator<'a, Scalar>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 
 impl<'a, Scalar: FloatConvertible> IntoIterator for &'a VectorView<'a, Scalar> {
     type Item = DimRef<'a, Scalar>;
     type IntoIter = VectorViewIterator<'a, Scalar>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 
 impl<'a, Scalar: FloatConvertible> IntoIterator for &'a VectorSpan<'a, Scalar> {
     type Item = DimRef<'a, Scalar>;
     type IntoIter = VectorViewIterator<'a, Scalar>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 
 // endregion: IntoIterator (immutable)
 
 // region: IntoIterator (mutable)
 
-impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator
-    for &'a mut Vector<Scalar, Alloc>
-{
+impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a mut Vector<Scalar, Alloc> {
     type Item = DimMut<'a, Scalar>;
     type IntoIter = VectorSpanIterator<'a, Scalar>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter_mut()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.iter_mut() }
 }
 
 impl<'a, Scalar: FloatConvertible> IntoIterator for &'a mut VectorSpan<'a, Scalar> {
     type Item = DimMut<'a, Scalar>;
     type IntoIter = VectorSpanIterator<'a, Scalar>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter_mut()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.iter_mut() }
 }
 
 // endregion: IntoIterator (mutable)
@@ -1790,9 +1675,7 @@ impl<'a, Scalar: FloatConvertible> IntoIterator for &'a mut VectorSpan<'a, Scala
 // region: AsRef
 
 impl<Scalar: StorageElement, Alloc: Allocator> AsRef<[Scalar]> for Vector<Scalar, Alloc> {
-    fn as_ref(&self) -> &[Scalar] {
-        self.as_slice()
-    }
+    fn as_ref(&self) -> &[Scalar] { self.as_slice() }
 }
 
 // endregion: AsRef
@@ -1803,13 +1686,10 @@ impl<Scalar: FloatConvertible, Alloc: Allocator> PartialEq for Vector<Scalar, Al
 where
     Scalar::DimScalar: PartialEq,
 {
-    fn eq(&self, other: &Self) -> bool {
-        self.dims == other.dims && self.iter().zip(other.iter()).all(|(a, b)| a == b)
-    }
+    fn eq(&self, other: &Self) -> bool { self.dims == other.dims && self.iter().zip(other.iter()).all(|(a, b)| a == b) }
 }
 
-impl<Scalar: FloatConvertible, Alloc: Allocator> PartialEq<[Scalar::DimScalar]>
-    for Vector<Scalar, Alloc>
+impl<Scalar: FloatConvertible, Alloc: Allocator> PartialEq<[Scalar::DimScalar]> for Vector<Scalar, Alloc>
 where
     Scalar::DimScalar: PartialEq,
 {
@@ -1822,18 +1702,14 @@ impl<'a, Scalar: FloatConvertible> PartialEq for VectorView<'a, Scalar>
 where
     Scalar::DimScalar: PartialEq,
 {
-    fn eq(&self, other: &Self) -> bool {
-        self.dims == other.dims && self.iter().zip(other.iter()).all(|(a, b)| a == b)
-    }
+    fn eq(&self, other: &Self) -> bool { self.dims == other.dims && self.iter().zip(other.iter()).all(|(a, b)| a == b) }
 }
 
 impl<'a, Scalar: FloatConvertible> PartialEq for VectorSpan<'a, Scalar>
 where
     Scalar::DimScalar: PartialEq,
 {
-    fn eq(&self, other: &Self) -> bool {
-        self.dims == other.dims && self.iter().zip(other.iter()).all(|(a, b)| a == b)
-    }
+    fn eq(&self, other: &Self) -> bool { self.dims == other.dims && self.iter().zip(other.iter()).all(|(a, b)| a == b) }
 }
 
 // endregion: PartialEq
@@ -1848,12 +1724,7 @@ where
     ///
     /// Uses the formula `|a - b| <= atol + rtol * |b|` per element.
     /// Returns `false` if dimensions differ.
-    pub fn allclose<OtherAlloc: Allocator>(
-        &self,
-        other: &Vector<Scalar, OtherAlloc>,
-        atol: f64,
-        rtol: f64,
-    ) -> bool {
+    pub fn allclose<OtherAlloc: Allocator>(&self, other: &Vector<Scalar, OtherAlloc>, atol: f64, rtol: f64) -> bool {
         self.dims == other.dims
             && self
                 .iter()
@@ -1926,11 +1797,7 @@ where
 }
 
 /// Write a truncated, display-formatted list from an iterator.
-fn fmt_display_list<I: Iterator>(
-    f: &mut core::fmt::Formatter<'_>,
-    iter: I,
-    limit: usize,
-) -> core::fmt::Result
+fn fmt_display_list<I: Iterator>(f: &mut core::fmt::Formatter<'_>, iter: I, limit: usize) -> core::fmt::Result
 where
     I::Item: core::fmt::Display,
 {
@@ -1984,9 +1851,7 @@ impl<Scalar: FloatConvertible, Alloc: Allocator> core::fmt::Display for Vector<S
 where
     Scalar::DimScalar: core::fmt::Display,
 {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        fmt_display_list(f, self.iter(), 20)
-    }
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { fmt_display_list(f, self.iter(), 20) }
 }
 
 // endregion: Debug and Display
@@ -2020,16 +1885,8 @@ mod tests {
         v.try_set((test_dims - 1) as i32, one).unwrap();
         let first = v.try_get(0_usize).unwrap();
         let last = v.try_get(-1_i32).unwrap();
-        assert!(
-            first.to_f32() >= 0.5,
-            "first dim should be ~1.0, got {:?}",
-            first
-        );
-        assert!(
-            last.to_f32() >= 0.5,
-            "last dim should be ~1.0, got {:?}",
-            last
-        );
+        assert!(first.to_f32() >= 0.5, "first dim should be ~1.0, got {:?}", first);
+        assert!(last.to_f32() >= 0.5, "last dim should be ~1.0, got {:?}", last);
     }
 
     #[test]
@@ -2173,7 +2030,10 @@ mod tests {
         }
         for (i, &expected) in values.iter().enumerate() {
             let got = v.try_get(i).unwrap().to_f32();
-            assert!((got - expected).abs() < 0.5, "iter_mut[{i}] = {got}, expected {expected}");
+            assert!(
+                (got - expected).abs() < 0.5,
+                "iter_mut[{i}] = {got}, expected {expected}"
+            );
         }
     }
 
@@ -2217,7 +2077,7 @@ mod tests {
         assert_eq!(VectorIndex::resolve(-1i32, 5), Some(4));
         assert_eq!(VectorIndex::resolve(-5i32, 5), Some(0));
         assert_eq!(VectorIndex::resolve(-6i32, 5), None); // out of bounds
-        // Same logic across all signed widths.
+                                                          // Same logic across all signed widths.
         assert_eq!(VectorIndex::resolve(-1i8, 5), Some(4));
         assert_eq!(VectorIndex::resolve(-1i16, 5), Some(4));
         assert_eq!(VectorIndex::resolve(-1i64, 5), Some(4));
@@ -2241,13 +2101,8 @@ mod tests {
 
         // VectorSpan: same trait methods.
         let mut data = [0.0f32; 8];
-        let mut span = unsafe {
-            VectorSpan::<f32>::from_raw_parts(
-                data.as_mut_ptr(),
-                8,
-                core::mem::size_of::<f32>() as isize,
-            )
-        };
+        let mut span =
+            unsafe { VectorSpan::<f32>::from_raw_parts(data.as_mut_ptr(), 8, core::mem::size_of::<f32>() as isize) };
         span.fill(1.25);
         assert!(data.iter().all(|&value| value == 1.25));
     }

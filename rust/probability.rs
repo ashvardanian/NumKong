@@ -35,9 +35,7 @@ pub trait KullbackLeibler: Sized {
     fn kullbackleibler(a: &[Self], b: &[Self]) -> Option<Self::Output>;
 
     /// Alias for `kullbackleibler`.
-    fn kl(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        Self::kullbackleibler(a, b)
-    }
+    fn kl(a: &[Self], b: &[Self]) -> Option<Self::Output> { Self::kullbackleibler(a, b) }
 }
 
 impl KullbackLeibler for f64 {
@@ -71,14 +69,7 @@ impl KullbackLeibler for f16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_kld_f16(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_kld_f16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -90,14 +81,7 @@ impl KullbackLeibler for bf16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_kld_bf16(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_kld_bf16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -118,9 +102,7 @@ pub trait JensenShannon: Sized {
     fn jensenshannon(a: &[Self], b: &[Self]) -> Option<Self::Output>;
 
     /// Alias for `jensenshannon`.
-    fn js(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        Self::jensenshannon(a, b)
-    }
+    fn js(a: &[Self], b: &[Self]) -> Option<Self::Output> { Self::jensenshannon(a, b) }
 }
 
 impl JensenShannon for f64 {
@@ -154,14 +136,7 @@ impl JensenShannon for f16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_jsd_f16(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_jsd_f16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -173,14 +148,7 @@ impl JensenShannon for bf16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_jsd_bf16(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_jsd_bf16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -201,17 +169,9 @@ mod tests {
         Scalar: FloatLike + TestableType + KullbackLeibler,
         Scalar::Output: FloatLike,
     {
-        let a_samples: Vec<Scalar> = distribution_a
-            .iter()
-            .map(|&v| Scalar::from_f32(v))
-            .collect();
-        let b_samples: Vec<Scalar> = distribution_b
-            .iter()
-            .map(|&v| Scalar::from_f32(v))
-            .collect();
-        let result = Scalar::kullbackleibler(&a_samples, &b_samples)
-            .unwrap()
-            .to_f64();
+        let a_samples: Vec<Scalar> = distribution_a.iter().map(|&v| Scalar::from_f32(v)).collect();
+        let b_samples: Vec<Scalar> = distribution_b.iter().map(|&v| Scalar::from_f32(v)).collect();
+        let result = Scalar::kullbackleibler(&a_samples, &b_samples).unwrap().to_f64();
         // Divergences involve ln() so need wider tolerance than simple dot products
         assert_close(
             result,
@@ -227,17 +187,9 @@ mod tests {
         Scalar: FloatLike + TestableType + JensenShannon,
         Scalar::Output: FloatLike,
     {
-        let a_samples: Vec<Scalar> = distribution_a
-            .iter()
-            .map(|&v| Scalar::from_f32(v))
-            .collect();
-        let b_samples: Vec<Scalar> = distribution_b
-            .iter()
-            .map(|&v| Scalar::from_f32(v))
-            .collect();
-        let result = Scalar::jensenshannon(&a_samples, &b_samples)
-            .unwrap()
-            .to_f64();
+        let a_samples: Vec<Scalar> = distribution_a.iter().map(|&v| Scalar::from_f32(v)).collect();
+        let b_samples: Vec<Scalar> = distribution_b.iter().map(|&v| Scalar::from_f32(v)).collect();
+        let result = Scalar::jensenshannon(&a_samples, &b_samples).unwrap().to_f64();
         // Divergences involve ln() so need wider tolerance than simple dot products
         assert_close(
             result,

@@ -50,13 +50,7 @@ use crate::types::{bf16, f16, StorageElement};
 #[link(name = "numkong")]
 extern "C" {
     fn nk_maxsim_packed_size_f32(vector_count: usize, depth: usize) -> usize;
-    fn nk_maxsim_pack_f32(
-        v: *const f32,
-        vector_count: usize,
-        depth: usize,
-        stride: usize,
-        packed: *mut u8,
-    );
+    fn nk_maxsim_pack_f32(v: *const f32, vector_count: usize, depth: usize, stride: usize, packed: *mut u8);
     fn nk_maxsim_packed_f32(
         q: *const u8,
         d: *const u8,
@@ -67,13 +61,7 @@ extern "C" {
     );
 
     fn nk_maxsim_packed_size_f16(vector_count: usize, depth: usize) -> usize;
-    fn nk_maxsim_pack_f16(
-        v: *const f16,
-        vector_count: usize,
-        depth: usize,
-        stride: usize,
-        packed: *mut u8,
-    );
+    fn nk_maxsim_pack_f16(v: *const f16, vector_count: usize, depth: usize, stride: usize, packed: *mut u8);
     fn nk_maxsim_packed_f16(
         q: *const u8,
         d: *const u8,
@@ -84,13 +72,7 @@ extern "C" {
     );
 
     fn nk_maxsim_packed_size_bf16(vector_count: usize, depth: usize) -> usize;
-    fn nk_maxsim_pack_bf16(
-        v: *const bf16,
-        vector_count: usize,
-        depth: usize,
-        stride: usize,
-        packed: *mut u8,
-    );
+    fn nk_maxsim_pack_bf16(v: *const bf16, vector_count: usize, depth: usize, stride: usize, packed: *mut u8);
     fn nk_maxsim_packed_bf16(
         q: *const u8,
         d: *const u8,
@@ -118,13 +100,7 @@ pub trait MaxSim: StorageElement + Clone {
     /// # Safety
     /// - `vectors` must point to `vector_count` rows of `depth` elements, byte stride `stride`
     /// - `packed` must have at least `maxsim_packed_size(vector_count, depth)` bytes
-    unsafe fn maxsim_pack(
-        vectors: *const Self,
-        vector_count: usize,
-        depth: usize,
-        stride: usize,
-        packed: *mut u8,
-    );
+    unsafe fn maxsim_pack(vectors: *const Self, vector_count: usize, depth: usize, stride: usize, packed: *mut u8);
 
     /// Compute MaxSim score on pre-packed buffers.
     ///
@@ -152,13 +128,7 @@ impl MaxSim for f32 {
         unsafe { nk_maxsim_packed_size_f32(vector_count, depth) }
     }
 
-    unsafe fn maxsim_pack(
-        vectors: *const Self,
-        vector_count: usize,
-        depth: usize,
-        stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn maxsim_pack(vectors: *const Self, vector_count: usize, depth: usize, stride: usize, packed: *mut u8) {
         nk_maxsim_pack_f32(vectors, vector_count, depth, stride, packed)
     }
 
@@ -181,13 +151,7 @@ impl MaxSim for f16 {
         unsafe { nk_maxsim_packed_size_f16(vector_count, depth) }
     }
 
-    unsafe fn maxsim_pack(
-        vectors: *const Self,
-        vector_count: usize,
-        depth: usize,
-        stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn maxsim_pack(vectors: *const Self, vector_count: usize, depth: usize, stride: usize, packed: *mut u8) {
         nk_maxsim_pack_f16(vectors, vector_count, depth, stride, packed)
     }
 
@@ -210,13 +174,7 @@ impl MaxSim for bf16 {
         unsafe { nk_maxsim_packed_size_bf16(vector_count, depth) }
     }
 
-    unsafe fn maxsim_pack(
-        vectors: *const Self,
-        vector_count: usize,
-        depth: usize,
-        stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn maxsim_pack(vectors: *const Self, vector_count: usize, depth: usize, stride: usize, packed: *mut u8) {
         nk_maxsim_pack_bf16(vectors, vector_count, depth, stride, packed)
     }
 
@@ -251,21 +209,14 @@ pub struct MaxSimPackedMatrix<Scalar: MaxSim, Alloc: Allocator = Global> {
 }
 
 // Safety: MaxSimPackedMatrix owns its data and is just bytes
-unsafe impl<Scalar: MaxSim + Send, Alloc: Allocator + Send> Send
-    for MaxSimPackedMatrix<Scalar, Alloc>
-{
-}
-unsafe impl<Scalar: MaxSim + Sync, Alloc: Allocator + Sync> Sync
-    for MaxSimPackedMatrix<Scalar, Alloc>
-{
-}
+unsafe impl<Scalar: MaxSim + Send, Alloc: Allocator + Send> Send for MaxSimPackedMatrix<Scalar, Alloc> {}
+unsafe impl<Scalar: MaxSim + Sync, Alloc: Allocator + Sync> Sync for MaxSimPackedMatrix<Scalar, Alloc> {}
 
 impl<Scalar: MaxSim, Alloc: Allocator> Drop for MaxSimPackedMatrix<Scalar, Alloc> {
     fn drop(&mut self) {
         if self.size > 0 {
             unsafe {
-                let layout =
-                    alloc::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
+                let layout = alloc::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
                 self.alloc.deallocate(self.data, layout);
             }
         }
@@ -288,10 +239,7 @@ impl<Scalar: MaxSim, Alloc: Allocator + Clone> MaxSimPackedMatrix<Scalar, Alloc>
 
         let layout = alloc::alloc::Layout::from_size_align(self.size, SIMD_ALIGNMENT)
             .map_err(|_| TensorError::AllocationFailed)?;
-        let ptr = self
-            .alloc
-            .allocate(layout)
-            .ok_or(TensorError::AllocationFailed)?;
+        let ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         unsafe {
             core::ptr::copy_nonoverlapping(self.data.as_ptr(), ptr.as_ptr(), self.size);
         }
@@ -307,10 +255,7 @@ impl<Scalar: MaxSim, Alloc: Allocator + Clone> MaxSimPackedMatrix<Scalar, Alloc>
 }
 
 impl<Scalar: MaxSim, Alloc: Allocator + Clone> Clone for MaxSimPackedMatrix<Scalar, Alloc> {
-    fn clone(&self) -> Self {
-        self.try_clone()
-            .expect("MaxSimPackedMatrix clone allocation failed")
-    }
+    fn clone(&self) -> Self { self.try_clone().expect("MaxSimPackedMatrix clone allocation failed") }
 }
 
 impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
@@ -330,9 +275,7 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
         } else {
             let layout = alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
                 .map_err(|_| TensorError::AllocationFailed)?;
-            let ptr = alloc
-                .allocate(layout)
-                .ok_or(TensorError::AllocationFailed)?;
+            let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
             unsafe {
                 core::ptr::write_bytes(ptr.as_ptr(), 0, size);
             }
@@ -341,13 +284,7 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
 
         if size > 0 {
             unsafe {
-                Scalar::maxsim_pack(
-                    vectors.as_ptr(),
-                    vector_count,
-                    depth,
-                    row_stride_bytes,
-                    data.as_ptr(),
-                );
+                Scalar::maxsim_pack(vectors.as_ptr(), vector_count, depth, row_stride_bytes, data.as_ptr());
             }
         }
 
@@ -389,41 +326,27 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
     }
 
     /// Convenience that panics on error.
-    pub fn score<OtherAlloc: Allocator>(
-        &self,
-        other: &MaxSimPackedMatrix<Scalar, OtherAlloc>,
-    ) -> Scalar::Score {
-        self.try_score(other)
-            .expect("MaxSimPackedMatrix::score failed")
+    pub fn score<OtherAlloc: Allocator>(&self, other: &MaxSimPackedMatrix<Scalar, OtherAlloc>) -> Scalar::Score {
+        self.try_score(other).expect("MaxSimPackedMatrix::score failed")
     }
 
     /// Returns a reference to the allocator.
-    pub fn allocator(&self) -> &Alloc {
-        &self.alloc
-    }
+    pub fn allocator(&self) -> &Alloc { &self.alloc }
 
     /// Returns dimensions (vector_count, depth) of the original vector set.
-    pub fn dims(&self) -> (usize, usize) {
-        (self.vector_count, self.depth)
-    }
+    pub fn dims(&self) -> (usize, usize) { (self.vector_count, self.depth) }
 
     /// Returns the packed data buffer.
-    pub fn as_bytes(&self) -> &[u8] {
-        unsafe { core::slice::from_raw_parts(self.data.as_ptr(), self.size) }
-    }
+    pub fn as_bytes(&self) -> &[u8] { unsafe { core::slice::from_raw_parts(self.data.as_ptr(), self.size) } }
 
     /// Returns a pointer to the packed data.
-    pub fn as_ptr(&self) -> *const u8 {
-        self.data.as_ptr()
-    }
+    pub fn as_ptr(&self) -> *const u8 { self.data.as_ptr() }
 }
 
 // Convenience methods using Global allocator
 impl<Scalar: MaxSim> MaxSimPackedMatrix<Scalar, Global> {
     /// Pack vectors from a 2D tensor view using the global allocator.
-    pub fn try_pack<const MAX_RANK: usize>(
-        vectors: &TensorView<'_, Scalar, MAX_RANK>,
-    ) -> Result<Self, TensorError> {
+    pub fn try_pack<const MAX_RANK: usize>(vectors: &TensorView<'_, Scalar, MAX_RANK>) -> Result<Self, TensorError> {
         Self::try_pack_in(vectors, Global)
     }
 
@@ -458,11 +381,7 @@ fn validate_maxsim_view<Scalar, const MAX_RANK: usize>(
         });
     }
 
-    Ok((
-        vectors.shape()[0],
-        vectors.shape()[1],
-        row_stride_bytes as usize,
-    ))
+    Ok((vectors.shape()[0], vectors.shape()[1], row_stride_bytes as usize))
 }
 
 // region: TensorView convenience
@@ -514,10 +433,7 @@ mod tests {
     fn maxsim_accepts_outer_strided_views() {
         let queries = Tensor::<f32>::try_full(&[8, 16], 1.0).unwrap();
         let odd_rows = queries
-            .slice(&[
-                SliceRange::range_step(1, 7, 2),
-                SliceRange::range_step(0, 16, 1),
-            ])
+            .slice(&[SliceRange::range_step(1, 7, 2), SliceRange::range_step(0, 16, 1)])
             .unwrap();
 
         let queries_packed = odd_rows.try_maxsim_pack().unwrap();
@@ -528,10 +444,7 @@ mod tests {
     fn maxsim_rejects_negative_row_stride() {
         let queries = Tensor::<f32>::try_full(&[8, 16], 1.0).unwrap();
         let reversed_rows = queries
-            .slice(&[
-                SliceRange::range_step(7, 0, -1),
-                SliceRange::range_step(0, 16, 1),
-            ])
+            .slice(&[SliceRange::range_step(7, 0, -1), SliceRange::range_step(0, 16, 1)])
             .unwrap();
 
         let result = reversed_rows.try_maxsim_pack();

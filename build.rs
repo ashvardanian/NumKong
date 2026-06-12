@@ -2,9 +2,7 @@ use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 
-fn main() {
-    build_numkong().expect("Failed to build NumKong");
-}
+fn main() { build_numkong().expect("Failed to build NumKong"); }
 
 /// Try to compile a single probe .c file with the given flags.
 /// Uses `flag()` (hard error) instead of `flag_if_supported()` to avoid
@@ -361,10 +359,7 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
     build.define("NK_IS_64BIT_X86", if is_x86_64 { "1" } else { "0" });
     build.define("NK_IS_64BIT_ARM", if is_aarch64 { "1" } else { "0" });
     build.define("NK_IS_64BIT_RISCV", if is_riscv64 { "1" } else { "0" });
-    build.define(
-        "NK_IS_64BIT_LOONGARCH",
-        if is_loongarch64 { "1" } else { "0" },
-    );
+    build.define("NK_IS_64BIT_LOONGARCH", if is_loongarch64 { "1" } else { "0" });
     build.define("NK_IS_64BIT_POWER", if is_power64 { "1" } else { "0" });
 
     // On 32-bit x86, ensure proper stack alignment for floating-point operations
@@ -387,18 +382,30 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
         build.flag_if_supported("-march=native");
     } else if is_msvc {
         match target_arch.as_str() {
-            "x86_64"  => { build.flag_if_supported("/arch:SSE2"); }
-            "aarch64" => { build.flag_if_supported("/arch:armv8.0"); }
+            "x86_64" => {
+                build.flag_if_supported("/arch:SSE2");
+            }
+            "aarch64" => {
+                build.flag_if_supported("/arch:armv8.0");
+            }
             _ => {}
         }
     } else {
         build.flag_if_supported("-fno-tree-vectorize");
         build.flag_if_supported("-fno-tree-slp-vectorize");
         match target_arch.as_str() {
-            "x86_64"      => { build.flag_if_supported("-march=x86-64"); }
-            "aarch64"     => { build.flag_if_supported("-march=armv8-a"); }
-            "riscv64"     => { build.flag_if_supported("-march=rv64gc"); }
-            "powerpc64"   => { build.flag_if_supported("-mcpu=power8"); }
+            "x86_64" => {
+                build.flag_if_supported("-march=x86-64");
+            }
+            "aarch64" => {
+                build.flag_if_supported("-march=armv8-a");
+            }
+            "riscv64" => {
+                build.flag_if_supported("-march=rv64gc");
+            }
+            "powerpc64" => {
+                build.flag_if_supported("-mcpu=power8");
+            }
             "loongarch64" => {
                 // LASX must be enabled at TU level: GCC's LoongArch backend
                 // doesn't support per-function `target` attribute / pragma
@@ -440,11 +447,7 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
                 }
             }
 
-            let probe_flags = if is_msvc {
-                probe.msvc_flags
-            } else {
-                probe.gcc_flags
-            };
+            let probe_flags = if is_msvc { probe.msvc_flags } else { probe.gcc_flags };
             let ok = probe_isa(probe.probe_file, probe_flags);
             build.define(probe.name, if ok { "1" } else { "0" });
             flags.insert(probe.name.to_string(), ok);

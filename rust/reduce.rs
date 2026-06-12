@@ -14,148 +14,32 @@
 //!     concrete impls (defined in [`crate::vector`]) until a `VectorRef` trait exists
 //! - [`SumSqToF64`]: Helper bound used by `MomentsOps::try_norm_*` to convert sum-of-squares to f64
 
-use crate::tensor::{
-    Global, MinMaxAxisResult, MinMaxResult, MomentsAxisResult, Tensor, TensorError, TensorRef,
-};
+use crate::tensor::{Global, MinMaxAxisResult, MinMaxResult, MomentsAxisResult, Tensor, TensorError, TensorRef};
 use crate::types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2, StorageElement};
 use crate::vector::VectorIndex;
 
 #[link(name = "numkong")]
 extern "C" {
     // Reductions: moments (sum + sum-of-squares)
-    fn nk_reduce_moments_f64(
-        data: *const f64,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut f64,
-        sumsq: *mut f64,
-    );
-    fn nk_reduce_moments_f32(
-        data: *const f32,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut f64,
-        sumsq: *mut f64,
-    );
-    fn nk_reduce_moments_i8(
-        data: *const i8,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut i64,
-        sumsq: *mut u64,
-    );
-    fn nk_reduce_moments_u8(
-        data: *const u8,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut u64,
-        sumsq: *mut u64,
-    );
-    fn nk_reduce_moments_i16(
-        data: *const i16,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut i64,
-        sumsq: *mut u64,
-    );
-    fn nk_reduce_moments_u16(
-        data: *const u16,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut u64,
-        sumsq: *mut u64,
-    );
-    fn nk_reduce_moments_i32(
-        data: *const i32,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut i64,
-        sumsq: *mut u64,
-    );
-    fn nk_reduce_moments_u32(
-        data: *const u32,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut u64,
-        sumsq: *mut u64,
-    );
-    fn nk_reduce_moments_i64(
-        data: *const i64,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut i64,
-        sumsq: *mut u64,
-    );
-    fn nk_reduce_moments_u64(
-        data: *const u64,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut u64,
-        sumsq: *mut u64,
-    );
-    fn nk_reduce_moments_f16(
-        data: *const f16,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut f32,
-        sumsq: *mut f32,
-    );
-    fn nk_reduce_moments_bf16(
-        data: *const bf16,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut f32,
-        sumsq: *mut f32,
-    );
-    fn nk_reduce_moments_e4m3(
-        data: *const e4m3,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut f32,
-        sumsq: *mut f32,
-    );
-    fn nk_reduce_moments_e5m2(
-        data: *const e5m2,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut f32,
-        sumsq: *mut f32,
-    );
-    fn nk_reduce_moments_e2m3(
-        data: *const e2m3,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut f32,
-        sumsq: *mut f32,
-    );
-    fn nk_reduce_moments_e3m2(
-        data: *const e3m2,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut f32,
-        sumsq: *mut f32,
-    );
-    fn nk_reduce_moments_i4(
-        data: *const i4x2,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut i64,
-        sumsq: *mut u64,
-    );
-    fn nk_reduce_moments_u4(
-        data: *const u4x2,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut u64,
-        sumsq: *mut u64,
-    );
-    fn nk_reduce_moments_u1(
-        data: *const u1x8,
-        count: usize,
-        stride_bytes: usize,
-        sum: *mut u64,
-        sumsq: *mut u64,
-    );
+    fn nk_reduce_moments_f64(data: *const f64, count: usize, stride_bytes: usize, sum: *mut f64, sumsq: *mut f64);
+    fn nk_reduce_moments_f32(data: *const f32, count: usize, stride_bytes: usize, sum: *mut f64, sumsq: *mut f64);
+    fn nk_reduce_moments_i8(data: *const i8, count: usize, stride_bytes: usize, sum: *mut i64, sumsq: *mut u64);
+    fn nk_reduce_moments_u8(data: *const u8, count: usize, stride_bytes: usize, sum: *mut u64, sumsq: *mut u64);
+    fn nk_reduce_moments_i16(data: *const i16, count: usize, stride_bytes: usize, sum: *mut i64, sumsq: *mut u64);
+    fn nk_reduce_moments_u16(data: *const u16, count: usize, stride_bytes: usize, sum: *mut u64, sumsq: *mut u64);
+    fn nk_reduce_moments_i32(data: *const i32, count: usize, stride_bytes: usize, sum: *mut i64, sumsq: *mut u64);
+    fn nk_reduce_moments_u32(data: *const u32, count: usize, stride_bytes: usize, sum: *mut u64, sumsq: *mut u64);
+    fn nk_reduce_moments_i64(data: *const i64, count: usize, stride_bytes: usize, sum: *mut i64, sumsq: *mut u64);
+    fn nk_reduce_moments_u64(data: *const u64, count: usize, stride_bytes: usize, sum: *mut u64, sumsq: *mut u64);
+    fn nk_reduce_moments_f16(data: *const f16, count: usize, stride_bytes: usize, sum: *mut f32, sumsq: *mut f32);
+    fn nk_reduce_moments_bf16(data: *const bf16, count: usize, stride_bytes: usize, sum: *mut f32, sumsq: *mut f32);
+    fn nk_reduce_moments_e4m3(data: *const e4m3, count: usize, stride_bytes: usize, sum: *mut f32, sumsq: *mut f32);
+    fn nk_reduce_moments_e5m2(data: *const e5m2, count: usize, stride_bytes: usize, sum: *mut f32, sumsq: *mut f32);
+    fn nk_reduce_moments_e2m3(data: *const e2m3, count: usize, stride_bytes: usize, sum: *mut f32, sumsq: *mut f32);
+    fn nk_reduce_moments_e3m2(data: *const e3m2, count: usize, stride_bytes: usize, sum: *mut f32, sumsq: *mut f32);
+    fn nk_reduce_moments_i4(data: *const i4x2, count: usize, stride_bytes: usize, sum: *mut i64, sumsq: *mut u64);
+    fn nk_reduce_moments_u4(data: *const u4x2, count: usize, stride_bytes: usize, sum: *mut u64, sumsq: *mut u64);
+    fn nk_reduce_moments_u1(data: *const u1x8, count: usize, stride_bytes: usize, sum: *mut u64, sumsq: *mut u64);
 
     // Reductions: minmax (min + max + argmin + argmax)
     fn nk_reduce_minmax_f64(
@@ -648,10 +532,7 @@ pub trait ReduceMinMax: StorageElement {
     ) -> Option<(Self::Output, usize, Self::Output, usize)>;
     /// Returns `Some((min_value, min_index, max_value, max_index))` for the given data with the
     /// specified stride, or `None` if all elements are NaN.
-    fn reduce_minmax(
-        data: &[Self],
-        stride_bytes: usize,
-    ) -> Option<(Self::Output, usize, Self::Output, usize)> {
+    fn reduce_minmax(data: &[Self], stride_bytes: usize) -> Option<(Self::Output, usize, Self::Output, usize)> {
         unsafe { Self::reduce_minmax_raw(data.as_ptr(), data.len(), stride_bytes) }
     }
 }
@@ -661,15 +542,7 @@ unsafe fn reduce_minmax_via_ffi<Scalar, Out: Default>(
     count: usize,
     stride_bytes: usize,
     none_on_sentinel: bool,
-    ffi: unsafe extern "C" fn(
-        *const Scalar,
-        usize,
-        usize,
-        *mut Out,
-        *mut usize,
-        *mut Out,
-        *mut usize,
-    ),
+    ffi: unsafe extern "C" fn(*const Scalar, usize, usize, *mut Out, *mut usize, *mut Out, *mut usize),
 ) -> Option<(Out, usize, Out, usize)>
 where
     Scalar: StorageElement,
@@ -702,13 +575,7 @@ impl ReduceMinMax for f64 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_f64,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_f64)
     }
 }
 
@@ -721,13 +588,7 @@ impl ReduceMinMax for f32 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_f32,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_f32)
     }
 }
 
@@ -740,13 +601,7 @@ impl ReduceMinMax for i8 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_i8,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_i8)
     }
 }
 
@@ -759,13 +614,7 @@ impl ReduceMinMax for u8 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_u8,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_u8)
     }
 }
 
@@ -778,13 +627,7 @@ impl ReduceMinMax for i16 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_i16,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_i16)
     }
 }
 
@@ -797,13 +640,7 @@ impl ReduceMinMax for u16 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_u16,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_u16)
     }
 }
 
@@ -816,13 +653,7 @@ impl ReduceMinMax for i32 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_i32,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_i32)
     }
 }
 
@@ -835,13 +666,7 @@ impl ReduceMinMax for u32 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_u32,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_u32)
     }
 }
 
@@ -854,13 +679,7 @@ impl ReduceMinMax for i64 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_i64,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_i64)
     }
 }
 
@@ -873,13 +692,7 @@ impl ReduceMinMax for u64 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_u64,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_u64)
     }
 }
 
@@ -892,13 +705,7 @@ impl ReduceMinMax for f16 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_f16,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_f16)
     }
 }
 
@@ -911,13 +718,7 @@ impl ReduceMinMax for bf16 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_bf16,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_bf16)
     }
 }
 
@@ -930,13 +731,7 @@ impl ReduceMinMax for e4m3 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_e4m3,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_e4m3)
     }
 }
 
@@ -949,13 +744,7 @@ impl ReduceMinMax for e5m2 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_e5m2,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_e5m2)
     }
 }
 
@@ -968,13 +757,7 @@ impl ReduceMinMax for e2m3 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_e2m3,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_e2m3)
     }
 }
 
@@ -987,13 +770,7 @@ impl ReduceMinMax for e3m2 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_e3m2,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_e3m2)
     }
 }
 
@@ -1006,13 +783,7 @@ impl ReduceMinMax for i4x2 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_i4,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_i4)
     }
 }
 
@@ -1025,13 +796,7 @@ impl ReduceMinMax for u4x2 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_u4,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_u4)
     }
 }
 
@@ -1044,13 +809,7 @@ impl ReduceMinMax for u1x8 {
         count: usize,
         stride_bytes: usize,
     ) -> Option<(Self::Output, usize, Self::Output, usize)> {
-        reduce_minmax_via_ffi(
-            data,
-            count,
-            stride_bytes,
-            Self::NONE_ON_SENTINEL,
-            nk_reduce_minmax_u1,
-        )
+        reduce_minmax_via_ffi(data, count, stride_bytes, Self::NONE_ON_SENTINEL, nk_reduce_minmax_u1)
     }
 }
 
@@ -1083,8 +842,7 @@ where
             return 0;
         }
         let storage_slice = unsafe { core::slice::from_raw_parts(view.as_ptr(), storage_count) };
-        let (sum, _sum_of_squares) =
-            u1x8::reduce_moments(storage_slice, core::mem::size_of::<u1x8>());
+        let (sum, _sum_of_squares) = u1x8::reduce_moments(storage_slice, core::mem::size_of::<u1x8>());
         return sum;
     }
     let mut total: u64 = 0;
@@ -1109,24 +867,16 @@ where
 /// colliding with the `all` slice marker exported from [`crate::vector`].
 pub trait BitwiseReductions<const MAX_RANK: usize>: TensorRef<u1x8, MAX_RANK> {
     /// Number of set bits across the entire tensor.
-    fn popcount(&self) -> u64 {
-        popcount_via_tensor_ref::<_, MAX_RANK>(self)
-    }
+    fn popcount(&self) -> u64 { popcount_via_tensor_ref::<_, MAX_RANK>(self) }
 
     /// `true` if at least one bit in the tensor is set.
-    fn any_set(&self) -> bool {
-        self.popcount() != 0
-    }
+    fn any_set(&self) -> bool { self.popcount() != 0 }
 
     /// `true` if no bit in the tensor is set.
-    fn none_set(&self) -> bool {
-        !self.any_set()
-    }
+    fn none_set(&self) -> bool { !self.any_set() }
 
     /// `true` if every bit in the tensor is set.
-    fn all_set(&self) -> bool {
-        self.popcount() == self.numel() as u64
-    }
+    fn all_set(&self) -> bool { self.popcount() == self.numel() as u64 }
 }
 
 impl<Container, const MAX_RANK: usize> BitwiseReductions<MAX_RANK> for Container where
@@ -1142,24 +892,16 @@ pub trait SumSqToF64 {
 }
 
 impl SumSqToF64 for f32 {
-    fn to_f64(self) -> f64 {
-        self as f64
-    }
+    fn to_f64(self) -> f64 { self as f64 }
 }
 impl SumSqToF64 for f64 {
-    fn to_f64(self) -> f64 {
-        self
-    }
+    fn to_f64(self) -> f64 { self }
 }
 impl SumSqToF64 for u64 {
-    fn to_f64(self) -> f64 {
-        self as f64
-    }
+    fn to_f64(self) -> f64 { self as f64 }
 }
 impl SumSqToF64 for i64 {
-    fn to_f64(self) -> f64 {
-        self as f64
-    }
+    fn to_f64(self) -> f64 { self as f64 }
 }
 
 // endregion: SumSqToF64
@@ -1167,8 +909,7 @@ impl SumSqToF64 for i64 {
 // region: MomentsOps / MinMaxOps (moved from crate::tensor)
 
 /// Extension trait: statistical reductions for any [`TensorRef`] implementor.
-pub trait MomentsOps<Scalar: Clone + ReduceMoments, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
+pub trait MomentsOps<Scalar: Clone + ReduceMoments, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
 where
     Scalar::SumOutput: Clone + Default + core::ops::AddAssign,
     Scalar::SumSqOutput: Clone + Default + core::ops::AddAssign + SumSqToF64,
@@ -1192,13 +933,10 @@ where
         sum_out: &mut Tensor<Scalar::SumOutput, Global, MAX_RANK>,
         sumsq_out: &mut Tensor<Scalar::SumSqOutput, Global, MAX_RANK>,
     ) -> Result<(), TensorError> {
-        self.view()
-            .try_moments_axis_into(axis, keep_dims, sum_out, sumsq_out)
+        self.view().try_moments_axis_into(axis, keep_dims, sum_out, sumsq_out)
     }
 
-    fn try_sum_all(&self) -> Result<Scalar::SumOutput, TensorError> {
-        self.view().try_sum_all()
-    }
+    fn try_sum_all(&self) -> Result<Scalar::SumOutput, TensorError> { self.view().try_sum_all() }
 
     fn try_sum_axis<AnyIndex: VectorIndex>(
         &self,
@@ -1217,9 +955,7 @@ where
         self.view().try_sum_axis_into(axis, keep_dims, out)
     }
 
-    fn try_norm_all(&self) -> Result<f64, TensorError> {
-        self.view().try_norm_all()
-    }
+    fn try_norm_all(&self) -> Result<f64, TensorError> { self.view().try_norm_all() }
 
     fn try_norm_axis<AnyIndex: VectorIndex>(
         &self,
@@ -1239,8 +975,7 @@ where
     }
 }
 
-impl<Scalar: Clone + ReduceMoments, const R: usize, C: TensorRef<Scalar, R>> MomentsOps<Scalar, R>
-    for C
+impl<Scalar: Clone + ReduceMoments, const R: usize, C: TensorRef<Scalar, R>> MomentsOps<Scalar, R> for C
 where
     Scalar::SumOutput: Clone + Default + core::ops::AddAssign,
     Scalar::SumSqOutput: Clone + Default + core::ops::AddAssign + SumSqToF64,
@@ -1248,14 +983,11 @@ where
 }
 
 /// Extension trait: min/max reductions for any [`TensorRef`] implementor.
-pub trait MinMaxOps<Scalar: Clone + ReduceMinMax, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
+pub trait MinMaxOps<Scalar: Clone + ReduceMinMax, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
 where
     Scalar::Output: Clone + Default + PartialOrd,
 {
-    fn try_minmax_all(&self) -> Result<MinMaxResult<Scalar::Output>, TensorError> {
-        self.view().try_minmax_all()
-    }
+    fn try_minmax_all(&self) -> Result<MinMaxResult<Scalar::Output>, TensorError> { self.view().try_minmax_all() }
 
     fn try_minmax_axis<AnyIndex: VectorIndex>(
         &self,
@@ -1278,21 +1010,13 @@ where
             .try_minmax_axis_into(axis, keep_dims, min_out, argmin_out, max_out, argmax_out)
     }
 
-    fn try_min_all(&self) -> Result<Scalar::Output, TensorError> {
-        self.view().try_min_all()
-    }
+    fn try_min_all(&self) -> Result<Scalar::Output, TensorError> { self.view().try_min_all() }
 
-    fn try_argmin_all(&self) -> Result<usize, TensorError> {
-        self.view().try_argmin_all()
-    }
+    fn try_argmin_all(&self) -> Result<usize, TensorError> { self.view().try_argmin_all() }
 
-    fn try_max_all(&self) -> Result<Scalar::Output, TensorError> {
-        self.view().try_max_all()
-    }
+    fn try_max_all(&self) -> Result<Scalar::Output, TensorError> { self.view().try_max_all() }
 
-    fn try_argmax_all(&self) -> Result<usize, TensorError> {
-        self.view().try_argmax_all()
-    }
+    fn try_argmax_all(&self) -> Result<usize, TensorError> { self.view().try_argmax_all() }
 
     fn try_min_axis<AnyIndex: VectorIndex>(
         &self,
@@ -1327,10 +1051,8 @@ where
     }
 }
 
-impl<Scalar: Clone + ReduceMinMax, const R: usize, C: TensorRef<Scalar, R>> MinMaxOps<Scalar, R>
-    for C
-where
-    Scalar::Output: Clone + Default + PartialOrd,
+impl<Scalar: Clone + ReduceMinMax, const R: usize, C: TensorRef<Scalar, R>> MinMaxOps<Scalar, R> for C where
+    Scalar::Output: Clone + Default + PartialOrd
 {
 }
 
@@ -1339,9 +1061,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{
-        assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16, FloatLike, NumberLike, TestableType,
-    };
+    use crate::types::{assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16, FloatLike, NumberLike, TestableType};
 
     // region: ReduceMoments
 
@@ -1478,40 +1198,22 @@ mod tests {
     #[test]
     fn minmax_reduction_all_nan() {
         let nan_f64: Vec<f64> = vec![f64::NAN; 16];
-        assert_eq!(
-            f64::reduce_minmax(&nan_f64, core::mem::size_of::<f64>()),
-            None
-        );
+        assert_eq!(f64::reduce_minmax(&nan_f64, core::mem::size_of::<f64>()), None);
 
         let nan_f32: Vec<f32> = vec![f32::NAN; 16];
-        assert_eq!(
-            f32::reduce_minmax(&nan_f32, core::mem::size_of::<f32>()),
-            None
-        );
+        assert_eq!(f32::reduce_minmax(&nan_f32, core::mem::size_of::<f32>()), None);
 
         let nan_f16: Vec<f16> = vec![f16::NAN; 16];
-        assert_eq!(
-            f16::reduce_minmax(&nan_f16, core::mem::size_of::<f16>()),
-            None
-        );
+        assert_eq!(f16::reduce_minmax(&nan_f16, core::mem::size_of::<f16>()), None);
 
         let nan_bf16: Vec<bf16> = vec![bf16::NAN; 16];
-        assert_eq!(
-            bf16::reduce_minmax(&nan_bf16, core::mem::size_of::<bf16>()),
-            None
-        );
+        assert_eq!(bf16::reduce_minmax(&nan_bf16, core::mem::size_of::<bf16>()), None);
 
         let nan_e4m3: Vec<e4m3> = vec![e4m3::NAN; 16];
-        assert_eq!(
-            e4m3::reduce_minmax(&nan_e4m3, core::mem::size_of::<e4m3>()),
-            None
-        );
+        assert_eq!(e4m3::reduce_minmax(&nan_e4m3, core::mem::size_of::<e4m3>()), None);
 
         let nan_e5m2: Vec<e5m2> = vec![e5m2::NAN; 16];
-        assert_eq!(
-            e5m2::reduce_minmax(&nan_e5m2, core::mem::size_of::<e5m2>()),
-            None
-        );
+        assert_eq!(e5m2::reduce_minmax(&nan_e5m2, core::mem::size_of::<e5m2>()), None);
     }
 
     #[test]
@@ -1544,7 +1246,13 @@ mod tests {
         use crate::tensor::Tensor;
         // 16 bytes × 8 bits = 128 bits total. Alternating fully-set/zero bytes → popcount = 64.
         let bits_storage: Vec<u1x8> = (0..16u8)
-            .map(|byte_index| if byte_index % 2 == 0 { u1x8(0xFFu8) } else { u1x8(0x00u8) })
+            .map(|byte_index| {
+                if byte_index % 2 == 0 {
+                    u1x8(0xFFu8)
+                } else {
+                    u1x8(0x00u8)
+                }
+            })
             .collect();
         let mut tensor = Tensor::<u1x8>::try_zeros(&[4, 32]).unwrap();
         for (slot, value) in tensor.as_mut_slice().iter_mut().zip(bits_storage.iter()) {
@@ -1596,22 +1304,13 @@ mod tests {
         assert!(!vector.none_set());
         assert!(!vector.all_set());
 
-        let view = unsafe {
-            VectorView::<u1x8>::from_raw_parts(
-                storage.as_ptr(),
-                32,
-                core::mem::size_of::<u1x8>() as isize,
-            )
-        };
+        let view =
+            unsafe { VectorView::<u1x8>::from_raw_parts(storage.as_ptr(), 32, core::mem::size_of::<u1x8>() as isize) };
         assert_eq!(view.popcount(), 24);
         assert!(view.any_set());
 
         let span = unsafe {
-            VectorSpan::<u1x8>::from_raw_parts(
-                storage.as_mut_ptr(),
-                32,
-                core::mem::size_of::<u1x8>() as isize,
-            )
+            VectorSpan::<u1x8>::from_raw_parts(storage.as_mut_ptr(), 32, core::mem::size_of::<u1x8>() as isize)
         };
         assert_eq!(span.popcount(), 24);
         assert!(span.any_set());
@@ -1626,9 +1325,7 @@ mod tests {
         use crate::tensor::{MinMaxResult, SliceRange, Tensor};
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let a = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        let a_even = a
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
-            .unwrap();
+        let a_even = a.slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)]).unwrap();
 
         let sum_all = a_even.try_sum_all().unwrap();
         assert!((sum_all - 30.0).abs() < 1e-6);

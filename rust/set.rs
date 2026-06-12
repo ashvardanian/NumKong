@@ -39,14 +39,7 @@ impl Hamming for u1x8 {
         }
         let mut result: Self::Output = 0;
         let n_bits = a.len() * 8; // Each u1x8 contains 8 bits
-        unsafe {
-            nk_hamming_u1(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                n_bits,
-                &mut result,
-            )
-        };
+        unsafe { nk_hamming_u1(a.as_ptr() as *const u8, b.as_ptr() as *const u8, n_bits, &mut result) };
         Some(result)
     }
 }
@@ -87,14 +80,7 @@ impl Jaccard for u1x8 {
         }
         let mut result: Self::Output = 0.0;
         let n_bits = a.len() * 8; // Each u1x8 contains 8 bits
-        unsafe {
-            nk_jaccard_u1(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                n_bits,
-                &mut result,
-            )
-        };
+        unsafe { nk_jaccard_u1(a.as_ptr() as *const u8, b.as_ptr() as *const u8, n_bits, &mut result) };
         Some(result)
     }
 }

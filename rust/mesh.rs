@@ -248,10 +248,7 @@ pub trait MeshAlignment: Sized {
     /// Root-mean-square deviation between two point-for-point correspondent
     /// clouds, without solving for a transform. Returns `None` if the lengths
     /// differ or are below the 3-point minimum.
-    fn rmsd(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>>;
+    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>>;
 
     /// Kabsch rigid-body alignment: recovers the best-fit 3×3 rotation matrix
     /// (no scaling) that aligns `a` onto `b`, plus the residual RMSD. The
@@ -275,28 +272,19 @@ pub trait MeshAlignment: Sized {
     /// assert!((fit.scale - 1.0).abs() < 1e-9);
     /// assert!(fit.rmsd.abs() < 1e-9);
     /// ```
-    fn kabsch(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>>;
+    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>>;
 
     /// Umeyama similarity alignment: like Kabsch but also recovers an optimal
     /// uniform scale factor `s > 0`. Useful when the two clouds are related by
     /// rotation **and** scaling.
-    fn umeyama(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>>;
+    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>>;
 }
 
 impl MeshAlignment for f64 {
     type Transform = f64;
     type Metric = f64;
 
-    fn rmsd(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
+    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
         if a.len() != b.len() || a.len() < 3 {
             return None;
         }
@@ -322,10 +310,7 @@ impl MeshAlignment for f64 {
         Some(result)
     }
 
-    fn kabsch(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
+    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
         if a.len() != b.len() || a.len() < 3 {
             return None;
         }
@@ -351,10 +336,7 @@ impl MeshAlignment for f64 {
         Some(result)
     }
 
-    fn umeyama(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
+    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
         if a.len() != b.len() || a.len() < 3 {
             return None;
         }
@@ -385,10 +367,7 @@ impl MeshAlignment for f32 {
     type Transform = f32;
     type Metric = f64;
 
-    fn rmsd(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
+    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
         if a.len() != b.len() || a.len() < 3 {
             return None;
         }
@@ -414,10 +393,7 @@ impl MeshAlignment for f32 {
         Some(result)
     }
 
-    fn kabsch(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
+    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
         if a.len() != b.len() || a.len() < 3 {
             return None;
         }
@@ -443,10 +419,7 @@ impl MeshAlignment for f32 {
         Some(result)
     }
 
-    fn umeyama(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
+    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
         if a.len() != b.len() || a.len() < 3 {
             return None;
         }
@@ -477,10 +450,7 @@ impl MeshAlignment for f16 {
     type Transform = f32;
     type Metric = f32;
 
-    fn rmsd(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
+    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
         if a.len() != b.len() || a.len() < 3 {
             return None;
         }
@@ -506,10 +476,7 @@ impl MeshAlignment for f16 {
         Some(result)
     }
 
-    fn kabsch(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
+    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
         if a.len() != b.len() || a.len() < 3 {
             return None;
         }
@@ -535,10 +502,7 @@ impl MeshAlignment for f16 {
         Some(result)
     }
 
-    fn umeyama(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
+    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
         if a.len() != b.len() || a.len() < 3 {
             return None;
         }
@@ -569,10 +533,7 @@ impl MeshAlignment for bf16 {
     type Transform = f32;
     type Metric = f32;
 
-    fn rmsd(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
+    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
         if a.len() != b.len() || a.len() < 3 {
             return None;
         }
@@ -598,10 +559,7 @@ impl MeshAlignment for bf16 {
         Some(result)
     }
 
-    fn kabsch(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
+    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
         if a.len() != b.len() || a.len() < 3 {
             return None;
         }
@@ -627,10 +585,7 @@ impl MeshAlignment for bf16 {
         Some(result)
     }
 
-    fn umeyama(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
+    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
         if a.len() != b.len() || a.len() < 3 {
             return None;
         }
@@ -665,13 +620,7 @@ mod tests {
     pub(crate) fn convert_cloud<Scalar: FloatLike>(cloud: &[[f32; 3]]) -> Vec<[Scalar; 3]> {
         cloud
             .iter()
-            .map(|p| {
-                [
-                    Scalar::from_f32(p[0]),
-                    Scalar::from_f32(p[1]),
-                    Scalar::from_f32(p[2]),
-                ]
-            })
+            .map(|p| [Scalar::from_f32(p[0]), Scalar::from_f32(p[1]), Scalar::from_f32(p[2])])
             .collect()
     }
 
@@ -745,18 +694,8 @@ mod tests {
 
     #[test]
     fn mesh_alignment() {
-        let cloud: &[[f32; 3]] = &[
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 2.0, 0.0],
-            [0.0, 0.0, 3.0],
-        ];
-        let scaled: &[[f32; 3]] = &[
-            [0.0, 0.0, 0.0],
-            [2.0, 0.0, 0.0],
-            [0.0, 4.0, 0.0],
-            [0.0, 0.0, 6.0],
-        ];
+        let cloud: &[[f32; 3]] = &[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]];
+        let scaled: &[[f32; 3]] = &[[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 4.0, 0.0], [0.0, 0.0, 6.0]];
         let tri: &[[f32; 3]] = &[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
 
         // Kabsch — identical clouds
@@ -816,17 +755,9 @@ mod tests {
         let rotation_matrix = &result.rotation_matrix;
         let det = rotation_matrix[0]
             * (rotation_matrix[4] * rotation_matrix[8] - rotation_matrix[5] * rotation_matrix[7])
-            - rotation_matrix[1]
-                * (rotation_matrix[3] * rotation_matrix[8]
-                    - rotation_matrix[5] * rotation_matrix[6])
-            + rotation_matrix[2]
-                * (rotation_matrix[3] * rotation_matrix[7]
-                    - rotation_matrix[4] * rotation_matrix[6]);
-        assert!(
-            (det.abs() - 1.0).abs() < 0.01,
-            "Expected det(R) ~±1.0, got {}",
-            det
-        );
+            - rotation_matrix[1] * (rotation_matrix[3] * rotation_matrix[8] - rotation_matrix[5] * rotation_matrix[6])
+            + rotation_matrix[2] * (rotation_matrix[3] * rotation_matrix[7] - rotation_matrix[4] * rotation_matrix[6]);
+        assert!((det.abs() - 1.0).abs() < 0.01, "Expected det(R) ~±1.0, got {}", det);
         // Centroids must be finite
         assert!(result.a_centroid.iter().all(|c| c.is_finite()));
         assert!(result.b_centroid.iter().all(|c| c.is_finite()));

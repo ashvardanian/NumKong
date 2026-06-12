@@ -46,9 +46,7 @@
 //! assert_eq!(exact, 20_480_000);
 //! ```
 
-use crate::types::{
-    bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u4x2, StorageElement,
-};
+use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u4x2, StorageElement};
 
 #[link(name = "numkong")]
 extern "C" {
@@ -155,39 +153,27 @@ pub trait Roots: Sized {
 
 impl Roots for f32 {
     /// Single-precision square root. Dispatches to the SIMD-assisted kernel.
-    fn sqrt(self) -> Self {
-        unsafe { nk_f32_sqrt(self) }
-    }
+    fn sqrt(self) -> Self { unsafe { nk_f32_sqrt(self) } }
 
     /// Single-precision reciprocal square root with a Newton refinement step.
-    fn rsqrt(self) -> Self {
-        unsafe { nk_f32_rsqrt(self) }
-    }
+    fn rsqrt(self) -> Self { unsafe { nk_f32_rsqrt(self) } }
 }
 
 impl Roots for f64 {
     /// Double-precision square root — full IEEE 754 accuracy.
-    fn sqrt(self) -> Self {
-        unsafe { nk_f64_sqrt(self) }
-    }
+    fn sqrt(self) -> Self { unsafe { nk_f64_sqrt(self) } }
 
     /// Double-precision reciprocal square root.
-    fn rsqrt(self) -> Self {
-        unsafe { nk_f64_rsqrt(self) }
-    }
+    fn rsqrt(self) -> Self { unsafe { nk_f64_rsqrt(self) } }
 }
 
 impl Roots for f16 {
     /// Half-precision square root. Input is upcast to `f32` internally and the
     /// result is rounded back to `f16`.
-    fn sqrt(self) -> Self {
-        f16(unsafe { nk_f16_sqrt(self.0) })
-    }
+    fn sqrt(self) -> Self { f16(unsafe { nk_f16_sqrt(self.0) }) }
 
     /// Half-precision reciprocal square root with `f32` intermediate precision.
-    fn rsqrt(self) -> Self {
-        f16(unsafe { nk_f16_rsqrt(self.0) })
-    }
+    fn rsqrt(self) -> Self { f16(unsafe { nk_f16_rsqrt(self.0) }) }
 }
 
 // endregion: Scalar Roots
@@ -216,9 +202,7 @@ pub trait Dot: StorageElement {
     fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output>;
 
     /// Alias for `dot`.
-    fn inner(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        Self::dot(a, b)
-    }
+    fn inner(a: &[Self], b: &[Self]) -> Option<Self::Output> { Self::dot(a, b) }
 }
 
 impl Dot for f64 {
@@ -252,14 +236,7 @@ impl Dot for f16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_dot_f16(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_dot_f16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -271,14 +248,7 @@ impl Dot for bf16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_dot_bf16(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_dot_bf16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -314,14 +284,7 @@ impl Dot for e4m3 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_dot_e4m3(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_dot_e4m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -333,14 +296,7 @@ impl Dot for e5m2 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_dot_e5m2(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_dot_e5m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -352,14 +308,7 @@ impl Dot for e2m3 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_dot_e2m3(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_dot_e2m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -371,14 +320,7 @@ impl Dot for e3m2 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_dot_e3m2(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_dot_e3m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -528,9 +470,7 @@ pub trait Angular: StorageElement {
     fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output>;
 
     /// Alias for `angular`.
-    fn cosine(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        Self::angular(a, b)
-    }
+    fn cosine(a: &[Self], b: &[Self]) -> Option<Self::Output> { Self::angular(a, b) }
 }
 
 impl Angular for f64 {
@@ -564,14 +504,7 @@ impl Angular for f16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_angular_f16(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_angular_f16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -583,14 +516,7 @@ impl Angular for bf16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_angular_bf16(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_angular_bf16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -626,14 +552,7 @@ impl Angular for e4m3 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_angular_e4m3(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_angular_e4m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -645,14 +564,7 @@ impl Angular for e5m2 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_angular_e5m2(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_angular_e5m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -664,14 +576,7 @@ impl Angular for e2m3 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_angular_e2m3(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_angular_e2m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -683,14 +588,7 @@ impl Angular for e3m2 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_angular_e3m2(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_angular_e3m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -813,14 +711,7 @@ impl Euclidean for f16 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe {
-            nk_sqeuclidean_f16(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_sqeuclidean_f16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
         Some(result)
     }
 
@@ -829,14 +720,7 @@ impl Euclidean for f16 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe {
-            nk_euclidean_f16(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_euclidean_f16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -850,14 +734,7 @@ impl Euclidean for bf16 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe {
-            nk_sqeuclidean_bf16(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_sqeuclidean_bf16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
         Some(result)
     }
 
@@ -866,14 +743,7 @@ impl Euclidean for bf16 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe {
-            nk_euclidean_bf16(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_euclidean_bf16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -933,14 +803,7 @@ impl Euclidean for e4m3 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe {
-            nk_sqeuclidean_e4m3(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_sqeuclidean_e4m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 
@@ -949,14 +812,7 @@ impl Euclidean for e4m3 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe {
-            nk_euclidean_e4m3(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_euclidean_e4m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -970,14 +826,7 @@ impl Euclidean for e5m2 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe {
-            nk_sqeuclidean_e5m2(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_sqeuclidean_e5m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 
@@ -986,14 +835,7 @@ impl Euclidean for e5m2 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe {
-            nk_euclidean_e5m2(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_euclidean_e5m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -1007,14 +849,7 @@ impl Euclidean for e2m3 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe {
-            nk_sqeuclidean_e2m3(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_sqeuclidean_e2m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 
@@ -1023,14 +858,7 @@ impl Euclidean for e2m3 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe {
-            nk_euclidean_e2m3(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_euclidean_e2m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -1044,14 +872,7 @@ impl Euclidean for e3m2 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe {
-            nk_sqeuclidean_e3m2(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_sqeuclidean_e3m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 
@@ -1060,14 +881,7 @@ impl Euclidean for e3m2 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe {
-            nk_euclidean_e3m2(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
-                a.len(),
-                &mut result,
-            )
-        };
+        unsafe { nk_euclidean_e3m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
         Some(result)
     }
 }
@@ -1169,9 +983,7 @@ pub trait VDot: Dot {
     /// Hermitian inner product. On real-valued types this falls back to `Dot::dot`;
     /// on complex types it returns `∑ᵢ conj(aᵢ) × bᵢ` computed in the widened
     /// accumulator described by `Dot::Output`.
-    fn vdot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        Self::dot(a, b)
-    }
+    fn vdot(a: &[Self], b: &[Self]) -> Option<Self::Output> { Self::dot(a, b) }
 }
 
 impl VDot for f64 {}
@@ -1282,18 +1094,13 @@ mod tests {
     use super::*;
     use crate::curved::Bilinear;
     use crate::types::{
-        assert_close, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u4x2,
-        FloatLike, NumberLike, StorageElement, TestableType,
+        assert_close, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u4x2, FloatLike, NumberLike,
+        StorageElement, TestableType,
     };
 
     /// Test a two-input metric: convert f32 inputs to Scalar, call `op`, compare to `expected`.
-    pub(crate) fn check_binary<Scalar, R, F>(
-        a_vals: &[f32],
-        b_vals: &[f32],
-        op: F,
-        expected: f64,
-        label: &str,
-    ) where
+    pub(crate) fn check_binary<Scalar, R, F>(a_vals: &[f32], b_vals: &[f32], op: F, expected: f64, label: &str)
+    where
         Scalar: FloatLike + TestableType,
         R: FloatLike,
         F: FnOnce(&[Scalar], &[Scalar]) -> Option<R>,
@@ -1345,13 +1152,7 @@ mod tests {
         Scalar: FloatLike + TestableType + Angular,
         Scalar::Output: FloatLike,
     {
-        check_binary::<Scalar, Scalar::Output, _>(
-            a_vals,
-            b_vals,
-            Scalar::angular,
-            expected,
-            "angular",
-        );
+        check_binary::<Scalar, Scalar::Output, _>(a_vals, b_vals, Scalar::angular, expected, "angular");
     }
 
     #[test]
@@ -1397,13 +1198,7 @@ mod tests {
         Scalar: FloatLike + TestableType + Euclidean,
         Scalar::EuclideanOutput: FloatLike,
     {
-        check_binary::<Scalar, Scalar::EuclideanOutput, _>(
-            a_vals,
-            b_vals,
-            Scalar::euclidean,
-            expected,
-            "euclidean",
-        );
+        check_binary::<Scalar, Scalar::EuclideanOutput, _>(a_vals, b_vals, Scalar::euclidean, expected, "euclidean");
     }
 
     #[test]
@@ -1447,20 +1242,12 @@ mod tests {
         fn imag(&self) -> f64;
     }
     impl ComplexValue for f32c {
-        fn real(&self) -> f64 {
-            self.re as f64
-        }
-        fn imag(&self) -> f64 {
-            self.im as f64
-        }
+        fn real(&self) -> f64 { self.re as f64 }
+        fn imag(&self) -> f64 { self.im as f64 }
     }
     impl ComplexValue for f64c {
-        fn real(&self) -> f64 {
-            self.re
-        }
-        fn imag(&self) -> f64 {
-            self.im
-        }
+        fn real(&self) -> f64 { self.re }
+        fn imag(&self) -> f64 { self.im }
     }
 
     trait ComplexSample: Copy + StorageElement + Dot + VDot + Bilinear {
@@ -1476,12 +1263,8 @@ mod tests {
                 im: f16::from_f32(im),
             }
         }
-        fn atol() -> f64 {
-            5e-2
-        }
-        fn rtol() -> f64 {
-            5e-2
-        }
+        fn atol() -> f64 { 5e-2 }
+        fn rtol() -> f64 { 5e-2 }
     }
 
     impl ComplexSample for bf16c {
@@ -1491,24 +1274,14 @@ mod tests {
                 im: bf16::from_f32(im),
             }
         }
-        fn atol() -> f64 {
-            5e-2
-        }
-        fn rtol() -> f64 {
-            5e-2
-        }
+        fn atol() -> f64 { 5e-2 }
+        fn rtol() -> f64 { 5e-2 }
     }
 
     impl ComplexSample for f32c {
-        fn from_real_imag(re: f32, im: f32) -> Self {
-            Self { re, im }
-        }
-        fn atol() -> f64 {
-            1e-6
-        }
-        fn rtol() -> f64 {
-            1e-6
-        }
+        fn from_real_imag(re: f32, im: f32) -> Self { Self { re, im } }
+        fn atol() -> f64 { 1e-6 }
+        fn rtol() -> f64 { 1e-6 }
     }
 
     impl ComplexSample for f64c {
@@ -1518,12 +1291,8 @@ mod tests {
                 im: im as f64,
             }
         }
-        fn atol() -> f64 {
-            1e-12
-        }
-        fn rtol() -> f64 {
-            1e-12
-        }
+        fn atol() -> f64 { 1e-12 }
+        fn rtol() -> f64 { 1e-12 }
     }
 
     /// Test a complex two-input operation with real + imaginary expected outputs.
@@ -1539,14 +1308,8 @@ mod tests {
         R: ComplexValue,
         F: FnOnce(&[Scalar], &[Scalar]) -> Option<R>,
     {
-        let a_t: Vec<Scalar> = a
-            .iter()
-            .map(|&(re, im)| Scalar::from_real_imag(re, im))
-            .collect();
-        let b_t: Vec<Scalar> = b
-            .iter()
-            .map(|&(re, im)| Scalar::from_real_imag(re, im))
-            .collect();
+        let a_t: Vec<Scalar> = a.iter().map(|&(re, im)| Scalar::from_real_imag(re, im)).collect();
+        let b_t: Vec<Scalar> = b.iter().map(|&(re, im)| Scalar::from_real_imag(re, im)).collect();
         let result = op(&a_t, &b_t).unwrap();
         let tol = Scalar::atol() + Scalar::rtol() * expected_re.abs().max(expected_im.abs());
         assert_close(
@@ -1570,14 +1333,8 @@ mod tests {
         Scalar: ComplexSample,
         <Scalar as Dot>::Output: ComplexValue,
     {
-        let a_pairs: Vec<(f32, f32)> = a
-            .chunks_exact(2)
-            .map(|chunk| (chunk[0], chunk[1]))
-            .collect();
-        let b_pairs: Vec<(f32, f32)> = b
-            .chunks_exact(2)
-            .map(|chunk| (chunk[0], chunk[1]))
-            .collect();
+        let a_pairs: Vec<(f32, f32)> = a.chunks_exact(2).map(|chunk| (chunk[0], chunk[1])).collect();
+        let b_pairs: Vec<(f32, f32)> = b.chunks_exact(2).map(|chunk| (chunk[0], chunk[1])).collect();
         check_complex::<Scalar, <Scalar as Dot>::Output, _>(
             &a_pairs,
             &b_pairs,
@@ -1593,14 +1350,8 @@ mod tests {
         Scalar: ComplexSample,
         <Scalar as Dot>::Output: ComplexValue,
     {
-        let a_pairs: Vec<(f32, f32)> = a
-            .chunks_exact(2)
-            .map(|chunk| (chunk[0], chunk[1]))
-            .collect();
-        let b_pairs: Vec<(f32, f32)> = b
-            .chunks_exact(2)
-            .map(|chunk| (chunk[0], chunk[1]))
-            .collect();
+        let a_pairs: Vec<(f32, f32)> = a.chunks_exact(2).map(|chunk| (chunk[0], chunk[1])).collect();
+        let b_pairs: Vec<(f32, f32)> = b.chunks_exact(2).map(|chunk| (chunk[0], chunk[1])).collect();
         check_complex::<Scalar, <Scalar as Dot>::Output, _>(
             &a_pairs,
             &b_pairs,
@@ -1631,20 +1382,14 @@ mod tests {
             1.0,
             tol,
             0.0,
-            &format!(
-                "complex_bilinear<{}> real",
-                core::any::type_name::<Scalar>()
-            ),
+            &format!("complex_bilinear<{}> real", core::any::type_name::<Scalar>()),
         );
         assert_close(
             result.imag(),
             0.0,
             tol,
             0.0,
-            &format!(
-                "complex_bilinear<{}> imag",
-                core::any::type_name::<Scalar>()
-            ),
+            &format!("complex_bilinear<{}> imag", core::any::type_name::<Scalar>()),
         );
     }
 
@@ -1706,10 +1451,7 @@ mod tests {
         // (since d ≈ 2.2e-308, d*d ≈ 5e-616 which is below f64 min denormal ~5e-324).
         // So expected = 0.0 and result should also be 0.0 — the key test is that
         // the kernel doesn't crash or produce NaN/Inf.
-        assert!(
-            result.is_finite(),
-            "dot<f64> denormal produced non-finite: {result}"
-        );
+        assert!(result.is_finite(), "dot<f64> denormal produced non-finite: {result}");
         assert_close(result, expected, 1e-300, 1e-6, "dot<f64> denormal");
     }
 
@@ -1755,13 +1497,7 @@ mod tests {
             result.is_finite(),
             "sqeuclidean<f32> denormal produced non-finite: {result}"
         );
-        assert_close(
-            result as f64,
-            expected,
-            1e-50,
-            1e-6,
-            "sqeuclidean<f32> denormal",
-        );
+        assert_close(result as f64, expected, 1e-50, 1e-6, "sqeuclidean<f32> denormal");
     }
 
     #[test]
@@ -1790,13 +1526,7 @@ mod tests {
             result.is_finite(),
             "angular<f32> denormal produced non-finite: {result}"
         );
-        assert_close(
-            result as f64,
-            0.0,
-            1e-4,
-            0.0,
-            "angular<f32> identical denormals",
-        );
+        assert_close(result as f64, 0.0, 1e-4, 0.0, "angular<f32> identical denormals");
     }
 
     #[test]

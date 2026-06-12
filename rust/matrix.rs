@@ -38,22 +38,14 @@ extern crate alloc;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use crate::tensor::{
-    Allocator, Global, Tensor, TensorError, TensorMut, TensorRef, TensorView, SIMD_ALIGNMENT,
-};
+use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorMut, TensorRef, TensorView, SIMD_ALIGNMENT};
 use crate::types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2, StorageElement};
 
 #[link(name = "numkong")]
 extern "C" {
 
     fn nk_dots_packed_size_f32(width: usize, depth: usize) -> usize;
-    fn nk_dots_pack_f32(
-        b: *const f32,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    );
+    fn nk_dots_pack_f32(b: *const f32, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_f32(
         a: *const f32,
         packed: *const u8,
@@ -66,13 +58,7 @@ extern "C" {
     );
 
     fn nk_dots_packed_size_f64(width: usize, depth: usize) -> usize;
-    fn nk_dots_pack_f64(
-        b: *const f64,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    );
+    fn nk_dots_pack_f64(b: *const f64, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_f64(
         a: *const f64,
         packed: *const u8,
@@ -85,13 +71,7 @@ extern "C" {
     );
 
     fn nk_dots_packed_size_f16(width: usize, depth: usize) -> usize;
-    fn nk_dots_pack_f16(
-        b: *const u16,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    );
+    fn nk_dots_pack_f16(b: *const u16, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_f16(
         a: *const u16,
         packed: *const u8,
@@ -104,13 +84,7 @@ extern "C" {
     );
 
     fn nk_dots_packed_size_bf16(width: usize, depth: usize) -> usize;
-    fn nk_dots_pack_bf16(
-        b: *const u16,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    );
+    fn nk_dots_pack_bf16(b: *const u16, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_bf16(
         a: *const u16,
         packed: *const u8,
@@ -149,13 +123,7 @@ extern "C" {
     );
 
     fn nk_dots_packed_size_e4m3(width: usize, depth: usize) -> usize;
-    fn nk_dots_pack_e4m3(
-        b: *const u8,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    );
+    fn nk_dots_pack_e4m3(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_e4m3(
         a: *const u8,
         packed: *const u8,
@@ -168,13 +136,7 @@ extern "C" {
     );
 
     fn nk_dots_packed_size_e5m2(width: usize, depth: usize) -> usize;
-    fn nk_dots_pack_e5m2(
-        b: *const u8,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    );
+    fn nk_dots_pack_e5m2(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_e5m2(
         a: *const u8,
         packed: *const u8,
@@ -187,13 +149,7 @@ extern "C" {
     );
 
     fn nk_dots_packed_size_e2m3(width: usize, depth: usize) -> usize;
-    fn nk_dots_pack_e2m3(
-        b: *const u8,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    );
+    fn nk_dots_pack_e2m3(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_e2m3(
         a: *const u8,
         packed: *const u8,
@@ -206,13 +162,7 @@ extern "C" {
     );
 
     fn nk_dots_packed_size_e3m2(width: usize, depth: usize) -> usize;
-    fn nk_dots_pack_e3m2(
-        b: *const u8,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    );
+    fn nk_dots_pack_e3m2(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_e3m2(
         a: *const u8,
         packed: *const u8,
@@ -373,13 +323,7 @@ extern "C" {
     );
 
     fn nk_dots_packed_size_u1(width: usize, depth: usize) -> usize;
-    fn nk_dots_pack_u1(
-        q: *const u8,
-        width: usize,
-        depth: usize,
-        q_stride: usize,
-        q_packed: *mut u8,
-    );
+    fn nk_dots_pack_u1(q: *const u8, width: usize, depth: usize, q_stride: usize, q_packed: *mut u8);
     fn nk_dots_packed_u1(
         a: *const u8,
         packed: *const u8,
@@ -980,13 +924,7 @@ pub trait Dots: StorageElement + private::Sealed {
     /// # Safety
     /// - `b` must point to valid memory for `width * depth` elements
     /// - `packed` must point to a buffer of at least `dots_packed_size(width, depth)` bytes
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    );
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
 
     /// Computes C = A × Bᵀ using packed B.
     ///
@@ -1030,17 +968,9 @@ pub trait Dots: StorageElement + private::Sealed {
 impl Dots for f32 {
     type Accumulator = f64;
 
-    fn dots_packed_size(width: usize, depth: usize) -> usize {
-        unsafe { nk_dots_packed_size_f32(width, depth) }
-    }
+    fn dots_packed_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_packed_size_f32(width, depth) } }
 
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_f32(b, width, depth, b_stride, packed)
     }
 
@@ -1083,17 +1013,9 @@ impl Dots for f32 {
 impl Dots for f64 {
     type Accumulator = f64;
 
-    fn dots_packed_size(width: usize, depth: usize) -> usize {
-        unsafe { nk_dots_packed_size_f64(width, depth) }
-    }
+    fn dots_packed_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_packed_size_f64(width, depth) } }
 
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_f64(b, width, depth, b_stride, packed)
     }
 
@@ -1136,17 +1058,9 @@ impl Dots for f64 {
 impl Dots for f16 {
     type Accumulator = f32;
 
-    fn dots_packed_size(width: usize, depth: usize) -> usize {
-        unsafe { nk_dots_packed_size_f16(width, depth) }
-    }
+    fn dots_packed_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_packed_size_f16(width, depth) } }
 
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_f16(b as *const u16, width, depth, b_stride, packed)
     }
 
@@ -1160,16 +1074,7 @@ impl Dots for f16 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_dots_packed_f16(
-            a as *const u16,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_dots_packed_f16(a as *const u16, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn dots_symmetric(
@@ -1198,17 +1103,9 @@ impl Dots for f16 {
 impl Dots for bf16 {
     type Accumulator = f32;
 
-    fn dots_packed_size(width: usize, depth: usize) -> usize {
-        unsafe { nk_dots_packed_size_bf16(width, depth) }
-    }
+    fn dots_packed_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_packed_size_bf16(width, depth) } }
 
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_bf16(b as *const u16, width, depth, b_stride, packed)
     }
 
@@ -1222,16 +1119,7 @@ impl Dots for bf16 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_dots_packed_bf16(
-            a as *const u16,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_dots_packed_bf16(a as *const u16, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn dots_symmetric(
@@ -1260,17 +1148,9 @@ impl Dots for bf16 {
 impl Dots for i8 {
     type Accumulator = i32;
 
-    fn dots_packed_size(width: usize, depth: usize) -> usize {
-        unsafe { nk_dots_packed_size_i8(width, depth) }
-    }
+    fn dots_packed_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_packed_size_i8(width, depth) } }
 
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_i8(b, width, depth, b_stride, packed)
     }
 
@@ -1313,17 +1193,9 @@ impl Dots for i8 {
 impl Dots for u8 {
     type Accumulator = u32;
 
-    fn dots_packed_size(width: usize, depth: usize) -> usize {
-        unsafe { nk_dots_packed_size_u8(width, depth) }
-    }
+    fn dots_packed_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_packed_size_u8(width, depth) } }
 
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_u8(b, width, depth, b_stride, packed)
     }
 
@@ -1366,17 +1238,9 @@ impl Dots for u8 {
 impl Dots for e4m3 {
     type Accumulator = f32;
 
-    fn dots_packed_size(width: usize, depth: usize) -> usize {
-        unsafe { nk_dots_packed_size_e4m3(width, depth) }
-    }
+    fn dots_packed_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_packed_size_e4m3(width, depth) } }
 
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_e4m3(b as *const u8, width, depth, b_stride, packed)
     }
 
@@ -1390,16 +1254,7 @@ impl Dots for e4m3 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_dots_packed_e4m3(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_dots_packed_e4m3(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn dots_symmetric(
@@ -1428,17 +1283,9 @@ impl Dots for e4m3 {
 impl Dots for e5m2 {
     type Accumulator = f32;
 
-    fn dots_packed_size(width: usize, depth: usize) -> usize {
-        unsafe { nk_dots_packed_size_e5m2(width, depth) }
-    }
+    fn dots_packed_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_packed_size_e5m2(width, depth) } }
 
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_e5m2(b as *const u8, width, depth, b_stride, packed)
     }
 
@@ -1452,16 +1299,7 @@ impl Dots for e5m2 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_dots_packed_e5m2(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_dots_packed_e5m2(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn dots_symmetric(
@@ -1490,17 +1328,9 @@ impl Dots for e5m2 {
 impl Dots for e2m3 {
     type Accumulator = f32;
 
-    fn dots_packed_size(width: usize, depth: usize) -> usize {
-        unsafe { nk_dots_packed_size_e2m3(width, depth) }
-    }
+    fn dots_packed_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_packed_size_e2m3(width, depth) } }
 
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_e2m3(b as *const u8, width, depth, b_stride, packed)
     }
 
@@ -1514,16 +1344,7 @@ impl Dots for e2m3 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_dots_packed_e2m3(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_dots_packed_e2m3(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn dots_symmetric(
@@ -1552,17 +1373,9 @@ impl Dots for e2m3 {
 impl Dots for e3m2 {
     type Accumulator = f32;
 
-    fn dots_packed_size(width: usize, depth: usize) -> usize {
-        unsafe { nk_dots_packed_size_e3m2(width, depth) }
-    }
+    fn dots_packed_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_packed_size_e3m2(width, depth) } }
 
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_e3m2(b as *const u8, width, depth, b_stride, packed)
     }
 
@@ -1576,16 +1389,7 @@ impl Dots for e3m2 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_dots_packed_e3m2(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_dots_packed_e3m2(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn dots_symmetric(
@@ -1614,17 +1418,9 @@ impl Dots for e3m2 {
 impl Dots for u4x2 {
     type Accumulator = u32;
 
-    fn dots_packed_size(width: usize, depth: usize) -> usize {
-        unsafe { nk_dots_packed_size_u4(width, depth) }
-    }
+    fn dots_packed_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_packed_size_u4(width, depth) } }
 
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_u4(b as *const u8, width, depth, b_stride, packed)
     }
 
@@ -1638,16 +1434,7 @@ impl Dots for u4x2 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_dots_packed_u4(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_dots_packed_u4(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn dots_symmetric(
@@ -1676,17 +1463,9 @@ impl Dots for u4x2 {
 impl Dots for i4x2 {
     type Accumulator = i32;
 
-    fn dots_packed_size(width: usize, depth: usize) -> usize {
-        unsafe { nk_dots_packed_size_i4(width, depth) }
-    }
+    fn dots_packed_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_packed_size_i4(width, depth) } }
 
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_i4(b as *const u8, width, depth, b_stride, packed)
     }
 
@@ -1700,16 +1479,7 @@ impl Dots for i4x2 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_dots_packed_i4(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_dots_packed_i4(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn dots_symmetric(
@@ -1738,17 +1508,9 @@ impl Dots for i4x2 {
 impl Dots for u1x8 {
     type Accumulator = u32;
 
-    fn dots_packed_size(width: usize, depth: usize) -> usize {
-        unsafe { nk_dots_packed_size_u1(width, depth) }
-    }
+    fn dots_packed_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_packed_size_u1(width, depth) } }
 
-    unsafe fn dots_pack(
-        b: *const Self,
-        width: usize,
-        depth: usize,
-        b_stride: usize,
-        packed: *mut u8,
-    ) {
+    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_u1(b as *const u8, width, depth, b_stride, packed)
     }
 
@@ -1762,16 +1524,7 @@ impl Dots for u1x8 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_dots_packed_u1(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_dots_packed_u1(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn dots_symmetric(
@@ -2277,16 +2030,7 @@ impl Angulars for f16 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_angulars_packed_f16(
-            a as *const u16,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_angulars_packed_f16(a as *const u16, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn angulars_symmetric(
@@ -2325,16 +2069,7 @@ impl Euclideans for f16 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_euclideans_packed_f16(
-            a as *const u16,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_euclideans_packed_f16(a as *const u16, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn euclideans_symmetric(
@@ -2373,16 +2108,7 @@ impl Angulars for bf16 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_angulars_packed_bf16(
-            a as *const u16,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_angulars_packed_bf16(a as *const u16, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn angulars_symmetric(
@@ -2421,16 +2147,7 @@ impl Euclideans for bf16 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_euclideans_packed_bf16(
-            a as *const u16,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_euclideans_packed_bf16(a as *const u16, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn euclideans_symmetric(
@@ -2625,16 +2342,7 @@ impl Angulars for e4m3 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_angulars_packed_e4m3(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_angulars_packed_e4m3(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn angulars_symmetric(
@@ -2673,16 +2381,7 @@ impl Euclideans for e4m3 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_euclideans_packed_e4m3(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_euclideans_packed_e4m3(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn euclideans_symmetric(
@@ -2721,16 +2420,7 @@ impl Angulars for e5m2 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_angulars_packed_e5m2(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_angulars_packed_e5m2(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn angulars_symmetric(
@@ -2769,16 +2459,7 @@ impl Euclideans for e5m2 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_euclideans_packed_e5m2(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_euclideans_packed_e5m2(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn euclideans_symmetric(
@@ -2817,16 +2498,7 @@ impl Angulars for e2m3 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_angulars_packed_e2m3(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_angulars_packed_e2m3(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn angulars_symmetric(
@@ -2865,16 +2537,7 @@ impl Euclideans for e2m3 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_euclideans_packed_e2m3(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_euclideans_packed_e2m3(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn euclideans_symmetric(
@@ -2913,16 +2576,7 @@ impl Angulars for e3m2 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_angulars_packed_e3m2(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_angulars_packed_e3m2(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn angulars_symmetric(
@@ -2961,16 +2615,7 @@ impl Euclideans for e3m2 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_euclideans_packed_e3m2(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_euclideans_packed_e3m2(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
 
     unsafe fn euclideans_symmetric(
@@ -3009,16 +2654,7 @@ impl Angulars for u4x2 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_angulars_packed_u4(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_angulars_packed_u4(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
     unsafe fn angulars_symmetric(
         vectors: *const Self,
@@ -3054,16 +2690,7 @@ impl Euclideans for u4x2 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_euclideans_packed_u4(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_euclideans_packed_u4(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
@@ -3099,16 +2726,7 @@ impl Angulars for i4x2 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_angulars_packed_i4(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_angulars_packed_i4(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
     unsafe fn angulars_symmetric(
         vectors: *const Self,
@@ -3144,16 +2762,7 @@ impl Euclideans for i4x2 {
         a_stride: usize,
         c_stride: usize,
     ) {
-        nk_euclideans_packed_i4(
-            a as *const u8,
-            packed,
-            c,
-            height,
-            width,
-            depth,
-            a_stride,
-            c_stride,
-        )
+        nk_euclideans_packed_i4(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
     }
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
@@ -3226,8 +2835,7 @@ impl<Scalar: Dots, Alloc: Allocator> Drop for PackedMatrix<Scalar, Alloc> {
     fn drop(&mut self) {
         if self.size > 0 {
             unsafe {
-                let layout =
-                    alloc::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
+                let layout = alloc::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
                 self.alloc.deallocate(self.data, layout);
             }
         }
@@ -3250,10 +2858,7 @@ impl<Scalar: Dots, Alloc: Allocator + Clone> PackedMatrix<Scalar, Alloc> {
 
         let layout = alloc::alloc::Layout::from_size_align(self.size, SIMD_ALIGNMENT)
             .map_err(|_| TensorError::AllocationFailed)?;
-        let ptr = self
-            .alloc
-            .allocate(layout)
-            .ok_or(TensorError::AllocationFailed)?;
+        let ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         unsafe {
             core::ptr::copy_nonoverlapping(self.data.as_ptr(), ptr.as_ptr(), self.size);
         }
@@ -3269,10 +2874,7 @@ impl<Scalar: Dots, Alloc: Allocator + Clone> PackedMatrix<Scalar, Alloc> {
 }
 
 impl<Scalar: Dots, Alloc: Allocator + Clone> Clone for PackedMatrix<Scalar, Alloc> {
-    fn clone(&self) -> Self {
-        self.try_clone()
-            .expect("PackedMatrix clone allocation failed")
-    }
+    fn clone(&self) -> Self { self.try_clone().expect("PackedMatrix clone allocation failed") }
 }
 
 // Generic allocator-aware methods
@@ -3303,9 +2905,7 @@ impl<Scalar: Dots, Alloc: Allocator> PackedMatrix<Scalar, Alloc> {
             // Allocate with SIMD alignment
             let layout = alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
                 .map_err(|_| TensorError::AllocationFailed)?;
-            let ptr = alloc
-                .allocate(layout)
-                .ok_or(TensorError::AllocationFailed)?;
+            let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
             // Zero the memory
             unsafe {
                 core::ptr::write_bytes(ptr.as_ptr(), 0, size);
@@ -3315,13 +2915,7 @@ impl<Scalar: Dots, Alloc: Allocator> PackedMatrix<Scalar, Alloc> {
 
         if size > 0 {
             unsafe {
-                Scalar::dots_pack(
-                    b.as_ptr(),
-                    width,
-                    depth,
-                    b.stride_bytes(0) as usize,
-                    data.as_ptr(),
-                );
+                Scalar::dots_pack(b.as_ptr(), width, depth, b.stride_bytes(0) as usize, data.as_ptr());
             }
         }
 
@@ -3361,24 +2955,16 @@ impl<Scalar: Dots, Alloc: Allocator> PackedMatrix<Scalar, Alloc> {
     }
 
     /// Returns a reference to the allocator.
-    pub fn allocator(&self) -> &Alloc {
-        &self.alloc
-    }
+    pub fn allocator(&self) -> &Alloc { &self.alloc }
 
     /// Returns dimensions (width, depth) of the original B matrix.
-    pub fn dims(&self) -> (usize, usize) {
-        (self.width, self.depth)
-    }
+    pub fn dims(&self) -> (usize, usize) { (self.width, self.depth) }
 
     /// Returns the packed data buffer.
-    pub fn as_bytes(&self) -> &[u8] {
-        unsafe { core::slice::from_raw_parts(self.data.as_ptr(), self.size) }
-    }
+    pub fn as_bytes(&self) -> &[u8] { unsafe { core::slice::from_raw_parts(self.data.as_ptr(), self.size) } }
 
     /// Returns a pointer to the packed data.
-    pub fn as_ptr(&self) -> *const u8 {
-        self.data.as_ptr()
-    }
+    pub fn as_ptr(&self) -> *const u8 { self.data.as_ptr() }
 }
 
 // Convenience methods using Global allocator
@@ -3402,9 +2988,7 @@ impl<Scalar: Dots> PackedMatrix<Scalar, Global> {
     }
 
     /// Convenience constructor that panics on error.
-    pub fn pack<PackedAlloc: Allocator, const MAX_RANK: usize>(
-        b: &Tensor<Scalar, PackedAlloc, MAX_RANK>,
-    ) -> Self {
+    pub fn pack<PackedAlloc: Allocator, const MAX_RANK: usize>(b: &Tensor<Scalar, PackedAlloc, MAX_RANK>) -> Self {
         Self::try_pack(b).expect("PackedMatrix::pack failed")
     }
 
@@ -3521,9 +3105,7 @@ where
 
 // region: Tensor GEMM
 
-impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize>
-    Tensor<Scalar, Alloc, MAX_RANK>
-{
+impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Dot-product multiply: C = self × packed_bᵀ
     ///
     /// self must be 2D (m × k) with contiguous rows.
@@ -3558,11 +3140,7 @@ impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize>
             });
         }
 
-        let mut c = Tensor::try_full_in(
-            &[height, width],
-            Scalar::Accumulator::default(),
-            self.alloc.clone(),
-        )?;
+        let mut c = Tensor::try_full_in(&[height, width], Scalar::Accumulator::default(), self.alloc.clone())?;
         unsafe {
             Scalar::dots_packed(
                 self.as_ptr(),
@@ -3695,10 +3273,8 @@ where
             if row_start < height {
                 unsafe {
                     // Byte arithmetic so sub-byte types (u1x8 etc.) stride correctly.
-                    let a_row =
-                        (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
-                    let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride)
-                        as *mut Scalar::Accumulator;
+                    let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
+                    let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut Scalar::Accumulator;
                     Scalar::dots_packed(
                         a_row,
                         packed_ptr.as_ptr(),
@@ -3881,9 +3457,7 @@ where
 
 // region: Tensor Spatial Distances
 
-impl<Scalar: Angulars, Alloc: Allocator + Clone, const MAX_RANK: usize>
-    Tensor<Scalar, Alloc, MAX_RANK>
-{
+impl<Scalar: Angulars, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Computes angular distances between rows of self and packed B matrix.
     pub fn try_angulars_packed<PackedAlloc: Allocator>(
         &self,
@@ -3907,11 +3481,7 @@ impl<Scalar: Angulars, Alloc: Allocator + Clone, const MAX_RANK: usize>
                 got: depth,
             });
         }
-        let mut c = Tensor::try_full_in(
-            &[height, width],
-            Scalar::SpatialResult::default(),
-            self.alloc.clone(),
-        )?;
+        let mut c = Tensor::try_full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
         unsafe {
             Scalar::angulars_packed(
                 self.as_ptr(),
@@ -3932,8 +3502,7 @@ impl<Scalar: Angulars, Alloc: Allocator + Clone, const MAX_RANK: usize>
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
     ) -> Tensor<Scalar::SpatialResult, Alloc, MAX_RANK> {
-        self.try_angulars_packed(packed_b)
-            .expect("angulars_packed failed")
+        self.try_angulars_packed(packed_b).expect("angulars_packed failed")
     }
 }
 
@@ -3969,9 +3538,7 @@ impl<Scalar: Angulars, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, A
     }
 }
 
-impl<Scalar: Euclideans, Alloc: Allocator + Clone, const MAX_RANK: usize>
-    Tensor<Scalar, Alloc, MAX_RANK>
-{
+impl<Scalar: Euclideans, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Computes euclidean distances between rows of self and packed B matrix.
     pub fn try_euclideans_packed<PackedAlloc: Allocator>(
         &self,
@@ -3995,11 +3562,7 @@ impl<Scalar: Euclideans, Alloc: Allocator + Clone, const MAX_RANK: usize>
                 got: depth,
             });
         }
-        let mut c = Tensor::try_full_in(
-            &[height, width],
-            Scalar::SpatialResult::default(),
-            self.alloc.clone(),
-        )?;
+        let mut c = Tensor::try_full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
         unsafe {
             Scalar::euclideans_packed(
                 self.as_ptr(),
@@ -4020,8 +3583,7 @@ impl<Scalar: Euclideans, Alloc: Allocator + Clone, const MAX_RANK: usize>
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
     ) -> Tensor<Scalar::SpatialResult, Alloc, MAX_RANK> {
-        self.try_euclideans_packed(packed_b)
-            .expect("euclideans_packed failed")
+        self.try_euclideans_packed(packed_b).expect("euclideans_packed failed")
     }
 }
 
@@ -4067,11 +3629,7 @@ where
     /// Parallel angular distances into pre-allocated output.
     ///
     /// The kernel overwrites `c`; callers need not pre-initialize.
-    pub fn try_angulars_packed_parallel_into<
-        PackedAlloc,
-        OutputTensor,
-        const OUTPUT_MAX_RANK: usize,
-    >(
+    pub fn try_angulars_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
         c: &mut OutputTensor,
@@ -4098,10 +3656,8 @@ where
             let row_end = (row_start + rows_per_thread).min(height);
             if row_start < height {
                 unsafe {
-                    let a_row =
-                        (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
-                    let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride)
-                        as *mut Scalar::SpatialResult;
+                    let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
+                    let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut Scalar::SpatialResult;
                     Scalar::angulars_packed(
                         a_row,
                         packed_ptr.as_ptr(),
@@ -4170,9 +3726,7 @@ where
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
         let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(
-            c, n_vectors, n_vectors,
-        )?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
         let num_threads = pool.threads().max(1);
         let vectors_ptr = fork_union::SyncConstPtr::new(self.as_ptr());
         let result_ptr = fork_union::SyncMutPtr::new(c.as_mut_ptr());
@@ -4218,11 +3772,7 @@ where
     /// Parallel euclidean distances into pre-allocated output.
     ///
     /// The kernel overwrites `c`; callers need not pre-initialize.
-    pub fn try_euclideans_packed_parallel_into<
-        PackedAlloc,
-        OutputTensor,
-        const OUTPUT_MAX_RANK: usize,
-    >(
+    pub fn try_euclideans_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
         c: &mut OutputTensor,
@@ -4249,10 +3799,8 @@ where
             let row_end = (row_start + rows_per_thread).min(height);
             if row_start < height {
                 unsafe {
-                    let a_row =
-                        (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
-                    let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride)
-                        as *mut Scalar::SpatialResult;
+                    let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
+                    let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut Scalar::SpatialResult;
                     Scalar::euclideans_packed(
                         a_row,
                         packed_ptr.as_ptr(),
@@ -4321,9 +3869,7 @@ where
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
         let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(
-            c, n_vectors, n_vectors,
-        )?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
         let num_threads = pool.threads().max(1);
         let vectors_ptr = fork_union::SyncConstPtr::new(self.as_ptr());
         let result_ptr = fork_union::SyncMutPtr::new(c.as_mut_ptr());
@@ -4364,9 +3910,7 @@ where
 
 // region: Tensor Hammings/Jaccards
 
-impl<Scalar: Hammings, Alloc: Allocator + Clone, const MAX_RANK: usize>
-    Tensor<Scalar, Alloc, MAX_RANK>
-{
+impl<Scalar: Hammings, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Computes Hamming distances between rows of self and packed B matrix.
     pub fn try_hammings_packed<PackedAlloc: Allocator>(
         &self,
@@ -4411,8 +3955,7 @@ impl<Scalar: Hammings, Alloc: Allocator + Clone, const MAX_RANK: usize>
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
     ) -> Tensor<u32, Alloc, MAX_RANK> {
-        self.try_hammings_packed(packed_b)
-            .expect("hammings_packed failed")
+        self.try_hammings_packed(packed_b).expect("hammings_packed failed")
     }
 }
 
@@ -4448,9 +3991,7 @@ impl<Scalar: Hammings, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, A
     }
 }
 
-impl<Scalar: Jaccards, Alloc: Allocator + Clone, const MAX_RANK: usize>
-    Tensor<Scalar, Alloc, MAX_RANK>
-{
+impl<Scalar: Jaccards, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Computes Jaccard distances between rows of self and packed B matrix.
     pub fn try_jaccards_packed<PackedAlloc: Allocator>(
         &self,
@@ -4474,11 +4015,7 @@ impl<Scalar: Jaccards, Alloc: Allocator + Clone, const MAX_RANK: usize>
                 got: depth,
             });
         }
-        let mut c = Tensor::try_full_in(
-            &[height, width],
-            Scalar::JaccardResult::default(),
-            self.alloc.clone(),
-        )?;
+        let mut c = Tensor::try_full_in(&[height, width], Scalar::JaccardResult::default(), self.alloc.clone())?;
         unsafe {
             Scalar::jaccards_packed(
                 self.as_ptr(),
@@ -4499,8 +4036,7 @@ impl<Scalar: Jaccards, Alloc: Allocator + Clone, const MAX_RANK: usize>
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
     ) -> Tensor<Scalar::JaccardResult, Alloc, MAX_RANK> {
-        self.try_jaccards_packed(packed_b)
-            .expect("jaccards_packed failed")
+        self.try_jaccards_packed(packed_b).expect("jaccards_packed failed")
     }
 }
 
@@ -4547,11 +4083,7 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
     /// Parallel Hamming distances into pre-allocated output.
     ///
     /// The kernel overwrites `c`; callers need not pre-initialize.
-    pub fn try_hammings_packed_parallel_into<
-        PackedAlloc,
-        OutputTensor,
-        const OUTPUT_MAX_RANK: usize,
-    >(
+    pub fn try_hammings_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
         c: &mut OutputTensor,
@@ -4578,8 +4110,7 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
             let row_end = (row_start + rows_per_thread).min(height);
             if row_start < height {
                 unsafe {
-                    let a_row =
-                        (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
+                    let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
                     let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut u32;
                     Scalar::hammings_packed(
                         a_row,
@@ -4673,10 +4204,7 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
     }
 
     /// Convenience method that panics on error.
-    pub fn hammings_symmetric_parallel(
-        &self,
-        pool: &mut fork_union::ThreadPool,
-    ) -> Tensor<u32, Global, MAX_RANK> {
+    pub fn hammings_symmetric_parallel(&self, pool: &mut fork_union::ThreadPool) -> Tensor<u32, Global, MAX_RANK> {
         self.try_hammings_symmetric_parallel(pool)
             .expect("parallel hammings_symmetric failed")
     }
@@ -4691,11 +4219,7 @@ where
     /// Parallel Jaccard distances into pre-allocated output.
     ///
     /// The kernel overwrites `c`; callers need not pre-initialize.
-    pub fn try_jaccards_packed_parallel_into<
-        PackedAlloc,
-        OutputTensor,
-        const OUTPUT_MAX_RANK: usize,
-    >(
+    pub fn try_jaccards_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
         c: &mut OutputTensor,
@@ -4722,10 +4246,8 @@ where
             let row_end = (row_start + rows_per_thread).min(height);
             if row_start < height {
                 unsafe {
-                    let a_row =
-                        (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
-                    let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride)
-                        as *mut Scalar::JaccardResult;
+                    let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
+                    let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut Scalar::JaccardResult;
                     Scalar::jaccards_packed(
                         a_row,
                         packed_ptr.as_ptr(),
@@ -4796,9 +4318,7 @@ where
         OutputTensor: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
     {
         let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(
-            c, n_vectors, n_vectors,
-        )?;
+        validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
         let num_threads = pool.threads().max(1);
         let vectors_ptr = fork_union::SyncConstPtr::new(self.as_ptr());
         let result_ptr = fork_union::SyncMutPtr::new(c.as_mut_ptr());
@@ -4857,9 +4377,7 @@ where
     /// let gram = vectors.view().try_dots_symmetric()?;
     /// assert_eq!(gram.shape(), &[100, 100]);
     /// ```
-    pub fn try_dots_symmetric(
-        &self,
-    ) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
+    pub fn try_dots_symmetric(&self) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
         let (n_vectors, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::Accumulator, Global, MAX_RANK>::try_full(
             &[n_vectors, n_vectors],
@@ -4900,9 +4418,7 @@ where
 
 impl<'a, Scalar: Angulars, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     /// Computes symmetric angular distance matrix for a set of vectors.
-    pub fn try_angulars_symmetric(
-        &self,
-    ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
+    pub fn try_angulars_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let (n_vectors, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
             &[n_vectors, n_vectors],
@@ -4922,9 +4438,7 @@ impl<'a, Scalar: Angulars, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RAN
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
         let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(
-            c, n_vectors, n_vectors,
-        )?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
         unsafe {
             Scalar::angulars_symmetric(
                 self.as_ptr(),
@@ -4943,9 +4457,7 @@ impl<'a, Scalar: Angulars, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RAN
 
 impl<'a, Scalar: Euclideans, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     /// Computes symmetric euclidean distance matrix for a set of vectors.
-    pub fn try_euclideans_symmetric(
-        &self,
-    ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
+    pub fn try_euclideans_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let (n_vectors, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
             &[n_vectors, n_vectors],
@@ -4965,9 +4477,7 @@ impl<'a, Scalar: Euclideans, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_R
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
         let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(
-            c, n_vectors, n_vectors,
-        )?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
         unsafe {
             Scalar::euclideans_symmetric(
                 self.as_ptr(),
@@ -4988,8 +4498,7 @@ impl<'a, Scalar: Hammings, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RAN
     /// Computes symmetric Hamming distance matrix for a set of binary vectors.
     pub fn try_hammings_symmetric(&self) -> Result<Tensor<u32, Global, MAX_RANK>, TensorError> {
         let (n_vectors, _) = validate_symmetric_input(self)?;
-        let mut result =
-            Tensor::<u32, Global, MAX_RANK>::try_full(&[n_vectors, n_vectors], u32::default())?;
+        let mut result = Tensor::<u32, Global, MAX_RANK>::try_full(&[n_vectors, n_vectors], u32::default())?;
         self.try_hammings_symmetric_into(&mut result)?;
         Ok(result)
     }
@@ -5023,9 +4532,7 @@ impl<'a, Scalar: Hammings, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RAN
 
 impl<'a, Scalar: Jaccards, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     /// Computes symmetric Jaccard distance matrix for a set of binary vectors.
-    pub fn try_jaccards_symmetric(
-        &self,
-    ) -> Result<Tensor<Scalar::JaccardResult, Global, MAX_RANK>, TensorError> {
+    pub fn try_jaccards_symmetric(&self) -> Result<Tensor<Scalar::JaccardResult, Global, MAX_RANK>, TensorError> {
         let (n_vectors, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::JaccardResult, Global, MAX_RANK>::try_full(
             &[n_vectors, n_vectors],
@@ -5045,9 +4552,7 @@ impl<'a, Scalar: Jaccards, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RAN
         OutputTensor: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
     {
         let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(
-            c, n_vectors, n_vectors,
-        )?;
+        validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
         unsafe {
             Scalar::jaccards_symmetric(
                 self.as_ptr(),
@@ -5083,18 +4588,13 @@ pub trait SymmetricDots<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, 
 where
     Scalar::Accumulator: 'static,
 {
-    fn try_dots_symmetric(
-        &self,
-    ) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
+    fn try_dots_symmetric(&self) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
         self.view().try_dots_symmetric()
     }
 
     /// Writes the symmetric dot-product matrix into pre-allocated output.
     /// Only the upper triangle is written.
-    fn try_dots_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
-        &self,
-        c: &mut Out,
-    ) -> Result<(), TensorError>
+    fn try_dots_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, c: &mut Out) -> Result<(), TensorError>
     where
         Out: TensorMut<Scalar::Accumulator, OUTPUT_MAX_RANK>,
     {
@@ -5102,10 +4602,8 @@ where
     }
 }
 
-impl<Scalar: Dots, const R: usize, OutputTensor: TensorRef<Scalar, R>> SymmetricDots<Scalar, R>
-    for OutputTensor
-where
-    Scalar::Accumulator: 'static,
+impl<Scalar: Dots, const R: usize, OutputTensor: TensorRef<Scalar, R>> SymmetricDots<Scalar, R> for OutputTensor where
+    Scalar::Accumulator: 'static
 {
 }
 
@@ -5119,21 +4617,14 @@ where
 /// Prefer this trait when operating on a generic `TensorRef`; use the inherent
 /// [`TensorView::try_angulars_symmetric`] form when you already hold a view
 /// and want to sidestep the extra trait import.
-pub trait SymmetricAngulars<Scalar: Angulars, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
-{
-    fn try_angulars_symmetric(
-        &self,
-    ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
+pub trait SymmetricAngulars<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    fn try_angulars_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         self.view().try_angulars_symmetric()
     }
 
     /// Writes the symmetric angular-distance matrix into pre-allocated output.
     /// Only the upper triangle is written.
-    fn try_angulars_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
-        &self,
-        c: &mut Out,
-    ) -> Result<(), TensorError>
+    fn try_angulars_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, c: &mut Out) -> Result<(), TensorError>
     where
         Out: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
@@ -5141,8 +4632,8 @@ pub trait SymmetricAngulars<Scalar: Angulars, const MAX_RANK: usize>:
     }
 }
 
-impl<Scalar: Angulars, const R: usize, OutputTensor: TensorRef<Scalar, R>>
-    SymmetricAngulars<Scalar, R> for OutputTensor
+impl<Scalar: Angulars, const R: usize, OutputTensor: TensorRef<Scalar, R>> SymmetricAngulars<Scalar, R>
+    for OutputTensor
 {
 }
 
@@ -5157,21 +4648,14 @@ impl<Scalar: Angulars, const R: usize, OutputTensor: TensorRef<Scalar, R>>
 /// Prefer this trait when working through a generic `TensorRef`; reach for
 /// the inherent [`TensorView::try_euclideans_symmetric`] method when you
 /// already hold a view.
-pub trait SymmetricEuclideans<Scalar: Euclideans, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
-{
-    fn try_euclideans_symmetric(
-        &self,
-    ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
+pub trait SymmetricEuclideans<Scalar: Euclideans, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    fn try_euclideans_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         self.view().try_euclideans_symmetric()
     }
 
     /// Writes the symmetric euclidean-distance matrix into pre-allocated output.
     /// Only the upper triangle is written.
-    fn try_euclideans_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
-        &self,
-        c: &mut Out,
-    ) -> Result<(), TensorError>
+    fn try_euclideans_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, c: &mut Out) -> Result<(), TensorError>
     where
         Out: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
@@ -5179,8 +4663,8 @@ pub trait SymmetricEuclideans<Scalar: Euclideans, const MAX_RANK: usize>:
     }
 }
 
-impl<Scalar: Euclideans, const R: usize, OutputTensor: TensorRef<Scalar, R>>
-    SymmetricEuclideans<Scalar, R> for OutputTensor
+impl<Scalar: Euclideans, const R: usize, OutputTensor: TensorRef<Scalar, R>> SymmetricEuclideans<Scalar, R>
+    for OutputTensor
 {
 }
 
@@ -5195,19 +4679,14 @@ impl<Scalar: Euclideans, const R: usize, OutputTensor: TensorRef<Scalar, R>>
 /// Prefer this trait when writing generic code over `TensorRef`; use the
 /// inherent [`TensorView::try_hammings_symmetric`] when you already hold a
 /// view.
-pub trait SymmetricHammings<Scalar: Hammings, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
-{
+pub trait SymmetricHammings<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     fn try_hammings_symmetric(&self) -> Result<Tensor<u32, Global, MAX_RANK>, TensorError> {
         self.view().try_hammings_symmetric()
     }
 
     /// Writes the symmetric Hamming-distance matrix into pre-allocated output.
     /// Only the upper triangle is written.
-    fn try_hammings_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
-        &self,
-        c: &mut Out,
-    ) -> Result<(), TensorError>
+    fn try_hammings_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, c: &mut Out) -> Result<(), TensorError>
     where
         Out: TensorMut<u32, OUTPUT_MAX_RANK>,
     {
@@ -5215,8 +4694,8 @@ pub trait SymmetricHammings<Scalar: Hammings, const MAX_RANK: usize>:
     }
 }
 
-impl<Scalar: Hammings, const R: usize, OutputTensor: TensorRef<Scalar, R>>
-    SymmetricHammings<Scalar, R> for OutputTensor
+impl<Scalar: Hammings, const R: usize, OutputTensor: TensorRef<Scalar, R>> SymmetricHammings<Scalar, R>
+    for OutputTensor
 {
 }
 
@@ -5231,21 +4710,14 @@ impl<Scalar: Hammings, const R: usize, OutputTensor: TensorRef<Scalar, R>>
 /// Prefer this trait when writing generic code over `TensorRef`; use the
 /// inherent [`TensorView::try_jaccards_symmetric`] when you already hold a
 /// view.
-pub trait SymmetricJaccards<Scalar: Jaccards, const MAX_RANK: usize>:
-    TensorRef<Scalar, MAX_RANK>
-{
-    fn try_jaccards_symmetric(
-        &self,
-    ) -> Result<Tensor<Scalar::JaccardResult, Global, MAX_RANK>, TensorError> {
+pub trait SymmetricJaccards<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    fn try_jaccards_symmetric(&self) -> Result<Tensor<Scalar::JaccardResult, Global, MAX_RANK>, TensorError> {
         self.view().try_jaccards_symmetric()
     }
 
     /// Writes the symmetric Jaccard-distance matrix into pre-allocated output.
     /// Only the upper triangle is written.
-    fn try_jaccards_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
-        &self,
-        c: &mut Out,
-    ) -> Result<(), TensorError>
+    fn try_jaccards_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, c: &mut Out) -> Result<(), TensorError>
     where
         Out: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
     {
@@ -5253,8 +4725,8 @@ pub trait SymmetricJaccards<Scalar: Jaccards, const MAX_RANK: usize>:
     }
 }
 
-impl<Scalar: Jaccards, const R: usize, OutputTensor: TensorRef<Scalar, R>>
-    SymmetricJaccards<Scalar, R> for OutputTensor
+impl<Scalar: Jaccards, const R: usize, OutputTensor: TensorRef<Scalar, R>> SymmetricJaccards<Scalar, R>
+    for OutputTensor
 {
 }
 
@@ -5274,8 +4746,7 @@ mod tests {
         });
     }
 
-    const DIMS: &[(usize, usize, usize)] =
-        &[(1, 1, 1), (1, 8, 3), (3, 1, 7), (7, 5, 3), (33, 17, 65)];
+    const DIMS: &[(usize, usize, usize)] = &[(1, 1, 1), (1, 8, 3), (3, 1, 7), (7, 5, 3), (33, 17, 65)];
 
     /// Round `depth` up to the nearest multiple of `Scalar::dimensions_per_value()`.
     fn align_depth<Scalar: StorageElement>(depth: usize) -> usize {
@@ -5294,11 +4765,7 @@ mod tests {
             let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
             let b_packed = PackedMatrix::try_pack(&b).unwrap();
             let c = a.dots_packed(&b_packed);
-            assert_eq!(
-                c.shape(),
-                &[height, width],
-                "shape @ ({height},{width},{depth})"
-            );
+            assert_eq!(c.shape(), &[height, width], "shape @ ({height},{width},{depth})");
             let expected = depth as f64;
             let tol = Scalar::atol() + Scalar::rtol() * expected.abs();
             for (i, &v) in c.as_slice().iter().enumerate() {
@@ -5309,24 +4776,17 @@ mod tests {
                 );
             }
             // Verify _into(&mut Tensor) and _into(&mut span) produce identical bytes.
-            let mut into_tensor = Tensor::<Scalar::Accumulator>::try_full(
-                &[height, width],
-                Scalar::Accumulator::default(),
-            )
-            .unwrap();
+            let mut into_tensor =
+                Tensor::<Scalar::Accumulator>::try_full(&[height, width], Scalar::Accumulator::default()).unwrap();
             a.try_dots_packed_into(&b_packed, &mut into_tensor).unwrap();
             assert_eq!(
                 c.as_slice(),
                 into_tensor.as_slice(),
                 "_into(Tensor) @ ({height},{width},{depth})"
             );
-            let mut into_span_buf = Tensor::<Scalar::Accumulator>::try_full(
-                &[height, width],
-                Scalar::Accumulator::default(),
-            )
-            .unwrap();
-            a.try_dots_packed_into(&b_packed, &mut into_span_buf.span())
-                .unwrap();
+            let mut into_span_buf =
+                Tensor::<Scalar::Accumulator>::try_full(&[height, width], Scalar::Accumulator::default()).unwrap();
+            a.try_dots_packed_into(&b_packed, &mut into_span_buf.span()).unwrap();
             assert_eq!(
                 c.as_slice(),
                 into_span_buf.as_slice(),
@@ -5346,11 +4806,7 @@ mod tests {
             let b_t = Tensor::<Scalar>::try_full(&[depth, width], Scalar::from_f32(2.0)).unwrap();
             let b_packed = PackedMatrix::try_pack_transposed(&b_t).unwrap();
             let c = a.dots_packed(&b_packed);
-            assert_eq!(
-                c.shape(),
-                &[height, width],
-                "shape @ ({height},{width},{depth})"
-            );
+            assert_eq!(c.shape(), &[height, width], "shape @ ({height},{width},{depth})");
             let expected = depth as f64 * 2.0;
             let tol = Scalar::atol() + Scalar::rtol() * expected.abs();
             for (i, &v) in c.as_slice().iter().enumerate() {
@@ -5375,11 +4831,7 @@ mod tests {
             let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
             let b_packed = PackedMatrix::try_pack(&b).unwrap();
             let c = a.angulars_packed(&b_packed);
-            assert_eq!(
-                c.shape(),
-                &[height, width],
-                "shape @ ({height},{width},{depth})"
-            );
+            assert_eq!(c.shape(), &[height, width], "shape @ ({height},{width},{depth})");
             for (i, &v) in c.as_slice().iter().enumerate() {
                 assert!(
                     v.to_f64().abs() <= tol,
@@ -5387,23 +4839,16 @@ mod tests {
                     v.to_f64()
                 );
             }
-            let mut into_tensor = Tensor::<Scalar::SpatialResult>::try_full(
-                &[height, width],
-                Scalar::SpatialResult::default(),
-            )
-            .unwrap();
-            a.try_angulars_packed_into(&b_packed, &mut into_tensor)
-                .unwrap();
+            let mut into_tensor =
+                Tensor::<Scalar::SpatialResult>::try_full(&[height, width], Scalar::SpatialResult::default()).unwrap();
+            a.try_angulars_packed_into(&b_packed, &mut into_tensor).unwrap();
             assert_eq!(
                 c.as_slice(),
                 into_tensor.as_slice(),
                 "_into(Tensor) @ ({height},{width},{depth})"
             );
-            let mut into_span_buf = Tensor::<Scalar::SpatialResult>::try_full(
-                &[height, width],
-                Scalar::SpatialResult::default(),
-            )
-            .unwrap();
+            let mut into_span_buf =
+                Tensor::<Scalar::SpatialResult>::try_full(&[height, width], Scalar::SpatialResult::default()).unwrap();
             a.try_angulars_packed_into(&b_packed, &mut into_span_buf.span())
                 .unwrap();
             assert_eq!(
@@ -5426,11 +4871,7 @@ mod tests {
             let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
             let b_packed = PackedMatrix::try_pack(&b).unwrap();
             let c = a.euclideans_packed(&b_packed);
-            assert_eq!(
-                c.shape(),
-                &[height, width],
-                "shape @ ({height},{width},{depth})"
-            );
+            assert_eq!(c.shape(), &[height, width], "shape @ ({height},{width},{depth})");
             for (i, &v) in c.as_slice().iter().enumerate() {
                 assert!(
                     v.to_f64().abs() <= tol,
@@ -5438,23 +4879,16 @@ mod tests {
                     v.to_f64()
                 );
             }
-            let mut into_tensor = Tensor::<Scalar::SpatialResult>::try_full(
-                &[height, width],
-                Scalar::SpatialResult::default(),
-            )
-            .unwrap();
-            a.try_euclideans_packed_into(&b_packed, &mut into_tensor)
-                .unwrap();
+            let mut into_tensor =
+                Tensor::<Scalar::SpatialResult>::try_full(&[height, width], Scalar::SpatialResult::default()).unwrap();
+            a.try_euclideans_packed_into(&b_packed, &mut into_tensor).unwrap();
             assert_eq!(
                 c.as_slice(),
                 into_tensor.as_slice(),
                 "_into(Tensor) @ ({height},{width},{depth})"
             );
-            let mut into_span_buf = Tensor::<Scalar::SpatialResult>::try_full(
-                &[height, width],
-                Scalar::SpatialResult::default(),
-            )
-            .unwrap();
+            let mut into_span_buf =
+                Tensor::<Scalar::SpatialResult>::try_full(&[height, width], Scalar::SpatialResult::default()).unwrap();
             a.try_euclideans_packed_into(&b_packed, &mut into_span_buf.span())
                 .unwrap();
             assert_eq!(
@@ -5526,18 +4960,11 @@ mod tests {
                 "serial != parallel @ ({height},{width},{depth})"
             );
             // Exercise _parallel_into on a span.
-            let mut into_span = Tensor::<Scalar::SpatialResult>::try_full(
-                &[height, width],
-                Scalar::SpatialResult::default(),
-            )
-            .unwrap();
+            let mut into_span =
+                Tensor::<Scalar::SpatialResult>::try_full(&[height, width], Scalar::SpatialResult::default()).unwrap();
             a.try_euclideans_packed_parallel_into(&b_packed, &mut into_span.span(), &mut pool)
                 .unwrap();
-            assert_eq!(
-                serial.as_slice(),
-                into_span.as_slice(),
-                "_parallel_into(span)"
-            );
+            assert_eq!(serial.as_slice(), into_span.as_slice(), "_parallel_into(span)");
         }
     }
 
@@ -5560,11 +4987,7 @@ mod tests {
             let mut into_span = Tensor::<u32>::try_full(&[height, width], 0u32).unwrap();
             a.try_hammings_packed_parallel_into(&b_packed, &mut into_span.span(), &mut pool)
                 .unwrap();
-            assert_eq!(
-                serial.as_slice(),
-                into_span.as_slice(),
-                "hammings _parallel_into(span)"
-            );
+            assert_eq!(serial.as_slice(), into_span.as_slice(), "hammings _parallel_into(span)");
 
             let serial_j = a.jaccards_packed(&b_packed);
             let parallel_j = a.jaccards_packed_parallel(&b_packed, &mut pool);
@@ -5587,12 +5010,9 @@ mod tests {
     #[cfg(feature = "parallel")]
     fn check_symmetric_parallel<Scalar: TestableType + Dots + Angulars + Euclideans + Send + Sync>()
     where
-        Scalar::Accumulator:
-            Clone + Default + Copy + PartialEq + core::fmt::Debug + Send + Sync + 'static,
-        <Scalar as Angulars>::SpatialResult:
-            Clone + Default + Copy + PartialEq + core::fmt::Debug + Send + Sync,
-        <Scalar as Euclideans>::SpatialResult:
-            Clone + Default + Copy + PartialEq + core::fmt::Debug + Send + Sync,
+        Scalar::Accumulator: Clone + Default + Copy + PartialEq + core::fmt::Debug + Send + Sync + 'static,
+        <Scalar as Angulars>::SpatialResult: Clone + Default + Copy + PartialEq + core::fmt::Debug + Send + Sync,
+        <Scalar as Euclideans>::SpatialResult: Clone + Default + Copy + PartialEq + core::fmt::Debug + Send + Sync,
     {
         init_thread();
         let mut pool = fork_union::ThreadPool::try_spawn(4).unwrap();
@@ -5609,11 +5029,9 @@ mod tests {
                 num_vectors,
                 "dots_symmetric_parallel",
             );
-            let mut into_span = Tensor::<Scalar::Accumulator>::try_full(
-                &[num_vectors, num_vectors],
-                Scalar::Accumulator::default(),
-            )
-            .unwrap();
+            let mut into_span =
+                Tensor::<Scalar::Accumulator>::try_full(&[num_vectors, num_vectors], Scalar::Accumulator::default())
+                    .unwrap();
             vectors
                 .try_dots_symmetric_parallel_into(&mut into_span.span(), &mut pool)
                 .unwrap();
@@ -5690,8 +5108,7 @@ mod tests {
                 num_vectors,
                 "hammings_symmetric_parallel",
             );
-            let mut into_span_h =
-                Tensor::<u32>::try_full(&[num_vectors, num_vectors], 0u32).unwrap();
+            let mut into_span_h = Tensor::<u32>::try_full(&[num_vectors, num_vectors], 0u32).unwrap();
             vectors
                 .try_hammings_symmetric_parallel_into(&mut into_span_h.span(), &mut pool)
                 .unwrap();
@@ -5710,8 +5127,7 @@ mod tests {
                 num_vectors,
                 "jaccards_symmetric_parallel",
             );
-            let mut into_span_j =
-                Tensor::<f32>::try_full(&[num_vectors, num_vectors], 0.0f32).unwrap();
+            let mut into_span_j = Tensor::<f32>::try_full(&[num_vectors, num_vectors], 0.0f32).unwrap();
             vectors
                 .try_jaccards_symmetric_parallel_into(&mut into_span_j.span(), &mut pool)
                 .unwrap();
@@ -5805,12 +5221,7 @@ mod tests {
 
     /// Compare only the upper-triangle elements of two NxN buffers; symmetric kernels
     /// do not write the lower triangle.
-    fn assert_upper_triangle_eq<X: Copy + PartialEq + core::fmt::Debug>(
-        left: &[X],
-        right: &[X],
-        n: usize,
-        tag: &str,
-    ) {
+    fn assert_upper_triangle_eq<X: Copy + PartialEq + core::fmt::Debug>(left: &[X], right: &[X], n: usize, tag: &str) {
         for i in 0..n {
             for j in i..n {
                 let index = i * n + j;
@@ -5821,8 +5232,7 @@ mod tests {
 
     fn check_dots_symmetric<Scalar: TestableType + Dots>()
     where
-        Scalar::Accumulator:
-            Clone + Default + Copy + FloatLike + PartialEq + core::fmt::Debug + 'static,
+        Scalar::Accumulator: Clone + Default + Copy + FloatLike + PartialEq + core::fmt::Debug + 'static,
     {
         init_thread();
         for &(num_vectors, _num_targets, depth) in DIMS {
@@ -5847,11 +5257,9 @@ mod tests {
                 }
             }
             // Verify _into on both &mut Tensor and &mut span via the extension trait.
-            let mut into_tensor = Tensor::<Scalar::Accumulator>::try_full(
-                &[num_vectors, num_vectors],
-                Scalar::Accumulator::default(),
-            )
-            .unwrap();
+            let mut into_tensor =
+                Tensor::<Scalar::Accumulator>::try_full(&[num_vectors, num_vectors], Scalar::Accumulator::default())
+                    .unwrap();
             vectors.try_dots_symmetric_into(&mut into_tensor).unwrap();
             assert_upper_triangle_eq(
                 gram_matrix.as_slice(),
@@ -5859,11 +5267,9 @@ mod tests {
                 num_vectors,
                 "dots_symmetric_into(Tensor)",
             );
-            let mut into_span_buf = Tensor::<Scalar::Accumulator>::try_full(
-                &[num_vectors, num_vectors],
-                Scalar::Accumulator::default(),
-            )
-            .unwrap();
+            let mut into_span_buf =
+                Tensor::<Scalar::Accumulator>::try_full(&[num_vectors, num_vectors], Scalar::Accumulator::default())
+                    .unwrap();
             vectors
                 .view()
                 .try_dots_symmetric_into(&mut into_span_buf.span())
@@ -5879,8 +5285,7 @@ mod tests {
 
     fn check_angulars_symmetric<Scalar: TestableType + Angulars>()
     where
-        Scalar::SpatialResult:
-            Clone + Default + Copy + FloatLike + PartialEq + core::fmt::Debug + 'static,
+        Scalar::SpatialResult: Clone + Default + Copy + FloatLike + PartialEq + core::fmt::Debug + 'static,
     {
         init_thread();
         let tolerance = Scalar::atol();
@@ -5904,9 +5309,7 @@ mod tests {
                 Scalar::SpatialResult::default(),
             )
             .unwrap();
-            vectors
-                .try_angulars_symmetric_into(&mut into_tensor)
-                .unwrap();
+            vectors.try_angulars_symmetric_into(&mut into_tensor).unwrap();
             assert_upper_triangle_eq(
                 gram_matrix.as_slice(),
                 into_tensor.as_slice(),
@@ -5933,8 +5336,7 @@ mod tests {
 
     fn check_euclideans_symmetric<Scalar: TestableType + Euclideans>()
     where
-        Scalar::SpatialResult:
-            Clone + Default + Copy + FloatLike + PartialEq + core::fmt::Debug + 'static,
+        Scalar::SpatialResult: Clone + Default + Copy + FloatLike + PartialEq + core::fmt::Debug + 'static,
     {
         init_thread();
         let tolerance = Scalar::atol();
@@ -5958,9 +5360,7 @@ mod tests {
                 Scalar::SpatialResult::default(),
             )
             .unwrap();
-            vectors
-                .try_euclideans_symmetric_into(&mut into_tensor)
-                .unwrap();
+            vectors.try_euclideans_symmetric_into(&mut into_tensor).unwrap();
             assert_upper_triangle_eq(
                 gram_matrix.as_slice(),
                 into_tensor.as_slice(),
@@ -6008,7 +5408,10 @@ mod tests {
         let m = Tensor::<f32>::try_full(&[4, 6], 1.0f32).unwrap();
         let transposed = m.view().transpose().unwrap();
         assert!(!transposed.has_contiguous_rows());
-        assert!(matches!(transposed.try_dots_symmetric(), Err(TensorError::NonContiguousRows)));
+        assert!(matches!(
+            transposed.try_dots_symmetric(),
+            Err(TensorError::NonContiguousRows)
+        ));
     }
 
     #[test]
@@ -6058,16 +5461,14 @@ mod tests {
         assert_eq!(c_h.shape(), &[4, 16]);
         assert_eq!(c_h.as_slice()[0], 0);
         let mut c_h_into = Tensor::<u32>::try_full(&[4, 16], 0u32).unwrap();
-        a.try_hammings_packed_into(&b_packed, &mut c_h_into.span())
-            .unwrap();
+        a.try_hammings_packed_into(&b_packed, &mut c_h_into.span()).unwrap();
         assert_eq!(c_h.as_slice(), c_h_into.as_slice());
 
         let c_j = a.jaccards_packed(&b_packed);
         assert_eq!(c_j.shape(), &[4, 16]);
         assert!(c_j.as_slice()[0].abs() < 1e-5);
         let mut c_j_into = Tensor::<f32>::try_full(&[4, 16], 0.0f32).unwrap();
-        a.try_jaccards_packed_into(&b_packed, &mut c_j_into.span())
-            .unwrap();
+        a.try_jaccards_packed_into(&b_packed, &mut c_j_into.span()).unwrap();
         assert_eq!(c_j.as_slice(), c_j_into.as_slice());
     }
 
@@ -6084,18 +5485,14 @@ mod tests {
         assert_eq!(gram_h.shape(), &[4, 4]);
         assert_eq!(gram_h.as_slice()[0], 0);
         let mut gram_h_into = Tensor::<u32>::try_full(&[4, 4], 0u32).unwrap();
-        a.view()
-            .try_hammings_symmetric_into(&mut gram_h_into.span())
-            .unwrap();
+        a.view().try_hammings_symmetric_into(&mut gram_h_into.span()).unwrap();
         assert_upper_triangle_eq(gram_h.as_slice(), gram_h_into.as_slice(), 4, "hammings");
 
         let gram_j = a.try_jaccards_symmetric().unwrap();
         assert_eq!(gram_j.shape(), &[4, 4]);
         assert!(gram_j.as_slice()[0].abs() < 1e-5);
         let mut gram_j_into = Tensor::<f32>::try_full(&[4, 4], 0.0f32).unwrap();
-        a.view()
-            .try_jaccards_symmetric_into(&mut gram_j_into.span())
-            .unwrap();
+        a.view().try_jaccards_symmetric_into(&mut gram_j_into.span()).unwrap();
         assert_upper_triangle_eq(gram_j.as_slice(), gram_j_into.as_slice(), 4, "jaccards");
     }
 }
