@@ -237,6 +237,20 @@ jobs:
         uses: microsoft/setup-msbuild@v3
         with:
           vs-version: "17.10"
+      # The ARM64 wheels are cross-compiled on this x64 host. `/openmp:llvm` makes the
+      # extension import `libomp140.aarch64.dll`, which ships with Visual Studio's ARM64
+      # cross-tools but is not on PATH, so delvewheel cannot find it to vendor into the
+      # wheel. Locate it and put its directory on PATH (delvewheel searches PATH).
+      - name: Expose ARM64 OpenMP runtime to delvewheel
+        if: matrix.architecture == 'ARM64'
+        shell: pwsh
+        run: |
+          $roots = @("${env:ProgramFiles}\Microsoft Visual Studio", "${env:ProgramFiles(x86)}\Microsoft Visual Studio")
+          $dll = Get-ChildItem -Path $roots -Recurse -Filter 'libomp140.aarch64.dll' -ErrorAction SilentlyContinue |
+                 Select-Object -First 1
+          if (-not $dll) { Write-Error 'libomp140.aarch64.dll not found in the Visual Studio install'; exit 1 }
+          Write-Host "Found ARM64 libomp: $($dll.FullName)"
+          Add-Content -Path $env:GITHUB_PATH -Value $dll.DirectoryName
       - name: Install cibuildwheel
         uses: nick-fields/retry@v4
         with:
