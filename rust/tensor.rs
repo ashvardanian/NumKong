@@ -5676,31 +5676,6 @@ where
     apply(&view, &mut span)
 }
 
-pub(crate) fn try_reborrow_tensor_inplace<
-    Scalar: StorageElement + Clone,
-    Kernel,
-    const MAX_RANK: usize,
->(
-    tensor: &mut Tensor<Scalar, Global, MAX_RANK>,
-    apply: Kernel,
-) -> Result<(), TensorError>
-where
-    Kernel: FnOnce(
-        &TensorView<'_, Scalar, MAX_RANK>,
-        &mut TensorSpan<'_, Scalar, MAX_RANK>,
-    ) -> Result<(), TensorError>,
-{
-    let view = TensorView {
-        data: tensor.data.as_ptr(),
-        shape: tensor.shape,
-        strides: tensor.strides,
-        ndim: tensor.ndim,
-        _marker: PhantomData,
-    };
-    let mut span = tensor.span();
-    apply(&view, &mut span)
-}
-
 fn rebind_view_rank<'a, Scalar, const TARGET_MAX_RANK: usize, const SOURCE_MAX_RANK: usize>(
     view: &TensorView<'a, Scalar, SOURCE_MAX_RANK>,
 ) -> Result<TensorView<'a, Scalar, TARGET_MAX_RANK>, TensorError> {
@@ -5818,6 +5793,223 @@ where
 
 // endregion: Tensor Internal Helpers
 
+// region: TensorSpan In-Place Elementwise Operations
+//
+// In-place mutation operates *through the mutable span* on its own storage. Each
+// closure forms at most a single `&mut [T]` over the target (derived from the span's
+// own pointer) and, for binary ops, a disjoint `&[T]` over `other`. No fabricated
+// read-view aliases the span's storage, so no overlapping `&[T]` + `&mut [T]` is ever
+// constructed — sound under Stacked/Tree Borrows.
+
+impl<'a, Scalar: Clone + EachScale, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK>
+where
+    Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
+{
+    /// In-place affine: `self[i] = alpha * self[i] + beta`.
+    pub fn scale_inplace(&mut self, alpha: Scalar::Scalar, beta: Scalar::Scalar) {
+        let ptr = self.data;
+        let ndim = self.ndim;
+        unsafe {
+            walk_contiguous_blocks_2(
+                ptr as *const Scalar,
+                &self.strides[..ndim],
+                ptr,
+                &self.strides[..ndim],
+                &self.shape[..ndim],
+                |_src, dst, len| {
+                    Scalar::each_scale_inplace(
+                        core::slice::from_raw_parts_mut(dst, len),
+                        alpha,
+                        beta,
+                    );
+                },
+            );
+        }
+    }
+
+    /// In-place add scalar: `self[i] = self[i] + scalar`.
+    pub fn add_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
+        self.scale_inplace(Scalar::Scalar::from(1.0f32), scalar);
+    }
+
+    /// In-place subtract scalar: `self[i] = self[i] - scalar`.
+    pub fn sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
+        self.scale_inplace(
+            Scalar::Scalar::from(1.0f32),
+            Scalar::Scalar::from(-1.0f32) * scalar,
+        );
+    }
+
+    /// In-place multiply scalar: `self[i] = self[i] * scalar`.
+    pub fn mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
+        self.scale_inplace(scalar, Scalar::Scalar::from(0.0f32));
+    }
+}
+
+impl<'a, Scalar: Clone + EachSum, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
+    /// In-place sum: `self[i] = self[i] + other[i]`.
+    pub fn add_inplace(
+        &mut self,
+        other: &TensorView<'_, Scalar, MAX_RANK>,
+    ) -> Result<(), TensorError> {
+        validate_same_shape(self.shape(), other.shape())?;
+        let ptr = self.data;
+        let ndim = self.ndim;
+        unsafe {
+            walk_contiguous_blocks_2(
+                other.data,
+                &other.strides[..other.ndim],
+                ptr,
+                &self.strides[..ndim],
+                &self.shape[..ndim],
+                |op, sp, len| {
+                    Scalar::each_sum_inplace(
+                        core::slice::from_raw_parts_mut(sp, len),
+                        core::slice::from_raw_parts(op, len),
+                    );
+                },
+            );
+        }
+        Ok(())
+    }
+}
+
+impl<'a, Scalar: Clone + EachBlend, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK>
+where
+    Scalar::Scalar: From<f32> + Copy,
+{
+    /// In-place subtract tensor: `self[i] = self[i] - other[i]`.
+    pub fn sub_inplace(
+        &mut self,
+        other: &TensorView<'_, Scalar, MAX_RANK>,
+    ) -> Result<(), TensorError> {
+        validate_same_shape(self.shape(), other.shape())?;
+        let ptr = self.data;
+        let ndim = self.ndim;
+        let alpha = Scalar::Scalar::from(1.0f32);
+        let beta = Scalar::Scalar::from(-1.0f32);
+        unsafe {
+            walk_contiguous_blocks_2(
+                other.data,
+                &other.strides[..other.ndim],
+                ptr,
+                &self.strides[..ndim],
+                &self.shape[..ndim],
+                |op, sp, len| {
+                    Scalar::each_blend_inplace(
+                        core::slice::from_raw_parts_mut(sp, len),
+                        core::slice::from_raw_parts(op, len),
+                        alpha,
+                        beta,
+                    );
+                },
+            );
+        }
+        Ok(())
+    }
+}
+
+impl<'a, Scalar: Clone + EachFMA, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK>
+where
+    Scalar::Scalar: From<f32> + Copy,
+{
+    /// In-place multiply tensor: `self[i] = self[i] * other[i]`.
+    ///
+    /// Mirrors out-of-place `mul_tensor`, which is an FMA with `c = self` and
+    /// `alpha = 1`, `beta = 0`. The `c` operand is bound to `self` inside the
+    /// kernel via the single span pointer, so `other` remains the only foreign slice.
+    pub fn mul_inplace(
+        &mut self,
+        other: &TensorView<'_, Scalar, MAX_RANK>,
+    ) -> Result<(), TensorError> {
+        validate_same_shape(self.shape(), other.shape())?;
+        let ptr = self.data;
+        let ndim = self.ndim;
+        let alpha = Scalar::Scalar::from(1.0f32);
+        let beta = Scalar::Scalar::from(0.0f32);
+        unsafe {
+            walk_contiguous_blocks_2(
+                other.data,
+                &other.strides[..other.ndim],
+                ptr,
+                &self.strides[..ndim],
+                &self.shape[..ndim],
+                |op, sp, len| {
+                    Scalar::each_fma_inplace(
+                        core::slice::from_raw_parts_mut(sp, len),
+                        core::slice::from_raw_parts(op, len),
+                        alpha,
+                        beta,
+                    );
+                },
+            );
+        }
+        Ok(())
+    }
+}
+
+impl<'a, Scalar: Clone + EachSin, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
+    /// In-place sine: `self[i] = sin(self[i])`.
+    pub fn sin_inplace(&mut self) {
+        let ptr = self.data;
+        let ndim = self.ndim;
+        unsafe {
+            walk_contiguous_blocks_2(
+                ptr as *const Scalar,
+                &self.strides[..ndim],
+                ptr,
+                &self.strides[..ndim],
+                &self.shape[..ndim],
+                |_src, dst, len| {
+                    Scalar::sin_inplace(core::slice::from_raw_parts_mut(dst, len));
+                },
+            );
+        }
+    }
+}
+
+impl<'a, Scalar: Clone + EachCos, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
+    /// In-place cosine: `self[i] = cos(self[i])`.
+    pub fn cos_inplace(&mut self) {
+        let ptr = self.data;
+        let ndim = self.ndim;
+        unsafe {
+            walk_contiguous_blocks_2(
+                ptr as *const Scalar,
+                &self.strides[..ndim],
+                ptr,
+                &self.strides[..ndim],
+                &self.shape[..ndim],
+                |_src, dst, len| {
+                    Scalar::cos_inplace(core::slice::from_raw_parts_mut(dst, len));
+                },
+            );
+        }
+    }
+}
+
+impl<'a, Scalar: Clone + EachATan, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
+    /// In-place arctangent: `self[i] = atan(self[i])`.
+    pub fn atan_inplace(&mut self) {
+        let ptr = self.data;
+        let ndim = self.ndim;
+        unsafe {
+            walk_contiguous_blocks_2(
+                ptr as *const Scalar,
+                &self.strides[..ndim],
+                ptr,
+                &self.strides[..ndim],
+                &self.shape[..ndim],
+                |_src, dst, len| {
+                    Scalar::atan_inplace(core::slice::from_raw_parts_mut(dst, len));
+                },
+            );
+        }
+    }
+}
+
+// endregion: TensorSpan In-Place Elementwise Operations
+
 // region: Tensor Elementwise Operations
 
 impl<Scalar: Clone + EachScale, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK>
@@ -5837,9 +6029,7 @@ where
 
     /// Apply element-wise scale in-place: self\[i\] = α × self\[i\] + β
     pub fn scale_inplace(&mut self, alpha: Scalar::Scalar, beta: Scalar::Scalar) {
-        let _ = try_reborrow_tensor_inplace(self, |view, span| {
-            view.try_scale_tensor_into(alpha, beta, span)
-        });
+        self.span().scale_inplace(alpha, beta);
     }
 }
 
@@ -5863,9 +6053,7 @@ impl<Scalar: Clone + EachSum, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_
     ) -> Result<(), TensorError> {
         validate_same_shape(self.shape(), other.shape())?;
         let other_view = rebind_view_rank::<Scalar, MAX_RANK, OTHER_MAX_RANK>(&other.view())?;
-        try_reborrow_tensor_inplace(self, |view, span| {
-            view.try_add_tensor_into(&other_view, span)
-        })
+        self.span().add_inplace(&other_view)
     }
 }
 

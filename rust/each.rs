@@ -49,7 +49,7 @@
 //! ```
 
 use crate::tensor::{
-    try_reborrow_tensor_inplace, try_reborrow_tensor_into, Global, Tensor, TensorError, TensorRef,
+    try_reborrow_tensor_into, Global, Tensor, TensorError, TensorRef,
 };
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
 
@@ -601,11 +601,86 @@ where
     Some(())
 }
 
+// In-place complex fallbacks: read-modify-write through a single `&mut` (sound — no
+// aliased `&[T]` over the same storage). `data` is both the `a` operand and the result.
+
+fn complex_each_sum_inplace_fallback<Scalar>(data: &mut [Scalar], other: &[Scalar]) -> Option<()>
+where
+    Scalar: Copy + core::ops::Add<Output = Scalar>,
+{
+    if data.len() != other.len() {
+        return None;
+    }
+    for (out, right) in data.iter_mut().zip(other.iter()) {
+        *out = *out + *right;
+    }
+    Some(())
+}
+
+fn complex_each_scale_inplace_fallback<Scalar>(
+    data: &mut [Scalar],
+    alpha: Scalar,
+    beta: Scalar,
+) -> Option<()>
+where
+    Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
+{
+    for out in data.iter_mut() {
+        *out = alpha * *out + beta;
+    }
+    Some(())
+}
+
+fn complex_each_blend_inplace_fallback<Scalar>(
+    data: &mut [Scalar],
+    other: &[Scalar],
+    alpha: Scalar,
+    beta: Scalar,
+) -> Option<()>
+where
+    Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
+{
+    if data.len() != other.len() {
+        return None;
+    }
+    for (out, right) in data.iter_mut().zip(other.iter()) {
+        *out = alpha * *out + beta * *right;
+    }
+    Some(())
+}
+
+fn complex_each_fma_inplace_fallback<Scalar>(
+    data: &mut [Scalar],
+    b: &[Scalar],
+    alpha: Scalar,
+    beta: Scalar,
+) -> Option<()>
+where
+    Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
+{
+    if data.len() != b.len() {
+        return None;
+    }
+    // In-place fused multiply-add matches `each_fma` with the `c` operand bound to `a`
+    // (the same storage) — exactly how out-of-place `mul_tensor` wires `c = self`.
+    for (out, right) in data.iter_mut().zip(b.iter()) {
+        let value = *out;
+        *out = alpha * value * *right + beta * value;
+    }
+    Some(())
+}
+
 // region: EachSin
 
 /// Computes **element-wise sine** of a vector.
 pub trait EachSin: Sized + StorageElement {
     fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
+
+    /// In-place sine: `data[i] = sin(data[i])`.
+    ///
+    /// Both source and destination pointers are derived from the single `&mut`,
+    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
+    fn sin_inplace(data: &mut [Self]) -> Option<()>;
 }
 
 impl EachSin for f64 {
@@ -616,6 +691,13 @@ impl EachSin for f64 {
         unsafe { nk_each_sin_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
         Some(())
     }
+
+    fn sin_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sin_f64(p as *const f64, len, p) };
+        Some(())
+    }
 }
 
 impl EachSin for f32 {
@@ -624,6 +706,13 @@ impl EachSin for f32 {
             return None;
         }
         unsafe { nk_each_sin_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn sin_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sin_f32(p as *const f32, len, p) };
         Some(())
     }
 }
@@ -642,6 +731,13 @@ impl EachSin for f16 {
         };
         Some(())
     }
+
+    fn sin_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sin_f16(p as *const u16, len, p as *mut u16) };
+        Some(())
+    }
 }
 
 // endregion: EachSin
@@ -651,6 +747,12 @@ impl EachSin for f16 {
 /// Computes **element-wise cosine** of a vector.
 pub trait EachCos: Sized + StorageElement {
     fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
+
+    /// In-place cosine: `data[i] = cos(data[i])`.
+    ///
+    /// Both source and destination pointers are derived from the single `&mut`,
+    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
+    fn cos_inplace(data: &mut [Self]) -> Option<()>;
 }
 
 impl EachCos for f64 {
@@ -661,6 +763,13 @@ impl EachCos for f64 {
         unsafe { nk_each_cos_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
         Some(())
     }
+
+    fn cos_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_cos_f64(p as *const f64, len, p) };
+        Some(())
+    }
 }
 
 impl EachCos for f32 {
@@ -669,6 +778,13 @@ impl EachCos for f32 {
             return None;
         }
         unsafe { nk_each_cos_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn cos_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_cos_f32(p as *const f32, len, p) };
         Some(())
     }
 }
@@ -687,6 +803,13 @@ impl EachCos for f16 {
         };
         Some(())
     }
+
+    fn cos_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_cos_f16(p as *const u16, len, p as *mut u16) };
+        Some(())
+    }
 }
 
 // endregion: EachCos
@@ -696,6 +819,12 @@ impl EachCos for f16 {
 /// Computes **element-wise arctangent** of a vector.
 pub trait EachATan: Sized + StorageElement {
     fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
+
+    /// In-place arctangent: `data[i] = atan(data[i])`.
+    ///
+    /// Both source and destination pointers are derived from the single `&mut`,
+    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
+    fn atan_inplace(data: &mut [Self]) -> Option<()>;
 }
 
 impl EachATan for f64 {
@@ -706,6 +835,13 @@ impl EachATan for f64 {
         unsafe { nk_each_atan_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
         Some(())
     }
+
+    fn atan_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_atan_f64(p as *const f64, len, p) };
+        Some(())
+    }
 }
 
 impl EachATan for f32 {
@@ -714,6 +850,13 @@ impl EachATan for f32 {
             return None;
         }
         unsafe { nk_each_atan_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn atan_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_atan_f32(p as *const f32, len, p) };
         Some(())
     }
 }
@@ -730,6 +873,13 @@ impl EachATan for f16 {
                 outputs.as_mut_ptr() as *mut u16,
             )
         };
+        Some(())
+    }
+
+    fn atan_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_atan_f16(p as *const u16, len, p as *mut u16) };
         Some(())
     }
 }
@@ -770,6 +920,13 @@ pub trait EachScale: Sized + StorageElement {
         beta: Self::Scalar,
         result: &mut [Self],
     ) -> Option<()>;
+
+    /// In-place affine: `data[i] = alpha * data[i] + beta`.
+    ///
+    /// Both source and destination pointers are derived from the single `&mut`,
+    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar)
+        -> Option<()>;
 }
 
 impl EachScale for f64 {
@@ -781,6 +938,13 @@ impl EachScale for f64 {
         unsafe { nk_each_scale_f64(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_f64(p as *const f64, len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachScale for f32 {
@@ -790,6 +954,13 @@ impl EachScale for f32 {
             return None;
         }
         unsafe { nk_each_scale_f32(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_f32(p as *const f32, len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -811,6 +982,13 @@ impl EachScale for f16 {
         };
         Some(())
     }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_f16(p as *const u16, len, &alpha, &beta, p as *mut u16) };
+        Some(())
+    }
 }
 
 impl EachScale for bf16 {
@@ -830,6 +1008,13 @@ impl EachScale for bf16 {
         };
         Some(())
     }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_bf16(p as *const u16, len, &alpha, &beta, p as *mut u16) };
+        Some(())
+    }
 }
 
 impl EachScale for i8 {
@@ -839,6 +1024,13 @@ impl EachScale for i8 {
             return None;
         }
         unsafe { nk_each_scale_i8(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_i8(p as *const i8, len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -852,6 +1044,13 @@ impl EachScale for u8 {
         unsafe { nk_each_scale_u8(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_u8(p as *const u8, len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachScale for i16 {
@@ -861,6 +1060,13 @@ impl EachScale for i16 {
             return None;
         }
         unsafe { nk_each_scale_i16(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_i16(p as *const i16, len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -874,6 +1080,13 @@ impl EachScale for u16 {
         unsafe { nk_each_scale_u16(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_u16(p as *const u16, len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachScale for i32 {
@@ -883,6 +1096,13 @@ impl EachScale for i32 {
             return None;
         }
         unsafe { nk_each_scale_i32(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_i32(p as *const i32, len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -896,6 +1116,13 @@ impl EachScale for u32 {
         unsafe { nk_each_scale_u32(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_u32(p as *const u32, len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachScale for i64 {
@@ -907,6 +1134,13 @@ impl EachScale for i64 {
         unsafe { nk_each_scale_i64(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
         Some(())
     }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_i64(p as *const i64, len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachScale for u64 {
@@ -916,6 +1150,13 @@ impl EachScale for u64 {
             return None;
         }
         unsafe { nk_each_scale_u64(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_u64(p as *const u64, len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -937,6 +1178,13 @@ impl EachScale for e4m3 {
         };
         Some(())
     }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_e4m3(p as *const u8, len, &alpha, &beta, p as *mut u8) };
+        Some(())
+    }
 }
 
 impl EachScale for e5m2 {
@@ -954,6 +1202,13 @@ impl EachScale for e5m2 {
                 result.as_mut_ptr() as *mut u8,
             )
         };
+        Some(())
+    }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_e5m2(p as *const u8, len, &alpha, &beta, p as *mut u8) };
         Some(())
     }
 }
@@ -975,6 +1230,13 @@ impl EachScale for e2m3 {
         };
         Some(())
     }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_e2m3(p as *const u8, len, &alpha, &beta, p as *mut u8) };
+        Some(())
+    }
 }
 
 impl EachScale for e3m2 {
@@ -992,6 +1254,13 @@ impl EachScale for e3m2 {
                 result.as_mut_ptr() as *mut u8,
             )
         };
+        Some(())
+    }
+
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_e3m2(p as *const u8, len, &alpha, &beta, p as *mut u8) };
         Some(())
     }
 }
@@ -1018,6 +1287,17 @@ impl EachScale for f64c {
         };
         Some(())
     }
+
+    fn each_scale_inplace(
+        data: &mut [Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_f64c(p as *const f64, len, &alpha.re, &beta.re, p as *mut f64) };
+        Some(())
+    }
 }
 
 impl EachScale for f32c {
@@ -1042,6 +1322,17 @@ impl EachScale for f32c {
         };
         Some(())
     }
+
+    fn each_scale_inplace(
+        data: &mut [Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_scale_f32c(p as *const f32, len, &alpha.re, &beta.re, p as *mut f32) };
+        Some(())
+    }
 }
 
 impl EachScale for f16c {
@@ -1054,6 +1345,14 @@ impl EachScale for f16c {
     ) -> Option<()> {
         complex_each_scale_fallback(a, alpha, beta, result)
     }
+
+    fn each_scale_inplace(
+        data: &mut [Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Option<()> {
+        complex_each_scale_inplace_fallback(data, alpha, beta)
+    }
 }
 
 impl EachScale for bf16c {
@@ -1065,6 +1364,14 @@ impl EachScale for bf16c {
         result: &mut [Self],
     ) -> Option<()> {
         complex_each_scale_fallback(a, alpha, beta, result)
+    }
+
+    fn each_scale_inplace(
+        data: &mut [Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Option<()> {
+        complex_each_scale_inplace_fallback(data, alpha, beta)
     }
 }
 
@@ -1082,6 +1389,13 @@ impl EachScale for bf16c {
 /// `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `e4m3`, `e5m2`, `e2m3`, `e3m2`.
 pub trait EachSum: Sized + StorageElement {
     fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()>;
+
+    /// In-place sum: `data[i] = data[i] + other[i]`.
+    ///
+    /// `data` is both the `a` operand and the result; its source and destination
+    /// pointers come from the single `&mut`, while `other` is disjoint storage —
+    /// no aliased `&[Self]` + `&mut [Self]` over the same buffer is formed.
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()>;
 }
 
 impl EachSum for f64 {
@@ -1092,6 +1406,16 @@ impl EachSum for f64 {
         unsafe { nk_each_sum_f64(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
         Some(())
     }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_f64(p as *const f64, other.as_ptr(), len, p) };
+        Some(())
+    }
 }
 
 impl EachSum for f32 {
@@ -1100,6 +1424,16 @@ impl EachSum for f32 {
             return None;
         }
         unsafe { nk_each_sum_f32(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_f32(p as *const f32, other.as_ptr(), len, p) };
         Some(())
     }
 }
@@ -1119,6 +1453,16 @@ impl EachSum for f16 {
         };
         Some(())
     }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_f16(p as *const u16, other.as_ptr() as *const u16, len, p as *mut u16) };
+        Some(())
+    }
 }
 
 impl EachSum for bf16 {
@@ -1136,6 +1480,18 @@ impl EachSum for bf16 {
         };
         Some(())
     }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe {
+            nk_each_sum_bf16(p as *const u16, other.as_ptr() as *const u16, len, p as *mut u16)
+        };
+        Some(())
+    }
 }
 
 impl EachSum for i8 {
@@ -1144,6 +1500,16 @@ impl EachSum for i8 {
             return None;
         }
         unsafe { nk_each_sum_i8(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_i8(p as *const i8, other.as_ptr(), len, p) };
         Some(())
     }
 }
@@ -1156,6 +1522,16 @@ impl EachSum for u8 {
         unsafe { nk_each_sum_u8(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
         Some(())
     }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_u8(p as *const u8, other.as_ptr(), len, p) };
+        Some(())
+    }
 }
 
 impl EachSum for i16 {
@@ -1164,6 +1540,16 @@ impl EachSum for i16 {
             return None;
         }
         unsafe { nk_each_sum_i16(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_i16(p as *const i16, other.as_ptr(), len, p) };
         Some(())
     }
 }
@@ -1176,6 +1562,16 @@ impl EachSum for u16 {
         unsafe { nk_each_sum_u16(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
         Some(())
     }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_u16(p as *const u16, other.as_ptr(), len, p) };
+        Some(())
+    }
 }
 
 impl EachSum for i32 {
@@ -1184,6 +1580,16 @@ impl EachSum for i32 {
             return None;
         }
         unsafe { nk_each_sum_i32(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_i32(p as *const i32, other.as_ptr(), len, p) };
         Some(())
     }
 }
@@ -1196,6 +1602,16 @@ impl EachSum for u32 {
         unsafe { nk_each_sum_u32(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
         Some(())
     }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_u32(p as *const u32, other.as_ptr(), len, p) };
+        Some(())
+    }
 }
 
 impl EachSum for i64 {
@@ -1206,6 +1622,16 @@ impl EachSum for i64 {
         unsafe { nk_each_sum_i64(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
         Some(())
     }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_i64(p as *const i64, other.as_ptr(), len, p) };
+        Some(())
+    }
 }
 
 impl EachSum for u64 {
@@ -1214,6 +1640,16 @@ impl EachSum for u64 {
             return None;
         }
         unsafe { nk_each_sum_u64(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_u64(p as *const u64, other.as_ptr(), len, p) };
         Some(())
     }
 }
@@ -1233,6 +1669,16 @@ impl EachSum for e4m3 {
         };
         Some(())
     }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_e4m3(p as *const u8, other.as_ptr() as *const u8, len, p as *mut u8) };
+        Some(())
+    }
 }
 
 impl EachSum for e5m2 {
@@ -1248,6 +1694,16 @@ impl EachSum for e5m2 {
                 result.as_mut_ptr() as *mut u8,
             )
         };
+        Some(())
+    }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_e5m2(p as *const u8, other.as_ptr() as *const u8, len, p as *mut u8) };
         Some(())
     }
 }
@@ -1267,6 +1723,16 @@ impl EachSum for e2m3 {
         };
         Some(())
     }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_e2m3(p as *const u8, other.as_ptr() as *const u8, len, p as *mut u8) };
+        Some(())
+    }
 }
 
 impl EachSum for e3m2 {
@@ -1282,6 +1748,16 @@ impl EachSum for e3m2 {
                 result.as_mut_ptr() as *mut u8,
             )
         };
+        Some(())
+    }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_e3m2(p as *const u8, other.as_ptr() as *const u8, len, p as *mut u8) };
         Some(())
     }
 }
@@ -1301,6 +1777,16 @@ impl EachSum for f64c {
         };
         Some(())
     }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_f64c(p as *const f64, other.as_ptr() as *const f64, len, p as *mut f64) };
+        Some(())
+    }
 }
 
 impl EachSum for f32c {
@@ -1318,17 +1804,35 @@ impl EachSum for f32c {
         };
         Some(())
     }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_sum_f32c(p as *const f32, other.as_ptr() as *const f32, len, p as *mut f32) };
+        Some(())
+    }
 }
 
 impl EachSum for f16c {
     fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
         complex_each_sum_fallback(a, b, result)
     }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        complex_each_sum_inplace_fallback(data, other)
+    }
 }
 
 impl EachSum for bf16c {
     fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
         complex_each_sum_fallback(a, b, result)
+    }
+
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+        complex_each_sum_inplace_fallback(data, other)
     }
 }
 
@@ -1352,6 +1856,18 @@ pub trait EachBlend: Sized + StorageElement {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
+    ) -> Option<()>;
+
+    /// In-place blend: `data[i] = alpha * data[i] + beta * other[i]`.
+    ///
+    /// `data` is both the `a` operand and the result; its source and destination
+    /// pointers come from the single `&mut`, while `other` is disjoint storage —
+    /// no aliased `&[Self]` + `&mut [Self]` over the same buffer is formed.
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
     ) -> Option<()>;
 }
 
@@ -1377,6 +1893,21 @@ impl EachBlend for f64 {
                 result.as_mut_ptr(),
             )
         };
+        Some(())
+    }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f64,
+        beta: f64,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_f64(p as *const f64, other.as_ptr(), len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -1405,6 +1936,21 @@ impl EachBlend for f32 {
         };
         Some(())
     }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_f32(p as *const f32, other.as_ptr(), len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachBlend for f16 {
@@ -1429,6 +1975,21 @@ impl EachBlend for f16 {
                 result.as_mut_ptr() as *mut u16,
             )
         };
+        Some(())
+    }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_f16(p as *const u16, other.as_ptr() as *const u16, len, &alpha, &beta, p as *mut u16) };
         Some(())
     }
 }
@@ -1457,6 +2018,21 @@ impl EachBlend for bf16 {
         };
         Some(())
     }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_bf16(p as *const u16, other.as_ptr() as *const u16, len, &alpha, &beta, p as *mut u16) };
+        Some(())
+    }
 }
 
 impl EachBlend for i8 {
@@ -1481,6 +2057,21 @@ impl EachBlend for i8 {
                 result.as_mut_ptr(),
             )
         };
+        Some(())
+    }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_i8(p as *const i8, other.as_ptr(), len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -1509,6 +2100,21 @@ impl EachBlend for u8 {
         };
         Some(())
     }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_u8(p as *const u8, other.as_ptr(), len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachBlend for i16 {
@@ -1533,6 +2139,21 @@ impl EachBlend for i16 {
                 result.as_mut_ptr(),
             )
         };
+        Some(())
+    }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_i16(p as *const i16, other.as_ptr(), len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -1561,6 +2182,21 @@ impl EachBlend for u16 {
         };
         Some(())
     }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_u16(p as *const u16, other.as_ptr(), len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachBlend for i32 {
@@ -1585,6 +2221,21 @@ impl EachBlend for i32 {
                 result.as_mut_ptr(),
             )
         };
+        Some(())
+    }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f64,
+        beta: f64,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_i32(p as *const i32, other.as_ptr(), len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -1613,6 +2264,21 @@ impl EachBlend for u32 {
         };
         Some(())
     }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f64,
+        beta: f64,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_u32(p as *const u32, other.as_ptr(), len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachBlend for i64 {
@@ -1637,6 +2303,21 @@ impl EachBlend for i64 {
                 result.as_mut_ptr(),
             )
         };
+        Some(())
+    }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f64,
+        beta: f64,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_i64(p as *const i64, other.as_ptr(), len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -1665,6 +2346,21 @@ impl EachBlend for u64 {
         };
         Some(())
     }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f64,
+        beta: f64,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_u64(p as *const u64, other.as_ptr(), len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachBlend for e4m3 {
@@ -1689,6 +2385,21 @@ impl EachBlend for e4m3 {
                 result.as_mut_ptr() as *mut u8,
             )
         };
+        Some(())
+    }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_e4m3(p as *const u8, other.as_ptr() as *const u8, len, &alpha, &beta, p as *mut u8) };
         Some(())
     }
 }
@@ -1717,6 +2428,21 @@ impl EachBlend for e5m2 {
         };
         Some(())
     }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_e5m2(p as *const u8, other.as_ptr() as *const u8, len, &alpha, &beta, p as *mut u8) };
+        Some(())
+    }
 }
 
 impl EachBlend for e2m3 {
@@ -1741,6 +2467,21 @@ impl EachBlend for e2m3 {
                 result.as_mut_ptr() as *mut u8,
             )
         };
+        Some(())
+    }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_e2m3(p as *const u8, other.as_ptr() as *const u8, len, &alpha, &beta, p as *mut u8) };
         Some(())
     }
 }
@@ -1769,6 +2510,21 @@ impl EachBlend for e3m2 {
         };
         Some(())
     }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_blend_e3m2(p as *const u8, other.as_ptr() as *const u8, len, &alpha, &beta, p as *mut u8) };
+        Some(())
+    }
 }
 
 impl EachBlend for f64c {
@@ -1791,6 +2547,30 @@ impl EachBlend for f64c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f64,
+            )
+        };
+        Some(())
+    }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe {
+            nk_each_blend_f64c(
+                p as *const f64,
+                other.as_ptr() as *const f64,
+                len,
+                &alpha.re,
+                &beta.re,
+                p as *mut f64,
             )
         };
         Some(())
@@ -1821,6 +2601,30 @@ impl EachBlend for f32c {
         };
         Some(())
     }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Option<()> {
+        if data.len() != other.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe {
+            nk_each_blend_f32c(
+                p as *const f32,
+                other.as_ptr() as *const f32,
+                len,
+                &alpha.re,
+                &beta.re,
+                p as *mut f32,
+            )
+        };
+        Some(())
+    }
 }
 
 impl EachBlend for f16c {
@@ -1834,6 +2638,15 @@ impl EachBlend for f16c {
     ) -> Option<()> {
         complex_each_blend_fallback(a, b, alpha, beta, result)
     }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Option<()> {
+        complex_each_blend_inplace_fallback(data, other, alpha, beta)
+    }
 }
 
 impl EachBlend for bf16c {
@@ -1846,6 +2659,15 @@ impl EachBlend for bf16c {
         result: &mut [Self],
     ) -> Option<()> {
         complex_each_blend_fallback(a, b, alpha, beta, result)
+    }
+
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Option<()> {
+        complex_each_blend_inplace_fallback(data, other, alpha, beta)
     }
 }
 
@@ -1870,6 +2692,20 @@ pub trait EachFMA: Sized + StorageElement {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
+    ) -> Option<()>;
+
+    /// In-place fused multiply-add with the `c` operand bound to `a`:
+    /// `data[i] = alpha * data[i] * b[i] + beta * data[i]`.
+    ///
+    /// `data` is the `a` operand, the `c` operand, and the result — all derived
+    /// from the single `&mut`, while `b` is disjoint storage. This matches
+    /// out-of-place `mul_tensor`, which wires `c = self` and is the only in-place
+    /// FMA caller. No aliased `&[Self]` + `&mut [Self]` over the same buffer is formed.
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
     ) -> Option<()>;
 }
 
@@ -1897,6 +2733,21 @@ impl EachFMA for f64 {
                 result.as_mut_ptr(),
             )
         };
+        Some(())
+    }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f64,
+        beta: f64,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_fma_f64(p as *const f64, b.as_ptr(), p as *const f64, len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -1927,6 +2778,21 @@ impl EachFMA for f32 {
         };
         Some(())
     }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_fma_f32(p as *const f32, b.as_ptr(), p as *const f32, len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachFMA for f16 {
@@ -1951,6 +2817,31 @@ impl EachFMA for f16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
+            )
+        };
+        Some(())
+    }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe {
+            nk_each_fma_f16(
+                p as *const u16,
+                b.as_ptr() as *const u16,
+                p as *const u16,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u16,
             )
         };
         Some(())
@@ -1983,6 +2874,31 @@ impl EachFMA for bf16 {
         };
         Some(())
     }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe {
+            nk_each_fma_bf16(
+                p as *const u16,
+                b.as_ptr() as *const u16,
+                p as *const u16,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u16,
+            )
+        };
+        Some(())
+    }
 }
 
 impl EachFMA for i8 {
@@ -2009,6 +2925,21 @@ impl EachFMA for i8 {
                 result.as_mut_ptr(),
             )
         };
+        Some(())
+    }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_fma_i8(p as *const i8, b.as_ptr(), p as *const i8, len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -2039,6 +2970,21 @@ impl EachFMA for u8 {
         };
         Some(())
     }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_fma_u8(p as *const u8, b.as_ptr(), p as *const u8, len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachFMA for e4m3 {
@@ -2063,6 +3009,31 @@ impl EachFMA for e4m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+            )
+        };
+        Some(())
+    }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe {
+            nk_each_fma_e4m3(
+                p as *const u8,
+                b.as_ptr() as *const u8,
+                p as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u8,
             )
         };
         Some(())
@@ -2095,6 +3066,31 @@ impl EachFMA for e5m2 {
         };
         Some(())
     }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe {
+            nk_each_fma_e5m2(
+                p as *const u8,
+                b.as_ptr() as *const u8,
+                p as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u8,
+            )
+        };
+        Some(())
+    }
 }
 
 impl EachFMA for e2m3 {
@@ -2119,6 +3115,31 @@ impl EachFMA for e2m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+            )
+        };
+        Some(())
+    }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe {
+            nk_each_fma_e2m3(
+                p as *const u8,
+                b.as_ptr() as *const u8,
+                p as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u8,
             )
         };
         Some(())
@@ -2151,6 +3172,31 @@ impl EachFMA for e3m2 {
         };
         Some(())
     }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe {
+            nk_each_fma_e3m2(
+                p as *const u8,
+                b.as_ptr() as *const u8,
+                p as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u8,
+            )
+        };
+        Some(())
+    }
 }
 
 impl EachFMA for i16 {
@@ -2177,6 +3223,21 @@ impl EachFMA for i16 {
                 result.as_mut_ptr(),
             )
         };
+        Some(())
+    }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_fma_i16(p as *const i16, b.as_ptr(), p as *const i16, len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -2207,6 +3268,21 @@ impl EachFMA for u16 {
         };
         Some(())
     }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f32,
+        beta: f32,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_fma_u16(p as *const u16, b.as_ptr(), p as *const u16, len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachFMA for i32 {
@@ -2233,6 +3309,21 @@ impl EachFMA for i32 {
                 result.as_mut_ptr(),
             )
         };
+        Some(())
+    }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f64,
+        beta: f64,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_fma_i32(p as *const i32, b.as_ptr(), p as *const i32, len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -2263,6 +3354,21 @@ impl EachFMA for u32 {
         };
         Some(())
     }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f64,
+        beta: f64,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_fma_u32(p as *const u32, b.as_ptr(), p as *const u32, len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachFMA for i64 {
@@ -2289,6 +3395,21 @@ impl EachFMA for i64 {
                 result.as_mut_ptr(),
             )
         };
+        Some(())
+    }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f64,
+        beta: f64,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_fma_i64(p as *const i64, b.as_ptr(), p as *const i64, len, &alpha, &beta, p) };
         Some(())
     }
 }
@@ -2319,6 +3440,21 @@ impl EachFMA for u64 {
         };
         Some(())
     }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: f64,
+        beta: f64,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_each_fma_u64(p as *const u64, b.as_ptr(), p as *const u64, len, &alpha, &beta, p) };
+        Some(())
+    }
 }
 
 impl EachFMA for f64c {
@@ -2343,6 +3479,31 @@ impl EachFMA for f64c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f64,
+            )
+        };
+        Some(())
+    }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe {
+            nk_each_fma_f64c(
+                p as *const f64,
+                b.as_ptr() as *const f64,
+                p as *const f64,
+                len,
+                &alpha.re,
+                &beta.re,
+                p as *mut f64,
             )
         };
         Some(())
@@ -2375,6 +3536,31 @@ impl EachFMA for f32c {
         };
         Some(())
     }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Option<()> {
+        if data.len() != b.len() {
+            return None;
+        }
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe {
+            nk_each_fma_f32c(
+                p as *const f32,
+                b.as_ptr() as *const f32,
+                p as *const f32,
+                len,
+                &alpha.re,
+                &beta.re,
+                p as *mut f32,
+            )
+        };
+        Some(())
+    }
 }
 
 impl EachFMA for f16c {
@@ -2389,6 +3575,15 @@ impl EachFMA for f16c {
     ) -> Option<()> {
         complex_each_fma_fallback(a, b, c, alpha, beta, result)
     }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Option<()> {
+        complex_each_fma_inplace_fallback(data, b, alpha, beta)
+    }
 }
 
 impl EachFMA for bf16c {
@@ -2402,6 +3597,15 @@ impl EachFMA for bf16c {
         result: &mut [Self],
     ) -> Option<()> {
         complex_each_fma_fallback(a, b, c, alpha, beta, result)
+    }
+
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Option<()> {
+        complex_each_fma_inplace_fallback(data, b, alpha, beta)
     }
 }
 
@@ -2457,8 +3661,7 @@ impl<Scalar: Clone + EachSin, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_
 
     /// Element-wise sine in-place (infallible — self vs self always matches).
     pub fn sin_inplace(&mut self) {
-        try_reborrow_tensor_inplace(self, |view, span| view.try_sin_into(span))
-            .expect("inplace trig op on self cannot fail")
+        self.span().sin_inplace();
     }
 
     pub fn try_sin_inplace(&mut self) -> Result<(), TensorError> {
@@ -2475,8 +3678,7 @@ impl<Scalar: Clone + EachCos, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_
 
     /// Element-wise cosine in-place (infallible — self vs self always matches).
     pub fn cos_inplace(&mut self) {
-        try_reborrow_tensor_inplace(self, |view, span| view.try_cos_into(span))
-            .expect("inplace trig op on self cannot fail")
+        self.span().cos_inplace();
     }
 
     pub fn try_cos_inplace(&mut self) -> Result<(), TensorError> {
@@ -2493,8 +3695,7 @@ impl<Scalar: Clone + EachATan, const MAX_RANK: usize> Tensor<Scalar, Global, MAX
 
     /// Element-wise arctangent in-place (infallible — self vs self always matches).
     pub fn atan_inplace(&mut self) {
-        try_reborrow_tensor_inplace(self, |view, span| view.try_atan_into(span))
-            .expect("inplace trig op on self cannot fail")
+        self.span().atan_inplace();
     }
 
     pub fn try_atan_inplace(&mut self) -> Result<(), TensorError> {
@@ -2630,20 +3831,17 @@ where
 
     /// Element-wise add scalar in-place (infallible — self vs self always matches).
     pub fn add_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
-        try_reborrow_tensor_inplace(self, |view, span| view.try_add_scalar_into(scalar, span))
-            .expect("inplace scalar op on self cannot fail")
+        self.span().add_scalar_inplace(scalar);
     }
 
     /// Element-wise subtract scalar in-place (infallible — self vs self always matches).
     pub fn sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
-        try_reborrow_tensor_inplace(self, |view, span| view.try_sub_scalar_into(scalar, span))
-            .expect("inplace scalar op on self cannot fail")
+        self.span().sub_scalar_inplace(scalar);
     }
 
     /// Element-wise multiply scalar in-place (infallible — self vs self always matches).
     pub fn mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
-        try_reborrow_tensor_inplace(self, |view, span| view.try_mul_scalar_into(scalar, span))
-            .expect("inplace scalar op on self cannot fail")
+        self.span().mul_scalar_inplace(scalar);
     }
 }
 
@@ -2706,9 +3904,8 @@ impl<Scalar: Clone + EachSum, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_
         &mut self,
         other: &Tensor<Scalar, Global, MAX_RANK>,
     ) -> Result<(), TensorError> {
-        try_reborrow_tensor_inplace(self, |view, span| {
-            view.try_add_tensor_into(&other.view(), span)
-        })
+        let other_view = other.view();
+        self.span().add_inplace(&other_view)
     }
 }
 
@@ -2749,9 +3946,8 @@ where
         &mut self,
         other: &Tensor<Scalar, Global, MAX_RANK>,
     ) -> Result<(), TensorError> {
-        try_reborrow_tensor_inplace(self, |view, span| {
-            view.try_sub_tensor_into(&other.view(), span)
-        })
+        let other_view = other.view();
+        self.span().sub_inplace(&other_view)
     }
 }
 
@@ -2792,9 +3988,8 @@ where
         &mut self,
         other: &Tensor<Scalar, Global, MAX_RANK>,
     ) -> Result<(), TensorError> {
-        try_reborrow_tensor_inplace(self, |view, span| {
-            view.try_mul_tensor_into(&other.view(), span)
-        })
+        let other_view = other.view();
+        self.span().mul_inplace(&other_view)
     }
 }
 
@@ -3188,6 +4383,91 @@ mod tests {
         assert_eq!(sin_out.shape(), &[3, 2]);
         // First element is sin(0) which is exactly 0.
         assert!((sin_out.as_slice()[0] - 0.0).abs() < 1e-6);
+    }
+
+    // endregion
+
+    // region: in-place == out-of-place (TensorSpan ownership of in-place)
+
+    #[test]
+    fn inplace_scale_matches_out_of_place() {
+        use crate::tensor::Tensor;
+        let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
+        let mut inplace = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        inplace.scale_inplace(2.0, 1.0);
+        let expected = source.view().try_scale_tensor(2.0, 1.0).unwrap();
+        assert_eq!(inplace.as_slice(), expected.as_slice());
+    }
+
+    #[test]
+    fn inplace_scale_matches_out_of_place_f64() {
+        use crate::tensor::Tensor;
+        let data: Vec<f64> = (0..12).map(|i| i as f64).collect();
+        let mut inplace = Tensor::<f64>::try_from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f64>::try_from_slice(&data, &[3, 4]).unwrap();
+        inplace.scale_inplace(-0.5, 3.0);
+        let expected = source.view().try_scale_tensor(-0.5, 3.0).unwrap();
+        assert_eq!(inplace.as_slice(), expected.as_slice());
+    }
+
+    #[test]
+    fn inplace_add_scalar_matches_out_of_place() {
+        use crate::tensor::Tensor;
+        let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
+        let mut inplace = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        inplace.add_scalar_inplace(2.5);
+        let expected = source.view().try_add_scalar(2.5).unwrap();
+        assert_eq!(inplace.as_slice(), expected.as_slice());
+    }
+
+    #[test]
+    fn inplace_sin_matches_out_of_place() {
+        use crate::tensor::Tensor;
+        let data: Vec<f32> = (0..12).map(|i| i as f32 * 0.25).collect();
+        let mut inplace = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        inplace.sin_inplace();
+        let expected = source.view().try_sin().unwrap();
+        assert_eq!(inplace.as_slice(), expected.as_slice());
+    }
+
+    #[test]
+    fn inplace_add_tensor_matches_out_of_place() {
+        use crate::tensor::Tensor;
+        let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
+        let other = Tensor::<f32>::try_full(&[3, 4], 2.0).unwrap();
+        let mut inplace = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        inplace.try_add_tensor_inplace(&other).unwrap();
+        let expected = source.view().try_add_tensor(&other.view()).unwrap();
+        assert_eq!(inplace.as_slice(), expected.as_slice());
+    }
+
+    #[test]
+    fn inplace_sub_tensor_matches_out_of_place() {
+        use crate::tensor::Tensor;
+        let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
+        let other = Tensor::<f32>::try_full(&[3, 4], 3.0).unwrap();
+        let mut inplace = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        inplace.try_sub_tensor_inplace(&other).unwrap();
+        let expected = source.view().try_sub_tensor(&other.view()).unwrap();
+        assert_eq!(inplace.as_slice(), expected.as_slice());
+    }
+
+    #[test]
+    fn inplace_mul_tensor_matches_out_of_place() {
+        use crate::tensor::Tensor;
+        let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
+        let other_data: Vec<f32> = (0..12).map(|i| (i as f32) * 0.5 + 1.0).collect();
+        let other = Tensor::<f32>::try_from_slice(&other_data, &[3, 4]).unwrap();
+        let mut inplace = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        inplace.try_mul_tensor_inplace(&other).unwrap();
+        let expected = source.view().try_mul_tensor(&other.view()).unwrap();
+        assert_eq!(inplace.as_slice(), expected.as_slice());
     }
 
     // endregion
