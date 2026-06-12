@@ -437,7 +437,8 @@ nk_angular_i4_icelake_cycle:
     nk_i64_t ax_sum = _mm512_reduce_add_epi64(ax_sum_i64x8);
     nk_i64_t bx_sum = _mm512_reduce_add_epi64(bx_sum_i64x8);
     nk_i32_t ab_raw = _mm512_reduce_add_epi32(ab_i32x16);
-    nk_i32_t ab = ab_raw - 8 * (nk_i32_t)(ax_sum + bx_sum) + 64 * (nk_i32_t)n;
+    // Accumulate the bias correction in i64: `64 * n` and `8 * (∑ax + ∑bx)` overflow i32 around n ≈ 2^25.
+    nk_i64_t ab = (nk_i64_t)ab_raw - 8 * (ax_sum + bx_sum) + 64 * (nk_i64_t)n;
 
     nk_size_t n_bytes_total = nk_size_divide_round_up_(n, 2);
     nk_i32_t norm_excess = 128 * (nk_i32_t)(nk_size_round_up_to_multiple_(n_bytes_total, 64) - n_bytes_total);
