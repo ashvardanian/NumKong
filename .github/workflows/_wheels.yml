@@ -43,7 +43,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: linux
           CIBW_ARCHS: x86_64
           NK_REPETITIONS: 1
@@ -104,7 +103,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: linux
           CIBW_ARCHS: aarch64
           NK_REPETITIONS: 1
@@ -148,7 +146,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: macos
           CIBW_ARCHS: x86_64
           NK_REPETITIONS: 1
@@ -192,7 +189,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: macos
           CIBW_ARCHS: arm64
           NK_REPETITIONS: 1
@@ -259,7 +255,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-win_${{ matrix.architecture }}
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: windows
           NK_REPETITIONS: 1
       - name: Upload Wheels
@@ -303,7 +298,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: linux
           CIBW_ARCHS: ${{ matrix.architecture }}
           NK_REPETITIONS: 1
@@ -350,7 +344,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading
           CIBW_PLATFORM: linux
           CIBW_ARCHS: riscv64
           QEMU_CPU: max

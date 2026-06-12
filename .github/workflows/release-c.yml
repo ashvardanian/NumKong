@@ -110,7 +110,7 @@ jobs:
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
       - name: Build Shared Library
         run: |
-          cmake -G "Visual Studio 17 2022" -A ${{ matrix.cmake_arch }} `
+          cmake -A ${{ matrix.cmake_arch }} `
             -DCMAKE_BUILD_TYPE=Release `
             -DNK_BUILD_SHARED=ON `
             -DNK_BUILD_TEST=OFF `

@@ -123,7 +123,7 @@ jobs:
 
       - name: Build
         run: |
-          cmake -G "Visual Studio 17 2022" -A x64 `
+          cmake -A x64 `
             -DCMAKE_BUILD_TYPE=Release `
             -DNK_BUILD_TEST=ON `
             -DNK_BUILD_BENCH=OFF `
@@ -137,7 +137,7 @@ jobs:
 
       - name: Build Shared Library Test
         run: |
-          cmake -G "Visual Studio 17 2022" -A x64 `
+          cmake -A x64 `
             -DCMAKE_BUILD_TYPE=Release `
             -DNK_BUILD_SHARED=ON `
             -DNK_BUILD_SHARED_TEST=ON `
@@ -389,8 +389,6 @@ jobs:
   test_x86_sde:
     name: Test x86 (Intel SDE)
     runs-on: ubuntu-24.04
-    env:
-      SDE_VERSION: sde-external-9.44.0-2024-08-22-lin
 
     steps:
       - name: Checkout
@@ -401,12 +399,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake build-essential
 
-      - name: Download Intel SDE
-        run: |
-          curl -fsSL -o sde.tar.xz \
-            "https://downloadmirror.intel.com/831748/${SDE_VERSION}.tar.xz"
-          tar -xf sde.tar.xz
-          echo "$(pwd)/${SDE_VERSION}" >> "$GITHUB_PATH"
+      # Intel's downloadmirror.intel.com now sits behind an AWS WAF challenge that
+      # blocks scripted downloads, so we pull SDE from the action's GitHub-hosted mirror.
+      - name: Set Up Intel SDE
+        uses: petarpetrovt/setup-sde@v5.0
 
       - name: Build with All x86 ISAs
         run: |
@@ -416,6 +412,6 @@ jobs:
           cmake --build build_sde --config Release --parallel
 
       - name: Test Under Granite Rapids Emulation
-        run: sde64 -gnr -- build_sde/nk_test
+        run: $SDE_PATH/sde64 -gnr -- build_sde/nk_test
         env:
           NK_BUDGET_SECS: 0
