@@ -3032,12 +3032,8 @@ static PyMethodDef ScaledTensor_methods[] = {
 
 PyTypeObject ScaledTensorType = {
     PyVarObject_HEAD_INIT(NULL, 0).tp_name = "numkong.ScaledTensor",
-    .tp_doc =
-        "Block-scaled tensor (OCP MX family + NVIDIA NVFP4): packed elements, per-block scales, " "optional per-tensor "
-                                                                                                  "scale. Produced by "
-                                                                                                  "Tensor.astype('"
-                                                                                                  "nvfp4'/'mxfp4'/"
-                                                                                                  "...).",
+    .tp_doc = "Block-scaled tensor (OCP MX family + NVIDIA NVFP4): packed elements, per-block scales, optional " //
+              "per-tensor scale. Produced by Tensor.astype('nvfp4'/'mxfp4'/...).",                               //
     .tp_basicsize = sizeof(ScaledTensor),
     .tp_dealloc = ScaledTensor_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT,

@@ -1043,7 +1043,7 @@ char const doc_euclideans_symmetric[] =                                         
     "Example:\n"                                                                                            //
     "    >>> gram = nk.euclideans_symmetric(vectors)  # shape: (N, N)\n\n"                                  //
     "Signature:\n"                                                                                          //
-    "    >>> def euclideans_symmetric(vectors, /, *, dtype=None, out=None, start_row=None, end_row=None) -> Tensor: " "...";
+    "    >>> def euclideans_symmetric(vectors, /, *, dtype=None, out=None, start_row=None, end_row=None) -> Tensor: " "..."; //
 
 PyObject *api_euclideans_symmetric( //
     PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count, PyObject *args_names_tuple) {

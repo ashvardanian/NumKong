@@ -271,16 +271,8 @@ static int nk_fill_dl_tensor(Tensor *tensor, DLTensor *out, nk_dlpack_export_ctx
         if (!versioned && (tensor->dtype == nk_e2m3_k || tensor->dtype == nk_e3m2_k || tensor->dtype == nk_e2m1_k)) {
             PyErr_SetString( //
                 PyExc_TypeError,
-                "Sub-byte FP4/FP6 (e2m1/e2m3/e3m2) DLPack export requires max_version >= (1, 0) so " "the " "IS_"
-                                                                                                            "SUBBYTE_"
-                                                                                                            "TYPE_" "PA"
-                                                                                                                    "DD"
-                                                                                                                    "ED"
-                                                                                                                    " f"
-                                                                                                                    "la"
-                                                                                                                    "g "
-                                                                                                                    "ca"
-                                                                                                                    "n " "be set");
+                "Sub-byte FP4/FP6 (e2m1/e2m3/e3m2) DLPack export requires max_version >= (1, 0) so the " //
+                "IS_SUBBYTE_TYPE_PADDED flag can be set");                                               //
         }
         else { PyErr_Format(PyExc_TypeError, "dtype %d has no DLPack mapping", (int)tensor->dtype); }
         return -1;
