@@ -260,13 +260,13 @@ NK_INTERNAL void nk_e2m1x32_to_f32x32_icelake_(__m128i packed, __m512 *lo_f32x16
 
     // 16-entry BF16 LUT (bits 2..0 → magnitude, bit 3 → sign), replicated across both 256-bit halves
     // so a single VPERMW resolves all 32 lanes regardless of which half each index lands in.
-    __m512i const lut_i16x32 = _mm512_set_epi16(                          //
-        (short)0xC0C0, (short)0xC080, (short)0xC040, (short)0xC000,       // -6, -4, -3, -2
-        (short)0xBFC0, (short)0xBF80, (short)0xBF00, (short)0x8000,       // -1.5, -1, -0.5, -0
-        0x40C0, 0x4080, 0x4040, 0x4000, 0x3FC0, 0x3F80, 0x3F00, 0x0000,   // +6..+0
-        (short)0xC0C0, (short)0xC080, (short)0xC040, (short)0xC000,       // (replicated half)
-        (short)0xBFC0, (short)0xBF80, (short)0xBF00, (short)0x8000,       //
-        0x40C0, 0x4080, 0x4040, 0x4000, 0x3FC0, 0x3F80, 0x3F00, 0x0000);  //
+    __m512i const lut_i16x32 = _mm512_set_epi16(                         //
+        (short)0xC0C0, (short)0xC080, (short)0xC040, (short)0xC000,      // -6, -4, -3, -2
+        (short)0xBFC0, (short)0xBF80, (short)0xBF00, (short)0x8000,      // -1.5, -1, -0.5, -0
+        0x40C0, 0x4080, 0x4040, 0x4000, 0x3FC0, 0x3F80, 0x3F00, 0x0000,  // +6..+0
+        (short)0xC0C0, (short)0xC080, (short)0xC040, (short)0xC000,      // (replicated half)
+        (short)0xBFC0, (short)0xBF80, (short)0xBF00, (short)0x8000,      //
+        0x40C0, 0x4080, 0x4040, 0x4000, 0x3FC0, 0x3F80, 0x3F00, 0x0000); //
     __m512i bf16x32 = _mm512_permutexvar_epi16(nibble_idx_i16x32, lut_i16x32);
     nk_bf16x32_to_f32x32_icelake_(bf16x32, lo_f32x16, hi_f32x16);
 }
@@ -615,9 +615,9 @@ NK_INTERNAL nk_f32_t nk_block_amax_f32_icelake_(nk_f32_t const *block, nk_size_t
 /** @brief IceLake block-scaled cast. Mirrors `nk_cast_block_scaled_skylake` but routes the element
  *  codec through `nk_cast_icelake`, whose 32-wide BF16-LUT decodes (FP4/FP6 → f32) replace Skylake's
  *  per-32-bit permutes; the f32 scale-derivation reuses the Skylake amax + reciprocal multiply. */
-NK_PUBLIC void nk_cast_block_scaled_icelake(                                                             //
+NK_PUBLIC void nk_cast_block_scaled_icelake(                                                                   //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                         //
+    nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count) {
 
@@ -634,16 +634,17 @@ NK_PUBLIC void nk_cast_block_scaled_icelake(                                    
     nk_size_t chunk = from_block > to_block ? from_block : to_block;
 
     nk_f32_t from_tensor_scale_f32 = 1.0f;
-    if (from_tensor_scale != NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k) from_tensor_scale_f32 = from_tensor_scale->f32;
+    if (from_tensor_scale != NK_NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k)
+        from_tensor_scale_f32 = from_tensor_scale->f32;
 
     nk_f32_t to_tensor_scale_f32 = 1.0f;
-    int to_has_tensor_scale = (!to_plain && to_tensor_scale != NULL && to_format->tensor_scale_dtype == nk_f32_k);
+    int to_has_tensor_scale = (!to_plain && to_tensor_scale != NK_NULL && to_format->tensor_scale_dtype == nk_f32_k);
     if (to_has_tensor_scale) {
         to_tensor_scale_f32 = to_tensor_scale->f32;
         if (to_tensor_scale_f32 == 0.0f) {
             // Fall back to serial for auto-derive (needs a full tensor scan; rare calibration path).
-            nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales, to_tensor_scale,
-                                        to_format, count);
+            nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales,
+                                        to_tensor_scale, to_format, count);
             return;
         }
     }
@@ -716,7 +717,8 @@ NK_PUBLIC void nk_cast_block_scaled_icelake(                                    
                 /* Saturate to element_max: finite inputs must not overflow to +/-inf (E5M2 has inf; OCP SAT). */
                 for (nk_size_t saturate_index = 0; saturate_index < valid; ++saturate_index) {
                     if (encoded_scratch[saturate_index] > element_max) encoded_scratch[saturate_index] = element_max;
-                    else if (encoded_scratch[saturate_index] < -element_max) encoded_scratch[saturate_index] = -element_max;
+                    else if (encoded_scratch[saturate_index] < -element_max)
+                        encoded_scratch[saturate_index] = -element_max;
                 }
                 nk_cast_icelake(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype);
             }

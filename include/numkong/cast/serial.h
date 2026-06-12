@@ -2818,13 +2818,13 @@ NK_PUBLIC void nk_cast_block_scaled_serial(                                     
 
     // Global multipliers (NVFP4 tensor-scale). Absent → identity.
     nk_f32_t from_tensor_scale_f32 = 1.0f;
-    if (from_tensor_scale != NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k)
+    if (from_tensor_scale != NK_NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k)
         from_tensor_scale_f32 = from_tensor_scale->f32;
 
     // If a non-plain destination has a zero-initialised tensor_scale pointer, derive it from the tensor
     // amax so block scales stay within the scale dtype's range (NVFP4 calibration convention).
     nk_f32_t to_tensor_scale_f32 = 1.0f;
-    int to_has_tensor_scale = (!to_plain && to_tensor_scale != NULL && to_format->tensor_scale_dtype == nk_f32_k);
+    int to_has_tensor_scale = (!to_plain && to_tensor_scale != NK_NULL && to_format->tensor_scale_dtype == nk_f32_k);
     if (to_has_tensor_scale) {
         to_tensor_scale_f32 = to_tensor_scale->f32;
         if (to_tensor_scale_f32 == 0.0f) {

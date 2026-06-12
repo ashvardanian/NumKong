@@ -1087,16 +1087,30 @@ def test_ml_dtypes_array_to_tensor(ml_dtype, nk_name):
 @pytest.mark.skipif(not ml_dtypes_available, reason="ml_dtypes not installed")
 @pytest.mark.parametrize(
     "ml_dtype",
-    ["float8_e4m3fnuz", "float8_e5m2fnuz", "float8_e4m3b11fnuz", "float8_e8m0fnu"],
+    ["float8_e4m3fnuz", "float8_e5m2fnuz", "float8_e4m3b11fnuz"],
 )
 def test_ml_dtypes_incompatible_rejected(ml_dtype):
-    """Verify that fnuz/b11fnuz/e8m0fnu types are rejected, not silently misinterpreted."""
+    """Verify that fnuz/b11fnuz types (different bias/NaN conventions) are rejected, not misinterpreted."""
     dt = getattr(ml_dtypes, ml_dtype, None)
     if dt is None:
         pytest.skip(f"ml_dtypes.{ml_dtype} not available in this version")
     a = np.array([0.5], dtype=dt)
     with pytest.raises((TypeError, ValueError)):
         nk.Tensor(a)
+
+
+@pytest.mark.skipif(not ml_dtypes_available, reason="ml_dtypes is not installed")
+def test_ml_dtypes_e8m0_supported():
+    """ml_dtypes float8_e8m0fnu is the OCP UE8M0 scale format, now a first-class NumKong dtype
+    (added with block scaling) — it imports as float8_e8m0 and round-trips its power-of-two values."""
+    dt = getattr(ml_dtypes, "float8_e8m0fnu", None)
+    if dt is None:
+        pytest.skip("ml_dtypes.float8_e8m0fnu not available in this version")
+    a = np.array([1.0, 2.0, 4.0, 0.5], dtype=dt)
+    t = nk.Tensor(a)
+    assert t.dtype == "float8_e8m0"
+    back = np.asarray(t.astype("float32")).reshape(-1)
+    np.testing.assert_array_equal(back, a.astype(np.float32))
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")

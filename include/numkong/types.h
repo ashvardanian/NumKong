@@ -875,6 +875,16 @@ typedef nk_f64_t nk_fmax_t;
 
 #define NK_SIZE_MAX ((nk_size_t) - 1)
 
+/**
+ *  @brief `NK_NULL`, analogous to `NULL`, so headers need not pull in `<stddef.h>`.
+ *         `__null` gives better null-pointer diagnostics where the compiler provides it.
+ */
+#ifdef __GNUG__
+#define NK_NULL __null
+#else
+#define NK_NULL ((void *)0)
+#endif
+
 #define NK_F64_MAX 1.7976931348623157e+308
 #define NK_F64_MIN (-1.7976931348623157e+308)
 #define NK_F32_MAX 3.402823466e+38f

@@ -542,7 +542,7 @@ NK_PUBLIC int nk_configure_thread_arm64_(nk_capability_t capabilities) {
     nk_unused_(capabilities);
     size_t sysctl_size = sizeof(unsigned);
     unsigned has_ebf16 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_EBF16", &has_ebf16, &sysctl_size, NULL, 0) != 0) has_ebf16 = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_EBF16", &has_ebf16, &sysctl_size, NK_NULL, 0) != 0) has_ebf16 = 0;
     if (has_ebf16) fpcr_desired |= (1UL << 13);
 
 #elif defined(NK_DEFINED_LINUX_) || defined(NK_DEFINED_FREEBSD_)
@@ -577,17 +577,18 @@ NK_PUBLIC nk_capability_t nk_capabilities_arm64_(void) {
     unsigned supports_neon = 0, supports_fp16 = 0, supports_fhm = 0, supports_bf16 = 0, supports_i8mm = 0;
     unsigned supports_sme = 0, supports_sme2 = 0, supports_smef64 = 0, supports_smehalf = 0, supports_sme2p1 = 0,
              supports_smebi32 = 0;
-    if (sysctlbyname("hw.optional.neon", &supports_neon, &size, NULL, 0) != 0) supports_neon = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_FP16", &supports_fp16, &size, NULL, 0) != 0) supports_fp16 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_FHM", &supports_fhm, &size, NULL, 0) != 0) supports_fhm = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_BF16", &supports_bf16, &size, NULL, 0) != 0) supports_bf16 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_I8MM", &supports_i8mm, &size, NULL, 0) != 0) supports_i8mm = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME", &supports_sme, &size, NULL, 0) != 0) supports_sme = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME2", &supports_sme2, &size, NULL, 0) != 0) supports_sme2 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME_F64F64", &supports_smef64, &size, NULL, 0) != 0) supports_smef64 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME_F16F16", &supports_smehalf, &size, NULL, 0) != 0) supports_smehalf = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME2p1", &supports_sme2p1, &size, NULL, 0) != 0) supports_sme2p1 = 0;
-    if (sysctlbyname("hw.optional.arm.SME_BI32I32", &supports_smebi32, &size, NULL, 0) != 0) supports_smebi32 = 0;
+    if (sysctlbyname("hw.optional.neon", &supports_neon, &size, NK_NULL, 0) != 0) supports_neon = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_FP16", &supports_fp16, &size, NK_NULL, 0) != 0) supports_fp16 = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_FHM", &supports_fhm, &size, NK_NULL, 0) != 0) supports_fhm = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_BF16", &supports_bf16, &size, NK_NULL, 0) != 0) supports_bf16 = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_I8MM", &supports_i8mm, &size, NK_NULL, 0) != 0) supports_i8mm = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_SME", &supports_sme, &size, NK_NULL, 0) != 0) supports_sme = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_SME2", &supports_sme2, &size, NK_NULL, 0) != 0) supports_sme2 = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_SME_F64F64", &supports_smef64, &size, NK_NULL, 0) != 0) supports_smef64 = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_SME_F16F16", &supports_smehalf, &size, NK_NULL, 0) != 0)
+        supports_smehalf = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_SME2p1", &supports_sme2p1, &size, NK_NULL, 0) != 0) supports_sme2p1 = 0;
+    if (sysctlbyname("hw.optional.arm.SME_BI32I32", &supports_smebi32, &size, NK_NULL, 0) != 0) supports_smebi32 = 0;
 
     return (nk_capability_t)((nk_cap_neon_k * (supports_neon)) |
                              (nk_cap_neonhalf_k * (supports_neon && supports_fp16)) |
@@ -614,7 +615,7 @@ NK_PUBLIC nk_capability_t nk_capabilities_arm64_(void) {
             __asm__ __volatile__(".inst 0xD5380000" : "=r"(midr_value)); // MRS x0, MIDR_EL1
             mrs_works = 1;
         }
-        sigaction(SIGILL, &action_old, NULL);
+        sigaction(SIGILL, &action_old, NK_NULL);
     }
 
     if (!mrs_works) return (nk_capability_t)(nk_cap_neon_k | nk_cap_serial_k);

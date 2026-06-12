@@ -1001,9 +1001,9 @@ NK_INTERNAL nk_f32_t nk_block_amax_f32_skylake_(nk_f32_t const *block, nk_size_t
 /** @brief Skylake-optimised block-scaled cast. Uses AVX-512 amax + broadcast reciprocal multiply
  *  around the serial element codec hub, which vectorises the dominant scale-derivation cost for
  *  MXFP8 / MXFP6 / MXFP4 / MXINT8 / NVFP4 without duplicating per-format packing logic. */
-NK_PUBLIC void nk_cast_block_scaled_skylake(                                                             //
+NK_PUBLIC void nk_cast_block_scaled_skylake(                                                                   //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                         //
+    nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count) {
 
@@ -1020,16 +1020,17 @@ NK_PUBLIC void nk_cast_block_scaled_skylake(                                    
     nk_size_t chunk = from_block > to_block ? from_block : to_block;
 
     nk_f32_t from_tensor_scale_f32 = 1.0f;
-    if (from_tensor_scale != NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k) from_tensor_scale_f32 = from_tensor_scale->f32;
+    if (from_tensor_scale != NK_NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k)
+        from_tensor_scale_f32 = from_tensor_scale->f32;
 
     nk_f32_t to_tensor_scale_f32 = 1.0f;
-    int to_has_tensor_scale = (!to_plain && to_tensor_scale != NULL && to_format->tensor_scale_dtype == nk_f32_k);
+    int to_has_tensor_scale = (!to_plain && to_tensor_scale != NK_NULL && to_format->tensor_scale_dtype == nk_f32_k);
     if (to_has_tensor_scale) {
         to_tensor_scale_f32 = to_tensor_scale->f32;
         if (to_tensor_scale_f32 == 0.0f) {
             // Fall back to serial for auto-derive (needs a full tensor scan; rare calibration path).
-            nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales, to_tensor_scale,
-                                        to_format, count);
+            nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales,
+                                        to_tensor_scale, to_format, count);
             return;
         }
     }
@@ -1102,7 +1103,8 @@ NK_PUBLIC void nk_cast_block_scaled_skylake(                                    
                 /* Saturate to element_max: finite inputs must not overflow to +/-inf (E5M2 has inf; OCP SAT). */
                 for (nk_size_t saturate_index = 0; saturate_index < valid; ++saturate_index) {
                     if (encoded_scratch[saturate_index] > element_max) encoded_scratch[saturate_index] = element_max;
-                    else if (encoded_scratch[saturate_index] < -element_max) encoded_scratch[saturate_index] = -element_max;
+                    else if (encoded_scratch[saturate_index] < -element_max)
+                        encoded_scratch[saturate_index] = -element_max;
                 }
                 nk_cast_skylake(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype);
             }
