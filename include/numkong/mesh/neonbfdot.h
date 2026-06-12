@@ -559,7 +559,7 @@ NK_PUBLIC void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b,
         optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
         optimal_rotation[8] = 1;
         trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
-        c = centered_norm_squared_a > 0.0f ? trace_rotation_covariance / centered_norm_squared_a : 0.0f;
+        c = trace_rotation_covariance / centered_norm_squared_a;
     }
     else {
         nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
@@ -581,7 +581,7 @@ NK_PUBLIC void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b,
         nk_f32_t rotation_det = nk_det3x3_f32_(optimal_rotation);
         nk_f32_t sign_det = rotation_det < 0 ? -1.0f : 1.0f;
         nk_f32_t trace_scaled_s = svd_diagonal[0] + svd_diagonal[4] + sign_det * svd_diagonal[8];
-        c = centered_norm_squared_a > 0.0f ? trace_scaled_s / centered_norm_squared_a : 0.0f;
+        c = trace_scaled_s / centered_norm_squared_a;
 
         if (rotation_det < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
