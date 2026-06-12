@@ -833,6 +833,11 @@ tensor_type_ tensor_slice_suffix_(tensor_type_ input, all_t, rest_types_... rest
     auto first_row = input.slice_leading(static_cast<size_type>(0));
     auto inner = tensor_slice_suffix_(first_row, rest...);
 
+    // A null inner means `rest...` over-sliced the row to an empty tensor, so the whole `all`
+    // slice is degenerate. Returning early also avoids `inner.byte_data() - first_row.byte_data()`
+    // below, which is undefined behavior when one operand is a null pointer.
+    if (inner.byte_data() == nullptr) return {};
+
     // Build the output shape: leading dimension + inner dimensions.
     shape_type result_shape;
     result_shape.rank = 1 + inner.rank();
