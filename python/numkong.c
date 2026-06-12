@@ -746,6 +746,11 @@ static int nk_get_buffer_via_array_interface(PyObject *obj, Py_buffer *buffer, n
             Py_DECREF(iface);
             return 0;
         }
+        if (backing->shape[i] < 0) {
+            Py_DECREF(iface);
+            PyErr_Format(PyExc_ValueError, "Negative dimension %zd in __array_interface__['shape']", backing->shape[i]);
+            return 0;
+        }
     }
 
     // Resolve dtype: try obj.dtype.name first, then dict["typestr"].
@@ -798,11 +803,16 @@ static int nk_get_buffer_via_array_interface(PyObject *obj, Py_buffer *buffer, n
         }
     }
     else {
-        // C-contiguous: compute strides from shape x itemsize.
-        Py_ssize_t stride = itemsize;
+        // C-contiguous: compute strides from shape x itemsize. Accumulate in nk_size_t with
+        // overflow detection so a hostile shape cannot wrap the byte stride into the buffer.
+        nk_size_t stride = (nk_size_t)itemsize;
         for (Py_ssize_t i = rank - 1; i >= 0; i--) {
-            backing->strides[i] = stride;
-            stride *= backing->shape[i];
+            backing->strides[i] = (Py_ssize_t)stride;
+            if (!nk_size_mul_checked_(stride, (nk_size_t)backing->shape[i], &stride)) {
+                Py_DECREF(iface);
+                PyErr_SetString(PyExc_OverflowError, "tensor stride overflows size_t");
+                return 0;
+            }
         }
     }
     Py_DECREF(iface);
@@ -813,8 +823,18 @@ static int nk_get_buffer_via_array_interface(PyObject *obj, Py_buffer *buffer, n
     buffer->itemsize = itemsize;
     buffer->format = (char *)info->pybuffer_typestr;
     buffer->ndim = (int)rank;
-    buffer->len = itemsize;
-    for (Py_ssize_t i = 0; i < rank; i++) buffer->len *= backing->shape[i];
+    nk_size_t total_bytes = (nk_size_t)itemsize;
+    for (Py_ssize_t i = 0; i < rank; i++) {
+        if (!nk_size_mul_checked_(total_bytes, (nk_size_t)backing->shape[i], &total_bytes)) {
+            PyErr_SetString(PyExc_OverflowError, "tensor byte length overflows size_t");
+            return 0;
+        }
+    }
+    if (total_bytes > (nk_size_t)PY_SSIZE_T_MAX) {
+        PyErr_SetString(PyExc_OverflowError, "tensor byte length overflows Py_ssize_t");
+        return 0;
+    }
+    buffer->len = (Py_ssize_t)total_bytes;
     buffer->shape = backing->shape;
     buffer->strides = backing->strides;
     buffer->obj = NULL; // Makes PyBuffer_Release a no-op.

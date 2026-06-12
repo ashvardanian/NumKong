@@ -632,6 +632,18 @@ PyObject *api_from_dlpack(PyObject *self, PyObject *obj) {
         PyErr_SetString(PyExc_ValueError, "DLPack tensor has a NULL data pointer with a non-zero element count");
         goto fail;
     }
+    // Reject a producer element-stride whose byte stride (stride x item_size) would overflow Py_ssize_t.
+    // Strides may be legitimately negative (reversed axes), so the check is on the magnitude.
+    if (dl_tensor->strides && item_size != 0) {
+        for (int axis = 0; axis < dl_tensor->ndim; ++axis) {
+            int64_t const element_stride = dl_tensor->strides[axis];
+            uint64_t const stride_magnitude = element_stride < 0 ? -(uint64_t)element_stride : (uint64_t)element_stride;
+            if (stride_magnitude > (uint64_t)PY_SSIZE_T_MAX / item_size) {
+                PyErr_Format(PyExc_ValueError, "DLPack tensor byte stride overflows Py_ssize_t on axis %d", axis);
+                goto fail;
+            }
+        }
+    }
 
     // Translate the capsule into a NumKong view. The owner object holds the
     // DLManagedTensor(Versioned) and invokes its deleter on finalization.
