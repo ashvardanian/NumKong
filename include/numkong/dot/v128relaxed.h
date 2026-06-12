@@ -1268,15 +1268,15 @@ NK_INTERNAL void nk_dot_u1x128_finalize_v128relaxed(                            
     nk_unused_(total_dimensions);
     v128_t a_u32x4 = state_a->dot_count_u32x4, b_u32x4 = state_b->dot_count_u32x4;
     v128_t c_u32x4 = state_c->dot_count_u32x4, d_u32x4 = state_d->dot_count_u32x4;
-    // Step 1: interleave pairs
+    // interleave pairs
     v128_t ab_low_u32x4 = wasm_i32x4_shuffle(a_u32x4, b_u32x4, 0, 4, 1, 5);  // a0 b0 a1 b1
     v128_t ab_high_u32x4 = wasm_i32x4_shuffle(a_u32x4, b_u32x4, 2, 6, 3, 7); // a2 b2 a3 b3
     v128_t cd_low_u32x4 = wasm_i32x4_shuffle(c_u32x4, d_u32x4, 0, 4, 1, 5);  // c0 d0 c1 d1
     v128_t cd_high_u32x4 = wasm_i32x4_shuffle(c_u32x4, d_u32x4, 2, 6, 3, 7); // c2 d2 c3 d3
-    // Step 2: pairwise add
+    // pairwise add
     v128_t sum_02_u32x4 = wasm_i32x4_add(ab_low_u32x4, ab_high_u32x4); // a02 b02 a13 b13
     v128_t sum_13_u32x4 = wasm_i32x4_add(cd_low_u32x4, cd_high_u32x4); // c02 d02 c13 d13
-    // Step 3: final interleave
+    // final interleave
     v128_t even_u32x4 = wasm_i32x4_shuffle(sum_02_u32x4, sum_13_u32x4, 0, 1, 4, 5);
     v128_t odd_u32x4 = wasm_i32x4_shuffle(sum_02_u32x4, sum_13_u32x4, 2, 3, 6, 7);
     result->v128 = wasm_i32x4_add(even_u32x4, odd_u32x4); // [sum_a, sum_b, sum_c, sum_d]

@@ -1,6 +1,4 @@
-# -----------------------------
-# Options effecting formatting.
-# -----------------------------
+# Options affecting formatting.
 with section("format"):
     # How wide to allow formatted cmake files
     line_width = 120
@@ -29,9 +27,7 @@ with section("format"):
     # one-per-line when word-wrapping exceeds 2 lines)
     max_lines_hwrap = 8
 
-# ----------------------------------
 # Options affecting comment handling.
-# ----------------------------------
 with section("markup"):
     # Do not reflow comment text
     enable_markup = False

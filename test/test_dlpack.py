@@ -31,7 +31,6 @@ import pytest
 
 import numkong as nk
 
-
 # region Helpers
 
 
@@ -50,39 +49,71 @@ _PLAIN_NUMERIC_DTYPES = _PLAIN_FLOAT_DTYPES + _INTEGER_DTYPES
 _NUMPY_DTYPES = [(name, name) for name in _PLAIN_NUMERIC_DTYPES]
 
 # PyTorch ships native bf16 + float8_e4m3fn + float8_e5m2 since 2.1+; full coverage here is the marquee case.
-_TORCH_DTYPES = (
-    [(name, name) for name in _PLAIN_NUMERIC_DTYPES]
-    + [("bfloat16", "bfloat16"), ("float8_e4m3fn", "e4m3"), ("float8_e5m2", "e5m2")]
-)
+_TORCH_DTYPES = [(name, name) for name in _PLAIN_NUMERIC_DTYPES] + [
+    ("bfloat16", "bfloat16"),
+    ("float8_e4m3fn", "e4m3"),
+    ("float8_e5m2", "e5m2"),
+]
 
 # JAX has native bf16 (always) and the integer / float subset; no fp8/fp6 yet.
 _JAX_DTYPES = [
-    ("float16", "float16"), ("float32", "float32"), ("float64", "float64"),
-    ("int8", "int8"), ("int16", "int16"), ("int32", "int32"), ("int64", "int64"),
-    ("uint8", "uint8"), ("uint16", "uint16"), ("uint32", "uint32"), ("uint64", "uint64"),
+    ("float16", "float16"),
+    ("float32", "float32"),
+    ("float64", "float64"),
+    ("int8", "int8"),
+    ("int16", "int16"),
+    ("int32", "int32"),
+    ("int64", "int64"),
+    ("uint8", "uint8"),
+    ("uint16", "uint16"),
+    ("uint32", "uint32"),
+    ("uint64", "uint64"),
     ("bfloat16", "bfloat16"),
 ]
 
 # TensorFlow: native bf16 + float16/32/64 + integers. No public fp8 dtype that maps cleanly via DLPack today.
 _TF_DTYPES = [
-    ("float16", "float16"), ("float32", "float32"), ("float64", "float64"),
-    ("int8", "int8"), ("int16", "int16"), ("int32", "int32"), ("int64", "int64"),
-    ("uint8", "uint8"), ("uint16", "uint16"), ("uint32", "uint32"), ("uint64", "uint64"),
+    ("float16", "float16"),
+    ("float32", "float32"),
+    ("float64", "float64"),
+    ("int8", "int8"),
+    ("int16", "int16"),
+    ("int32", "int32"),
+    ("int64", "int64"),
+    ("uint8", "uint8"),
+    ("uint16", "uint16"),
+    ("uint32", "uint32"),
+    ("uint64", "uint64"),
     ("bfloat16", "bfloat16"),
 ]
 
 # PyArrow exposes float / signed-int / unsigned-int builders by name. No bf16/fp8/fp6.
 _PYARROW_DTYPES = [
-    ("float16", "float16"), ("float32", "float32"), ("float64", "float64"),
-    ("int8", "int8"), ("int16", "int16"), ("int32", "int32"), ("int64", "int64"),
-    ("uint8", "uint8"), ("uint16", "uint16"), ("uint32", "uint32"), ("uint64", "uint64"),
+    ("float16", "float16"),
+    ("float32", "float32"),
+    ("float64", "float64"),
+    ("int8", "int8"),
+    ("int16", "int16"),
+    ("int32", "int32"),
+    ("int64", "int64"),
+    ("uint8", "uint8"),
+    ("uint16", "uint16"),
+    ("uint32", "uint32"),
+    ("uint64", "uint64"),
 ]
 
 # MLX ships native bf16 on Apple Silicon, plus float16/32/integers. No fp8 yet (mlx.core 0.x).
 _MLX_DTYPES = [
-    ("float16", "float16"), ("float32", "float32"),
-    ("int8", "int8"), ("int16", "int16"), ("int32", "int32"), ("int64", "int64"),
-    ("uint8", "uint8"), ("uint16", "uint16"), ("uint32", "uint32"), ("uint64", "uint64"),
+    ("float16", "float16"),
+    ("float32", "float32"),
+    ("int8", "int8"),
+    ("int16", "int16"),
+    ("int32", "int32"),
+    ("int64", "int64"),
+    ("uint8", "uint8"),
+    ("uint16", "uint16"),
+    ("uint32", "uint32"),
+    ("uint64", "uint64"),
     ("bfloat16", "bfloat16"),
 ]
 
@@ -224,9 +255,7 @@ def test_jax_import(jax_dtype_attr, nk_dtype):
     jax_dtype = getattr(jnp, jax_dtype_attr)
     # `jnp.zeros` works for every supported dtype incl. bf16 / int / uint.
     src = jnp.zeros(20, dtype=jax_dtype)
-    nk_tensor = nk.from_dlpack(src)
-    assert nk_tensor.shape == (20,)
-    assert nk_tensor.dtype == nk_dtype
+    _assert_round_trip_through(src, nk_dtype, (20,))
 
 
 # endregion JAX round-trip
@@ -260,9 +289,7 @@ def test_tensorflow_import(tf_dtype_attr, nk_dtype):
     if tf_dtype_attr == "bfloat16":
         tf_tensor = tf.cast(tf_tensor, tf.bfloat16)
     capsule = tf.experimental.dlpack.to_dlpack(tf_tensor)
-    nk_tensor = nk.from_dlpack(capsule)
-    assert nk_tensor.shape == (20,)
-    assert nk_tensor.dtype == nk_dtype
+    _assert_round_trip_through(capsule, nk_dtype, (20,))
 
 
 # endregion TensorFlow round-trip
@@ -345,9 +372,7 @@ def test_mlx_import(mlx_dtype_attr, nk_dtype):
     mx = pytest.importorskip("mlx.core")
     mlx_dtype = getattr(mx, mlx_dtype_attr)
     src = mx.zeros((4, 5), dtype=mlx_dtype)
-    nk_tensor = nk.from_dlpack(src)
-    assert nk_tensor.shape == (4, 5)
-    assert nk_tensor.dtype == nk_dtype
+    _assert_round_trip_through(src, nk_dtype, (4, 5))
 
 
 @pytest.mark.parametrize("mlx_dtype_attr, nk_dtype", _MLX_DTYPES)

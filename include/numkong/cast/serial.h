@@ -2012,7 +2012,7 @@ NK_INTERNAL void nk_scalar_buffers_to_f64c_(                           //
     case nk_i4_k: {
         nk_i4x2_t const *pairs = (nk_i4x2_t const *)from_ptr;
         nk_i8_t unpacked[2];
-        for (i = 0; i < 4; ++i) {
+        for (i = 0; i < nk_size_divide_round_up_(from_count, 2); ++i) {
             nk_i4x2_to_i8x2_serial(&pairs[i], unpacked);
             to_buffers[i * 2].f64c.real = unpacked[0], to_buffers[i * 2].f64c.imag = 0;
             to_buffers[i * 2 + 1].f64c.real = unpacked[1], to_buffers[i * 2 + 1].f64c.imag = 0;
@@ -2022,7 +2022,7 @@ NK_INTERNAL void nk_scalar_buffers_to_f64c_(                           //
     case nk_u4_k: {
         nk_u4x2_t const *pairs = (nk_u4x2_t const *)from_ptr;
         nk_u8_t unpacked[2];
-        for (i = 0; i < 4; ++i) {
+        for (i = 0; i < nk_size_divide_round_up_(from_count, 2); ++i) {
             nk_u4x2_to_u8x2_serial(&pairs[i], unpacked);
             to_buffers[i * 2].f64c.real = unpacked[0], to_buffers[i * 2].f64c.imag = 0;
             to_buffers[i * 2 + 1].f64c.real = unpacked[1], to_buffers[i * 2 + 1].f64c.imag = 0;
@@ -2032,7 +2032,7 @@ NK_INTERNAL void nk_scalar_buffers_to_f64c_(                           //
     case nk_e2m1_k: {
         nk_e2m1x2_t const *pairs = (nk_e2m1x2_t const *)from_ptr;
         nk_f32_t unpacked[2];
-        for (i = 0; i < 4; ++i) {
+        for (i = 0; i < nk_size_divide_round_up_(from_count, 2); ++i) {
             nk_e2m1x2_to_f32x2_serial(&pairs[i], unpacked);
             to_buffers[i * 2].f64c.real = (nk_f64_t)unpacked[0], to_buffers[i * 2].f64c.imag = 0;
             to_buffers[i * 2 + 1].f64c.real = (nk_f64_t)unpacked[1], to_buffers[i * 2 + 1].f64c.imag = 0;
@@ -2149,8 +2149,9 @@ NK_INTERNAL void nk_scalar_buffers_from_f64c_(              //
     // Sub-byte: i4 - 8 nibbles to 4 bytes, high nibble = even index
     case nk_i4_k: {
         nk_u8_t *p = (nk_u8_t *)to_ptr;
-        for (i = 0; i < 4; ++i) {
-            nk_f64_t high = from_buffers[i * 2].f64c.real, low = from_buffers[i * 2 + 1].f64c.real;
+        for (i = 0; i < nk_size_divide_round_up_(to_count, 2); ++i) {
+            nk_f64_t high = from_buffers[i * 2].f64c.real;
+            nk_f64_t low = (i * 2 + 1 < to_count) ? from_buffers[i * 2 + 1].f64c.real : 0.0;
             high = high > 7 ? 7 : (high < -8 ? -8 : high);
             low = low > 7 ? 7 : (low < -8 ? -8 : low);
             p[i] = (nk_u8_t)((((nk_i8_t)high & 0x0F) << 4) | ((nk_i8_t)low & 0x0F));
@@ -2159,8 +2160,9 @@ NK_INTERNAL void nk_scalar_buffers_from_f64c_(              //
     // Sub-byte: u4 - 8 nibbles to 4 bytes, high nibble = even index
     case nk_u4_k: {
         nk_u8_t *p = (nk_u8_t *)to_ptr;
-        for (i = 0; i < 4; ++i) {
-            nk_f64_t high = from_buffers[i * 2].f64c.real, low = from_buffers[i * 2 + 1].f64c.real;
+        for (i = 0; i < nk_size_divide_round_up_(to_count, 2); ++i) {
+            nk_f64_t high = from_buffers[i * 2].f64c.real;
+            nk_f64_t low = (i * 2 + 1 < to_count) ? from_buffers[i * 2 + 1].f64c.real : 0.0;
             high = high > 15 ? 15 : (high < 0 ? 0 : high);
             low = low > 15 ? 15 : (low < 0 ? 0 : low);
             p[i] = (nk_u8_t)(((nk_u8_t)high << 4) | (nk_u8_t)low);
@@ -2169,10 +2171,10 @@ NK_INTERNAL void nk_scalar_buffers_from_f64c_(              //
     // Sub-byte: e2m1 - 8 nibbles to 4 bytes, high nibble = even index
     case nk_e2m1_k: {
         nk_e2m1x2_t *pairs = (nk_e2m1x2_t *)to_ptr;
-        for (i = 0; i < 4; ++i) {
+        for (i = 0; i < nk_size_divide_round_up_(to_count, 2); ++i) {
             nk_f32_t paired[2];
             paired[0] = (nk_f32_t)from_buffers[i * 2].f64c.real;
-            paired[1] = (nk_f32_t)from_buffers[i * 2 + 1].f64c.real;
+            paired[1] = (i * 2 + 1 < to_count) ? (nk_f32_t)from_buffers[i * 2 + 1].f64c.real : 0.0f;
             nk_f32x2_to_e2m1x2_serial(paired, &pairs[i]);
         }
     } break;
@@ -2215,7 +2217,7 @@ NK_INTERNAL void nk_scalar_buffers_to_i64_(                            //
     // Sub-byte: i4 - 4 bytes to 8 nibbles, sign-extend each nibble
     case nk_i4_k: {
         nk_i4x2_t const *pairs = (nk_i4x2_t const *)from_ptr;
-        for (i = 0; i < 4; ++i) {
+        for (i = 0; i < nk_size_divide_round_up_(from_count, 2); ++i) {
             nk_i8_t unpacked[2];
             nk_i4x2_to_i8x2_serial(&pairs[i], unpacked);
             to_buffers[i * 2].i64 = unpacked[0];
@@ -2240,7 +2242,7 @@ NK_INTERNAL void nk_scalar_buffers_to_i64_(                            //
     } break;
     case nk_u4_k: {
         nk_u8_t const *p = (nk_u8_t const *)from_ptr;
-        for (i = 0; i < 4; ++i) {
+        for (i = 0; i < nk_size_divide_round_up_(from_count, 2); ++i) {
             to_buffers[i * 2].i64 = (nk_i64_t)(p[i] >> 4);
             to_buffers[i * 2 + 1].i64 = (nk_i64_t)(p[i] & 0xF);
         }
@@ -2294,8 +2296,9 @@ NK_INTERNAL void nk_scalar_buffers_from_i64_(                //
     // Sub-byte: i4 - 8 nibbles to 4 bytes, clamp [-8,7]
     case nk_i4_k: {
         nk_i4x2_t *p = (nk_i4x2_t *)to_ptr;
-        for (i = 0; i < 4; ++i) {
-            nk_i64_t high = from_buffers[i * 2].i64, low = from_buffers[i * 2 + 1].i64;
+        for (i = 0; i < nk_size_divide_round_up_(to_count, 2); ++i) {
+            nk_i64_t high = from_buffers[i * 2].i64;
+            nk_i64_t low = (i * 2 + 1 < to_count) ? from_buffers[i * 2 + 1].i64 : 0;
             high = high > 7 ? 7 : (high < -8 ? -8 : high);
             low = low > 7 ? 7 : (low < -8 ? -8 : low);
             p[i] = (nk_u8_t)(((high & 0xF) << 4) | (low & 0xF));
@@ -2332,7 +2335,7 @@ NK_INTERNAL void nk_scalar_buffers_to_u64_(                            //
     // Sub-byte: u4 - 4 bytes to 8 nibbles, zero-extend
     case nk_u4_k: {
         nk_u4x2_t const *pairs = (nk_u4x2_t const *)from_ptr;
-        for (i = 0; i < 4; ++i) {
+        for (i = 0; i < nk_size_divide_round_up_(from_count, 2); ++i) {
             nk_u8_t unpacked[2];
             nk_u4x2_to_u8x2_serial(&pairs[i], unpacked);
             to_buffers[i * 2].u64 = unpacked[0];
@@ -2393,8 +2396,9 @@ NK_INTERNAL void nk_scalar_buffers_from_u64_(                //
     // Sub-byte: u4 - 8 nibbles to 4 bytes, clamp [0,15]
     case nk_u4_k: {
         nk_u4x2_t *p = (nk_u4x2_t *)to_ptr;
-        for (i = 0; i < 4; ++i) {
-            nk_u64_t high = from_buffers[i * 2].u64, low = from_buffers[i * 2 + 1].u64;
+        for (i = 0; i < nk_size_divide_round_up_(to_count, 2); ++i) {
+            nk_u64_t high = from_buffers[i * 2].u64;
+            nk_u64_t low = (i * 2 + 1 < to_count) ? from_buffers[i * 2 + 1].u64 : 0;
             high = high > 15 ? 15 : high;
             low = low > 15 ? 15 : low;
             p[i] = (nk_u8_t)((high << 4) | low);
@@ -2861,7 +2865,7 @@ NK_PUBLIC void nk_cast_block_scaled_serial(                                     
     for (nk_size_t chunk_start = 0; chunk_start < count; chunk_start += chunk) {
         nk_size_t chunk_count = (chunk_start + chunk <= count) ? chunk : (count - chunk_start);
 
-        // --- Decode: source chunk → scratch[0..chunk_count) as f32 ---
+        // Decode the source chunk into scratch[0..chunk_count) as f32.
         if (from_plain) {
             void const *src = (nk_u8_t const *)from + (chunk_start * from_bits_per_element / NK_BITS_PER_BYTE);
             nk_cast_serial(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k);
@@ -2880,7 +2884,7 @@ NK_PUBLIC void nk_cast_block_scaled_serial(                                     
             }
         }
 
-        // --- Encode: scratch[0..chunk_count) as f32 → destination chunk ---
+        // Encode scratch[0..chunk_count) as f32 into the destination chunk.
         if (to_plain) {
             void *dst = (nk_u8_t *)to + (chunk_start * to_bits_per_element / NK_BITS_PER_BYTE);
             nk_cast_serial(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype);

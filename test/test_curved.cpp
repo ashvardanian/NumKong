@@ -17,14 +17,14 @@
  */
 template <typename scalar_type_>
 void make_psd(scalar_type_ *data, nk_size_t n) {
-    // Step 1: Symmetrize — m[i][j] = m[j][i] = average of original pair
+    // Symmetrize — m[i][j] = m[j][i] = average of original pair
     for (nk_size_t i = 0; i < n; ++i)
         for (nk_size_t j = i + 1; j < n; ++j) {
             double avg = ((double)data[i * n + j] + (double)data[j * n + i]) * 0.5;
             data[i * n + j] = scalar_type_(avg);
             data[j * n + i] = scalar_type_(avg);
         }
-    // Step 2: Strict diagonal dominance — set m[i][i] > sum_{j!=i} |m[i][j]|
+    // Strict diagonal dominance — set m[i][i] > sum_{j!=i} |m[i][j]|
     for (nk_size_t i = 0; i < n; ++i) {
         double row_sum = 0;
         for (nk_size_t j = 0; j < n; ++j)

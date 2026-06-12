@@ -372,7 +372,7 @@ NK_INTERNAL void nk_dot_through_i32_finalize_loongsonasx_(                      
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_unused_(total_dimensions);
     // ILP-optimized 4-way horizontal reduction for i32 using LASX interleave
-    // Step 1: 8 → 4 for all 4 states (add high 128-bit lane to low lane)
+    // 8 → 4 for all 4 states (add high 128-bit lane to low lane)
     __m256i sum_a_i32x4 = __lasx_xvadd_w(state_a->sum_i32x8,
                                          __lasx_xvpermi_q(state_a->sum_i32x8, state_a->sum_i32x8, 0x11));
     __m256i sum_b_i32x4 = __lasx_xvadd_w(state_b->sum_i32x8,
@@ -381,7 +381,7 @@ NK_INTERNAL void nk_dot_through_i32_finalize_loongsonasx_(                      
                                          __lasx_xvpermi_q(state_c->sum_i32x8, state_c->sum_i32x8, 0x11));
     __m256i sum_d_i32x4 = __lasx_xvadd_w(state_d->sum_i32x8,
                                          __lasx_xvpermi_q(state_d->sum_i32x8, state_d->sum_i32x8, 0x11));
-    // Step 2: Transpose 4×4 matrix via interleave
+    // Transpose 4×4 matrix via interleave
     __m256i transpose_ab_low_i32x4 = __lasx_xvilvl_w(sum_b_i32x4, sum_a_i32x4);
     __m256i transpose_cd_low_i32x4 = __lasx_xvilvl_w(sum_d_i32x4, sum_c_i32x4);
     __m256i transpose_ab_high_i32x4 = __lasx_xvilvh_w(sum_b_i32x4, sum_a_i32x4);
@@ -390,7 +390,7 @@ NK_INTERNAL void nk_dot_through_i32_finalize_loongsonasx_(                      
     __m256i sum_lane1_i32x4 = __lasx_xvilvh_d(transpose_cd_low_i32x4, transpose_ab_low_i32x4);
     __m256i sum_lane2_i32x4 = __lasx_xvilvl_d(transpose_cd_high_i32x4, transpose_ab_high_i32x4);
     __m256i sum_lane3_i32x4 = __lasx_xvilvh_d(transpose_cd_high_i32x4, transpose_ab_high_i32x4);
-    // Step 3: Vertical sum
+    // Vertical sum
     __m256i sum_i32x4 = __lasx_xvadd_w(__lasx_xvadd_w(sum_lane0_i32x4, sum_lane1_i32x4),
                                        __lasx_xvadd_w(sum_lane2_i32x4, sum_lane3_i32x4));
     result->xmm = nk_lasx_castsi256_si128_(sum_i32x4);
@@ -495,7 +495,7 @@ NK_INTERNAL void nk_dot_through_f32_finalize_loongsonasx_(                      
     nk_dot_through_f32_state_loongsonasx_t_ const *state_c, nk_dot_through_f32_state_loongsonasx_t_ const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_unused_(total_dimensions);
-    // Step 1: 8 → 4 for all 4 states (add high 128-bit lane to low lane)
+    // 8 → 4 for all 4 states (add high 128-bit lane to low lane)
     __m256 sum_a_f32x4 = __lasx_xvfadd_s((__m256)state_a->sum_f32x8,
                                          (__m256)__lasx_xvpermi_q(state_a->sum_f32x8, state_a->sum_f32x8, 0x11));
     __m256 sum_b_f32x4 = __lasx_xvfadd_s((__m256)state_b->sum_f32x8,
@@ -504,7 +504,7 @@ NK_INTERNAL void nk_dot_through_f32_finalize_loongsonasx_(                      
                                          (__m256)__lasx_xvpermi_q(state_c->sum_f32x8, state_c->sum_f32x8, 0x11));
     __m256 sum_d_f32x4 = __lasx_xvfadd_s((__m256)state_d->sum_f32x8,
                                          (__m256)__lasx_xvpermi_q(state_d->sum_f32x8, state_d->sum_f32x8, 0x11));
-    // Step 2: Transpose 4×4 matrix via interleave (integer intrinsics, cast at boundaries)
+    // Transpose 4×4 matrix via interleave (integer intrinsics, cast at boundaries)
     __m256i transpose_ab_low_f32x4 = __lasx_xvilvl_w((__m256i)sum_b_f32x4, (__m256i)sum_a_f32x4);
     __m256i transpose_cd_low_f32x4 = __lasx_xvilvl_w((__m256i)sum_d_f32x4, (__m256i)sum_c_f32x4);
     __m256i transpose_ab_high_f32x4 = __lasx_xvilvh_w((__m256i)sum_b_f32x4, (__m256i)sum_a_f32x4);
@@ -513,7 +513,7 @@ NK_INTERNAL void nk_dot_through_f32_finalize_loongsonasx_(                      
     __m256i sum_lane1_f32x4 = __lasx_xvilvh_d(transpose_cd_low_f32x4, transpose_ab_low_f32x4);
     __m256i sum_lane2_f32x4 = __lasx_xvilvl_d(transpose_cd_high_f32x4, transpose_ab_high_f32x4);
     __m256i sum_lane3_f32x4 = __lasx_xvilvh_d(transpose_cd_high_f32x4, transpose_ab_high_f32x4);
-    // Step 3: Vertical sum
+    // Vertical sum
     __m256 sum_f32x4 = __lasx_xvfadd_s(__lasx_xvfadd_s((__m256)sum_lane0_f32x4, (__m256)sum_lane1_f32x4),
                                        __lasx_xvfadd_s((__m256)sum_lane2_f32x4, (__m256)sum_lane3_f32x4));
     result->xmm_ps = nk_lasx_castps256_ps128_(sum_f32x4);
@@ -637,7 +637,7 @@ NK_INTERNAL void nk_dot_u1x256_finalize_loongsonasx(                            
     nk_dot_u1x256_state_loongsonasx_t const *state_c, nk_dot_u1x256_state_loongsonasx_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_unused_(total_dimensions);
-    // Step 1: Fold 8→4 in 256-bit (add high 128-bit lane to low), extract low 128 bits
+    // Fold 8→4 in 256-bit (add high 128-bit lane to low), extract low 128 bits
     __m128i sum_a_u32x4 = nk_lasx_castsi256_si128_(__lasx_xvadd_w(
         state_a->dot_count_u32x8, __lasx_xvpermi_q(state_a->dot_count_u32x8, state_a->dot_count_u32x8, 0x11)));
     __m128i sum_b_u32x4 = nk_lasx_castsi256_si128_(__lasx_xvadd_w(
@@ -646,7 +646,7 @@ NK_INTERNAL void nk_dot_u1x256_finalize_loongsonasx(                            
         state_c->dot_count_u32x8, __lasx_xvpermi_q(state_c->dot_count_u32x8, state_c->dot_count_u32x8, 0x11)));
     __m128i sum_d_u32x4 = nk_lasx_castsi256_si128_(__lasx_xvadd_w(
         state_d->dot_count_u32x8, __lasx_xvpermi_q(state_d->dot_count_u32x8, state_d->dot_count_u32x8, 0x11)));
-    // Step 2: Transpose 4×4 in 128-bit via LSX interleave
+    // Transpose 4×4 in 128-bit via LSX interleave
     __m128i transpose_ab_low_u32x4 = __lsx_vilvl_w(sum_b_u32x4, sum_a_u32x4);
     __m128i transpose_cd_low_u32x4 = __lsx_vilvl_w(sum_d_u32x4, sum_c_u32x4);
     __m128i transpose_ab_high_u32x4 = __lsx_vilvh_w(sum_b_u32x4, sum_a_u32x4);
@@ -655,7 +655,7 @@ NK_INTERNAL void nk_dot_u1x256_finalize_loongsonasx(                            
     __m128i sum_lane1_u32x4 = __lsx_vilvh_d(transpose_cd_low_u32x4, transpose_ab_low_u32x4);
     __m128i sum_lane2_u32x4 = __lsx_vilvl_d(transpose_cd_high_u32x4, transpose_ab_high_u32x4);
     __m128i sum_lane3_u32x4 = __lsx_vilvh_d(transpose_cd_high_u32x4, transpose_ab_high_u32x4);
-    // Step 3: Vertical sum in 128-bit
+    // Vertical sum in 128-bit
     result->xmm = __lsx_vadd_w(__lsx_vadd_w(sum_lane0_u32x4, sum_lane1_u32x4),
                                __lsx_vadd_w(sum_lane2_u32x4, sum_lane3_u32x4));
 }

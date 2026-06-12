@@ -788,7 +788,7 @@ NK_PUBLIC void nk_attention_bf16_sapphireamx(nk_bf16_t const *q, void const *kv_
                 // Extract K block: Kᵀ[head_dim, valid_kv] using bulk extraction
                 nk_attention_extract_k_block_(k_packed, k_block, kv_h, kvb, valid_kv, head_dim, kv_len);
 
-                // Phase 1: Compute S = Q × Kᵀ using AVX-512 FMA
+                // Compute S = Q × Kᵀ using AVX-512 FMA
                 for (nk_size_t qi = 0; qi < valid_q; qi++) {
                     for (nk_size_t ki = 0; ki < valid_kv; ki++) {
                         __m512 sum_v_f32x16 = _mm512_setzero_ps();
@@ -819,7 +819,7 @@ NK_PUBLIC void nk_attention_bf16_sapphireamx(nk_bf16_t const *q, void const *kv_
                     for (nk_size_t ki = 0; ki < 16; ki++) { scores[qi * 16 + ki] = NK_F32_MIN; }
                 }
 
-                // Phase 2: Online softmax update
+                // Online softmax update
                 __m512 old_max_f32x16 = softmax_state.row_max_f32x16;
                 nk_attention_softmax_update_(&softmax_state, scores, scale, weights);
 
@@ -829,7 +829,7 @@ NK_PUBLIC void nk_attention_bf16_sapphireamx(nk_bf16_t const *q, void const *kv_
                 // Extract V block: V[valid_kv, head_dim] using bulk extraction
                 nk_attention_extract_v_block_(v_packed, v_block, kv_h, kvb, valid_kv, head_dim, kv_len);
 
-                // Phase 3: Compute O += P × V using AVX-512 FMA
+                // Compute O += P × V using AVX-512 FMA
                 for (nk_size_t qi = 0; qi < valid_q; qi++) {
                     nk_size_t d = 0;
                     // Vectorized loop over head_dim
@@ -931,7 +931,7 @@ NK_PUBLIC void nk_attention_bf16_amx_bc32_sapphireamx(nk_bf16_t const *q, void c
             for (nk_size_t kvb = 0; kvb < kv_len; kvb += Bc) {
                 nk_size_t valid_kv = (kvb + Bc <= kv_len) ? Bc : (kv_len - kvb);
 
-                // Phase 1: S = Q × Kᵀ using AMX
+                // S = Q × Kᵀ using AMX
                 // Need 2 K tiles per block (each K tile has 16 columns)
                 nk_size_t k_tile_idx0 = kvb / 16;        // First K tile
                 nk_size_t k_tile_idx1 = (kvb + 16) / 16; // Second K tile
@@ -1038,12 +1038,12 @@ NK_PUBLIC void nk_attention_bf16_amx_bc32_sapphireamx(nk_bf16_t const *q, void c
                     for (nk_size_t qi = 0; qi < 16; qi++) { _mm512_store_ps(&scores[qi * 32 + 16], neg_inf_f32x16); }
                 }
 
-                // Phase 2: online softmax (fast degree-4 exp)
+                // online softmax (fast degree-4 exp)
                 __m512 old_max_f32x16 = softmax_state.row_max_f32x16;
                 nk_attention_softmax_update_bc32_fast_(&softmax_state, scores, scale, weights);
                 nk_attention_rescale_output_(o_acc, head_dim_padded, old_max_f32x16, softmax_state.row_max_f32x16);
 
-                // Phase 3: O += P × V using AMX
+                // O += P × V using AMX
                 // Convert P[16, 32] from F32 to BF16 and pack as A-tile
                 for (nk_size_t qi = 0; qi < 16; qi++) {
                     for (nk_size_t ki = 0; ki < 32; ki += 16) {
@@ -1213,7 +1213,7 @@ NK_PUBLIC void nk_attention_bf16_amx_optimized_sapphireamx(nk_bf16_t const *q, v
                 nk_size_t k_tile_idx0 = kvb / 16;
                 nk_size_t k_tile_idx1 = (kvb + 16) / 16;
 
-                // Phase 1: S = Q × Kᵀ using pre-packed Q tiles
+                // S = Q × Kᵀ using pre-packed Q tiles
                 _tile_zero(0); // Score cols 0:16
                 _tile_zero(3); // Score cols 16:32
 
@@ -1263,13 +1263,13 @@ NK_PUBLIC void nk_attention_bf16_amx_optimized_sapphireamx(nk_bf16_t const *q, v
                     }
                 }
 
-                // Phase 2: online softmax (fast degree-4 exp)
+                // online softmax (fast degree-4 exp)
                 __m512 old_max_f32x16 = softmax_state.row_max_f32x16;
                 nk_attention_softmax_update_bc32_fast_(&softmax_state, &scores[0][0], scale, &weights[0][0]);
                 nk_attention_rescale_output_(&o_acc[0][0], head_dim_padded, old_max_f32x16,
                                              softmax_state.row_max_f32x16);
 
-                // Phase 3: O += P × V with hoisted P tile load
+                // O += P × V with hoisted P tile load
                 // Convert F32 weights to BF16 P tile (once per KV block)
                 for (nk_size_t qi = 0; qi < 16; qi++) {
                     __m512 p0_f32x16 = _mm512_load_ps(&weights[qi][0]);

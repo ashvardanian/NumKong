@@ -854,7 +854,9 @@ int parse_tensor(PyObject *tensor, Py_buffer *buffer, MatrixOrVectorView *parsed
 
     parsed->rank = buffer->ndim;
     if (buffer->ndim == 1) {
-        if (buffer->strides[0] > buffer->itemsize) {
+        // A multi-element vector must be exactly contiguous: a `!=` (not `>`) comparison also rejects
+        // negative or zero strides (e.g. `x[::-1]`), which a signed `>` check would let walk off the buffer.
+        if (buffer->shape[0] > 1 && buffer->strides[0] != buffer->itemsize) {
             PyErr_SetString(PyExc_ValueError, "Input vectors must be contiguous, check with `X.__array_interface__`");
             PyBuffer_Release(buffer);
             return 0;
@@ -864,7 +866,10 @@ int parse_tensor(PyObject *tensor, Py_buffer *buffer, MatrixOrVectorView *parsed
         parsed->row_stride = 0;
     }
     else if (buffer->ndim == 2) {
-        if (buffer->strides[1] > buffer->itemsize) {
+        // Inner axis must be contiguous; the row stride is walked forward, so it must be non-negative.
+        int const inner_non_contiguous = buffer->shape[1] > 1 && buffer->strides[1] != buffer->itemsize;
+        int const row_stride_negative = buffer->shape[0] > 1 && buffer->strides[0] < 0;
+        if (inner_non_contiguous || row_stride_negative) {
             PyErr_SetString(PyExc_ValueError, "Input vectors must be contiguous, check with `X.__array_interface__`");
             PyBuffer_Release(buffer);
             return 0;

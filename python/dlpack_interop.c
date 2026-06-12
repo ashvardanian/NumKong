@@ -270,8 +270,11 @@ static int nk_fill_dl_tensor(Tensor *tensor, DLTensor *out, nk_dlpack_export_ctx
     if (dl_dtype.bits == 0) {
         if (!versioned && (tensor->dtype == nk_e2m3_k || tensor->dtype == nk_e3m2_k || tensor->dtype == nk_e2m1_k)) {
             PyErr_SetString( //
-                PyExc_TypeError, "Sub-byte FP4/FP6 (e2m1/e2m3/e3m2) DLPack export requires max_version >= (1, 0) so "
-                                 "the IS_SUBBYTE_TYPE_PADDED flag can be set");
+                PyExc_TypeError,
+                "Sub-byte FP4/FP6 (e2m1/e2m3/e3m2) DLPack export requires max_version >= (1, 0) so " "the "
+                                                                                                     "IS_SUBBYTE_TYPE_"
+                                                                                                     "PADDED flag can "
+                                                                                                     "be set");
         }
         else { PyErr_Format(PyExc_TypeError, "dtype %d has no DLPack mapping", (int)tensor->dtype); }
         return -1;
@@ -604,6 +607,23 @@ PyObject *api_from_dlpack(PyObject *self, PyObject *obj) {
     }
 
     size_t const item_size = nk_dtype_bytes_per_value(dtype);
+
+    // Validate the producer-supplied geometry before exposing a view (the rank is already bounded above):
+    // reject negative extents and a NULL data pointer for a non-empty tensor. Failing here leaves the
+    // capsule un-renamed, so its owner keeps ownership and there is no double-free.
+    size_t dl_element_count = 1;
+    for (int axis = 0; axis < dl_tensor->ndim; ++axis) {
+        if (dl_tensor->shape[axis] < 0) {
+            PyErr_Format(PyExc_ValueError, "DLPack tensor has a negative extent %lld on axis %d",
+                         (long long)dl_tensor->shape[axis], axis);
+            goto fail;
+        }
+        dl_element_count *= (size_t)dl_tensor->shape[axis];
+    }
+    if (dl_element_count > 0 && dl_tensor->data == NULL) {
+        PyErr_SetString(PyExc_ValueError, "DLPack tensor has a NULL data pointer with a non-zero element count");
+        goto fail;
+    }
 
     // Translate the capsule into a NumKong view. The owner object holds the
     // DLManagedTensor(Versioned) and invokes its deleter on finalization.

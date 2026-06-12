@@ -88,12 +88,6 @@ def baseline_scale(x, alpha, beta):
     return normalize_elementwise(result, x.dtype)
 
 
-def baseline_sum(x, y):
-    compute_dtype, _ = get_computation_dtypes(x, y)
-    result = x.astype(compute_dtype) + y.astype(compute_dtype)
-    return normalize_elementwise(result, x.dtype)
-
-
 def baseline_blend(x, y, alpha, beta):
     """Weighted sum: alpha * x + beta * y"""
     compute_dtype, _ = get_computation_dtypes(x, y)

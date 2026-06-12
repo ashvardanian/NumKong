@@ -1234,7 +1234,9 @@ static int impl_reduce_moments(TensorView const *view, nk_scalar_buffer_t *sum_o
     memset(&sum_buf, 0, sizeof(sum_buf));
     memset(&sumsq_buf, 0, sizeof(sumsq_buf));
 
-    if (view->rank == 0) { kernel(view->data, 1, 0, &sum_buf, &sumsq_buf); }
+    // A 0-D tensor holds a single contiguous element: pass the element size as the stride so the
+    // SIMD strided paths never see a zero stride (which would make their step computation loop forever).
+    if (view->rank == 0) { kernel(view->data, 1, nk_dtype_bytes_per_value(view->dtype), &sum_buf, &sumsq_buf); }
     else {
         reduce_moments_recursive(kernel, sum_dtype, sumsq_dtype, view->data, view->shape, view->strides, view->rank, 0,
                                  &sum_buf, &sumsq_buf);
@@ -1374,7 +1376,22 @@ static int impl_reduce_minmax(TensorView const *view, nk_scalar_buffer_t *min_ou
     memset(&max_buf, 0, sizeof(max_buf));
     nk_size_t min_idx = 0, max_idx = 0;
 
-    if (view->rank == 0) { kernel(view->data, 1, 0, &min_buf, &min_idx, &max_buf, &max_idx); }
+    // An empty tensor has no element to prime the running min/max from; reading element [0] would be
+    // an out-of-bounds access on the zero-length allocation. Return the zeroed result instead.
+    nk_size_t element_count = 1;
+    for (size_t d = 0; d < view->rank; ++d) element_count *= (nk_size_t)view->shape[d];
+    if (element_count == 0) {
+        *min_out = min_buf, *max_out = max_buf;
+        *min_dtype_out = value_dtype, *max_dtype_out = value_dtype;
+        *min_index_out = 0, *max_index_out = 0;
+        return 0;
+    }
+
+    // See the moments path: a 0-D tensor is one contiguous element, so use the element size as the
+    // stride rather than zero to keep the SIMD strided loops well-formed.
+    if (view->rank == 0) {
+        kernel(view->data, 1, nk_dtype_bytes_per_value(view->dtype), &min_buf, &min_idx, &max_buf, &max_idx);
+    }
     else {
         size_t elem_size = nk_dtype_bytes_per_value(value_dtype);
         kernel(view->data, 1, (nk_size_t)elem_size, &min_buf, &min_idx, &max_buf, &max_idx);
@@ -2010,7 +2027,7 @@ static PyObject *Tensor_encode_block_scaled(Tensor *tensor, nk_dtype_t target_dt
 
     nk_block_scaled_format_t from_format = nk_plain(nk_f32_k);
     PyThreadState *gil = PyEval_SaveThread();
-    nk_cast_block_scaled(staging, NULL, NULL, &from_format,                                       //
+    nk_cast_block_scaled(staging, NULL, NULL, &from_format,                                              //
                          elements->data, block_scales->data, has_tensor_scale ? &to_tensor_scale : NULL, //
                          &to_format, (nk_size_t)total);
     PyEval_RestoreThread(gil);
@@ -2026,15 +2043,15 @@ static PyObject *Tensor_encode_block_scaled(Tensor *tensor, nk_dtype_t target_dt
     return (PyObject *)result;
 }
 
-char const doc_method_astype[] =                                                       //
-    "Cast the tensor to a different dtype.\n\n"                                        //
-    "Parameters:\n"                                                                    //
-    "    dtype (str): Target data type. Standard dtypes (e.g. 'float32', 'bf16')\n"    //
-    "        return a Tensor; block-scaled dtypes ('nvfp4', 'mxfp4', 'mxfp8_e4m3',\n"  //
-    "        ...) quantize along the last axis and return a ScaledTensor.\n\n"         //
-    "Returns:\n"                                                                       //
+char const doc_method_astype[] =                                                      //
+    "Cast the tensor to a different dtype.\n\n"                                       //
+    "Parameters:\n"                                                                   //
+    "    dtype (str): Target data type. Standard dtypes (e.g. 'float32', 'bf16')\n"   //
+    "        return a Tensor; block-scaled dtypes ('nvfp4', 'mxfp4', 'mxfp8_e4m3',\n" //
+    "        ...) quantize along the last axis and return a ScaledTensor.\n\n"        //
+    "Returns:\n"                                                                      //
     "    Tensor or ScaledTensor: Converted result.\n\n"                               //
-    "Signature:\n"                                                                     //
+    "Signature:\n"                                                                    //
     "    >>> def astype(self, dtype, /): ...";
 
 PyObject *Tensor_astype(PyObject *self, PyObject *dtype_arg) {
@@ -2542,8 +2559,8 @@ static PyObject *Tensor_tp_new(PyTypeObject *type, PyObject *args, PyObject *kwd
         // Same dtype on both sides — `linearize_cast_into` compacts the strided bytes without a cast.
         size_t total_elements = 1;
         for (int d = 0; d < buf.ndim; d++) total_elements *= (size_t)buf.shape[d];
-        linearize_cast_into((char const *)buf.buf, dtype, tensor->data, dtype, (size_t)buf.ndim, buf.shape,
-                            buf.strides, total_elements);
+        linearize_cast_into((char const *)buf.buf, dtype, tensor->data, dtype, (size_t)buf.ndim, buf.shape, buf.strides,
+                            total_elements);
     }
 
     PyBuffer_Release(&buf);
@@ -2649,13 +2666,13 @@ static PyGetSetDef ScaledTensor_getset[] = {
     {NULL, NULL, NULL, NULL, NULL},
 };
 
-char const doc_method_scaled_astype[] =                                              //
-    "Materialize the block-scaled tensor to a dense dtype.\n\n"                      //
-    "Parameters:\n"                                                                  //
-    "    dtype (str): Target dense dtype (e.g. 'float32', 'float16', 'bf16').\n\n"   //
-    "Returns:\n"                                                                     //
-    "    Tensor: Dequantized dense tensor of the requested dtype.\n\n"               //
-    "Signature:\n"                                                                   //
+char const doc_method_scaled_astype[] =                                            //
+    "Materialize the block-scaled tensor to a dense dtype.\n\n"                    //
+    "Parameters:\n"                                                                //
+    "    dtype (str): Target dense dtype (e.g. 'float32', 'float16', 'bf16').\n\n" //
+    "Returns:\n"                                                                   //
+    "    Tensor: Dequantized dense tensor of the requested dtype.\n\n"             //
+    "Signature:\n"                                                                 //
     "    >>> def astype(self, dtype, /): ...";
 
 /** @brief Transcode a `ScaledTensor` into another block-scaled format (e.g. NVFP4 -> MXFP8). */
@@ -2692,10 +2709,10 @@ static PyObject *ScaledTensor_transcode(ScaledTensor *scaled, nk_dtype_t target_
     int elem_free = 0, scale_free = 0;
     char *elem_buf = ensure_contiguous_buffer(src_elements->data, src_elements->dtype, src_elements->dtype, rank,
                                               src_elements->shape, src_elements->strides, elem_total, &elem_free);
-    char *scale_buf = scale_total ? ensure_contiguous_buffer(src_scales->data, src_scales->dtype, src_scales->dtype,
-                                                             rank, src_scales->shape, src_scales->strides, scale_total,
-                                                             &scale_free)
-                                  : src_scales->data;
+    char *scale_buf = scale_total
+                          ? ensure_contiguous_buffer(src_scales->data, src_scales->dtype, src_scales->dtype, rank,
+                                                     src_scales->shape, src_scales->strides, scale_total, &scale_free)
+                          : src_scales->data;
     if (!elem_buf || (scale_total && !scale_buf)) {
         if (elem_free) PyMem_Free(elem_buf);
         if (scale_free) PyMem_Free(scale_buf);
@@ -2834,7 +2851,7 @@ static PyObject *ScaledTensor_view_from(ScaledTensor *source, Tensor *elements_v
         Py_XDECREF(block_scales_view);
         return NULL;
     }
-    view->elements = elements_view;       // reference stolen
+    view->elements = elements_view;         // reference stolen
     view->block_scales = block_scales_view; // reference stolen
     view->dtype = source->dtype;
     view->block_size = source->block_size;
@@ -2944,9 +2961,8 @@ static PyObject *ScaledTensor_subscript(PyObject *self, PyObject *key) {
                 // Last (quantized) axis: slice must be block-aligned.
                 if ((size_t)start % block_size != 0 || (size_t)slice_len % block_size != 0) {
                     Py_DECREF(owned_tuple);
-                    PyErr_Format(PyExc_IndexError,
-                                 "last-axis slice [%zd:%zd] must be aligned to block size %zu", start, start + slice_len,
-                                 block_size);
+                    PyErr_Format(PyExc_IndexError, "last-axis slice [%zd:%zd] must be aligned to block size %zu", start,
+                                 start + slice_len, block_size);
                     return NULL;
                 }
                 size_t start_blocks = (size_t)start / block_size;
@@ -3016,8 +3032,12 @@ static PyMethodDef ScaledTensor_methods[] = {
 
 PyTypeObject ScaledTensorType = {
     PyVarObject_HEAD_INIT(NULL, 0).tp_name = "numkong.ScaledTensor",
-    .tp_doc = "Block-scaled tensor (OCP MX family + NVIDIA NVFP4): packed elements, per-block scales, "
-              "optional per-tensor scale. Produced by Tensor.astype('nvfp4'/'mxfp4'/...).",
+    .tp_doc =
+        "Block-scaled tensor (OCP MX family + NVIDIA NVFP4): packed elements, per-block scales, " "optional per-tensor "
+                                                                                                  "scale. Produced by "
+                                                                                                  "Tensor.astype('"
+                                                                                                  "nvfp4'/'mxfp4'/"
+                                                                                                  "...).",
     .tp_basicsize = sizeof(ScaledTensor),
     .tp_dealloc = ScaledTensor_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT,
@@ -3027,7 +3047,7 @@ PyTypeObject ScaledTensorType = {
     .tp_repr = ScaledTensor_repr,
 };
 
-#pragma endregion Block-Scaled Tensor
+#pragma endregion Block - Scaled Tensor
 
 static int parse_shape(PyObject *shape_obj, Py_ssize_t *shape, size_t *rank) {
     if (PyLong_Check(shape_obj)) {

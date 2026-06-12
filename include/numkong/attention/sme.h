@@ -63,14 +63,14 @@
  *
  *  @section attention_sme_history Optimization History
  *
- *  Phase 1 (January 2026): Initial implementation using ZA staging transpose for Q×Kᵀ
+ *  January 2026: Initial implementation using ZA staging transpose for Q×Kᵀ
  *  and element-wise SVE for P×V. Q and K rows were loaded into ZA0/ZA1 horizontally,
  *  read back vertically to produce interleaved vectors for BFMOPA. The P×V phase used
  *  scalar `svmla_f32_x` loops over head_dim for each query-key pair. Softmax used
  *  degree-4 polynomial exp with per-row horizontal max/sum. Performance: ~25-50 GFLOP/s
  *  on Apple M4 (bf16, 8 heads, query_len=64, kv_len=4096, head_dim=128).
  *
- *  Phase 2 (February 2026): BFMOPA/FMOPA P×V with pre-packed V in interleaved format.
+ *  February 2026: BFMOPA/FMOPA P×V with pre-packed V in interleaved format.
  *  Key changes integrated:
  *  - Q pre-transposed once into a buffer, eliminating per-block ZA staging for Q
  *  - K pre-packed in interleaved format, enabling pure memory-to-BFMOPA Q×Kᵀ
@@ -1260,7 +1260,7 @@ __arm_new("za") static void nk_attention_f16_sme_streaming_( //
                       svread_ver_za32_f32_m(svdup_f32(0), predicate_all_b32x, 0, step));
     }
 
-    // === Bc=32 main loop (prefill only, skipped for decode) ===
+    // Bc=32 main loop, used for prefill only and skipped for decode.
     if (valid_query_count > 1) {
         for (; kv_start + 32 <= kv_len; kv_start += 32, kv_block_index += 2) {
             // Q×K^T: pure memory→FMOPA, no ZA staging for Q or K
@@ -1691,7 +1691,7 @@ __arm_new("za") static void nk_attention_f16_sme_streaming_( //
         }
     }
 
-    // === Bc=16 tail loop (handles remaining KV positions and decode path) ===
+    // Bc=16 tail loop handles the remaining KV positions and the decode path.
     for (; kv_start < kv_len; kv_start += 16, kv_block_index++) {
         nk_size_t const valid_kv = ((kv_start + 16) <= kv_len) ? 16 : (kv_len - kv_start);
 

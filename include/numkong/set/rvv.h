@@ -64,17 +64,17 @@ extern "C" {
  *  @return Vector where each byte contains its popcount (0-8)
  */
 NK_INTERNAL vuint8m4_t nk_popcount_u8m4_rvv_(vuint8m4_t v_u8m4, nk_size_t vector_length) {
-    // Step 1: count pairs — v = (v & 0x55) + ((v >> 1) & 0x55)
+    // count pairs — v = (v & 0x55) + ((v >> 1) & 0x55)
     vuint8m4_t t_u8m4 = __riscv_vsrl_vx_u8m4(v_u8m4, 1, vector_length);
     t_u8m4 = __riscv_vand_vx_u8m4(t_u8m4, 0x55, vector_length);
     v_u8m4 = __riscv_vand_vx_u8m4(v_u8m4, 0x55, vector_length);
     v_u8m4 = __riscv_vadd_vv_u8m4(v_u8m4, t_u8m4, vector_length);
-    // Step 2: count nibbles — v = (v & 0x33) + ((v >> 2) & 0x33)
+    // count nibbles — v = (v & 0x33) + ((v >> 2) & 0x33)
     t_u8m4 = __riscv_vsrl_vx_u8m4(v_u8m4, 2, vector_length);
     t_u8m4 = __riscv_vand_vx_u8m4(t_u8m4, 0x33, vector_length);
     v_u8m4 = __riscv_vand_vx_u8m4(v_u8m4, 0x33, vector_length);
     v_u8m4 = __riscv_vadd_vv_u8m4(v_u8m4, t_u8m4, vector_length);
-    // Step 3: count bytes — v = (v + (v >> 4)) & 0x0F
+    // count bytes — v = (v + (v >> 4)) & 0x0F
     t_u8m4 = __riscv_vsrl_vx_u8m4(v_u8m4, 4, vector_length);
     v_u8m4 = __riscv_vadd_vv_u8m4(v_u8m4, t_u8m4, vector_length);
     return __riscv_vand_vx_u8m4(v_u8m4, 0x0F, vector_length);

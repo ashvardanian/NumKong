@@ -1505,7 +1505,7 @@ NK_INTERNAL void nk_dot_through_i32_finalize_haswell_(                          
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_unused_(total_dimensions);
     // ILP-optimized 4-way horizontal reduction for i32 in AVX2
-    // Step 1: 8->4 for all 4 states
+    // 8->4 for all 4 states
     __m128i sum_a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(state_a->sum_i32x8),
                                         _mm256_extracti128_si256(state_a->sum_i32x8, 1));
     __m128i sum_b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(state_b->sum_i32x8),
@@ -1514,7 +1514,7 @@ NK_INTERNAL void nk_dot_through_i32_finalize_haswell_(                          
                                         _mm256_extracti128_si256(state_c->sum_i32x8, 1));
     __m128i sum_d_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(state_d->sum_i32x8),
                                         _mm256_extracti128_si256(state_d->sum_i32x8, 1));
-    // Step 2: Transpose 4×4 matrix
+    // Transpose 4×4 matrix
     __m128i transpose_ab_low_i32x4 = _mm_unpacklo_epi32(sum_a_i32x4, sum_b_i32x4);
     __m128i transpose_cd_low_i32x4 = _mm_unpacklo_epi32(sum_c_i32x4, sum_d_i32x4);
     __m128i transpose_ab_high_i32x4 = _mm_unpackhi_epi32(sum_a_i32x4, sum_b_i32x4);
@@ -1523,7 +1523,7 @@ NK_INTERNAL void nk_dot_through_i32_finalize_haswell_(                          
     __m128i sum_lane1_i32x4 = _mm_unpackhi_epi64(transpose_ab_low_i32x4, transpose_cd_low_i32x4);
     __m128i sum_lane2_i32x4 = _mm_unpacklo_epi64(transpose_ab_high_i32x4, transpose_cd_high_i32x4);
     __m128i sum_lane3_i32x4 = _mm_unpackhi_epi64(transpose_ab_high_i32x4, transpose_cd_high_i32x4);
-    // Step 3: Vertical sum and store as i32
+    // Vertical sum and store as i32
     __m128i sum_i32x4 = _mm_add_epi32(_mm_add_epi32(sum_lane0_i32x4, sum_lane1_i32x4),
                                       _mm_add_epi32(sum_lane2_i32x4, sum_lane3_i32x4));
     result->xmm = sum_i32x4;

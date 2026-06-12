@@ -76,9 +76,9 @@ def make_positive_semidefinite(data):
     Matches C++ make_positive_semidefinite() in test/test_curved.cpp.
     """
     n = data.shape[0]
-    # Step 1: Symmetrize
+    # Symmetrize
     data = (data + data.T) * 0.5
-    # Step 2: Diagonal dominance — each diagonal > absolute row sum of off-diagonals
+    # Diagonal dominance — each diagonal > absolute row sum of off-diagonals
     for i in range(n):
         row_sum = np.sum(np.abs(data[i])) - np.abs(data[i, i])
         data[i, i] = row_sum + 1.0

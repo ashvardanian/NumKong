@@ -484,7 +484,14 @@ moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_:
     using sum_t = typename value_type_::reduce_moments_sum_t;
     using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
     moments_result<sum_t, sumsq_t> result {};
-    if (input.empty() || input.numel() == 0 || !tensor_layout_supported_(input)) return result;
+    if (input.empty() || input.numel() == 0) return result;
+    // A 0-D view is a single contiguous scalar: no axes to collapse and no innermost stride to read
+    // (the rank>=1 path below would index `stride_bytes(rank() - 1)` == `stride_bytes(SIZE_MAX)`).
+    if (input.rank() == 0) {
+        numkong::reduce_moments<value_type_>(input.data(), 1, sizeof(value_type_), &result.sum, &result.sumsq);
+        return result;
+    }
+    if (!tensor_layout_supported_(input)) return result;
     auto tail = uniform_stride_tail_(input);
     if (tail.tail_dims == input.rank()) {
         auto lane = normalize_rank1_lane_from_tail_<value_type_, max_rank_>(input, tail);
@@ -510,7 +517,15 @@ template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 minmax_result<typename value_type_::reduce_minmax_value_t> minmax(tensor_view<value_type_, max_rank_> input) noexcept {
     using minmax_t = typename value_type_::reduce_minmax_value_t;
     minmax_result<minmax_t> result {};
-    if (input.empty() || input.numel() == 0 || !tensor_layout_supported_(input)) return result;
+    if (input.empty() || input.numel() == 0) return result;
+    // A 0-D view is a single contiguous scalar (index 0); the rank>=1 path would read
+    // `stride_bytes(rank() - 1)` == `stride_bytes(SIZE_MAX)`.
+    if (input.rank() == 0) {
+        numkong::reduce_minmax<value_type_>(input.data(), 1, sizeof(value_type_), &result.min_value, &result.min_index,
+                                            &result.max_value, &result.max_index);
+        return result;
+    }
+    if (!tensor_layout_supported_(input)) return result;
     auto tail = uniform_stride_tail_(input);
     if (tail.tail_dims == input.rank()) {
         auto lane = normalize_rank1_lane_from_tail_<value_type_, max_rank_>(input, tail);

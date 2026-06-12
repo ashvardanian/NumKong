@@ -738,6 +738,28 @@ mod tests {
         check_cast_roundtrip::<e3m2>(&[1.0, 0.5, -1.0]);
     }
 
+    fn check_special_roundtrip<T: FloatLike + CastDtype>() {
+        // NaN, +Inf, -Inf, then a few finite values.
+        let specials = [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, 1.5, -2.0];
+        let src: Vec<T> = specials.iter().map(|&v| T::from_f32(v)).collect();
+        let mut back = vec![0.0f32; src.len()];
+        cast(&src, &mut back).unwrap();
+        let ty = core::any::type_name::<T>();
+        assert!(back[0].is_nan(), "{ty}: NaN not preserved");
+        assert_eq!(back[1], f32::INFINITY, "{ty}: +Inf not preserved");
+        assert_eq!(back[2], f32::NEG_INFINITY, "{ty}: -Inf not preserved");
+        for (&expected, &actual) in specials[3..].iter().zip(&back[3..]) {
+            assert!((expected - actual).abs() <= 0.05, "{ty}: finite {expected} -> {actual}");
+        }
+    }
+
+    #[test]
+    fn cast_preserves_nan_inf() {
+        // f16/bf16 carry IEEE specials end-to-end; the narrower fp8/fp6 formats saturate instead.
+        check_special_roundtrip::<f16>();
+        check_special_roundtrip::<bf16>();
+    }
+
     #[test]
     fn cast_f32_to_f16() {
         let src = [1.0f32, -1.0];
@@ -843,30 +865,57 @@ mod tests {
         (data, [rows, cols])
     }
 
-    #[test]
-    fn nvfp4_roundtrip_bounded_error() {
+    /// Encode then decode `sample_matrix` through format `F`; assert the dense round-trip error
+    /// stays within `rel_bound` × amax (the per-format element resolution).
+    fn check_roundtrip<F: BlockScaledFormat>(rel_bound: f32) {
         let (data, shape) = sample_matrix();
         let dense = Tensor::<f32>::try_from_slice(&data, &shape).unwrap();
-
-        let scaled = dense.view().try_cast_to_scaled::<Nvfp4>().unwrap();
-        assert_eq!(scaled.shape(), &[2, 32]);
-        // elements: (2, 32) packed E2M1 → 2 * 32 / 2 = 32 bytes of storage.
-        assert_eq!(scaled.elements().shape(), &[2, 32]);
-        // block_scales: (2, 32/16) = (2, 2).
-        assert_eq!(scaled.block_scales().shape(), &[2, 2]);
+        let scaled = dense.view().try_cast_to_scaled::<F>().unwrap();
+        assert_eq!(scaled.shape(), &shape[..]);
+        assert_eq!(scaled.block_scales().shape(), &[shape[0], shape[1] / F::BLOCK_SIZE]);
 
         let decoded = scaled.view().try_cast_dense::<f32>().unwrap();
-        assert_eq!(decoded.shape(), &[2, 32]);
-
-        // Bounded round-trip error: FP4 has ~1 significant bit, so use a relative tolerance.
         let max_abs = data.iter().fold(0.0f32, |m, &v| m.max(v.abs()));
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
-            let err = (expected - actual).abs();
             assert!(
-                err <= 0.30 * max_abs + 1e-3,
-                "nvfp4 roundtrip[{i}]: expected {expected}, got {actual}, err {err}"
+                (expected - actual).abs() <= rel_bound * max_abs + 1e-3,
+                "{} roundtrip[{i}]: expected {expected}, got {actual}",
+                core::any::type_name::<F>()
             );
         }
+    }
+
+    #[test]
+    fn roundtrip_bounded_error_all_formats() {
+        check_roundtrip::<Nvfp4>(0.30);
+        check_roundtrip::<Mxfp4>(0.30);
+        check_roundtrip::<Mxfp6E2m3>(0.15);
+        check_roundtrip::<Mxfp6E3m2>(0.25);
+        check_roundtrip::<Mxfp8E4m3>(0.15);
+        check_roundtrip::<Mxfp8E5m2>(0.25);
+        check_roundtrip::<Mxint8>(0.05);
+    }
+
+    #[test]
+    fn degenerate_blocks() {
+        let block = Mxfp8E4m3::BLOCK_SIZE;
+        // An all-zero block has zero amax → zero scale → all-zero decode (no division by zero / NaN).
+        let zeros = Tensor::<f32>::try_zeros(&[1, block]).unwrap();
+        let scaled = zeros.view().try_cast_to_scaled::<Mxfp8E4m3>().unwrap();
+        let decoded = scaled.view().try_cast_dense::<f32>().unwrap();
+        assert!(decoded.as_slice().iter().all(|&x| x == 0.0), "all-zero block did not decode to zero");
+
+        // A NaN in row 0 poisons only that block; row 1 stays clean.
+        let mut data = vec![1.5f32; 2 * block];
+        data[3] = f32::NAN;
+        let dense = Tensor::<f32>::try_from_slice(&data, &[2, block]).unwrap();
+        let scaled = dense.view().try_cast_to_scaled::<Mxfp8E4m3>().unwrap();
+        let decoded = scaled.view().try_cast_dense::<f32>().unwrap();
+        let clean_row = &decoded.as_slice()[block..];
+        assert!(
+            clean_row.iter().all(|&x| (x - 1.5).abs() <= 0.2),
+            "clean block corrupted by a NaN in another block"
+        );
     }
 
     #[test]
@@ -1038,16 +1087,24 @@ mod tests {
         assert_eq!(plain.elements_size(64), 256); // 64 * 32 bits / 8
     }
 
-    #[test]
-    fn byte_match_c_nvfp4_encode() {
-        // Byte-match the C kernel: encode the same f32 buffer through the FFI directly with the
-        // NVFP4 descriptor and compare element + scale bytes against the Rust verb's output.
+    /// Reinterpret a slice of single-byte storage elements as raw bytes (block-scaled elements and
+    /// scales are all one byte wide), so the comparison works regardless of the element newtype.
+    fn raw_bytes<T>(slice: &[T]) -> &[u8] {
+        assert_eq!(core::mem::size_of::<T>(), 1, "block-scaled storage element must be one byte");
+        unsafe { core::slice::from_raw_parts(slice.as_ptr() as *const u8, slice.len()) }
+    }
+
+    fn check_byte_match_c<F: BlockScaledFormat>() {
+        // Byte-match the C kernel: encode the same f32 buffer through the FFI directly with this
+        // format's descriptor and compare element + scale bytes against the Rust verb's output.
+        let ty = core::any::type_name::<F>();
         let (data, shape) = sample_matrix();
         let count = shape[0] * shape[1];
         let dense = Tensor::<f32>::try_from_slice(&data, &shape).unwrap();
-        let scaled = dense.view().try_cast_to_scaled::<Nvfp4>().unwrap();
+        let scaled = dense.view().try_cast_to_scaled::<F>().unwrap();
+        let has_tensor_scale = scaled.tensor_scale().is_some();
 
-        let to_format = Nvfp4::descriptor();
+        let to_format = F::descriptor();
         let from_format = BlockScaledDescriptor::plain(dtype::F32);
         let mut ref_elements = vec![0u8; to_format.elements_size(count)];
         let mut ref_scales = vec![0u8; to_format.scales_size(count)];
@@ -1060,24 +1117,68 @@ mod tests {
                 &from_format,
                 ref_elements.as_mut_ptr() as *mut c_void,
                 ref_scales.as_mut_ptr() as *mut c_void,
-                &mut ref_scale_buf,
+                if has_tensor_scale { &mut ref_scale_buf } else { core::ptr::null_mut() },
                 &to_format,
                 count,
             );
         }
 
         let elements_view = scaled.elements();
-        let elem_bytes = elements_view.as_packed_slice().unwrap();
         let scales_view = scaled.block_scales();
-        let scale_bytes = scales_view.as_packed_slice().unwrap();
+        assert_eq!(raw_bytes(elements_view.as_packed_slice().unwrap()), &ref_elements[..], "{ty} element bytes");
+        assert_eq!(raw_bytes(scales_view.as_packed_slice().unwrap()), &ref_scales[..], "{ty} scale bytes");
+        if has_tensor_scale {
+            assert_eq!(scaled.tensor_scale().unwrap(), ref_scale_buf.to_f32(), "{ty} tensor scale");
+        }
+    }
 
-        for (i, (got, want)) in elem_bytes.iter().zip(ref_elements.iter()).enumerate() {
-            assert_eq!(got.0, *want, "element byte {i} mismatch vs C kernel");
-        }
-        for (i, (got, want)) in scale_bytes.iter().zip(ref_scales.iter()).enumerate() {
-            assert_eq!(got.0, *want, "scale byte {i} mismatch vs C kernel");
-        }
-        assert_eq!(scaled.tensor_scale().unwrap(), ref_scale_buf.to_f32());
+    #[test]
+    fn byte_match_c_all_formats() {
+        check_byte_match_c::<Nvfp4>();
+        check_byte_match_c::<Mxfp4>();
+        check_byte_match_c::<Mxfp6E2m3>();
+        check_byte_match_c::<Mxfp6E3m2>();
+        check_byte_match_c::<Mxfp8E4m3>();
+        check_byte_match_c::<Mxfp8E5m2>();
+        check_byte_match_c::<Mxint8>();
+    }
+
+    fn check_encode_idempotent<F: BlockScaledFormat>() {
+        // Re-encoding decoded values reproduces them exactly: the quantizer is a projection, so a
+        // second encode/decode pass over already-representable values must not drift.
+        let (data, shape) = sample_matrix();
+        let dense = Tensor::<f32>::try_from_slice(&data, &shape).unwrap();
+        let decoded_once = dense
+            .view()
+            .try_cast_to_scaled::<F>()
+            .unwrap()
+            .view()
+            .try_cast_dense::<f32>()
+            .unwrap();
+        let decoded_twice = decoded_once
+            .view()
+            .try_cast_to_scaled::<F>()
+            .unwrap()
+            .view()
+            .try_cast_dense::<f32>()
+            .unwrap();
+        assert_eq!(
+            decoded_twice.as_slice(),
+            decoded_once.as_slice(),
+            "{} encode is not idempotent",
+            core::any::type_name::<F>()
+        );
+    }
+
+    #[test]
+    fn encode_is_idempotent_all_formats() {
+        check_encode_idempotent::<Nvfp4>();
+        check_encode_idempotent::<Mxfp4>();
+        check_encode_idempotent::<Mxfp6E2m3>();
+        check_encode_idempotent::<Mxfp6E3m2>();
+        check_encode_idempotent::<Mxfp8E4m3>();
+        check_encode_idempotent::<Mxfp8E5m2>();
+        check_encode_idempotent::<Mxint8>();
     }
 
     // endregion: Block-scaled tests

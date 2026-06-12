@@ -663,7 +663,8 @@ NK_PUBLIC void nk_reduce_moments_f32_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_f32_t);
     int aligned = (stride_bytes % sizeof(nk_f32_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_f32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_f32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 16) {
         nk_size_t left_count = count / 2;
         nk_f64_t left_sum, left_sumsq, right_sum, right_sumsq;
@@ -759,7 +760,7 @@ NK_PUBLIC void nk_reduce_minmax_f32_skylake(                           //
     if (count == 0)
         *min_value_ptr = NK_F32_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_F32_MIN,
         *max_index_ptr = NK_SIZE_MAX;
-    else if (!aligned)
+    else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_f32_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
     else if (count > (nk_size_t)NK_U32_MAX * 16) {
@@ -935,7 +936,8 @@ NK_PUBLIC void nk_reduce_moments_f64_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_f64_t);
     int aligned = (stride_bytes % sizeof(nk_f64_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_f64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_f64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 8) {
         nk_size_t left_count = count / 2;
         nk_f64_t left_sum, left_sumsq, right_sum, right_sumsq;
@@ -1031,7 +1033,8 @@ NK_PUBLIC void nk_reduce_moments_i8_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i8_t);
     int aligned = (stride_bytes % sizeof(nk_i8_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_i8_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_i8_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 64) {
         nk_size_t left_count = count / 2;
         nk_i64_t left_sum, right_sum;
@@ -1120,7 +1123,7 @@ NK_PUBLIC void nk_reduce_minmax_i8_skylake(                           //
     if (count == 0)
         *min_value_ptr = NK_I8_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_I8_MIN,
         *max_index_ptr = NK_SIZE_MAX;
-    else if (!aligned)
+    else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_i8_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                    max_index_ptr);
     else if (count > (nk_size_t)(NK_U8_MAX + 1) * 64) {
@@ -1215,7 +1218,8 @@ NK_PUBLIC void nk_reduce_moments_u8_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u8_t);
     int aligned = (stride_bytes % sizeof(nk_u8_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_u8_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_u8_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_U8_MAX + 1) * 64) {
         nk_size_t left_count = count / 2;
         nk_u64_t left_sum, left_sumsq, right_sum, right_sumsq;
@@ -1302,7 +1306,7 @@ NK_PUBLIC void nk_reduce_minmax_u8_skylake(                           //
     int aligned = (stride_bytes % sizeof(nk_u8_t) == 0);
     if (count == 0)
         *min_value_ptr = NK_U8_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = 0, *max_index_ptr = NK_SIZE_MAX;
-    else if (!aligned)
+    else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_u8_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                    max_index_ptr);
     else if (count > (nk_size_t)(NK_U8_MAX + 1) * 64) {
@@ -1392,7 +1396,8 @@ NK_PUBLIC void nk_reduce_moments_i16_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i16_t);
     int aligned = (stride_bytes % sizeof(nk_i16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_i16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_i16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_I16_MAX + 1) * 32) {
         nk_size_t left_count = count / 2;
         nk_i64_t left_sum, right_sum;
@@ -1485,7 +1490,7 @@ NK_PUBLIC void nk_reduce_minmax_i16_skylake(                           //
     if (count == 0)
         *min_value_ptr = NK_I16_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_I16_MIN,
         *max_index_ptr = NK_SIZE_MAX;
-    else if (!aligned)
+    else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_i16_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 32) {
@@ -1582,7 +1587,8 @@ NK_PUBLIC void nk_reduce_moments_u16_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u16_t);
     int aligned = (stride_bytes % sizeof(nk_u16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_u16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_u16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 16) {
         nk_size_t left_count = count / 2;
         nk_u64_t left_sum, left_sumsq, right_sum, right_sumsq;
@@ -1673,7 +1679,7 @@ NK_PUBLIC void nk_reduce_minmax_u16_skylake(                           //
     int aligned = (stride_bytes % sizeof(nk_u16_t) == 0);
     if (count == 0)
         *min_value_ptr = NK_U16_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = 0, *max_index_ptr = NK_SIZE_MAX;
-    else if (!aligned)
+    else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_u16_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 32) {
@@ -1845,7 +1851,8 @@ NK_PUBLIC void nk_reduce_moments_i32_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i32_t);
     int aligned = (stride_bytes % sizeof(nk_i32_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_i32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_i32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (stride_elements == 1) nk_reduce_moments_i32_skylake_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
     else nk_reduce_moments_i32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
@@ -1926,7 +1933,7 @@ NK_PUBLIC void nk_reduce_minmax_i32_skylake(                           //
     if (count == 0)
         *min_value_ptr = NK_I32_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_I32_MIN,
         *max_index_ptr = NK_SIZE_MAX;
-    else if (!aligned)
+    else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_i32_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
     else if (count > (nk_size_t)NK_U32_MAX * 16) {
@@ -2001,7 +2008,8 @@ NK_PUBLIC void nk_reduce_moments_u32_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u32_t);
     int aligned = (stride_bytes % sizeof(nk_u32_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_u32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_u32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 16) {
         nk_size_t left_count = count / 2;
         nk_u64_t left_sum, left_sumsq, right_sum, right_sumsq;
@@ -2090,7 +2098,7 @@ NK_PUBLIC void nk_reduce_minmax_u32_skylake(                           //
     int aligned = (stride_bytes % sizeof(nk_u32_t) == 0);
     if (count == 0)
         *min_value_ptr = NK_U32_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = 0, *max_index_ptr = NK_SIZE_MAX;
-    else if (!aligned)
+    else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_u32_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
     else if (count > (nk_size_t)NK_U32_MAX * 16) {
@@ -2196,7 +2204,8 @@ NK_PUBLIC void nk_reduce_moments_i64_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i64_t);
     int aligned = (stride_bytes % sizeof(nk_i64_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_i64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_i64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (stride_elements == 1) nk_reduce_moments_i64_skylake_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
     else nk_reduce_moments_i64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
@@ -2273,7 +2282,7 @@ NK_PUBLIC void nk_reduce_minmax_i64_skylake(                           //
     if (count == 0)
         *min_value_ptr = NK_I64_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_I64_MIN,
         *max_index_ptr = NK_SIZE_MAX;
-    else if (!aligned)
+    else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_i64_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
     else if (stride_elements == 1)
@@ -2327,7 +2336,8 @@ NK_PUBLIC void nk_reduce_moments_u64_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u64_t);
     int aligned = (stride_bytes % sizeof(nk_u64_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_u64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_u64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (stride_elements == 1) nk_reduce_moments_u64_skylake_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
     else nk_reduce_moments_u64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
@@ -2403,7 +2413,7 @@ NK_PUBLIC void nk_reduce_minmax_u64_skylake(                           //
     int aligned = (stride_bytes % sizeof(nk_u64_t) == 0);
     if (count == 0)
         *min_value_ptr = NK_U64_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = 0, *max_index_ptr = NK_SIZE_MAX;
-    else if (!aligned)
+    else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_u64_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
     else if (stride_elements == 1)
@@ -2491,7 +2501,7 @@ NK_PUBLIC void nk_reduce_minmax_f64_skylake(                           //
     if (count == 0)
         *min_value_ptr = NK_F64_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_F64_MIN,
         *max_index_ptr = NK_SIZE_MAX;
-    else if (!aligned)
+    else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_f64_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
     else if (stride_elements == 1)
@@ -2557,7 +2567,8 @@ NK_PUBLIC void nk_reduce_moments_e4m3_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e4m3_t);
     int aligned = (stride_bytes % sizeof(nk_e4m3_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_e4m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_e4m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 64) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
@@ -2763,7 +2774,8 @@ NK_PUBLIC void nk_reduce_moments_e5m2_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e5m2_t);
     int aligned = (stride_bytes % sizeof(nk_e5m2_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_e5m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_e5m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 64) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
@@ -2833,7 +2845,8 @@ NK_PUBLIC void nk_reduce_moments_e2m3_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e2m3_t);
     int aligned = (stride_bytes % sizeof(nk_e2m3_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_e2m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_e2m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 64) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
@@ -2903,7 +2916,8 @@ NK_PUBLIC void nk_reduce_moments_e3m2_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e3m2_t);
     int aligned = (stride_bytes % sizeof(nk_e3m2_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_e3m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_e3m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 64) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
@@ -3454,7 +3468,8 @@ NK_PUBLIC void nk_reduce_moments_bf16_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_bf16_t);
     int aligned = (stride_bytes % sizeof(nk_bf16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_bf16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_bf16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 32) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
@@ -3572,7 +3587,7 @@ NK_PUBLIC void nk_reduce_minmax_bf16_skylake(                           //
     if (count == 0)
         *min_value_ptr = NK_BF16_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_BF16_MIN,
         *max_index_ptr = NK_SIZE_MAX;
-    else if (!aligned)
+    else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_bf16_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                      max_index_ptr);
     else if (stride_elements == 1 && count > (nk_size_t)(NK_U16_MAX + 1) * 32) {
@@ -3635,7 +3650,8 @@ NK_PUBLIC void nk_reduce_moments_f16_skylake(                          //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_f16_t);
     int aligned = (stride_bytes % sizeof(nk_f16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_f16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_f16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 32) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
@@ -3753,7 +3769,7 @@ NK_PUBLIC void nk_reduce_minmax_f16_skylake(                           //
     if (count == 0)
         *min_value_ptr = NK_F16_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_F16_MIN,
         *max_index_ptr = NK_SIZE_MAX;
-    else if (!aligned)
+    else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_f16_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
     else if (stride_elements == 1 && count > (nk_size_t)(NK_U16_MAX + 1) * 32) {

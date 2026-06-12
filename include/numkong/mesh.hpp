@@ -420,7 +420,7 @@ void kabsch(                                             //
                        &metric->raw_);
     // Scalar fallback
     else {
-        // Step 1: Compute centroids
+        // Compute centroids
         metric_type_ sum_a_x {}, sum_a_y {}, sum_a_z {};
         metric_type_ sum_b_x {}, sum_b_y {}, sum_b_z {};
         metric_type_ val_a_x, val_a_y, val_a_z, val_b_x, val_b_y, val_b_z;
@@ -450,7 +450,7 @@ void kabsch(                                             //
             b_centroid[0] = transform_type_(centroid_b_x), b_centroid[1] = transform_type_(centroid_b_y),
             b_centroid[2] = transform_type_(centroid_b_z);
 
-        // Step 2: Build 3x3 covariance matrix H = (A - A_bar)^T x (B - B_bar)
+        // Build 3x3 covariance matrix H = (A - A_bar)^T x (B - B_bar)
         metric_type_ cross_covariance[9] = {};
         for (std::size_t i = 0; i < n; i++) {
             val_a_x = metric_type_(a[i * 3 + 0]) - centroid_a_x, val_a_y = metric_type_(a[i * 3 + 1]) - centroid_a_y,
@@ -468,11 +468,11 @@ void kabsch(                                             //
             cross_covariance[8] = cross_covariance[8] + val_a_z * val_b_z;
         }
 
-        // Step 3: SVD of H = U * S * Vt
+        // SVD of H = U * S * Vt
         metric_type_ svd_u[9], svd_s[9], svd_v[9];
         svd3x3_(cross_covariance, svd_u, svd_s, svd_v);
 
-        // Step 4: R = V * Ut
+        // R = V * Ut
         metric_type_ rotation_matrix[9];
         rotation_matrix[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
         rotation_matrix[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
@@ -507,7 +507,7 @@ void kabsch(                                             //
         }
         if (scale) *scale = transform_type_(1.0);
 
-        // Step 5: Compute RMSD after rotation
+        // Compute RMSD after rotation
         metric_type_ sum_squared {};
         for (std::size_t i = 0; i < n; i++) {
             metric_type_ point_a[3], point_b[3], rotated_point_a[3];
@@ -570,7 +570,7 @@ void umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type
                         &metric->raw_);
     // Scalar fallback
     else {
-        // Step 1: Compute centroids
+        // Compute centroids
         metric_type_ sum_a_x {}, sum_a_y {}, sum_a_z {};
         metric_type_ sum_b_x {}, sum_b_y {}, sum_b_z {};
         metric_type_ val_a_x, val_a_y, val_a_z, val_b_x, val_b_y, val_b_z;
@@ -600,7 +600,7 @@ void umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type
             b_centroid[0] = transform_type_(centroid_b_x), b_centroid[1] = transform_type_(centroid_b_y),
             b_centroid[2] = transform_type_(centroid_b_z);
 
-        // Step 2: Build covariance matrix H and compute variance of A
+        // Build covariance matrix H and compute variance of A
         metric_type_ cross_covariance[9] = {};
         metric_type_ variance_a {};
         for (std::size_t i = 0; i < n; i++) {
@@ -623,11 +623,11 @@ void umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type
         }
         variance_a = variance_a * inv_n;
 
-        // Step 3: SVD of H = U * S * Vt
+        // SVD of H = U * S * Vt
         metric_type_ svd_u[9], svd_s[9], svd_v[9];
         svd3x3_(cross_covariance, svd_u, svd_s, svd_v);
 
-        // Step 4: R = V * Ut
+        // R = V * Ut
         metric_type_ rotation_matrix[9];
         rotation_matrix[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
         rotation_matrix[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
@@ -668,7 +668,7 @@ void umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type
             for (unsigned int j = 0; j < 9; j++) rotation[j] = transform_type_(rotation_matrix[j]);
         }
 
-        // Step 5: Compute RMSD after similarity transform: ||c * R * a - b||
+        // Compute RMSD after similarity transform: ||c * R * a - b||
         metric_type_ sum_squared {};
         for (std::size_t i = 0; i < n; i++) {
             metric_type_ point_a[3], point_b[3], rotated_point_a[3];

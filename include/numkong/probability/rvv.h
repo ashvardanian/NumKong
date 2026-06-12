@@ -107,7 +107,7 @@ NK_INTERNAL vfloat32m2_t nk_log2_f32m2_rvv_(vfloat32m2_t x, nk_size_t vector_len
  *  Converts to log2 via multiplication by log2(e). Matches Skylake's f64 log2 algorithm.
  */
 NK_INTERNAL vfloat64m4_t nk_log2_f64m4_rvv_(vfloat64m4_t x, nk_size_t vector_length) {
-    // Step 1-2: Extract exponent and mantissa via bit manipulation
+    // Extract exponent and mantissa via bit manipulation
     vuint64m4_t bits = __riscv_vreinterpret_v_f64m4_u64m4(x);
     vuint64m4_t exp_bits = __riscv_vsrl_vx_u64m4(bits, 52, vector_length);
     vint64m4_t exponent = __riscv_vsub_vx_i64m4(__riscv_vreinterpret_v_u64m4_i64m4(exp_bits), 1023, vector_length);
@@ -116,13 +116,13 @@ NK_INTERNAL vfloat64m4_t nk_log2_f64m4_rvv_(vfloat64m4_t x, nk_size_t vector_len
                                                  0x3FF0000000000000ULL, vector_length);
     vfloat64m4_t m = __riscv_vreinterpret_v_u64m4_f64m4(mant_bits);
 
-    // Step 3: s = (m - 1) / (m + 1)
+    // s = (m - 1) / (m + 1)
     vfloat64m4_t one = __riscv_vfmv_v_f_f64m4(1.0, vector_length);
     vfloat64m4_t s = __riscv_vfdiv_vv_f64m4(__riscv_vfsub_vv_f64m4(m, one, vector_length),
                                             __riscv_vfadd_vv_f64m4(m, one, vector_length), vector_length);
     vfloat64m4_t s2 = __riscv_vfmul_vv_f64m4(s, s, vector_length);
 
-    // Step 4: P(s²) = 1 + s²/3 + s⁴/5 + ... (14 terms, Horner's method)
+    // P(s²) = 1 + s²/3 + s⁴/5 + ... (14 terms, Horner's method)
     vfloat64m4_t poly = __riscv_vfmv_v_f_f64m4(1.0 / 27.0, vector_length); // 1/(2*13+1)
     poly = __riscv_vfmadd_vv_f64m4(s2, poly, __riscv_vfmv_v_f_f64m4(1.0 / 25.0, vector_length), vector_length);
     poly = __riscv_vfmadd_vv_f64m4(s2, poly, __riscv_vfmv_v_f_f64m4(1.0 / 23.0, vector_length), vector_length);
@@ -138,7 +138,7 @@ NK_INTERNAL vfloat64m4_t nk_log2_f64m4_rvv_(vfloat64m4_t x, nk_size_t vector_len
     poly = __riscv_vfmadd_vv_f64m4(s2, poly, __riscv_vfmv_v_f_f64m4(1.0 / 3.0, vector_length), vector_length);
     poly = __riscv_vfmadd_vv_f64m4(s2, poly, one, vector_length);
 
-    // Step 5-6: ln(m) = 2 × s × P(s²), log2(m) = ln(m) × log2(e), log2(x) = exp + log2(m)
+    // ln(m) = 2 × s × P(s²), log2(m) = ln(m) × log2(e), log2(x) = exp + log2(m)
     vfloat64m4_t two_s = __riscv_vfmul_vf_f64m4(s, 2.0, vector_length);
     vfloat64m4_t ln_m = __riscv_vfmul_vv_f64m4(two_s, poly, vector_length);
     vfloat64m4_t log2_m = __riscv_vfmul_vf_f64m4(ln_m, 1.4426950408889634, vector_length);

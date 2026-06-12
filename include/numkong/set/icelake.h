@@ -329,23 +329,23 @@ NK_INTERNAL void nk_hamming_u1x512_finalize_icelake( //
     // Port-optimized 4-way horizontal reduction, matching the Jaccard finalizer pattern.
     // Truncate i64 → i32 early so we can use `VPHADDD` (p01) instead of shuffle-heavy i64 reductions (p5).
 
-    // Step 1: Truncate 8×i64 → 8×i32 per state via VPMOVQD (p01, 4cy, 0.5/cy)
+    // Truncate 8×i64 → 8×i32 per state via VPMOVQD (p01, 4cy, 0.5/cy)
     __m256i a_i32x8 = _mm512_cvtepi64_epi32(state_a->intersection_count_i64x8);
     __m256i b_i32x8 = _mm512_cvtepi64_epi32(state_b->intersection_count_i64x8);
     __m256i c_i32x8 = _mm512_cvtepi64_epi32(state_c->intersection_count_i64x8);
     __m256i d_i32x8 = _mm512_cvtepi64_epi32(state_d->intersection_count_i64x8);
 
-    // Step 2: Fold 8×i32 → 4×i32 (add high 128-bit lane to low)
+    // Fold 8×i32 → 4×i32 (add high 128-bit lane to low)
     __m128i a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(a_i32x8), _mm256_extracti128_si256(a_i32x8, 1));
     __m128i b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(b_i32x8), _mm256_extracti128_si256(b_i32x8, 1));
     __m128i c_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(c_i32x8), _mm256_extracti128_si256(c_i32x8, 1));
     __m128i d_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(d_i32x8), _mm256_extracti128_si256(d_i32x8, 1));
 
-    // Step 3: Interleaved horizontal adds — 4×i32 → 2×i32 via VPHADDD (p01, 3cy, 0.5/cy)
+    // Interleaved horizontal adds — 4×i32 → 2×i32 via VPHADDD (p01, 3cy, 0.5/cy)
     __m128i ab_i32x4 = _mm_hadd_epi32(a_i32x4, b_i32x4); // [a01, a23, b01, b23]
     __m128i cd_i32x4 = _mm_hadd_epi32(c_i32x4, d_i32x4); // [c01, c23, d01, d23]
 
-    // Step 4: Final horizontal add — 2×i32 → 1×i32 per state
+    // Final horizontal add — 2×i32 → 1×i32 per state
     result->xmm = _mm_hadd_epi32(ab_i32x4, cd_i32x4); // [sum_a, sum_b, sum_c, sum_d]
 }
 
@@ -384,14 +384,14 @@ NK_INTERNAL void nk_jaccard_u1x512_finalize_icelake( //
     // - p015: Integer add (`VPADDD`: 1cy latency, 0.33/cy throughput)
     // - p5: Shuffles/extracts (`VEXTRACTI128`: 3cy latency, 1/cy throughput)
 
-    // Step 1: Truncate 8x i64 → 8x i32 per state (fits in YMM)
+    // Truncate 8x i64 → 8x i32 per state (fits in YMM)
     // `VPMOVQD` (ZMM → YMM): 4cy latency, 0.5/cy throughput, port p01
     __m256i a_i32x8 = _mm512_cvtepi64_epi32(state_a->intersection_count_i64x8);
     __m256i b_i32x8 = _mm512_cvtepi64_epi32(state_b->intersection_count_i64x8);
     __m256i c_i32x8 = _mm512_cvtepi64_epi32(state_c->intersection_count_i64x8);
     __m256i d_i32x8 = _mm512_cvtepi64_epi32(state_d->intersection_count_i64x8);
 
-    // Step 2: Reduce 8x i32 → 4x i32 (add high 128-bit lane to low)
+    // Reduce 8x i32 → 4x i32 (add high 128-bit lane to low)
     // - `VEXTRACTI128`: 3cy latency, 1/cy throughput, port p5
     // - `VPADDD` (XMM): 1cy latency, 0.33/cy throughput, ports p015
     __m128i a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(a_i32x8), _mm256_extracti128_si256(a_i32x8, 1));
@@ -399,15 +399,15 @@ NK_INTERNAL void nk_jaccard_u1x512_finalize_icelake( //
     __m128i c_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(c_i32x8), _mm256_extracti128_si256(c_i32x8, 1));
     __m128i d_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(d_i32x8), _mm256_extracti128_si256(d_i32x8, 1));
 
-    // Step 3: Reduce 4x i32 → 2x i32 using horizontal add (uses p01, not p5!)
+    // Reduce 4x i32 → 2x i32 using horizontal add (uses p01, not p5!)
     // - `VPHADDD` (XMM): 3cy latency, 0.5/cy throughput, ports p01
     __m128i ab_i32x4 = _mm_hadd_epi32(a_i32x4, b_i32x4); // [a01, a23, b01, b23]
     __m128i cd_i32x4 = _mm_hadd_epi32(c_i32x4, d_i32x4); // [c01, c23, d01, d23]
 
-    // Step 4: Reduce 2x i32 → 1x i32 per state (final horizontal add)
+    // Reduce 2x i32 → 1x i32 per state (final horizontal add)
     __m128i intersection_i32x4 = _mm_hadd_epi32(ab_i32x4, cd_i32x4); // [a, b, c, d]
 
-    // Step 5: Direct i32 → f32 conversion (simpler than i64 → f64 → f32 path)
+    // Direct i32 → f32 conversion (simpler than i64 → f64 → f32 path)
     // - `VCVTDQ2PS` (XMM): 4cy latency, 0.5/cy throughput, port p01
     __m128 intersection_f32x4 = _mm_cvtepi32_ps(intersection_i32x4);
 

@@ -205,17 +205,17 @@ NK_INTERNAL void nk_dot_through_f32_finalize_skylake_(                          
                  sum_c_f32x16 = state_c->sum_f32x16, sum_d_f32x16 = state_d->sum_f32x16;
 
     // ILP-optimized 4-way horizontal reduction for f32x16 in AVX-512
-    // Step 1: 16 → 8 for all 4 states (extract high 256-bit half and add to low half)
+    // 16 → 8 for all 4 states (extract high 256-bit half and add to low half)
     __m256 sum_a_f32x8 = _mm256_add_ps(_mm512_castps512_ps256(sum_a_f32x16), _mm512_extractf32x8_ps(sum_a_f32x16, 1));
     __m256 sum_b_f32x8 = _mm256_add_ps(_mm512_castps512_ps256(sum_b_f32x16), _mm512_extractf32x8_ps(sum_b_f32x16, 1));
     __m256 sum_c_f32x8 = _mm256_add_ps(_mm512_castps512_ps256(sum_c_f32x16), _mm512_extractf32x8_ps(sum_c_f32x16, 1));
     __m256 sum_d_f32x8 = _mm256_add_ps(_mm512_castps512_ps256(sum_d_f32x16), _mm512_extractf32x8_ps(sum_d_f32x16, 1));
-    // Step 2: 8 → 4 for all 4 states (extract high 128-bit half and add to low half)
+    // 8 → 4 for all 4 states (extract high 128-bit half and add to low half)
     __m128 sum_a_f32x4 = _mm_add_ps(_mm256_castps256_ps128(sum_a_f32x8), _mm256_extractf128_ps(sum_a_f32x8, 1));
     __m128 sum_b_f32x4 = _mm_add_ps(_mm256_castps256_ps128(sum_b_f32x8), _mm256_extractf128_ps(sum_b_f32x8, 1));
     __m128 sum_c_f32x4 = _mm_add_ps(_mm256_castps256_ps128(sum_c_f32x8), _mm256_extractf128_ps(sum_c_f32x8, 1));
     __m128 sum_d_f32x4 = _mm_add_ps(_mm256_castps256_ps128(sum_d_f32x8), _mm256_extractf128_ps(sum_d_f32x8, 1));
-    // Step 3: Transpose 4x4 and reduce to get final 4 scalars
+    // Transpose 4x4 and reduce to get final 4 scalars
     __m128 transpose_ab_low_f32x4 = _mm_unpacklo_ps(sum_a_f32x4, sum_b_f32x4);
     __m128 transpose_cd_low_f32x4 = _mm_unpacklo_ps(sum_c_f32x4, sum_d_f32x4);
     __m128 transpose_ab_high_f32x4 = _mm_unpackhi_ps(sum_a_f32x4, sum_b_f32x4);
@@ -903,7 +903,7 @@ NK_INTERNAL void nk_dot_f32x8_finalize_skylake(                                 
     nk_size_t total_dimensions, nk_b256_vec_t *result) {
     nk_unused_(total_dimensions);
     // ILP-optimized 4-way horizontal reduction for f64
-    // Step 1: 8->4 for all 4 states (extract high 256-bit half and add to low half)
+    // 8->4 for all 4 states (extract high 256-bit half and add to low half)
     __m256d sum_a_f64x4 = _mm256_add_pd(_mm512_castpd512_pd256(state_a->sum_f64x8),
                                         _mm512_extractf64x4_pd(state_a->sum_f64x8, 1));
     __m256d sum_b_f64x4 = _mm256_add_pd(_mm512_castpd512_pd256(state_b->sum_f64x8),
@@ -912,12 +912,12 @@ NK_INTERNAL void nk_dot_f32x8_finalize_skylake(                                 
                                         _mm512_extractf64x4_pd(state_c->sum_f64x8, 1));
     __m256d sum_d_f64x4 = _mm256_add_pd(_mm512_castpd512_pd256(state_d->sum_f64x8),
                                         _mm512_extractf64x4_pd(state_d->sum_f64x8, 1));
-    // Step 2: 4->2 for all 4 states (extract high 128-bit half and add to low half)
+    // 4->2 for all 4 states (extract high 128-bit half and add to low half)
     __m128d sum_a_f64x2 = _mm_add_pd(_mm256_castpd256_pd128(sum_a_f64x4), _mm256_extractf128_pd(sum_a_f64x4, 1));
     __m128d sum_b_f64x2 = _mm_add_pd(_mm256_castpd256_pd128(sum_b_f64x4), _mm256_extractf128_pd(sum_b_f64x4, 1));
     __m128d sum_c_f64x2 = _mm_add_pd(_mm256_castpd256_pd128(sum_c_f64x4), _mm256_extractf128_pd(sum_c_f64x4, 1));
     __m128d sum_d_f64x2 = _mm_add_pd(_mm256_castpd256_pd128(sum_d_f64x4), _mm256_extractf128_pd(sum_d_f64x4, 1));
-    // Step 3: Horizontal add pairs: [a0+a1, b0+b1] and [c0+c1, d0+d1]
+    // Horizontal add pairs: [a0+a1, b0+b1] and [c0+c1, d0+d1]
     __m128d sum_ab_f64x2 = _mm_hadd_pd(sum_a_f64x2, sum_b_f64x2);
     __m128d sum_cd_f64x2 = _mm_hadd_pd(sum_c_f64x2, sum_d_f64x2);
     result->ymm_pd = _mm256_set_m128d(sum_cd_f64x2, sum_ab_f64x2);

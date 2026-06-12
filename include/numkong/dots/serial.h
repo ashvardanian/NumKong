@@ -249,22 +249,22 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
         /* depth is always in logical dimensions (nibbles for i4, bytes for i8, etc.) */                         \
         /* depth_simd_dimensions is also in logical dimensions */                                                \
                                                                                                                  \
-        /* Step 1: Pad depth in dimensions */                                                                    \
+        /* Pad depth in dimensions */                                                                            \
         nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);         \
                                                                                                                  \
-        /* Step 2: Convert dimensions to storage values */                                                       \
+        /* Convert dimensions to storage values */                                                               \
         nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value); \
                                                                                                                  \
-        /* Step 3: Calculate stride in bytes for power-of-2 check */                                             \
+        /* Calculate stride in bytes for power-of-2 check */                                                     \
         nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                 \
                                                                                                                  \
-        /* Step 4: Break power-of-2 strides for cache associativity */                                           \
+        /* Break power-of-2 strides for cache associativity */                                                   \
         if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0) {                                      \
             /* Add one SIMD step worth of storage values */                                                      \
             depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);        \
         }                                                                                                        \
                                                                                                                  \
-        /* Step 5: Return total buffer size (packed data + per-column norms) */                                  \
+        /* Return total buffer size (packed data + per-column norms) */                                          \
         return sizeof(nk_cross_packed_buffer_header_t) +                                                         \
                column_count * depth_values_padded * sizeof(nk_##packed_value_type##_t) +                         \
                column_count * sizeof(nk_##norm_value_type##_t);                                                  \
@@ -2811,7 +2811,7 @@ NK_PUBLIC void nk_dots_compact_i8_serial(void *c, nk_size_t row_count, nk_size_t
         dots_symmetric_fn(vectors, vectors_count, depth, stride_in_bytes, (nk_##dot_result_type##_t *)result,          \
                           result_stride_in_bytes, row_start, row_count);                                               \
                                                                                                                        \
-        /* Phase 1 — cache row norms in the result diagonal (O(row_count) calls) */                                    \
+        /* Cache row norms in the result diagonal (O(row_count) calls) */                                              \
         for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {                        \
             nk_##input_value_type##_t const *row_vector =                                                              \
                 (nk_##input_value_type##_t const *)((char const *)vectors + row_index * stride_in_bytes);              \
@@ -2820,7 +2820,7 @@ NK_PUBLIC void nk_dots_compact_i8_serial(void *c, nk_size_t row_count, nk_size_t
             row_diag[row_index] = compute_norm_fn(row_vector, depth);                                                  \
         }                                                                                                              \
                                                                                                                        \
-        /* Phase 2 — column-first post-processing with 256-element norm cache */                                       \
+        /* Column-first post-processing with 256-element norm cache */                                                 \
         nk_##norm_value_type##_t column_norms[256];                                                                    \
         for (nk_size_t column_chunk_start = 0; column_chunk_start < vectors_count; column_chunk_start += 256) {        \
             nk_size_t column_chunk_end = column_chunk_start + 256 < vectors_count ? column_chunk_start + 256           \
@@ -2863,7 +2863,7 @@ NK_PUBLIC void nk_dots_compact_i8_serial(void *c, nk_size_t row_count, nk_size_t
             }                                                                                                          \
         }                                                                                                              \
                                                                                                                        \
-        /* Phase 3 — zero diagonals */                                                                                 \
+        /* Zero diagonals */                                                                                           \
         for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {                        \
             nk_##final_result_type##_t *r_out = (nk_##final_result_type##_t *)((char *)result +                        \
                                                                                row_index * result_stride_in_bytes);    \

@@ -117,7 +117,7 @@ NK_PUBLIC void nk_maxsim_pack_f16_icelake( //
 NK_INTERNAL __m128i nk_maxsim_reduce_i32x16x4_icelake_(         //
     __m512i accumulator_a_i32x16, __m512i accumulator_b_i32x16, //
     __m512i accumulator_c_i32x16, __m512i accumulator_d_i32x16) {
-    // Step 1: 16 → 8 (extract high 256-bit half and add to low half)
+    // 16 → 8 (extract high 256-bit half and add to low half)
     __m256i sum_a_i32x8 = _mm256_add_epi32(_mm512_castsi512_si256(accumulator_a_i32x16),
                                            _mm512_extracti32x8_epi32(accumulator_a_i32x16, 1));
     __m256i sum_b_i32x8 = _mm256_add_epi32(_mm512_castsi512_si256(accumulator_b_i32x16),
@@ -126,12 +126,12 @@ NK_INTERNAL __m128i nk_maxsim_reduce_i32x16x4_icelake_(         //
                                            _mm512_extracti32x8_epi32(accumulator_c_i32x16, 1));
     __m256i sum_d_i32x8 = _mm256_add_epi32(_mm512_castsi512_si256(accumulator_d_i32x16),
                                            _mm512_extracti32x8_epi32(accumulator_d_i32x16, 1));
-    // Step 2: 8 → 4 (extract high 128-bit half and add to low half)
+    // 8 → 4 (extract high 128-bit half and add to low half)
     __m128i sum_a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(sum_a_i32x8), _mm256_extracti128_si256(sum_a_i32x8, 1));
     __m128i sum_b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(sum_b_i32x8), _mm256_extracti128_si256(sum_b_i32x8, 1));
     __m128i sum_c_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(sum_c_i32x8), _mm256_extracti128_si256(sum_c_i32x8, 1));
     __m128i sum_d_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(sum_d_i32x8), _mm256_extracti128_si256(sum_d_i32x8, 1));
-    // Step 3: 4x4 transpose + reduce → [sum_a, sum_b, sum_c, sum_d]
+    // 4x4 transpose + reduce → [sum_a, sum_b, sum_c, sum_d]
     __m128i transpose_ab_low_i32x4 = _mm_unpacklo_epi32(sum_a_i32x4, sum_b_i32x4);
     __m128i transpose_cd_low_i32x4 = _mm_unpacklo_epi32(sum_c_i32x4, sum_d_i32x4);
     __m128i transpose_ab_high_i32x4 = _mm_unpackhi_epi32(sum_a_i32x4, sum_b_i32x4);

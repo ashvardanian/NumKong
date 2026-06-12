@@ -455,7 +455,7 @@ nk_define_det3x3_(f64)
                                                    nk_size_t n, nk_##output_type##_t *a_centroid,                    \
                                                    nk_##output_type##_t *b_centroid, nk_##output_type##_t *rotation, \
                                                    nk_##output_type##_t *scale, nk_##result_type##_t *result) {      \
-        /* Step 1: Compute centroids */                                                                              \
+        /* Compute centroids */                                                                                      \
         nk_##accumulator_type##_t sum_a_x = 0, sum_a_y = 0, sum_a_z = 0;                                             \
         nk_##accumulator_type##_t sum_b_x = 0, sum_b_y = 0, sum_b_z = 0;                                             \
         nk_##accumulator_type##_t sum_a_x_compensation = 0, sum_a_y_compensation = 0, sum_a_z_compensation = 0;      \
@@ -485,7 +485,7 @@ nk_define_det3x3_(f64)
         if (b_centroid)                                                                                              \
             b_centroid[0] = (nk_##output_type##_t)centroid_b_x, b_centroid[1] = (nk_##output_type##_t)centroid_b_y,  \
             b_centroid[2] = (nk_##output_type##_t)centroid_b_z;                                                      \
-        /* Step 2: Build 3×3 covariance matrix H = (A - Ā)ᵀ × (B - B̄) */                                             \
+        /* Build 3×3 covariance matrix H = (A - Ā)ᵀ × (B - B̄) */                                                     \
         nk_##accumulator_type##_t cross_covariance_kahan_sum[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};                       \
         nk_##accumulator_type##_t cross_covariance_kahan_compensation[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};              \
         for (nk_size_t i = 0; i < n; ++i) {                                                                          \
@@ -518,10 +518,10 @@ nk_define_det3x3_(f64)
         for (int j = 0; j < 9; ++j)                                                                                  \
             cross_covariance[j] = (nk_##svd_type##_t)(cross_covariance_kahan_sum[j] +                                \
                                                       cross_covariance_kahan_compensation[j]);                       \
-        /* Step 3: SVD of H = U * S * Vᵀ */                                                                          \
+        /* SVD of H = U * S * Vᵀ */                                                                                  \
         nk_##svd_type##_t svd_left[9], svd_diagonal[9], svd_right[9];                                                \
         nk_svd3x3_##svd_type##_(cross_covariance, svd_left, svd_diagonal, svd_right);                                \
-        /* Step 4: R = V * Uᵀ */                                                                                     \
+        /* R = V * Uᵀ */                                                                                             \
         nk_##svd_type##_t optimal_rotation[9];                                                                       \
         nk_rotation_from_svd_##svd_type##_serial_(svd_left, svd_right, optimal_rotation);                            \
         /* Handle reflection: if det(R) < 0, negate third column of V and recompute R */                             \
@@ -534,7 +534,7 @@ nk_define_det3x3_(f64)
         if (rotation)                                                                                                \
             for (int j = 0; j < 9; ++j) rotation[j] = (nk_##output_type##_t)optimal_rotation[j];                     \
         if (scale) *scale = (nk_##output_type##_t)1;                                                                 \
-        /* Step 5: Compute RMSD after rotation */                                                                    \
+        /* Compute RMSD after rotation */                                                                            \
         nk_##accumulator_type##_t sum_squared = 0, sum_squared_compensation = 0;                                     \
         for (nk_size_t i = 0; i < n; ++i) {                                                                          \
             nk_##svd_type##_t point_a[3], point_b[3], rotated_point_a[3];                                            \
@@ -577,7 +577,7 @@ nk_define_det3x3_(f64)
                                                     nk_size_t n, nk_##output_type##_t *a_centroid,                    \
                                                     nk_##output_type##_t *b_centroid, nk_##output_type##_t *rotation, \
                                                     nk_##output_type##_t *scale, nk_##result_type##_t *result) {      \
-        /* Step 1: Compute centroids */                                                                               \
+        /* Compute centroids */                                                                                       \
         nk_##accumulator_type##_t sum_a_x = 0, sum_a_y = 0, sum_a_z = 0;                                              \
         nk_##accumulator_type##_t sum_b_x = 0, sum_b_y = 0, sum_b_z = 0;                                              \
         nk_##accumulator_type##_t sum_a_x_compensation = 0, sum_a_y_compensation = 0, sum_a_z_compensation = 0;       \
@@ -607,7 +607,7 @@ nk_define_det3x3_(f64)
         if (b_centroid)                                                                                               \
             b_centroid[0] = (nk_##output_type##_t)centroid_b_x, b_centroid[1] = (nk_##output_type##_t)centroid_b_y,   \
             b_centroid[2] = (nk_##output_type##_t)centroid_b_z;                                                       \
-        /* Step 2: Build covariance matrix H and compute variance of A */                                             \
+        /* Build covariance matrix H and compute variance of A */                                                     \
         nk_##accumulator_type##_t cross_covariance_kahan_sum[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};                        \
         nk_##accumulator_type##_t cross_covariance_kahan_compensation[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};               \
         nk_##accumulator_type##_t variance_a = 0, variance_a_compensation = 0;                                        \
@@ -645,10 +645,10 @@ nk_define_det3x3_(f64)
         for (int j = 0; j < 9; ++j)                                                                                   \
             cross_covariance[j] = (nk_##svd_type##_t)(cross_covariance_kahan_sum[j] +                                 \
                                                       cross_covariance_kahan_compensation[j]);                        \
-        /* Step 3: SVD of H = U * S * Vᵀ */                                                                           \
+        /* SVD of H = U * S * Vᵀ */                                                                                   \
         nk_##svd_type##_t svd_left[9], svd_diagonal[9], svd_right[9];                                                 \
         nk_svd3x3_##svd_type##_(cross_covariance, svd_left, svd_diagonal, svd_right);                                 \
-        /* Step 4: R = V * Uᵀ */                                                                                      \
+        /* R = V * Uᵀ */                                                                                              \
         nk_##svd_type##_t optimal_rotation[9];                                                                        \
         nk_rotation_from_svd_##svd_type##_serial_(svd_left, svd_right, optimal_rotation);                             \
         /* Handle reflection and compute scale: c = trace(D × S) / variance(a) */                                     \
@@ -666,7 +666,7 @@ nk_define_det3x3_(f64)
         /* Output rotation matrix */                                                                                  \
         if (rotation)                                                                                                 \
             for (int j = 0; j < 9; ++j) rotation[j] = (nk_##output_type##_t)optimal_rotation[j];                      \
-        /* Step 5: Compute RMSD after similarity transform: ‖c × R × a - b‖ */                                        \
+        /* Compute RMSD after similarity transform: ‖c × R × a - b‖ */                                                \
         nk_##accumulator_type##_t sum_squared = 0, sum_squared_compensation = 0;                                      \
         for (nk_size_t i = 0; i < n; ++i) {                                                                           \
             nk_##svd_type##_t point_a[3], point_b[3], rotated_point_a[3];                                             \

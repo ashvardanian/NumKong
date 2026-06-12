@@ -283,24 +283,88 @@ float(arr[0])  # → 1.0
 
 Type name mapping between the two libraries:
 
-| ml_dtypes                      | NumKong                      | Status                                       |
-| ------------------------------ | ---------------------------- | -------------------------------------------- |
-| `ml_dtypes.bfloat16`           | `nk.bfloat16` / `"bfloat16"` | Identical format                             |
-| `ml_dtypes.float8_e4m3`        | `nk.float8_e4m3` / `"e4m3"`  | Identical (IEEE E4M3)                        |
-| `ml_dtypes.float8_e4m3fn`      | `nk.float8_e4m3` / `"e4m3"`  | Identical (E4M3FN = no inf)                  |
-| `ml_dtypes.float8_e5m2`        | `nk.float8_e5m2` / `"e5m2"`  | Identical format                             |
-| `ml_dtypes.float6_e2m3fn`      | `nk.float6_e2m3` / `"e2m3"`  | Identical (MX E2M3)                          |
-| `ml_dtypes.float6_e3m2fn`      | `nk.float6_e3m2` / `"e3m2"`  | Identical (MX E3M2)                          |
-| `ml_dtypes.float8_e4m3fnuz`    | —                            | Rejected: different bias, NaN, and zero      |
-| `ml_dtypes.float8_e5m2fnuz`    | —                            | Rejected: different NaN and zero encoding    |
-| `ml_dtypes.float8_e4m3b11fnuz` | —                            | Rejected: bias=11, incompatible encoding     |
-| `ml_dtypes.float8_e8m0fnu`     | —                            | Not supported: exponent-only MX scale format |
-| `ml_dtypes.float8_e3m4`        | —                            | Not supported: no NumKong kernel             |
-| `ml_dtypes.float4_e2m1fn`      | —                            | Not supported: 4-bit MX float                |
-| `ml_dtypes.int4`               | `"int4"`                     | Compatible via buffer protocol               |
-| `ml_dtypes.uint4`              | `"uint4"`                    | Compatible via buffer protocol               |
-| `ml_dtypes.int2`               | —                            | Not supported                                |
-| `ml_dtypes.uint2`              | —                            | Not supported                                |
+| ml_dtypes                      | NumKong                      | Status                                    |
+| ------------------------------ | ---------------------------- | ----------------------------------------- |
+| `ml_dtypes.bfloat16`           | `nk.bfloat16` / `"bfloat16"` | Identical format                          |
+| `ml_dtypes.float8_e4m3`        | `nk.float8_e4m3` / `"e4m3"`  | Identical (IEEE E4M3)                     |
+| `ml_dtypes.float8_e4m3fn`      | `nk.float8_e4m3` / `"e4m3"`  | Identical (E4M3FN = no inf)               |
+| `ml_dtypes.float8_e5m2`        | `nk.float8_e5m2` / `"e5m2"`  | Identical format                          |
+| `ml_dtypes.float6_e2m3fn`      | `nk.float6_e2m3` / `"e2m3"`  | Identical (MX E2M3)                       |
+| `ml_dtypes.float6_e3m2fn`      | `nk.float6_e3m2` / `"e3m2"`  | Identical (MX E3M2)                       |
+| `ml_dtypes.float8_e4m3fnuz`    | —                            | Rejected: different bias, NaN, and zero   |
+| `ml_dtypes.float8_e5m2fnuz`    | —                            | Rejected: different NaN and zero encoding |
+| `ml_dtypes.float8_e4m3b11fnuz` | —                            | Rejected: bias=11, incompatible encoding  |
+| `ml_dtypes.float8_e8m0fnu`     | `"float8_e8m0"` / `"e8m0"`   | MX block scale byte (see `ScaledTensor`)  |
+| `ml_dtypes.float8_e3m4`        | —                            | Not supported: no NumKong kernel          |
+| `ml_dtypes.float4_e2m1fn`      | `"float4_e2m1"` / `"e2m1"`   | NVFP4/MXFP4 element (see `ScaledTensor`)  |
+| `ml_dtypes.int4`               | `"int4"`                     | Compatible via buffer protocol            |
+| `ml_dtypes.uint4`              | `"uint4"`                    | Compatible via buffer protocol            |
+| `ml_dtypes.int2`               | —                            | Not supported                             |
+| `ml_dtypes.uint2`              | —                            | Not supported                             |
+
+## Block-Scaled Formats (OCP MX & NVIDIA NVFP4)
+
+Block-scaled formats group elements into fixed-size blocks, each carrying its own scale byte.
+
+| Format         | Block | Element | Scale   | Global    |
+| -------------- | ----- | ------- | ------- | --------- |
+| `"nvfp4"`      | 16    | `e2m1`  | `ue4m3` | `float32` |
+| `"mxfp4"`      | 32    | `e2m1`  | `ue8m0` | —         |
+| `"mxfp6_e2m3"` | 32    | `e2m3`  | `ue8m0` | —         |
+| `"mxfp6_e3m2"` | 32    | `e3m2`  | `ue8m0` | —         |
+| `"mxfp8_e4m3"` | 32    | `e4m3`  | `ue8m0` | —         |
+| `"mxfp8_e5m2"` | 32    | `e5m2`  | `ue8m0` | —         |
+| `"mxint8"`     | 32    | `i8`    | `ue8m0` | —         |
+
+Quantization happens through the same `astype` verb used for dense casts.
+Passing a block-scaled dtype name to a dense `Tensor.astype(...)` returns a `ScaledTensor`; calling `astype(...)` on a `ScaledTensor` with a dense dtype materializes it back.
+Quantization is always along the __last axis__, which must be a whole multiple of the block size.
+
+A `ScaledTensor` exposes plain read attributes, but no getter/setter methods:
+
+| Attribute       | Type             | Meaning                                                                 |
+| --------------- | ---------------- | ----------------------------------------------------------------------- |
+| `.elements`     | `Tensor`         | Packed sub-byte element bytes (e.g. `e2m1`), last axis in storage bytes |
+| `.block_scales` | `Tensor`         | One scale byte per block (`ue4m3` / `ue8m0`), last axis = `n / block`   |
+| `.tensor_scale` | `float` / `None` | NVFP4 per-tensor multiplier; `None` for the MX family                   |
+| `.block_size`   | `int`            | Elements per block (16 for NVFP4, 32 for MX)                            |
+| `.dtype`        | `str`            | Composite format name (e.g. `"nvfp4"`)                                  |
+| `.shape`        | `tuple`          | Logical (dense) shape                                                   |
+
+```python
+import numkong, numpy as np
+
+x = np.random.randn(64).astype(np.float32)
+t = numkong.Tensor(x)
+
+# Encode → ScaledTensor. For NVFP4 the per-tensor scale is auto-derived and surfaced as `.tensor_scale`.
+q = t.astype("nvfp4")
+assert q.dtype == "nvfp4" and q.block_size == 16
+assert isinstance(q.tensor_scale, float)          # NVFP4 carries a per-tensor float
+assert q.block_scales.shape == (4,)               # 64 / 16 blocks
+
+# Decode / materialize back to a dense Tensor of any standard dtype.
+out = q.astype("float32")                          # also "float16", "bf16", ...
+
+# MX formats carry no per-tensor scale.
+qm = t.astype("mxfp4")
+assert qm.tensor_scale is None and qm.block_size == 32
+
+# Block-aligned slicing returns a ScaledTensor view sharing storage; both children slice in lockstep.
+X = numkong.Tensor(np.random.randn(3, 64).astype(np.float32)).astype("nvfp4")
+row = X[1]            # → ScaledTensor of shape (64,)
+cols = X[:, 16:48]    # → ScaledTensor of shape (3, 32); start/stop must be block-aligned
+materialized = row.astype("float32")
+```
+
+The `.elements` and `.block_scales` tensors are DLPack-exportable for zero-copy hand-off to PyTorch,
+CuPy, and friends — the `e2m1`/`e8m0`/`ue4m3` bytes exchange as `kDLFloat4_e2m1fn` /
+`kDLFloat8_e8m0fnu` / `kDLFloat8_e4m3fn`:
+
+```python
+import torch
+scales = torch.from_dlpack(q.block_scales)   # zero-copy view of the scale bytes
+```
 
 ## Tensor Objects and Buffer Interop
 

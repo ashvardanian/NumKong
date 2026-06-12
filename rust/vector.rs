@@ -2161,44 +2161,27 @@ mod tests {
         assert_eq!(s, "[1.00, 1.00, 1.00]");
     }
 
-    #[test]
-    fn vector_span_iter_mut_f32() {
-        let mut v = Vector::<f32>::try_from_scalars(&[1.0, 2.0, 3.0]).unwrap();
-        for mut value in &mut v {
-            *value += 10.0;
+    /// `iter_mut` writes each element by index; reading back yields the written values (also across
+    /// sub-byte packing where one container holds several logical dimensions).
+    fn check_iter_mut_roundtrip<Scalar: FloatConvertible>(values: &[f32])
+    where
+        Scalar::DimScalar: core::fmt::Debug,
+    {
+        let mut v = Vector::<Scalar>::try_zeros(values.len()).unwrap();
+        for (i, mut slot) in v.iter_mut().enumerate() {
+            *slot = Scalar::DimScalar::from_f32(values[i]);
         }
-        let values: Vec<f32> = v.iter().map(|x| *x).collect();
-        assert_eq!(values, vec![11.0, 12.0, 13.0]);
+        for (i, &expected) in values.iter().enumerate() {
+            let got = v.try_get(i).unwrap().to_f32();
+            assert!((got - expected).abs() < 0.5, "iter_mut[{i}] = {got}, expected {expected}");
+        }
     }
 
     #[test]
-    fn vector_span_iter_mut_i4x2() {
-        let mut v = Vector::<i4x2>::try_zeros(4).unwrap();
-        {
-            let mut span = v.span();
-            for (i, mut value) in span.iter_mut().enumerate() {
-                *value = (i + 1) as i8;
-            }
-        }
-        assert_eq!(v.try_get(0_usize).unwrap(), 1);
-        assert_eq!(v.try_get(1_usize).unwrap(), 2);
-        assert_eq!(v.try_get(2_usize).unwrap(), 3);
-        assert_eq!(v.try_get(3_usize).unwrap(), 4);
-    }
-
-    #[test]
-    fn vector_span_iter_mut_u1x8() {
-        let mut v = Vector::<u1x8>::try_zeros(8).unwrap();
-        for (i, mut value) in v.iter_mut().enumerate() {
-            if i % 2 == 0 {
-                *value = 1;
-            }
-        }
-        // Even indices should be 1, odd should be 0
-        assert_eq!(v.try_get(0_usize).unwrap(), 1);
-        assert_eq!(v.try_get(1_usize).unwrap(), 0);
-        assert_eq!(v.try_get(2_usize).unwrap(), 1);
-        assert_eq!(v.try_get(3_usize).unwrap(), 0);
+    fn vector_span_iter_mut_roundtrips() {
+        check_iter_mut_roundtrip::<f32>(&[11.0, 12.0, 13.0]);
+        check_iter_mut_roundtrip::<i4x2>(&[1.0, 2.0, 3.0, 4.0]);
+        check_iter_mut_roundtrip::<u1x8>(&[1.0, 0.0, 1.0, 0.0]);
     }
 
     #[test]

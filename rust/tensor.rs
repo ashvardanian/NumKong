@@ -6901,6 +6901,16 @@ mod tests {
         let arr = Tensor::<f64>::try_full(&[100], 1.0f64).unwrap();
         let sum = arr.sum();
         assert!((sum - 100.0).abs() < 1e-9);
+
+        // Rank-0 (scalar) sum returns the single element; the reduce path must feed the kernel a
+        // real element stride, never zero (a zero stride hangs the SIMD strided moments kernel).
+        let scalar = Tensor::<f32>::try_full(&[], 3.5f32).unwrap();
+        assert_eq!(scalar.numel(), 1);
+        assert!((scalar.sum() - 3.5).abs() < 1e-6);
+
+        // A zero-sized dimension is rejected at construction: NumKong's Rust tensors are non-empty
+        // by contract (unlike the Python/C++ bindings, which allow zero-element shapes).
+        assert!(Tensor::<f32>::try_zeros(&[0]).is_err());
     }
 
     #[test]

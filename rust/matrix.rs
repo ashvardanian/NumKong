@@ -3508,6 +3508,12 @@ where
             reason: "symmetric operations require a 2D tensor",
         });
     }
+    // The kernels read each row as `depth` contiguous elements using only the row stride, so a
+    // transposed/strided view (non-unit inner stride) would read out of bounds — reject it, as the
+    // packed and parallel paths already do.
+    if !a.has_contiguous_rows() {
+        return Err(TensorError::NonContiguousRows);
+    }
     Ok((a.shape()[0], a.shape()[1]))
 }
 
@@ -5993,6 +5999,16 @@ mod tests {
         check_dots_symmetric::<u8>();
         check_dots_symmetric::<i4x2>();
         check_dots_symmetric::<u4x2>();
+    }
+
+    #[test]
+    fn symmetric_rejects_non_contiguous_rows() {
+        // A transposed view has a non-unit inner stride; the symmetric kernels read each row as
+        // contiguous, so such a view must be rejected (Err) rather than read out of bounds.
+        let m = Tensor::<f32>::try_full(&[4, 6], 1.0f32).unwrap();
+        let transposed = m.view().transpose().unwrap();
+        assert!(!transposed.has_contiguous_rows());
+        assert!(matches!(transposed.try_dots_symmetric(), Err(TensorError::NonContiguousRows)));
     }
 
     #[test]

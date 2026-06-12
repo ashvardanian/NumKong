@@ -1701,10 +1701,10 @@ NK_INTERNAL nk_u8_t nk_u8_ror(nk_u8_t x, int n) { return (x >> n) | (x << (8 - n
  *  @brief  SWAR population count for 64-bit integers.
  *
  *  Classic algorithm from Hacker's Delight using parallel bit summation:
- *  - Step 1: Count bits in pairs (2-bit sums)
- *  - Step 2: Count bits in nibbles (4-bit sums)
- *  - Step 3: Count bits in bytes (8-bit sums)
- *  - Step 4: Horizontal sum via multiply - each byte contributes to bits 56-63
+ *  - Count bits in pairs (2-bit sums)
+ *  - Count bits in nibbles (4-bit sums)
+ *  - Count bits in bytes (8-bit sums)
+ *  - Horizontal sum via multiply - each byte contributes to bits 56-63
  *
  *  Cost: ~12 ALU ops, zero memory access (vs 8 table lookups for byte-wise).
  */

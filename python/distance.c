@@ -197,6 +197,13 @@ static PyObject *implement_dense_metric( //
         distances_stride_bytes = distances_obj->strides[0];
     }
     else {
+        // The result is `count_pairs` values written along axis 0; reject an output that is rank-0
+        // (no `strides[0]`/`shape[0]`) or too small to hold them, rather than overflowing its buffer.
+        if (out_buffer.ndim < 1 || (size_t)out_buffer.shape[0] < count_pairs) {
+            PyErr_Format(PyExc_ValueError, "Output tensor must be at least 1-D with %zu or more elements along axis 0",
+                         count_pairs);
+            goto cleanup;
+        }
         if (nk_dtype_bytes_per_value(out_parsed.dtype) != nk_dtype_bytes_per_value(out_dtype)) {
             PyErr_Format( //
                 PyExc_LookupError,

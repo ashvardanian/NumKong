@@ -150,15 +150,15 @@ NK_INTERNAL void nk_hamming_u1x128_update_powervsx(nk_hamming_u1x128_state_power
     // - `vec_add`:     vadduwm (V.4S, V.4S, V.4S)   2cy, u32 add
     // Total: ~6cy per 128-bit chunk (horizontal sum deferred to finalize)
 
-    // Step 1: Compute difference bits (A XOR B)
+    // Compute difference bits (A XOR B)
     nk_vu8x16_t a_u8x16 = *(nk_vu8x16_t *)&a;
     nk_vu8x16_t b_u8x16 = *(nk_vu8x16_t *)&b;
     nk_vu8x16_t xor_u8x16 = vec_xor(a_u8x16, b_u8x16);
 
-    // Step 2: Word popcount → each u32 lane contains set bits for 4 bytes
+    // Word popcount → each u32 lane contains set bits for 4 bytes
     nk_vu32x4_t popcnt_u32x4 = vec_popcnt((nk_vu32x4_t)xor_u8x16);
 
-    // Step 3: Vector accumulation (defers horizontal sum to finalize)
+    // Vector accumulation (defers horizontal sum to finalize)
     state->intersection_count_u32x4 = vec_add(state->intersection_count_u32x4, popcnt_u32x4);
 }
 
@@ -208,15 +208,15 @@ NK_INTERNAL void nk_jaccard_u1x128_update_powervsx(nk_jaccard_u1x128_state_power
     // - `vec_add`:     vadduwm (V.4S, V.4S, V.4S)    2cy, u32 add
     // Total: ~6cy per 128-bit chunk (horizontal sum deferred to finalize)
 
-    // Step 1: Compute intersection bits (A AND B)
+    // Compute intersection bits (A AND B)
     nk_vu8x16_t a_u8x16 = *(nk_vu8x16_t *)&a;
     nk_vu8x16_t b_u8x16 = *(nk_vu8x16_t *)&b;
     nk_vu8x16_t intersection_u8x16 = vec_and(a_u8x16, b_u8x16);
 
-    // Step 2: Word popcount → each u32 lane contains set bits for 4 bytes
+    // Word popcount → each u32 lane contains set bits for 4 bytes
     nk_vu32x4_t popcnt_u32x4 = vec_popcnt((nk_vu32x4_t)intersection_u8x16);
 
-    // Step 3: Vector accumulation (defers horizontal sum to finalize)
+    // Vector accumulation (defers horizontal sum to finalize)
     state->intersection_count_u32x4 = vec_add(state->intersection_count_u32x4, popcnt_u32x4);
 }
 

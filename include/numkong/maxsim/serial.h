@@ -217,13 +217,13 @@ NK_INTERNAL nk_size_t nk_maxsim_packed_size_( //
     nk_size_t vector_count, nk_size_t depth,  //
     nk_size_t original_element_bytes, nk_size_t depth_simd_dimensions) {
 
-    // Step 1: Pad i8 depth to SIMD width
+    // Pad i8 depth to SIMD width
     nk_size_t depth_i8_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);
 
-    // Step 2: Break power-of-2 strides for cache associativity
+    // Break power-of-2 strides for cache associativity
     if ((depth_i8_padded & (depth_i8_padded - 1)) == 0 && depth_i8_padded > 0) depth_i8_padded += depth_simd_dimensions;
 
-    // Step 3: Calculate region sizes
+    // Calculate region sizes
     nk_size_t const header_size = sizeof(nk_maxsim_packed_header_t);
     nk_size_t const i8_region_size = nk_size_round_up_to_multiple_(vector_count * depth_i8_padded, 64);
     nk_size_t const metadata_region_size = nk_size_round_up_to_multiple_(

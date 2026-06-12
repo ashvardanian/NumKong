@@ -243,11 +243,11 @@ NK_INTERNAL void nk_angulars_symmetric_bf16_sapphireamx_finalize_(nk_bf16_t cons
                                                                   nk_f32_t *result, nk_size_t result_stride_elements,
                                                                   nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal
+    // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_bf16_(vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -263,7 +263,7 @@ NK_INTERNAL void nk_angulars_symmetric_bf16_sapphireamx_finalize_(nk_bf16_t cons
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
@@ -283,11 +283,11 @@ NK_INTERNAL void nk_euclideans_symmetric_bf16_sapphireamx_finalize_(nk_bf16_t co
                                                                     nk_f32_t *result, nk_size_t result_stride_elements,
                                                                     nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal
+    // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_bf16_(vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -303,7 +303,7 @@ NK_INTERNAL void nk_euclideans_symmetric_bf16_sapphireamx_finalize_(nk_bf16_t co
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
@@ -378,12 +378,12 @@ NK_INTERNAL void nk_angulars_symmetric_i8_sapphireamx_finalize_(nk_i8_t const *v
                                                                 nk_f32_t *result, nk_size_t result_stride_elements,
                                                                 nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal (stored as u32 reinterpreted in f32 slot)
+    // Cache row norms on diagonal (stored as u32 reinterpreted in f32 slot)
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         ((nk_u32_t *)(result + row * result_stride_elements))[row] = nk_dots_reduce_sumsq_i8_(
             vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_u32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -400,7 +400,7 @@ NK_INTERNAL void nk_angulars_symmetric_i8_sapphireamx_finalize_(nk_i8_t const *v
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
@@ -420,12 +420,12 @@ NK_INTERNAL void nk_euclideans_symmetric_i8_sapphireamx_finalize_(nk_i8_t const 
                                                                   nk_f32_t *result, nk_size_t result_stride_elements,
                                                                   nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal (stored as u32 reinterpreted in f32 slot)
+    // Cache row norms on diagonal (stored as u32 reinterpreted in f32 slot)
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         ((nk_u32_t *)(result + row * result_stride_elements))[row] = nk_dots_reduce_sumsq_i8_(
             vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_u32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -442,7 +442,7 @@ NK_INTERNAL void nk_euclideans_symmetric_i8_sapphireamx_finalize_(nk_i8_t const 
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
@@ -517,12 +517,12 @@ NK_INTERNAL void nk_angulars_symmetric_u8_sapphireamx_finalize_(nk_u8_t const *v
                                                                 nk_f32_t *result, nk_size_t result_stride_elements,
                                                                 nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal (stored as u32 reinterpreted in f32 slot)
+    // Cache row norms on diagonal (stored as u32 reinterpreted in f32 slot)
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         ((nk_u32_t *)(result + row * result_stride_elements))[row] = nk_dots_reduce_sumsq_u8_(
             vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_u32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -539,7 +539,7 @@ NK_INTERNAL void nk_angulars_symmetric_u8_sapphireamx_finalize_(nk_u8_t const *v
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
@@ -559,12 +559,12 @@ NK_INTERNAL void nk_euclideans_symmetric_u8_sapphireamx_finalize_(nk_u8_t const 
                                                                   nk_f32_t *result, nk_size_t result_stride_elements,
                                                                   nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal (stored as u32 reinterpreted in f32 slot)
+    // Cache row norms on diagonal (stored as u32 reinterpreted in f32 slot)
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         ((nk_u32_t *)(result + row * result_stride_elements))[row] = nk_dots_reduce_sumsq_u8_(
             vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_u32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -581,7 +581,7 @@ NK_INTERNAL void nk_euclideans_symmetric_u8_sapphireamx_finalize_(nk_u8_t const 
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
@@ -705,11 +705,11 @@ NK_INTERNAL void nk_angulars_symmetric_e5m2_sapphireamx_finalize_(nk_e5m2_t cons
                                                                   nk_f32_t *result, nk_size_t result_stride_elements,
                                                                   nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal
+    // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e5m2_(vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -725,7 +725,7 @@ NK_INTERNAL void nk_angulars_symmetric_e5m2_sapphireamx_finalize_(nk_e5m2_t cons
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
@@ -745,11 +745,11 @@ NK_INTERNAL void nk_euclideans_symmetric_e5m2_sapphireamx_finalize_(nk_e5m2_t co
                                                                     nk_f32_t *result, nk_size_t result_stride_elements,
                                                                     nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal
+    // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e5m2_(vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -765,7 +765,7 @@ NK_INTERNAL void nk_euclideans_symmetric_e5m2_sapphireamx_finalize_(nk_e5m2_t co
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
@@ -789,11 +789,11 @@ NK_INTERNAL void nk_angulars_symmetric_e4m3_sapphireamx_finalize_(nk_e4m3_t cons
                                                                   nk_f32_t *result, nk_size_t result_stride_elements,
                                                                   nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal
+    // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e4m3_(vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -809,7 +809,7 @@ NK_INTERNAL void nk_angulars_symmetric_e4m3_sapphireamx_finalize_(nk_e4m3_t cons
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
@@ -829,11 +829,11 @@ NK_INTERNAL void nk_euclideans_symmetric_e4m3_sapphireamx_finalize_(nk_e4m3_t co
                                                                     nk_f32_t *result, nk_size_t result_stride_elements,
                                                                     nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal
+    // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e4m3_(vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -849,7 +849,7 @@ NK_INTERNAL void nk_euclideans_symmetric_e4m3_sapphireamx_finalize_(nk_e4m3_t co
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
@@ -923,11 +923,11 @@ NK_INTERNAL void nk_angulars_symmetric_e2m3_sapphireamx_finalize_(nk_e2m3_t cons
                                                                   nk_f32_t *result, nk_size_t result_stride_elements,
                                                                   nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal
+    // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e2m3_(vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -943,7 +943,7 @@ NK_INTERNAL void nk_angulars_symmetric_e2m3_sapphireamx_finalize_(nk_e2m3_t cons
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
@@ -963,11 +963,11 @@ NK_INTERNAL void nk_euclideans_symmetric_e2m3_sapphireamx_finalize_(nk_e2m3_t co
                                                                     nk_f32_t *result, nk_size_t result_stride_elements,
                                                                     nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal
+    // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e2m3_(vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -983,7 +983,7 @@ NK_INTERNAL void nk_euclideans_symmetric_e2m3_sapphireamx_finalize_(nk_e2m3_t co
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
@@ -1057,11 +1057,11 @@ NK_INTERNAL void nk_angulars_symmetric_e3m2_sapphireamx_finalize_(nk_e3m2_t cons
                                                                   nk_f32_t *result, nk_size_t result_stride_elements,
                                                                   nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal
+    // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e3m2_(vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -1077,7 +1077,7 @@ NK_INTERNAL void nk_angulars_symmetric_e3m2_sapphireamx_finalize_(nk_e3m2_t cons
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
@@ -1097,11 +1097,11 @@ NK_INTERNAL void nk_euclideans_symmetric_e3m2_sapphireamx_finalize_(nk_e3m2_t co
                                                                     nk_f32_t *result, nk_size_t result_stride_elements,
                                                                     nk_size_t row_start, nk_size_t row_count) {
 
-    // Phase 1: Cache row norms on diagonal
+    // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e3m2_(vectors + row * stride_elements, depth);
 
-    // Phase 2: 256-column chunks with cached norms
+    // 256-column chunks with cached norms
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -1117,7 +1117,7 @@ NK_INTERNAL void nk_euclideans_symmetric_e3m2_sapphireamx_finalize_(nk_e3m2_t co
         }
     }
 
-    // Phase 3: Zero diagonal
+    // Zero diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 

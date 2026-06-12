@@ -171,13 +171,13 @@ NK_PUBLIC void nk_euclideans_packed_f32_smef64( //
 static void nk_angulars_symmetric_f32_smef64_finalize_ssve_( //
     nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
-    // Phase 1: cache row norms on diagonal
+    // cache row norms on diagonal
     for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
         nk_f32_t const *row_vector = vectors + row_index * stride_elements;
         nk_f64_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_f32_ssve_(row_vector, depth);
     }
-    // Phase 2: column-chunked post-processing
+    // column-chunked post-processing
     nk_f64_t column_norms[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -200,7 +200,7 @@ static void nk_angulars_symmetric_f32_smef64_finalize_ssve_( //
             }
         }
     }
-    // Phase 3: zero diagonals
+    // zero diagonals
     for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
@@ -226,13 +226,13 @@ NK_PUBLIC void nk_angulars_symmetric_f32_smef64( //
 static void nk_euclideans_symmetric_f32_smef64_finalize_ssve_( //
     nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
-    // Phase 1: cache row norms on diagonal
+    // cache row norms on diagonal
     for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
         nk_f32_t const *row_vector = vectors + row_index * stride_elements;
         nk_f64_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_f32_ssve_(row_vector, depth);
     }
-    // Phase 2: column-chunked post-processing
+    // column-chunked post-processing
     nk_f64_t column_norms[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -255,7 +255,7 @@ static void nk_euclideans_symmetric_f32_smef64_finalize_ssve_( //
             }
         }
     }
-    // Phase 3: zero diagonals
+    // zero diagonals
     for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
@@ -363,13 +363,13 @@ NK_PUBLIC void nk_euclideans_packed_f64_smef64( //
 static void nk_angulars_symmetric_f64_smef64_finalize_ssve_( //
     nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
-    // Phase 1: cache row norms on diagonal
+    // cache row norms on diagonal
     for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
         nk_f64_t const *row_vector = vectors + row_index * stride_elements;
         nk_f64_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_f64_ssve_(row_vector, depth);
     }
-    // Phase 2: column-chunked post-processing
+    // column-chunked post-processing
     nk_f64_t column_norms[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -392,7 +392,7 @@ static void nk_angulars_symmetric_f64_smef64_finalize_ssve_( //
             }
         }
     }
-    // Phase 3: zero diagonals
+    // zero diagonals
     for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
@@ -418,13 +418,13 @@ NK_PUBLIC void nk_angulars_symmetric_f64_smef64( //
 static void nk_euclideans_symmetric_f64_smef64_finalize_ssve_( //
     nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
-    // Phase 1: cache row norms on diagonal
+    // cache row norms on diagonal
     for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
         nk_f64_t const *row_vector = vectors + row_index * stride_elements;
         nk_f64_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_f64_ssve_(row_vector, depth);
     }
-    // Phase 2: column-chunked post-processing
+    // column-chunked post-processing
     nk_f64_t column_norms[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
@@ -447,7 +447,7 @@ static void nk_euclideans_symmetric_f64_smef64_finalize_ssve_( //
             }
         }
     }
-    // Phase 3: zero diagonals
+    // zero diagonals
     for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
