@@ -275,6 +275,33 @@ struct tensor_view {
         shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, 2);
     }
 
+    /** @brief Convenience constructor for a rank-1 view from a typed pointer and element @p count. */
+    tensor_view(value_type const *data, size_type count) noexcept
+        requires(max_rank_ >= 1)
+        : data_(reinterpret_cast<char const *>(data)) {
+        std::size_t extents[1] = {count};
+        shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, 1);
+    }
+
+    /** @brief Convenience constructor from a typed pointer and an explicit @p extents list (rank == list size).
+     *  An out-of-range rank (empty, or greater than @c max_rank_) yields an empty handle rather than overflowing
+     *  the fixed-capacity shape storage. */
+    tensor_view(value_type const *data, std::initializer_list<size_type> extents) noexcept {
+        nk_assert_(extents.size() >= 1 && extents.size() <= max_rank_);
+        if (extents.size() == 0 || extents.size() > max_rank_) return;
+        data_ = reinterpret_cast<char const *>(data);
+        shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.begin(), extents.size());
+    }
+
+    /** @brief Convenience constructor from a typed pointer and a fixed-size @p extents array (rank == @c array_rank_).
+     */
+    template <std::size_t array_rank_>
+    tensor_view(value_type const *data, std::array<size_type, array_rank_> const &extents) noexcept
+        requires(array_rank_ <= max_rank_)
+        : data_(reinterpret_cast<char const *>(data)) {
+        shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.data(), array_rank_);
+    }
+
     /** @brief Number of dimensions. */
     constexpr size_type rank() const noexcept { return shape_.rank; }
 
@@ -289,6 +316,9 @@ struct tensor_view {
 
     /** @brief True if empty. */
     constexpr bool empty() const noexcept { return data_ == nullptr || shape_.numel() == 0; }
+
+    /** @brief Contextual-bool: truthy when the handle is non-empty. Enables the @c if(!view) empty-check idiom. */
+    constexpr explicit operator bool() const noexcept { return !empty(); }
 
     /** @brief Raw byte pointer. */
     constexpr char const *byte_data() const noexcept { return data_; }
@@ -447,7 +477,10 @@ struct tensor_view {
     }
 
     /** @brief Flatten to 1D view (requires contiguous layout). Returns empty view if not contiguous. */
-    tensor_view flatten() const noexcept { return reshape({numel()}); }
+    template <std::size_t out_rank_ = max_rank_>
+    tensor_view<value_type_, out_rank_> flatten() const noexcept {
+        return reshape<out_rank_>({numel()});
+    }
 
     /** @brief Remove dimensions of size 1. */
     tensor_view squeeze() const noexcept {
@@ -506,6 +539,33 @@ struct tensor_span {
         shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, 2);
     }
 
+    /** @brief Convenience constructor for a rank-1 span from a typed pointer and element @p count. */
+    tensor_span(value_type *data, size_type count) noexcept
+        requires(max_rank_ >= 1)
+        : data_(reinterpret_cast<char *>(data)) {
+        std::size_t extents[1] = {count};
+        shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, 1);
+    }
+
+    /** @brief Convenience constructor from a typed pointer and an explicit @p extents list (rank == list size).
+     *  An out-of-range rank (empty, or greater than @c max_rank_) yields an empty handle rather than overflowing
+     *  the fixed-capacity shape storage. */
+    tensor_span(value_type *data, std::initializer_list<size_type> extents) noexcept {
+        nk_assert_(extents.size() >= 1 && extents.size() <= max_rank_);
+        if (extents.size() == 0 || extents.size() > max_rank_) return;
+        data_ = reinterpret_cast<char *>(data);
+        shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.begin(), extents.size());
+    }
+
+    /** @brief Convenience constructor from a typed pointer and a fixed-size @p extents array (rank == @c array_rank_).
+     */
+    template <std::size_t array_rank_>
+    tensor_span(value_type *data, std::array<size_type, array_rank_> const &extents) noexcept
+        requires(array_rank_ <= max_rank_)
+        : data_(reinterpret_cast<char *>(data)) {
+        shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.data(), array_rank_);
+    }
+
     /** @brief Number of dimensions. */
     constexpr size_type rank() const noexcept { return shape_.rank; }
     /** @brief Extent along the i-th dimension. */
@@ -516,6 +576,9 @@ struct tensor_span {
     constexpr size_type numel() const noexcept { return shape_.numel(); }
     /** @brief True if empty. */
     constexpr bool empty() const noexcept { return data_ == nullptr || shape_.numel() == 0; }
+
+    /** @brief Contextual-bool: truthy when the handle is non-empty. Enables the @c if(!view) empty-check idiom. */
+    constexpr explicit operator bool() const noexcept { return !empty(); }
 
     /** @brief Raw byte pointer. */
     constexpr char *byte_data() const noexcept { return data_; }
@@ -680,7 +743,10 @@ struct tensor_span {
     }
 
     /** @brief Flatten to 1D span (requires contiguous layout). Returns empty span if not contiguous. */
-    tensor_span flatten() const noexcept { return reshape({numel()}); }
+    template <std::size_t out_rank_ = max_rank_>
+    tensor_span<value_type_, out_rank_> flatten() const noexcept {
+        return reshape<out_rank_>({numel()});
+    }
 
     /** @brief Zero-fill every element (declared here, defined after the free `fill_zeros`). */
     bool fill_zeros() noexcept;
@@ -1466,6 +1532,9 @@ struct tensor {
     /** @brief True if empty. */
     constexpr bool empty() const noexcept { return data_ == nullptr; }
 
+    /** @brief Contextual-bool: truthy when the tensor owns storage. Enables the `if(!t)` empty-check idiom. */
+    constexpr explicit operator bool() const noexcept { return !empty(); }
+
     /** @brief Typed pointer to data. */
     pointer data() noexcept { return data_; }
     value_type const *data() const noexcept { return data_; }
@@ -1661,10 +1730,16 @@ struct tensor {
     vector_span<value_type> as_vector_span() noexcept { return span().as_vector(); }
 
     /** @brief Flatten (immutable view). Requires contiguous layout. */
-    view_type flatten() const noexcept { return view().flatten(); }
+    template <std::size_t out_rank_ = max_rank_>
+    tensor_view<value_type_, out_rank_> flatten() const noexcept {
+        return view().template flatten<out_rank_>();
+    }
 
     /** @brief Flatten (mutable span). Requires contiguous layout. */
-    span_type flatten() noexcept { return span().flatten(); }
+    template <std::size_t out_rank_ = max_rank_>
+    tensor_span<value_type_, out_rank_> flatten() noexcept {
+        return span().template flatten<out_rank_>();
+    }
 
     /** @brief Squeeze (immutable view). Removes size-1 dimensions. */
     view_type squeeze() const noexcept { return view().squeeze(); }
@@ -1773,6 +1848,9 @@ struct scaled_tensor_view {
     /** @brief True if empty. */
     constexpr bool empty() const noexcept { return elements_.empty(); }
 
+    /** @brief Contextual-bool: truthy when the handle is non-empty. Enables the `if(!view)` empty-check idiom. */
+    constexpr explicit operator bool() const noexcept { return !empty(); }
+
     /** @brief Immutable view of the packed micro-float elements (DLPack/CAI-exportable). */
     constexpr element_view_type elements() const noexcept { return elements_; }
     /** @brief Immutable view of the per-block scales (one per `block_size` on the last axis). */
@@ -1876,6 +1954,9 @@ struct scaled_tensor_span {
     constexpr size_type numel() const noexcept { return elements_.numel(); }
     constexpr bool empty() const noexcept { return elements_.empty(); }
 
+    /** @brief Contextual-bool: truthy when the handle is non-empty. Enables the `if(!span)` empty-check idiom. */
+    constexpr explicit operator bool() const noexcept { return !empty(); }
+
     /** @brief Mutable span of the packed micro-float elements. */
     constexpr element_span_type elements() const noexcept { return elements_; }
     /** @brief Mutable span of the per-block scales. */
@@ -1966,6 +2047,9 @@ struct scaled_tensor {
     constexpr size_type extent(size_type i) const noexcept { return elements_.extent(i); }
     constexpr size_type numel() const noexcept { return elements_.numel(); }
     constexpr bool empty() const noexcept { return elements_.empty(); }
+
+    /** @brief Contextual-bool: truthy when the tensor owns storage. Enables the `if(!t)` empty-check idiom. */
+    constexpr explicit operator bool() const noexcept { return !empty(); }
 
     /** @brief Immutable component accessors. */
     typename element_tensor_type::view_type elements() const noexcept { return elements_.view(); }
