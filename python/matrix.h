@@ -18,6 +18,11 @@
 #define NK_PARALLEL_PACKED_TILE    64
 #define NK_PARALLEL_SYMMETRIC_TILE 32
 
+/*  Below this many multiply-accumulates the `@` operator stays serial: OpenMP
+ *  fork/join overhead dominates small products. The explicit dots_packed(...,
+ *  threads=N) path is unaffected — it honors the caller's request as given. */
+#define NK_PARALLEL_MATMUL_MIN_MACS ((nk_size_t)1 << 20)
+
 #ifdef __cplusplus
 extern "C" {
 #endif

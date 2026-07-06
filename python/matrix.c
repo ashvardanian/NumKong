@@ -220,7 +220,27 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
 
     nk_size_t c_stride = n * nk_dtype_bytes_per_value(out_dtype);
     PyThreadState *save = PyEval_SaveThread();
-    matmul_fn(a->data, packed->start, result->data, height, n, k, row_stride, c_stride);
+    // `@` carries no `threads` argument: default to all cores, but keep small
+    // products serial — fork/join overhead dominates below MIN_MACS, and a single
+    // row tile has nothing to distribute. Explicit control lives in
+    // dots_packed(a, packed, threads=N), which remains the tuned entry point.
+    nk_size_t threads = 1;
+#if defined(NK_USE_OPENMP)
+    // num_threads() clause below, not omp_set_num_threads(): never touch the
+    // process-global ICV — see the note in api_packed_common().
+    if (nk_size_divide_round_up_(height, NK_PARALLEL_PACKED_TILE) > 1 && height * n * k >= NK_PARALLEL_MATMUL_MIN_MACS)
+        threads = (nk_size_t)omp_get_max_threads();
+#endif
+    // `int` loop counter pre-declared: see the note in api_packed_common().
+    int const tile_count = (int)nk_size_divide_round_up_(height, NK_PARALLEL_PACKED_TILE);
+    int tile_idx;
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads((int)threads)
+    for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
+        nk_size_t row = (nk_size_t)tile_idx * NK_PARALLEL_PACKED_TILE;
+        nk_size_t chunk = (row + NK_PARALLEL_PACKED_TILE <= height) ? NK_PARALLEL_PACKED_TILE : (height - row);
+        matmul_fn(a->data + row * row_stride, packed->start, result->data + row * c_stride, chunk, n, k, row_stride,
+                  c_stride);
+    }
     PyEval_RestoreThread(save);
 
     return (PyObject *)result;
