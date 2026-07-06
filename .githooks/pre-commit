@@ -1,16 +1,85 @@
 #!/usr/bin/env bash
-# NumKong pre-commit: keep the checked-in formatter profiles the law on staged changes.
+# NumKong pre-commit: enforce the house style on staged changes before they land.
 #
-# Each gate is tool-guarded — a missing formatter skips rather than blocks, so the hook is portable
-# across contributor machines and CI images. The C/C++, Rust, and Python gates check only the CHANGED
-# lines of a staged file, so legacy formatting migrates on its own schedule while no new drift lands.
-# This deliberately enforces formatting only, not house-style policy (there is no STYLE.md yet).
+# The Doxygen / string-literal checks run on .c/.h/.hpp/.cpp, the decorative-ruler and formatter-off bans
+# run on every staged file, and the formatter gates (cmake-format / clang-format / rustfmt / ruff /
+# swift-format) keep the checked-in profiles the law. Each check inspects only the ADDED lines of a staged
+# file, so legacy code migrates on its own schedule while no new violation sneaks in, and each prints the
+# specific reason when it fires.
+#
+# The checks are scoped to C: this codebase has no C++/CUDA constructs, so there is nothing here for
+# namespace, include-group-order, STL-container, or kernel-launch rules to police.
 #
 # Bypass knowingly (you almost never should) with: git commit --no-verify
 
 set -u
 
 failed=0
+
+# Per C source: Doxygen and string-literal conventions on the added lines only.
+while IFS= read -r file; do
+    case "$file" in
+    *.c | *.h | *.hpp | *.cpp | *.cc) ;;
+    *) continue ;;
+    esac
+    added_lines=$(git diff --cached --unified=0 -- "$file" | grep '^+' | grep -v '^+++')
+
+    # Every @param declares its direction — [in]/[out]/[inout] — so a reader knows whether the callee
+    # reads, writes, or mutates the argument. A bare @param and the comma form @param[in,out] are both
+    # rejected; the one spelling for a mutated argument is @param[inout].
+    param_direction=$(printf '%s\n' "$added_lines" | grep -nE '@param' |
+        grep -vE '@param\[(in|out|inout)\]' || true)
+    if [ -n "$param_direction" ]; then
+        echo "pre-commit: $file has a @param without an [in]/[out]/[inout] direction — never a bare"
+        echo "            @param nor the comma form @param[in,out] (write @param[inout]):"
+        printf '%s\n' "$param_direction" | head -5
+        failed=1
+    fi
+
+    # A split string literal whose fragment lacks the trailing `//` pin gets restitched by clang-format
+    # into unreadable staircases; every fragment except the last must end with `" //`.
+    unpinned_splits=$(printf '%s\n' "$added_lines" | awk '
+        prev ~ /"[[:space:]]*$/ && prev !~ /\/\/[[:space:]]*$/ && $0 ~ /^\+[[:space:]]*"/ { print NR": "prev }
+        { prev = $0 }' || true)
+    if [ -n "$unpinned_splits" ]; then
+        echo "pre-commit: $file splits a string literal without the trailing \`//\` pin — clang-format"
+        echo "            will restitch the fragments into a staircase; pin every fragment but the last:"
+        printf '%s\n' "$unpinned_splits" | head -5
+        failed=1
+    fi
+
+    # Doxygen renders @b / @c, not Markdown: `__bold__` / `**bold**` in a `/** */` or `//` comment print
+    # literally. Use @b for a one/two-token emphasis and plain prose for anything longer. C `__keyword__`
+    # spellings are exempt.
+    markdown_doxygen=$(printf '%s\n' "$added_lines" | grep -E '^\+[[:space:]]*(\*|//)' |
+        grep -oE '\*\*[^*]+\*\*|__[^_]+__' |
+        grep -vE '^__(restrict|inline|volatile|asm|attribute|builtin[A-Za-z0-9_]*|STDC)__$' || true)
+    if [ -n "$markdown_doxygen" ]; then
+        echo "pre-commit: $file uses Markdown emphasis in a Doxygen comment (it prints literally) — use @b"
+        echo "            for a 1-2 token emphasis, plain prose otherwise:"
+        printf '%s\n' "$markdown_doxygen" | head -5
+        failed=1
+    fi
+
+    # Member documentation is Doxygen: a bare `//` line directly above a declaration (a member or a type)
+    # is the banned doc style — those entities get `/** @brief ... */`. Scoped to headers on purpose: the
+    # same `Type name = ...;` shape inside a `.c` function body is a local variable, and a `//` note above
+    # it is a legal implementation note. The `\+?` prefix matches the `+` git diff prepends to added lines.
+    case "$file" in
+    *.h | *.hpp)
+        member_doc_comments=$(printf '%s\n' "$added_lines" |
+            awk '/^\+?[[:space:]]*\/\/[^\/]/ { pending=$0; next } \
+                 /^\+?[[:space:]]*[A-Za-z_][A-Za-z0-9_:<>,* ]* [A-Za-z_][A-Za-z0-9_]* *([={;]|$)/ && pending { print pending; pending="" ; next } \
+                 { pending="" }' || true)
+        if [ -n "$member_doc_comments" ]; then
+            echo "pre-commit: $file documents a declaration with a bare \`//\` comment — docs are"
+            echo "            /** @brief ... */ blocks; \`//\` is for implementation notes inside bodies:"
+            printf '%s\n' "$member_doc_comments" | head -5
+            failed=1
+        fi
+        ;;
+    esac
+done < <(git diff --cached --name-only --diff-filter=ACM)
 
 # CMake — CMakeLists.txt / *.cmake must satisfy the checked-in .cmake-format.py profile (whole-file, the
 # way cmake-format works). This is the gate that catches accidental whole-file reformats.
@@ -55,9 +124,9 @@ if command -v cargo > /dev/null 2>&1; then
     fi
 fi
 
-# Python — ruff lint (E/F/W/I/UP/B/SIM/RUF/D-google/PLC0415) + ruff format, driven by the repo's own
-# pyproject profile. Skips without ruff. `--force-exclude` honors the config's extend-exclude even for
-# explicitly-passed files.
+# Python — ruff format + lint on the staged files, plus the ALL-CAPS-emphasis ban on changed lines. Ruff
+# is tool-guarded (a missing ruff skips rather than blocks); the emphasis grep is pure shell and runs
+# whenever a `.py` file is staged.
 if command -v ruff > /dev/null 2>&1; then
     py_staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.py')
     if [ -n "$py_staged" ]; then
@@ -71,6 +140,17 @@ if command -v ruff > /dev/null 2>&1; then
         fi
     fi
 fi
+while IFS= read -r file; do
+    added_lines=$(git diff --cached --unified=0 -- "$file" | grep '^+' | grep -v '^+++')
+    # No ALL-CAPS-for-emphasis in docstrings / comments (protocol / token names excepted).
+    emphasis=$(printf '%s\n' "$added_lines" |
+        grep -nE '\b(ONLY|NEVER|ALWAYS|EVERY|WHOLE)\b' || true)
+    if [ -n "$emphasis" ]; then
+        echo "pre-commit: $file uses ALL-CAPS emphasis on a changed line — lowercase it:"
+        printf '%s\n' "$emphasis" | head -5
+        failed=1
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACM -- '*.py')
 
 # Swift — swift-format lint against the checked-in .swift-format. Skips without swift-format.
 if command -v swift-format > /dev/null 2>&1; then
@@ -83,10 +163,41 @@ if command -v swift-format > /dev/null 2>&1; then
     fi
 fi
 
+# Project-wide, every staged file: no decorative banner rulers and no formatter-disabling directives.
+# A staged line that is only dashes, equals, slashes, or hashes (a `# -----` / `// =====` / `//////` /
+# `#####` ruler) is banned everywhere except Markdown, where a run of dashes is legal (horizontal rules,
+# table separators) and `###` opens a heading. Turning a formatter off in-band is banned too — the
+# checked-in .clang-format / .cmake-format.py profiles are the law, so a file must format clean as a
+# whole rather than fencing regions the tool is told to skip. Patterns are line-anchored so prose that
+# merely names a directive does not trip the check.
+while IFS= read -r file; do
+    added=$(git diff --cached --unified=0 -- "$file" | grep '^+' | grep -v '^+++')
+    case "$file" in
+    *.md | *.markdown) ;;
+    *)
+        rulers=$(printf '%s\n' "$added" |
+            grep -nE '^\+[[:space:]]*(([#]+|//)?[[:space:]]*[-=]{3,}|/{3,}|#{3,})[[:space:]]*$' || true)
+        if [ -n "$rulers" ]; then
+            echo "pre-commit: $file adds a decorative banner ruler (---/===////+/###; banned outside Markdown):"
+            printf '%s\n' "$rulers" | head -5
+            failed=1
+        fi
+        ;;
+    esac
+    format_off=$(printf '%s\n' "$added" |
+        grep -nE '^\+[[:space:]]*(//[[:space:]]*clang-format[[:space:]]+(on|off)|#[[:space:]]*cmake-format:[[:space:]]*(on|off))[[:space:]]*$' || true)
+    if [ -n "$format_off" ]; then
+        echo "pre-commit: $file disables a formatter in-band — the .clang-format / .cmake-format.py profile is the law,"
+        echo "            teach the tool (additional_commands / config) instead of fencing a region off:"
+        printf '%s\n' "$format_off" | head -5
+        failed=1
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
 if [ "$failed" -ne 0 ]; then
     echo ""
-    echo "Staged changes are not formatter-clean (see above). Fix and re-stage, or bypass knowingly"
-    echo "with: git commit --no-verify"
+    echo "Staged changes violate the house style (see the reasons above). Fix and re-stage, or bypass"
+    echo "knowingly with: git commit --no-verify"
     exit 1
 fi
 exit 0
