@@ -452,6 +452,9 @@ pub struct Vector<Scalar: StorageElement, Alloc: Allocator = Global> {
     /// Number of logical dimensions. Storage size is derived as
     /// `dims_to_values::<Scalar>(self.dims)`.
     dims: usize,
+    /// Allocated storage-value capacity (`Scalar` slots) — the ceiling `try_resize` honors and the
+    /// count `Drop` frees. Always `>= dims_to_values::<Scalar>(self.dims)`.
+    capacity: usize,
     /// Allocator instance.
     alloc: Alloc,
 }
@@ -461,7 +464,7 @@ unsafe impl<Scalar: StorageElement + Sync, Alloc: Allocator + Sync> Sync for Vec
 
 impl<Scalar: StorageElement, Alloc: Allocator> Drop for Vector<Scalar, Alloc> {
     fn drop(&mut self) {
-        let storage_count = dims_to_values::<Scalar>(self.dims);
+        let storage_count = self.capacity;
         if storage_count > 0 {
             let layout =
                 alloc::alloc::Layout::from_size_align(storage_count * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
@@ -492,7 +495,12 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     ///   implied by `dims` (`dims_to_values::<Scalar>(dims)` slots of `Scalar`).
     /// - The caller must not free the memory (this vector takes ownership).
     pub unsafe fn from_raw_parts(data: NonNull<Scalar>, dims: usize, alloc: Alloc) -> Self {
-        Self { data, dims, alloc }
+        Self {
+            data,
+            dims,
+            capacity: dims_to_values::<Scalar>(dims),
+            alloc,
+        }
     }
 
     /// Try to create a zero-initialized vector with the given number of dimensions.
@@ -502,6 +510,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
             return Ok(Self {
                 data: NonNull::dangling(),
                 dims: 0,
+                capacity: 0,
                 alloc,
             });
         }
@@ -513,6 +522,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         Ok(Self {
             data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) },
             dims,
+            capacity: storage_count,
             alloc,
         })
     }
@@ -549,6 +559,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
             return Ok(Self {
                 data: NonNull::dangling(),
                 dims: 0,
+                capacity: 0,
                 alloc,
             });
         }
@@ -559,6 +570,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         Ok(Self {
             data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) },
             dims,
+            capacity: storage_count,
             alloc,
         })
     }
@@ -608,6 +620,78 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// Returns true if the vector has zero dimensions.
     #[inline]
     pub fn is_empty(&self) -> bool { self.dims == 0 }
+
+    /// Allocated storage-value capacity (`Scalar` slots) — the ceiling [`try_resize`](Self::try_resize)
+    /// honors. Always `>= size_values()`.
+    #[inline]
+    pub fn capacity(&self) -> usize { self.capacity }
+
+    /// Resize in place to `new_dims` dimensions without moving storage.
+    ///
+    /// Succeeds only when the packed storage fits `capacity()`, so `as_ptr()` stays stable — call
+    /// [`try_reserve`](Self::try_reserve) first to grow. Returns [`TensorError::CapacityExceeded`]
+    /// otherwise, leaving the vector unchanged.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let mut v = Vector::<f32>::try_zeros(8)?; // capacity 8
+    /// v.try_resize(3)?;                         // shrink within capacity; as_ptr() unchanged
+    /// assert!(v.try_resize(9).is_err());        // beyond capacity
+    /// ```
+    #[inline]
+    pub fn try_resize(&mut self, new_dims: usize) -> Result<(), TensorError> {
+        let needed = dims_to_values::<Scalar>(new_dims);
+        if needed > self.capacity {
+            return Err(TensorError::CapacityExceeded {
+                requested: needed,
+                capacity: self.capacity,
+            });
+        }
+        self.dims = new_dims;
+        Ok(())
+    }
+
+    /// Grow the allocated `capacity()` to hold at least `new_dims` dimensions, reallocating and
+    /// copying the live elements if needed. A no-op when already large enough. Unlike
+    /// [`try_resize`](Self::try_resize) it MAY move storage (invalidating any raw pointer captured
+    /// outside the borrow system). Returns [`TensorError::AllocationFailed`] on failure, unchanged.
+    pub fn try_reserve(&mut self, new_dims: usize) -> Result<(), TensorError> {
+        let needed = dims_to_values::<Scalar>(new_dims);
+        if needed <= self.capacity {
+            return Ok(());
+        }
+        let size = needed * core::mem::size_of::<Scalar>();
+        let layout =
+            alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
+        let new_ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
+        let live = dims_to_values::<Scalar>(self.dims);
+        if live > 0 {
+            // SAFETY: `new_ptr` holds `needed >= live` slots; `self.data` holds the live elements.
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.data.as_ptr() as *const u8,
+                    new_ptr.as_ptr(),
+                    live * core::mem::size_of::<Scalar>(),
+                );
+            }
+        }
+        if self.capacity > 0 {
+            let old_size = self.capacity * core::mem::size_of::<Scalar>();
+            let old_layout = alloc::alloc::Layout::from_size_align(old_size, SIMD_ALIGNMENT).unwrap();
+            // SAFETY: `self.data` was allocated with `old_layout` (capacity slots).
+            unsafe {
+                self.alloc
+                    .deallocate(NonNull::new_unchecked(self.data.as_ptr() as *mut u8), old_layout);
+            }
+        }
+        self.data = unsafe { NonNull::new_unchecked(new_ptr.as_ptr() as *mut Scalar) };
+        self.capacity = needed;
+        Ok(())
+    }
+
+    /// Reset to an empty vector (`dims() == 0`) while keeping the allocated `capacity()`.
+    #[inline]
+    pub fn clear(&mut self) { self.dims = 0; }
 
     /// Raw pointer to the underlying data.
     #[inline]
@@ -857,6 +941,7 @@ impl<Scalar: StorageElement + Clone, Alloc: Allocator + Clone> Vector<Scalar, Al
             return Ok(Self {
                 data: NonNull::dangling(),
                 dims: 0,
+                capacity: 0,
                 alloc: self.alloc.clone(),
             });
         }
@@ -870,6 +955,7 @@ impl<Scalar: StorageElement + Clone, Alloc: Allocator + Clone> Vector<Scalar, Al
         Ok(Self {
             data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) },
             dims: self.dims,
+            capacity: storage_count,
             alloc: self.alloc.clone(),
         })
     }
@@ -884,6 +970,7 @@ impl<Scalar: StorageElement> Default for Vector<Scalar, Global> {
         Self {
             data: NonNull::dangling(),
             dims: 0,
+            capacity: 0,
             alloc: Global,
         }
     }
@@ -1907,6 +1994,58 @@ mod tests {
         check_vector_try_get_set::<i4x2>();
         check_vector_try_get_set::<u4x2>();
         check_vector_try_get_set::<u1x8>();
+    }
+
+    fn check_vector_resize<Scalar: FloatConvertible>() {
+        let dpv = Scalar::dimensions_per_value();
+        let mut v = Vector::<Scalar>::try_zeros(8 * dpv).unwrap();
+        let cap = v.capacity();
+        assert_eq!(cap, 8);
+        let ptr = v.as_ptr();
+        // Shrink within capacity: storage does not move.
+        v.try_resize(4 * dpv).unwrap();
+        assert_eq!(v.dims(), 4 * dpv);
+        assert_eq!(v.capacity(), cap);
+        assert_eq!(v.as_ptr(), ptr, "try_resize must not move storage");
+        // Grow back, still within capacity.
+        v.try_resize(8 * dpv).unwrap();
+        assert_eq!(v.as_ptr(), ptr);
+        // Beyond capacity fails, leaving the vector unchanged.
+        assert!(matches!(
+            v.try_resize(9 * dpv),
+            Err(TensorError::CapacityExceeded { .. })
+        ));
+        assert_eq!(v.dims(), 8 * dpv);
+        // Reserve grows capacity (may move); resize into the grown envelope then succeeds.
+        v.try_reserve(32 * dpv).unwrap();
+        assert!(v.capacity() >= 32);
+        v.try_resize(32 * dpv).unwrap();
+        assert_eq!(v.dims(), 32 * dpv);
+        // Clear keeps capacity.
+        v.clear();
+        assert_eq!(v.dims(), 0);
+        assert!(v.is_empty());
+        assert!(v.capacity() >= 32);
+    }
+
+    #[test]
+    fn vector_resize_all_types() {
+        check_vector_resize::<f32>();
+        check_vector_resize::<f64>();
+        check_vector_resize::<f16>();
+        check_vector_resize::<bf16>();
+        check_vector_resize::<i4x2>();
+        check_vector_resize::<u4x2>();
+        check_vector_resize::<u1x8>();
+    }
+
+    #[test]
+    fn vector_reserve_preserves_contents() {
+        let mut v = Vector::<f32>::try_from_scalars(&[1.0, 2.0, 3.0, 4.0]).unwrap();
+        v.try_reserve(64).unwrap();
+        assert!(v.capacity() >= 64);
+        assert_eq!(v.dims(), 4);
+        assert_eq!(v.as_slice().to_vec(), vec![1.0, 2.0, 3.0, 4.0]);
     }
 
     #[test]

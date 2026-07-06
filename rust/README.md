@@ -305,6 +305,12 @@ The underlying layout uses `SIMD_ALIGNMENT == 64` for owned allocations.
 That does _not_ mean callers must align their source buffers manually.
 It means owned outputs and packed payloads are allocated in a SIMD-friendly way when the crate owns them.
 
+Owned containers are fixed-capacity resizable.
+`capacity()` reports the allocated storage-value ceiling.
+`try_resize()` reshapes within that ceiling without moving storage, so an outstanding `as_slice`/`view`/`span` is never invalidated — the borrow checker rejects a `&mut self` resize while any borrow is alive, so this is enforced at compile time.
+`try_reserve()` is the explicit opt-in that may reallocate and move storage to grow, and `clear()` empties the logical shape while keeping capacity.
+`ScaledTensor` resizes its packed elements and per-block scales in lockstep.
+
 ```rust
 use numkong::{RangeStep, SliceRange, Tensor};
 

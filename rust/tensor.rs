@@ -165,6 +165,8 @@ pub enum TensorError {
     IndexOutOfBounds { index: usize, size: usize },
     /// Too many dimensions (exceeds MAX_RANK).
     TooManyRanks { got: usize },
+    /// A resize would exceed the fixed allocated capacity; call `try_reserve` to grow the buffer first.
+    CapacityExceeded { requested: usize, capacity: usize },
     /// Operation not supported for sub-byte types (i4x2, u4x2, u1x8).
     SubByteUnsupported,
 }
@@ -193,6 +195,9 @@ impl core::fmt::Display for TensorError {
             }
             TensorError::TooManyRanks { got } => {
                 write!(f, "too many ranks: {}", got)
+            }
+            TensorError::CapacityExceeded { requested, capacity } => {
+                write!(f, "resize needs {requested} storage values but capacity is {capacity}")
             }
             TensorError::SubByteUnsupported => {
                 write!(f, "operation not supported for sub-byte types")
@@ -255,6 +260,9 @@ pub struct Tensor<Scalar: StorageElement, Alloc: Allocator = Global, const MAX_R
     strides: [isize; MAX_RANK],
     /// Number of dimensions.
     ndim: usize,
+    /// Allocated storage-value capacity (`Scalar` slots) — the ceiling `try_resize` honors and the
+    /// count `Drop` frees. Always `>= product(shape) / Scalar::dimensions_per_value()`.
+    capacity: usize,
     /// Allocator instance.
     pub(crate) alloc: Alloc,
 }
@@ -276,12 +284,15 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Drop for T
         // empty product, 1, so a rank-0 tensor owns one storage element and must be freed here.
         // Special-casing `ndim == 0` to 0 skipped that deallocation and leaked the element.
         let total: usize = self.shape[..self.ndim].iter().product();
-        let storage_count = total / Scalar::dimensions_per_value();
-        if storage_count > 0 {
+        let live_count = total / Scalar::dimensions_per_value();
+        if self.capacity > 0 {
             unsafe {
-                core::ptr::drop_in_place(core::ptr::slice_from_raw_parts_mut(self.data.as_ptr(), storage_count));
+                // Drop only the live (initialized) elements; the buffer may hold spare capacity slots.
+                if live_count > 0 {
+                    core::ptr::drop_in_place(core::ptr::slice_from_raw_parts_mut(self.data.as_ptr(), live_count));
+                }
                 let layout = alloc::alloc::Layout::from_size_align(
-                    storage_count * core::mem::size_of::<Scalar>(),
+                    self.capacity * core::mem::size_of::<Scalar>(),
                     SIMD_ALIGNMENT,
                 )
                 .unwrap();
@@ -375,6 +386,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             shape: shape_arr,
             strides: strides_arr,
             ndim: shape.len(),
+            capacity: storage_count,
             alloc,
         })
     }
@@ -455,6 +467,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             shape: shape_arr,
             strides: strides_arr,
             ndim: shape.len(),
+            capacity: storage_count,
             alloc,
         })
     }
@@ -522,6 +535,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             shape: shape_arr,
             strides: strides_arr,
             ndim: shape.len(),
+            capacity: expected_storage,
             alloc,
         })
     }
@@ -655,11 +669,13 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         ndim: usize,
         alloc: Alloc,
     ) -> Self {
+        let capacity = shape[..ndim].iter().product::<usize>() / Scalar::dimensions_per_value();
         Self {
             data,
             shape,
             strides,
             ndim,
+            capacity,
             alloc,
         }
     }
@@ -681,6 +697,113 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
 
     /// Returns true if the array has no elements.
     pub fn is_empty(&self) -> bool { self.numel() == 0 }
+
+    /// Allocated storage-value capacity (`Scalar` slots) — the ceiling [`try_resize`](Self::try_resize)
+    /// honors. Always `>= numel() / Scalar::dimensions_per_value()`.
+    pub fn capacity(&self) -> usize { self.capacity }
+
+    /// Validate `shape` and return its packed storage-value count (shared by resize/reserve).
+    fn shape_storage_count(shape: &[usize]) -> Result<usize, TensorError> {
+        if shape.len() > MAX_RANK {
+            return Err(TensorError::TooManyRanks { got: shape.len() });
+        }
+        if let Some(axis) = shape.iter().position(|&d| d == 0) {
+            return Err(TensorError::InvalidShape {
+                axis,
+                size: 0,
+                reason: "zero-sized dimension",
+            });
+        }
+        let dims_per_value = Scalar::dimensions_per_value();
+        if dims_per_value > 1 && !shape.is_empty() && shape[shape.len() - 1] % dims_per_value != 0 {
+            return Err(TensorError::InvalidShape {
+                axis: shape.len() - 1,
+                size: shape[shape.len() - 1],
+                reason: "innermost dimension must be divisible by dimensions_per_value()",
+            });
+        }
+        let total: usize = shape.iter().product();
+        Ok(if dims_per_value == 1 {
+            total
+        } else {
+            total / dims_per_value
+        })
+    }
+
+    /// Resize in place to `new_shape` without moving storage.
+    ///
+    /// Succeeds only when the packed storage fits `capacity()`, so `as_ptr()` stays stable — call
+    /// [`try_reserve`](Self::try_reserve) first to grow. Returns [`TensorError::CapacityExceeded`]
+    /// when it would overflow (or a shape error), leaving the tensor unchanged.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let mut t = Tensor::<f32>::try_zeros(&[8, 8])?; // capacity 64
+    /// t.try_resize(&[4, 4])?;                         // shrink within capacity; as_ptr() unchanged
+    /// assert!(t.try_resize(&[9, 8]).is_err());        // beyond capacity
+    /// ```
+    pub fn try_resize(&mut self, new_shape: &[usize]) -> Result<(), TensorError> {
+        let storage_count = Self::shape_storage_count(new_shape)?;
+        if storage_count > self.capacity {
+            return Err(TensorError::CapacityExceeded {
+                requested: storage_count,
+                capacity: self.capacity,
+            });
+        }
+        let mut shape_arr = [0usize; MAX_RANK];
+        shape_arr[..new_shape.len()].copy_from_slice(new_shape);
+        let mut strides_arr = [0isize; MAX_RANK];
+        Self::compute_strides_into(new_shape, Scalar::dimensions_per_value(), &mut strides_arr);
+        self.shape = shape_arr;
+        self.strides = strides_arr;
+        self.ndim = new_shape.len();
+        Ok(())
+    }
+
+    /// Grow the allocated `capacity()` to hold at least `new_shape`, reallocating and copying the
+    /// live elements if needed. A no-op when already large enough. Unlike [`try_resize`](Self::try_resize)
+    /// it MAY move storage. Returns [`TensorError::AllocationFailed`] on failure, leaving it unchanged.
+    pub fn try_reserve(&mut self, new_shape: &[usize]) -> Result<(), TensorError> {
+        let needed = Self::shape_storage_count(new_shape)?;
+        if needed <= self.capacity {
+            return Ok(());
+        }
+        let size = needed * core::mem::size_of::<Scalar>();
+        let layout =
+            alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
+        let new_ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
+        let live = self.numel() / Scalar::dimensions_per_value();
+        if live > 0 {
+            // SAFETY: `new_ptr` holds `needed >= live` slots; `self.data` holds the live elements.
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.data.as_ptr() as *const u8,
+                    new_ptr.as_ptr(),
+                    live * core::mem::size_of::<Scalar>(),
+                );
+            }
+        }
+        if self.capacity > 0 {
+            let old_layout =
+                alloc::alloc::Layout::from_size_align(self.capacity * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
+                    .unwrap();
+            // SAFETY: `self.data` was allocated with `old_layout` (capacity slots).
+            unsafe {
+                self.alloc
+                    .deallocate(NonNull::new_unchecked(self.data.as_ptr() as *mut u8), old_layout);
+            }
+        }
+        self.data = unsafe { NonNull::new_unchecked(new_ptr.as_ptr() as *mut Scalar) };
+        self.capacity = needed;
+        Ok(())
+    }
+
+    /// Reset to an empty rank-1 shape (`numel() == 0`) while keeping the allocated `capacity()`.
+    pub fn clear(&mut self) {
+        self.shape = [0usize; MAX_RANK];
+        self.strides = [0isize; MAX_RANK];
+        self.ndim = 1; // rank-1 extent-0: numel() == 0, distinct from a rank-0 scalar
+    }
 
     /// Returns the stride in bytes for the given dimension.
     pub fn stride_bytes(&self, dim: usize) -> isize { self.strides[dim] }
@@ -6088,6 +6211,72 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
             tensor_scale: self.tensor_scale,
         }
     }
+
+    /// Allocated element-storage capacity of the packed `elements` buffer (`F::Element` slots) — the
+    /// ceiling a coordinated [`try_resize`](Self::try_resize) honors.
+    pub fn capacity(&self) -> usize { self.elements.capacity() }
+
+    /// Derive the paired scales shape for an element `shape` (last axis counted in blocks).
+    fn scales_shape_for(shape: &[usize]) -> Result<Vec<usize>, TensorError> {
+        let (&last, leading) = shape
+            .split_last()
+            .ok_or(TensorError::DimensionMismatch { expected: 1, got: 0 })?;
+        if last % F::BLOCK_SIZE != 0 {
+            return Err(TensorError::InvalidShape {
+                axis: leading.len(),
+                size: last,
+                reason: "last axis must be divisible by the format block size",
+            });
+        }
+        let mut scales = shape.to_vec();
+        *scales.last_mut().expect("shape has a last axis") = last / F::BLOCK_SIZE;
+        Ok(scales)
+    }
+
+    /// Resize the packed elements and the per-block scales in lockstep, without moving either buffer.
+    ///
+    /// Atomic: fails leaving both children unchanged if EITHER would exceed its capacity — call
+    /// [`try_reserve`](Self::try_reserve) first to grow.
+    pub fn try_resize(&mut self, new_shape: &[usize]) -> Result<(), TensorError> {
+        let scales_shape = Self::scales_shape_for(new_shape)?;
+        // Pre-validate both capacities so neither child is mutated on failure.
+        let elem_storage = Tensor::<F::Element, A>::shape_storage_count(new_shape)?;
+        if elem_storage > self.elements.capacity() {
+            return Err(TensorError::CapacityExceeded {
+                requested: elem_storage,
+                capacity: self.elements.capacity(),
+            });
+        }
+        let scale_storage = Tensor::<F::Scale, A>::shape_storage_count(&scales_shape)?;
+        if scale_storage > self.block_scales.capacity() {
+            return Err(TensorError::CapacityExceeded {
+                requested: scale_storage,
+                capacity: self.block_scales.capacity(),
+            });
+        }
+        self.elements
+            .try_resize(new_shape)
+            .expect("elements capacity pre-checked");
+        self.block_scales
+            .try_resize(&scales_shape)
+            .expect("scales capacity pre-checked");
+        Ok(())
+    }
+
+    /// Grow both children's capacity to hold `new_shape` (and its paired scales), reallocating if
+    /// needed. May move storage. A no-op when already large enough.
+    pub fn try_reserve(&mut self, new_shape: &[usize]) -> Result<(), TensorError> {
+        let scales_shape = Self::scales_shape_for(new_shape)?;
+        self.elements.try_reserve(new_shape)?;
+        self.block_scales.try_reserve(&scales_shape)?;
+        Ok(())
+    }
+
+    /// Reset both children to empty while keeping their capacities.
+    pub fn clear(&mut self) {
+        self.elements.clear();
+        self.block_scales.clear();
+    }
 }
 
 /// A borrowed, read-only view into a [`ScaledTensor`] — composed [`TensorView`]s plus the scale.
@@ -6184,6 +6373,64 @@ mod tests {
         assert_eq!(arr.ndim(), 2);
         assert_eq!(arr.numel(), 12);
         assert!(!arr.is_empty());
+    }
+
+    #[test]
+    fn tensor_resize_capacity() {
+        let mut t = Tensor::<f32>::try_zeros(&[8, 8]).unwrap();
+        assert_eq!(t.capacity(), 64);
+        let ptr = t.as_ptr();
+        // Shrink within capacity: storage does not move.
+        t.try_resize(&[4, 4]).unwrap();
+        assert_eq!(t.shape(), &[4, 4]);
+        assert_eq!(t.numel(), 16);
+        assert_eq!(t.capacity(), 64);
+        assert_eq!(t.as_ptr(), ptr, "try_resize must not move storage");
+        // Beyond capacity fails, leaving the tensor unchanged.
+        assert!(matches!(
+            t.try_resize(&[9, 8]),
+            Err(TensorError::CapacityExceeded { .. })
+        ));
+        assert_eq!(t.shape(), &[4, 4]);
+        // Reserve grows capacity and preserves the live contents.
+        let mut u = Tensor::<f32>::try_from_slice(&[1.0, 2.0, 3.0, 4.0], &[4]).unwrap();
+        u.try_reserve(&[64]).unwrap();
+        assert!(u.capacity() >= 64);
+        assert_eq!(u.as_slice(), &[1.0, 2.0, 3.0, 4.0]);
+        u.try_resize(&[64]).unwrap();
+        assert_eq!(u.numel(), 64);
+        // Clear keeps capacity.
+        u.clear();
+        assert!(u.is_empty());
+        assert!(u.capacity() >= 64);
+    }
+
+    #[test]
+    fn scaled_tensor_resize() {
+        let data = vec![0.5f32; 2 * 32];
+        let dense = Tensor::<f32>::try_from_slice(&data, &[2, 32]).unwrap();
+        let mut scaled = dense.view().try_cast_to_scaled::<crate::cast::Nvfp4>().unwrap();
+        assert_eq!(scaled.shape(), &[2, 32]);
+        let cap = scaled.capacity();
+        // Shrink within capacity — elements and scales move in lockstep, neither buffer relocates.
+        scaled.try_resize(&[2, 16]).unwrap();
+        assert_eq!(scaled.shape(), &[2, 16]);
+        assert_eq!(scaled.block_scales().shape(), &[2, 1]);
+        assert_eq!(scaled.capacity(), cap);
+        // Beyond capacity fails atomically (both children unchanged).
+        assert!(matches!(
+            scaled.try_resize(&[4, 32]),
+            Err(TensorError::CapacityExceeded { .. })
+        ));
+        assert_eq!(scaled.shape(), &[2, 16]);
+        // Reserve both children, then resize into the grown envelope.
+        scaled.try_reserve(&[4, 32]).unwrap();
+        scaled.try_resize(&[4, 32]).unwrap();
+        assert_eq!(scaled.shape(), &[4, 32]);
+        assert_eq!(scaled.block_scales().shape(), &[4, 2]);
+        // Clear resets both children.
+        scaled.clear();
+        assert_eq!(scaled.shape(), &[0]);
     }
 
     #[test]
