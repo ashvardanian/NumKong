@@ -82,6 +82,19 @@ if (CCACHE_PROGRAM)
     message(STATUS "IMPORTANT: Set environment variable CCACHE_SLOPPINESS=pch_defines,time_macros")
 endif ()
 
+# Enable the in-repo Git hooks. Git will not auto-run hooks shipped inside a clone (that would let any
+# cloned repo execute code), so point `core.hooksPath` at `.githooks` here — configuring the build arms
+# the `pre-commit` / `commit-msg` checks. Skipped when there is no `.git` (tarball / export builds).
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+    execute_process(
+        COMMAND git config core.hooksPath .githooks WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        RESULT_VARIABLE _nk_hooks_status OUTPUT_QUIET ERROR_QUIET
+    )
+    if (_nk_hooks_status EQUAL 0)
+        message(STATUS "numkong: Git hooks enabled (core.hooksPath -> .githooks)")
+    endif ()
+endif ()
+
 #
 project(
     numkong

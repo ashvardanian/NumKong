@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# NumKong pre-commit: keep the checked-in formatter profiles the law on staged changes.
+#
+# Each gate is tool-guarded — a missing formatter skips rather than blocks, so the hook is portable
+# across contributor machines and CI images. The C/C++, Rust, and Python gates check only the CHANGED
+# lines of a staged file, so legacy formatting migrates on its own schedule while no new drift lands.
+# This deliberately enforces formatting only, not house-style policy (there is no STYLE.md yet).
+#
+# Bypass knowingly (you almost never should) with: git commit --no-verify
+
+set -u
+
+failed=0
+
+# CMake — CMakeLists.txt / *.cmake must satisfy the checked-in .cmake-format.py profile (whole-file, the
+# way cmake-format works). This is the gate that catches accidental whole-file reformats.
+if command -v cmake-format > /dev/null 2>&1; then
+    while IFS= read -r file; do
+        case "$file" in
+        CMakeLists.txt | *.cmake) ;;
+        *) continue ;;
+        esac
+        if ! cmake-format --check "$file" > /dev/null 2>&1; then
+            echo "pre-commit: $file is not cmake-format clean — run: cmake-format -i $file"
+            failed=1
+        fi
+    done < <(git diff --cached --name-only --diff-filter=ACM)
+fi
+
+# C/C++ — changed lines must satisfy .clang-format. `git clang-format --staged --diff` restricts to the
+# staged hunks, so existing `clang-format off` regions and legacy formatting are untouched.
+if command -v git-clang-format > /dev/null 2>&1 && command -v clang-format > /dev/null 2>&1; then
+    cpp_staged=$(git diff --cached --name-only --diff-filter=ACM -- \
+        '*.c' '*.h' '*.cc' '*.cpp' '*.hpp' '*.cu' '*.cuh')
+    if [ -n "$cpp_staged" ]; then
+        clang_diff=$(git clang-format --staged --diff -- $cpp_staged 2> /dev/null)
+        case "$clang_diff" in
+        "" | "no modified files to format" | "clang-format did not modify any files"*) ;;
+        *)
+            echo "pre-commit: staged C/C++ changes are not clang-format clean on their changed lines — restage after:"
+            echo "            git clang-format --staged   (or clang-format -i <file> for the whole file)"
+            failed=1
+            ;;
+        esac
+    fi
+fi
+
+# Rust — the crate must stay rustfmt-clean (respects rustfmt.toml). Whole-file check; skips without cargo.
+if command -v cargo > /dev/null 2>&1; then
+    if git diff --cached --name-only --diff-filter=ACM -- '*.rs' | grep -q .; then
+        if ! cargo fmt --check > /dev/null 2>&1; then
+            echo "pre-commit: staged Rust changes are not rustfmt clean — run: cargo fmt"
+            failed=1
+        fi
+    fi
+fi
+
+# Python — ruff lint (E/F/W/I/UP/B/SIM/RUF/D-google/PLC0415) + ruff format, driven by the repo's own
+# pyproject profile. Skips without ruff. `--force-exclude` honors the config's extend-exclude even for
+# explicitly-passed files.
+if command -v ruff > /dev/null 2>&1; then
+    py_staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.py')
+    if [ -n "$py_staged" ]; then
+        if ! ruff format --check --quiet --force-exclude $py_staged > /dev/null 2>&1; then
+            echo "pre-commit: staged Python changes are not ruff-format clean — run: ruff format <files>"
+            failed=1
+        fi
+        if ! ruff check --quiet --force-exclude $py_staged > /dev/null 2>&1; then
+            echo "pre-commit: staged Python changes have ruff lint findings — run: ruff check --fix <files>"
+            failed=1
+        fi
+    fi
+fi
+
+# Swift — swift-format lint against the checked-in .swift-format. Skips without swift-format.
+if command -v swift-format > /dev/null 2>&1; then
+    swift_staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.swift')
+    if [ -n "$swift_staged" ]; then
+        if ! swift-format lint --strict $swift_staged > /dev/null 2>&1; then
+            echo "pre-commit: staged Swift changes are not swift-format clean — run: swift-format -i <files>"
+            failed=1
+        fi
+    fi
+fi
+
+if [ "$failed" -ne 0 ]; then
+    echo ""
+    echo "Staged changes are not formatter-clean (see above). Fix and re-stage, or bypass knowingly"
+    echo "with: git commit --no-verify"
+    exit 1
+fi
+exit 0
