@@ -417,6 +417,7 @@ def test_distances_tensor_indexing():
         _ = result[0, 100]
 
 
+@pytest.mark.repeat(randomized_repetitions_count)  # repeated runs churn the view-header free-list (park/revive)
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_distances_tensor_iteration():
     a = np.random.rand(5, 128).astype(np.float64)
@@ -605,6 +606,15 @@ def test_distances_tensor_copy():
     copy_arr = np.asarray(copy)
     np.testing.assert_array_equal(result_arr, copy_arr)
 
+    # copy(out=) writes into a preallocated buffer, returns it, and rejects a mismatched dtype/shape.
+    out = nk.zeros(result.shape, dtype="float64")
+    assert result.copy(out=out) is out
+    np.testing.assert_array_equal(np.asarray(out), result_arr)
+    with pytest.raises(TypeError):
+        result.copy(out=nk.zeros(result.shape, dtype="float32"))
+    with pytest.raises(ValueError):
+        result.copy(out=nk.zeros((3, 3), dtype="float64"))
+
 
 def test_distances_tensor_reshape(nk_seed: int):
     a = nk.iota((5, 128), nk_seed, dtype="float64")
@@ -623,6 +633,14 @@ def test_distances_tensor_reshape(nk_seed: int):
 
     with pytest.raises(ValueError):
         result.reshape(10, 10)
+
+    # flatten(out=) materializes into a preallocated 1-D buffer, including from a strided source.
+    flat_out = nk.zeros((35,), dtype="float64")
+    assert result.flatten(out=flat_out) is flat_out
+    np.testing.assert_array_equal(np.asarray(flat_out), np.asarray(result).ravel())
+    strided_out = nk.zeros((35,), dtype="float64")
+    result.T.flatten(out=strided_out)
+    np.testing.assert_array_equal(np.asarray(strided_out), np.asarray(result).T.ravel())
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -1270,12 +1288,14 @@ def test_dots_symmetric_row_range():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("threads", [0, 1, 4])
 @pytest.mark.parametrize("height", [63, 64, 129])
-def test_dots_packed_threads(height):
-    """Verify OpenMP-parallel dots_packed matches the serial path across tile boundaries.
+def test_dots_packed_threads(threads, height):
+    """Verify dots_packed and @ match the serial path across tile boundaries and thread counts.
 
-    The packed row tile is 64, so sizes straddling one and two tiles exercise
-    both the whole-tile and tail-chunk branches of the parallel loop.
+    The packed row tile is 64, so heights straddling one and two tiles exercise both the whole-tile
+    and tail-chunk branches of the parallel loop. threads=0 (all cores) must match threads=1 regardless
+    of any prior explicit count — the num_threads() clause fix, not the poisoned global ICV.
     """
     depth, width = 64, 32
     left_matrix = np.random.randn(height, depth).astype(np.float32)
@@ -1283,24 +1303,29 @@ def test_dots_packed_threads(height):
     right_packed = nk.dots_pack(right_matrix, dtype="float32")
 
     serial = np.array(nk.dots_packed(left_matrix, right_packed, threads=1))
-    parallel = np.array(nk.dots_packed(left_matrix, right_packed, threads=4))
-    assert_allclose(parallel, serial, err_msg=f"threads=4 diverges from threads=1 at height={height}")
+    parallel = np.array(nk.dots_packed(left_matrix, right_packed, threads=threads))
+    assert_allclose(parallel, serial, err_msg=f"threads={threads} diverges from threads=1 at height={height}")
+    # the @ operator auto-threads and must match the serial result too
+    at_result = np.array(make_nk(left_matrix, "float32") @ right_packed)
+    assert_allclose(at_result, serial, err_msg=f"@ diverges from threads=1 at height={height}")
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("threads", [0, 1, 4])
 @pytest.mark.parametrize("count", [31, 32, 65])
-def test_dots_symmetric_threads(count):
-    """Verify OpenMP-parallel dots_symmetric matches the serial path across tile boundaries.
+def test_dots_symmetric_threads(threads, count):
+    """Verify dots_symmetric matches the serial path across tile boundaries and thread counts.
 
-    The symmetric row tile is 32; only the upper triangle is guaranteed written.
+    The symmetric row tile is 32; only the upper triangle is guaranteed written. threads=0 (all cores)
+    must match threads=1 regardless of any prior explicit count — the num_threads() clause fix.
     """
     depth = 32
     vectors = np.random.randn(count, depth).astype(np.float32)
     mask = np.triu(np.ones((count, count), dtype=bool))
 
     serial = np.array(nk.dots_symmetric(vectors, threads=1))
-    parallel = np.array(nk.dots_symmetric(vectors, threads=4))
-    assert_allclose(parallel[mask], serial[mask], err_msg=f"threads=4 diverges from threads=1 at count={count}")
+    parallel = np.array(nk.dots_symmetric(vectors, threads=threads))
+    assert_allclose(parallel[mask], serial[mask], err_msg=f"threads={threads} diverges from threads=1 at count={count}")
 
 
 def _skip_unless_free_threaded():
