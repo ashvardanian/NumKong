@@ -88,30 +88,40 @@ KERNELS_TRIGONOMETRY: dict[str, tuple[Callable, Callable, Callable]] = {
     "atan": (baseline_atan, nk.atan, precise_atan),
 }
 
+# Trig ops are shape-invariant: sweep a couple of rank-N shapes (NumPy-only) alongside the 1-D
+# `dense_dimensions` so the N-D chunk walker is exercised; comparison flattens for rank-agnosticism.
+trigonometry_shapes = [(d,) for d in dense_dimensions] + ([(6, 8), (4, 5, 3)] if numpy_available else [])
+
 
 @pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.parametrize("shape", trigonometry_shapes)
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
 @pytest.mark.parametrize("metric", list(KERNELS_TRIGONOMETRY.keys()))
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_trigonometry_random_accuracy(ndim: int, dtype: str, metric: str, capability: str, nk_seed: int):
-    """sin, cos, atan on random inputs against high-precision baselines."""
+def test_trigonometry_random_accuracy(shape: tuple, dtype: str, metric: str, capability: str, nk_seed: int):
+    """sin, cos, atan on random inputs of any rank against high-precision baselines."""
     keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_TRIGONOMETRY[metric]
 
     if numpy_available:
-        a = np.random.uniform(-np.pi, np.pi, ndim).astype(dtype)
+        a = np.random.uniform(-np.pi, np.pi, shape).astype(dtype)
         accurate_dt, accurate = profile(baseline_kernel, a.astype(np.float64))
         expected_dt, expected = profile(baseline_kernel, a)
     else:
-        a, a_baseline = make_random((ndim,), dtype, seed=nk_seed)
+        a, a_baseline = make_random(shape, dtype, seed=nk_seed)
         accurate_dt, accurate = profile(precise_kernel, a_baseline)
         expected_dt, expected = 0, None
 
     result_dt, result = profile(simd_kernel, a)
 
+    # Elementwise op is shape-invariant; flatten so a rank-N result matches the baseline.
+    if numpy_available:
+        result = np.asarray(result).reshape(-1)
+        accurate = np.asarray(accurate).reshape(-1)
+        expected = np.asarray(expected).reshape(-1)
+
     assert_allclose(result, accurate, atol=NK_ATOL, rtol=NK_RTOL)
-    collect_errors(metric, ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors(metric, len(accurate), dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
