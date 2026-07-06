@@ -376,7 +376,7 @@ static PyObject *Tensor_int(PyObject *self) {
     return result;
 }
 
-static PyObject *Tensor_positive(PyObject *self) { return Tensor_copy(self, NULL); }
+static PyObject *Tensor_positive(PyObject *self) { return Tensor_copy(self, NULL, 0, NULL); }
 
 /** @brief Compute C-contiguous strides for a tensor shape. */
 void compute_contiguous_strides(size_t rank, Py_ssize_t const *shape, size_t item_size, Py_ssize_t *strides_out) {
@@ -1080,19 +1080,80 @@ static PyGetSetDef Tensor_getset[] = {
     {NULL, NULL, NULL, NULL, NULL},
 };
 
-char const doc_method_copy[] =                                   //
-    "Return a deep copy of the tensor.\n\n"                      //
-    "Returns:\n"                                                 //
-    "    Tensor: Independent copy with its own data buffer.\n\n" //
-    "Signature:\n"                                               //
-    "    >>> def copy(self, /): ...";
+/**
+ *  @brief Validate a user-supplied `out=` Tensor for an into-buffer op and return its data pointer.
+ *
+ *  Requires `out` to be a Tensor of exactly @p out_dtype, matching @p rank / @p shape, and
+ *  C-contiguous — the layout `linearize_cast_into` writes. Sets a Python error and returns NULL
+ *  on any mismatch. Shared by `astype`, `copy`, and `flatten`.
+ */
+static char *validate_out_buffer(PyObject *out_obj, nk_dtype_t out_dtype, size_t rank, Py_ssize_t const *shape) {
+    if (!PyObject_TypeCheck(out_obj, &TensorType)) {
+        PyErr_SetString(PyExc_TypeError, "out must be a Tensor");
+        return NULL;
+    }
+    Tensor *out = (Tensor *)out_obj;
+    if (out->dtype != out_dtype) {
+        PyErr_Format(PyExc_TypeError, "out dtype '%s' does not match expected '%s'",
+                     nk_dtype_to_pybuffer_typestr(out->dtype), nk_dtype_to_pybuffer_typestr(out_dtype));
+        return NULL;
+    }
+    if (out->rank != rank) {
+        PyErr_Format(PyExc_ValueError, "out rank %zu does not match expected %zu", out->rank, rank);
+        return NULL;
+    }
+    for (size_t i = 0; i < rank; i++)
+        if (out->shape[i] != shape[i]) {
+            PyErr_SetString(PyExc_ValueError, "out shape does not match expected shape");
+            return NULL;
+        }
+    if (!tensor_is_c_contig(out, nk_dtype_bytes_per_value(out_dtype))) {
+        PyErr_SetString(PyExc_ValueError, "out must be C-contiguous");
+        return NULL;
+    }
+    return out->data;
+}
 
-PyObject *Tensor_copy(PyObject *self, PyObject *args) {
-    nk_unused_(args);
+char const doc_method_copy[] =                                                  //
+    "Return a deep copy of the tensor.\n\n"                                     //
+    "Parameters:\n"                                                             //
+    "    out (Tensor, optional): Pre-allocated destination of the same dtype\n" //
+    "        and shape, C-contiguous. When given, the copy writes into it\n"    //
+    "        with no allocation and returns `out`.\n\n"                         //
+    "Returns:\n"                                                                //
+    "    Tensor: Independent copy (or `out` when provided).\n\n"                //
+    "Signature:\n"                                                              //
+    "    >>> def copy(self, /, *, out=None): ...";
+
+PyObject *Tensor_copy(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *tensor = (Tensor *)self;
+
+    PyObject *out_obj = NULL;
+    Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
+    if (nargs != 0) {
+        PyErr_SetString(PyExc_TypeError, "copy(*, out=None) takes no positional arguments");
+        return NULL;
+    }
+    for (Py_ssize_t i = 0; i < nkw; i++) {
+        PyObject *name = PyTuple_GET_ITEM(kwnames, i);
+        if (PyUnicode_CompareWithASCIIString(name, "out") == 0) out_obj = args[nargs + i];
+        else {
+            PyErr_Format(PyExc_TypeError, "copy() got unexpected keyword argument '%S'", name);
+            return NULL;
+        }
+    }
 
     size_t total_elements = 1;
     for (size_t i = 0; i < tensor->rank; i++) total_elements *= (size_t)tensor->shape[i];
+
+    if (out_obj && out_obj != Py_None) {
+        char *out_data = validate_out_buffer(out_obj, tensor->dtype, tensor->rank, tensor->shape);
+        if (!out_data) return NULL;
+        linearize_cast_into(tensor->data, tensor->dtype, out_data, tensor->dtype, tensor->rank, tensor->shape,
+                            tensor->strides, total_elements);
+        Py_INCREF(out_obj);
+        return out_obj;
+    }
 
     Tensor *result = Tensor_new(tensor->dtype, tensor->rank, tensor->shape);
     if (!result) return NULL;
@@ -1191,21 +1252,52 @@ PyObject *Tensor_reshape(PyObject *self, PyObject *const *args, Py_ssize_t nargs
     return (PyObject *)result;
 }
 
-char const doc_method_flatten[] =                                 //
-    "Return a flattened 1D view of the tensor.\n\n"               //
-    "Returns:\n"                                                  //
-    "    Tensor: 1D view if contiguous, otherwise a 1D copy.\n\n" //
-    "Signature:\n"                                                //
-    "    >>> def flatten(self, /): ...";
+char const doc_method_flatten[] =                                             //
+    "Return a flattened 1D view of the tensor.\n\n"                           //
+    "Parameters:\n"                                                           //
+    "    out (Tensor, optional): Pre-allocated 1D destination of the same\n"  //
+    "        dtype, length `size`, C-contiguous. When given, the flattened\n" //
+    "        data is copied into it with no allocation (never a view) and\n"  //
+    "        `out` is returned.\n\n"                                          //
+    "Returns:\n"                                                              //
+    "    Tensor: 1D view if contiguous (no `out`), otherwise a 1D copy /\n"   //
+    "        the provided `out`.\n\n"                                         //
+    "Signature:\n"                                                            //
+    "    >>> def flatten(self, /, *, out=None): ...";
 
-PyObject *Tensor_flatten(PyObject *self, PyObject *args) {
-    nk_unused_(args);
+PyObject *Tensor_flatten(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *tensor = (Tensor *)self;
+
+    PyObject *out_obj = NULL;
+    Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
+    if (nargs != 0) {
+        PyErr_SetString(PyExc_TypeError, "flatten(*, out=None) takes no positional arguments");
+        return NULL;
+    }
+    for (Py_ssize_t i = 0; i < nkw; i++) {
+        PyObject *name = PyTuple_GET_ITEM(kwnames, i);
+        if (PyUnicode_CompareWithASCIIString(name, "out") == 0) out_obj = args[nargs + i];
+        else {
+            PyErr_Format(PyExc_TypeError, "flatten() got unexpected keyword argument '%S'", name);
+            return NULL;
+        }
+    }
 
     Py_ssize_t total_elements = 1;
     for (size_t i = 0; i < tensor->rank; i++) total_elements *= tensor->shape[i];
 
     size_t item_size = nk_dtype_bytes_per_value(tensor->dtype);
+
+    // Into a caller buffer: always materialize (copy), never return a view.
+    if (out_obj && out_obj != Py_None) {
+        Py_ssize_t flat_shape[1] = {total_elements};
+        char *out_data = validate_out_buffer(out_obj, tensor->dtype, 1, flat_shape);
+        if (!out_data) return NULL;
+        linearize_cast_into(tensor->data, tensor->dtype, out_data, tensor->dtype, tensor->rank, tensor->shape,
+                            tensor->strides, (size_t)total_elements);
+        Py_INCREF(out_obj);
+        return out_obj;
+    }
 
     if (tensor_is_c_contig(tensor, item_size)) {
         Py_ssize_t flat_shape[1] = {total_elements};
@@ -2281,43 +2373,21 @@ PyObject *Tensor_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
             PyErr_SetString(PyExc_TypeError, "astype(out=...) does not support block-scaled target dtypes");
             return NULL;
         }
-        if (!PyObject_TypeCheck(out_obj, &TensorType)) {
-            PyErr_SetString(PyExc_TypeError, "out must be a Tensor");
-            return NULL;
-        }
-        Tensor *out = (Tensor *)out_obj;
-        if (out->dtype != target_dtype) {
-            PyErr_Format(PyExc_TypeError, "out dtype '%s' does not match target '%s'",
-                         nk_dtype_to_pybuffer_typestr(out->dtype), nk_dtype_to_pybuffer_typestr(target_dtype));
-            return NULL;
-        }
-        if (out->rank != tensor->rank) {
-            PyErr_Format(PyExc_ValueError, "out rank %zu does not match source rank %zu", out->rank, tensor->rank);
-            return NULL;
-        }
+        char *out_data = validate_out_buffer(out_obj, target_dtype, tensor->rank, tensor->shape);
+        if (!out_data) return NULL;
         Py_ssize_t out_total = 1;
-        for (size_t i = 0; i < tensor->rank; i++) {
-            if (out->shape[i] != tensor->shape[i]) {
-                PyErr_SetString(PyExc_ValueError, "out shape does not match source shape");
-                return NULL;
-            }
-            out_total *= tensor->shape[i];
-        }
-        if (!tensor_is_c_contig(out, nk_dtype_bytes_per_value(target_dtype))) {
-            PyErr_SetString(PyExc_ValueError, "out must be C-contiguous");
-            return NULL;
-        }
-        linearize_cast_into(tensor->data, tensor->dtype, out->data, target_dtype, tensor->rank, tensor->shape,
+        for (size_t i = 0; i < tensor->rank; i++) out_total *= tensor->shape[i];
+        linearize_cast_into(tensor->data, tensor->dtype, out_data, target_dtype, tensor->rank, tensor->shape,
                             tensor->strides, (size_t)out_total);
-        Py_INCREF(out);
-        return (PyObject *)out;
+        Py_INCREF(out_obj);
+        return out_obj;
     }
 
     // Block-scaled target -> quantize into a ScaledTensor.
     if (nk_dtype_is_block_scaled(target_dtype)) return Tensor_encode_block_scaled(tensor, target_dtype);
 
     // Same dtype -> return copy
-    if (target_dtype == tensor->dtype) return Tensor_copy(self, NULL);
+    if (target_dtype == tensor->dtype) return Tensor_copy(self, NULL, 0, NULL);
 
     // Compute total elements
     Py_ssize_t total = 1;
@@ -2399,7 +2469,7 @@ static PyObject *Tensor___array__(PyObject *self_obj, PyObject *const *args, Py_
 }
 
 static PyMethodDef Tensor_methods[] = {
-    {"copy", Tensor_copy, METH_NOARGS, doc_method_copy},
+    {"copy", (PyCFunction)Tensor_copy, METH_FASTCALL | METH_KEYWORDS, doc_method_copy},
     {"reshape", (PyCFunction)Tensor_reshape, METH_FASTCALL, doc_method_reshape},
     {"moments", Tensor_moments, METH_NOARGS, doc_method_moments},
     {"minmax", Tensor_minmax, METH_NOARGS, doc_method_minmax},
@@ -2410,7 +2480,7 @@ static PyMethodDef Tensor_methods[] = {
     {"argmin", (PyCFunction)Tensor_argmin, METH_FASTCALL | METH_KEYWORDS, doc_method_argmin},
     {"argmax", (PyCFunction)Tensor_argmax, METH_FASTCALL | METH_KEYWORDS, doc_method_argmax},
     {"astype", (PyCFunction)Tensor_astype, METH_FASTCALL | METH_KEYWORDS, doc_method_astype},
-    {"flatten", Tensor_flatten, METH_NOARGS, doc_method_flatten},
+    {"flatten", (PyCFunction)Tensor_flatten, METH_FASTCALL | METH_KEYWORDS, doc_method_flatten},
     {"squeeze", (PyCFunction)Tensor_squeeze, METH_FASTCALL, doc_method_squeeze},
     {"resize", (PyCFunction)Tensor_resize, METH_FASTCALL, doc_method_resize},
     {"reserve", (PyCFunction)Tensor_reserve, METH_FASTCALL, doc_method_reserve},

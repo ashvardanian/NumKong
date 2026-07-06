@@ -147,7 +147,7 @@ Tensor *Tensor_view(Tensor *parent, char *data, nk_dtype_t dtype, size_t rank, P
                     Py_ssize_t const *strides);
 
 /** @brief Copy the tensor.  */
-PyObject *Tensor_copy(PyObject *self, PyObject *args);
+PyObject *Tensor_copy(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 /** @brief Reshape the tensor (returns view if possible).  */
 PyObject *Tensor_reshape(PyObject *self, PyObject *const *args, Py_ssize_t nargs);
