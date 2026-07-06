@@ -246,10 +246,90 @@ static int tensor_is_f_contig(Tensor *tensor, size_t item_size) {
     return 1;
 }
 
+/**
+ *  @brief Bounded free-list of dead view headers, recycled to skip PyObject_New / tp_free churn.
+ *
+ *  Views (`parent != NULL`, borrowing the parent's storage) churn heavily: every slice, integer
+ *  index, `.T`, `flatten`, and iteration step mints a fixed-size header torn down moments later.
+ *  Rather than round-trip each header through the allocator, `Tensor_dealloc` parks a dead view on
+ *  this intrusive list — the `parent` field doubles as the next-link — and the view constructors pop
+ *  one back, reviving it with `_Py_NewReference`. Legal because Tensor is a non-GC, fixed-basicsize
+ *  type. Owning tensors are never pooled: their `parent == NULL` sentinel would collide with the
+ *  link, and their `data` buffer must be freed.
+ */
+#define NK_VIEW_FREELIST_CAP 64
+
+static Tensor *g_view_freelist_head = NULL;
+static size_t g_view_freelist_count = 0;
+
+#ifdef Py_GIL_DISABLED
+static PyMutex g_view_freelist_mutex = {0};
+#define NK_VIEW_FREELIST_LOCK()   PyMutex_Lock(&g_view_freelist_mutex)
+#define NK_VIEW_FREELIST_UNLOCK() PyMutex_Unlock(&g_view_freelist_mutex)
+#else
+#define NK_VIEW_FREELIST_LOCK()   ((void)0)
+#define NK_VIEW_FREELIST_UNLOCK() ((void)0)
+#endif
+
+/** @brief Park a dead view header for reuse. Returns 1 if pooled, 0 if the caller must free it. */
+static int tensor_view_freelist_push(Tensor *view) {
+    int pooled = 0;
+    NK_VIEW_FREELIST_LOCK();
+    if (g_view_freelist_count < NK_VIEW_FREELIST_CAP) {
+        view->parent = (PyObject *)g_view_freelist_head; // reuse `parent` as the intrusive next-link
+        g_view_freelist_head = view;
+        g_view_freelist_count++;
+        pooled = 1;
+    }
+    NK_VIEW_FREELIST_UNLOCK();
+    return pooled;
+}
+
+/** @brief Pop and revive a pooled view header, or NULL when the pool is empty. */
+static Tensor *tensor_view_freelist_pop(void) {
+    Tensor *view = NULL;
+    NK_VIEW_FREELIST_LOCK();
+    if (g_view_freelist_head) {
+        view = g_view_freelist_head;
+        g_view_freelist_head = (Tensor *)view->parent; // unlink
+        g_view_freelist_count--;
+    }
+    NK_VIEW_FREELIST_UNLOCK();
+    if (view) _Py_NewReference((PyObject *)view); // dead header → live, refcount 1
+    return view;
+}
+
+/** @brief Allocate a view header, preferring a recycled one over a fresh PyObject_New. */
+static Tensor *tensor_view_header_new(void) {
+    Tensor *view = tensor_view_freelist_pop();
+    if (view) return view;
+    return PyObject_New(Tensor, &TensorType);
+}
+
+/** @brief Drain the view free-list at interpreter teardown (wired as the module's m_free). */
+void nk_tensor_view_freelist_clear(void) {
+    NK_VIEW_FREELIST_LOCK();
+    Tensor *node = g_view_freelist_head;
+    while (node) {
+        Tensor *next = (Tensor *)node->parent;
+        PyObject_Free(node);
+        node = next;
+    }
+    g_view_freelist_head = NULL;
+    g_view_freelist_count = 0;
+    NK_VIEW_FREELIST_UNLOCK();
+}
+
 static void Tensor_dealloc(PyObject *self) {
     Tensor *tensor = (Tensor *)self;
-    if (tensor->parent == NULL) PyMem_Free(tensor->data); // owns the buffer; PyMem_Free(NULL) is a no-op
-    Py_XDECREF(tensor->parent);
+    if (tensor->parent == NULL) {
+        PyMem_Free(tensor->data); // owns the buffer; PyMem_Free(NULL) is a no-op
+        Py_TYPE(self)->tp_free(self);
+        return;
+    }
+    // View: drop the borrowed parent reference, then park the header for reuse.
+    Py_DECREF(tensor->parent);
+    if (tensor_view_freelist_push(tensor)) return;
     Py_TYPE(self)->tp_free(self);
 }
 
@@ -319,7 +399,7 @@ Tensor *Tensor_view(Tensor *parent, char *data_ptr, nk_dtype_t dtype, size_t ran
         return NULL;
     }
 
-    Tensor *view = PyObject_New(Tensor, &TensorType);
+    Tensor *view = tensor_view_header_new();
     if (!view) {
         PyErr_NoMemory();
         return NULL;
@@ -1066,7 +1146,7 @@ static Tensor *Tensor_view_object(PyObject *owner, char *data_ptr, nk_dtype_t dt
         return NULL;
     }
 
-    Tensor *view = PyObject_New(Tensor, &TensorType);
+    Tensor *view = tensor_view_header_new();
     if (!view) {
         PyErr_NoMemory();
         return NULL;

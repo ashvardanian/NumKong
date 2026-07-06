@@ -146,6 +146,9 @@ Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape);
 Tensor *Tensor_view(Tensor *parent, char *data, nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape,
                     Py_ssize_t const *strides);
 
+/** @brief Drain the recycled view-header free-list; call once at interpreter teardown.  */
+void nk_tensor_view_freelist_clear(void);
+
 /** @brief Copy the tensor.  */
 PyObject *Tensor_copy(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 

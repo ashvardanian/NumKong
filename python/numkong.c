@@ -1184,6 +1184,12 @@ static PyMethodDef nk_methods[] = {
     // Sentinel
     {NULL, NULL, 0, NULL}};
 
+/** @brief Module teardown hook: release the recycled Tensor-view headers. */
+static void nk_module_free(void *unused) {
+    nk_unused_(unused);
+    nk_tensor_view_freelist_clear();
+}
+
 static char const doc_module[] =                                                                    //
     "Portable mixed-precision BLAS-like vector math library for x86 and Arm.\n"                     //
     "\n"                                                                                            //
@@ -1217,7 +1223,8 @@ static char const doc_module[] =                                                
     "    >>> numkong.euclidean(a, b, dtype='bfloat16', out=c)\n";
 
 static PyModuleDef nk_module = {
-    PyModuleDef_HEAD_INIT, .m_name = "NumKong", .m_doc = doc_module, .m_size = -1, .m_methods = nk_methods,
+    PyModuleDef_HEAD_INIT, .m_name = "NumKong",     .m_doc = doc_module,
+    .m_size = -1,          .m_methods = nk_methods, .m_free = nk_module_free,
 };
 
 PyMODINIT_FUNC PyInit__numkong(void) {
