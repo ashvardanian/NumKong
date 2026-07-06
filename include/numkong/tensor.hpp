@@ -286,9 +286,8 @@ struct tensor_view {
     /** @brief Convenience constructor from a typed pointer and an explicit @p extents list (rank == list size).
      *  An out-of-range rank (empty, or greater than @c max_rank_) yields an empty handle rather than overflowing
      *  the fixed-capacity shape storage. */
-    tensor_view(value_type const *data, std::initializer_list<size_type> extents) noexcept {
-        nk_assert_(extents.size() >= 1 && extents.size() <= max_rank_);
-        if (extents.size() == 0 || extents.size() > max_rank_) return;
+    constexpr tensor_view(value_type const *data, std::initializer_list<size_type> extents) noexcept {
+        if (extents.size() == 0 || extents.size() > max_rank_) return; // fail closed, like reshape()
         data_ = reinterpret_cast<char const *>(data);
         shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.begin(), extents.size());
     }
@@ -550,9 +549,8 @@ struct tensor_span {
     /** @brief Convenience constructor from a typed pointer and an explicit @p extents list (rank == list size).
      *  An out-of-range rank (empty, or greater than @c max_rank_) yields an empty handle rather than overflowing
      *  the fixed-capacity shape storage. */
-    tensor_span(value_type *data, std::initializer_list<size_type> extents) noexcept {
-        nk_assert_(extents.size() >= 1 && extents.size() <= max_rank_);
-        if (extents.size() == 0 || extents.size() > max_rank_) return;
+    constexpr tensor_span(value_type *data, std::initializer_list<size_type> extents) noexcept {
+        if (extents.size() == 0 || extents.size() > max_rank_) return; // fail closed, like reshape()
         data_ = reinterpret_cast<char *>(data);
         shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.begin(), extents.size());
     }
@@ -1299,12 +1297,16 @@ struct tensor_dims_view_ {
 #pragma region Tensor
 
 /**
- *  @brief Owning, non-resizable, N-dimensional tensor.
+ *  @brief Owning, N-dimensional tensor: allocated once, reshaped freely within its capacity.
  *  @tparam value_type_ Element type.
  *  @tparam allocator_type_ Allocator.
  *  @tparam max_rank_ Maximum number of dimensions.
  *
- *  Fixed-size at construction. Use `try_zeros()` factory for non-throwing construction.
+ *  `try_resize()` adjusts the *shape* within the allocated `capacity()` and fails beyond it, so `data()`
+ *  is stable across resizes — the contract capture-replaying GPU code depends on. `reserve()` is the
+ *  explicit opt-in that MAY reallocate to grow `capacity()` (and thus move `data()`). Allocate at the
+ *  worst-case extents (or `reserve()` up front), then `try_resize()` to each step's live extents;
+ *  `clear()` drops back to an empty shape while keeping the buffer.
  */
 template <typename value_type_, typename allocator_type_ = aligned_allocator<value_type_>, std::size_t max_rank_ = 8>
 struct tensor {
@@ -1321,33 +1323,94 @@ struct tensor {
   private:
     pointer data_ = nullptr;
     shape_storage_<max_rank_> shape_;
+    size_type capacity_ = 0; // Allocated values; the shape may cover any prefix of them.
     [[no_unique_address]] allocator_type_ alloc_;
 
   public:
     tensor() noexcept = default;
 
-    explicit tensor(allocator_type_ const &alloc) noexcept : alloc_(alloc) {}
+    constexpr explicit tensor(allocator_type_ const &alloc) noexcept : alloc_(alloc) {}
 
     ~tensor() noexcept {
-        if (data_) alloc_traits::deallocate(alloc_, data_, storage_values_for_shape_<value_type_>(shape_));
+        if (data_) alloc_traits::deallocate(alloc_, data_, capacity_);
     }
 
-    tensor(tensor &&other) noexcept
+    constexpr tensor(tensor &&other) noexcept
         : data_(std::exchange(other.data_, nullptr)), shape_(std::exchange(other.shape_, {})),
-          alloc_(std::move(other.alloc_)) {}
+          capacity_(std::exchange(other.capacity_, 0)), alloc_(std::move(other.alloc_)) {}
 
     tensor &operator=(tensor &&other) noexcept {
         if (this != &other) {
-            if (data_) alloc_traits::deallocate(alloc_, data_, storage_values_for_shape_<value_type_>(shape_));
+            if (data_) alloc_traits::deallocate(alloc_, data_, capacity_);
             if constexpr (alloc_traits::propagate_on_container_move_assignment::value) alloc_ = std::move(other.alloc_);
             data_ = std::exchange(other.data_, nullptr);
             shape_ = std::exchange(other.shape_, {});
+            capacity_ = std::exchange(other.capacity_, 0);
         }
         return *this;
     }
 
     tensor(tensor const &) = delete;
     tensor &operator=(tensor const &) = delete;
+
+    /** @brief Allocated values — the ceiling `try_resize()` honors; at least `numel()`. */
+    constexpr size_type capacity() const noexcept { return capacity_; }
+
+    /**
+     *  @brief Reshape in place to contiguous @p extents, without reallocating: succeeds iff the new
+     *      volume fits `capacity()` (and the rank fits `max_rank_`), so `data()` never moves — resizing
+     *      to a step's live extents is safe under captured GPU graphs.
+     *  @return `true` on success; `false` leaves the shape untouched.
+     */
+    [[nodiscard]] constexpr bool try_resize(std::initializer_list<size_type> extents) noexcept {
+        return try_resize(extents.begin(), extents.size());
+    }
+
+    /** @brief Reshape in place from an @p extents array of @p rank dims (mirror of the list overload). */
+    [[nodiscard]] constexpr bool try_resize(size_type const *extents, size_type rank) noexcept {
+        if (rank > max_rank_) return false;
+        shape_storage_<max_rank_> const resized = make_contiguous_shape_<value_type_, max_rank_>(extents, rank);
+        if (storage_values_for_shape_<value_type_>(resized) > capacity_) return false;
+        shape_ = resized;
+        return true;
+    }
+
+    /**
+     *  @brief Grow the allocated `capacity()` to at least @p values elements. Unlike `try_resize()`,
+     *      this MAY reallocate and move `data()`; the live `numel()`-storage elements are preserved.
+     *      No-op when `capacity() >= values`. @return `true` on success (or no-op); `false` if
+     *      allocation failed (state unchanged).
+     */
+    [[nodiscard]] bool reserve(size_type values) noexcept {
+        if (values <= capacity_) return true;
+        pointer fresh = alloc_traits::allocate(alloc_, values);
+        if (!fresh) return false;
+        if (data_) {
+            size_type const live = storage_values_for_shape_<value_type_>(shape_);
+            if (live)
+                std::memcpy(static_cast<void *>(fresh), static_cast<void const *>(data_), live * sizeof(value_type_));
+            alloc_traits::deallocate(alloc_, data_, capacity_);
+        }
+        data_ = fresh;
+        capacity_ = values;
+        return true;
+    }
+
+    /** @brief Reset to a logically empty shape (`empty()` becomes true) while keeping `capacity()`, so the
+     *      buffer can be refilled via `try_resize()` without reallocating. Storage frees on destruction. */
+    constexpr void clear() noexcept {
+        size_type const zero = 0;
+        shape_ = make_contiguous_shape_<value_type_, max_rank_>(&zero, 1);
+    }
+
+    /** @brief Swap contents (data, shape, capacity, and allocator when the allocator propagates on swap). */
+    constexpr void swap(tensor &other) noexcept {
+        using std::swap;
+        swap(data_, other.data_);
+        swap(shape_, other.shape_);
+        swap(capacity_, other.capacity_);
+        if constexpr (alloc_traits::propagate_on_container_swap::value) swap(alloc_, other.alloc_);
+    }
 
     /**
      *  @brief Factory: allocate a zero-initialized tensor with the given extents.
@@ -1370,6 +1433,7 @@ struct tensor {
         else
             for (size_type i = 0; i < storage_values; ++i) ptr[i] = value_type_ {};
         t.data_ = ptr;
+        t.capacity_ = storage_values;
         return t;
     }
 
@@ -1403,6 +1467,7 @@ struct tensor {
         if (!ptr) return t;
         for (size_type i = 0; i < storage_values; ++i) ptr[i] = val;
         t.data_ = ptr;
+        t.capacity_ = storage_values;
         return t;
     }
 
@@ -1423,6 +1488,7 @@ struct tensor {
         pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
         if (!ptr) return t;
         t.data_ = ptr;
+        t.capacity_ = storage_values;
         return t;
     }
 
@@ -1441,6 +1507,7 @@ struct tensor {
         else
             for (size_type i = 0; i < storage_values; ++i) ptr[i] = value_type_ {};
         t.data_ = ptr;
+        t.capacity_ = storage_values;
         return t;
     }
 
@@ -1455,6 +1522,7 @@ struct tensor {
         pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
         if (!ptr) return t;
         t.data_ = ptr;
+        t.capacity_ = storage_values;
         return t;
     }
 
@@ -1470,6 +1538,7 @@ struct tensor {
         if (!ptr) return t;
         for (size_type i = 0; i < storage_values; ++i) ptr[i] = val;
         t.data_ = ptr;
+        t.capacity_ = storage_values;
         return t;
     }
 
@@ -1518,6 +1587,7 @@ struct tensor {
                                          allocator_type_ alloc = {}) noexcept {
         tensor t(alloc);
         t.data_ = ptr;
+        t.capacity_ = storage_values_for_shape_<value_type_>(shape);
         t.shape_ = shape;
         return t;
     }
@@ -1535,91 +1605,91 @@ struct tensor {
     constexpr size_type numel() const noexcept { return shape_.numel(); }
 
     /** @brief True if empty. */
-    constexpr bool empty() const noexcept { return data_ == nullptr; }
+    constexpr bool empty() const noexcept { return data_ == nullptr || numel() == 0; }
 
     /** @brief Contextual-bool: truthy when the tensor owns storage. Enables the `if(!t)` empty-check idiom. */
     constexpr explicit operator bool() const noexcept { return !empty(); }
 
     /** @brief Typed pointer to data. */
-    pointer data() noexcept { return data_; }
-    value_type const *data() const noexcept { return data_; }
+    constexpr pointer data() noexcept { return data_; }
+    constexpr value_type const *data() const noexcept { return data_; }
 
     /** @brief Shape storage. */
     constexpr shape_storage_<max_rank_> const &shape() const noexcept { return shape_; }
 
     /** @brief Allocator. */
-    allocator_type get_allocator() const noexcept { return alloc_; }
+    constexpr allocator_type get_allocator() const noexcept { return alloc_; }
 
     /** @brief Create an immutable view. */
-    view_type view() const noexcept { return {reinterpret_cast<char const *>(data_), shape_}; }
+    constexpr view_type view() const noexcept { return {reinterpret_cast<char const *>(data_), shape_}; }
 
     /** @brief Create a mutable span. */
-    span_type span() noexcept { return {reinterpret_cast<char *>(data_), shape_}; }
+    constexpr span_type span() noexcept { return {reinterpret_cast<char *>(data_), shape_}; }
 
     /** @brief Range of immutable row views (slices along leading dimension). */
     struct rows_views_t {
         view_type parent;
-        axis_iterator<view_type> begin() const noexcept { return {parent, 0}; }
-        axis_iterator<view_type> end() const noexcept { return {parent, parent.extent(0)}; }
+        constexpr axis_iterator<view_type> begin() const noexcept { return {parent, 0}; }
+        constexpr axis_iterator<view_type> end() const noexcept { return {parent, parent.extent(0)}; }
     };
 
     /** @brief Range of mutable row spans (slices along leading dimension). */
     struct rows_spans_t {
         span_type parent;
-        axis_iterator<span_type> begin() noexcept { return {parent, 0}; }
-        axis_iterator<span_type> end() noexcept { return {parent, parent.extent(0)}; }
+        constexpr axis_iterator<span_type> begin() noexcept { return {parent, 0}; }
+        constexpr axis_iterator<span_type> end() noexcept { return {parent, parent.extent(0)}; }
     };
 
     /** @brief Iterate rows as immutable views. */
-    rows_views_t rows_views() const noexcept { return {view()}; }
+    constexpr rows_views_t rows_views() const noexcept { return {view()}; }
 
     /** @brief Iterate rows as mutable spans. */
-    rows_spans_t rows_spans() noexcept { return {span()}; }
+    constexpr rows_spans_t rows_spans() noexcept { return {span()}; }
 
     /** @brief Iterate rows as immutable views (convenience alias for rows_views). */
-    typename view_type::rows_views_t rows() const noexcept { return view().rows(); }
+    constexpr typename view_type::rows_views_t rows() const noexcept { return view().rows(); }
 
     /** @brief Iterate rows as mutable spans (convenience alias for rows_spans). */
-    typename span_type::rows_spans_t rows() noexcept { return span().rows(); }
+    constexpr typename span_type::rows_spans_t rows() noexcept { return span().rows(); }
 
     /** @brief Const element iterator (begin). */
-    tensor_view_iterator_<view_type> begin() const noexcept { return view().begin(); }
+    constexpr tensor_view_iterator_<view_type> begin() const noexcept { return view().begin(); }
     /** @brief Const element iterator (end). */
-    tensor_view_iterator_<view_type> end() const noexcept { return view().end(); }
+    constexpr tensor_view_iterator_<view_type> end() const noexcept { return view().end(); }
     /** @brief Mutable element iterator (begin). */
-    tensor_span_iterator_<span_type> begin() noexcept { return span().begin(); }
+    constexpr tensor_span_iterator_<span_type> begin() noexcept { return span().begin(); }
     /** @brief Mutable element iterator (end). */
-    tensor_span_iterator_<span_type> end() noexcept { return span().end(); }
+    constexpr tensor_span_iterator_<span_type> end() noexcept { return span().end(); }
     /** @brief Number of logical scalar elements. */
     constexpr size_type size() const noexcept { return numel(); }
     /** @brief Const dimension-only view. */
-    tensor_dims_view_<tensor_view_iterator_<view_type>> dims() const noexcept { return view().dims(); }
+    constexpr tensor_dims_view_<tensor_view_iterator_<view_type>> dims() const noexcept { return view().dims(); }
     /** @brief Mutable dimension-only view. */
-    tensor_dims_view_<tensor_span_iterator_<span_type>> dims() noexcept { return span().dims(); }
+    constexpr tensor_dims_view_<tensor_span_iterator_<span_type>> dims() noexcept { return span().dims(); }
 
     /** @brief Reinterpret as a 2D immutable matrix view. Requires rank >= 2. */
-    tensor_view<value_type_, 2> as_matrix_view() const noexcept { return view().as_matrix(); }
+    constexpr tensor_view<value_type_, 2> as_matrix_view() const noexcept { return view().as_matrix(); }
 
     /** @brief Reinterpret as a 2D mutable matrix span. Requires rank >= 2. */
-    tensor_span<value_type_, 2> as_matrix_span() noexcept { return span().as_matrix(); }
+    constexpr tensor_span<value_type_, 2> as_matrix_span() noexcept { return span().as_matrix(); }
 
     /** @brief Transpose: reverse dimension order (immutable view). */
-    view_type transpose() const noexcept { return view().transpose(); }
+    constexpr view_type transpose() const noexcept { return view().transpose(); }
 
     /** @brief Transpose: reverse dimension order (mutable span). */
-    span_type transpose() noexcept { return span().transpose(); }
+    constexpr span_type transpose() noexcept { return span().transpose(); }
 
     /** @brief Reshape (immutable view). The output rank may differ from the source; pass it as the template
      *  argument when narrowing or widening. Requires contiguous layout and matching element count. */
     template <std::size_t out_rank_ = max_rank_>
-    tensor_view<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) const noexcept {
+    constexpr tensor_view<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) const noexcept {
         return view().template reshape<out_rank_>(new_extents);
     }
 
     /** @brief Reshape (mutable span). The output rank may differ from the source; pass it as the template
      *  argument when narrowing or widening. Requires contiguous layout and matching element count. */
     template <std::size_t out_rank_ = max_rank_>
-    tensor_span<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) noexcept {
+    constexpr tensor_span<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) noexcept {
         return span().template reshape<out_rank_>(new_extents);
     }
 
@@ -1764,10 +1834,8 @@ struct tensor {
 
 /** @brief Non-member swap. */
 template <typename V, typename A, std::size_t R>
-void swap(tensor<V, A, R> &a, tensor<V, A, R> &b) noexcept {
-    auto tmp = std::move(a);
-    a = std::move(b);
-    b = std::move(tmp);
+constexpr void swap(tensor<V, A, R> &a, tensor<V, A, R> &b) noexcept {
+    a.swap(b); // delegate to the O(1) member swap (no realloc; preserves capacity)
 }
 
 #pragma endregion Tensor
@@ -2056,9 +2124,59 @@ struct scaled_tensor {
     /** @brief Contextual-bool: truthy when the tensor owns storage. Enables the `if(!t)` empty-check idiom. */
     constexpr explicit operator bool() const noexcept { return !empty(); }
 
+    /** @brief Allocated logical-element capacity — the ceiling coordinated `try_resize()` honors. */
+    constexpr size_type capacity() const noexcept { return elements_.capacity(); }
+
+    /**
+     *  @brief Reshape in place to @p extents (last must be a multiple of `block_size`), resizing BOTH the
+     *      element and per-block-scale tensors together without reallocating. Fails — leaving both
+     *      untouched — if the last extent is not block-aligned or either component's `capacity()` is exceeded.
+     */
+    [[nodiscard]] constexpr bool try_resize(size_type const *extents, size_type rank) noexcept {
+        if (rank == 0 || rank > max_rank_) return false;
+        if (extents[rank - 1] % block_size != 0) return false;
+        size_type scale_extents[max_rank_];
+        for (size_type d = 0; d < rank; ++d) scale_extents[d] = extents[d];
+        scale_extents[rank - 1] = extents[rank - 1] / block_size;
+        // Pre-check both fit so we never apply a half-resize that would desync elements/scales.
+        auto const elem_shape = make_contiguous_shape_<element_type, max_rank_>(extents, rank);
+        auto const scale_shape = make_contiguous_shape_<scale_type, max_rank_>(scale_extents, rank);
+        if (storage_values_for_shape_<element_type>(elem_shape) > elements_.capacity()) return false;
+        if (storage_values_for_shape_<scale_type>(scale_shape) > block_scales_.capacity()) return false;
+        (void)elements_.try_resize(extents, rank); // both pre-verified — cannot fail now
+        (void)block_scales_.try_resize(scale_extents, rank);
+        return true;
+    }
+
+    /** @copydoc try_resize(size_type const *, size_type) */
+    [[nodiscard]] constexpr bool try_resize(std::initializer_list<size_type> extents) noexcept {
+        return try_resize(extents.begin(), extents.size());
+    }
+
+    /** @brief Grow capacity to at least @p values logical elements (plus the matching per-block scales);
+     *      MAY reallocate/move the component buffers. No-op when already large enough. */
+    [[nodiscard]] bool reserve(size_type values) noexcept {
+        size_type const scale_values = (values + block_size - 1) / block_size;
+        return elements_.reserve(values) && block_scales_.reserve(scale_values);
+    }
+
+    /** @brief Drop to an empty shape while keeping both component capacities. */
+    constexpr void clear() noexcept {
+        elements_.clear();
+        block_scales_.clear();
+    }
+
+    /** @brief Swap contents (both component tensors and the per-tensor scale). */
+    constexpr void swap(scaled_tensor &other) noexcept {
+        elements_.swap(other.elements_);
+        block_scales_.swap(other.block_scales_);
+        using std::swap;
+        swap(tensor_scale_, other.tensor_scale_);
+    }
+
     /** @brief Immutable component accessors. */
-    typename element_tensor_type::view_type elements() const noexcept { return elements_.view(); }
-    typename scale_tensor_type::view_type block_scales() const noexcept { return block_scales_.view(); }
+    constexpr typename element_tensor_type::view_type elements() const noexcept { return elements_.view(); }
+    constexpr typename scale_tensor_type::view_type block_scales() const noexcept { return block_scales_.view(); }
     /** @brief Per-tensor multiplier (NVFP4 only; absent for the MX family). `cast()` derives and
      *  writes it on encode through `span().tensor_scale_slot()`. */
     float tensor_scale() const noexcept
