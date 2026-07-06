@@ -237,6 +237,9 @@ The [BLASFEO](https://github.com/giaf/blasfeo) library was created specifically 
 NumKong __never allocates memory__.
 Following the same philosophy as [Intel MKL's packed GEMM API](https://www.intel.com/content/www/us/en/developer/articles/technical/introducing-the-new-packed-apis-for-gemm.html) (`cblas_sgemm_pack_get_size` → `cblas_sgemm_pack` → `cblas_sgemm_compute`), NumKong exposes typed three-phase interfaces — `nk_dots_packed_size_*` → `nk_dots_pack_*` → `nk_dots_packed_*` — where the caller owns the buffer and NumKong only fills it.
 
+The owning containers follow the same caller-controls-allocation discipline across every binding.
+In C++, Rust, Python, JavaScript, and Swift an owning tensor or vector is _fixed-capacity resizable_: `capacity` is the allocated ceiling, `try_resize`/`resize` reshapes within it without moving storage so handed-out views stay valid, `reserve` is the explicit opt-in that may reallocate to grow, and `clear` empties the shape while keeping capacity.
+
 The reason GEMM libraries repack matrices at all is that every hardware target has a different preferred layout — Intel AMX expects B in a [VNNI-interleaved](https://www.intel.com/content/www/us/en/developer/articles/code-sample/advanced-matrix-extensions-intrinsics-functions.html) tile format (pairs of BFloat16 values packed into DWORDs across the K dimension), while Arm SME wants column vectors for its [FMOPA outer-product](https://developer.arm.com/documentation/ddi0602/latest/SME-Instructions) instructions.
 Since GEMM is $O(N^3)$ and repacking is $O(N^2)$, the cost is asymptotically free — but the allocation and locking overhead is not.
 

@@ -11,17 +11,20 @@ import CNumKong
 /// Owning, row-major dense matrix that deallocates its memory on `deinit`.
 public final class Tensor<Element>: @unchecked Sendable {
     @usableFromInline
-    let rawPointer: UnsafeMutablePointer<Element>
-    public let rows: Int
-    public let cols: Int
+    var rawPointer: UnsafeMutablePointer<Element>
+    public private(set) var rows: Int
+    public private(set) var cols: Int
+    /// Allocated element capacity (>= `count`) — the ceiling `tryResize` honors.
+    public private(set) var capacity: Int
     public var count: Int { rows * cols }
     public var shape: (rows: Int, cols: Int) { (rows, cols) }
 
     @usableFromInline
-    init(rawPointer: UnsafeMutablePointer<Element>, rows: Int, cols: Int) {
+    init(rawPointer: UnsafeMutablePointer<Element>, rows: Int, cols: Int, capacity: Int? = nil) {
         self.rawPointer = rawPointer
         self.rows = rows
         self.cols = cols
+        self.capacity = capacity ?? (rows * cols)
     }
 
     deinit {
@@ -69,6 +72,39 @@ public final class Tensor<Element>: @unchecked Sendable {
     /// Returns a buffer pointer to the elements of row `i`.
     public func row(_ i: Int) -> UnsafeBufferPointer<Element> {
         UnsafeBufferPointer(start: UnsafePointer(rawPointer) + i * cols, count: cols)
+    }
+
+    /// Resizes within the allocated `capacity` without moving storage, so existing `view()`,
+    /// `span()`, and `row()` results stay valid.
+    ///
+    /// - Returns: `false` (leaving the tensor unchanged) if either extent is negative or
+    ///   `rows * cols` exceeds `capacity`; call `reserve(_:)` first to grow.
+    @discardableResult
+    public func tryResize(rows newRows: Int, cols newCols: Int) -> Bool {
+        guard newRows >= 0, newCols >= 0, newRows * newCols <= capacity else { return false }
+        rows = newRows
+        cols = newCols
+        return true
+    }
+
+    /// Grows `capacity` to at least `minimumCapacity`, reallocating and copying the live elements.
+    /// A no-op when already large enough.
+    ///
+    /// - Warning: This may move storage, INVALIDATING any outstanding `view()`, `span()`, or
+    ///   `row()` pointers obtained before the call.
+    public func reserve(_ minimumCapacity: Int) {
+        guard minimumCapacity > capacity else { return }
+        let grown = UnsafeMutablePointer<Element>.allocate(capacity: minimumCapacity)
+        grown.initialize(from: rawPointer, count: count)
+        rawPointer.deallocate()
+        rawPointer = grown
+        capacity = minimumCapacity
+    }
+
+    /// Resets to an empty 0×0 tensor while keeping the allocated `capacity`.
+    public func clear() {
+        rows = 0
+        cols = 0
     }
 }
 
