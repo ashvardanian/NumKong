@@ -181,6 +181,33 @@ void each_blend_recursive(                                           //
     }
 }
 
+void each_unary_recursive(                                //
+    nk_kernel_trigonometry_punned_t kernel,               //
+    char const *a_data, char *result_data,                //
+    Py_ssize_t const *shape, Py_ssize_t const *a_strides, //
+    Py_ssize_t const *result_strides,                     //
+    size_t remaining_dims, size_t contiguous_tail_dims) {
+
+    if (remaining_dims <= contiguous_tail_dims) {
+        size_t contiguous_elements = 1;
+        for (size_t dimension = 0; dimension < remaining_dims; ++dimension)
+            contiguous_elements *= (size_t)shape[dimension];
+        kernel(a_data, contiguous_elements, result_data);
+        return;
+    }
+
+    size_t const dim_extent = (size_t)shape[0];
+    for (size_t position = 0; position < dim_extent; ++position) {
+        Py_ssize_t const signed_position = (Py_ssize_t)position;
+        each_unary_recursive(kernel,                                            //
+                             a_data + signed_position * a_strides[0],           //
+                             result_data + signed_position * result_strides[0], //
+                             shape + 1, a_strides + 1,                          //
+                             result_strides + 1,                                //
+                             remaining_dims - 1, contiguous_tail_dims);
+    }
+}
+
 static int tensor_is_c_contig(Tensor *tensor, size_t item_size);
 static int tensor_is_f_contig(Tensor *tensor, size_t item_size);
 
