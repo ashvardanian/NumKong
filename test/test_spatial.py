@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -24,7 +25,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     NATIVE_COMPUTE_DTYPE,
     NK_ATOL,
@@ -47,6 +47,9 @@ from test_base import (
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
     tolerances_for_dtype,
 )
+
+import numkong as nk
+
 
 algebraic_dtypes = ["float32", "float64"]
 algebraic_ndims = [7, 97]
@@ -159,9 +162,7 @@ def test_spatial_random_accuracy(ndim: int, dtype: str, metric: str, capability:
     # SIMD result
     result_dt, result = profile(simd_kernel, a_raw, b_raw, dtype)
 
-    err_msg = LazyFormat(
-        lambda: (f"\n{metric}({dtype}, ndim={ndim}):" f"\n  Accurate:  {accurate}" f"\n  Got:       {result}")
-    )
+    err_msg = LazyFormat(lambda: f"\n{metric}({dtype}, ndim={ndim}):\n  Accurate:  {accurate}\n  Got:       {result}")
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol, err_msg=err_msg)
     collect_errors(metric, ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)

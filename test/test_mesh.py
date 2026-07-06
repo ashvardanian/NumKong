@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -22,7 +23,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     assert_allclose,
     collect_errors,
@@ -42,6 +42,9 @@ from test_base import (
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
     tolerances_for_dtype,
 )
+
+import numkong as nk
+
 
 stats = create_stats()
 atexit.register(print_stats_report, stats)
@@ -227,7 +230,7 @@ def precise_kabsch(source, target, dtype=None):
 def precise_umeyama(source, target, dtype=None):
     """High-precision Umeyama via Jacobi SVD. Returns scale factor."""
     with precise_decimal(dtype) as (upcast, sqrt, _ln):
-        source_centered, target_centered, cross_covariance, n_points = _center_and_covariance(source, target, upcast)
+        source_centered, _target_centered, cross_covariance, n_points = _center_and_covariance(source, target, upcast)
         jacobi_svd = _jacobi_svd_3x3(upcast, sqrt)
         left_vectors, singular_values, right_vectors = jacobi_svd(cross_covariance)
         rotation = [

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -22,7 +23,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     NATIVE_COMPUTE_DTYPE,
     NK_ATOL,
@@ -47,6 +47,9 @@ from test_base import (
     tolerances_for_dtype,
 )
 from test_spatial import baseline_angular, baseline_euclidean, baseline_sqeuclidean
+
+import numkong as nk
+
 
 algebraic_dtypes = ["float32", "float64"]
 algebraic_ndims = [7, 97]
@@ -123,9 +126,7 @@ def test_inner_random_accuracy(ndim: int, dtype: str, capability: str, nk_seed: 
     # SIMD result — pass dtype for exotic types so the kernel knows the storage format
     result_dt, result = profile(simd_kernel, a_raw, b_raw, dtype)
 
-    err_msg = LazyFormat(
-        lambda: (f"\ninner({dtype}, ndim={ndim}):" f"\n  Accurate:  {accurate}" f"\n  Got:       {result}")
-    )
+    err_msg = LazyFormat(lambda: f"\ninner({dtype}, ndim={ndim}):\n  Accurate:  {accurate}\n  Got:       {result}")
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol, err_msg=err_msg)
     collect_errors("inner", ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
@@ -262,9 +263,9 @@ def test_inner_cauchy_schwarz(ndim: int, dtype: str, capability: str):
     ab = nk.inner(a, b)
     aa = nk.inner(a, a)
     bb = nk.inner(b, b)
-    assert (
-        ab * ab <= aa * bb + NK_ATOL
-    ), f"Cauchy-Schwarz violated: |inner(a,b)|²={ab*ab} > inner(a,a)*inner(b,b)={aa*bb}"
+    assert ab * ab <= aa * bb + NK_ATOL, (
+        f"Cauchy-Schwarz violated: |inner(a,b)|²={ab * ab} > inner(a,a)*inner(b,b)={aa * bb}"
+    )
 
 
 @pytest.mark.skip(reason="Lacks overflow protection: https://github.com/ashvardanian/NumKong/issues/206")

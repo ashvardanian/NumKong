@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -22,7 +23,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     assert_allclose,
     collect_warnings,
@@ -41,6 +41,9 @@ from test_base import (
     test_height_dimensions,
     test_width_dimensions,
 )
+
+import numkong as nk
+
 
 stats = create_stats()
 atexit.register(print_stats_report, stats)
@@ -113,7 +116,7 @@ def _make_matrix(rows, cols, dtype):
 def test_maxsim_pack_and_packed(rows: int, columns: int, depth: int, dtype: str, capability: str):
     """Pack + compute vs baseline."""
     keep_one_capability(capability)
-    baseline_kernel, _, precise_kernel = KERNELS_MAXSIM["maxsim"]
+    baseline_kernel, _, _precise_kernel = KERNELS_MAXSIM["maxsim"]
     dtype_str = _MAXSIM_DTYPE[dtype]
     queries = _make_matrix(rows, depth, dtype)
     documents = _make_matrix(columns, depth, dtype)

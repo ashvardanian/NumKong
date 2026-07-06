@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -23,7 +24,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     NK_ATOL,
     NK_RTOL,
@@ -42,6 +42,9 @@ from test_base import (
     randomized_repetitions_count,
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
 )
+
+import numkong as nk
+
 
 algebraic_dtypes = ["float32", "float64"]
 algebraic_ndims = [7, 97]
@@ -172,9 +175,9 @@ def test_trigonometry_odd_even(ndim: int, dtype: str, capability: str):
         cos_positive = list(nk.cos(positive_input))
         cos_negative = list(nk.cos(negative_input))
         for i in range(ndim):
-            assert (
-                abs(sin_negative[i] + sin_positive[i]) < NK_ATOL
-            ), f"sin(-{random_angles}) + sin({random_angles}) = {sin_negative[i] + sin_positive[i]}"
-            assert (
-                abs(cos_negative[i] - cos_positive[i]) < NK_ATOL
-            ), f"cos(-{random_angles}) - cos({random_angles}) = {cos_negative[i] - cos_positive[i]}"
+            assert abs(sin_negative[i] + sin_positive[i]) < NK_ATOL, (
+                f"sin(-{random_angles}) + sin({random_angles}) = {sin_negative[i] + sin_positive[i]}"
+            )
+            assert abs(cos_negative[i] - cos_positive[i]) < NK_ATOL, (
+                f"cos(-{random_angles}) - cos({random_angles}) = {cos_negative[i] - cos_positive[i]}"
+            )

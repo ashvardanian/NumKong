@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -26,7 +27,6 @@ try:
 except ImportError:
     scipy_entropy = None  # type: ignore[assignment]
 
-import numkong as nk
 from test_base import (
     NK_ATOL,
     NK_RTOL,
@@ -47,6 +47,9 @@ from test_base import (
     scipy_metric_name,
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
 )
+
+import numkong as nk
+
 
 try:
     import scipy.spatial.distance as spd

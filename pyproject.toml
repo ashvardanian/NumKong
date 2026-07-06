@@ -1,31 +1,54 @@
 # This file configures wheels compilation for `cibuilwheel` for NumKong CPython bindings.
 # On a good day it will produce:
-#   - `manylinux` and `musllinux` vectorized wheels for Linux on x86_64, aarch64;
-#   - `manylinux` and `musllinux` wheels for Linux on i686, ppc64le, s390x;
-#   - `macos` wheels for x86_64, arm64;
-#   - `windows` wheels for AMD64, ARM64.
-#   * for 5 Python versions from 3.10 to 3.14.
-#   * for 2 free-threading Python versions from 3.13 to 3.14.
-#   * running thousands of fuzzy tests on each wheel.
-#   = meaning 12 platforms * 7 Python versions = 84 builds.
+# - `manylinux` and `musllinux` vectorized wheels for Linux on x86_64, aarch64;
+# - `manylinux` and `musllinux` wheels for Linux on i686, ppc64le, s390x;
+# - `macos` wheels for x86_64, arm64;
+# - `windows` wheels for AMD64, ARM64.
+# * for 5 Python versions from 3.10 to 3.14.
+# * for 2 free-threading Python versions from 3.13 to 3.14.
+# * running thousands of fuzzy tests on each wheel.
+# = meaning 12 platforms * 7 Python versions = 84 builds.
+
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = ["setuptools>=42"]
 
-[tool.pyright]
-extraPaths = ["test"]
-stubPath = "python"
-
-[tool.pytest.ini_options]
-addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
-filterwarnings = ["error"]
-minversion = "6.0"
-xfail_strict = true
-
 [tool.cibuildwheel]
+# We need to build for all platforms:
+# - on Linux: x86_64, aarch64, i686
+# - on macOS: x86_64, arm64
+# - on Windows: AMD64, ARM64
+# https://cibuildwheel.readthedocs.io/en/stable/options/#archs
+#
+# Important to note, not all those platforms have recent images.
+# The `manylinux_2_28` seems to be missing for `i686`.
+# The `i686` is 32-bit x86, and `x86_64` is 64-bit x86.
+archs = ["all"]
 build-verbosity = 0
-test-requires = ["pytest", "pytest-repeat", "pytest-randomly", "tabulate"]
-
+# Add "pp*" to skip PyPy builds, but they should work fine these days :)
+# https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
+# https://cibuildwheel.readthedocs.io/en/stable/#what-does-it-do
+enable = []  # don't enable PyPy
+# Testing half-precision math in QEMU is unreliable!
+environment-pass = [
+    "NK_BUDGET_SECS",
+    "NK_CURVED_DIMENSIONS",
+    "NK_DENSE_DIMENSIONS",
+    "NK_FILTER",
+    "NK_IN_QEMU",
+    "NK_MATRIX_DEPTH",
+    "NK_MATRIX_HEIGHT",
+    "NK_MATRIX_WIDTH",
+    "NK_MAX_COORD_ANGLE",
+    "NK_MESH_POINTS",
+    "NK_RANDOM_DISTRIBUTION",
+    "NK_REPETITIONS",
+    "NK_SEED",
+    "NK_SPARSE_DIMENSIONS",
+    "NK_TEST_ASSERT",
+    "NK_TEST_VERBOSE",
+]
+skip = []  # we also don't use any SIMD on: ["*s390x*", "*ppc64le*"]
 # Assuming NumPy and SciPy aren't available precompiled for some platforms,
 # we will end up compiling them from source on emulated hardware...
 # To avoid that use `--only-binary=:all:` to only fetch precompiled wheels.
@@ -37,49 +60,12 @@ test-command = """
     python -c "import numkong; print(numkong.get_capabilities())" &&
     PYTHONMALLOC=debug pytest {project}/test/ -s -x -Wd
 """
-
+test-requires = ["pytest", "pytest-randomly", "pytest-repeat", "tabulate"]
 # NumPy / SciPy / ml_dtypes publish no prebuilt wheels for these arches, so under
 # `--only-binary=:all:` the test-reference deps can't install and the suite crashes at
 # pytest collection. Still BUILD + upload the wheels for them — just skip their test phase.
 # (The wheels themselves import and run fine there; only the numeric-parity tests need NumPy.)
 test-skip = "*_i686 *_ppc64le *_s390x"
-
-# We need to build for all platforms:
-# - on Linux: x86_64, aarch64, i686
-# - on macOS: x86_64, arm64
-# - on Windows: AMD64, ARM64
-# https://cibuildwheel.readthedocs.io/en/stable/options/#archs
-#
-# Important to note, not all those platforms have recent images.
-# The `manylinux_2_28` seems to be missing for `i686`.
-# The `i686` is 32-bit x86, and `x86_64` is 64-bit x86.
-archs = ["all"]
-
-# Add "pp*" to skip PyPy builds, but they should work fine these days :)
-# https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-# https://cibuildwheel.readthedocs.io/en/stable/#what-does-it-do
-enable = [] # don't enable PyPy
-skip = [] # we also don't use any SIMD on: ["*s390x*", "*ppc64le*"]
-
-# Testing half-precision math in QEMU is unreliable!
-environment-pass = [
-  "NK_IN_QEMU",
-  "NK_SEED",
-  "NK_FILTER",
-  "NK_BUDGET_SECS",
-  "NK_REPETITIONS",
-  "NK_DENSE_DIMENSIONS",
-  "NK_CURVED_DIMENSIONS",
-  "NK_SPARSE_DIMENSIONS",
-  "NK_MESH_POINTS",
-  "NK_MATRIX_HEIGHT",
-  "NK_MATRIX_WIDTH",
-  "NK_MATRIX_DEPTH",
-  "NK_MAX_COORD_ANGLE",
-  "NK_RANDOM_DISTRIBUTION",
-  "NK_TEST_ASSERT",
-  "NK_TEST_VERBOSE",
-]
 
 [tool.cibuildwheel.environment]
 NK_BUILD_PARALLEL = "2"
@@ -89,57 +75,14 @@ NK_IN_QEMU = "1"
 before-build = ["rm -rf {project}/build"]
 repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
 
-# Pin the platform tag on manylinux_2_28 architectures to avoid verbose
-# triple-tagged filenames (e.g., manylinux2014.manylinux_2_17.manylinux_2_28).
-# Other architectures (i686, ppc64le, s390x) use older images and keep the default.
-[[tool.cibuildwheel.overrides]]
-repair-wheel-command = "auditwheel repair --plat manylinux_2_28_x86_64 --only-plat -w {dest_dir} {wheel}"
-select = "*-manylinux*_x86_64"
-
-[[tool.cibuildwheel.overrides]]
-repair-wheel-command = "auditwheel repair --plat manylinux_2_28_aarch64 --only-plat -w {dest_dir} {wheel}"
-select = "*-manylinux*_aarch64"
-
-# Use more recent images for the most popular SIMD-capable CPU architectures, to have access to newer compilers.
-# Otherwise, prepare yourself to all kinds of AVX-512 issues and other SIMD-related pain.
-# You can keep track of the most recent images on Quay:
-# - for `manylinux`: https://quay.io/search?q=manylinux
-# - for `musllinux`: https://quay.io/search?q=musllinux
-manylinux-aarch64-image = "manylinux_2_28"
-manylinux-x86_64-image = "manylinux_2_28"
-musllinux-aarch64-image = "musllinux_1_2"
-musllinux-x86_64-image = "musllinux_1_2"
-# RISC-V wheel uploads are temporarily disabled.
-# The official PyPA riscv64 images currently provide LLVM 20 packages, while the
-# portable `rv64gcv` baseline plus richer RISC-V kernels now requires Clang 23.
-# Keep the image names here as comments until we have either custom images or a
-# packaged LLVM 23 path for both manylinux and musllinux.
-# manylinux-riscv64-image = "manylinux_2_39"
-# musllinux-riscv64-image = "musllinux_1_2"
-
-# On CentOS we have to use `yum`.
-# The healthy version would be: `apt-get update && apt-get install -y libc6-dev wget python3-dev`.
-# We can't even use direct YUM variant: `yum update -y && yum install -y glibc-devel wget python3-devel`
-# as downloading from `extras` fails on Arm instances!
-before-all = [
-  "yum update -y --disablerepo=extras --setopt=install_weak_deps=0 && yum install -y --disablerepo=extras glibc-devel wget python3-devel",
-]
-
-# With `musl` builds, we obviously don't need the `glibc` and can't use `yum`.
-# This may also be handy for using custom dependencies for different Python versions:
-# https://cibuildwheel.readthedocs.io/en/stable/options/#overrides
-[[tool.cibuildwheel.overrides]]
-before-all = "apk add --update wget python3-dev"
-select = "*-musllinux*"
-
 [tool.cibuildwheel.macos]
 # Apple Clang ships no `omp.h` / `libomp`. `brew install libomp` alone is not
 # enough: the Homebrew bottle targets the runner's OS (e.g. macOS 26 on the
 # `macos-26` runner image), while the wheel targets `MACOSX_DEPLOYMENT_TARGET`
 # (typically 11.0), so `delocate-wheel` refuses to bundle it:
 #
-#     delocate.libsana.DelocationError: Library dependencies do not satisfy
-#     target MacOS version 11.0: libomp.dylib has a minimum target of 26.0
+# delocate.libsana.DelocationError: Library dependencies do not satisfy
+# target MacOS version 11.0: libomp.dylib has a minimum target of 26.0
 #
 # So we install the brew keg first (for the symlinks `setup.py:darwin_settings`
 # reads via `brew --prefix libomp`), then overwrite `lib/` and `include/`
@@ -178,13 +121,49 @@ before-all = [
 before-build = ["rm -rf {project}/build"]
 repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}"
 
-[tool.cibuildwheel.windows]
-before-build = ["rd /s /q {project}\\build || echo Done"]
+# Pin the platform tag on manylinux_2_28 architectures to avoid verbose
+# triple-tagged filenames (e.g., manylinux2014.manylinux_2_17.manylinux_2_28).
+# Other architectures (i686, ppc64le, s390x) use older images and keep the default.
+[[tool.cibuildwheel.overrides]]
+repair-wheel-command = "auditwheel repair --plat manylinux_2_28_x86_64 --only-plat -w {dest_dir} {wheel}"
+select = "*-manylinux*_x86_64"
 
-# Windows-based OSes and PowerShell don't support the logical operators
-# In PowerShell we could write something like:
-#   python -m pip install numpy; if ($LASTEXITCODE -ne 0) { echo "Failed to install NumPy... Nothing can stop me, I'm all the way up!" }
-# but its safer to use the CMD syntax
+# With `musl` builds, we obviously don't need the `glibc` and can't use `yum`.
+# This may also be handy for using custom dependencies for different Python versions:
+# https://cibuildwheel.readthedocs.io/en/stable/options/#overrides
+
+# x86-64 builds
+
+# ARM64 builds
+
+# Pyodide / Emscripten WASM builds
+# The Pyodide venv creates Python-script entry points (like `pytest`) that can't
+# be executed directly as shell commands, so we must use `python -m pytest`.
+# Also, `ml_dtypes` has no Pyodide wheel, so we skip it.
+
+[[tool.cibuildwheel.overrides]]
+# On CentOS we have to use `yum`.
+# The healthy version would be: `apt-get update && apt-get install -y libc6-dev wget python3-dev`.
+# We can't even use direct YUM variant: `yum update -y && yum install -y glibc-devel wget python3-devel`
+# as downloading from `extras` fails on Arm instances!
+before-all = [
+    "yum update -y --disablerepo=extras --setopt=install_weak_deps=0 && yum install -y --disablerepo=extras glibc-devel wget python3-devel",
+]
+# Use more recent images for the most popular SIMD-capable CPU architectures, to have access to newer compilers.
+# Otherwise, prepare yourself to all kinds of AVX-512 issues and other SIMD-related pain.
+# You can keep track of the most recent images on Quay:
+# - for `manylinux`: https://quay.io/search?q=manylinux
+# - for `musllinux`: https://quay.io/search?q=musllinux
+manylinux-aarch64-image = "manylinux_2_28"
+manylinux-x86_64-image = "manylinux_2_28"
+musllinux-aarch64-image = "musllinux_1_2"
+musllinux-x86_64-image = "musllinux_1_2"
+repair-wheel-command = "auditwheel repair --plat manylinux_2_28_aarch64 --only-plat -w {dest_dir} {wheel}"
+select = "*-manylinux*_aarch64"
+[[tool.cibuildwheel.overrides]]
+before-all = "apk add --update wget python3-dev"
+select = "*-musllinux*"
+
 [[tool.cibuildwheel.overrides]]
 select = "*win*"
 test-command = """
@@ -193,92 +172,52 @@ test-command = """
     python -m pip install ml_dtypes & if errorlevel 1 echo Failed to install ml_dtypes... Nothing can stop me, I'm all the way up! &
     set PYTHONMALLOC=debug && pytest {project}/test/ -s -x -Wd"
 """
-
-# These environment variables allow setup.py to detect the target architecture
-# during cross-compilation (e.g., building ARM64 wheels on x64 host).
-# The NK_TARGET_* variables override platform.machine() detection.
-
-# x86-64 builds
 [[tool.cibuildwheel.overrides]]
-environment.NK_TARGET_ARM64_ = "0"
-environment.NK_TARGET_X8664_ = "1"
-inherit.environment = "append"
 select = "*-win_amd64"
-
-[[tool.cibuildwheel.overrides]]
 environment.NK_TARGET_ARM64_ = "0"
 environment.NK_TARGET_X8664_ = "1"
 inherit.environment = "append"
+
+[[tool.cibuildwheel.overrides]]
 select = "*-manylinux*_x86_64"
-
-[[tool.cibuildwheel.overrides]]
 environment.NK_TARGET_ARM64_ = "0"
 environment.NK_TARGET_X8664_ = "1"
 inherit.environment = "append"
+
+[[tool.cibuildwheel.overrides]]
 select = "*-musllinux*_x86_64"
-
-[[tool.cibuildwheel.overrides]]
 environment.NK_TARGET_ARM64_ = "0"
 environment.NK_TARGET_X8664_ = "1"
 inherit.environment = "append"
+
+[[tool.cibuildwheel.overrides]]
 select = "*-macos*_x86_64"
-
-# ARM64 builds
-[[tool.cibuildwheel.overrides]]
-environment.NK_TARGET_ARM64_ = "1"
-environment.NK_TARGET_X8664_ = "0"
+environment.NK_TARGET_ARM64_ = "0"
+environment.NK_TARGET_X8664_ = "1"
 inherit.environment = "append"
+[[tool.cibuildwheel.overrides]]
 select = "*-win_arm64"
-
-[[tool.cibuildwheel.overrides]]
 environment.NK_TARGET_ARM64_ = "1"
 environment.NK_TARGET_X8664_ = "0"
 inherit.environment = "append"
+
+[[tool.cibuildwheel.overrides]]
 select = "*-manylinux*_aarch64"
-
-[[tool.cibuildwheel.overrides]]
 environment.NK_TARGET_ARM64_ = "1"
 environment.NK_TARGET_X8664_ = "0"
 inherit.environment = "append"
+
+[[tool.cibuildwheel.overrides]]
 select = "*-musllinux*_aarch64"
-
-[[tool.cibuildwheel.overrides]]
 environment.NK_TARGET_ARM64_ = "1"
 environment.NK_TARGET_X8664_ = "0"
 inherit.environment = "append"
+
+[[tool.cibuildwheel.overrides]]
 select = "*-macos*_arm64"
-
-# RISC-V 64-bit wheels are temporarily disabled.
-# Keep the old overrides commented out as a breadcrumb for re-enabling the
-# release path once an official LLVM 23 package source is available inside the
-# PyPA riscv64 images, or once we switch to custom images with LLVM 23 baked in.
-#
-# [[tool.cibuildwheel.overrides]]
-# before-all = "dnf update -y && dnf install -y glibc-devel wget python3-devel clang lld"
-# environment.CC = "clang"
-# environment.CXX = "clang++"
-# environment.LDFLAGS = "-fuse-ld=lld"
-# environment.NK_TARGET_ARM64_ = "0"
-# environment.NK_TARGET_RISCV64_ = "1"
-# environment.NK_TARGET_X8664_ = "0"
-# inherit.environment = "append"
-# select = "*-manylinux*_riscv64"
-#
-# [[tool.cibuildwheel.overrides]]
-# before-all = "apk add --update wget python3-dev clang lld"
-# environment.CC = "clang"
-# environment.CXX = "clang++"
-# environment.LDFLAGS = "-fuse-ld=lld"
-# environment.NK_TARGET_ARM64_ = "0"
-# environment.NK_TARGET_RISCV64_ = "1"
-# environment.NK_TARGET_X8664_ = "0"
-# inherit.environment = "append"
-# select = "*-musllinux*_riscv64"
-
-# Pyodide / Emscripten WASM builds
-# The Pyodide venv creates Python-script entry points (like `pytest`) that can't
-# be executed directly as shell commands, so we must use `python -m pytest`.
-# Also, `ml_dtypes` has no Pyodide wheel, so we skip it.
+environment.NK_TARGET_ARM64_ = "1"
+environment.NK_TARGET_X8664_ = "0"
+inherit.environment = "append"
 [[tool.cibuildwheel.overrides]]
 before-build = ["rm -rf {project}/build"]
 select = "*-pyodide*"
@@ -289,28 +228,57 @@ test-command = """
     PYTHONMALLOC=debug python -m pytest {project}/test/ -s -x -Wd
 """
 
+[tool.cibuildwheel.windows]
+before-build = ["rd /s /q {project}\\build || echo Done"]
+
+[tool.pyright]
+extraPaths = ["test"]
+stubPath = "python"
+[tool.pytest]
+
+[tool.pytest.ini_options]
+addopts = ["--showlocals", "--strict-config", "--strict-markers", "-ra"]
+filterwarnings = ["error"]
+minversion = "6.0"
+xfail_strict = true
+
+# Windows-based OSes and PowerShell don't support the logical operators
+# In PowerShell we could write something like:
+# python -m pip install numpy; if ($LASTEXITCODE -ne 0) { echo "Failed to install NumPy... Nothing can stop me, I'm all the way up!" }
+# but its safer to use the CMD syntax
 [tool.ruff]
+extend-exclude = [".cmake-format.py"]  # cmake-format DSL config, not Python source
 line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
 ignore = [
-  "E712", # == True/False: intentional for testing scalar __bool__ return values
-  "E731", # lambda assignments: clearer for one-liner baselines
-  "B905", # zip-without-strict: not safety-critical in test code
-  "SIM105", # contextlib.suppress: explicit try/except is clearer here
-  "B028", # stacklevel in warnings.warn: not important in test code
-  "RUF002", # ambiguous unicode in docstrings: intentional math symbols
-  "RUF003", # ambiguous unicode in comments: intentional math symbols
-  "RUF043", # pytest.raises regex patterns: the metacharacters are intentional
+    "B028",  # stacklevel in warnings.warn: not important in test code
+    "B905",  # zip-without-strict: not safety-critical in test code
+    "E712",  # == True/False: intentional for testing scalar __bool__ return values
+    "E731",  # lambda assignments: clearer for one-liner baselines
+    "RUF002",  # ambiguous unicode in docstrings: intentional math symbols
+    "RUF003",  # ambiguous unicode in comments: intentional math symbols
+    "RUF043",  # pytest.raises regex patterns: the metacharacters are intentional
+    "SIM105",  # contextlib.suppress: explicit try/except is clearer here
 ]
-select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+select = ["B", "D", "E", "F", "I", "PLC0415", "RUF", "SIM", "UP", "W"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["numkong"]
+lines-after-imports = 2
 
 [tool.ruff.lint.per-file-ignores]
-"test/*" = ["E501", "F811"]
+"setup.py" = ["D"]  # packaging shim, not public API
+"test/*" = ["D", "E501", "F811"]  # tests self-document via names; docstrings not required
 
-# Configuration options for the Black formatter:
-# https://black.readthedocs.io/en/latest/usage_and_configuration/the_basics.html#where-black-looks-for-the-file
-[tool.black]
-line-length = 120 # Set line length to the same value as in `.clang-format` for modern wide screens
-target-version = ['py310', 'py314']
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+# TOML files stay canonical via toml-sort, the way .clang-format keeps C++ canonical.
+[tool.tomlsort]
+all = true
+in_place = true
+spaces_before_inline_comment = 2
+spaces_indent_inline_array = 4
+trailing_comma_inline_array = true

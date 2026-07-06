@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -22,7 +23,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     NATIVE_COMPUTE_DTYPE,
     NK_ATOL,
@@ -48,6 +48,9 @@ from test_base import (
     test_width_dimensions,
     tolerances_for_dtype,
 )
+
+import numkong as nk
+
 
 try:
     import scipy.spatial.distance as spd

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -23,7 +24,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     NK_ATOL,
     NK_RTOL,
@@ -44,6 +44,9 @@ from test_base import (
     randomized_repetitions_count,
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
 )
+
+import numkong as nk
+
 
 algebraic_dtypes = ["float32", "float64"]
 algebraic_ndims = [7, 97]
@@ -360,15 +363,15 @@ def test_add_multiply_noncontiguous(dtype: str, kernel, capability: str):
     def validate(a, b, inplace_numkong):
         result_numpy = baseline_kernel(a, b)
         result_numkong = np.array(simd_kernel(a, b))
-        assert (
-            result_numkong.size == result_numpy.size
-        ), f"Result sizes differ: {result_numkong.size} vs {result_numpy.size}"
-        assert (
-            result_numkong.shape == result_numpy.shape
-        ), f"Result shapes differ: {result_numkong.shape} vs {result_numpy.shape}"
-        assert (
-            result_numkong.dtype == result_numpy.dtype
-        ), f"Result dtypes differ: {result_numkong.dtype} vs {result_numpy.dtype} for ({a.dtype} {operator} {b.dtype})"
+        assert result_numkong.size == result_numpy.size, (
+            f"Result sizes differ: {result_numkong.size} vs {result_numpy.size}"
+        )
+        assert result_numkong.shape == result_numpy.shape, (
+            f"Result shapes differ: {result_numkong.shape} vs {result_numpy.shape}"
+        )
+        assert result_numkong.dtype == result_numpy.dtype, (
+            f"Result dtypes differ: {result_numkong.dtype} vs {result_numpy.dtype} for ({a.dtype} {operator} {b.dtype})"
+        )
 
         if not np.allclose(result_numkong, result_numpy, atol=NK_ATOL, rtol=NK_RTOL):
             assert_allclose(

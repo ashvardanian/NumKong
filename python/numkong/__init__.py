@@ -1,3 +1,5 @@
+"""NumKong: portable mixed-precision BLAS-like vector, tensor, and distance kernels."""
+
 # The wheel bundles its own `libomp.dylib` (via `delocate`), but NumPy, SciPy
 # or PyTorch in the same process may already have loaded a different OpenMP
 # runtime. LLVM's libomp detects the duplicate during its own constructor
@@ -24,10 +26,12 @@
 # `setdefault` leaves any value the user deliberately set untouched.
 import os
 
+
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
-from numkong._numkong import *  # noqa: E402,F401,F403
-from numkong import _numkong as _ext  # noqa: E402
+from numkong import _numkong as _ext
+from numkong._numkong import *  # noqa: F403
+
 
 __version__ = _ext.__version__
 

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -22,7 +23,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     NK_ATOL,
     NK_RTOL,
@@ -39,6 +39,9 @@ from test_base import (
     randomized_repetitions_count,
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
 )
+
+import numkong as nk
+
 
 algebraic_ndims = [7, 97]
 stats = create_stats()

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -32,7 +33,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     NK_ATOL,
     NK_RTOL,
@@ -48,6 +48,9 @@ from test_base import (
     to_array,
     tolerances_for_dtype,
 )
+
+import numkong as nk
+
 
 try:
     import ml_dtypes
@@ -1272,9 +1275,9 @@ def test_gil_free_threading():
     end_time = time.time()
     multi_duration = end_time - start_time
 
-    assert np.allclose(
-        baseline_sum, multi_sum, atol=NK_ATOL, rtol=NK_RTOL
-    ), f"Results differ: baseline {baseline_sum} vs multi-threaded {multi_sum}"
+    assert np.allclose(baseline_sum, multi_sum, atol=NK_ATOL, rtol=NK_RTOL), (
+        f"Results differ: baseline {baseline_sum} vs multi-threaded {multi_sum}"
+    )
 
     if baseline_duration < multi_duration:
         warnings.warn(
@@ -1439,9 +1442,9 @@ def test_scaled_tensor_degenerate_blocks(dtype_name, block_size, relative_bound)
     data = np.full((2, block_size), 1.5, np.float32)
     data[0, 3] = np.nan
     clean = np.asarray(nk.Tensor(data).astype(dtype_name).astype("float32"))[1]
-    assert np.all(
-        np.abs(clean - 1.5) <= relative_bound * 1.5 + 1e-3
-    ), f"{dtype_name} clean block corrupted by a NaN in another block"
+    assert np.all(np.abs(clean - 1.5) <= relative_bound * 1.5 + 1e-3), (
+        f"{dtype_name} clean block corrupted by a NaN in another block"
+    )
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is required for block-scaled tests")

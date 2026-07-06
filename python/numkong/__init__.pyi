@@ -727,6 +727,7 @@ def from_dlpack(obj: Any, /) -> Tensor:
     ``jax.Array``). Only CPU tensors are supported.
     """
     ...
+
 def empty(
     shape: int | tuple[int, ...],
     /,
@@ -761,6 +762,7 @@ def iota(
 ) -> Tensor:
     """Tensor filled with ``seed, seed+1, seed+2, ...`` reshaped to ``shape``."""
     ...
+
 def diagonal(
     n: int,
     seed: int | float = 1,
@@ -770,6 +772,7 @@ def diagonal(
 ) -> Tensor:
     """Square ``n x n`` tensor with ``seed`` on the main diagonal and zeros elsewhere."""
     ...
+
 def hash(
     shape: int | tuple[int, ...],
     seed: int = 0,
