@@ -821,6 +821,11 @@ if (NK_BUILD_CUDA_TEST)
     target_include_directories(nk_cuda_test PRIVATE "${PROJECT_SOURCE_DIR}/include")
     set_target_properties(nk_cuda_test PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO)
 
+    # Let the `constexpr` host abstractions (tensor_view / vector_view and their accessors) be called
+    # from `__device__` code; test.cu's device kernels then exercise them, making this a compile-level
+    # guarantee that the tensor abstractions stay GPU-friendly (no GPU required to catch a regression).
+    target_compile_options(nk_cuda_test PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+
     # Forward the baseline flags to NVCC's host compiler, scoped to this target.
     if (NK_IS_64BIT_X86_)
         target_compile_options(

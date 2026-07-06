@@ -342,6 +342,9 @@ struct vector_view {
     /** @brief Check if empty. */
     constexpr bool empty() const noexcept { return dimensions_ == 0; }
 
+    /** @brief Contextual-bool: truthy when the handle is non-empty. Enables the `if(!v)` empty-check idiom. */
+    constexpr explicit operator bool() const noexcept { return !empty(); }
+
     /** @brief Stride in bytes between consecutive elements. */
     constexpr difference_type stride_bytes() const noexcept { return stride_bytes_; }
 
@@ -358,7 +361,7 @@ struct vector_view {
 
     /** @brief Integral indexing: signed negatives wrap from end. */
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) const noexcept {
+    constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         auto i = resolve_index_(idx, dimensions_);
         if constexpr (dimensions_per_value<value_type>() > 1) {
             constexpr auto dims_per_value = dimensions_per_value<value_type>();
@@ -373,7 +376,7 @@ struct vector_view {
     }
 
     /** @brief Sub-slice via range. */
-    vector_view operator[](range r) const noexcept {
+    constexpr vector_view operator[](range r) const noexcept {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
@@ -381,7 +384,7 @@ struct vector_view {
     }
 
     /** @brief Select all elements (identity). */
-    vector_view operator[](all_t) const noexcept { return *this; }
+    constexpr vector_view operator[](all_t) const noexcept { return *this; }
 
     /** @brief Create a reversed view by negating the stride and pointing to the last element.
      *  Iterating the returned view visits elements in reverse order. */
@@ -391,12 +394,12 @@ struct vector_view {
     }
 
     /** @brief Dimension iterator to beginning. */
-    const_iterator begin() const noexcept { return {*this, 0}; }
-    const_iterator cbegin() const noexcept { return {*this, 0}; }
+    constexpr const_iterator begin() const noexcept { return {*this, 0}; }
+    constexpr const_iterator cbegin() const noexcept { return {*this, 0}; }
 
     /** @brief Dimension iterator to end. */
-    const_iterator end() const noexcept { return {*this, dimensions_}; }
-    const_iterator cend() const noexcept { return {*this, dimensions_}; }
+    constexpr const_iterator end() const noexcept { return {*this, dimensions_}; }
+    constexpr const_iterator cend() const noexcept { return {*this, dimensions_}; }
 };
 
 #pragma endregion Vector View
@@ -445,6 +448,9 @@ struct vector_span {
     /** @brief Check if empty. */
     constexpr bool empty() const noexcept { return dimensions_ == 0; }
 
+    /** @brief Contextual-bool: truthy when the handle is non-empty. Enables the `if(!v)` empty-check idiom. */
+    constexpr explicit operator bool() const noexcept { return !empty(); }
+
     /** @brief Stride in bytes. */
     constexpr difference_type stride_bytes() const noexcept { return stride_bytes_; }
 
@@ -466,7 +472,7 @@ struct vector_span {
 
     /** @brief Mutable integral indexing. Signed negatives wrap from end. */
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) const noexcept {
+    constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         auto i = resolve_index_(idx, dimensions_);
         if constexpr (dimensions_per_value<value_type>() > 1) {
             constexpr auto dims_per_value = dimensions_per_value<value_type>();
@@ -481,7 +487,7 @@ struct vector_span {
     }
 
     /** @brief Sub-slice via range. */
-    vector_span operator[](range r) const noexcept {
+    constexpr vector_span operator[](range r) const noexcept {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
@@ -489,15 +495,15 @@ struct vector_span {
     }
 
     /** @brief Select all elements. */
-    vector_span operator[](all_t) const noexcept { return *this; }
+    constexpr vector_span operator[](all_t) const noexcept { return *this; }
 
     /** @brief Dimension iterator to beginning. The handle is shallow-const, so iteration yields mutable refs. */
-    iterator begin() const noexcept { return {const_cast<vector_span &>(*this), 0}; }
-    const_iterator cbegin() const noexcept { return {*this, 0}; }
+    constexpr iterator begin() const noexcept { return {const_cast<vector_span &>(*this), 0}; }
+    constexpr const_iterator cbegin() const noexcept { return {*this, 0}; }
 
     /** @brief Dimension iterator to end. */
-    iterator end() const noexcept { return {const_cast<vector_span &>(*this), dimensions_}; }
-    const_iterator cend() const noexcept { return {*this, dimensions_}; }
+    constexpr iterator end() const noexcept { return {const_cast<vector_span &>(*this), dimensions_}; }
+    constexpr const_iterator cend() const noexcept { return {*this, dimensions_}; }
 
     /** @brief Zero-fill every element. memset on the contiguous fast path,
      *  one memset per element on the strided slow path. */
@@ -517,8 +523,8 @@ struct vector_span {
                 return true;
             }
             for (size_type element_index = 0; element_index < dimensions_; ++element_index)
-                std::memset(static_cast<void *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_),
-                            0, sizeof(value_type));
+                std::memset(static_cast<void *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_), 0,
+                            sizeof(value_type));
             return true;
         }
     }
@@ -558,8 +564,8 @@ struct vector_span {
                 return true;
             }
             for (size_type element_index = 0; element_index < dimensions_; ++element_index) {
-                auto *target =
-                    reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_);
+                auto *target = reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(element_index) *
+                                                                          stride_bytes_);
                 *target = value;
             }
             return true;
@@ -585,8 +591,8 @@ struct vector_span {
             }
             auto input_stride_bytes = input.stride_bytes();
             for (size_type element_index = 0; element_index < dimensions_; ++element_index) {
-                auto *target =
-                    reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_);
+                auto *target = reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(element_index) *
+                                                                          stride_bytes_);
                 auto const *source = reinterpret_cast<value_type const *>(
                     input.byte_data() + static_cast<difference_type>(element_index) * input_stride_bytes);
                 *target = *source;
@@ -775,7 +781,7 @@ struct vector {
      *  @retval For normal types, returns direct reference.
      */
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) noexcept {
+    constexpr decltype(auto) operator[](index_type_ idx) noexcept {
         auto i = resolve_index_(idx, dimensions_);
         if constexpr (dimensions_per_value<value_type>() > 1)
             return sub_byte_ref<value_type>(reinterpret_cast<raw_value_type *>(data_), i);
@@ -783,7 +789,7 @@ struct vector {
     }
 
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) const noexcept {
+    constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         auto i = resolve_index_(idx, dimensions_);
         if constexpr (dimensions_per_value<value_type>() > 1)
             return sub_byte_ref<value_type>(
@@ -793,7 +799,7 @@ struct vector {
     }
 
     /** @brief Slice via range, returns a vector_span. */
-    vector_span<value_type> operator[](range r) noexcept {
+    constexpr vector_span<value_type> operator[](range r) noexcept {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
@@ -804,7 +810,7 @@ struct vector {
     }
 
     /** @brief Slice via range (const), returns a vector_view. */
-    vector_view<value_type> operator[](range r) const noexcept {
+    constexpr vector_view<value_type> operator[](range r) const noexcept {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
@@ -815,26 +821,26 @@ struct vector {
     }
 
     /** @brief Select all elements as a span. */
-    vector_span<value_type> operator[](all_t) noexcept { return span(); }
+    constexpr vector_span<value_type> operator[](all_t) noexcept { return span(); }
 
     /** @brief Select all elements as a view. */
-    vector_view<value_type> operator[](all_t) const noexcept { return view(); }
+    constexpr vector_view<value_type> operator[](all_t) const noexcept { return view(); }
 
     /** @brief Create an immutable view. */
-    vector_view<value_type> view() const noexcept { return {data_, dimensions_}; }
+    constexpr vector_view<value_type> view() const noexcept { return {data_, dimensions_}; }
 
     /** @brief Create a mutable span. */
-    vector_span<value_type> span() noexcept { return {data_, dimensions_}; }
+    constexpr vector_span<value_type> span() noexcept { return {data_, dimensions_}; }
 
     /** @brief Dimension iterator to beginning. */
-    iterator begin() noexcept { return {*this, 0}; }
-    const_iterator begin() const noexcept { return {*this, 0}; }
-    const_iterator cbegin() const noexcept { return {*this, 0}; }
+    constexpr iterator begin() noexcept { return {*this, 0}; }
+    constexpr const_iterator begin() const noexcept { return {*this, 0}; }
+    constexpr const_iterator cbegin() const noexcept { return {*this, 0}; }
 
     /** @brief Dimension iterator to end. */
-    iterator end() noexcept { return {*this, dimensions_}; }
-    const_iterator end() const noexcept { return {*this, dimensions_}; }
-    const_iterator cend() const noexcept { return {*this, dimensions_}; }
+    constexpr iterator end() noexcept { return {*this, dimensions_}; }
+    constexpr const_iterator end() const noexcept { return {*this, dimensions_}; }
+    constexpr const_iterator cend() const noexcept { return {*this, dimensions_}; }
 
     /** @brief Zero-fill every element. */
     bool fill_zeros() noexcept { return span().fill_zeros(); }

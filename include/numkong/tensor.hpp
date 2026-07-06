@@ -208,30 +208,30 @@ constexpr std::array<std::size_t, sizeof...(indices_)> resolve_tensor_indices_(s
 }
 
 template <typename value_type_, std::size_t max_rank_, std::size_t extent_>
-decltype(auto) tensor_lookup_resolved_(tensor_view<value_type_, max_rank_> input,
-                                       std::span<std::size_t const, extent_> coords) noexcept;
+constexpr decltype(auto) tensor_lookup_resolved_(tensor_view<value_type_, max_rank_> input,
+                                                 std::span<std::size_t const, extent_> coords) noexcept;
 
 template <typename value_type_, std::size_t max_rank_, std::size_t extent_>
-decltype(auto) tensor_lookup_resolved_(tensor_span<value_type_, max_rank_> input,
-                                       std::span<std::size_t const, extent_> coords) noexcept;
+constexpr decltype(auto) tensor_lookup_resolved_(tensor_span<value_type_, max_rank_> input,
+                                                 std::span<std::size_t const, extent_> coords) noexcept;
 
 template <typename value_type_, std::size_t max_rank_, typename index_type_>
-decltype(auto) tensor_flat_lookup_(tensor_view<value_type_, max_rank_> input, index_type_ idx) noexcept;
+constexpr decltype(auto) tensor_flat_lookup_(tensor_view<value_type_, max_rank_> input, index_type_ idx) noexcept;
 
 template <typename value_type_, std::size_t max_rank_, typename index_type_>
-decltype(auto) tensor_flat_lookup_(tensor_span<value_type_, max_rank_> input, index_type_ idx) noexcept;
+constexpr decltype(auto) tensor_flat_lookup_(tensor_span<value_type_, max_rank_> input, index_type_ idx) noexcept;
 
 template <typename tensor_type_>
-tensor_type_ tensor_slice_suffix_(tensor_type_ input, tensor_slice_t) noexcept;
+constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, tensor_slice_t) noexcept;
 
 template <typename tensor_type_, std::integral index_type_, typename... rest_types_>
-tensor_type_ tensor_slice_suffix_(tensor_type_ input, index_type_ idx, rest_types_... rest) noexcept;
+constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, index_type_ idx, rest_types_... rest) noexcept;
 
 template <typename tensor_type_, typename... rest_types_>
-tensor_type_ tensor_slice_suffix_(tensor_type_ input, all_t, rest_types_... rest) noexcept;
+constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, all_t, rest_types_... rest) noexcept;
 
 template <typename tensor_type_, typename... rest_types_>
-tensor_type_ tensor_slice_suffix_(tensor_type_ input, range r, rest_types_... rest) noexcept;
+constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, range r, rest_types_... rest) noexcept;
 
 #pragma endregion Shape Storage
 
@@ -268,7 +268,7 @@ struct tensor_view {
         : data_(data), shape_(shape) {}
 
     /** @brief Convenience constructor for rank-2 views from typed pointer, rows, and cols. */
-    tensor_view(value_type const *data, size_type rows, size_type cols) noexcept
+    constexpr tensor_view(value_type const *data, size_type rows, size_type cols) noexcept
         requires(max_rank_ >= 2)
         : data_(reinterpret_cast<char const *>(data)) {
         std::size_t extents[2] = {rows, cols};
@@ -276,7 +276,7 @@ struct tensor_view {
     }
 
     /** @brief Convenience constructor for a rank-1 view from a typed pointer and element @p count. */
-    tensor_view(value_type const *data, size_type count) noexcept
+    constexpr tensor_view(value_type const *data, size_type count) noexcept
         requires(max_rank_ >= 1)
         : data_(reinterpret_cast<char const *>(data)) {
         std::size_t extents[1] = {count};
@@ -296,7 +296,7 @@ struct tensor_view {
     /** @brief Convenience constructor from a typed pointer and a fixed-size @p extents array (rank == @c array_rank_).
      */
     template <std::size_t array_rank_>
-    tensor_view(value_type const *data, std::array<size_type, array_rank_> const &extents) noexcept
+    constexpr tensor_view(value_type const *data, std::array<size_type, array_rank_> const &extents) noexcept
         requires(array_rank_ <= max_rank_)
         : data_(reinterpret_cast<char const *>(data)) {
         shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.data(), array_rank_);
@@ -331,7 +331,7 @@ struct tensor_view {
 
     /** @brief Slice along the leading dimension. */
     template <std::integral index_type_>
-    tensor_view<value_type_, max_rank_> slice_leading(index_type_ idx) const noexcept {
+    constexpr tensor_view<value_type_, max_rank_> slice_leading(index_type_ idx) const noexcept {
         nk_assert_(shape_.rank >= 1);
         if (shape_.rank == 0) return {};
         auto i = resolve_index_(idx, shape_.extents[0]);
@@ -348,20 +348,20 @@ struct tensor_view {
 
     /** @brief Row access (alias for slice_leading). */
     template <std::integral index_type_>
-    tensor_view<value_type_, max_rank_> row(index_type_ i) const noexcept {
+    constexpr tensor_view<value_type_, max_rank_> row(index_type_ i) const noexcept {
         return slice_leading(i);
     }
 
-    /** @brief Rank-0 scalar access. */
+    /** @brief Rank-0 scalar access — @c constexpr like the other accessors, so it stays device-callable. */
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) const noexcept {
+    constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         return tensor_flat_lookup_(*this, idx);
     }
 
     /** @brief Exact multi-dimensional scalar lookup via call syntax (C++20-portable). */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
-    decltype(auto) operator()(index_types_... idxs) const noexcept {
+    constexpr decltype(auto) operator()(index_types_... idxs) const noexcept {
         nk_assert_(shape_.rank == sizeof...(index_types_));
         auto coords = resolve_tensor_indices_<value_type_>(shape_, std::index_sequence_for<index_types_...> {},
                                                            idxs...);
@@ -372,7 +372,7 @@ struct tensor_view {
     /** @brief C++23 sugar: `t[i, j, k]` scalar lookup, delegates to `operator()`. */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
-    decltype(auto) operator[](index_types_... idxs) const noexcept {
+    constexpr decltype(auto) operator[](index_types_... idxs) const noexcept {
         return (*this)(idxs...);
     }
 #endif
@@ -383,7 +383,7 @@ struct tensor_view {
     /** @brief Prefix leading-axis slicing with a trailing `slice` marker (call syntax, C++20-portable). */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    tensor_view operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+    constexpr tensor_view operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
         return tensor_slice_suffix_(*this, first, second, rest...);
     }
 
@@ -391,20 +391,20 @@ struct tensor_view {
     /** @brief C++23 sugar: `t[i, nk::slice]` slicing, delegates to `operator()`. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    tensor_view operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+    constexpr tensor_view operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
         return (*this)(first, second, rest...);
     }
 #endif
 
     /** @brief Rank-0 scalar access. */
-    decltype(auto) scalar() const noexcept {
+    constexpr decltype(auto) scalar() const noexcept {
         nk_assert_(shape_.rank == 0);
         nk_assert_(data_ != nullptr);
         return *reinterpret_cast<value_type_ const *>(data_);
     }
 
     /** @brief Convert to vector_view (requires rank == 1). */
-    vector_view<value_type> as_vector() const noexcept {
+    constexpr vector_view<value_type> as_vector() const noexcept {
         nk_assert_(shape_.rank == 1);
         if (shape_.rank != 1) return {};
         return {data_, shape_.extents[0], shape_.strides[0]};
@@ -412,7 +412,7 @@ struct tensor_view {
 
     /** @brief Narrow an already-2D handle to a rank-2 type. Requires rank == 2; use reshape<2>({...}) to collapse a
      *  higher-rank tensor. */
-    tensor_view<value_type_, 2> as_matrix() const noexcept {
+    constexpr tensor_view<value_type_, 2> as_matrix() const noexcept {
         nk_assert_(shape_.rank == 2);
         if (shape_.rank != 2) return {};
         shape_storage_<2> matrix_shape;
@@ -445,7 +445,7 @@ struct tensor_view {
      *  differ from the source; pass it as the template argument when narrowing or widening.
      *  Returns an empty view if the tensor is not contiguous or element counts don't match. */
     template <std::size_t out_rank_ = max_rank_>
-    tensor_view<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) const noexcept {
+    constexpr tensor_view<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) const noexcept {
         auto new_rank = new_extents.size();
         if (!is_contiguous() || new_rank > out_rank_ || new_rank == 0) return {};
         auto new_shape = make_contiguous_shape_<value_type, out_rank_>(new_extents.begin(), new_rank);
@@ -457,33 +457,33 @@ struct tensor_view {
     /** @brief Range of sub-views along the leading dimension. */
     struct rows_views_t {
         tensor_view parent;
-        axis_iterator<tensor_view> begin() const noexcept { return {parent, 0}; }
-        axis_iterator<tensor_view> end() const noexcept { return {parent, parent.extent(0)}; }
+        constexpr axis_iterator<tensor_view> begin() const noexcept { return {parent, 0}; }
+        constexpr axis_iterator<tensor_view> end() const noexcept { return {parent, parent.extent(0)}; }
     };
 
-    rows_views_t rows() const noexcept { return {*this}; }
+    constexpr rows_views_t rows() const noexcept { return {*this}; }
 
     static constexpr std::size_t max_rank = max_rank_;
 
     /** @brief Element iterator (begin): yields `(position, scalar)` pairs. */
-    tensor_view_iterator_<tensor_view> begin() const noexcept { return {*this}; }
+    constexpr tensor_view_iterator_<tensor_view> begin() const noexcept { return {*this}; }
     /** @brief Element iterator (end). */
-    tensor_view_iterator_<tensor_view> end() const noexcept { return {*this, true}; }
+    constexpr tensor_view_iterator_<tensor_view> end() const noexcept { return {*this, true}; }
     /** @brief Number of logical scalar elements. */
     constexpr size_type size() const noexcept { return numel(); }
     /** @brief Dimension-only view: iterate scalars without positions. */
-    tensor_dims_view_<tensor_view_iterator_<tensor_view>> dims() const noexcept {
+    constexpr tensor_dims_view_<tensor_view_iterator_<tensor_view>> dims() const noexcept {
         return {tensor_view_iterator_<tensor_view> {*this}, numel()};
     }
 
     /** @brief Flatten to 1D view (requires contiguous layout). Returns empty view if not contiguous. */
     template <std::size_t out_rank_ = max_rank_>
-    tensor_view<value_type_, out_rank_> flatten() const noexcept {
+    constexpr tensor_view<value_type_, out_rank_> flatten() const noexcept {
         return reshape<out_rank_>({numel()});
     }
 
     /** @brief Remove dimensions of size 1. */
-    tensor_view squeeze() const noexcept {
+    constexpr tensor_view squeeze() const noexcept {
         auto result = shape_;
         size_type new_rank = 0;
         for (size_type i = 0; i < shape_.rank; ++i) {
@@ -532,7 +532,7 @@ struct tensor_span {
     constexpr tensor_span(char *data, shape_storage_<max_rank_> const &shape) noexcept : data_(data), shape_(shape) {}
 
     /** @brief Convenience constructor for rank-2 spans from typed pointer, rows, and cols. */
-    tensor_span(value_type *data, size_type rows, size_type cols) noexcept
+    constexpr tensor_span(value_type *data, size_type rows, size_type cols) noexcept
         requires(max_rank_ >= 2)
         : data_(reinterpret_cast<char *>(data)) {
         std::size_t extents[2] = {rows, cols};
@@ -540,7 +540,7 @@ struct tensor_span {
     }
 
     /** @brief Convenience constructor for a rank-1 span from a typed pointer and element @p count. */
-    tensor_span(value_type *data, size_type count) noexcept
+    constexpr tensor_span(value_type *data, size_type count) noexcept
         requires(max_rank_ >= 1)
         : data_(reinterpret_cast<char *>(data)) {
         std::size_t extents[1] = {count};
@@ -560,7 +560,7 @@ struct tensor_span {
     /** @brief Convenience constructor from a typed pointer and a fixed-size @p extents array (rank == @c array_rank_).
      */
     template <std::size_t array_rank_>
-    tensor_span(value_type *data, std::array<size_type, array_rank_> const &extents) noexcept
+    constexpr tensor_span(value_type *data, std::array<size_type, array_rank_> const &extents) noexcept
         requires(array_rank_ <= max_rank_)
         : data_(reinterpret_cast<char *>(data)) {
         shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.data(), array_rank_);
@@ -594,7 +594,7 @@ struct tensor_span {
 
     /** @brief Slice along leading dimension. */
     template <std::integral index_type_>
-    tensor_span slice_leading(index_type_ idx) const noexcept {
+    constexpr tensor_span slice_leading(index_type_ idx) const noexcept {
         nk_assert_(shape_.rank >= 1);
         if (shape_.rank == 0) return {};
         auto i = resolve_index_(idx, shape_.extents[0]);
@@ -611,20 +611,21 @@ struct tensor_span {
 
     /** @brief Mutable row access (alias for slice_leading). */
     template <std::integral index_type_>
-    tensor_span row(index_type_ i) const noexcept {
+    constexpr tensor_span row(index_type_ i) const noexcept {
         return slice_leading(i);
     }
 
-    /** @brief Flat logical scalar access. */
+    /** @brief Flat logical scalar access — @c constexpr like the other accessors, so it stays
+     *      device-callable. */
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) const noexcept {
+    constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         return tensor_flat_lookup_(*this, idx);
     }
 
     /** @brief Exact multi-dimensional scalar lookup via call syntax (C++20-portable). */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
-    decltype(auto) operator()(index_types_... idxs) const noexcept {
+    constexpr decltype(auto) operator()(index_types_... idxs) const noexcept {
         nk_assert_(shape_.rank == sizeof...(index_types_));
         auto coords = resolve_tensor_indices_<value_type_>(shape_, std::index_sequence_for<index_types_...> {},
                                                            idxs...);
@@ -635,7 +636,7 @@ struct tensor_span {
     /** @brief C++23 sugar: multi-arg `[]` scalar lookup, delegates to `operator()`. */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
-    decltype(auto) operator[](index_types_... idxs) const noexcept {
+    constexpr decltype(auto) operator[](index_types_... idxs) const noexcept {
         return (*this)(idxs...);
     }
 #endif
@@ -646,7 +647,7 @@ struct tensor_span {
     /** @brief Prefix leading-axis slicing via call syntax (C++20-portable). */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    tensor_span operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+    constexpr tensor_span operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
         return tensor_slice_suffix_(*this, first, second, rest...);
     }
 
@@ -654,23 +655,25 @@ struct tensor_span {
     /** @brief C++23 sugar: multi-arg `[]` slicing, delegates to `operator()`. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    tensor_span operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+    constexpr tensor_span operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
         return (*this)(first, second, rest...);
     }
 #endif
 
     /** @brief Rank-0 mutable scalar access. */
-    decltype(auto) scalar_ref() const noexcept {
+    constexpr decltype(auto) scalar_ref() const noexcept {
         nk_assert_(shape_.rank == 0);
         nk_assert_(data_ != nullptr);
         return *reinterpret_cast<value_type_ *>(data_);
     }
 
     /** @brief Rank-0 const scalar access. */
-    decltype(auto) scalar() const noexcept { return static_cast<tensor_view<value_type_, max_rank_>>(*this).scalar(); }
+    constexpr decltype(auto) scalar() const noexcept {
+        return static_cast<tensor_view<value_type_, max_rank_>>(*this).scalar();
+    }
 
     /** @brief Convert to vector_span (requires rank == 1). */
-    vector_span<value_type> as_vector() const noexcept {
+    constexpr vector_span<value_type> as_vector() const noexcept {
         nk_assert_(shape_.rank == 1);
         if (shape_.rank != 1) return {};
         return {data_, shape_.extents[0], shape_.strides[0]};
@@ -678,7 +681,7 @@ struct tensor_span {
 
     /** @brief Narrow an already-2D handle to a rank-2 type. Requires rank == 2; use reshape<2>({...}) to collapse a
      *  higher-rank tensor. */
-    tensor_span<value_type_, 2> as_matrix() const noexcept {
+    constexpr tensor_span<value_type_, 2> as_matrix() const noexcept {
         nk_assert_(shape_.rank == 2);
         if (shape_.rank != 2) return {};
         shape_storage_<2> matrix_shape;
@@ -711,7 +714,7 @@ struct tensor_span {
      *  differ from the source; pass it as the template argument when narrowing or widening.
      *  Returns an empty span if not contiguous or element counts don't match. */
     template <std::size_t out_rank_ = max_rank_>
-    tensor_span<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) const noexcept {
+    constexpr tensor_span<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) const noexcept {
         auto new_rank = new_extents.size();
         if (!is_contiguous() || new_rank > out_rank_ || new_rank == 0) return {};
         auto new_shape = make_contiguous_shape_<value_type, out_rank_>(new_extents.begin(), new_rank);
@@ -723,28 +726,30 @@ struct tensor_span {
     /** @brief Range of mutable sub-spans along the leading dimension. */
     struct rows_spans_t {
         tensor_span parent;
-        axis_iterator<tensor_span> begin() const noexcept { return {parent, 0}; }
-        axis_iterator<tensor_span> end() const noexcept { return {parent, parent.extent(0)}; }
+        constexpr axis_iterator<tensor_span> begin() const noexcept { return {parent, 0}; }
+        constexpr axis_iterator<tensor_span> end() const noexcept { return {parent, parent.extent(0)}; }
     };
 
-    rows_spans_t rows() const noexcept { return {*this}; }
+    constexpr rows_spans_t rows() const noexcept { return {*this}; }
 
     static constexpr std::size_t max_rank = max_rank_;
 
     /** @brief Mutable element iterator (begin): yields `(position, ref_or_proxy)` pairs. */
-    tensor_span_iterator_<tensor_span> begin() const noexcept { return {const_cast<tensor_span &>(*this)}; }
+    constexpr tensor_span_iterator_<tensor_span> begin() const noexcept { return {const_cast<tensor_span &>(*this)}; }
     /** @brief Mutable element iterator (end). */
-    tensor_span_iterator_<tensor_span> end() const noexcept { return {const_cast<tensor_span &>(*this), true}; }
+    constexpr tensor_span_iterator_<tensor_span> end() const noexcept {
+        return {const_cast<tensor_span &>(*this), true};
+    }
     /** @brief Number of logical scalar elements. */
     constexpr size_type size() const noexcept { return numel(); }
     /** @brief Mutable dimension-only view. */
-    tensor_dims_view_<tensor_span_iterator_<tensor_span>> dims() const noexcept {
+    constexpr tensor_dims_view_<tensor_span_iterator_<tensor_span>> dims() const noexcept {
         return {tensor_span_iterator_<tensor_span> {const_cast<tensor_span &>(*this)}, numel()};
     }
 
     /** @brief Flatten to 1D span (requires contiguous layout). Returns empty span if not contiguous. */
     template <std::size_t out_rank_ = max_rank_>
-    tensor_span<value_type_, out_rank_> flatten() const noexcept {
+    constexpr tensor_span<value_type_, out_rank_> flatten() const noexcept {
         return reshape<out_rank_>({numel()});
     }
 
@@ -756,7 +761,7 @@ struct tensor_span {
     bool copy_from(tensor_view<value_type_, max_rank_> input) noexcept;
 
     /** @brief Remove dimensions of size 1. */
-    tensor_span squeeze() const noexcept {
+    constexpr tensor_span squeeze() const noexcept {
         auto result = shape_;
         size_type new_rank = 0;
         for (size_type i = 0; i < shape_.rank; ++i) {
@@ -780,8 +785,8 @@ struct tensor_span {
 #pragma endregion Tensor Span
 
 template <typename value_type_, std::size_t max_rank_, std::size_t extent_>
-decltype(auto) tensor_lookup_resolved_(tensor_view<value_type_, max_rank_> input,
-                                       std::span<std::size_t const, extent_> coords) noexcept {
+constexpr decltype(auto) tensor_lookup_resolved_(tensor_view<value_type_, max_rank_> input,
+                                                 std::span<std::size_t const, extent_> coords) noexcept {
     nk_assert_(input.byte_data() != nullptr);
     nk_assert_(coords.size() == input.rank());
     if constexpr (dimensions_per_value<value_type_>() > 1) {
@@ -806,8 +811,8 @@ decltype(auto) tensor_lookup_resolved_(tensor_view<value_type_, max_rank_> input
 }
 
 template <typename value_type_, std::size_t max_rank_, std::size_t extent_>
-decltype(auto) tensor_lookup_resolved_(tensor_span<value_type_, max_rank_> input,
-                                       std::span<std::size_t const, extent_> coords) noexcept {
+constexpr decltype(auto) tensor_lookup_resolved_(tensor_span<value_type_, max_rank_> input,
+                                                 std::span<std::size_t const, extent_> coords) noexcept {
     nk_assert_(input.byte_data() != nullptr);
     nk_assert_(coords.size() == input.rank());
     if constexpr (dimensions_per_value<value_type_>() > 1) {
@@ -832,7 +837,7 @@ decltype(auto) tensor_lookup_resolved_(tensor_span<value_type_, max_rank_> input
 }
 
 template <typename value_type_, std::size_t max_rank_, typename index_type_>
-decltype(auto) tensor_flat_lookup_(tensor_view<value_type_, max_rank_> input, index_type_ idx) noexcept {
+constexpr decltype(auto) tensor_flat_lookup_(tensor_view<value_type_, max_rank_> input, index_type_ idx) noexcept {
     nk_assert_(input.byte_data() != nullptr);
     if constexpr (dimensions_per_value<value_type_>() > 1) nk_assert_(input.rank() > 0);
     auto flat = resolve_index_(idx, input.numel());
@@ -851,7 +856,7 @@ decltype(auto) tensor_flat_lookup_(tensor_view<value_type_, max_rank_> input, in
 }
 
 template <typename value_type_, std::size_t max_rank_, typename index_type_>
-decltype(auto) tensor_flat_lookup_(tensor_span<value_type_, max_rank_> input, index_type_ idx) noexcept {
+constexpr decltype(auto) tensor_flat_lookup_(tensor_span<value_type_, max_rank_> input, index_type_ idx) noexcept {
     nk_assert_(input.byte_data() != nullptr);
     if constexpr (dimensions_per_value<value_type_>() > 1) nk_assert_(input.rank() > 0);
     auto flat = resolve_index_(idx, input.numel());
@@ -870,12 +875,12 @@ decltype(auto) tensor_flat_lookup_(tensor_span<value_type_, max_rank_> input, in
 }
 
 template <typename tensor_type_>
-tensor_type_ tensor_slice_suffix_(tensor_type_ input, tensor_slice_t) noexcept {
+constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, tensor_slice_t) noexcept {
     return input;
 }
 
 template <typename tensor_type_, std::integral index_type_, typename... rest_types_>
-tensor_type_ tensor_slice_suffix_(tensor_type_ input, index_type_ idx, rest_types_... rest) noexcept {
+constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, index_type_ idx, rest_types_... rest) noexcept {
     if constexpr (dimensions_per_value<typename tensor_type_::value_type>() > 1) {
         if constexpr (sizeof...(rest_types_) == 1)
             if (input.rank() <= 1) return {};
@@ -891,15 +896,15 @@ tensor_type_ tensor_slice_suffix_(tensor_type_ input, index_type_ idx, rest_type
  *  `inner.byte_data() - first_row.byte_data()`, which is undefined behavior when one
  *  operand is a null pointer. Shared by the `all_t` and `range` slice overloads. */
 template <typename tensor_type_>
-bool slice_inner_byte_offset_(tensor_type_ const &inner, tensor_type_ const &first_row,
-                              typename tensor_type_::difference_type &offset) noexcept {
+constexpr bool slice_inner_byte_offset_(tensor_type_ const &inner, tensor_type_ const &first_row,
+                                        typename tensor_type_::difference_type &offset) noexcept {
     if (inner.byte_data() == nullptr || first_row.byte_data() == nullptr) return false;
     offset = inner.byte_data() - first_row.byte_data();
     return true;
 }
 
 template <typename tensor_type_, typename... rest_types_>
-tensor_type_ tensor_slice_suffix_(tensor_type_ input, all_t, rest_types_... rest) noexcept {
+constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, all_t, rest_types_... rest) noexcept {
     // `all` keeps the leading dimension intact — apply remaining args to inner dimensions.
     if (input.rank() == 0) return {};
     using size_type = typename tensor_type_::size_type;
@@ -936,7 +941,7 @@ tensor_type_ tensor_slice_suffix_(tensor_type_ input, all_t, rest_types_... rest
 }
 
 template <typename tensor_type_, typename... rest_types_>
-tensor_type_ tensor_slice_suffix_(tensor_type_ input, range r, rest_types_... rest) noexcept {
+constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, range r, rest_types_... rest) noexcept {
     if (input.rank() == 0) return {};
     using size_type = typename tensor_type_::size_type;
     using difference_type = typename tensor_type_::difference_type;
@@ -1198,7 +1203,7 @@ class tensor_span_iterator_ {
         }
     }
 
-    value_type operator*() const noexcept {
+    constexpr value_type operator*() const noexcept {
         index_type pos {};
         std::ptrdiff_t offset = 0;
         for (std::size_t d = 0; d + 1 < ndim_; ++d) {
@@ -1264,29 +1269,29 @@ struct tensor_dims_view_ {
     struct iterator_ {
         iterator_type_ it_;
 
-        decltype(auto) operator*() const noexcept { return (*it_).second; }
-        iterator_ &operator++() noexcept {
+        constexpr decltype(auto) operator*() const noexcept { return (*it_).second; }
+        constexpr iterator_ &operator++() noexcept {
             ++it_;
             return *this;
         }
-        iterator_ operator++(int) noexcept {
+        constexpr iterator_ operator++(int) noexcept {
             auto tmp = *this;
             ++it_;
             return tmp;
         }
-        bool operator==(iterator_ const &o) const noexcept { return it_ == o.it_; }
-        bool operator!=(iterator_ const &o) const noexcept { return it_ != o.it_; }
+        constexpr bool operator==(iterator_ const &o) const noexcept { return it_ == o.it_; }
+        constexpr bool operator!=(iterator_ const &o) const noexcept { return it_ != o.it_; }
     };
 
-    iterator_ begin() const noexcept { return {begin_}; }
-    iterator_ end() const noexcept {
+    constexpr iterator_ begin() const noexcept { return {begin_}; }
+    constexpr iterator_ end() const noexcept {
         auto end_it = begin_;
         // Advance to end by constructing an iterator with remaining_==0
         // We stored size_ so we can compare via remaining counts
         iterator_type_ sentinel;
         return {sentinel};
     }
-    std::size_t size() const noexcept { return size_; }
+    constexpr std::size_t size() const noexcept { return size_; }
 };
 
 #pragma endregion Tensor Element Iterators
@@ -1623,51 +1628,51 @@ struct tensor {
 
     /** @brief Slice along leading dimension (immutable view). */
     template <std::integral index_type_>
-    view_type slice_leading(index_type_ idx) const noexcept {
+    constexpr view_type slice_leading(index_type_ idx) const noexcept {
         return view().slice_leading(idx);
     }
 
     /** @brief Slice along leading dimension (mutable span). */
     template <std::integral index_type_>
-    span_type slice_leading(index_type_ idx) noexcept {
+    constexpr span_type slice_leading(index_type_ idx) noexcept {
         return span().slice_leading(idx);
     }
 
     /** @brief Row access (immutable view, alias for slice_leading). */
     template <std::integral index_type_>
-    view_type row(index_type_ i) const noexcept {
+    constexpr view_type row(index_type_ i) const noexcept {
         return view().slice_leading(i);
     }
 
     /** @brief Row access (mutable span, alias for slice_leading). */
     template <std::integral index_type_>
-    span_type row(index_type_ i) noexcept {
+    constexpr span_type row(index_type_ i) noexcept {
         return span().slice_leading(i);
     }
 
     /** @brief Flat logical scalar access. */
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) noexcept {
+    constexpr decltype(auto) operator[](index_type_ idx) noexcept {
         return span()[idx];
     }
 
     /** @brief Const flat logical scalar access. */
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) const noexcept {
+    constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         return view()[idx];
     }
 
     /** @brief Exact multi-dimensional scalar lookup via call syntax (C++20-portable). */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
-    decltype(auto) operator()(index_types_... idxs) noexcept {
+    constexpr decltype(auto) operator()(index_types_... idxs) noexcept {
         return span()(idxs...);
     }
 
     /** @brief Const multidimensional lookup via call syntax. */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
-    decltype(auto) operator()(index_types_... idxs) const noexcept {
+    constexpr decltype(auto) operator()(index_types_... idxs) const noexcept {
         return view()(idxs...);
     }
 
@@ -1675,31 +1680,31 @@ struct tensor {
     /** @brief C++23 sugar: multi-arg `[]` scalar lookup, delegates to `operator()`. */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
-    decltype(auto) operator[](index_types_... idxs) noexcept {
+    constexpr decltype(auto) operator[](index_types_... idxs) noexcept {
         return (*this)(idxs...);
     }
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
-    decltype(auto) operator[](index_types_... idxs) const noexcept {
+    constexpr decltype(auto) operator[](index_types_... idxs) const noexcept {
         return (*this)(idxs...);
     }
 #endif
 
     /** @brief Trailing `slice` returns the same tensor view/span category. */
-    span_type operator[](tensor_slice_t) noexcept { return span(); }
-    view_type operator[](tensor_slice_t) const noexcept { return view(); }
+    constexpr span_type operator[](tensor_slice_t) noexcept { return span(); }
+    constexpr view_type operator[](tensor_slice_t) const noexcept { return view(); }
 
     /** @brief Prefix leading-axis slicing via call syntax (C++20-portable). */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    span_type operator()(first_type_ first, second_type_ second, rest_types_... rest) noexcept {
+    constexpr span_type operator()(first_type_ first, second_type_ second, rest_types_... rest) noexcept {
         return tensor_slice_suffix_(span(), first, second, rest...);
     }
 
     /** @brief Const prefix leading-axis slicing via call syntax. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    view_type operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+    constexpr view_type operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
         return tensor_slice_suffix_(view(), first, second, rest...);
     }
 
@@ -1707,45 +1712,45 @@ struct tensor {
     /** @brief C++23 sugar: multi-arg `[]` slicing, delegates to `operator()`. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    span_type operator[](first_type_ first, second_type_ second, rest_types_... rest) noexcept {
+    constexpr span_type operator[](first_type_ first, second_type_ second, rest_types_... rest) noexcept {
         return (*this)(first, second, rest...);
     }
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    view_type operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+    constexpr view_type operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
         return (*this)(first, second, rest...);
     }
 #endif
 
     /** @brief Rank-0 mutable scalar access. */
-    decltype(auto) scalar_ref() noexcept { return span().scalar_ref(); }
+    constexpr decltype(auto) scalar_ref() noexcept { return span().scalar_ref(); }
 
     /** @brief Rank-0 const scalar access. */
-    decltype(auto) scalar() const noexcept { return view().scalar(); }
+    constexpr decltype(auto) scalar() const noexcept { return view().scalar(); }
 
     /** @brief Convert to vector_view (requires rank == 1). */
-    vector_view<value_type> as_vector_view() const noexcept { return view().as_vector(); }
+    constexpr vector_view<value_type> as_vector_view() const noexcept { return view().as_vector(); }
 
     /** @brief Convert to vector_span (requires rank == 1). */
-    vector_span<value_type> as_vector_span() noexcept { return span().as_vector(); }
+    constexpr vector_span<value_type> as_vector_span() noexcept { return span().as_vector(); }
 
     /** @brief Flatten (immutable view). Requires contiguous layout. */
     template <std::size_t out_rank_ = max_rank_>
-    tensor_view<value_type_, out_rank_> flatten() const noexcept {
+    constexpr tensor_view<value_type_, out_rank_> flatten() const noexcept {
         return view().template flatten<out_rank_>();
     }
 
     /** @brief Flatten (mutable span). Requires contiguous layout. */
     template <std::size_t out_rank_ = max_rank_>
-    tensor_span<value_type_, out_rank_> flatten() noexcept {
+    constexpr tensor_span<value_type_, out_rank_> flatten() noexcept {
         return span().template flatten<out_rank_>();
     }
 
     /** @brief Squeeze (immutable view). Removes size-1 dimensions. */
-    view_type squeeze() const noexcept { return view().squeeze(); }
+    constexpr view_type squeeze() const noexcept { return view().squeeze(); }
 
     /** @brief Squeeze (mutable span). Removes size-1 dimensions. */
-    span_type squeeze() noexcept { return span().squeeze(); }
+    constexpr span_type squeeze() noexcept { return span().squeeze(); }
 
     /** @brief Zero-fill every element. */
     bool fill_zeros() noexcept { return span().fill_zeros(); }
@@ -1864,13 +1869,13 @@ struct scaled_tensor_view {
 
     /** @brief Slice along the leading axis (rank-reducing); shares the per-tensor scale. */
     template <std::integral index_type_>
-    scaled_tensor_view slice_leading(index_type_ i) const noexcept {
+    constexpr scaled_tensor_view slice_leading(index_type_ i) const noexcept {
         return {elements_.slice_leading(i), block_scales_.slice_leading(i), tensor_scale_};
     }
 
     /** @brief Row access (alias for `slice_leading`). */
     template <std::integral index_type_>
-    scaled_tensor_view row(index_type_ i) const noexcept {
+    constexpr scaled_tensor_view row(index_type_ i) const noexcept {
         return slice_leading(i);
     }
 
@@ -1882,7 +1887,7 @@ struct scaled_tensor_view {
      *  elements). Returns an empty view otherwise; sub-block ranges require materialization via
      *  `cast()`.
      */
-    scaled_tensor_view columns(size_type start, size_type stop) const noexcept {
+    constexpr scaled_tensor_view columns(size_type start, size_type stop) const noexcept {
         auto r = rank();
         if (r == 0 || stop <= start || start % block_size != 0 || stop % block_size != 0) return {};
         size_type const last = r - 1;
@@ -1907,22 +1912,22 @@ struct scaled_tensor_view {
     struct row_iterator_t {
         scaled_tensor_view parent;
         size_type index;
-        scaled_tensor_view operator*() const noexcept { return parent.row(index); }
-        row_iterator_t &operator++() noexcept {
+        constexpr scaled_tensor_view operator*() const noexcept { return parent.row(index); }
+        constexpr row_iterator_t &operator++() noexcept {
             ++index;
             return *this;
         }
-        bool operator!=(row_iterator_t const &other) const noexcept { return index != other.index; }
+        constexpr bool operator!=(row_iterator_t const &other) const noexcept { return index != other.index; }
     };
 
     /** @brief Range of leading-axis row views (each carries the per-tensor scale). */
     struct rows_views_t {
         scaled_tensor_view parent;
-        row_iterator_t begin() const noexcept { return {parent, 0}; }
-        row_iterator_t end() const noexcept { return {parent, parent.extent(0)}; }
+        constexpr row_iterator_t begin() const noexcept { return {parent, 0}; }
+        constexpr row_iterator_t end() const noexcept { return {parent, parent.extent(0)}; }
     };
 
-    rows_views_t rows_views() const noexcept { return {*this}; }
+    constexpr rows_views_t rows_views() const noexcept { return {*this}; }
 };
 
 /** @brief Non-owning, mutable span of a block-scaled tensor (write target for `cast()`). */
@@ -1969,15 +1974,15 @@ struct scaled_tensor_span {
     }
 
     /** @brief Decay to an immutable view. */
-    view_type view() const noexcept {
+    constexpr view_type view() const noexcept {
         return {element_view_of_(elements_), scale_view_of_(block_scales_), tensor_scale_ ? *tensor_scale_ : 1.0f};
     }
 
   private:
-    static tensor_view<element_type, max_rank_> element_view_of_(element_span_type s) noexcept {
+    constexpr static tensor_view<element_type, max_rank_> element_view_of_(element_span_type s) noexcept {
         return {s.byte_data(), s.shape()};
     }
-    static tensor_view<scale_type, max_rank_> scale_view_of_(scale_span_type s) noexcept {
+    constexpr static tensor_view<scale_type, max_rank_> scale_view_of_(scale_span_type s) noexcept {
         return {s.byte_data(), s.shape()};
     }
 };
@@ -2063,21 +2068,21 @@ struct scaled_tensor {
     }
 
     /** @brief Immutable whole-tensor view. */
-    view_type view() const noexcept { return {elements_.view(), block_scales_.view(), tensor_scale_}; }
+    constexpr view_type view() const noexcept { return {elements_.view(), block_scales_.view(), tensor_scale_}; }
     /** @brief Mutable whole-tensor span (writes through to the per-tensor scale). */
-    span_type span() noexcept { return {elements_.span(), block_scales_.span(), &tensor_scale_}; }
+    constexpr span_type span() noexcept { return {elements_.span(), block_scales_.span(), &tensor_scale_}; }
 
     /** @brief Leading-axis row view. */
     template <std::integral index_type_>
-    view_type row(index_type_ i) const noexcept {
+    constexpr view_type row(index_type_ i) const noexcept {
         return view().row(i);
     }
 
     /** @brief Block-aligned last-axis (column) range view. */
-    view_type columns(size_type start, size_type stop) const noexcept { return view().columns(start, stop); }
+    constexpr view_type columns(size_type start, size_type stop) const noexcept { return view().columns(start, stop); }
 
     /** @brief Iterate leading-axis rows as immutable views. */
-    typename view_type::rows_views_t rows_views() const noexcept { return view().rows_views(); }
+    constexpr typename view_type::rows_views_t rows_views() const noexcept { return view().rows_views(); }
 };
 
 #pragma endregion Scaled Tensor
