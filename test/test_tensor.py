@@ -5,6 +5,11 @@ Dtypes: float64, float32, int8, int32, bfloat16, float8_e4m3, float8_e5m2, float
 Matches C++ suite: test_tensor.cpp.
 """
 
+# Keep annotations lazy so module-scope `-> np.ndarray` hints don't evaluate `np` at import
+# time — this file has numpy-free tests (nk.iota-based) and must still collect without numpy
+# installed (restores the numpy-free capability from commit 19dd123f; regressed by aa7dddb5).
+from __future__ import annotations
+
 import concurrent.futures
 import multiprocessing
 import operator
