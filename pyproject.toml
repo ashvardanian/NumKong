@@ -38,6 +38,12 @@ test-command = """
     PYTHONMALLOC=debug pytest {project}/test/ -s -x -Wd
 """
 
+# NumPy / SciPy / ml_dtypes publish no prebuilt wheels for these arches, so under
+# `--only-binary=:all:` the test-reference deps can't install and the suite crashes at
+# pytest collection. Still BUILD + upload the wheels for them — just skip their test phase.
+# (The wheels themselves import and run fine there; only the numeric-parity tests need NumPy.)
+test-skip = "*_i686 *_ppc64le *_s390x"
+
 # We need to build for all platforms:
 # - on Linux: x86_64, aarch64, i686
 # - on macOS: x86_64, arm64
