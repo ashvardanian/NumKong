@@ -221,6 +221,7 @@ static int tensor_is_f_contig(Tensor *tensor, size_t item_size) {
 
 static void Tensor_dealloc(PyObject *self) {
     Tensor *tensor = (Tensor *)self;
+    if (tensor->parent == NULL) PyMem_Free(tensor->data); // owns the buffer; PyMem_Free(NULL) is a no-op
     Py_XDECREF(tensor->parent);
     Py_TYPE(self)->tp_free(self);
 }
@@ -246,7 +247,7 @@ Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape) {
     }
     size_t const total_bytes = total_items * item_size;
 
-    Tensor *tensor = PyObject_NewVar(Tensor, &TensorType, total_bytes + NK_TENSOR_PADDING_);
+    Tensor *tensor = PyObject_New(Tensor, &TensorType);
     if (!tensor) {
         PyErr_NoMemory();
         return NULL;
@@ -254,6 +255,10 @@ Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape) {
 
     tensor->dtype = dtype;
     tensor->rank = rank;
+    tensor->parent = NULL;
+    tensor->data = NULL;
+    tensor->capacity = 0;
+    tensor->exports = 0;
 
     for (size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) {
         tensor->shape[i] = (i < rank) ? shape[i] : 0;
@@ -265,8 +270,17 @@ Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape) {
         for (size_t i = rank - 1; i > 0; i--) tensor->strides[i - 1] = tensor->strides[i] * tensor->shape[i];
     }
 
-    tensor->parent = NULL;
-    tensor->data = tensor->start;
+    // Storage lives in a separate heap buffer so `reserve()` can grow it in place. A zero-element
+    // tensor keeps `data == NULL`; `Tensor_dealloc` frees the buffer only when this owns it.
+    if (total_bytes > 0) {
+        tensor->data = (char *)PyMem_Malloc(total_bytes + NK_TENSOR_PADDING_);
+        if (!tensor->data) {
+            Py_DECREF(tensor);
+            PyErr_NoMemory();
+            return NULL;
+        }
+    }
+    tensor->capacity = total_items;
 
     return tensor;
 }
@@ -278,7 +292,7 @@ Tensor *Tensor_view(Tensor *parent, char *data_ptr, nk_dtype_t dtype, size_t ran
         return NULL;
     }
 
-    Tensor *view = PyObject_NewVar(Tensor, &TensorType, 0);
+    Tensor *view = PyObject_New(Tensor, &TensorType);
     if (!view) {
         PyErr_NoMemory();
         return NULL;
@@ -286,11 +300,15 @@ Tensor *Tensor_view(Tensor *parent, char *data_ptr, nk_dtype_t dtype, size_t ran
 
     view->dtype = dtype;
     view->rank = rank;
+    view->exports = 0;
 
+    size_t numel = 1;
     for (size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) {
         view->shape[i] = (i < rank) ? shape[i] : 0;
         view->strides[i] = (i < rank) ? strides[i] : 0;
+        if (i < rank) numel *= (size_t)shape[i];
     }
+    view->capacity = numel; // a view owns no storage; capacity == numel (informational)
 
     view->parent = (PyObject *)parent;
     Py_INCREF(parent);
@@ -302,7 +320,7 @@ Tensor *Tensor_view(Tensor *parent, char *data_ptr, nk_dtype_t dtype, size_t ran
 /** @brief Create a 0D scalar tensor. */
 static Tensor *Tensor_scalar(nk_dtype_t dtype, void const *value) {
     size_t const item_size = nk_dtype_bytes_per_value(dtype);
-    Tensor *tensor = PyObject_NewVar(Tensor, &TensorType, item_size);
+    Tensor *tensor = PyObject_New(Tensor, &TensorType);
     if (!tensor) {
         PyErr_NoMemory();
         return NULL;
@@ -310,13 +328,21 @@ static Tensor *Tensor_scalar(nk_dtype_t dtype, void const *value) {
 
     tensor->dtype = dtype;
     tensor->rank = 0;
+    tensor->parent = NULL;
+    tensor->data = NULL;
+    tensor->capacity = 1;
+    tensor->exports = 0;
     for (size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) {
         tensor->shape[i] = 0;
         tensor->strides[i] = 0;
     }
 
-    tensor->parent = NULL;
-    tensor->data = tensor->start;
+    tensor->data = (char *)PyMem_Malloc(item_size + NK_TENSOR_PADDING_);
+    if (!tensor->data) {
+        Py_DECREF(tensor);
+        PyErr_NoMemory();
+        return NULL;
+    }
     memcpy(tensor->data, value, item_size);
 
     return tensor;
@@ -845,6 +871,167 @@ static PyObject *Tensor_get_data_ptr(PyObject *self, void *closure) {
     return PyLong_FromVoidPtr(((Tensor *)self)->data);
 }
 
+static PyObject *Tensor_get_capacity(PyObject *self, void *closure) {
+    nk_unused_(closure);
+    return PyLong_FromSize_t(((Tensor *)self)->capacity);
+}
+
+/** @brief Product of a shape's extents (element count). */
+static size_t shape_numel_(size_t rank, Py_ssize_t const *shape) {
+    size_t numel = 1;
+    for (size_t i = 0; i < rank; i++) numel *= (size_t)shape[i];
+    return numel;
+}
+
+/** @brief Overwrite a tensor's rank/shape/contiguous-strides in place. Caller guarantees capacity. */
+static void tensor_set_contiguous_shape_(Tensor *tensor, size_t rank, Py_ssize_t const *shape) {
+    size_t const item_size = nk_dtype_bytes_per_value(tensor->dtype);
+    tensor->rank = rank;
+    for (size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) {
+        tensor->shape[i] = (i < rank) ? shape[i] : 0;
+        tensor->strides[i] = 0;
+    }
+    if (rank > 0) {
+        tensor->strides[rank - 1] = (Py_ssize_t)item_size;
+        for (size_t i = rank - 1; i > 0; i--) tensor->strides[i - 1] = tensor->strides[i] * tensor->shape[i];
+    }
+}
+
+/** @brief Parse a `*ints` or single-shape-tuple argument list into an extents array. Returns 0 / -1. */
+static int parse_shape_args_(PyObject *const *args, Py_ssize_t nargs, Py_ssize_t *out_shape, size_t *out_rank) {
+    int const from_tuple = (nargs == 1 && PyTuple_Check(args[0]));
+    size_t const rank = from_tuple ? (size_t)PyTuple_GET_SIZE(args[0]) : (size_t)nargs;
+    if (rank > NK_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "too many dimensions (%zu > %d)", rank, NK_TENSOR_MAX_RANK);
+        return -1;
+    }
+    for (size_t i = 0; i < rank; i++) {
+        PyObject *item = from_tuple ? PyTuple_GET_ITEM(args[0], (Py_ssize_t)i) : args[i];
+        if (!PyLong_Check(item)) {
+            PyErr_SetString(PyExc_TypeError, "shape dimensions must be integers");
+            return -1;
+        }
+        Py_ssize_t const value = PyLong_AsSsize_t(item);
+        if (value < 0) {
+            PyErr_SetString(PyExc_ValueError, "negative dimensions not supported");
+            return -1;
+        }
+        out_shape[i] = value;
+    }
+    *out_rank = rank;
+    return 0;
+}
+
+char const doc_method_resize[] =                                                                      //
+    "Reshape in place within the allocated capacity, without moving the data buffer.\n\n"             //
+    "Unlike reshape(), this mutates the tensor in place and keeps data_ptr stable. It fails if the\n" //
+    "new element count exceeds capacity() (call reserve() to grow first), if the tensor is a view,\n" //
+    "or if any buffer is currently exported (memoryview / NumPy).\n\n"                                //
+    "Parameters:\n"                                                                                   //
+    "    *shape: New dimensions (ints, or a single shape tuple).\n\n"                                 //
+    "Returns:\n"                                                                                      //
+    "    Tensor: self.\n\n"                                                                           //
+    "Signature:\n"                                                                                    //
+    "    >>> def resize(self, *shape: int) -> 'Tensor': ...\n";
+
+static PyObject *Tensor_resize(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
+    Tensor *tensor = (Tensor *)self;
+    if (tensor->parent != NULL) {
+        PyErr_SetString(PyExc_ValueError, "cannot resize a view; only owning tensors are resizable");
+        return NULL;
+    }
+    if (tensor->exports != 0) {
+        PyErr_SetString(PyExc_BufferError, "cannot resize a tensor with exported buffers");
+        return NULL;
+    }
+    Py_ssize_t new_shape[NK_TENSOR_MAX_RANK];
+    size_t new_rank = 0;
+    if (parse_shape_args_(args, nargs, new_shape, &new_rank) != 0) return NULL;
+
+    size_t const new_total = shape_numel_(new_rank, new_shape);
+    if (new_total > tensor->capacity) {
+        PyErr_Format(PyExc_ValueError, "resize to %zu elements exceeds capacity %zu; use reserve() to grow first",
+                     new_total, tensor->capacity);
+        return NULL;
+    }
+    tensor_set_contiguous_shape_(tensor, new_rank, new_shape);
+    return Py_NewRef(self);
+}
+
+char const doc_method_reserve[] =                                                                     //
+    "Grow the allocated capacity to at least `capacity` elements, reallocating if needed.\n\n"        //
+    "Preserves the current contents; a no-op when capacity() is already large enough. May move the\n" //
+    "data buffer, so it INVALIDATES outstanding views, memoryviews, NumPy arrays, and DLPack\n"       //
+    "capsules. Fails on a view or while buffers are exported.\n\n"                                    //
+    "Parameters:\n"                                                                                   //
+    "    capacity: Minimum element capacity to guarantee.\n\n"                                        //
+    "Returns:\n"                                                                                      //
+    "    None.\n\n"                                                                                   //
+    "Signature:\n"                                                                                    //
+    "    >>> def reserve(self, capacity: int) -> None: ...\n";
+
+static PyObject *Tensor_reserve(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
+    Tensor *tensor = (Tensor *)self;
+    if (tensor->parent != NULL) {
+        PyErr_SetString(PyExc_ValueError, "cannot reserve on a view; only owning tensors own storage");
+        return NULL;
+    }
+    if (tensor->exports != 0) {
+        PyErr_SetString(PyExc_BufferError, "cannot reserve while buffers are exported");
+        return NULL;
+    }
+    if (nargs != 1 || !PyLong_Check(args[0])) {
+        PyErr_SetString(PyExc_TypeError, "reserve() takes a single integer capacity");
+        return NULL;
+    }
+    Py_ssize_t const requested = PyLong_AsSsize_t(args[0]);
+    if (requested < 0) {
+        PyErr_SetString(PyExc_ValueError, "capacity must be non-negative");
+        return NULL;
+    }
+    if ((size_t)requested <= tensor->capacity) Py_RETURN_NONE; // already large enough
+
+    size_t const item_size = nk_dtype_bytes_per_value(tensor->dtype);
+    char *grown = (char *)PyMem_Realloc(tensor->data, (size_t)requested * item_size + NK_TENSOR_PADDING_);
+    if (!grown) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    tensor->data = grown;
+    tensor->capacity = (size_t)requested;
+    Py_RETURN_NONE;
+}
+
+char const doc_method_clear[] =                                                          //
+    "Reset to an empty shape (size 0) while keeping the allocated capacity.\n\n"         //
+    "The buffer can be refilled via resize() without reallocating. Fails on a view or\n" //
+    "while buffers are exported.\n\n"                                                    //
+    "Returns:\n"                                                                         //
+    "    None.\n\n"                                                                      //
+    "Signature:\n"                                                                       //
+    "    >>> def clear(self) -> None: ...\n";
+
+static PyObject *Tensor_clear(PyObject *self, PyObject *ignored) {
+    nk_unused_(ignored);
+    Tensor *tensor = (Tensor *)self;
+    if (tensor->parent != NULL) {
+        PyErr_SetString(PyExc_ValueError, "cannot clear a view");
+        return NULL;
+    }
+    if (tensor->exports != 0) {
+        PyErr_SetString(PyExc_BufferError, "cannot clear a tensor with exported buffers");
+        return NULL;
+    }
+    tensor->rank = 1;
+    tensor->shape[0] = 0;
+    tensor->strides[0] = (Py_ssize_t)nk_dtype_bytes_per_value(tensor->dtype);
+    for (size_t i = 1; i < NK_TENSOR_MAX_RANK; i++) {
+        tensor->shape[i] = 0;
+        tensor->strides[i] = 0;
+    }
+    Py_RETURN_NONE;
+}
+
 static Tensor *Tensor_view_object(PyObject *owner, char *data_ptr, nk_dtype_t dtype, size_t rank,
                                   Py_ssize_t const *shape, Py_ssize_t const *strides) {
     if (rank > NK_TENSOR_MAX_RANK) {
@@ -852,7 +1039,7 @@ static Tensor *Tensor_view_object(PyObject *owner, char *data_ptr, nk_dtype_t dt
         return NULL;
     }
 
-    Tensor *view = PyObject_NewVar(Tensor, &TensorType, 0);
+    Tensor *view = PyObject_New(Tensor, &TensorType);
     if (!view) {
         PyErr_NoMemory();
         return NULL;
@@ -860,11 +1047,15 @@ static Tensor *Tensor_view_object(PyObject *owner, char *data_ptr, nk_dtype_t dt
 
     view->dtype = dtype;
     view->rank = rank;
+    view->exports = 0;
 
+    size_t numel = 1;
     for (size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) {
         view->shape[i] = (i < rank) ? shape[i] : 0;
         view->strides[i] = (i < rank) ? strides[i] : 0;
+        if (i < rank) numel *= (size_t)shape[i];
     }
+    view->capacity = numel; // a view owns no storage; capacity == numel (informational)
 
     view->parent = owner;
     Py_INCREF(owner);
@@ -885,6 +1076,7 @@ static PyGetSetDef Tensor_getset[] = {
     {"__array_interface__", Tensor_get_array_interface, NULL, "NumPy array interface", NULL},
     {"is_contiguous", Tensor_get_is_contiguous, NULL, "Whether the tensor is C-contiguous", NULL},
     {"data_ptr", Tensor_get_data_ptr, NULL, "Integer address of the data buffer", NULL},
+    {"capacity", Tensor_get_capacity, NULL, "Allocated element capacity of the owned buffer (>= size)", NULL},
     {NULL, NULL, NULL, NULL, NULL},
 };
 
@@ -2048,18 +2240,78 @@ char const doc_method_astype[] =                                                
     "Parameters:\n"                                                                   //
     "    dtype (str): Target data type. Standard dtypes (e.g. 'float32', 'bf16')\n"   //
     "        return a Tensor; block-scaled dtypes ('nvfp4', 'mxfp4', 'mxfp8_e4m3',\n" //
-    "        ...) quantize along the last axis and return a ScaledTensor.\n\n"        //
+    "        ...) quantize along the last axis and return a ScaledTensor.\n"          //
+    "    out (Tensor, optional): Pre-allocated destination buffer. When given, the\n" //
+    "        conversion writes into it with no allocation; `out` must be a\n"         //
+    "        C-contiguous Tensor of the target dtype and the source shape. Not\n"     //
+    "        supported for block-scaled targets. Returns `out`.\n\n"                  //
     "Returns:\n"                                                                      //
-    "    Tensor or ScaledTensor: Converted result.\n\n"                               //
+    "    Tensor or ScaledTensor: Converted result (or `out` when provided).\n\n"      //
     "Signature:\n"                                                                    //
-    "    >>> def astype(self, dtype, /): ...";
+    "    >>> def astype(self, dtype, /, *, out=None): ...";
 
-PyObject *Tensor_astype(PyObject *self, PyObject *dtype_arg) {
+PyObject *Tensor_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *tensor = (Tensor *)self;
+
+    PyObject *dtype_arg = NULL;
+    PyObject *out_obj = NULL;
+
+    Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
+    if (nargs != 1) {
+        PyErr_SetString(PyExc_TypeError, "astype(dtype, /, *, out=None) requires exactly one positional argument");
+        return NULL;
+    }
+    dtype_arg = args[0];
+    for (Py_ssize_t i = 0; i < nkw; i++) {
+        PyObject *name = PyTuple_GET_ITEM(kwnames, i);
+        if (PyUnicode_CompareWithASCIIString(name, "out") == 0) out_obj = args[nargs + i];
+        else {
+            PyErr_Format(PyExc_TypeError, "astype() got unexpected keyword argument '%S'", name);
+            return NULL;
+        }
+    }
 
     // Parse target dtype from argument
     nk_dtype_t target_dtype = py_object_to_nk_dtype(dtype_arg);
     if (target_dtype == nk_dtype_unknown_k) return NULL;
+
+    // Cast into a caller-provided buffer — the allocation-free path.
+    if (out_obj && out_obj != Py_None) {
+        if (nk_dtype_is_block_scaled(target_dtype)) {
+            PyErr_SetString(PyExc_TypeError, "astype(out=...) does not support block-scaled target dtypes");
+            return NULL;
+        }
+        if (!PyObject_TypeCheck(out_obj, &TensorType)) {
+            PyErr_SetString(PyExc_TypeError, "out must be a Tensor");
+            return NULL;
+        }
+        Tensor *out = (Tensor *)out_obj;
+        if (out->dtype != target_dtype) {
+            PyErr_Format(PyExc_TypeError, "out dtype '%s' does not match target '%s'",
+                         nk_dtype_to_pybuffer_typestr(out->dtype), nk_dtype_to_pybuffer_typestr(target_dtype));
+            return NULL;
+        }
+        if (out->rank != tensor->rank) {
+            PyErr_Format(PyExc_ValueError, "out rank %zu does not match source rank %zu", out->rank, tensor->rank);
+            return NULL;
+        }
+        Py_ssize_t out_total = 1;
+        for (size_t i = 0; i < tensor->rank; i++) {
+            if (out->shape[i] != tensor->shape[i]) {
+                PyErr_SetString(PyExc_ValueError, "out shape does not match source shape");
+                return NULL;
+            }
+            out_total *= tensor->shape[i];
+        }
+        if (!tensor_is_c_contig(out, nk_dtype_bytes_per_value(target_dtype))) {
+            PyErr_SetString(PyExc_ValueError, "out must be C-contiguous");
+            return NULL;
+        }
+        linearize_cast_into(tensor->data, tensor->dtype, out->data, target_dtype, tensor->rank, tensor->shape,
+                            tensor->strides, (size_t)out_total);
+        Py_INCREF(out);
+        return (PyObject *)out;
+    }
 
     // Block-scaled target -> quantize into a ScaledTensor.
     if (nk_dtype_is_block_scaled(target_dtype)) return Tensor_encode_block_scaled(tensor, target_dtype);
@@ -2157,9 +2409,12 @@ static PyMethodDef Tensor_methods[] = {
     {"max", (PyCFunction)Tensor_max, METH_FASTCALL | METH_KEYWORDS, doc_method_max},
     {"argmin", (PyCFunction)Tensor_argmin, METH_FASTCALL | METH_KEYWORDS, doc_method_argmin},
     {"argmax", (PyCFunction)Tensor_argmax, METH_FASTCALL | METH_KEYWORDS, doc_method_argmax},
-    {"astype", Tensor_astype, METH_O, doc_method_astype},
+    {"astype", (PyCFunction)Tensor_astype, METH_FASTCALL | METH_KEYWORDS, doc_method_astype},
     {"flatten", Tensor_flatten, METH_NOARGS, doc_method_flatten},
     {"squeeze", (PyCFunction)Tensor_squeeze, METH_FASTCALL, doc_method_squeeze},
+    {"resize", (PyCFunction)Tensor_resize, METH_FASTCALL, doc_method_resize},
+    {"reserve", (PyCFunction)Tensor_reserve, METH_FASTCALL, doc_method_reserve},
+    {"clear", Tensor_clear, METH_NOARGS, doc_method_clear},
     {"__array__", (PyCFunction)Tensor___array__, METH_FASTCALL | METH_KEYWORDS, doc_method___array__},
     {"__dlpack__", (PyCFunction)Tensor_dlpack, METH_VARARGS | METH_KEYWORDS, doc_dlpack},
     {"__dlpack_device__", (PyCFunction)Tensor_dlpack_device, METH_NOARGS, doc_dlpack_device},
@@ -2235,12 +2490,13 @@ static int Tensor_getbuffer(PyObject *export_from, Py_buffer *view, int flags) {
     view->internal = NULL;
 
     Py_INCREF(tensor);
+    tensor->exports++; // block resize/reserve while this buffer is live (see Tensor_resize)
     return 0;
 }
 
 static void Tensor_releasebuffer(PyObject *export_from, Py_buffer *view) {
-    nk_unused_(export_from);
     nk_unused_(view);
+    ((Tensor *)export_from)->exports--;
 }
 
 static PyBufferProcs Tensor_as_buffer = {
@@ -2571,7 +2827,6 @@ PyTypeObject TensorType = {
     PyVarObject_HEAD_INIT(NULL, 0).tp_name = "numkong.Tensor",
     .tp_doc = "N-dimensional tensor with full NumPy-like API, supporting NumKong's type system",
     .tp_basicsize = sizeof(Tensor),
-    .tp_itemsize = sizeof(char),
     .tp_dealloc = Tensor_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_new = Tensor_tp_new,
@@ -2656,6 +2911,69 @@ static PyObject *ScaledTensor_get_shape(PyObject *self, void *closure) {
     return shape_tuple;
 }
 
+static PyObject *ScaledTensor_get_capacity(PyObject *self, void *closure) {
+    nk_unused_(closure);
+    return PyLong_FromSize_t(((ScaledTensor *)self)->elements->capacity);
+}
+
+char const doc_method_scaled_resize[] =                                                                   //
+    "Resize the packed elements and per-block scales in lockstep, within capacity, without moving\n"      //
+    "either buffer.\n\n"                                                                                  //
+    "Atomic: fails (unchanged) if either child would exceed capacity, if the last axis is not a\n"        //
+    "multiple of block_size, or while any child buffer is exported. Takes the logical (dense) shape.\n\n" //
+    "Parameters:\n"                                                                                       //
+    "    *shape: New logical dimensions (ints, or a single shape tuple).\n\n"                             //
+    "Returns:\n"                                                                                          //
+    "    ScaledTensor: self.\n\n"                                                                         //
+    "Signature:\n"                                                                                        //
+    "    >>> def resize(self, *shape: int) -> 'ScaledTensor': ...\n";
+
+static PyObject *ScaledTensor_resize(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
+    ScaledTensor *scaled = (ScaledTensor *)self;
+    Tensor *elements = scaled->elements;
+    Tensor *block_scales = scaled->block_scales;
+    if (elements->exports != 0 || block_scales->exports != 0) {
+        PyErr_SetString(PyExc_BufferError, "cannot resize a scaled tensor with exported buffers");
+        return NULL;
+    }
+    Py_ssize_t logical[NK_TENSOR_MAX_RANK];
+    size_t rank = 0;
+    if (parse_shape_args_(args, nargs, logical, &rank) != 0) return NULL;
+    if (rank == 0) {
+        PyErr_SetString(PyExc_ValueError, "block-scaled tensors require at least one dimension");
+        return NULL;
+    }
+    size_t const last_dim = (size_t)logical[rank - 1];
+    if (scaled->block_size == 0 || last_dim % scaled->block_size != 0) {
+        PyErr_Format(PyExc_ValueError, "last axis (%zu) must be a multiple of block_size (%zu)", last_dim,
+                     scaled->block_size);
+        return NULL;
+    }
+
+    nk_block_scaled_format_t const format = nk_block_scaled_format_of_dtype(scaled->dtype);
+    size_t const elements_last = nk_block_scaled_elements_size((nk_size_t)last_dim, format);
+    size_t const scales_last = nk_block_scaled_scales_size((nk_size_t)last_dim, format);
+
+    Py_ssize_t elements_shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t scales_shape[NK_TENSOR_MAX_RANK];
+    for (size_t i = 0; i + 1 < rank; i++) {
+        elements_shape[i] = logical[i];
+        scales_shape[i] = logical[i];
+    }
+    elements_shape[rank - 1] = (Py_ssize_t)elements_last;
+    scales_shape[rank - 1] = (Py_ssize_t)scales_last;
+
+    // Pre-validate both capacities so neither child is mutated on failure (atomic).
+    if (shape_numel_(rank, elements_shape) > elements->capacity ||
+        shape_numel_(rank, scales_shape) > block_scales->capacity) {
+        PyErr_SetString(PyExc_ValueError, "resize exceeds element or scale capacity; grow the source first");
+        return NULL;
+    }
+    tensor_set_contiguous_shape_(elements, rank, elements_shape);
+    tensor_set_contiguous_shape_(block_scales, rank, scales_shape);
+    return Py_NewRef(self);
+}
+
 static PyGetSetDef ScaledTensor_getset[] = {
     {"elements", ScaledTensor_get_elements, NULL, "Packed sub-byte element Tensor (DLPack-exportable)", NULL},
     {"block_scales", ScaledTensor_get_block_scales, NULL, "Per-block scale Tensor (DLPack-exportable)", NULL},
@@ -2663,6 +2981,7 @@ static PyGetSetDef ScaledTensor_getset[] = {
     {"block_size", ScaledTensor_get_block_size, NULL, "Number of elements per block", NULL},
     {"dtype", ScaledTensor_get_dtype, NULL, "Composite block-scaled dtype name", NULL},
     {"shape", ScaledTensor_get_shape, NULL, "Logical (dense) shape of the quantized tensor", NULL},
+    {"capacity", ScaledTensor_get_capacity, NULL, "Allocated element capacity of the packed elements buffer", NULL},
     {NULL, NULL, NULL, NULL, NULL},
 };
 
@@ -3027,6 +3346,7 @@ static PyObject *ScaledTensor_repr(PyObject *self) {
 
 static PyMethodDef ScaledTensor_methods[] = {
     {"astype", ScaledTensor_astype, METH_O, doc_method_scaled_astype},
+    {"resize", (PyCFunction)ScaledTensor_resize, METH_FASTCALL, doc_method_scaled_resize},
     {NULL, NULL, 0, NULL},
 };
 
@@ -3166,8 +3486,8 @@ PyObject *api_from_pointer(PyObject *self, PyObject *const *args, Py_ssize_t con
     }
     else { compute_contiguous_strides(rank, shape, nk_dtype_bytes_per_value(dtype), strides); }
 
-    // Use a sentinel owner if none provided — we need a non-NULL parent
-    // so Tensor_dealloc doesn't try to free the inline data
+    // Use a sentinel owner if none provided — a non-NULL parent makes Tensor_dealloc treat this
+    // as a view and NOT free the caller's external data buffer.
     if (!owner_obj || owner_obj == Py_None) owner_obj = Py_None;
 
     return (PyObject *)Tensor_view_object(owner_obj, (char *)data, dtype, rank, shape, strides);

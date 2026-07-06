@@ -40,11 +40,14 @@ extern "C" {
  *  for memory management, and NumKong's extended type system.
  *
  *  Memory layout:
- *  - If parent == NULL: owns data in variable-length `start[]` buffer
+ *  - If parent == NULL: owns a heap-allocated `data` buffer holding `capacity` elements
  *  - If parent != NULL: view into parent's memory, `data` points there
+ *
+ *  Storage lives in a separately heap-allocated buffer (not inline in the object), so `reserve()`
+ *  can grow it in place; `resize()` reshapes within `capacity` without moving `data`.
  */
 typedef struct Tensor {
-    PyObject_VAR_HEAD
+    PyObject_HEAD
     /** Logical dtype (f32, f64, bf16, etc.). */
     nk_dtype_t dtype;
     /** Number of dimensions (0 for scalar). */
@@ -55,10 +58,12 @@ typedef struct Tensor {
     Py_ssize_t strides[NK_TENSOR_MAX_RANK];
     /** Reference to parent (NULL if owns data). */
     PyObject *parent;
-    /** Data pointer (start[] if owns, parent's if view). */
+    /** Data pointer: owned heap buffer when `parent == NULL`, else into parent's memory. */
     char *data;
-    /** Variable-length inline data storage. */
-    char start[];
+    /** Allocated element capacity of the owned buffer (>= numel); equals numel for views. */
+    size_t capacity;
+    /** Outstanding buffer-protocol exports; `resize`/`reserve` raise `BufferError` while > 0. */
+    Py_ssize_t exports;
 } Tensor;
 
 /**
@@ -154,7 +159,7 @@ PyObject *Tensor_moments(PyObject *self, PyObject *args);
 PyObject *Tensor_minmax(PyObject *self, PyObject *args);
 
 /** @brief Cast tensor to a different dtype. Returns a new tensor.  */
-PyObject *Tensor_astype(PyObject *self, PyObject *dtype_arg);
+PyObject *Tensor_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 /**
  *  @brief Compute C-contiguous strides for a tensor shape.

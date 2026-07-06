@@ -307,6 +307,86 @@ def test_distances_tensor_len(nk_seed: int):
     assert len(result_1d) == 10
 
 
+def test_tensor_resize_within_capacity():
+    t = nk.iota((8, 4), 1, dtype="float32")  # 32 elements -> capacity 32
+    assert t.capacity == 32
+    assert t.capacity >= t.size
+    ptr = t.data_ptr
+    t.resize(4, 4)
+    assert t.shape == (4, 4)
+    assert t.size == 16
+    assert t.capacity == 32  # capacity is unchanged by resize
+    assert t.data_ptr == ptr  # storage never moves within capacity
+    t.resize((2, 8))  # tuple form
+    assert t.shape == (2, 8)
+    assert t.data_ptr == ptr
+
+
+def test_tensor_resize_beyond_capacity_raises():
+    t = nk.zeros((4, 4), dtype="float32")  # capacity 16
+    with pytest.raises(ValueError):
+        t.resize(8, 8)  # 64 > 16
+    assert t.shape == (4, 4)  # left unchanged
+
+
+def test_tensor_reserve_grows_and_preserves(nk_seed: int):
+    t = nk.iota((4,), nk_seed, dtype="float32")
+    view = memoryview(t)
+    before = view.tolist()
+    view.release()  # reserve is blocked while a buffer is exported
+    t.reserve(64)
+    assert t.capacity >= 64
+    assert t.size == 4  # reserve grows capacity, it does not reshape
+    assert memoryview(t).tolist() == before  # contents preserved across the move
+    t.resize(8, 8)  # the grown capacity now admits a larger shape
+    assert t.size == 64
+
+
+def test_tensor_clear_keeps_capacity():
+    t = nk.zeros((6,), dtype="float32")
+    cap = t.capacity
+    t.clear()
+    assert t.size == 0
+    assert t.capacity == cap
+    t.resize(cap)  # refill within the retained capacity
+    assert t.size == cap
+
+
+def test_tensor_resize_blocked_while_exported():
+    t = nk.zeros((4,), dtype="float32")
+    view = memoryview(t)
+    try:
+        with pytest.raises(BufferError):
+            t.resize(2)
+        with pytest.raises(BufferError):
+            t.reserve(16)
+    finally:
+        view.release()
+    t.resize(2)  # allowed once the exported buffer is released
+    assert t.size == 2
+
+
+def test_tensor_resize_rejects_view():
+    base = nk.zeros((6,), dtype="float32")
+    v = base.reshape(2, 3)
+    with pytest.raises(ValueError):
+        v.resize(3, 2)
+
+
+def test_scaled_tensor_resize():
+    dense = nk.iota((2, 32), 1, dtype="float32")
+    s = dense.astype("nvfp4")
+    assert s.shape == (2, 32)
+    assert s.capacity >= 32
+    s.resize(2, 16)  # elements and per-block scales resize in lockstep
+    assert s.shape == (2, 16)
+    with pytest.raises(ValueError):  # beyond capacity, fails atomically
+        s.resize(4, 32)
+    assert s.shape == (2, 16)
+    with pytest.raises(ValueError):  # last axis must be a multiple of block_size
+        s.resize(2, 20)
+
+
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_distances_tensor_indexing():
     a = np.random.rand(5, 128).astype(np.float64)

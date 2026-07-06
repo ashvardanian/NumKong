@@ -337,6 +337,23 @@ class Tensor(memoryview):
         """Integer address of the underlying data buffer."""
         ...
 
+    @property
+    def capacity(self) -> int:
+        """Allocated element capacity of the owned buffer (>= size)."""
+        ...
+
+    def resize(self, *shape: int) -> Tensor:
+        """Reshape in place within capacity without moving storage; returns self."""
+        ...
+
+    def reserve(self, capacity: int) -> None:
+        """Grow the allocated capacity to at least `capacity` elements (may move); preserves contents."""
+        ...
+
+    def clear(self) -> None:
+        """Reset to an empty shape (size 0) while keeping the allocated capacity."""
+        ...
+
     def sum(
         self, axis: int | tuple[int, ...] | None = None, *, keepdims: bool = False, out: Tensor | None = None
     ) -> float | int | Tensor:

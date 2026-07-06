@@ -660,13 +660,14 @@ PyObject *api_from_dlpack(PyObject *self, PyObject *obj) {
 
     // Build the Tensor view directly (parallels Tensor_view_object in tensor.c,
     // which is static; duplicating the 10-line body avoids a cross-TU public).
-    Tensor *view = PyObject_NewVar(Tensor, &TensorType, 0);
+    Tensor *view = PyObject_New(Tensor, &TensorType);
     if (!view) {
         Py_DECREF(owner);
         goto fail;
     }
     view->dtype = dtype;
     view->rank = (size_t)dl_tensor->ndim;
+    view->exports = 0;
     for (size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) {
         view->shape[i] = 0;
         view->strides[i] = 0;
@@ -683,6 +684,8 @@ PyObject *api_from_dlpack(PyObject *self, PyObject *obj) {
     }
     view->parent = (PyObject *)owner; // steals the owner's reference
     view->data = (char *)dl_tensor->data + dl_tensor->byte_offset;
+    view->capacity = 1; // a view owns no storage; capacity == numel (informational)
+    for (size_t i = 0; i < view->rank; i++) view->capacity *= (size_t)view->shape[i];
 
     if (capsule_owned_by_us) Py_DECREF(capsule);
     return (PyObject *)view;
