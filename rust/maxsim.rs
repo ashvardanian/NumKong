@@ -15,7 +15,7 @@
 //! # Typical flow
 //!
 //! 1. Pack both the query set and the document set with
-//!    [`MaxSimPackedMatrix::try_pack`] (or [`MaxSimPackExt::try_maxsim_pack`]).
+//!    [`MaxSimPackedMatrix::try_pack`] (or [`MaxSimPackOps::try_maxsim_pack`]).
 //! 2. Call [`MaxSimPackedMatrix::try_score`] on the pair; the score type is
 //!    `f64` for `f32` inputs and `f32` for `f16` / `bf16` inputs.
 //!
@@ -394,14 +394,14 @@ where
     Ok((vectors.shape()[0], vectors.shape()[1], row_stride_bytes as usize))
 }
 
-// region: MaxSimPackExt convenience
+// region: MaxSimPackOps convenience
 
 /// Extension trait: MaxSim packing for any [`TensorRef`] implementor.
 ///
 /// Blanket-implemented for `Tensor`, `TensorView`, and `TensorSpan`, so a
 /// caller holding any immutable tensor reference can pack for MaxSim scoring
 /// without first calling `.view()`.
-pub trait MaxSimPackExt<Scalar: MaxSim, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+pub trait MaxSimPackOps<Scalar: MaxSim, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     /// Pack this 2D tensor for MaxSim scoring using the provided allocator.
     fn try_maxsim_pack_in<Alloc: Allocator>(
         &self,
@@ -416,12 +416,12 @@ pub trait MaxSimPackExt<Scalar: MaxSim, const MAX_RANK: usize>: TensorRef<Scalar
     }
 }
 
-impl<Scalar: MaxSim, const MAX_RANK: usize, Vectors: TensorRef<Scalar, MAX_RANK>> MaxSimPackExt<Scalar, MAX_RANK>
+impl<Scalar: MaxSim, const MAX_RANK: usize, Vectors: TensorRef<Scalar, MAX_RANK>> MaxSimPackOps<Scalar, MAX_RANK>
     for Vectors
 {
 }
 
-// endregion: MaxSimPackExt convenience
+// endregion: MaxSimPackOps convenience
 
 #[cfg(test)]
 mod tests {

@@ -145,9 +145,7 @@ pub use probability::{JensenShannon, KullbackLeibler, ProbabilitySimilarity};
 // Re-export elementwise and trig traits
 pub use each::{AllCloseOps, BlendOps, EachBlend, EachFMA, EachScale, EachSum, EachSwiglu, FmaOps, ScaleOps, SumOps};
 
-pub use reduce::{
-    BitwiseReductions, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, ReduceRmsNorm, Reductions, SumSqToF64,
-};
+pub use reduce::{BitwiseReductions, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, ReduceRmsNorm, Reductions};
 pub use trigonometry::{TrigAtan, TrigAtanOps, TrigCos, TrigCosOps, TrigRope, TrigSin, TrigSinOps, Trigonometry};
 
 // Re-export curved metric traits
@@ -176,52 +174,17 @@ pub use capabilities::{available, configure_thread, uses_dynamic_dispatch};
 
 // Re-export tensor types
 pub use tensor::{
-    Allocator,
-    // Receiver-generic elementwise `_into` extension traits (blanket-impl'd for `TensorRef`).
-    AtanIntoOps,
-    AxisIterator,
-    AxisIteratorMut,
-    BlendIntoOps,
-    CopyFrom,
-    CosIntoOps,
-    Fill,
-    FmaIntoOps,
-    Global,
-    Matrix,
-    MatrixSpan,
-    MatrixView,
-    MinMaxResult,
-    RangeStep,
-    ScaleIntoOps,
-    ScaledTensor,
-    ScaledTensorSpan,
-    ScaledTensorView,
-    SinIntoOps,
-    SliceArg,
-    SliceRange,
-    SliceSpec,
-    SumIntoOps,
-    Tensor,
-    TensorDims,
-    TensorError,
-    TensorIterator,
-    TensorMut,
-    TensorRef,
-    TensorSpan,
-    TensorSpanDims,
-    TensorSpanIterator,
-    TensorView,
-    TensorViewDims,
-    TensorViewIterator,
-    DEFAULT_MAX_RANK,
-    SIMD_ALIGNMENT,
+    Allocator, AxisIterator, AxisIteratorMut, CopyFrom, Fill, Global, Matrix, MatrixSpan, MatrixView, MinMaxResult,
+    RangeStep, ScaledTensor, ScaledTensorSpan, ScaledTensorView, SliceArg, SliceRange, SliceSpec, Tensor, TensorDims,
+    TensorError, TensorIterator, TensorMut, TensorRef, TensorSpan, TensorSpanDims, TensorSpanIterator, TensorView,
+    TensorViewDims, TensorViewIterator, DEFAULT_MAX_RANK, SIMD_ALIGNMENT,
 };
 
 // Re-export matrix types
 #[cfg(feature = "parallel")]
-pub use matrix::DotsPackedParallelExt;
+pub use matrix::DotsPackedParallelOps;
 pub use matrix::{
-    Angulars, Dots, DotsPackedExt, Euclideans, Hammings, Jaccards, PackedMatrix, SymmetricAngulars, SymmetricDots,
+    Angulars, Dots, DotsPackedOps, Euclideans, Hammings, Jaccards, PackedMatrix, SymmetricAngulars, SymmetricDots,
     SymmetricEuclideans, SymmetricHammings, SymmetricJaccards,
 };
 
@@ -232,7 +195,22 @@ pub use vector::{Vector, VectorIndex, VectorIterator, VectorSpan, VectorSpanIter
 // Re-export attention types
 pub use attention::{Attention, AttentionPackedKV};
 
-pub use maxsim::{MaxSim, MaxSimPackExt, MaxSimPackedMatrix};
+pub use maxsim::{MaxSim, MaxSimPackOps, MaxSimPackedMatrix};
+
+/// Prelude: `use numkong::prelude::*;` brings the core containers and every extension trait into
+/// scope, so the `.try_*` / `.dots_packed` / `.mean` methods light up without importing each trait
+/// by name.
+pub mod prelude {
+    pub use crate::{
+        AllCloseOps, BitwiseReductions, BlendOps, CastOps, DenseToScaledOps, DotsPackedOps, EachSwiglu, FmaOps, Matrix,
+        MaxSimPackOps, MinMaxOps, MomentsOps, PackedMatrix, ReduceRmsNorm, Reductions, ScaleOps, ScaledTensor, SumOps,
+        Tensor, TensorMut, TensorRef, TensorSpan, TensorView, TrigAtanOps, TrigCosOps, TrigRope, TrigSinOps, Vector,
+        VectorSpan, VectorView,
+    };
+
+    #[cfg(feature = "parallel")]
+    pub use crate::DotsPackedParallelOps;
+}
 
 // region: Tests
 

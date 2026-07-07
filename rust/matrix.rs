@@ -3121,7 +3121,7 @@ where
 // region: Tensor GEMM
 
 // Inherent, allocator-preserving entry points on the owning `Tensor`. These
-// mirror the [`DotsPackedExt`] methods below but return a result allocated with
+// mirror the [`DotsPackedOps`] methods below but return a result allocated with
 // `self`'s own allocator, and remain callable without importing the extension
 // trait. For a `Tensor` receiver they shadow the blanket-trait methods of the
 // same name; views and spans reach the (globally allocating) trait versions.
@@ -3174,7 +3174,7 @@ impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scala
 /// mmap'd view can multiply against a pre-packed [`PackedMatrix`] without first
 /// materializing an owned copy. The allocating entry point returns a globally
 /// allocated result, since a bare view carries no allocator of its own.
-pub trait DotsPackedExt<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+pub trait DotsPackedOps<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     /// Dot-product multiply: C = self × packed_bᵀ
     ///
     /// self must be 2D (m × k) with contiguous rows.
@@ -3250,17 +3250,17 @@ pub trait DotsPackedExt<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, 
     }
 }
 
-impl<Scalar: Dots, const MAX_RANK: usize, A: TensorRef<Scalar, MAX_RANK>> DotsPackedExt<Scalar, MAX_RANK> for A {}
+impl<Scalar: Dots, const MAX_RANK: usize, A: TensorRef<Scalar, MAX_RANK>> DotsPackedOps<Scalar, MAX_RANK> for A {}
 
 // Parallel dots_packed implementations, if ForkUnion is available.
 /// Extension trait: parallel packed GEMM for any immutable tensor reference.
 ///
-/// The parallel counterpart of [`DotsPackedExt`], blanket-implemented for every
+/// The parallel counterpart of [`DotsPackedOps`], blanket-implemented for every
 /// [`TensorRef`] whose scalar can cross thread boundaries. The `A` operand may
 /// therefore be an owned [`Tensor`], a borrowed [`TensorView`], or a
 /// [`TensorSpan`] without materializing an owned copy.
 #[cfg(feature = "parallel")]
-pub trait DotsPackedParallelExt<Scalar, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
+pub trait DotsPackedParallelOps<Scalar, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
 where
     Scalar: Dots + Clone + Send + Sync,
     Scalar::Accumulator: Send + Sync,
@@ -3384,7 +3384,7 @@ where
 }
 
 #[cfg(feature = "parallel")]
-impl<Scalar, const MAX_RANK: usize, A> DotsPackedParallelExt<Scalar, MAX_RANK> for A
+impl<Scalar, const MAX_RANK: usize, A> DotsPackedParallelOps<Scalar, MAX_RANK> for A
 where
     Scalar: Dots + Clone + Send + Sync,
     Scalar::Accumulator: Send + Sync,
@@ -5278,7 +5278,7 @@ mod tests {
         assert_eq!(packed_owned.as_bytes(), packed_span.as_bytes(), "pack(span)");
 
         // The A operand as an owned tensor (inherent method), a view, and a span
-        // (both via the DotsPackedExt blanket impl).
+        // (both via the DotsPackedOps blanket impl).
         close(&a.dots_packed(&packed_view), &expected, "owned A");
         close(&a.view().dots_packed(&packed_view), &expected, "view A");
         close(

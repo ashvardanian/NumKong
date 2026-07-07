@@ -2704,9 +2704,42 @@ where
     fn try_mul_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         self.view().try_mul_scalar(scalar)
     }
+
+    fn try_scale_tensor_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+        &self,
+        alpha: Scalar::Scalar,
+        beta: Scalar::Scalar,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError> {
+        self.view().try_scale_tensor_into(alpha, beta, out)
+    }
+
+    fn try_add_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+        &self,
+        scalar: Scalar::Scalar,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError> {
+        self.view().try_add_scalar_into(scalar, out)
+    }
+
+    fn try_sub_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+        &self,
+        scalar: Scalar::Scalar,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError> {
+        self.view().try_sub_scalar_into(scalar, out)
+    }
+
+    fn try_mul_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+        &self,
+        scalar: Scalar::Scalar,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError> {
+        self.view().try_mul_scalar_into(scalar, out)
+    }
 }
 
-impl<Scalar: Clone + EachScale, const R: usize, C: TensorRef<Scalar, R>> ScaleOps<Scalar, R> for C where
+impl<Scalar: Clone + EachScale, const R: usize, C: TensorRef<Scalar, R> + ?Sized> ScaleOps<Scalar, R> for C where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy
 {
 }
@@ -2757,9 +2790,21 @@ pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>: TensorRef<Scal
     ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         self.view().try_add_tensor(&other.view())
     }
+
+    fn try_add_tensor_into<OtherTensor, OutputTensor>(
+        &self,
+        other: &OtherTensor,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError>
+    where
+        OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
+    {
+        self.view().try_add_tensor_into(&other.view(), out)
+    }
 }
 
-impl<Scalar: Clone + EachSum, const R: usize, C: TensorRef<Scalar, R>> SumOps<Scalar, R> for C {}
+impl<Scalar: Clone + EachSum, const R: usize, C: TensorRef<Scalar, R> + ?Sized> SumOps<Scalar, R> for C {}
 
 impl<Scalar: Clone + EachSum, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
     pub fn try_add_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
@@ -2779,9 +2824,35 @@ where
     ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         self.view().try_sub_tensor(&other.view())
     }
+
+    fn try_blend_tensor_into<OtherTensor, OutputTensor>(
+        &self,
+        other: &OtherTensor,
+        alpha: Scalar::Scalar,
+        beta: Scalar::Scalar,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError>
+    where
+        OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
+    {
+        self.view().try_blend_tensor_into(&other.view(), alpha, beta, out)
+    }
+
+    fn try_sub_tensor_into<OtherTensor, OutputTensor>(
+        &self,
+        other: &OtherTensor,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError>
+    where
+        OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
+    {
+        self.view().try_sub_tensor_into(&other.view(), out)
+    }
 }
 
-impl<Scalar: Clone + EachBlend, const R: usize, C: TensorRef<Scalar, R>> BlendOps<Scalar, R> for C where
+impl<Scalar: Clone + EachBlend, const R: usize, C: TensorRef<Scalar, R> + ?Sized> BlendOps<Scalar, R> for C where
     Scalar::Scalar: From<f32> + Copy
 {
 }
@@ -2807,9 +2878,37 @@ where
     ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         self.view().try_mul_tensor(&other.view())
     }
+
+    fn try_fma_tensors_into<BTensor, CTensor, OutputTensor>(
+        &self,
+        b: &BTensor,
+        c: &CTensor,
+        alpha: Scalar::Scalar,
+        beta: Scalar::Scalar,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError>
+    where
+        BTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        CTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
+    {
+        self.view().try_fma_tensors_into(&b.view(), &c.view(), alpha, beta, out)
+    }
+
+    fn try_mul_tensor_into<OtherTensor, OutputTensor>(
+        &self,
+        other: &OtherTensor,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError>
+    where
+        OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
+    {
+        self.view().try_mul_tensor_into(&other.view(), out)
+    }
 }
 
-impl<Scalar: Clone + EachFMA, const R: usize, C: TensorRef<Scalar, R>> FmaOps<Scalar, R> for C where
+impl<Scalar: Clone + EachFMA, const R: usize, C: TensorRef<Scalar, R> + ?Sized> FmaOps<Scalar, R> for C where
     Scalar::Scalar: From<f32> + Copy
 {
 }
@@ -3309,7 +3408,8 @@ mod tests {
 
     #[test]
     fn tensor_add_tensor_into_owning_destination() {
-        use crate::tensor::{SumIntoOps, Tensor};
+        use crate::tensor::Tensor;
+        use crate::SumOps;
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let left = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
         let right = Tensor::<f32>::try_full(&[3, 4], 2.0).unwrap();

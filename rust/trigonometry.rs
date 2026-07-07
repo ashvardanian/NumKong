@@ -475,23 +475,44 @@ impl<Scalar: TrigSin + TrigCos + TrigAtan> Trigonometry for Scalar {}
 /// Extension trait: element-wise sine for any [`TensorRef`] implementor.
 pub trait TrigSinOps<Scalar: Clone + TrigSin, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     fn try_sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_sin() }
+
+    fn try_sin_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+        &self,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError> {
+        self.view().try_sin_into(out)
+    }
 }
 
-impl<Scalar: Clone + TrigSin, const R: usize, C: TensorRef<Scalar, R>> TrigSinOps<Scalar, R> for C {}
+impl<Scalar: Clone + TrigSin, const R: usize, C: TensorRef<Scalar, R> + ?Sized> TrigSinOps<Scalar, R> for C {}
 
 /// Extension trait: element-wise cosine for any [`TensorRef`] implementor.
 pub trait TrigCosOps<Scalar: Clone + TrigCos, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     fn try_cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_cos() }
+
+    fn try_cos_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+        &self,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError> {
+        self.view().try_cos_into(out)
+    }
 }
 
-impl<Scalar: Clone + TrigCos, const R: usize, C: TensorRef<Scalar, R>> TrigCosOps<Scalar, R> for C {}
+impl<Scalar: Clone + TrigCos, const R: usize, C: TensorRef<Scalar, R> + ?Sized> TrigCosOps<Scalar, R> for C {}
 
 /// Extension trait: element-wise arctangent for any [`TensorRef`] implementor.
 pub trait TrigAtanOps<Scalar: Clone + TrigAtan, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     fn try_atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_atan() }
+
+    fn try_atan_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+        &self,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError> {
+        self.view().try_atan_into(out)
+    }
 }
 
-impl<Scalar: Clone + TrigAtan, const R: usize, C: TensorRef<Scalar, R>> TrigAtanOps<Scalar, R> for C {}
+impl<Scalar: Clone + TrigAtan, const R: usize, C: TensorRef<Scalar, R> + ?Sized> TrigAtanOps<Scalar, R> for C {}
 
 impl<Scalar: Clone + TrigSin, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
     /// Element-wise sine: result\[i\] = sin(self\[i\])
