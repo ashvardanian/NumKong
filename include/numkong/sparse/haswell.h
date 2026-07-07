@@ -73,24 +73,6 @@ NK_INTERNAL nk_f64_t nk_sparse_dot_gallop_b_u32f32_haswell_(nk_u32_t const *a, n
     return sum;
 }
 
-NK_INTERNAL nk_f64_t nk_sparse_dot_merge_u32f32_haswell_(nk_u32_t const *a, nk_u32_t const *b,
-                                                         nk_f32_t const *a_weights, nk_f32_t const *b_weights,
-                                                         nk_size_t a_length, nk_size_t b_length, nk_size_t i,
-                                                         nk_size_t j, nk_f64_t sum) {
-    while (i < a_length && j < b_length) {
-        nk_u32_t a_index = a[i];
-        nk_u32_t b_index = b[j];
-        if (a_index == b_index) {
-            sum += (nk_f64_t)a_weights[i] * (nk_f64_t)b_weights[j];
-            ++i;
-            ++j;
-        }
-        else if (a_index < b_index) ++i;
-        else ++j;
-    }
-    return sum;
-}
-
 NK_INTERNAL nk_f64_t nk_sparse_reduce_f64x4x2_haswell_(__m256d accumulator_low_f64x4, __m256d accumulator_high_f64x4) {
     __m256d total_f64x4 = _mm256_add_pd(accumulator_low_f64x4, accumulator_high_f64x4);
     __m128d total_low_f64x2 = _mm256_castpd256_pd128(total_f64x4);
@@ -103,7 +85,6 @@ NK_INTERNAL nk_f64_t nk_sparse_reduce_f64x4x2_haswell_(__m256d accumulator_low_f
 NK_PUBLIC void nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
                                             nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
                                             nk_f64_t *product) {
-
     if ((a_length << 6) < b_length) {
         *product = nk_sparse_dot_gallop_a_u32f32_haswell_(a, b, a_weights, b_weights, a_length, b_length);
         return;
@@ -233,7 +214,9 @@ NK_PUBLIC void nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t const *b
     }
 
     nk_f64_t vector_sum = nk_sparse_reduce_f64x4x2_haswell_(accumulator_low_f64x4, accumulator_high_f64x4);
-    *product = nk_sparse_dot_merge_u32f32_haswell_(a, b, a_weights, b_weights, a_length, b_length, i, j, vector_sum);
+    nk_f64_t tail_product = 0;
+    nk_sparse_dot_u32f32_serial(a + i, b + j, a_weights + i, b_weights + j, a_length - i, b_length - j, &tail_product);
+    *product = vector_sum + tail_product;
 }
 
 #if defined(__clang__)
