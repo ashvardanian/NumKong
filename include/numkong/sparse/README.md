@@ -58,12 +58,6 @@ Match counts are extracted via `_mm_popcnt_u32` on the comparison masks, accumul
 Before each 16x16 comparison block, a fast overlap check (`a_max < b_min || b_max < a_min`) skips non-overlapping register loads entirely — critical for sparse workloads where most pairs have disjoint index ranges.
 No native `_mm512_2intersect_epi16` instruction exists in any x86 ISA — UInt16 intersection must convert indices to UInt32 before comparison, halving effective throughput.
 
-### Rank-and-Permute Sparse Dot on Haswell
-
-`nk_sparse_dot_u32f32_haswell` targets AVX2, which has neither `VP2INTERSECT` nor mask-compress, so it intersects a block of 16 A indices against 8 B indices by _rank_: for each A lane it counts how many B indices are strictly smaller (seven `VPCMPGTD` comparisons against sign-biased lanes, split across even/odd accumulators to shorten the dependency chain).
-That count is the position of the candidate match, fed straight to `_mm256_permutevar8x32_epi32` to gather the aligned B index and weight; a `VPCMPEQD` confirms the match and masks both weights to zero on a miss, so the widening `_mm256_fmadd_pd` accumulation cannot be poisoned by NaN or Inf weights.
-Highly imbalanced inputs (`longer > 64 * shorter`) take a galloping path instead, and the unaligned remainder is finished by the scalar merge.
-
 ### VP2INTERSECT on AMD Turin
 
 `nk_sparse_intersect_u32_turin` uses the `VP2INTERSECT` instruction (Zen5), which produces _two_ 16-bit masks in a single operation — one indicating which elements of A matched any element of B, and vice versa.
