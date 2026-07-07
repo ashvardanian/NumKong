@@ -69,7 +69,7 @@ pub trait TrigRope: Sized + StorageElement {
     /// `cos`/`sin` angle grids (row `r` at `r * half_dim`), shared across heads.
     ///
     /// The row stride is read from the tensor, so `x` may be a non-contiguous sub-span (e.g. the Q
-    /// or K column-section of a fused QKV buffer). Returns `None` on a shape mismatch.
+    /// or K column-section of a fused QKV buffer). Returns `Err` on a shape mismatch.
     fn rope_into<XMut, const RX: usize>(
         x: &mut XMut,
         cos: &[RopeAngle],
@@ -77,7 +77,7 @@ pub trait TrigRope: Sized + StorageElement {
         heads: usize,
         half_dim: usize,
         input_scale: f32,
-    ) -> Option<()>
+    ) -> Result<(), TensorError>
     where
         XMut: TensorMut<Self, RX> + ?Sized;
 }
@@ -90,16 +90,33 @@ impl TrigRope for f32 {
         heads: usize,
         half_dim: usize,
         input_scale: f32,
-    ) -> Option<()>
+    ) -> Result<(), TensorError>
     where
         XMut: TensorMut<Self, RX> + ?Sized,
     {
         if x.ndim() != 2 {
-            return None;
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: x.ndim(),
+            });
         }
         let (rows, width) = (x.shape()[0], x.shape()[1]);
-        if rows == 0 || width < heads * 2 * half_dim || cos.len() < rows * half_dim || sin.len() < rows * half_dim {
-            return None;
+        if width < heads * 2 * half_dim {
+            return Err(TensorError::ShapeMismatch {
+                axis: 1,
+                expected: heads * 2 * half_dim,
+                got: width,
+            });
+        }
+        if cos.len() < rows * half_dim || sin.len() < rows * half_dim {
+            return Err(TensorError::ShapeMismatch {
+                axis: 0,
+                expected: rows * half_dim,
+                got: cos.len().min(sin.len()),
+            });
+        }
+        if rows == 0 {
+            return Ok(());
         }
         let stride = x.stride_bytes(0) as usize;
         let yp = x.as_mut_ptr();
@@ -117,7 +134,7 @@ impl TrigRope for f32 {
                 input_scale,
             );
         }
-        Some(())
+        Ok(())
     }
 }
 
@@ -129,16 +146,33 @@ impl TrigRope for bf16 {
         heads: usize,
         half_dim: usize,
         input_scale: f32,
-    ) -> Option<()>
+    ) -> Result<(), TensorError>
     where
         XMut: TensorMut<Self, RX> + ?Sized,
     {
         if x.ndim() != 2 {
-            return None;
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: x.ndim(),
+            });
         }
         let (rows, width) = (x.shape()[0], x.shape()[1]);
-        if rows == 0 || width < heads * 2 * half_dim || cos.len() < rows * half_dim || sin.len() < rows * half_dim {
-            return None;
+        if width < heads * 2 * half_dim {
+            return Err(TensorError::ShapeMismatch {
+                axis: 1,
+                expected: heads * 2 * half_dim,
+                got: width,
+            });
+        }
+        if cos.len() < rows * half_dim || sin.len() < rows * half_dim {
+            return Err(TensorError::ShapeMismatch {
+                axis: 0,
+                expected: rows * half_dim,
+                got: cos.len().min(sin.len()),
+            });
+        }
+        if rows == 0 {
+            return Ok(());
         }
         let stride = x.stride_bytes(0) as usize;
         let yp = x.as_mut_ptr() as *mut u16;
@@ -156,7 +190,7 @@ impl TrigRope for bf16 {
                 input_scale,
             );
         }
-        Some(())
+        Ok(())
     }
 }
 
@@ -168,16 +202,33 @@ impl TrigRope for e4m3 {
         heads: usize,
         half_dim: usize,
         input_scale: f32,
-    ) -> Option<()>
+    ) -> Result<(), TensorError>
     where
         XMut: TensorMut<Self, RX> + ?Sized,
     {
         if x.ndim() != 2 {
-            return None;
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: x.ndim(),
+            });
         }
         let (rows, width) = (x.shape()[0], x.shape()[1]);
-        if rows == 0 || width < heads * 2 * half_dim || cos.len() < rows * half_dim || sin.len() < rows * half_dim {
-            return None;
+        if width < heads * 2 * half_dim {
+            return Err(TensorError::ShapeMismatch {
+                axis: 1,
+                expected: heads * 2 * half_dim,
+                got: width,
+            });
+        }
+        if cos.len() < rows * half_dim || sin.len() < rows * half_dim {
+            return Err(TensorError::ShapeMismatch {
+                axis: 0,
+                expected: rows * half_dim,
+                got: cos.len().min(sin.len()),
+            });
+        }
+        if rows == 0 {
+            return Ok(());
         }
         let stride = x.stride_bytes(0) as usize;
         let yp = x.as_mut_ptr() as *mut u8;
@@ -195,7 +246,7 @@ impl TrigRope for e4m3 {
                 input_scale,
             );
         }
-        Some(())
+        Ok(())
     }
 }
 
@@ -448,11 +499,6 @@ impl<Scalar: Clone + TrigSin, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_
 
     /// Element-wise sine in-place (infallible — self vs self always matches).
     pub fn sin_inplace(&mut self) { self.span().sin_inplace(); }
-
-    pub fn try_sin_inplace(&mut self) -> Result<(), TensorError> {
-        self.sin_inplace();
-        Ok(())
-    }
 }
 
 impl<Scalar: Clone + TrigCos, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
@@ -461,11 +507,6 @@ impl<Scalar: Clone + TrigCos, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_
 
     /// Element-wise cosine in-place (infallible — self vs self always matches).
     pub fn cos_inplace(&mut self) { self.span().cos_inplace(); }
-
-    pub fn try_cos_inplace(&mut self) -> Result<(), TensorError> {
-        self.cos_inplace();
-        Ok(())
-    }
 }
 
 impl<Scalar: Clone + TrigAtan, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
@@ -474,18 +515,13 @@ impl<Scalar: Clone + TrigAtan, const MAX_RANK: usize> Tensor<Scalar, Global, MAX
 
     /// Element-wise arctangent in-place (infallible — self vs self always matches).
     pub fn atan_inplace(&mut self) { self.span().atan_inplace(); }
-
-    pub fn try_atan_inplace(&mut self) -> Result<(), TensorError> {
-        self.atan_inplace();
-        Ok(())
-    }
 }
 
 // endregion: Tensor-shaped trigonometry
 
 #[cfg(test)]
 mod tests {
-    use super::TrigRope;
+    use super::{TrigAtan, TrigCos, TrigRope, TrigSin};
     use crate::types::{assert_close, bf16, e4m3, f16, FloatLike, TestableType};
 
     fn check_rope<Scalar>(values: &[f32], heads: usize, half_dim: usize)

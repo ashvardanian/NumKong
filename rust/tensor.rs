@@ -147,6 +147,7 @@ unsafe impl Allocator for Global {
 
 /// Error type for Tensor operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TensorError {
     /// Memory allocation failed.
     AllocationFailed,
@@ -958,6 +959,7 @@ impl<Scalar: StorageElement + Clone, const MAX_RANK: usize> Tensor<Scalar, Globa
 
 /// Represents a range specification for slicing along one dimension.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SliceRange {
     /// Full range (equivalent to `..`)
     Full,
@@ -6658,8 +6660,9 @@ impl<'a, F: BlockScaledFormat> ScaledTensorSpan<'a, F> {
 mod tests {
     use super::*;
     use crate::cast::{CastOps, DenseToScaledOps};
-    use crate::each::{AllCloseOps, ScaleOps, SumOps, TrigSinOps};
+    use crate::each::{AllCloseOps, ScaleOps, SumOps};
     use crate::reduce::MomentsOps;
+    use crate::trigonometry::TrigSinOps;
     use crate::types::{bf16c, f16, f16c, f32c};
 
     #[test]

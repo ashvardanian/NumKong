@@ -2715,21 +2715,6 @@ impl<Scalar: Clone + EachScale, const MAX_RANK: usize> Tensor<Scalar, Global, MA
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
-    pub fn try_add_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
-        self.add_scalar_inplace(scalar);
-        Ok(())
-    }
-
-    pub fn try_sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
-        self.sub_scalar_inplace(scalar);
-        Ok(())
-    }
-
-    pub fn try_mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
-        self.mul_scalar_inplace(scalar);
-        Ok(())
-    }
-
     /// Element-wise add scalar in-place (infallible — self vs self always matches).
     pub fn add_scalar_inplace(&mut self, scalar: Scalar::Scalar) { self.span().add_scalar_inplace(scalar); }
 
@@ -2850,13 +2835,13 @@ pub trait EachSwiglu: Sized + StorageElement {
     ///
     /// Strides are read from the tensors, so `gate`, `up`, and `y` may be independent strided
     /// sub-spans (e.g. the two column halves of a `[rows, 2*cols]` gate|up buffer). `up = None`
-    /// reduces to plain SiLU. Returns `None` on a shape mismatch.
+    /// reduces to plain SiLU. Returns `Err` on a shape mismatch.
     fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
         gate: &GIn,
         up: Option<&UIn>,
         y: &mut YOut,
         input_scale: f32,
-    ) -> Option<()>
+    ) -> Result<(), TensorError>
     where
         GIn: TensorRef<Self, RG> + ?Sized,
         UIn: TensorRef<Self, RU> + ?Sized,
@@ -2869,25 +2854,53 @@ impl EachSwiglu for f32 {
         up: Option<&UIn>,
         y: &mut YOut,
         input_scale: f32,
-    ) -> Option<()>
+    ) -> Result<(), TensorError>
     where
         GIn: TensorRef<Self, RG> + ?Sized,
         UIn: TensorRef<Self, RU> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        if gate.ndim() != 2 || y.ndim() != 2 || gate.shape() != y.shape() {
-            return None;
+        if gate.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: gate.ndim(),
+            });
+        }
+        if y.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: y.ndim(),
+            });
+        }
+        if gate.shape() != y.shape() {
+            let axis = if gate.shape()[0] != y.shape()[0] { 0 } else { 1 };
+            return Err(TensorError::ShapeMismatch {
+                axis,
+                expected: gate.shape()[axis],
+                got: y.shape()[axis],
+            });
         }
         let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
         if rows == 0 || cols == 0 {
-            return None;
+            return Ok(());
         }
         let gate_stride = gate.stride_bytes(0) as usize;
         let y_stride = y.stride_bytes(0) as usize;
         let (up_ptr, up_stride) = match up {
             Some(u) => {
-                if u.ndim() != 2 || u.shape() != gate.shape() {
-                    return None;
+                if u.ndim() != 2 {
+                    return Err(TensorError::DimensionMismatch {
+                        expected: 2,
+                        got: u.ndim(),
+                    });
+                }
+                if u.shape() != gate.shape() {
+                    let axis = if u.shape()[0] != gate.shape()[0] { 0 } else { 1 };
+                    return Err(TensorError::ShapeMismatch {
+                        axis,
+                        expected: gate.shape()[axis],
+                        got: u.shape()[axis],
+                    });
                 }
                 (u.as_ptr(), u.stride_bytes(0) as usize)
             }
@@ -2906,7 +2919,7 @@ impl EachSwiglu for f32 {
                 input_scale,
             );
         }
-        Some(())
+        Ok(())
     }
 }
 
@@ -2916,25 +2929,53 @@ impl EachSwiglu for bf16 {
         up: Option<&UIn>,
         y: &mut YOut,
         input_scale: f32,
-    ) -> Option<()>
+    ) -> Result<(), TensorError>
     where
         GIn: TensorRef<Self, RG> + ?Sized,
         UIn: TensorRef<Self, RU> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        if gate.ndim() != 2 || y.ndim() != 2 || gate.shape() != y.shape() {
-            return None;
+        if gate.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: gate.ndim(),
+            });
+        }
+        if y.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: y.ndim(),
+            });
+        }
+        if gate.shape() != y.shape() {
+            let axis = if gate.shape()[0] != y.shape()[0] { 0 } else { 1 };
+            return Err(TensorError::ShapeMismatch {
+                axis,
+                expected: gate.shape()[axis],
+                got: y.shape()[axis],
+            });
         }
         let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
         if rows == 0 || cols == 0 {
-            return None;
+            return Ok(());
         }
         let gate_stride = gate.stride_bytes(0) as usize;
         let y_stride = y.stride_bytes(0) as usize;
         let (up_ptr, up_stride) = match up {
             Some(u) => {
-                if u.ndim() != 2 || u.shape() != gate.shape() {
-                    return None;
+                if u.ndim() != 2 {
+                    return Err(TensorError::DimensionMismatch {
+                        expected: 2,
+                        got: u.ndim(),
+                    });
+                }
+                if u.shape() != gate.shape() {
+                    let axis = if u.shape()[0] != gate.shape()[0] { 0 } else { 1 };
+                    return Err(TensorError::ShapeMismatch {
+                        axis,
+                        expected: gate.shape()[axis],
+                        got: u.shape()[axis],
+                    });
                 }
                 (u.as_ptr() as *const u16, u.stride_bytes(0) as usize)
             }
@@ -2953,7 +2994,7 @@ impl EachSwiglu for bf16 {
                 input_scale,
             );
         }
-        Some(())
+        Ok(())
     }
 }
 
@@ -2963,25 +3004,53 @@ impl EachSwiglu for e4m3 {
         up: Option<&UIn>,
         y: &mut YOut,
         input_scale: f32,
-    ) -> Option<()>
+    ) -> Result<(), TensorError>
     where
         GIn: TensorRef<Self, RG> + ?Sized,
         UIn: TensorRef<Self, RU> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        if gate.ndim() != 2 || y.ndim() != 2 || gate.shape() != y.shape() {
-            return None;
+        if gate.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: gate.ndim(),
+            });
+        }
+        if y.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: y.ndim(),
+            });
+        }
+        if gate.shape() != y.shape() {
+            let axis = if gate.shape()[0] != y.shape()[0] { 0 } else { 1 };
+            return Err(TensorError::ShapeMismatch {
+                axis,
+                expected: gate.shape()[axis],
+                got: y.shape()[axis],
+            });
         }
         let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
         if rows == 0 || cols == 0 {
-            return None;
+            return Ok(());
         }
         let gate_stride = gate.stride_bytes(0) as usize;
         let y_stride = y.stride_bytes(0) as usize;
         let (up_ptr, up_stride) = match up {
             Some(u) => {
-                if u.ndim() != 2 || u.shape() != gate.shape() {
-                    return None;
+                if u.ndim() != 2 {
+                    return Err(TensorError::DimensionMismatch {
+                        expected: 2,
+                        got: u.ndim(),
+                    });
+                }
+                if u.shape() != gate.shape() {
+                    let axis = if u.shape()[0] != gate.shape()[0] { 0 } else { 1 };
+                    return Err(TensorError::ShapeMismatch {
+                        axis,
+                        expected: gate.shape()[axis],
+                        got: u.shape()[axis],
+                    });
                 }
                 (u.as_ptr() as *const u8, u.stride_bytes(0) as usize)
             }
@@ -3000,7 +3069,7 @@ impl EachSwiglu for e4m3 {
                 input_scale,
             );
         }
-        Some(())
+        Ok(())
     }
 }
 
@@ -3268,7 +3337,7 @@ mod tests {
         use crate::tensor::Tensor;
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let mut tensor = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        tensor.try_add_scalar_inplace(1.0).unwrap();
+        tensor.add_scalar_inplace(1.0);
         assert_eq!(tensor.as_slice()[0], 1.0);
         assert_eq!(tensor.as_slice()[11], 12.0);
     }

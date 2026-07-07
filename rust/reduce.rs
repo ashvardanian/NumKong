@@ -1468,7 +1468,7 @@ pub trait ReduceRmsNorm: Sized + StorageElement {
     ///
     /// Row strides are read from the tensors, so `x` and `y` may be non-contiguous sub-spans
     /// (e.g. a strided section of a fused activation buffer). `gamma` is an optional per-column
-    /// gain of length `cols` (`None` = unit scale). Returns `None` on a shape mismatch.
+    /// gain of length `cols` (`None` = unit scale). Returns `Err` on a shape mismatch.
     fn rmsnorm_into<XIn, YOut, const RX: usize, const RY: usize>(
         x: &XIn,
         gamma: Option<&[f32]>,
@@ -1476,7 +1476,7 @@ pub trait ReduceRmsNorm: Sized + StorageElement {
         groups: usize,
         eps: f32,
         input_scale: f32,
-    ) -> Option<()>
+    ) -> Result<(), TensorError>
     where
         XIn: TensorRef<Self, RX> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized;
@@ -1490,22 +1490,50 @@ impl ReduceRmsNorm for f32 {
         groups: usize,
         eps: f32,
         input_scale: f32,
-    ) -> Option<()>
+    ) -> Result<(), TensorError>
     where
         XIn: TensorRef<Self, RX> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        if x.ndim() != 2 || y.ndim() != 2 || x.shape() != y.shape() {
-            return None;
+        if x.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: x.ndim(),
+            });
+        }
+        if y.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: y.ndim(),
+            });
+        }
+        if x.shape() != y.shape() {
+            let axis = if x.shape()[0] != y.shape()[0] { 0 } else { 1 };
+            return Err(TensorError::ShapeMismatch {
+                axis,
+                expected: x.shape()[axis],
+                got: y.shape()[axis],
+            });
         }
         let (rows, width) = (x.shape()[0], x.shape()[1]);
-        if rows == 0 || groups == 0 || width % groups != 0 {
-            return None;
+        if groups == 0 || width % groups != 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 1,
+                size: width,
+                reason: "width must be a positive multiple of groups",
+            });
+        }
+        if rows == 0 {
+            return Ok(());
         }
         let cols = width / groups;
         if let Some(g) = gamma {
             if g.len() != cols {
-                return None;
+                return Err(TensorError::ShapeMismatch {
+                    axis: 1,
+                    expected: cols,
+                    got: g.len(),
+                });
             }
         }
         let x_stride = x.stride_bytes(0) as usize;
@@ -1525,7 +1553,7 @@ impl ReduceRmsNorm for f32 {
                 input_scale,
             );
         }
-        Some(())
+        Ok(())
     }
 }
 
@@ -1537,22 +1565,50 @@ impl ReduceRmsNorm for bf16 {
         groups: usize,
         eps: f32,
         input_scale: f32,
-    ) -> Option<()>
+    ) -> Result<(), TensorError>
     where
         XIn: TensorRef<Self, RX> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        if x.ndim() != 2 || y.ndim() != 2 || x.shape() != y.shape() {
-            return None;
+        if x.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: x.ndim(),
+            });
+        }
+        if y.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: y.ndim(),
+            });
+        }
+        if x.shape() != y.shape() {
+            let axis = if x.shape()[0] != y.shape()[0] { 0 } else { 1 };
+            return Err(TensorError::ShapeMismatch {
+                axis,
+                expected: x.shape()[axis],
+                got: y.shape()[axis],
+            });
         }
         let (rows, width) = (x.shape()[0], x.shape()[1]);
-        if rows == 0 || groups == 0 || width % groups != 0 {
-            return None;
+        if groups == 0 || width % groups != 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 1,
+                size: width,
+                reason: "width must be a positive multiple of groups",
+            });
+        }
+        if rows == 0 {
+            return Ok(());
         }
         let cols = width / groups;
         if let Some(g) = gamma {
             if g.len() != cols {
-                return None;
+                return Err(TensorError::ShapeMismatch {
+                    axis: 1,
+                    expected: cols,
+                    got: g.len(),
+                });
             }
         }
         let x_stride = x.stride_bytes(0) as usize;
@@ -1572,7 +1628,7 @@ impl ReduceRmsNorm for bf16 {
                 input_scale,
             );
         }
-        Some(())
+        Ok(())
     }
 }
 
@@ -1584,22 +1640,50 @@ impl ReduceRmsNorm for e4m3 {
         groups: usize,
         eps: f32,
         input_scale: f32,
-    ) -> Option<()>
+    ) -> Result<(), TensorError>
     where
         XIn: TensorRef<Self, RX> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        if x.ndim() != 2 || y.ndim() != 2 || x.shape() != y.shape() {
-            return None;
+        if x.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: x.ndim(),
+            });
+        }
+        if y.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: y.ndim(),
+            });
+        }
+        if x.shape() != y.shape() {
+            let axis = if x.shape()[0] != y.shape()[0] { 0 } else { 1 };
+            return Err(TensorError::ShapeMismatch {
+                axis,
+                expected: x.shape()[axis],
+                got: y.shape()[axis],
+            });
         }
         let (rows, width) = (x.shape()[0], x.shape()[1]);
-        if rows == 0 || groups == 0 || width % groups != 0 {
-            return None;
+        if groups == 0 || width % groups != 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 1,
+                size: width,
+                reason: "width must be a positive multiple of groups",
+            });
+        }
+        if rows == 0 {
+            return Ok(());
         }
         let cols = width / groups;
         if let Some(g) = gamma {
             if g.len() != cols {
-                return None;
+                return Err(TensorError::ShapeMismatch {
+                    axis: 1,
+                    expected: cols,
+                    got: g.len(),
+                });
             }
         }
         let x_stride = x.stride_bytes(0) as usize;
@@ -1619,7 +1703,7 @@ impl ReduceRmsNorm for e4m3 {
                 input_scale,
             );
         }
-        Some(())
+        Ok(())
     }
 }
 
