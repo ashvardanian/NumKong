@@ -48,7 +48,7 @@
 //! assert_eq!(output, [2.5, 4.5, 6.5, 8.5]);
 //! ```
 
-use crate::tensor::{try_reborrow_tensor_into, Global, Tensor, TensorError, TensorRef};
+use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef};
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
 
 #[link(name = "numkong")]
@@ -3013,30 +3013,6 @@ impl<Scalar: Clone + EachScale, const MAX_RANK: usize> Tensor<Scalar, Global, MA
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
-    pub fn try_add_scalar_into(
-        &self,
-        scalar: Scalar::Scalar,
-        out: &mut Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_add_scalar_into(scalar, span))
-    }
-
-    pub fn try_sub_scalar_into(
-        &self,
-        scalar: Scalar::Scalar,
-        out: &mut Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_sub_scalar_into(scalar, span))
-    }
-
-    pub fn try_mul_scalar_into(
-        &self,
-        scalar: Scalar::Scalar,
-        out: &mut Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_mul_scalar_into(scalar, span))
-    }
-
     pub fn try_add_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
         self.add_scalar_inplace(scalar);
         Ok(())
@@ -3099,14 +3075,6 @@ pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>: TensorRef<Scal
 impl<Scalar: Clone + EachSum, const R: usize, C: TensorRef<Scalar, R>> SumOps<Scalar, R> for C {}
 
 impl<Scalar: Clone + EachSum, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    pub fn try_add_tensor_into(
-        &self,
-        other: &Tensor<Scalar, Global, MAX_RANK>,
-        out: &mut Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_add_tensor_into(&other.view(), span))
-    }
-
     pub fn try_add_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().add_inplace(&other_view)
@@ -3135,14 +3103,6 @@ impl<Scalar: Clone + EachBlend, const MAX_RANK: usize> Tensor<Scalar, Global, MA
 where
     Scalar::Scalar: From<f32> + Copy,
 {
-    pub fn try_sub_tensor_into(
-        &self,
-        other: &Tensor<Scalar, Global, MAX_RANK>,
-        out: &mut Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_sub_tensor_into(&other.view(), span))
-    }
-
     pub fn try_sub_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().sub_inplace(&other_view)
@@ -3171,14 +3131,6 @@ impl<Scalar: Clone + EachFMA, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_
 where
     Scalar::Scalar: From<f32> + Copy,
 {
-    pub fn try_mul_tensor_into(
-        &self,
-        other: &Tensor<Scalar, Global, MAX_RANK>,
-        out: &mut Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_mul_tensor_into(&other.view(), span))
-    }
-
     pub fn try_mul_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().mul_inplace(&other_view)
@@ -3512,7 +3464,7 @@ mod tests {
 
     #[test]
     fn tensor_add_tensor_into_owning_destination() {
-        use crate::tensor::Tensor;
+        use crate::tensor::{SumIntoOps, Tensor};
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let left = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
         let right = Tensor::<f32>::try_full(&[3, 4], 2.0).unwrap();
@@ -3650,8 +3602,6 @@ mod tests {
 
     // endregion
 
-    use crate::types::{assert_close, bf16, e4m3, FloatLike, TestableType};
-
     fn silu(x: f64) -> f64 { x / (1.0 + (-x).exp()) }
 
     fn check_swiglu<Scalar>(values: &[f32], with_up: bool)
@@ -3661,9 +3611,13 @@ mod tests {
         let rows = 2;
         let gate: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v)).collect();
         let up: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(0.5 - v)).collect();
-        let mut y = vec![Scalar::zero(); gate.len()];
-        let up_arg = if with_up { Some(up.as_slice()) } else { None };
-        Scalar::swiglu(&gate, up_arg, &mut y, rows, 1.0).unwrap();
+        let cols = gate.len() / rows;
+        let gate_t = crate::tensor::Tensor::<Scalar>::try_from_slice(&gate, &[rows, cols]).unwrap();
+        let up_t = crate::tensor::Tensor::<Scalar>::try_from_slice(&up, &[rows, cols]).unwrap();
+        let mut y_t = crate::tensor::Tensor::<Scalar>::try_full(&[rows, cols], Scalar::zero()).unwrap();
+        let up_ref = if with_up { Some(&up_t) } else { None };
+        Scalar::swiglu_into(&gate_t, up_ref, &mut y_t, 1.0).unwrap();
+        let y = y_t.as_slice().to_vec();
         for i in 0..gate.len() {
             let g = Scalar::from_f32(values[i]).to_f64();
             let mut expected = silu(g);
@@ -3689,6 +3643,47 @@ mod tests {
         check_swiglu::<bf16>(&values, true);
         check_swiglu::<e4m3>(&values, true);
     }
+
+    #[test]
+    fn swiglu_gate_up_halves() {
+        use crate::tensor::{SliceRange, Tensor};
+        // gate|up are the two strided column halves of one `[rows, 2*cols]` buffer (row stride 2*cols).
+        let rows = 3;
+        let cols = 8;
+        let buf: Vec<f32> = (0..rows * 2 * cols).map(|i| ((i % 11) as f32 - 5.0) * 0.3).collect();
+        let wide = Tensor::<f32>::try_from_slice(&buf, &[rows, 2 * cols]).unwrap();
+        let gate = wide
+            .view()
+            .slice(&[SliceRange::Full, SliceRange::range(0, cols)][..])
+            .unwrap();
+        let up = wide
+            .view()
+            .slice(&[SliceRange::Full, SliceRange::range(cols, 2 * cols)][..])
+            .unwrap();
+        let mut y = Tensor::<f32>::try_full(&[rows, cols], 0.0f32).unwrap();
+        f32::swiglu_into(&gate, Some(&up), &mut y, 1.0).unwrap();
+
+        // Contiguous reference over dense copies of the same two halves.
+        let mut gate_c = vec![0.0f32; rows * cols];
+        let mut up_c = vec![0.0f32; rows * cols];
+        for r in 0..rows {
+            for c in 0..cols {
+                gate_c[r * cols + c] = buf[r * 2 * cols + c];
+                up_c[r * cols + c] = buf[r * 2 * cols + cols + c];
+            }
+        }
+        let gate_ct = Tensor::<f32>::try_from_slice(&gate_c, &[rows, cols]).unwrap();
+        let up_ct = Tensor::<f32>::try_from_slice(&up_c, &[rows, cols]).unwrap();
+        let mut y_ref = Tensor::<f32>::try_full(&[rows, cols], 0.0f32).unwrap();
+        f32::swiglu_into(&gate_ct, Some(&up_ct), &mut y_ref, 1.0).unwrap();
+
+        for i in 0..rows * cols {
+            assert!(
+                (y.as_slice()[i] - y_ref.as_slice()[i]).abs() < 1e-5,
+                "strided gate|up SwiGLU mismatch at {i}"
+            );
+        }
+    }
 }
 
 // region: Fused SwiGLU
@@ -3696,24 +3691,51 @@ mod tests {
 /// Fused SwiGLU over a row-major `[rows, cols]` slice: `y = silu(input_scale * gate) * (input_scale * up)`.
 /// With `up = None` this reduces to plain SiLU (`cols = gate.len() / rows`).
 pub trait EachSwiglu: Sized + StorageElement {
-    /// Computes SwiGLU (or SiLU when `up` is `None`) into `y`. Returns `None` on a shape mismatch.
-    fn swiglu(gate: &[Self], up: Option<&[Self]>, y: &mut [Self], rows: usize, input_scale: f32) -> Option<()>;
+    /// Fused SwiGLU of 2D `[rows, cols]` tensors: `y = silu(input_scale*gate) * (input_scale*up)`.
+    ///
+    /// Strides are read from the tensors, so `gate`, `up`, and `y` may be independent strided
+    /// sub-spans (e.g. the two column halves of a `[rows, 2*cols]` gate|up buffer). `up = None`
+    /// reduces to plain SiLU. Returns `None` on a shape mismatch.
+    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
+        gate: &GIn,
+        up: Option<&UIn>,
+        y: &mut YOut,
+        input_scale: f32,
+    ) -> Option<()>
+    where
+        GIn: TensorRef<Self, RG> + ?Sized,
+        UIn: TensorRef<Self, RU> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized;
 }
 
 impl EachSwiglu for f32 {
-    fn swiglu(gate: &[Self], up: Option<&[Self]>, y: &mut [Self], rows: usize, input_scale: f32) -> Option<()> {
-        if rows == 0 || gate.len() != y.len() || gate.len() % rows != 0 {
+    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
+        gate: &GIn,
+        up: Option<&UIn>,
+        y: &mut YOut,
+        input_scale: f32,
+    ) -> Option<()>
+    where
+        GIn: TensorRef<Self, RG> + ?Sized,
+        UIn: TensorRef<Self, RU> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        if gate.ndim() != 2 || y.ndim() != 2 || gate.shape() != y.shape() {
             return None;
         }
-        if let Some(u) = up {
-            if u.len() != gate.len() {
-                return None;
-            }
+        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
+        if rows == 0 || cols == 0 {
+            return None;
         }
-        let cols = gate.len() / rows;
-        let stride = cols * core::mem::size_of::<f32>();
+        let gate_stride = gate.stride_bytes(0) as usize;
+        let y_stride = y.stride_bytes(0) as usize;
         let (up_ptr, up_stride) = match up {
-            Some(u) => (u.as_ptr(), stride),
+            Some(u) => {
+                if u.ndim() != 2 || u.shape() != gate.shape() {
+                    return None;
+                }
+                (u.as_ptr(), u.stride_bytes(0) as usize)
+            }
             None => (core::ptr::null(), 0usize),
         };
         unsafe {
@@ -3723,9 +3745,9 @@ impl EachSwiglu for f32 {
                 y.as_mut_ptr(),
                 rows,
                 cols,
-                stride,
+                gate_stride,
                 up_stride,
-                stride,
+                y_stride,
                 input_scale,
             );
         }
@@ -3734,19 +3756,33 @@ impl EachSwiglu for f32 {
 }
 
 impl EachSwiglu for bf16 {
-    fn swiglu(gate: &[Self], up: Option<&[Self]>, y: &mut [Self], rows: usize, input_scale: f32) -> Option<()> {
-        if rows == 0 || gate.len() != y.len() || gate.len() % rows != 0 {
+    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
+        gate: &GIn,
+        up: Option<&UIn>,
+        y: &mut YOut,
+        input_scale: f32,
+    ) -> Option<()>
+    where
+        GIn: TensorRef<Self, RG> + ?Sized,
+        UIn: TensorRef<Self, RU> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        if gate.ndim() != 2 || y.ndim() != 2 || gate.shape() != y.shape() {
             return None;
         }
-        if let Some(u) = up {
-            if u.len() != gate.len() {
-                return None;
-            }
+        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
+        if rows == 0 || cols == 0 {
+            return None;
         }
-        let cols = gate.len() / rows;
-        let stride = cols * core::mem::size_of::<bf16>();
+        let gate_stride = gate.stride_bytes(0) as usize;
+        let y_stride = y.stride_bytes(0) as usize;
         let (up_ptr, up_stride) = match up {
-            Some(u) => (u.as_ptr() as *const u16, stride),
+            Some(u) => {
+                if u.ndim() != 2 || u.shape() != gate.shape() {
+                    return None;
+                }
+                (u.as_ptr() as *const u16, u.stride_bytes(0) as usize)
+            }
             None => (core::ptr::null(), 0usize),
         };
         unsafe {
@@ -3756,9 +3792,9 @@ impl EachSwiglu for bf16 {
                 y.as_mut_ptr() as *mut u16,
                 rows,
                 cols,
-                stride,
+                gate_stride,
                 up_stride,
-                stride,
+                y_stride,
                 input_scale,
             );
         }
@@ -3767,19 +3803,33 @@ impl EachSwiglu for bf16 {
 }
 
 impl EachSwiglu for e4m3 {
-    fn swiglu(gate: &[Self], up: Option<&[Self]>, y: &mut [Self], rows: usize, input_scale: f32) -> Option<()> {
-        if rows == 0 || gate.len() != y.len() || gate.len() % rows != 0 {
+    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
+        gate: &GIn,
+        up: Option<&UIn>,
+        y: &mut YOut,
+        input_scale: f32,
+    ) -> Option<()>
+    where
+        GIn: TensorRef<Self, RG> + ?Sized,
+        UIn: TensorRef<Self, RU> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        if gate.ndim() != 2 || y.ndim() != 2 || gate.shape() != y.shape() {
             return None;
         }
-        if let Some(u) = up {
-            if u.len() != gate.len() {
-                return None;
-            }
+        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
+        if rows == 0 || cols == 0 {
+            return None;
         }
-        let cols = gate.len() / rows;
-        let stride = cols * core::mem::size_of::<e4m3>();
+        let gate_stride = gate.stride_bytes(0) as usize;
+        let y_stride = y.stride_bytes(0) as usize;
         let (up_ptr, up_stride) = match up {
-            Some(u) => (u.as_ptr() as *const u8, stride),
+            Some(u) => {
+                if u.ndim() != 2 || u.shape() != gate.shape() {
+                    return None;
+                }
+                (u.as_ptr() as *const u8, u.stride_bytes(0) as usize)
+            }
             None => (core::ptr::null(), 0usize),
         };
         unsafe {
@@ -3789,9 +3839,9 @@ impl EachSwiglu for e4m3 {
                 y.as_mut_ptr() as *mut u8,
                 rows,
                 cols,
-                stride,
+                gate_stride,
                 up_stride,
-                stride,
+                y_stride,
                 input_scale,
             );
         }
