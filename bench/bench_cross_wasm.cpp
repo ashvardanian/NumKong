@@ -5,6 +5,7 @@
  *  @date March 5, 2026
  */
 
+#include "numkong/attention.h"
 #include "numkong/dots.h"
 #include "numkong/sets.h"
 #include "numkong/spatials.h"
@@ -138,5 +139,12 @@ void bench_cross_wasm() {
     run_jaccards_packed<u1_k>("jaccards_packed_u1_v128relaxed", nk_dots_packed_size_u1_v128relaxed,
                               nk_dots_pack_u1_v128relaxed, nk_jaccards_packed_u1_v128relaxed);
     run_jaccards_symmetric<u1_k>("jaccards_symmetric_u1_v128relaxed", nk_jaccards_symmetric_u1_v128relaxed);
+
+    run_attention<bf16_k>("attention_packed_bf16_v128relaxed", nk_attention_packed_size_bf16_v128relaxed,
+                          nk_attention_pack_bf16_v128relaxed, nk_attention_packed_bf16_v128relaxed);
+    run_attention<e4m3_k>("attention_packed_e4m3_v128relaxed", nk_attention_packed_size_e4m3_v128relaxed,
+                          nk_attention_pack_e4m3_v128relaxed, nk_attention_packed_e4m3_v128relaxed);
+    run_attention<i8_k>("attention_packed_i8_v128relaxed", nk_attention_packed_size_i8_v128relaxed,
+                        nk_attention_pack_i8_v128relaxed, nk_attention_packed_i8_v128relaxed);
 #endif
 }

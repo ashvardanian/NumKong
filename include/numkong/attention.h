@@ -507,6 +507,60 @@ NK_PUBLIC void nk_attention_packed_i8_rvv(nk_i8_t const *queries, void const *ke
                                           nk_size_t task_count);
 #endif // NK_TARGET_RVV
 
+#if NK_TARGET_V128RELAXED
+/** @copydoc nk_attention_packed_size_bf16 */
+NK_PUBLIC nk_size_t nk_attention_packed_size_bf16_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
+                                                              nk_u32_t const *segment_lengths, nk_size_t segment_count);
+/** @copydoc nk_attention_packed_size_bf16 */
+NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
+                                                              nk_u32_t const *segment_lengths, nk_size_t segment_count);
+/** @copydoc nk_attention_packed_size_bf16 */
+NK_PUBLIC nk_size_t nk_attention_packed_size_i8_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
+                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count);
+/** @copydoc nk_attention_pack_bf16 */
+NK_PUBLIC void nk_attention_pack_bf16_v128relaxed(nk_bf16_t const *keys, nk_bf16_t const *values,
+                                                  nk_size_t key_value_head_count, nk_size_t depth,
+                                                  nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                  nk_size_t segment_count, nk_size_t key_stride_bytes,
+                                                  nk_size_t value_stride_bytes, void *key_value_packed,
+                                                  nk_size_t first_task, nk_size_t task_count);
+/** @copydoc nk_attention_pack_bf16 */
+NK_PUBLIC void nk_attention_pack_e4m3_v128relaxed(nk_e4m3_t const *keys, nk_e4m3_t const *values,
+                                                  nk_size_t key_value_head_count, nk_size_t depth,
+                                                  nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                  nk_size_t segment_count, nk_size_t key_stride_bytes,
+                                                  nk_size_t value_stride_bytes, void *key_value_packed,
+                                                  nk_size_t first_task, nk_size_t task_count);
+/** @copydoc nk_attention_pack_bf16 */
+NK_PUBLIC void nk_attention_pack_i8_v128relaxed(nk_i8_t const *keys, nk_i8_t const *values,
+                                                nk_size_t key_value_head_count, nk_size_t depth,
+                                                nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                nk_size_t segment_count, nk_size_t key_stride_bytes,
+                                                nk_size_t value_stride_bytes, void *key_value_packed,
+                                                nk_size_t first_task, nk_size_t task_count);
+/** @copydoc nk_attention_packed_bf16 */
+NK_PUBLIC void nk_attention_packed_bf16_v128relaxed(nk_bf16_t const *queries, void const *key_value_packed,
+                                                    nk_f32_t *output, nk_size_t head_count,
+                                                    nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+                                                    nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t first_task,
+                                                    nk_size_t task_count);
+/** @copydoc nk_attention_packed_bf16 */
+NK_PUBLIC void nk_attention_packed_e4m3_v128relaxed(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                    nk_f32_t *output, nk_size_t head_count,
+                                                    nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+                                                    nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t first_task,
+                                                    nk_size_t task_count);
+/** @copydoc nk_attention_packed_bf16 */
+NK_PUBLIC void nk_attention_packed_i8_v128relaxed(nk_i8_t const *queries, void const *key_value_packed,
+                                                  nk_f32_t *output, nk_size_t head_count,
+                                                  nk_size_t key_value_head_count, nk_size_t depth,
+                                                  nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+                                                  nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t first_task,
+                                                  nk_size_t task_count);
+#endif // NK_TARGET_V128RELAXED
+
 /**
  *  @brief Returns the output dtype for attention: accumulator-precision F32 for all inputs.
  */
@@ -530,6 +584,7 @@ NK_INTERNAL nk_dtype_t nk_attention_output_dtype(nk_dtype_t dtype) {
 #include "numkong/attention/genoa.h"
 #include "numkong/attention/sapphireamx.h"
 #include "numkong/attention/rvv.h"
+#include "numkong/attention/v128relaxed.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -549,6 +604,8 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_bf16(nk_size_t key_value_head_count
     return nk_attention_packed_size_bf16_haswell(key_value_head_count, depth, segment_lengths, segment_count);
 #elif NK_TARGET_RVV
     return nk_attention_packed_size_bf16_rvv(key_value_head_count, depth, segment_lengths, segment_count);
+#elif NK_TARGET_V128RELAXED
+    return nk_attention_packed_size_bf16_v128relaxed(key_value_head_count, depth, segment_lengths, segment_count);
 #else
     return nk_attention_packed_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
 #endif
@@ -566,6 +623,8 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3(nk_size_t key_value_head_count
     return nk_attention_packed_size_e4m3_haswell(key_value_head_count, depth, segment_lengths, segment_count);
 #elif NK_TARGET_RVV
     return nk_attention_packed_size_e4m3_rvv(key_value_head_count, depth, segment_lengths, segment_count);
+#elif NK_TARGET_V128RELAXED
+    return nk_attention_packed_size_e4m3_v128relaxed(key_value_head_count, depth, segment_lengths, segment_count);
 #else
     return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
 #endif
@@ -595,6 +654,10 @@ NK_PUBLIC void nk_attention_pack_bf16(nk_bf16_t const *keys, nk_bf16_t const *va
     nk_attention_pack_bf16_rvv(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
                                task_count);
+#elif NK_TARGET_V128RELAXED
+    nk_attention_pack_bf16_v128relaxed(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
+                                       segment_count, key_stride_bytes, value_stride_bytes, key_value_packed,
+                                       first_task, task_count);
 #else
     nk_attention_pack_bf16_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                   segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
@@ -626,6 +689,10 @@ NK_PUBLIC void nk_attention_pack_e4m3(nk_e4m3_t const *keys, nk_e4m3_t const *va
     nk_attention_pack_e4m3_rvv(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
                                task_count);
+#elif NK_TARGET_V128RELAXED
+    nk_attention_pack_e4m3_v128relaxed(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
+                                       segment_count, key_stride_bytes, value_stride_bytes, key_value_packed,
+                                       first_task, task_count);
 #else
     nk_attention_pack_e4m3_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                   segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
@@ -657,6 +724,10 @@ NK_PUBLIC void nk_attention_packed_bf16(nk_bf16_t const *queries, void const *ke
 #elif NK_TARGET_RVV
     nk_attention_packed_bf16_rvv(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                  query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task, task_count);
+#elif NK_TARGET_V128RELAXED
+    nk_attention_packed_bf16_v128relaxed(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                         query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
+                                         task_count);
 #else
     nk_attention_packed_bf16_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                     query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
@@ -688,6 +759,10 @@ NK_PUBLIC void nk_attention_packed_e4m3(nk_e4m3_t const *queries, void const *ke
 #elif NK_TARGET_RVV
     nk_attention_packed_e4m3_rvv(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                  query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task, task_count);
+#elif NK_TARGET_V128RELAXED
+    nk_attention_packed_e4m3_v128relaxed(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                         query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
+                                         task_count);
 #else
     nk_attention_packed_e4m3_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                     query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
@@ -705,6 +780,8 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_i8(nk_size_t key_value_head_count, 
     return nk_attention_packed_size_i8_haswell(key_value_head_count, depth, segment_lengths, segment_count);
 #elif NK_TARGET_RVV
     return nk_attention_packed_size_i8_rvv(key_value_head_count, depth, segment_lengths, segment_count);
+#elif NK_TARGET_V128RELAXED
+    return nk_attention_packed_size_i8_v128relaxed(key_value_head_count, depth, segment_lengths, segment_count);
 #else
     return nk_attention_packed_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
 #endif
@@ -729,6 +806,10 @@ NK_PUBLIC void nk_attention_pack_i8(nk_i8_t const *keys, nk_i8_t const *values, 
 #elif NK_TARGET_RVV
     nk_attention_pack_i8_rvv(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
                              key_stride_bytes, value_stride_bytes, key_value_packed, first_task, task_count);
+#elif NK_TARGET_V128RELAXED
+    nk_attention_pack_i8_v128relaxed(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
+                                     segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
+                                     task_count);
 #else
     nk_attention_pack_i8_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                 segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
@@ -756,6 +837,10 @@ NK_PUBLIC void nk_attention_packed_i8(nk_i8_t const *queries, void const *key_va
 #elif NK_TARGET_RVV
     nk_attention_packed_i8_rvv(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task, task_count);
+#elif NK_TARGET_V128RELAXED
+    nk_attention_packed_i8_v128relaxed(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                       query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
+                                       task_count);
 #else
     nk_attention_packed_i8_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                   query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,

@@ -32,6 +32,15 @@ NK_INTERNAL nk_f32_t nk_reduce_add_f32x4_v128relaxed_(v128_t vec_f32x4) {
     return wasm_f32x4_extract_lane(sum2_f32x4, 0);
 }
 
+/** @brief Horizontal maximum of 4 floats using shuffle tree. */
+NK_INTERNAL nk_f32_t nk_reduce_max_f32x4_v128relaxed_(v128_t vec_f32x4) {
+    v128_t high_f32x4 = wasm_i32x4_shuffle(vec_f32x4, vec_f32x4, 2, 3, 0, 0);
+    v128_t max1_f32x4 = wasm_f32x4_max(vec_f32x4, high_f32x4);
+    v128_t high2_f32x4 = wasm_i32x4_shuffle(max1_f32x4, max1_f32x4, 1, 0, 0, 0);
+    v128_t max2_f32x4 = wasm_f32x4_max(max1_f32x4, high2_f32x4);
+    return wasm_f32x4_extract_lane(max2_f32x4, 0);
+}
+
 /** @brief Horizontal sum of 2 doubles using single shuffle. */
 NK_INTERNAL nk_f64_t nk_reduce_add_f64x2_v128relaxed_(v128_t vec_f64x2) {
     v128_t high_f64x2 = wasm_i64x2_shuffle(vec_f64x2, vec_f64x2, 1, 0);
