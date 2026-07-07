@@ -142,6 +142,8 @@ void bench_cross_x86() {
                           nk_attention_pack_bf16_haswell, nk_attention_packed_bf16_haswell);
     run_attention<e4m3_k>("attention_packed_e4m3_haswell", nk_attention_packed_size_e4m3_haswell,
                           nk_attention_pack_e4m3_haswell, nk_attention_packed_e4m3_haswell);
+    run_attention<i8_k>("attention_packed_i8_haswell", nk_attention_packed_size_i8_haswell,
+                        nk_attention_pack_i8_haswell, nk_attention_packed_i8_haswell);
 
 #endif
 
@@ -285,6 +287,9 @@ void bench_cross_x86() {
     run_jaccards_packed<u1_k>("jaccards_packed_u1_icelake", nk_dots_packed_size_u1_serial, nk_dots_pack_u1_serial,
                               nk_jaccards_packed_u1_icelake);
     run_jaccards_symmetric<u1_k>("jaccards_symmetric_u1_icelake", nk_jaccards_symmetric_u1_icelake);
+
+    run_attention<i8_k>("attention_packed_i8_icelake", nk_attention_packed_size_i8_icelake,
+                        nk_attention_pack_i8_icelake, nk_attention_packed_i8_icelake);
 
 #endif
 

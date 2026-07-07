@@ -271,7 +271,7 @@ void run_dots_packed(std::string name, //
 
 /**
  *  @brief Ragged attention benchmark: pack KV once, then time the attention kernel on a
- *         single self-attention segment.  Reports scalar-ops as 4 · heads · seq² · dim.
+ *         single self-attention segment. Reports scalar-ops as 4 · heads · seq² · dim.
  */
 template <nk_dtype_t input_dtype_>
 void measure_attention(                                                                  //
@@ -285,36 +285,37 @@ void measure_attention(                                                         
                          void const *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t,      //
                          nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_size_t,    //
                          nk_size_t),                                                     //
-    nk_size_t num_heads, nk_size_t seq_len, nk_size_t head_dim) {
+    nk_size_t head_count, nk_size_t position_count, nk_size_t depth) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
-    nk_size_t const row_values = num_heads * head_dim;
-    nk_size_t const row_bytes = row_values * sizeof(input_t);
-    nk_f32_t const scale = 1.0f / std::sqrt((nk_f32_t)head_dim);
-    nk_u32_t const segment_offsets[2] = {0, (nk_u32_t)seq_len};
-    nk_u32_t const segment_lengths[1] = {(nk_u32_t)seq_len};
+    nk_size_t const row_width = head_count * depth;
+    nk_size_t const row_stride_bytes = row_width * sizeof(input_t);
+    nk_f32_t const scale = 1.0f / std::sqrt((nk_f32_t)depth);
+    nk_u32_t const segment_offsets[2] = {0, (nk_u32_t)position_count};
+    nk_u32_t const segment_lengths[1] = {(nk_u32_t)position_count};
 
-    auto q = make_vector<input_t>(seq_len * row_values);
-    auto k = make_vector<input_t>(seq_len * row_values);
-    auto v = make_vector<input_t>(seq_len * row_values);
-    auto output = make_vector<nk_f32_t>(seq_len * row_values);
+    auto queries = make_vector<input_t>(position_count * row_width);
+    auto keys = make_vector<input_t>(position_count * row_width);
+    auto values = make_vector<input_t>(position_count * row_width);
+    auto output = make_vector<nk_f32_t>(position_count * row_width);
     auto generator = make_random_engine();
-    nk::fill_uniform(generator, q.values_data(), q.size_values());
-    nk::fill_uniform(generator, k.values_data(), k.size_values());
-    nk::fill_uniform(generator, v.values_data(), v.size_values());
+    nk::fill_uniform(generator, queries.values_data(), queries.size_values());
+    nk::fill_uniform(generator, keys.values_data(), keys.size_values());
+    nk::fill_uniform(generator, values.values_data(), values.size_values());
 
-    auto kv_packed = make_vector<char>(packed_size_fn(num_heads, head_dim, segment_lengths, 1));
-    pack_fn(k.raw_values_data(), v.raw_values_data(), num_heads, head_dim, segment_offsets, segment_lengths, 1,
-            row_bytes, row_bytes, kv_packed.raw_values_data(), 0, 0);
+    auto key_value_packed = make_vector<char>(packed_size_fn(head_count, depth, segment_lengths, 1));
+    pack_fn(keys.raw_values_data(), values.raw_values_data(), head_count, depth, segment_offsets, segment_lengths, 1,
+            row_stride_bytes, row_stride_bytes, key_value_packed.raw_values_data(), 0, 0);
 
     std::size_t iterations = 0;
     for (auto _ : state) {
-        attention_fn(q.raw_values_data(), kv_packed.raw_values_data(), output.raw_values_data(), num_heads, num_heads,
-                     head_dim, segment_offsets, row_bytes, row_values * sizeof(nk_f32_t), scale, 0, 0);
+        attention_fn(queries.raw_values_data(), key_value_packed.raw_values_data(), output.raw_values_data(),
+                     head_count, head_count, depth, segment_offsets, row_stride_bytes, row_width * sizeof(nk_f32_t),
+                     scale, 0, 0);
         ++iterations;
         bm::DoNotOptimize(output.raw_values_data());
     }
-    state.counters["scalar-ops"] = bm::Counter(4.0 * iterations * num_heads * seq_len * seq_len * head_dim,
+    state.counters["scalar-ops"] = bm::Counter(4.0 * iterations * head_count * position_count * position_count * depth,
                                                bm::Counter::kIsRate);
 }
 
@@ -330,12 +331,12 @@ void run_attention(                                                             
                          void const *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t,      //
                          nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_size_t,    //
                          nk_size_t)) {
-    nk_size_t const num_heads = 8, head_dim = 128;
-    nk_size_t const seq_len = bench_config.matrix_height > 0 ? bench_config.matrix_height : 1024;
-    std::string bench_name = name + "<" + std::to_string(num_heads) + "h_" + std::to_string(seq_len) + "q_" +
-                             std::to_string(seq_len) + "kv_" + std::to_string(head_dim) + "d>";
+    nk_size_t const head_count = 8, depth = 128;
+    nk_size_t const position_count = bench_config.matrix_height > 0 ? bench_config.matrix_height : 1024;
+    std::string bench_name = name + "<" + std::to_string(head_count) + "h_" + std::to_string(position_count) + "q_" +
+                             std::to_string(position_count) + "kv_" + std::to_string(depth) + "d>";
     bm::RegisterBenchmark(bench_name.c_str(), measure_attention<input_dtype_>, packed_size_fn, pack_fn, attention_fn,
-                          num_heads, seq_len, head_dim);
+                          head_count, position_count, depth);
 }
 
 template <nk_dtype_t input_dtype_>

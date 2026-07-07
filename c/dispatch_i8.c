@@ -139,6 +139,11 @@ void nk_dispatch_i8_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
 #endif
 #if NK_TARGET_ICELAKE
     if (v & nk_cap_icelake_k) switch (k) {
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_i8_icelake, *c = nk_cap_icelake_k;
+            return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_i8_icelake, *c = nk_cap_icelake_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_i8_icelake, *c = nk_cap_icelake_k; return;
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_i8_icelake, *c = nk_cap_icelake_k; return;
         case nk_kernel_angular_k: *m = (m_t)&nk_angular_i8_icelake, *c = nk_cap_icelake_k; return;
         case nk_kernel_sqeuclidean_k: *m = (m_t)&nk_sqeuclidean_i8_icelake, *c = nk_cap_icelake_k; return;
@@ -207,6 +212,11 @@ void nk_dispatch_i8_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
 #endif
 #if NK_TARGET_HASWELL
     if (v & nk_cap_haswell_k) switch (k) {
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_i8_haswell, *c = nk_cap_haswell_k;
+            return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_i8_haswell, *c = nk_cap_haswell_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_i8_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_i8_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_angular_k: *m = (m_t)&nk_angular_i8_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_sqeuclidean_k: *m = (m_t)&nk_sqeuclidean_i8_haswell, *c = nk_cap_haswell_k; return;

@@ -124,6 +124,8 @@ void test_cross_x86() {
           nk_attention_pack_bf16_haswell, nk_attention_packed_bf16_haswell);
     check("attention_packed_e4m3_haswell", test_attention_packed<e4m3_t>, nk_attention_packed_size_e4m3_haswell,
           nk_attention_pack_e4m3_haswell, nk_attention_packed_e4m3_haswell);
+    check("attention_packed_i8_haswell", test_attention_packed<i8_t>, nk_attention_packed_size_i8_haswell,
+          nk_attention_pack_i8_haswell, nk_attention_packed_i8_haswell);
 
 #endif
 
@@ -267,6 +269,10 @@ void test_cross_x86() {
     check("euclideans_symmetric_u8_icelake", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_icelake);
     check("euclideans_symmetric_i4_icelake", test_euclideans_symmetric<i4x2_t>, nk_euclideans_symmetric_i4_icelake);
     check("euclideans_symmetric_u4_icelake", test_euclideans_symmetric<u4x2_t>, nk_euclideans_symmetric_u4_icelake);
+
+    check("attention_packed_i8_icelake", test_attention_packed<i8_t>, nk_attention_packed_size_i8_icelake,
+          nk_attention_pack_i8_icelake, nk_attention_packed_i8_icelake);
+
 #endif
 
 #if NK_TARGET_GENOA
@@ -325,6 +331,7 @@ void test_cross_x86() {
           nk_dots_pack_e5m2_diamond, nk_euclideans_packed_e5m2_diamond);
     check("euclideans_symmetric_e4m3_diamond", test_euclideans_symmetric<e4m3_t>, nk_euclideans_symmetric_e4m3_diamond);
     check("euclideans_symmetric_e5m2_diamond", test_euclideans_symmetric<e5m2_t>, nk_euclideans_symmetric_e5m2_diamond);
+
 #endif
 
 #if NK_TARGET_ALDER
