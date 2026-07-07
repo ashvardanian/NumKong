@@ -39,10 +39,12 @@ from test_base import (
     assert_allclose,
     dense_dimensions,
     f32_downcast_to_bf16,
+    keep_one_capability,
     make_nk,
     ml_dtypes_available,
     nk_seed,  # noqa: F401 — pytest fixture
     numpy_available,
+    possible_capabilities,
     randomized_repetitions_count,
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
     to_array,
@@ -784,7 +786,7 @@ def test_ndarray_full(dtype: str, fill_value, shape):
     for i in range(arr.size):
         val = float(flat[i])
         if dtype.startswith("float"):
-            assert abs(val - fill_value) < 1e-5
+            assert_allclose(val, fill_value, atol=1e-5)
         else:
             assert int(val) == fill_value
 
@@ -874,7 +876,9 @@ def test_ndarray_hash(dtype: str, shape):
 @pytest.mark.parametrize(
     "shape", [pytest.param((100,), id="1d"), pytest.param((10, 10), id="2d"), pytest.param((4, 5, 5), id="3d")]
 )
-def test_ndarray_sum(dtype: str, shape):
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_ndarray_sum(dtype: str, shape, capability: str):
+    keep_one_capability(capability)
     np_arr = random_ndarray(dtype, shape)
     nk_arr = make_nk(np_arr, dtype)
     assert_op_matches(nk_arr.sum(), np.sum(np_arr), dtype)
@@ -883,7 +887,9 @@ def test_ndarray_sum(dtype: str, shape):
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", _REDUCE_DTYPES)
 @pytest.mark.parametrize("shape", [pytest.param((100,), id="1d"), pytest.param((10, 10), id="2d")])
-def test_ndarray_min_max(dtype: str, shape):
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_ndarray_min_max(dtype: str, shape, capability: str):
+    keep_one_capability(capability)
     np_arr = random_ndarray(dtype, shape)
     nk_arr = make_nk(np_arr, dtype)
     assert_op_matches(nk_arr.min(), np.min(np_arr), dtype)
@@ -893,12 +899,14 @@ def test_ndarray_min_max(dtype: str, shape):
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", _ARITH_DTYPES)
 @pytest.mark.parametrize("shape", [pytest.param((100,), id="1d"), pytest.param((10, 10), id="2d")])
-def test_ndarray_argmin_argmax_methods(dtype: str, shape):
+@pytest.mark.parametrize("op", ["argmin", "argmax"])
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_ndarray_argmin_argmax_methods(dtype: str, shape, op: str, capability: str):
+    keep_one_capability(capability)
     np_arr = random_ndarray(dtype, shape)
     nk_arr = make_nk(np_arr, dtype)
-    for op in ("argmin", "argmax"):
-        baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
-        assert simd_kernel(nk_arr) == baseline_kernel(np_arr)
+    baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
+    assert simd_kernel(nk_arr) == baseline_kernel(np_arr)
 
 
 # Per-op integer ranges keep products inside the dtype (multiply needs the tighter bound).
@@ -912,7 +920,9 @@ def test_ndarray_argmin_argmax_methods(dtype: str, shape):
     ],
 )
 @pytest.mark.parametrize("dtype", _ARITH_DTYPES)
-def test_ndarray_binary(op, int_hi: int, dtype: str):
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_ndarray_binary(op, int_hi: int, dtype: str, capability: str):
+    keep_one_capability(capability)
     np_a = random_ndarray(dtype, (20,), -int_hi, int_hi)
     np_b = random_ndarray(dtype, (20,), -int_hi, int_hi)
     nk_a, nk_b = make_nk(np_a, dtype), make_nk(np_b, dtype)
@@ -921,7 +931,9 @@ def test_ndarray_binary(op, int_hi: int, dtype: str):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", _ARITH_DTYPES)
-def test_ndarray_unary(dtype: str):
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_ndarray_unary(dtype: str, capability: str):
+    keep_one_capability(capability)
     np_a = random_ndarray(dtype, (20,))
     nk_a = make_nk(np_a, dtype)
     assert_op_matches(-nk_a, -np_a, dtype)
@@ -930,7 +942,10 @@ def test_ndarray_unary(dtype: str):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
-def test_reduction_on_strided_array(dtype: str):
+@pytest.mark.parametrize("op", ["sum", "min", "max"])
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_reduction_on_strided_array(dtype: str, op: str, capability: str):
+    keep_one_capability(capability)
     np_arr = np.random.randn(10, 10).astype(dtype)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -938,14 +953,16 @@ def test_reduction_on_strided_array(dtype: str):
     nk_strided = nk_arr[::2]
 
     atol, rtol = tolerances_for_dtype(dtype)
-    for op in ("sum", "min", "max"):
-        baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
-        assert_allclose(simd_kernel(nk_strided), baseline_kernel(np_strided), rtol=rtol, atol=atol)
+    baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
+    assert_allclose(simd_kernel(nk_strided), baseline_kernel(np_strided), rtol=rtol, atol=atol)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
-def test_reduction_on_transposed_array(dtype: str):
+@pytest.mark.parametrize("op", ["sum", "min", "max"])
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_reduction_on_transposed_array(dtype: str, op: str, capability: str):
+    keep_one_capability(capability)
     np_arr = np.random.randn(5, 8).astype(dtype)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -953,14 +970,16 @@ def test_reduction_on_transposed_array(dtype: str):
     nk_t = nk_arr.T
 
     atol, rtol = tolerances_for_dtype(dtype)
-    for op in ("sum", "min", "max"):
-        baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
-        assert_allclose(simd_kernel(nk_t), baseline_kernel(np_t), rtol=rtol, atol=atol)
+    baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
+    assert_allclose(simd_kernel(nk_t), baseline_kernel(np_t), rtol=rtol, atol=atol)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
-def test_reduction_on_subview(dtype: str):
+@pytest.mark.parametrize("op", ["sum", "min", "max"])
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_reduction_on_subview(dtype: str, op: str, capability: str):
+    keep_one_capability(capability)
     np_arr = np.random.randn(20, 20).astype(dtype)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -968,12 +987,24 @@ def test_reduction_on_subview(dtype: str):
     nk_sub = nk_arr[5:15, 5:15]
 
     atol, rtol = tolerances_for_dtype(dtype)
-    for op in ("sum", "min", "max"):
-        baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
-        assert_allclose(simd_kernel(nk_sub), baseline_kernel(np_sub), rtol=rtol, atol=atol)
-    for op in ("argmin", "argmax"):
-        baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
-        assert simd_kernel(nk_sub) == baseline_kernel(np_sub)
+    baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
+    assert_allclose(simd_kernel(nk_sub), baseline_kernel(np_sub), rtol=rtol, atol=atol)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
+@pytest.mark.parametrize("op", ["argmin", "argmax"])
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_argreduction_on_subview(dtype: str, op: str, capability: str):
+    keep_one_capability(capability)
+    np_arr = np.random.randn(20, 20).astype(dtype)
+    nk_arr = make_nk(np_arr, dtype)
+
+    np_sub = np_arr[5:15, 5:15]
+    nk_sub = nk_arr[5:15, 5:15]
+
+    baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
+    assert simd_kernel(nk_sub) == baseline_kernel(np_sub)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is required for edge-shape tests")
@@ -1003,7 +1034,7 @@ def test_scalar_zero_dim_tensor():
 def test_bfloat16_scalar_creation():
     bf = nk.bfloat16(3.14159)
     assert isinstance(bf, nk.bfloat16)
-    assert abs(float(bf) - 3.14159) < 0.01
+    assert_allclose(float(bf), 3.14159, atol=0.01)
     assert int(bf) == 3
     assert repr(bf)  # smoke-test repr doesn't crash
 
@@ -1026,7 +1057,7 @@ def test_bfloat16_scalar_arithmetic():
 
     result = b / a
     assert isinstance(result, nk.bfloat16)
-    assert abs(float(result) - 1.6666) < 0.01
+    assert_allclose(float(result), 1.6666, atol=0.01)
 
 
 def test_bfloat16_scalar_unary():
@@ -1081,19 +1112,19 @@ def test_float8_e4m3_scalar_arithmetic():
 
     result = a + b
     assert isinstance(result, nk.float8_e4m3)
-    assert abs(float(result) - 3.5) < 0.5
+    assert_allclose(float(result), 3.5, atol=0.5)
 
     result = b - a
     assert isinstance(result, nk.float8_e4m3)
-    assert abs(float(result) - 0.5) < 0.5
+    assert_allclose(float(result), 0.5, atol=0.5)
 
     result = a * b
     assert isinstance(result, nk.float8_e4m3)
-    assert abs(float(result) - 3.0) < 0.5
+    assert_allclose(float(result), 3.0, atol=0.5)
 
     result = b / a
     assert isinstance(result, nk.float8_e4m3)
-    assert abs(float(result) - 1.33) < 0.5
+    assert_allclose(float(result), 1.33, atol=0.5)
 
     assert float(+a) == float(a)
     assert float(abs(nk.float8_e4m3(-1.5))) == 1.5
@@ -1116,19 +1147,19 @@ def test_float8_e5m2_scalar_arithmetic():
 
     result = a + b
     assert isinstance(result, nk.float8_e5m2)
-    assert abs(float(result) - 3.5) < 0.5
+    assert_allclose(float(result), 3.5, atol=0.5)
 
     result = b - a
     assert isinstance(result, nk.float8_e5m2)
-    assert abs(float(result) - 0.5) < 0.5
+    assert_allclose(float(result), 0.5, atol=0.5)
 
     result = a * b
     assert isinstance(result, nk.float8_e5m2)
-    assert abs(float(result) - 3.0) < 0.5
+    assert_allclose(float(result), 3.0, atol=0.5)
 
     result = b / a
     assert isinstance(result, nk.float8_e5m2)
-    assert abs(float(result) - 1.33) < 0.5
+    assert_allclose(float(result), 1.33, atol=0.5)
 
     assert float(+a) == float(a)
     assert float(abs(nk.float8_e5m2(-1.5))) == 1.5
@@ -1233,8 +1264,8 @@ def test_numpy_array_with_nk_dtype(scalar_type, name):
     if not hasattr(scalar_type, "dtype"):
         pytest.skip("NumPy dtype registration not available")
     arr = np.array([1.0, 2.0, 3.0], dtype=scalar_type)
-    assert abs(float(arr[0]) - 1.0) < 0.1
-    assert abs(float(arr[1]) - 2.0) < 0.1
+    assert_allclose(float(arr[0]), 1.0, atol=0.1)
+    assert_allclose(float(arr[1]), 2.0, atol=0.1)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -1252,8 +1283,10 @@ def test_nk_dtype_numpy_roundtrip():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_dots_packed_row_range():
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_dots_packed_row_range(capability: str):
     """Test dots_packed with start_row/end_row splits produce the same result."""
+    keep_one_capability(capability)
     height, depth, width = 100, 64, 50
     left_matrix = np.random.randn(height, depth).astype(np.float32)
     right_matrix = np.ascontiguousarray(np.random.randn(width, depth).astype(np.float32))
@@ -1269,12 +1302,14 @@ def test_dots_packed_row_range():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_dots_symmetric_row_range():
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_dots_symmetric_row_range(capability: str):
     """Test dots_symmetric with start_row/end_row.
 
     Only the upper triangle of the output is guaranteed to be initialized,
     so we compare only the upper-triangle entries that fall within each row range.
     """
+    keep_one_capability(capability)
     count, depth = 64, 32
     vectors = np.random.randn(count, depth).astype(np.float32)
 
@@ -1290,13 +1325,15 @@ def test_dots_symmetric_row_range():
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("threads", [0, 1, 4])
 @pytest.mark.parametrize("height", [63, 64, 129])
-def test_dots_packed_threads(threads, height):
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_dots_packed_threads(threads, height, capability):
     """Verify dots_packed and @ match the serial path across tile boundaries and thread counts.
 
     The packed row tile is 64, so heights straddling one and two tiles exercise both the whole-tile
     and tail-chunk branches of the parallel loop. threads=0 (all cores) must match threads=1 regardless
     of any prior explicit count — the num_threads() clause fix, not the poisoned global ICV.
     """
+    keep_one_capability(capability)
     depth, width = 64, 32
     left_matrix = np.random.randn(height, depth).astype(np.float32)
     right_matrix = np.ascontiguousarray(np.random.randn(width, depth).astype(np.float32))
@@ -1313,12 +1350,14 @@ def test_dots_packed_threads(threads, height):
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("threads", [0, 1, 4])
 @pytest.mark.parametrize("count", [31, 32, 65])
-def test_dots_symmetric_threads(threads, count):
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_dots_symmetric_threads(threads, count, capability):
     """Verify dots_symmetric matches the serial path across tile boundaries and thread counts.
 
     The symmetric row tile is 32; only the upper triangle is guaranteed written. threads=0 (all cores)
     must match threads=1 regardless of any prior explicit count — the num_threads() clause fix.
     """
+    keep_one_capability(capability)
     depth = 32
     vectors = np.random.randn(count, depth).astype(np.float32)
     mask = np.triu(np.ones((count, count), dtype=bool))
