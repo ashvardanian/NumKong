@@ -166,7 +166,7 @@ pub use geospatial::{Geospatial, Haversine, Vincenty};
 pub use sparse::{SparseDot, SparseIntersect};
 
 // Re-export cast operations
-pub use cast::{cast, CastDtype, CastOps};
+pub use cast::{cast, CastDtype, CastOps, DenseToScaledOps};
 
 // Re-export block-scaled formats and casts
 pub use cast::{
@@ -179,15 +179,52 @@ pub use capabilities::{available, configure_thread, uses_dynamic_dispatch};
 
 // Re-export tensor types
 pub use tensor::{
-    Allocator, AxisIterator, AxisIteratorMut, CopyFrom, Fill, Global, Matrix, MatrixSpan, MatrixView, MinMaxResult,
-    RangeStep, ScaledTensor, ScaledTensorSpan, ScaledTensorView, SliceArg, SliceRange, SliceSpec, Tensor, TensorDims,
-    TensorError, TensorIterator, TensorMut, TensorRef, TensorSpan, TensorSpanDims, TensorSpanIterator, TensorView,
-    TensorViewDims, TensorViewIterator, DEFAULT_MAX_RANK, SIMD_ALIGNMENT,
+    Allocator,
+    // Receiver-generic elementwise `_into` extension traits (blanket-impl'd for `TensorRef`).
+    AtanIntoOps,
+    AxisIterator,
+    AxisIteratorMut,
+    BlendIntoOps,
+    CopyFrom,
+    CosIntoOps,
+    Fill,
+    FmaIntoOps,
+    Global,
+    Matrix,
+    MatrixSpan,
+    MatrixView,
+    MinMaxResult,
+    RangeStep,
+    ScaleIntoOps,
+    ScaledTensor,
+    ScaledTensorSpan,
+    ScaledTensorView,
+    SinIntoOps,
+    SliceArg,
+    SliceRange,
+    SliceSpec,
+    SumIntoOps,
+    Tensor,
+    TensorDims,
+    TensorError,
+    TensorIterator,
+    TensorMut,
+    TensorRef,
+    TensorSpan,
+    TensorSpanDims,
+    TensorSpanIterator,
+    TensorView,
+    TensorViewDims,
+    TensorViewIterator,
+    DEFAULT_MAX_RANK,
+    SIMD_ALIGNMENT,
 };
 
 // Re-export matrix types
+#[cfg(feature = "parallel")]
+pub use matrix::DotsPackedParallelExt;
 pub use matrix::{
-    Angulars, Dots, Euclideans, Hammings, Jaccards, PackedMatrix, SymmetricAngulars, SymmetricDots,
+    Angulars, Dots, DotsPackedExt, Euclideans, Hammings, Jaccards, PackedMatrix, SymmetricAngulars, SymmetricDots,
     SymmetricEuclideans, SymmetricHammings, SymmetricJaccards,
 };
 
@@ -198,7 +235,7 @@ pub use vector::{Vector, VectorIndex, VectorIterator, VectorSpan, VectorSpanIter
 // Re-export attention types
 pub use attention::{Attention, AttentionPackedKV};
 
-pub use maxsim::{MaxSim, MaxSimPackedMatrix};
+pub use maxsim::{MaxSim, MaxSimPackExt, MaxSimPackedMatrix};
 
 // region: Tests
 
@@ -262,6 +299,35 @@ mod tests {
         assert_eq!(outputs.shape(), [tokens, kv_heads * head_dim]);
         for &x in outputs.as_slice() {
             assert!((x - 0.5).abs() < 1e-2, "expected 0.5, got {x}");
+        }
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn attention_parallel_matches_serial() {
+        capabilities::configure_thread();
+        let (kv_heads, head_dim) = (4usize, 64usize);
+        let lengths = [7u32, 250, 0, 33, 129]; // ragged mix: tiny, sub-panel, PAD, odd
+        let mut offsets = vec![0u32];
+        for length in lengths {
+            offsets.push(offsets.last().unwrap() + length);
+        }
+        let tokens = *offsets.last().unwrap() as usize;
+
+        let keys = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.125)).unwrap();
+        let values = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.75)).unwrap();
+        let kv = AttentionPackedKV::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
+
+        let sequential = kv.try_attention(&keys.view(), &offsets, None).unwrap();
+        let mut pool = fork_union::ThreadPool::try_spawn(4).unwrap();
+        let mut parallel = Tensor::<f32>::try_full(&[tokens, kv_heads * head_dim], 0.0).unwrap();
+        kv.try_attention_parallel_into(&keys.view(), &offsets, None, &mut parallel, &mut pool)
+            .unwrap();
+
+        // Per-task dynamic scheduling must be bit-identical to the single-window run:
+        // tasks are independent and write disjoint rows.
+        for (index, (a, b)) in sequential.as_slice().iter().zip(parallel.as_slice()).enumerate() {
+            assert!(a.to_bits() == b.to_bits(), "mismatch at {index}: {a} vs {b}");
         }
     }
 

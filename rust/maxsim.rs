@@ -15,7 +15,7 @@
 //! # Typical flow
 //!
 //! 1. Pack both the query set and the document set with
-//!    [`MaxSimPackedMatrix::try_pack`] (or [`TensorView::try_maxsim_pack`]).
+//!    [`MaxSimPackedMatrix::try_pack`] (or [`MaxSimPackExt::try_maxsim_pack`]).
 //! 2. Call [`MaxSimPackedMatrix::try_score`] on the pair; the score type is
 //!    `f64` for `f32` inputs and `f32` for `f16` / `bf16` inputs.
 //!
@@ -32,8 +32,8 @@
 //! let queries = Tensor::<f32>::try_full(&[32, 128], 1.0).unwrap();
 //! let documents = Tensor::<f32>::try_full(&[1024, 128], 1.0).unwrap();
 //!
-//! let queries_packed = MaxSimPackedMatrix::try_pack(&queries.view()).unwrap();
-//! let docs_packed = MaxSimPackedMatrix::try_pack(&documents.view()).unwrap();
+//! let queries_packed = MaxSimPackedMatrix::try_pack(&queries).unwrap();
+//! let docs_packed = MaxSimPackedMatrix::try_pack(&documents).unwrap();
 //! let score = queries_packed.score(&docs_packed);
 //! ```
 
@@ -42,7 +42,7 @@ extern crate alloc;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use crate::tensor::{Allocator, Global, TensorError, TensorView, SIMD_ALIGNMENT};
+use crate::tensor::{Allocator, Global, TensorError, TensorRef, SIMD_ALIGNMENT};
 use crate::types::{bf16, f16, StorageElement};
 
 // region: FFI
@@ -263,10 +263,10 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
     ///
     /// Returns `Err` if the view is not 2D, the depth axis is not contiguous,
     /// the row stride is negative, or allocation fails.
-    pub fn try_pack_in<const MAX_RANK: usize>(
-        vectors: &TensorView<'_, Scalar, MAX_RANK>,
-        alloc: Alloc,
-    ) -> Result<Self, TensorError> {
+    pub fn try_pack_in<Vectors, const MAX_RANK: usize>(vectors: &Vectors, alloc: Alloc) -> Result<Self, TensorError>
+    where
+        Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         let (vector_count, depth, row_stride_bytes) = validate_maxsim_view(vectors)?;
         let size = Scalar::maxsim_packed_size(vector_count, depth);
 
@@ -346,21 +346,31 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
 // Convenience methods using Global allocator
 impl<Scalar: MaxSim> MaxSimPackedMatrix<Scalar, Global> {
     /// Pack vectors from a 2D tensor view using the global allocator.
-    pub fn try_pack<const MAX_RANK: usize>(vectors: &TensorView<'_, Scalar, MAX_RANK>) -> Result<Self, TensorError> {
+    pub fn try_pack<Vectors, const MAX_RANK: usize>(vectors: &Vectors) -> Result<Self, TensorError>
+    where
+        Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         Self::try_pack_in(vectors, Global)
     }
 
     /// Convenience constructor that panics on error.
-    pub fn pack<const MAX_RANK: usize>(vectors: &TensorView<'_, Scalar, MAX_RANK>) -> Self {
+    pub fn pack<Vectors, const MAX_RANK: usize>(vectors: &Vectors) -> Self
+    where
+        Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         Self::try_pack(vectors).expect("MaxSimPackedMatrix::pack failed")
     }
 }
 
 // endregion: MaxSimPackedMatrix
 
-fn validate_maxsim_view<Scalar, const MAX_RANK: usize>(
-    vectors: &TensorView<'_, Scalar, MAX_RANK>,
-) -> Result<(usize, usize, usize), TensorError> {
+fn validate_maxsim_view<Scalar, Vectors, const MAX_RANK: usize>(
+    vectors: &Vectors,
+) -> Result<(usize, usize, usize), TensorError>
+where
+    Scalar: StorageElement,
+    Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
+{
     if vectors.ndim() != 2 {
         return Err(TensorError::DimensionMismatch {
             expected: 2,
@@ -384,24 +394,34 @@ fn validate_maxsim_view<Scalar, const MAX_RANK: usize>(
     Ok((vectors.shape()[0], vectors.shape()[1], row_stride_bytes as usize))
 }
 
-// region: TensorView convenience
+// region: MaxSimPackExt convenience
 
-impl<'a, Scalar: MaxSim, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
-    /// Pack this 2D tensor view for MaxSim scoring using the provided allocator.
-    pub fn try_maxsim_pack_in<Alloc: Allocator>(
+/// Extension trait: MaxSim packing for any [`TensorRef`] implementor.
+///
+/// Blanket-implemented for `Tensor`, `TensorView`, and `TensorSpan`, so a
+/// caller holding any immutable tensor reference can pack for MaxSim scoring
+/// without first calling `.view()`.
+pub trait MaxSimPackExt<Scalar: MaxSim, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    /// Pack this 2D tensor for MaxSim scoring using the provided allocator.
+    fn try_maxsim_pack_in<Alloc: Allocator>(
         &self,
         alloc: Alloc,
     ) -> Result<MaxSimPackedMatrix<Scalar, Alloc>, TensorError> {
         MaxSimPackedMatrix::try_pack_in(self, alloc)
     }
 
-    /// Pack this 2D tensor view for MaxSim scoring using the global allocator.
-    pub fn try_maxsim_pack(&self) -> Result<MaxSimPackedMatrix<Scalar, Global>, TensorError> {
+    /// Pack this 2D tensor for MaxSim scoring using the global allocator.
+    fn try_maxsim_pack(&self) -> Result<MaxSimPackedMatrix<Scalar, Global>, TensorError> {
         self.try_maxsim_pack_in(Global)
     }
 }
 
-// endregion: TensorView convenience
+impl<Scalar: MaxSim, const MAX_RANK: usize, Vectors: TensorRef<Scalar, MAX_RANK>> MaxSimPackExt<Scalar, MAX_RANK>
+    for Vectors
+{
+}
+
+// endregion: MaxSimPackExt convenience
 
 #[cfg(test)]
 mod tests {
@@ -413,8 +433,8 @@ mod tests {
         let queries = Tensor::<f32>::try_full(&[4, 16], 1.0).unwrap();
         let docs = Tensor::<f32>::try_full(&[8, 16], 1.0).unwrap();
 
-        let queries_packed = queries.view().try_maxsim_pack().unwrap();
-        let docs_packed = docs.view().try_maxsim_pack().unwrap();
+        let queries_packed = queries.try_maxsim_pack().unwrap();
+        let docs_packed = docs.try_maxsim_pack().unwrap();
 
         assert_eq!(queries_packed.dims(), (4, 16));
         assert_eq!(docs_packed.dims(), (8, 16));

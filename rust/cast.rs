@@ -200,7 +200,7 @@ pub fn cast<S: CastDtype, D: CastDtype>(source: &[S], dest: &mut [D]) -> Option<
 
 // region: Tensor-shaped cast (moved from crate::tensor)
 
-use crate::tensor::{try_reborrow_tensor_into, Global, Tensor, TensorError, TensorRef};
+use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef};
 
 /// Extension trait: type casting for any [`TensorRef`] implementor.
 pub trait CastOps<Source: Clone + CastDtype, const MAX_RANK: usize>: TensorRef<Source, MAX_RANK> {
@@ -209,18 +209,19 @@ pub trait CastOps<Source: Clone + CastDtype, const MAX_RANK: usize>: TensorRef<S
     ) -> Result<Tensor<Destination, Global, MAX_RANK>, TensorError> {
         self.view().try_cast_dtype()
     }
+
+    /// Cast into a pre-allocated sink. The destination may be a `&mut Tensor<...>`
+    /// or a `&mut TensorSpan<...>` (any [`TensorMut`]); a strided sub-span works too.
+    fn try_cast_dtype_into<Destination, OutputTensor>(&self, out: &mut OutputTensor) -> Result<(), TensorError>
+    where
+        Destination: Clone + CastDtype,
+        OutputTensor: TensorMut<Destination, MAX_RANK> + ?Sized,
+    {
+        self.view().try_cast_dtype_into(out)
+    }
 }
 
 impl<Source: Clone + CastDtype, const R: usize, C: TensorRef<Source, R>> CastOps<Source, R> for C {}
-
-impl<Source: Clone + CastDtype, const MAX_RANK: usize> Tensor<Source, Global, MAX_RANK> {
-    pub fn try_cast_dtype_into<Destination: Clone + CastDtype>(
-        &self,
-        out: &mut Tensor<Destination, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_cast_dtype_into(span))
-    }
-}
 
 // endregion: Tensor-shaped cast
 
@@ -482,8 +483,6 @@ impl BlockScaledFormat for Mxint8 {
 
 // region: Block-Scaled Casts
 
-use crate::tensor::TensorView;
-
 /// Validate a block-scaled shape and return the per-block scales shape: the input shape with its
 /// last extent divided by `block_size`. Quantization runs along the last axis, which must split
 /// evenly into blocks; any rank with at least one axis is accepted.
@@ -554,12 +553,18 @@ fn block_scaled_cast_(
 /// The source must be a contiguous 2D `(rows, cols)` view with `cols` divisible by
 /// `F::BLOCK_SIZE`. For formats with a per-tensor scale (NVFP4), the multiplier is derived
 /// from the tensor amax by the kernel (we seed the buffer with `0.0` and read it back).
-impl<'a, const MAX_RANK: usize> TensorView<'a, f32, MAX_RANK> {
-    pub fn try_cast_to_scaled<F: BlockScaledFormat>(&self) -> Result<ScaledTensor<F>, TensorError> {
+/// Extension trait: encode any dense `f32` tensor into a block-scaled [`ScaledTensor`].
+///
+/// Blanket-implemented for every [`TensorRef<f32, MAX_RANK>`], so `Tensor<f32>`,
+/// `TensorView<f32>`, and `TensorSpan<f32>` all expose `.try_cast_to_scaled::<F>()`
+/// without an intervening `.view()`.
+pub trait DenseToScaledOps<const MAX_RANK: usize>: TensorRef<f32, MAX_RANK> {
+    fn try_cast_to_scaled<F: BlockScaledFormat>(&self) -> Result<ScaledTensor<F>, TensorError> {
         let shape = self.shape();
         let scales_shape = blocked_scales_shape(shape, F::BLOCK_SIZE)?;
         let count: usize = shape.iter().product();
-        let source = self.as_packed_slice().ok_or(TensorError::NonContiguousRows)?;
+        let view = self.view();
+        let source = view.as_packed_slice().ok_or(TensorError::NonContiguousRows)?;
 
         let mut elements = Tensor::<F::Element>::try_zeros(shape)?;
         let mut block_scales = Tensor::<F::Scale>::try_zeros(&scales_shape)?;
@@ -577,6 +582,8 @@ impl<'a, const MAX_RANK: usize> TensorView<'a, f32, MAX_RANK> {
         Ok(ScaledTensor::from_parts(elements, block_scales, tensor_scale))
     }
 }
+
+impl<const R: usize, C: TensorRef<f32, R> + ?Sized> DenseToScaledOps<R> for C {}
 
 /// Decode / materialize: a [`ScaledTensorView`] → a dense `Tensor<T>` (e.g. `f32`).
 /// Transcode: a [`ScaledTensorView`] → another [`ScaledTensor`].

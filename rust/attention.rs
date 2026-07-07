@@ -38,7 +38,8 @@ extern crate alloc;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorView, SIMD_ALIGNMENT};
+use crate::spatial::Roots;
+use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorMut, TensorRef, SIMD_ALIGNMENT};
 use crate::types::{bf16, e4m3, StorageElement};
 
 // region: FFI
@@ -367,10 +368,14 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> Clone for AttentionPackedKV<Sc
 }
 
 /// Validates a `[tokens, heads * head_dim]` token-matrix view against a head width.
-fn validate_token_view<Scalar, const MAX_RANK: usize>(
-    view: &TensorView<'_, Scalar, MAX_RANK>,
+fn validate_token_view<Scalar, View, const MAX_RANK: usize>(
+    view: &View,
     head_dim: usize,
-) -> Result<(usize, usize, usize), TensorError> {
+) -> Result<(usize, usize, usize), TensorError>
+where
+    Scalar: StorageElement,
+    View: TensorRef<Scalar, MAX_RANK> + ?Sized,
+{
     if view.ndim() != 2 {
         return Err(TensorError::DimensionMismatch {
             expected: 2,
@@ -430,14 +435,18 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedKV<Scalar, Alloc> {
     /// interior slices of a fused QKV buffer). `segment_offsets` holds cumulative token
     /// offsets (`segments + 1` entries); `segment_lengths` defaults to the adjacent
     /// offset differences — the self-attention geometry.
-    pub fn try_pack_in<const MAX_RANK: usize>(
-        k: &TensorView<'_, Scalar, MAX_RANK>,
-        v: &TensorView<'_, Scalar, MAX_RANK>,
+    pub fn try_pack_in<KIn, VIn, const MAX_RANK: usize>(
+        k: &KIn,
+        v: &VIn,
         head_dim: usize,
         segment_offsets: &[u32],
         segment_lengths: Option<&[u32]>,
         alloc: Alloc,
-    ) -> Result<Self, TensorError> {
+    ) -> Result<Self, TensorError>
+    where
+        KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         let (k_tokens, num_kv_heads, k_stride) = validate_token_view(k, head_dim)?;
         let (v_tokens, v_heads, v_stride) = validate_token_view(v, head_dim)?;
         if k_tokens != v_tokens || num_kv_heads != v_heads {
@@ -510,13 +519,17 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedKV<Scalar, Alloc> {
 
     /// Ragged attention into a caller-provided `f32` output tensor of the same
     /// logical shape as `q` (`[tokens, heads * head_dim]`, contiguous rows).
-    pub fn try_attention_into<const MAX_RANK: usize, OutAlloc: Allocator>(
+    pub fn try_attention_into<QIn, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
         &self,
-        q: &TensorView<'_, Scalar, MAX_RANK>,
+        q: &QIn,
         query_offsets: &[u32],
         scale: Option<f32>,
-        output: &mut Tensor<f32, OutAlloc>,
-    ) -> Result<(), TensorError> {
+        output: &mut OutTensor,
+    ) -> Result<(), TensorError>
+    where
+        QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutTensor: TensorMut<f32, OUT_MAX_RANK> + ?Sized,
+    {
         let (q_tokens, num_heads, q_stride) = validate_token_view(q, self.head_dim)?;
         if num_heads % self.num_kv_heads != 0 {
             return Err(TensorError::DimensionMismatch {
@@ -538,7 +551,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedKV<Scalar, Alloc> {
                 got: output.shape().iter().product(),
             });
         }
-        let scale = scale.unwrap_or_else(|| 1.0 / (self.head_dim as f32).sqrt());
+        let scale = scale.unwrap_or_else(|| (self.head_dim as f32).rsqrt());
         unsafe {
             Scalar::attention_packed(
                 q.as_ptr(),
@@ -549,7 +562,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedKV<Scalar, Alloc> {
                 self.head_dim,
                 query_offsets.as_ptr(),
                 q_stride,
-                row_values * core::mem::size_of::<f32>(),
+                output.stride_bytes(0) as usize,
                 scale,
                 0,
                 0,
@@ -583,23 +596,30 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedKV<Scalar, Alloc> {
 // Convenience methods using the Global allocator
 impl<Scalar: Attention> AttentionPackedKV<Scalar, Global> {
     /// Pack ragged K/V token matrices using the global allocator.
-    pub fn try_pack<const MAX_RANK: usize>(
-        k: &TensorView<'_, Scalar, MAX_RANK>,
-        v: &TensorView<'_, Scalar, MAX_RANK>,
+    pub fn try_pack<KIn, VIn, const MAX_RANK: usize>(
+        k: &KIn,
+        v: &VIn,
         head_dim: usize,
         segment_offsets: &[u32],
         segment_lengths: Option<&[u32]>,
-    ) -> Result<Self, TensorError> {
+    ) -> Result<Self, TensorError>
+    where
+        KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         Self::try_pack_in(k, v, head_dim, segment_offsets, segment_lengths, Global)
     }
 
     /// Ragged attention allocating a fresh `f32` output tensor.
-    pub fn try_attention<const MAX_RANK: usize>(
+    pub fn try_attention<QIn, const MAX_RANK: usize>(
         &self,
-        q: &TensorView<'_, Scalar, MAX_RANK>,
+        q: &QIn,
         query_offsets: &[u32],
         scale: Option<f32>,
-    ) -> Result<Tensor<f32>, TensorError> {
+    ) -> Result<Tensor<f32>, TensorError>
+    where
+        QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         let (q_tokens, num_heads, _) = validate_token_view(q, self.head_dim)?;
         let mut output = Tensor::<f32>::try_full(&[q_tokens, num_heads * self.head_dim], 0.0)?;
         self.try_attention_into(q, query_offsets, scale, &mut output)?;
@@ -611,14 +631,18 @@ impl<Scalar: Attention> AttentionPackedKV<Scalar, Global> {
 impl<Scalar: Attention, Alloc: Allocator> AttentionPackedKV<Scalar, Alloc> {
     /// Ragged attention parallelized over the `(segment, head)` task grid with a
     /// `fork_union` thread pool; each worker computes a contiguous task window.
-    pub fn try_attention_parallel_into<const MAX_RANK: usize, OutAlloc: Allocator>(
+    pub fn try_attention_parallel_into<QIn, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
         &self,
-        q: &TensorView<'_, Scalar, MAX_RANK>,
+        q: &QIn,
         query_offsets: &[u32],
         scale: Option<f32>,
-        output: &mut Tensor<f32, OutAlloc>,
+        output: &mut OutTensor,
         pool: &mut fork_union::ThreadPool,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), TensorError>
+    where
+        QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutTensor: TensorMut<f32, OUT_MAX_RANK> + ?Sized,
+    {
         let (q_tokens, num_heads, q_stride) = validate_token_view(q, self.head_dim)?;
         if num_heads % self.num_kv_heads != 0 {
             return Err(TensorError::DimensionMismatch {
@@ -640,8 +664,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedKV<Scalar, Alloc> {
                 got: output.shape().iter().product(),
             });
         }
-        let scale = scale.unwrap_or_else(|| 1.0 / (self.head_dim as f32).sqrt());
-        let o_stride = row_values * core::mem::size_of::<f32>();
+        let scale = scale.unwrap_or_else(|| (self.head_dim as f32).rsqrt());
+        let o_stride = output.stride_bytes(0) as usize;
 
         let q_ptr = fork_union::SyncConstPtr::new(q.as_ptr());
         let kv_ptr = fork_union::SyncConstPtr::new(self.data.as_ptr());
@@ -649,35 +673,31 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedKV<Scalar, Alloc> {
         let offsets_ptr = fork_union::SyncConstPtr::new(query_offsets.as_ptr());
         let (num_kv_heads, head_dim) = (self.num_kv_heads, self.head_dim);
 
+        // Self-attention task cost is `q_len × kv_len × head_dim` — quadratic in segment
+        // length, so equal-count windows can be ~64× unbalanced on ragged batches.
+        // Dynamic per-task scheduling mirrors the Python layer's `schedule(dynamic, 1)`;
+        // GQA-sibling heads stay adjacent in task order, preserving packed-KV reuse.
         let total_tasks = segment_count * num_heads;
-        let thread_count = pool.threads().max(1);
-        let tasks_per_thread = total_tasks.div_ceil(thread_count);
-
-        pool.for_threads(move |thread_index, _colocation_index| {
-            // Configure each worker for AMX and other thread-local SIMD state.
+        pool.for_n_dynamic(total_tasks, move |prong| {
+            // Configure the worker for AMX and other thread-local SIMD state (idempotent).
             crate::capabilities::configure_thread();
-            let first_task = thread_index * tasks_per_thread;
-            if first_task < total_tasks {
-                let window = tasks_per_thread.min(total_tasks - first_task);
-                unsafe {
-                    Scalar::attention_packed(
-                        q_ptr.as_ptr(),
-                        kv_ptr.as_ptr(),
-                        out_ptr.as_ptr(),
-                        num_heads,
-                        num_kv_heads,
-                        head_dim,
-                        offsets_ptr.as_ptr(),
-                        q_stride,
-                        o_stride,
-                        scale,
-                        first_task,
-                        window,
-                    );
-                }
+            unsafe {
+                Scalar::attention_packed(
+                    q_ptr.as_ptr(),
+                    kv_ptr.as_ptr(),
+                    out_ptr.as_ptr(),
+                    num_heads,
+                    num_kv_heads,
+                    head_dim,
+                    offsets_ptr.as_ptr(),
+                    q_stride,
+                    o_stride,
+                    scale,
+                    prong.task_index,
+                    1,
+                );
             }
-        })
-        .join();
+        }); // executes and synchronizes on drop
 
         Ok(())
     }

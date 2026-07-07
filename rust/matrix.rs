@@ -2886,15 +2886,21 @@ impl<Scalar: Dots, Alloc: Allocator> PackedMatrix<Scalar, Alloc> {
     /// Returns `Err` if:
     /// - b is not 2D
     /// - allocation fails
-    pub fn try_pack_in<PackedAlloc: Allocator, const MAX_RANK: usize>(
-        b: &Tensor<Scalar, PackedAlloc, MAX_RANK>,
-        alloc: Alloc,
-    ) -> Result<Self, TensorError> {
+    pub fn try_pack_in<B, const MAX_RANK: usize>(b: &B, alloc: Alloc) -> Result<Self, TensorError>
+    where
+        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         if b.ndim() != 2 {
             return Err(TensorError::DimensionMismatch {
                 expected: 2,
                 got: b.ndim(),
             });
+        }
+        // The pack kernel reads each row's `depth` elements contiguously (it only
+        // takes a row stride), so a view with a non-unit inner stride — e.g. a
+        // bare transpose — would be mispacked. Reject it, as the maxsim path does.
+        if !b.has_contiguous_rows() {
+            return Err(TensorError::NonContiguousRows);
         }
         let (width, depth) = (b.shape()[0], b.shape()[1]);
         let size = Scalar::dots_packed_size(width, depth);
@@ -2938,19 +2944,22 @@ impl<Scalar: Dots, Alloc: Allocator> PackedMatrix<Scalar, Alloc> {
     /// - b is not 2D
     /// - b is a sub-byte type (transpose unsupported)
     /// - allocation fails
-    pub fn try_pack_transposed_in<PackedAlloc: Allocator, const MAX_RANK: usize>(
-        b: &Tensor<Scalar, PackedAlloc, MAX_RANK>,
-        alloc: Alloc,
-    ) -> Result<Self, TensorError> {
+    pub fn try_pack_transposed_in<B, const MAX_RANK: usize>(b: &B, alloc: Alloc) -> Result<Self, TensorError>
+    where
+        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         if b.ndim() != 2 {
             return Err(TensorError::DimensionMismatch {
                 expected: 2,
                 got: b.ndim(),
             });
         }
-        // Transpose returns a strided view (no copy), then to_owned materializes it.
-        // For sub-byte types, transpose() returns SubByteUnsupported.
-        let transposed = b.transpose()?.to_owned()?;
+        // Transpose is a zero-copy strided view, but the pack kernel reads each
+        // B row's `depth` elements contiguously (it only takes a row stride — see
+        // `nk_dots_pack_*` in `numkong/dots.h`), so the transposed view's
+        // non-unit inner stride must be materialized into a contiguous buffer
+        // first. For sub-byte types, transpose() returns SubByteUnsupported.
+        let transposed = b.view().transpose()?.to_owned()?;
         Self::try_pack_in(&transposed, alloc)
     }
 
@@ -2972,30 +2981,36 @@ impl<Scalar: Dots> PackedMatrix<Scalar, Global> {
     /// Pack B matrix where B is (n × k) row-major using the global allocator.
     ///
     /// Result computes: C = A × Bᵀ
-    pub fn try_pack<PackedAlloc: Allocator, const MAX_RANK: usize>(
-        b: &Tensor<Scalar, PackedAlloc, MAX_RANK>,
-    ) -> Result<Self, TensorError> {
+    pub fn try_pack<B, const MAX_RANK: usize>(b: &B) -> Result<Self, TensorError>
+    where
+        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         Self::try_pack_in(b, Global)
     }
 
     /// Pack Bᵀ where B is (k × n) row-major (standard GEMM layout) using the global allocator.
     ///
     /// Result computes: C = A × B
-    pub fn try_pack_transposed<PackedAlloc: Allocator, const MAX_RANK: usize>(
-        b: &Tensor<Scalar, PackedAlloc, MAX_RANK>,
-    ) -> Result<Self, TensorError> {
+    pub fn try_pack_transposed<B, const MAX_RANK: usize>(b: &B) -> Result<Self, TensorError>
+    where
+        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         Self::try_pack_transposed_in(b, Global)
     }
 
     /// Convenience constructor that panics on error.
-    pub fn pack<PackedAlloc: Allocator, const MAX_RANK: usize>(b: &Tensor<Scalar, PackedAlloc, MAX_RANK>) -> Self {
+    pub fn pack<B, const MAX_RANK: usize>(b: &B) -> Self
+    where
+        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         Self::try_pack(b).expect("PackedMatrix::pack failed")
     }
 
     /// Convenience constructor that panics on error.
-    pub fn pack_transposed<PackedAlloc: Allocator, const MAX_RANK: usize>(
-        b: &Tensor<Scalar, PackedAlloc, MAX_RANK>,
-    ) -> Self {
+    pub fn pack_transposed<B, const MAX_RANK: usize>(b: &B) -> Self
+    where
+        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         Self::try_pack_transposed(b).expect("PackedMatrix::pack_transposed failed")
     }
 }
@@ -3009,13 +3024,13 @@ impl<Scalar: Dots> PackedMatrix<Scalar, Global> {
 /// Checks that `a` is a 2D tensor with contiguous rows and that its depth
 /// matches that of the packed matrix. Returns `(height, width, depth)` on success.
 #[inline]
-fn validate_packed_input<Scalar, Alloc, PackedAlloc, const MAX_RANK: usize>(
-    a: &Tensor<Scalar, Alloc, MAX_RANK>,
+fn validate_packed_input<Scalar, A, PackedAlloc, const MAX_RANK: usize>(
+    a: &A,
     packed_b: &PackedMatrix<Scalar, PackedAlloc>,
 ) -> Result<(usize, usize, usize), TensorError>
 where
     Scalar: Dots,
-    Alloc: Allocator,
+    A: TensorRef<Scalar, MAX_RANK> + ?Sized,
     PackedAlloc: Allocator,
 {
     if a.ndim() != 2 {
@@ -3105,6 +3120,11 @@ where
 
 // region: Tensor GEMM
 
+// Inherent, allocator-preserving entry points on the owning `Tensor`. These
+// mirror the [`DotsPackedExt`] methods below but return a result allocated with
+// `self`'s own allocator, and remain callable without importing the extension
+// trait. For a `Tensor` receiver they shadow the blanket-trait methods of the
+// same name; views and spans reach the (globally allocating) trait versions.
 impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Dot-product multiply: C = self × packed_bᵀ
     ///
@@ -3121,25 +3141,7 @@ impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scala
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::Accumulator, Alloc, MAX_RANK>, TensorError> {
-        if self.ndim() != 2 {
-            return Err(TensorError::DimensionMismatch {
-                expected: 2,
-                got: self.ndim(),
-            });
-        }
-        if !self.has_contiguous_rows() {
-            return Err(TensorError::NonContiguousRows);
-        }
-        let (height, depth) = (self.shape()[0], self.shape()[1]);
-        let (width, packed_depth) = packed_b.dims();
-        if depth != packed_depth {
-            return Err(TensorError::ShapeMismatch {
-                axis: 1,
-                expected: packed_depth,
-                got: depth,
-            });
-        }
-
+        let (height, width, depth) = validate_packed_input(self, packed_b)?;
         let mut c = Tensor::try_full_in(&[height, width], Scalar::Accumulator::default(), self.alloc.clone())?;
         unsafe {
             Scalar::dots_packed(
@@ -3165,13 +3167,63 @@ impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scala
     }
 }
 
-impl<Scalar: Dots, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
+/// Extension trait: packed GEMM (`C = A × Bᵀ`) for any immutable tensor
+/// reference — owned [`Tensor`], borrowed [`TensorView`], or [`TensorSpan`].
+///
+/// Blanket-implemented for every [`TensorRef`], so an `A` operand backed by an
+/// mmap'd view can multiply against a pre-packed [`PackedMatrix`] without first
+/// materializing an owned copy. The allocating entry point returns a globally
+/// allocated result, since a bare view carries no allocator of its own.
+pub trait DotsPackedExt<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    /// Dot-product multiply: C = self × packed_bᵀ
+    ///
+    /// self must be 2D (m × k) with contiguous rows.
+    /// packed_b contains B (n × k) packed.
+    /// Returns C (m × n) using the global allocator.
+    ///
+    /// Returns `Err` if:
+    /// - self is not 2D
+    /// - self has non-contiguous rows
+    /// - inner dimensions don't match
+    /// - output allocation fails
+    fn try_dots_packed<PackedAlloc: Allocator>(
+        &self,
+        packed_b: &PackedMatrix<Scalar, PackedAlloc>,
+    ) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
+        let (height, width, depth) = validate_packed_input(self, packed_b)?;
+        let mut c = Tensor::<Scalar::Accumulator, Global, MAX_RANK>::try_full(
+            &[height, width],
+            Scalar::Accumulator::default(),
+        )?;
+        unsafe {
+            Scalar::dots_packed(
+                self.as_ptr(),
+                packed_b.as_ptr(),
+                c.as_mut_ptr(),
+                height,
+                width,
+                depth,
+                self.stride_bytes(0) as usize,
+                c.stride_bytes(0) as usize,
+            );
+        }
+        Ok(c)
+    }
+
+    /// Convenience method that panics on error.
+    fn dots_packed<PackedAlloc: Allocator>(
+        &self,
+        packed_b: &PackedMatrix<Scalar, PackedAlloc>,
+    ) -> Tensor<Scalar::Accumulator, Global, MAX_RANK> {
+        self.try_dots_packed(packed_b).expect("dots_packed failed")
+    }
+
     /// Dot-product multiply into existing output (avoids allocation).
     ///
     /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any
     /// writable tensor container that implements [`TensorMut`] works. The
     /// kernel overwrites `c` — it need not be pre-initialized.
-    pub fn try_dots_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    fn try_dots_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
         c: &mut OutputTensor,
@@ -3198,11 +3250,19 @@ impl<Scalar: Dots, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc
     }
 }
 
-// Parallel dots_packed implementations, if ForkUnion is available
+impl<Scalar: Dots, const MAX_RANK: usize, A: TensorRef<Scalar, MAX_RANK>> DotsPackedExt<Scalar, MAX_RANK> for A {}
+
+// Parallel dots_packed implementations, if ForkUnion is available.
+/// Extension trait: parallel packed GEMM for any immutable tensor reference.
+///
+/// The parallel counterpart of [`DotsPackedExt`], blanket-implemented for every
+/// [`TensorRef`] whose scalar can cross thread boundaries. The `A` operand may
+/// therefore be an owned [`Tensor`], a borrowed [`TensorView`], or a
+/// [`TensorSpan`] without materializing an owned copy.
 #[cfg(feature = "parallel")]
-impl<Scalar: Dots + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX_RANK: usize>
-    Tensor<Scalar, Alloc, MAX_RANK>
+pub trait DotsPackedParallelExt<Scalar, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
 where
+    Scalar: Dots + Clone + Send + Sync,
     Scalar::Accumulator: Send + Sync,
 {
     /// Parallel dot-product multiply into pre-allocated output.
@@ -3237,7 +3297,7 @@ where
     /// let mut c_buf = Tensor::<f32>::try_full(&[1024, 256], 0.0).unwrap();
     /// a.try_dots_packed_parallel_into(&b_packed, &mut c_buf.span(), &mut pool).unwrap();
     /// ```
-    pub fn try_dots_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    fn try_dots_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
         c: &mut OutputTensor,
@@ -3297,7 +3357,7 @@ where
     ///
     /// Convenience wrapper that allocates the output tensor.
     /// Prefer `try_dots_packed_parallel_into` for performance-critical code.
-    pub fn try_dots_packed_parallel<PackedAlloc: Allocator>(
+    fn try_dots_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fork_union::ThreadPool,
@@ -3313,7 +3373,7 @@ where
     }
 
     /// Convenience method that panics on error.
-    pub fn dots_packed_parallel<PackedAlloc: Allocator>(
+    fn dots_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fork_union::ThreadPool,
@@ -3321,6 +3381,15 @@ where
         self.try_dots_packed_parallel(packed_b, pool)
             .expect("parallel dots_packed failed")
     }
+}
+
+#[cfg(feature = "parallel")]
+impl<Scalar, const MAX_RANK: usize, A> DotsPackedParallelExt<Scalar, MAX_RANK> for A
+where
+    Scalar: Dots + Clone + Send + Sync,
+    Scalar::Accumulator: Send + Sync,
+    A: TensorRef<Scalar, MAX_RANK>,
+{
 }
 
 /// Compute row assignment for a thread without allocation
@@ -5168,6 +5237,78 @@ mod tests {
         check_dots_packed_transposed::<e3m2>();
         check_dots_packed_transposed::<i8>();
         check_dots_packed_transposed::<u8>();
+    }
+
+    /// Issue #6: the packed GEMM must accept borrowed operands (`TensorView` /
+    /// `TensorSpan`) on both the packing input and the `A` operand, matching the
+    /// owned-`Tensor` path bit-for-bit. Non-uniform values are used so a stride
+    /// bug cannot hide behind a constant fill.
+    #[test]
+    fn dots_packed_accepts_views_and_spans() {
+        init_thread();
+        let (height, width, depth) = (3usize, 4usize, 5usize);
+        let a_data: Vec<f32> = (0..height * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
+        let b_data: Vec<f32> = (0..width * depth).map(|i| i as f32 * 0.25 + 0.3).collect();
+        let mut a = Tensor::<f32>::from_slice(&a_data, &[height, depth]);
+        let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]);
+
+        // Manual reference: C = A × Bᵀ, so C[i][j] = Σ_l A[i][l] · B[j][l].
+        let mut expected = vec![0.0f64; height * width];
+        for i in 0..height {
+            for j in 0..width {
+                let mut acc = 0.0f64;
+                for l in 0..depth {
+                    acc += a_data[i * depth + l] as f64 * b_data[j * depth + l] as f64;
+                }
+                expected[i * width + j] = acc;
+            }
+        }
+        let close = |c: &Tensor<f64>, reference: &[f64], label: &str| {
+            assert_eq!(c.shape(), &[height, width], "{label} shape");
+            for (v, e) in c.as_slice().iter().zip(reference.iter()) {
+                assert!((v - e).abs() <= 1e-9 + 1e-6 * e.abs(), "{label}: {v} vs {e}");
+            }
+        };
+
+        // Packing B from an owned tensor, a borrowed view, and a span must agree.
+        let packed_owned = PackedMatrix::try_pack(&b).unwrap();
+        let packed_view = PackedMatrix::try_pack(&b.view()).unwrap();
+        let packed_span = PackedMatrix::try_pack(&b.clone().span()).unwrap();
+        assert_eq!(packed_owned.as_bytes(), packed_view.as_bytes(), "pack(view)");
+        assert_eq!(packed_owned.as_bytes(), packed_span.as_bytes(), "pack(span)");
+
+        // The A operand as an owned tensor (inherent method), a view, and a span
+        // (both via the DotsPackedExt blanket impl).
+        close(&a.dots_packed(&packed_view), &expected, "owned A");
+        close(&a.view().dots_packed(&packed_view), &expected, "view A");
+        close(
+            &a.view().try_dots_packed(&packed_view).unwrap(),
+            &expected,
+            "view A try",
+        );
+        close(&a.span().dots_packed(&packed_view), &expected, "span A");
+
+        // A view can also write into a caller-provided output.
+        let mut into = Tensor::<f64>::try_full(&[height, width], 0.0).unwrap();
+        a.view().try_dots_packed_into(&packed_view, &mut into).unwrap();
+        close(&into, &expected, "view A into");
+
+        // Transposed packing from a view (B in k×n layout): C = A × B. Non-uniform
+        // values here guard the materialization inside `try_pack_transposed_in`.
+        let bt_data: Vec<f32> = (0..depth * width).map(|i| i as f32 * 0.2 - 0.7).collect();
+        let bt = Tensor::<f32>::from_slice(&bt_data, &[depth, width]);
+        let mut expected_t = vec![0.0f64; height * width];
+        for i in 0..height {
+            for j in 0..width {
+                let mut acc = 0.0f64;
+                for l in 0..depth {
+                    acc += a_data[i * depth + l] as f64 * bt_data[l * width + j] as f64;
+                }
+                expected_t[i * width + j] = acc;
+            }
+        }
+        let packed_t = PackedMatrix::try_pack_transposed(&bt.view()).unwrap();
+        close(&a.view().dots_packed(&packed_t), &expected_t, "transposed view");
     }
 
     #[test]
