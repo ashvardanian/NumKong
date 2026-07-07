@@ -66,9 +66,9 @@ use core::ptr::NonNull;
 use crate::cast::{cast, CastDtype};
 use crate::each::{EachBlend, EachFMA, EachScale, EachSum};
 use crate::reduce::{MomentsOps, ReduceMinMax, ReduceMoments, SumSqToF64};
-use crate::spatial::{Dot, Roots};
+use crate::spatial::Dot;
 use crate::trigonometry::{TrigAtan, TrigCos, TrigSin};
-use crate::types::{DimMut, DimRef, FloatConvertible, StorageElement};
+use crate::types::{DimMut, DimRef, FloatConvertible, Roots, StorageElement};
 use crate::vector::{Vector, VectorIndex};
 
 // region: Constants and Allocator
@@ -5890,7 +5890,7 @@ impl<'a, Scalar: Clone + TrigAtan, const MAX_RANK: usize> TensorView<'a, Scalar,
     }
 }
 
-// endregion: Tensor Trigonometry (moved to crate::each)
+// endregion: Tensor Trigonometry
 
 // region: Tensor Reductions
 

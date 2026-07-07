@@ -903,7 +903,7 @@ impl<Container, const MAX_RANK: usize> BitwiseReductions<MAX_RANK> for Container
 {
 }
 
-// region: SumSqToF64 helper trait (moved from crate::tensor)
+// region: SumSqToF64 helper trait
 
 #[doc(hidden)]
 pub trait SumSqToF64 {
@@ -925,7 +925,7 @@ impl SumSqToF64 for i64 {
 
 // endregion: SumSqToF64
 
-// region: MomentsOps / MinMaxOps (moved from crate::tensor)
+// region: MomentsOps / MinMaxOps
 
 /// Extension trait: statistical reductions for any [`TensorRef`] implementor.
 pub trait MomentsOps<Scalar: Clone + ReduceMoments, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>

@@ -2653,7 +2653,7 @@ impl EachFMA for bf16c {
 
 // endregion: FMA
 
-// region: Tensor-shaped tolerance equality (moved from crate::tensor)
+// region: Tensor-shaped tolerance equality
 
 use crate::types::{is_close, FloatConvertible, NumberLike};
 
@@ -2686,7 +2686,7 @@ where
 
 // endregion: Tensor-shaped tolerance equality
 
-// region: Tensor-shaped scale / sum / blend / fma (moved from crate::tensor)
+// region: Tensor-shaped scale / sum / blend / fma
 
 /// Extension trait: scalar arithmetic for any [`TensorRef`] implementor.
 pub trait ScaleOps<Scalar: Clone + EachScale, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>

@@ -470,7 +470,7 @@ impl TrigAtan for f16 {
 pub trait Trigonometry: TrigSin + TrigCos + TrigAtan {}
 impl<Scalar: TrigSin + TrigCos + TrigAtan> Trigonometry for Scalar {}
 
-// region: Tensor-shaped trigonometry (moved from crate::tensor)
+// region: Tensor-shaped trigonometry
 
 /// Extension trait: element-wise sine for any [`TensorRef`] implementor.
 pub trait TrigSinOps<Scalar: Clone + TrigSin, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {

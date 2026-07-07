@@ -198,7 +198,7 @@ pub fn cast<S: CastDtype, D: CastDtype>(source: &[S], dest: &mut [D]) -> Option<
     Some(())
 }
 
-// region: Tensor-shaped cast (moved from crate::tensor)
+// region: Tensor-shaped cast
 
 use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef};
 

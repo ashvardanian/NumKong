@@ -130,11 +130,11 @@ pub mod vector;
 // Re-export scalar types at crate root
 pub use types::{
     bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, is_close, u1x8, u4x2, DimMut, DimRef,
-    FloatConvertible, FloatLike, NumberLike, StorageElement, Ue4m3, Ue8m0,
+    FloatConvertible, FloatLike, NumberLike, Roots, StorageElement, Ue4m3, Ue8m0,
 };
 
 // Re-export spatial traits
-pub use spatial::{Angular, Dot, Euclidean, Roots, SpatialSimilarity, VDot};
+pub use spatial::{Angular, Dot, Euclidean, SpatialSimilarity, VDot};
 
 // Re-export set traits
 pub use set::{BinarySimilarity, Hamming, Jaccard};

@@ -38,8 +38,8 @@ extern crate alloc;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use crate::spatial::Roots;
 use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorMut, TensorRef, SIMD_ALIGNMENT};
+use crate::types::Roots;
 use crate::types::{bf16, e4m3, StorageElement};
 
 // region: FFI
