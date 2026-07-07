@@ -41,6 +41,7 @@ from test_base import (
     f32_downcast_to_bf16,
     keep_one_capability,
     make_nk,
+    make_random,
     ml_dtypes_available,
     nk_seed,  # noqa: F401 — pytest fixture
     numpy_available,
@@ -390,9 +391,9 @@ def test_scaled_tensor_resize():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_indexing():
-    a = np.random.rand(5, 128).astype(np.float64)
-    b = np.random.rand(7, 128).astype(np.float64)
+def test_distances_tensor_indexing(nk_seed: int):
+    a, _ = make_random((5, 128), "float64", seed=nk_seed)
+    b, _ = make_random((7, 128), "float64", seed=nk_seed + 1)
     result = nk.cdist(a, b, metric="sqeuclidean")
     assert repr(result)  # smoke-test repr doesn't crash
     expected = np.asarray(result)
@@ -421,9 +422,9 @@ def test_distances_tensor_indexing():
 
 @pytest.mark.repeat(randomized_repetitions_count)  # repeated runs churn the view-header free-list (park/revive)
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_iteration():
-    a = np.random.rand(5, 128).astype(np.float64)
-    b = np.random.rand(7, 128).astype(np.float64)
+def test_distances_tensor_iteration(nk_seed: int):
+    a, _ = make_random((5, 128), "float64", seed=nk_seed)
+    b, _ = make_random((7, 128), "float64", seed=nk_seed + 1)
     result = nk.cdist(a, b, metric="sqeuclidean")
     expected = np.asarray(result)
 
@@ -434,8 +435,8 @@ def test_distances_tensor_iteration():
         assert_allclose(np.asarray(row), expected[i])
     assert count == 5
 
-    a = np.random.rand(3, 128).astype(np.float64)
-    b = np.random.rand(3, 128).astype(np.float64)
+    a, _ = make_random((3, 128), "float64", seed=nk_seed)
+    b, _ = make_random((3, 128), "float64", seed=nk_seed + 1)
     result_1d = nk.sqeuclidean(a, b)
     expected_1d = np.asarray(result_1d)
 
@@ -447,9 +448,9 @@ def test_distances_tensor_iteration():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_numpy_interop():
-    a = np.random.rand(5, 128).astype(np.float64)
-    b = np.random.rand(7, 128).astype(np.float64)
+def test_distances_tensor_numpy_interop(nk_seed: int):
+    a, _ = make_random((5, 128), "float64", seed=nk_seed)
+    b, _ = make_random((7, 128), "float64", seed=nk_seed + 1)
     result = nk.cdist(a, b, metric="sqeuclidean")
 
     arr = np.asarray(result)
@@ -519,9 +520,9 @@ def test_distances_tensor_array_interface(nk_seed: int):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_transpose():
-    a = np.random.rand(5, 128).astype(np.float64)
-    b = np.random.rand(7, 128).astype(np.float64)
+def test_distances_tensor_transpose(nk_seed: int):
+    a, _ = make_random((5, 128), "float64", seed=nk_seed)
+    b, _ = make_random((7, 128), "float64", seed=nk_seed + 1)
     result = nk.cdist(a, b, metric="sqeuclidean")
 
     t = result.T
@@ -530,8 +531,8 @@ def test_distances_tensor_transpose():
     t_arr = np.asarray(t)
     assert_allclose(result_arr.T, t_arr)
 
-    a1d = np.random.rand(10, 128).astype(np.float64)
-    b1d = np.random.rand(10, 128).astype(np.float64)
+    a1d, _ = make_random((10, 128), "float64", seed=nk_seed)
+    b1d, _ = make_random((10, 128), "float64", seed=nk_seed + 1)
     result1d = nk.sqeuclidean(a1d, b1d)
     t1d = result1d.T
     assert t1d.shape == result1d.shape
@@ -594,9 +595,9 @@ def test_distances_tensor_inf_nan_propagation(nk_seed: int):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_copy():
-    a = np.random.rand(5, 128).astype(np.float64)
-    b = np.random.rand(7, 128).astype(np.float64)
+def test_distances_tensor_copy(nk_seed: int):
+    a, _ = make_random((5, 128), "float64", seed=nk_seed)
+    b, _ = make_random((7, 128), "float64", seed=nk_seed + 1)
     result = nk.cdist(a, b, metric="sqeuclidean")
 
     copy = result.copy()
@@ -646,9 +647,9 @@ def test_distances_tensor_reshape(nk_seed: int):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_slicing():
-    a = np.random.rand(10, 128).astype(np.float64)
-    b = np.random.rand(8, 128).astype(np.float64)
+def test_distances_tensor_slicing(nk_seed: int):
+    a, _ = make_random((10, 128), "float64", seed=nk_seed)
+    b, _ = make_random((8, 128), "float64", seed=nk_seed + 1)
     result = nk.cdist(a, b, metric="sqeuclidean")
     expected = np.asarray(result)
 
@@ -670,9 +671,9 @@ def test_distances_tensor_slicing():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_zero_copy_views():
-    a = np.random.rand(5, 64).astype(np.float64)
-    b = np.random.rand(4, 64).astype(np.float64)
+def test_distances_tensor_zero_copy_views(nk_seed: int):
+    a, _ = make_random((5, 64), "float64", seed=nk_seed)
+    b, _ = make_random((4, 64), "float64", seed=nk_seed + 1)
     result = nk.cdist(a, b, metric="sqeuclidean")
     orig_np = np.asarray(result)
 
@@ -944,9 +945,9 @@ def test_ndarray_unary(dtype: str, capability: str):
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("op", ["sum", "min", "max"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_reduction_on_strided_array(dtype: str, op: str, capability: str):
+def test_reduction_on_strided_array(dtype: str, op: str, capability: str, nk_seed: int):
     keep_one_capability(capability)
-    np_arr = np.random.randn(10, 10).astype(dtype)
+    np_arr, _ = make_random((10, 10), dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
 
     np_strided = np_arr[::2]
@@ -961,9 +962,9 @@ def test_reduction_on_strided_array(dtype: str, op: str, capability: str):
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("op", ["sum", "min", "max"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_reduction_on_transposed_array(dtype: str, op: str, capability: str):
+def test_reduction_on_transposed_array(dtype: str, op: str, capability: str, nk_seed: int):
     keep_one_capability(capability)
-    np_arr = np.random.randn(5, 8).astype(dtype)
+    np_arr, _ = make_random((5, 8), dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
 
     np_t = np_arr.T
@@ -978,9 +979,9 @@ def test_reduction_on_transposed_array(dtype: str, op: str, capability: str):
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("op", ["sum", "min", "max"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_reduction_on_subview(dtype: str, op: str, capability: str):
+def test_reduction_on_subview(dtype: str, op: str, capability: str, nk_seed: int):
     keep_one_capability(capability)
-    np_arr = np.random.randn(20, 20).astype(dtype)
+    np_arr, _ = make_random((20, 20), dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
 
     np_sub = np_arr[5:15, 5:15]
@@ -995,9 +996,9 @@ def test_reduction_on_subview(dtype: str, op: str, capability: str):
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("op", ["argmin", "argmax"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_argreduction_on_subview(dtype: str, op: str, capability: str):
+def test_argreduction_on_subview(dtype: str, op: str, capability: str, nk_seed: int):
     keep_one_capability(capability)
-    np_arr = np.random.randn(20, 20).astype(dtype)
+    np_arr, _ = make_random((20, 20), dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
 
     np_sub = np_arr[5:15, 5:15]
@@ -1284,12 +1285,12 @@ def test_nk_dtype_numpy_roundtrip():
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_dots_packed_row_range(capability: str):
+def test_dots_packed_row_range(capability: str, nk_seed: int):
     """Test dots_packed with start_row/end_row splits produce the same result."""
     keep_one_capability(capability)
     height, depth, width = 100, 64, 50
-    left_matrix = np.random.randn(height, depth).astype(np.float32)
-    right_matrix = np.ascontiguousarray(np.random.randn(width, depth).astype(np.float32))
+    left_matrix, _ = make_random((height, depth), "float32", seed=nk_seed)
+    right_matrix = np.ascontiguousarray(make_random((width, depth), "float32", seed=nk_seed + 1)[0])
     right_packed = nk.dots_pack(right_matrix, dtype="float32")
 
     reference = np.array(nk.dots_packed(left_matrix, right_packed))
@@ -1303,7 +1304,7 @@ def test_dots_packed_row_range(capability: str):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_dots_symmetric_row_range(capability: str):
+def test_dots_symmetric_row_range(capability: str, nk_seed: int):
     """Test dots_symmetric with start_row/end_row.
 
     Only the upper triangle of the output is guaranteed to be initialized,
@@ -1311,7 +1312,7 @@ def test_dots_symmetric_row_range(capability: str):
     """
     keep_one_capability(capability)
     count, depth = 64, 32
-    vectors = np.random.randn(count, depth).astype(np.float32)
+    vectors, _ = make_random((count, depth), "float32", seed=nk_seed)
 
     reference = np.array(nk.dots_symmetric(vectors))
     mask = np.triu(np.ones((count, count), dtype=bool))
@@ -1326,7 +1327,7 @@ def test_dots_symmetric_row_range(capability: str):
 @pytest.mark.parametrize("threads", [0, 1, 4])
 @pytest.mark.parametrize("height", [63, 64, 129])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_dots_packed_threads(threads, height, capability):
+def test_dots_packed_threads(threads, height, capability, nk_seed: int):
     """Verify dots_packed and @ match the serial path across tile boundaries and thread counts.
 
     The packed row tile is 64, so heights straddling one and two tiles exercise both the whole-tile
@@ -1335,8 +1336,8 @@ def test_dots_packed_threads(threads, height, capability):
     """
     keep_one_capability(capability)
     depth, width = 64, 32
-    left_matrix = np.random.randn(height, depth).astype(np.float32)
-    right_matrix = np.ascontiguousarray(np.random.randn(width, depth).astype(np.float32))
+    left_matrix, _ = make_random((height, depth), "float32", seed=nk_seed)
+    right_matrix = np.ascontiguousarray(make_random((width, depth), "float32", seed=nk_seed + 1)[0])
     right_packed = nk.dots_pack(right_matrix, dtype="float32")
 
     serial = np.array(nk.dots_packed(left_matrix, right_packed, threads=1))
@@ -1351,7 +1352,7 @@ def test_dots_packed_threads(threads, height, capability):
 @pytest.mark.parametrize("threads", [0, 1, 4])
 @pytest.mark.parametrize("count", [31, 32, 65])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_dots_symmetric_threads(threads, count, capability):
+def test_dots_symmetric_threads(threads, count, capability, nk_seed: int):
     """Verify dots_symmetric matches the serial path across tile boundaries and thread counts.
 
     The symmetric row tile is 32; only the upper triangle is guaranteed written. threads=0 (all cores)
@@ -1359,7 +1360,7 @@ def test_dots_symmetric_threads(threads, count, capability):
     """
     keep_one_capability(capability)
     depth = 32
-    vectors = np.random.randn(count, depth).astype(np.float32)
+    vectors, _ = make_random((count, depth), "float32", seed=nk_seed)
     mask = np.triu(np.ones((count, count), dtype=bool))
 
     serial = np.array(nk.dots_symmetric(vectors, threads=1))
@@ -1431,14 +1432,14 @@ def test_gil_free_threading():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_gil_free_dots_packed_threading():
+def test_gil_free_dots_packed_threading(nk_seed: int):
     """Test multi-threaded dots_packed with start_row/end_row."""
     _skip_unless_free_threaded()
 
     height, depth, width = 200, 64, 50
     num_threads = min(multiprocessing.cpu_count(), 4)
-    left_matrix = np.random.randn(height, depth).astype(np.float32)
-    right_matrix = np.ascontiguousarray(np.random.randn(width, depth).astype(np.float32))
+    left_matrix, _ = make_random((height, depth), "float32", seed=nk_seed)
+    right_matrix = np.ascontiguousarray(make_random((width, depth), "float32", seed=nk_seed + 1)[0])
     right_packed = nk.dots_pack(right_matrix, dtype="float32")
 
     # Single-threaded reference
@@ -1462,7 +1463,7 @@ def test_gil_free_dots_packed_threading():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_gil_free_dots_symmetric_threading():
+def test_gil_free_dots_symmetric_threading(nk_seed: int):
     """Test multi-threaded dots_symmetric with start_row/end_row.
 
     The symmetric kernel only fills the upper triangle of each row's output.
@@ -1472,7 +1473,7 @@ def test_gil_free_dots_symmetric_threading():
 
     count, depth = 100, 64
     num_threads = min(multiprocessing.cpu_count(), 4)
-    vectors = np.random.randn(count, depth).astype(np.float32)
+    vectors, _ = make_random((count, depth), "float32", seed=nk_seed)
 
     # Single-threaded reference (upper triangle only is meaningful)
     reference = np.array(nk.dots_symmetric(vectors))
