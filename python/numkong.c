@@ -97,6 +97,7 @@
 #include "distance.h"
 #include "each.h"
 #include "mesh.h"
+#include "attention.h"
 #include "maxsim.h"
 #include "numpy_interop.h"
 #include "dlpack_interop.h"
@@ -1180,6 +1181,8 @@ static PyMethodDef nk_methods[] = {
     {"maxsim_pack", (PyCFunction)api_maxsim_pack, METH_FASTCALL | METH_KEYWORDS, doc_maxsim_pack},
     {"maxsim_packed", (PyCFunction)api_maxsim_packed, METH_FASTCALL | METH_KEYWORDS, doc_maxsim_packed},
     {"maxsim", (PyCFunction)api_maxsim, METH_FASTCALL | METH_KEYWORDS, doc_maxsim},
+    {"attention_pack", (PyCFunction)api_attention_pack, METH_FASTCALL | METH_KEYWORDS, doc_attention_pack},
+    {"attention_packed", (PyCFunction)api_attention_packed, METH_FASTCALL | METH_KEYWORDS, doc_attention_packed},
 
     // Sentinel
     {NULL, NULL, 0, NULL}};
@@ -1235,6 +1238,7 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     if (PyType_Ready(&TensorIterType) < 0) return NULL;
     if (PyType_Ready(&PackedMatrixType) < 0) return NULL;
     if (PyType_Ready(&MaxSimPackedMatrixType) < 0) return NULL;
+    if (PyType_Ready(&AttentionPackedKVType) < 0) return NULL;
     if (PyType_Ready(&MeshAlignmentResultType) < 0) return NULL;
 
     m = PyModule_Create(&nk_module);
@@ -1284,6 +1288,14 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     Py_INCREF(&MaxSimPackedMatrixType);
     if (PyModule_AddObject(m, "MaxSimPackedMatrix", (PyObject *)&MaxSimPackedMatrixType) < 0) {
         Py_XDECREF(&MaxSimPackedMatrixType);
+        Py_XDECREF(m);
+        return NULL;
+    }
+
+    // Register AttentionPackedKV type
+    Py_INCREF(&AttentionPackedKVType);
+    if (PyModule_AddObject(m, "AttentionPackedKV", (PyObject *)&AttentionPackedKVType) < 0) {
+        Py_XDECREF(&AttentionPackedKVType);
         Py_XDECREF(m);
         return NULL;
     }

@@ -269,6 +269,75 @@ void run_dots_packed(std::string name, //
                           bench_config.matrix_height, bench_config.matrix_width, bench_config.matrix_depth);
 }
 
+/**
+ *  @brief Ragged attention benchmark: pack KV once, then time the attention kernel on a
+ *         single self-attention segment.  Reports scalar-ops as 4 · heads · seq² · dim.
+ */
+template <nk_dtype_t input_dtype_>
+void measure_attention(                                                                  //
+    bm::State &state,                                                                    //
+    nk_size_t (*packed_size_fn)(nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t),      //
+    void (*pack_fn)(typename nk::type_for<input_dtype_>::type::raw_t const *,            //
+                    typename nk::type_for<input_dtype_>::type::raw_t const *, nk_size_t, //
+                    nk_size_t, nk_u32_t const *, nk_u32_t const *, nk_size_t, nk_size_t, //
+                    nk_size_t, void *, nk_size_t, nk_size_t),                            //
+    void (*attention_fn)(typename nk::type_for<input_dtype_>::type::raw_t const *,       //
+                         void const *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t,      //
+                         nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_size_t,    //
+                         nk_size_t),                                                     //
+    nk_size_t num_heads, nk_size_t seq_len, nk_size_t head_dim) {
+
+    using input_t = typename nk::type_for<input_dtype_>::type;
+    nk_size_t const row_values = num_heads * head_dim;
+    nk_size_t const row_bytes = row_values * sizeof(input_t);
+    nk_f32_t const scale = 1.0f / std::sqrt((nk_f32_t)head_dim);
+    nk_u32_t const segment_offsets[2] = {0, (nk_u32_t)seq_len};
+    nk_u32_t const segment_lengths[1] = {(nk_u32_t)seq_len};
+
+    auto q = make_vector<input_t>(seq_len * row_values);
+    auto k = make_vector<input_t>(seq_len * row_values);
+    auto v = make_vector<input_t>(seq_len * row_values);
+    auto output = make_vector<nk_f32_t>(seq_len * row_values);
+    auto generator = make_random_engine();
+    nk::fill_uniform(generator, q.values_data(), q.size_values());
+    nk::fill_uniform(generator, k.values_data(), k.size_values());
+    nk::fill_uniform(generator, v.values_data(), v.size_values());
+
+    auto kv_packed = make_vector<char>(packed_size_fn(num_heads, head_dim, segment_lengths, 1));
+    pack_fn(k.raw_values_data(), v.raw_values_data(), num_heads, head_dim, segment_offsets, segment_lengths, 1,
+            row_bytes, row_bytes, kv_packed.raw_values_data(), 0, 0);
+
+    std::size_t iterations = 0;
+    for (auto _ : state) {
+        attention_fn(q.raw_values_data(), kv_packed.raw_values_data(), output.raw_values_data(), num_heads, num_heads,
+                     head_dim, segment_offsets, row_bytes, row_values * sizeof(nk_f32_t), scale, 0, 0);
+        ++iterations;
+        bm::DoNotOptimize(output.raw_values_data());
+    }
+    state.counters["scalar-ops"] = bm::Counter(4.0 * iterations * num_heads * seq_len * seq_len * head_dim,
+                                               bm::Counter::kIsRate);
+}
+
+template <nk_dtype_t input_dtype_>
+void run_attention(                                                                      //
+    std::string name,                                                                    //
+    nk_size_t (*packed_size_fn)(nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t),      //
+    void (*pack_fn)(typename nk::type_for<input_dtype_>::type::raw_t const *,            //
+                    typename nk::type_for<input_dtype_>::type::raw_t const *, nk_size_t, //
+                    nk_size_t, nk_u32_t const *, nk_u32_t const *, nk_size_t, nk_size_t, //
+                    nk_size_t, void *, nk_size_t, nk_size_t),                            //
+    void (*attention_fn)(typename nk::type_for<input_dtype_>::type::raw_t const *,       //
+                         void const *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t,      //
+                         nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_size_t,    //
+                         nk_size_t)) {
+    nk_size_t const num_heads = 8, head_dim = 128;
+    nk_size_t const seq_len = bench_config.matrix_height > 0 ? bench_config.matrix_height : 1024;
+    std::string bench_name = name + "<" + std::to_string(num_heads) + "h_" + std::to_string(seq_len) + "q_" +
+                             std::to_string(seq_len) + "kv_" + std::to_string(head_dim) + "d>";
+    bm::RegisterBenchmark(bench_name.c_str(), measure_attention<input_dtype_>, packed_size_fn, pack_fn, attention_fn,
+                          num_heads, seq_len, head_dim);
+}
+
 template <nk_dtype_t input_dtype_>
 void measure_angulars_packed(                                                            //
     bm::State &state,                                                                    //

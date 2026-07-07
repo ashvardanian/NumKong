@@ -8,6 +8,7 @@
  */
 
 #include "numkong/dot.h"
+#include "numkong/attention.h"
 #include "numkong/dots.h"
 #include "numkong/sets.h"
 #include "numkong/spatials.h"
@@ -137,6 +138,11 @@ void bench_cross_x86() {
                               nk_jaccards_packed_u1_haswell);
     run_jaccards_symmetric<u1_k>("jaccards_symmetric_u1_haswell", nk_jaccards_symmetric_u1_haswell);
 
+    run_attention<bf16_k>("attention_packed_bf16_haswell", nk_attention_packed_size_bf16_haswell,
+                          nk_attention_pack_bf16_haswell, nk_attention_packed_bf16_haswell);
+    run_attention<e4m3_k>("attention_packed_e4m3_haswell", nk_attention_packed_size_e4m3_haswell,
+                          nk_attention_pack_e4m3_haswell, nk_attention_packed_e4m3_haswell);
+
 #endif
 
 #if NK_TARGET_SKYLAKE
@@ -218,6 +224,11 @@ void bench_cross_x86() {
     run_euclideans_symmetric<e4m3_k>("euclideans_symmetric_e4m3_skylake", nk_euclideans_symmetric_e4m3_skylake);
     run_euclideans_symmetric<e3m2_k>("euclideans_symmetric_e3m2_skylake", nk_euclideans_symmetric_e3m2_skylake);
     run_euclideans_symmetric<e2m3_k>("euclideans_symmetric_e2m3_skylake", nk_euclideans_symmetric_e2m3_skylake);
+
+    run_attention<bf16_k>("attention_packed_bf16_skylake", nk_attention_packed_size_bf16_skylake,
+                          nk_attention_pack_bf16_skylake, nk_attention_packed_bf16_skylake);
+    run_attention<e4m3_k>("attention_packed_e4m3_skylake", nk_attention_packed_size_e4m3_skylake,
+                          nk_attention_pack_e4m3_skylake, nk_attention_packed_e4m3_skylake);
 
 #endif
 
@@ -306,6 +317,12 @@ void bench_cross_x86() {
     run_euclideans_symmetric<bf16_k>("euclideans_symmetric_bf16_genoa", nk_euclideans_symmetric_bf16_genoa);
     run_euclideans_symmetric<e5m2_k>("euclideans_symmetric_e5m2_genoa", nk_euclideans_symmetric_e5m2_genoa);
     run_euclideans_symmetric<e4m3_k>("euclideans_symmetric_e4m3_genoa", nk_euclideans_symmetric_e4m3_genoa);
+
+    run_attention<bf16_k>("attention_packed_bf16_genoa", nk_attention_packed_size_bf16_genoa,
+                          nk_attention_pack_bf16_genoa, nk_attention_packed_bf16_genoa);
+    run_attention<e4m3_k>("attention_packed_e4m3_genoa", nk_attention_packed_size_e4m3_genoa,
+                          nk_attention_pack_e4m3_genoa, nk_attention_packed_e4m3_genoa);
+
 #endif
 
 #if NK_TARGET_DIAMOND

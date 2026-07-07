@@ -248,6 +248,11 @@ typedef enum {
     nk_kernel_maxsim_pack_k = 'l',        ///< MaxSim vector packing
     nk_kernel_maxsim_packed_k = 'T',      ///< MaxSim late-interaction computation
 
+    // Ragged scaled-dot-product attention functions:
+    nk_kernel_attention_packed_size_k = 'B', ///< Attention packed KV-cache Buffer size in Bytes
+    nk_kernel_attention_pack_k = 'V',        ///< Attention K/V packing (KV cache → backend format)
+    nk_kernel_attention_packed_k = 'F',      ///< Fused (Flash-style) attention computation
+
     nk_kernel_cast_k = '-',              ///< Type casting from one type to another
     nk_kernel_cast_block_scaled_k = '~', ///< Block-scaled cast (MX / NVFP4 encode / decode / transcode)
 
@@ -383,6 +388,17 @@ typedef void (*nk_euclideans_symmetric_punned_t)(void const *vectors, nk_size_t 
 
 typedef void (*nk_maxsim_packed_punned_t)(void const *q_packed, void const *d_packed, nk_size_t query_count,
                                           nk_size_t document_count, nk_size_t depth, void *result);
+
+typedef nk_size_t (*nk_attention_packed_size_punned_t)(nk_size_t num_kv_heads, nk_size_t head_dim,
+                                                       nk_u32_t const *segment_lengths, nk_size_t segment_count);
+typedef void (*nk_attention_pack_punned_t)(void const *k, void const *v, nk_size_t num_kv_heads, nk_size_t head_dim,
+                                           nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                           nk_size_t segment_count, nk_size_t k_stride_bytes, nk_size_t v_stride_bytes,
+                                           void *kv_packed, nk_size_t first_task, nk_size_t task_count);
+typedef void (*nk_attention_packed_punned_t)(void const *q, void const *kv_packed, void *output, nk_size_t num_heads,
+                                             nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets,
+                                             nk_size_t q_stride_bytes, nk_size_t o_stride_bytes, nk_f32_t scale,
+                                             nk_size_t first_task, nk_size_t task_count);
 
 typedef void (*nk_kernel_cast_punned_t)(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
                                         nk_dtype_t to_type);

@@ -6,6 +6,7 @@
  */
 
 #include "numkong/dot.h"
+#include "numkong/attention.h"
 #include "numkong/dots.h"
 #include "numkong/spatials.h"
 
@@ -22,6 +23,7 @@ void bench_cross_amx() {
     constexpr nk_dtype_t u8_k = nk_u8_k;
 
 #if NK_TARGET_SAPPHIREAMX
+
     run_dots_packed<bf16_k>("dots_packed_bf16_sapphireamx", nk_dots_packed_size_bf16_sapphireamx,
                             nk_dots_pack_bf16_sapphireamx, nk_dots_packed_bf16_sapphireamx);
     run_dots_packed<e5m2_k>("dots_packed_e5m2_sapphireamx", nk_dots_packed_size_e5m2_sapphireamx,
@@ -44,6 +46,13 @@ void bench_cross_amx() {
     run_dots_symmetric<e2m3_k>("dots_symmetric_e2m3_sapphireamx", nk_dots_symmetric_e2m3_sapphireamx);
     run_dots_symmetric<i8_k>("dots_symmetric_i8_sapphireamx", nk_dots_symmetric_i8_sapphireamx);
     run_dots_symmetric<u8_k>("dots_symmetric_u8_sapphireamx", nk_dots_symmetric_u8_sapphireamx);
+
+    run_attention<bf16_k>("attention_packed_bf16_sapphireamx", nk_attention_packed_size_bf16_sapphireamx,
+                          nk_attention_pack_bf16_sapphireamx, nk_attention_packed_bf16_sapphireamx);
+    run_attention<e4m3_k>("attention_packed_e4m3_sapphireamx", nk_attention_packed_size_e4m3_sapphireamx,
+                          nk_attention_pack_e4m3_sapphireamx, nk_attention_packed_e4m3_sapphireamx);
+    run_attention<i8_k>("attention_packed_i8_sapphireamx", nk_attention_packed_size_i8_sapphireamx,
+                        nk_attention_pack_i8_sapphireamx, nk_attention_packed_i8_sapphireamx);
 #endif
 
 #if NK_TARGET_GRANITEAMX

@@ -1540,6 +1540,7 @@ struct bf16_t {
     using scale_t = nk_f32_t;
     using sparse_dot_index_t = u16_t;
     using dot_result_t = f32_t;           // `nk_dot_bf16` output
+    using attention_result_t = f32_t;     // `nk_attention_packed_*` output
     using sqeuclidean_result_t = f32_t;   // `nk_sqeuclidean_bf16` output
     using euclidean_result_t = f32_t;     // `nk_euclidean_bf16` output
     using angular_result_t = f32_t;       // `nk_angular_bf16` output
@@ -1573,6 +1574,12 @@ struct bf16_t {
                                             nk_size_t *);
     using dots_packed_size_kernel_t = nk_size_t (*)(nk_size_t, nk_size_t);
     using dots_pack_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *);
+    using attention_packed_size_kernel_t = nk_size_t (*)(nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t);
+    using attention_pack_kernel_t = void (*)(raw_t const *, raw_t const *, nk_size_t, nk_size_t, nk_u32_t const *,
+                                             nk_u32_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
+                                             nk_size_t);
+    using attention_packed_kernel_t = void (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t,
+                                               nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_size_t, nk_size_t);
     using dots_packed_kernel_t = void (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t,
                                           nk_size_t, nk_size_t);
     using dots_symmetric_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t,
@@ -1986,6 +1993,7 @@ struct e4m3_t {
     // Type aliases for mixed precision operations
     using scale_t = nk_f32_t;
     using dot_result_t = f32_t;           // `nk_dot_e4m3` output
+    using attention_result_t = f32_t;     // `nk_attention_packed_*` output
     using sqeuclidean_result_t = f32_t;   // `nk_sqeuclidean_e4m3` output
     using euclidean_result_t = f32_t;     // `nk_euclidean_e4m3` output
     using angular_result_t = f32_t;       // `nk_angular_e4m3` output
@@ -2008,6 +2016,12 @@ struct e4m3_t {
                                             nk_size_t *);
     using dots_packed_size_kernel_t = nk_size_t (*)(nk_size_t, nk_size_t);
     using dots_pack_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *);
+    using attention_packed_size_kernel_t = nk_size_t (*)(nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t);
+    using attention_pack_kernel_t = void (*)(raw_t const *, raw_t const *, nk_size_t, nk_size_t, nk_u32_t const *,
+                                             nk_u32_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
+                                             nk_size_t);
+    using attention_packed_kernel_t = void (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t,
+                                               nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_size_t, nk_size_t);
     using dots_packed_kernel_t = void (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t,
                                           nk_size_t, nk_size_t);
     using dots_symmetric_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t,
@@ -3883,6 +3897,7 @@ struct i8_t {
     // Type aliases for mixed precision operations
     using scale_t = nk_f32_t;
     using dot_result_t = i32_t;           // `nk_dot_i8` output
+    using attention_result_t = f32_t;     // `nk_attention_packed_*` output
     using sqeuclidean_result_t = u32_t;   // `nk_sqeuclidean_i8` output
     using euclidean_result_t = f32_t;     // `nk_euclidean_i8` output
     using angular_result_t = f32_t;       // `nk_angular_i8` output
@@ -3905,6 +3920,12 @@ struct i8_t {
                                             nk_size_t *);
     using dots_packed_size_kernel_t = nk_size_t (*)(nk_size_t, nk_size_t);
     using dots_pack_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *);
+    using attention_packed_size_kernel_t = nk_size_t (*)(nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t);
+    using attention_pack_kernel_t = void (*)(raw_t const *, raw_t const *, nk_size_t, nk_size_t, nk_u32_t const *,
+                                             nk_u32_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
+                                             nk_size_t);
+    using attention_packed_kernel_t = void (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t,
+                                               nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_size_t, nk_size_t);
     using dots_packed_kernel_t = void (*)(raw_t const *, void const *, nk_i32_t *, nk_size_t, nk_size_t, nk_size_t,
                                           nk_size_t, nk_size_t);
     using dots_symmetric_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_i32_t *, nk_size_t,

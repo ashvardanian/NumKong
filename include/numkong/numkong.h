@@ -28,6 +28,7 @@
 #include "numkong/spatial.h"      // Euclidean, Angular, like `nk_euclidean_f64`
 #include "numkong/spatials.h"     // Batched Angular & Euclidean distances, like `nk_angulars_packed_f32`
 #include "numkong/maxsim.h"       // MaxSim: Multi-Vector Maximum Similarity, like `nk_maxsim_packed_f32`
+#include "numkong/attention.h"    // Ragged Transformer attention, like `nk_attention_packed_bf16`
 #include "numkong/trigonometry.h" // Sin, Cos, Atan, like `nk_each_sin_f64`
 
 #if defined(__cplusplus)
@@ -67,6 +68,7 @@ NK_PUBLIC nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk_dtype_t in
     case nk_kernel_umeyama_k: return nk_mesh_metric_dtype(input);
     case nk_kernel_sparse_dot_k: return nk_sparse_dot_output_dtype(input);
     case nk_kernel_maxsim_packed_k: return nk_maxsim_output_dtype(input);
+    case nk_kernel_attention_packed_k: return nk_attention_output_dtype(input);
     default: return nk_dtype_unknown_k;
     }
 }

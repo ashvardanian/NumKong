@@ -106,6 +106,7 @@
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 
 // Domain modules
+pub mod attention;
 pub mod capabilities;
 pub mod cast;
 pub mod curved;
@@ -191,6 +192,9 @@ pub use matrix::{
 pub use vector::{Vector, VectorIndex, VectorIterator, VectorSpan, VectorSpanIterator, VectorView, VectorViewIterator};
 
 // Re-export maxsim types
+// Re-export attention types
+pub use attention::{Attention, AttentionPackedKV};
+
 pub use maxsim::{MaxSim, MaxSimPackedMatrix};
 
 // region: Tests
@@ -234,6 +238,28 @@ mod tests {
         assert_eq!(docs_packed.dims(), (8, 16));
         let score = queries_packed.score(&docs_packed);
         assert!(score.is_finite(), "MaxSim score must be finite, got {score}");
+    }
+
+    #[test]
+    fn attention_smoke() {
+        capabilities::configure_thread();
+        let (tokens, kv_heads, head_dim) = (24usize, 2usize, 32usize);
+        let keys = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.25)).unwrap();
+        let values = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.5)).unwrap();
+        let offsets = [0u32, 10, 24];
+
+        let kv = AttentionPackedKV::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
+        assert_eq!(kv.segments(), 2);
+        assert_eq!(kv.kv_heads(), kv_heads);
+        assert_eq!(kv.head_dim(), head_dim);
+        assert_eq!(kv.tokens(), tokens);
+
+        // With constant V, softmax weights sum to 1 → every output equals V's value.
+        let outputs = kv.try_attention(&keys.view(), &offsets, None).unwrap();
+        assert_eq!(outputs.shape(), [tokens, kv_heads * head_dim]);
+        for &x in outputs.as_slice() {
+            assert!((x - 0.5).abs() < 1e-2, "expected 0.5, got {x}");
+        }
     }
 
     #[test]

@@ -78,6 +78,11 @@ module CNumKongKernels {
         export *
     }
 
+    explicit module Attention {
+        header "numkong/attention.h"
+        export *
+    }
+
     explicit module MaxSim {
         header "numkong/maxsim.h"
         export *

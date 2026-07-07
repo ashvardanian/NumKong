@@ -457,6 +457,7 @@ base_sources = [
     "python/distance.c",
     "python/each.c",
     "python/mesh.c",
+    "python/attention.c",
     "python/maxsim.c",
     "python/numpy_interop.c",
     "python/dlpack_interop.c",
