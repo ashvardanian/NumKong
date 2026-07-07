@@ -1141,6 +1141,7 @@ static PyMethodDef nk_methods[] = {
     // Tensor reductions
     {"moments", (PyCFunction)api_moments, METH_FASTCALL | METH_KEYWORDS, doc_reduce_moments},
     {"minmax", (PyCFunction)api_minmax, METH_FASTCALL | METH_KEYWORDS, doc_reduce_minmax},
+    {"rmsnorm", (PyCFunction)api_rmsnorm, METH_FASTCALL | METH_KEYWORDS, doc_rmsnorm},
     {"sum", (PyCFunction)api_sum, METH_FASTCALL | METH_KEYWORDS, doc_reduce_sum},
     {"norm", (PyCFunction)api_norm, METH_FASTCALL | METH_KEYWORDS, doc_reduce_norm},
     {"min", (PyCFunction)api_min, METH_FASTCALL | METH_KEYWORDS, doc_reduce_min},
@@ -1152,6 +1153,7 @@ static PyMethodDef nk_methods[] = {
     {"fma", (PyCFunction)api_fma, METH_FASTCALL | METH_KEYWORDS, doc_fma},
     {"blend", (PyCFunction)api_blend, METH_FASTCALL | METH_KEYWORDS, doc_blend},
     {"scale", (PyCFunction)api_scale, METH_FASTCALL | METH_KEYWORDS, doc_scale},
+    {"swiglu", (PyCFunction)api_swiglu, METH_FASTCALL | METH_KEYWORDS, doc_swiglu},
     {"add", (PyCFunction)api_add, METH_FASTCALL | METH_KEYWORDS, doc_add},
     {"multiply", (PyCFunction)api_multiply, METH_FASTCALL | METH_KEYWORDS, doc_multiply},
 
@@ -1162,6 +1164,7 @@ static PyMethodDef nk_methods[] = {
     {"sin", (PyCFunction)api_sin, METH_FASTCALL | METH_KEYWORDS, doc_sin},
     {"cos", (PyCFunction)api_cos, METH_FASTCALL | METH_KEYWORDS, doc_cos},
     {"atan", (PyCFunction)api_atan, METH_FASTCALL | METH_KEYWORDS, doc_atan},
+    {"rope", (PyCFunction)api_rope, METH_FASTCALL | METH_KEYWORDS, doc_rope},
 
     // Mesh alignment (point cloud registration)
     {"kabsch", (PyCFunction)api_kabsch, METH_FASTCALL | METH_KEYWORDS, doc_kabsch},

@@ -33,6 +33,7 @@ from test_base import (
     create_stats,
     dense_dimensions,
     keep_one_capability,
+    make_nk,
     make_random,
     nk_seed,  # noqa: F401 — pytest fixture
     numpy_available,
@@ -43,6 +44,7 @@ from test_base import (
     random_of_dtype,
     randomized_repetitions_count,
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
+    tolerances_for_dtype,
 )
 
 import numkong as nk
@@ -133,6 +135,15 @@ def baseline_multiply(x, y, out=None):
     result = np.multiply(a, b, out=out, casting="unsafe")
     result = normalize_elementwise(result, final_dtype)
     return result
+
+
+def baseline_swiglu(gate, up, input_scale):
+    """NumPy float64 reference for SwiGLU / SiLU over the rounded inputs."""
+    g = np.asarray(gate, dtype=np.float64) * input_scale
+    y = g / (1.0 + np.exp(-g))  # SiLU
+    if up is not None:
+        y = y * (np.asarray(up, dtype=np.float64) * input_scale)
+    return y
 
 
 _INT_CLIP_RANGES = {
@@ -792,3 +803,34 @@ def test_blend_known(ndim: int, dtype: str, capability: str):
     result = list(nk.blend(a, b, alpha=2.0, beta=3.0))
     for i in range(ndim):
         assert abs(result[i] - expected) < NK_ATOL, f"blend[{i}] = {result[i]}, expected {expected}"
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("shape", [(1, 8), (3, 100), (8, 128), (5, 63)])
+@pytest.mark.parametrize("with_up", [False, True])
+@pytest.mark.parametrize(
+    "dtype", [pytest.param("float32", id="f32"), pytest.param("bf16", id="bf16"), pytest.param("e4m3", id="e4m3")]
+)
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_swiglu(shape, with_up, dtype, capability, nk_seed):
+    """Test nk.swiglu() (and plain SiLU when up=None) against a float64 reference."""
+    keep_one_capability(capability)
+    gate_raw, gate_base = make_random(shape, dtype, seed=nk_seed)
+    nk_gate = make_nk(gate_raw, dtype)
+    if with_up:
+        up_raw, up_base = make_random(shape, dtype, seed=nk_seed + 1)
+        nk_up = make_nk(up_raw, dtype)
+    else:
+        nk_up, up_base = None, None
+    input_scale = 0.75 if dtype == "e4m3" else 1.0
+
+    result = nk.swiglu(nk_gate, nk_up, input_scale=input_scale)
+    y = np.asarray(result if dtype == "float32" else result.astype("float32"))
+
+    expected = baseline_swiglu(gate_base, up_base, input_scale)
+    if dtype != "float32":  # round the reference through the lossy output dtype (matches what the kernel stores)
+        expected = np.asarray(
+            nk.Tensor(np.ascontiguousarray(expected.astype(np.float32))).astype(dtype).astype("float32")
+        ).astype(np.float64)
+    atol, rtol = tolerances_for_dtype(dtype)
+    assert_allclose(y, expected, atol=atol, rtol=rtol)

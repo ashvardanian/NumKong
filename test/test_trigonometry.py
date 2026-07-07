@@ -32,6 +32,7 @@ from test_base import (
     create_stats,
     dense_dimensions,
     keep_one_capability,
+    make_nk,
     make_random,
     make_random_buffer,
     nk_seed,  # noqa: F401 — pytest fixture
@@ -41,6 +42,7 @@ from test_base import (
     profile,
     randomized_repetitions_count,
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
+    tolerances_for_dtype,
 )
 
 import numkong as nk
@@ -65,6 +67,20 @@ def baseline_cos(a, dtype=None):
 def baseline_atan(a, dtype=None):
     """Reference arctan via NumPy."""
     return np.arctan(a)
+
+
+def baseline_rope(x, cos, sin, heads, half_dim):
+    """NumPy float64 reference for NeoX split-half RoPE over the rounded input."""
+    xf = np.asarray(x, dtype=np.float64)
+    y = xf.copy()
+    for r in range(xf.shape[0]):
+        cosine, sine = cos[r].astype(np.float64), sin[r].astype(np.float64)
+        for h in range(heads):
+            b = h * 2 * half_dim
+            low, high = xf[r, b : b + half_dim], xf[r, b + half_dim : b + 2 * half_dim]
+            y[r, b : b + half_dim] = low * cosine - high * sine
+            y[r, b + half_dim : b + 2 * half_dim] = low * sine + high * cosine
+    return y
 
 
 def precise_sin(a, dtype=None):
@@ -121,7 +137,18 @@ def test_trigonometry_random_accuracy(shape: tuple, dtype: str, metric: str, cap
         expected = np.asarray(expected).reshape(-1)
 
     assert_allclose(result, accurate, atol=NK_ATOL, rtol=NK_RTOL)
-    collect_errors(metric, len(accurate), dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors(
+        metric,
+        len(accurate),
+        dtype,
+        accurate,
+        accurate_dt,
+        expected,
+        expected_dt,
+        result,
+        result_dt,
+        stats,
+    )
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -191,3 +218,47 @@ def test_trigonometry_odd_even(ndim: int, dtype: str, capability: str):
             assert abs(cos_negative[i] - cos_positive[i]) < NK_ATOL, (
                 f"cos(-{random_angles}) - cos({random_angles}) = {cos_negative[i] - cos_positive[i]}"
             )
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+# (rows, heads, half_dim)
+@pytest.mark.parametrize("geom", [(4, 1, 4), (3, 2, 8), (5, 1, 64), (2, 3, 20)])
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        pytest.param("float32", id="f32"),
+        pytest.param("bf16", id="bf16"),
+        pytest.param("e4m3", id="e4m3"),
+    ],
+)
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_rope(geom, dtype, capability, nk_seed):
+    """Test nk.rope() out-of-place and in-place (out == x) against a float64 rotate-half reference."""
+    keep_one_capability(capability)
+    rows, heads, half_dim = geom
+    width = heads * 2 * half_dim
+    rng = np.random.default_rng(nk_seed)
+    angles = rng.standard_normal((rows, half_dim)).astype(np.float32) * 0.5
+    cos = np.cos(angles).astype(np.float32)
+    sin = np.sin(angles).astype(np.float32)
+    x_raw, x_base = make_random((rows, width), dtype, seed=nk_seed)
+
+    expected = baseline_rope(x_base, cos, sin, heads, half_dim)
+    if dtype != "float32":  # round the reference through the lossy output dtype
+        expected = np.asarray(
+            nk.Tensor(np.ascontiguousarray(expected.astype(np.float32))).astype(dtype).astype("float32")
+        ).astype(np.float64)
+    atol, rtol = tolerances_for_dtype(dtype)
+
+    # Out-of-place: rotate x into a separate output buffer.
+    nk_x = make_nk(x_raw, dtype)
+    nk_y = make_nk(x_raw, dtype)
+    nk.rope(nk_x, cos, sin, heads, half_dim, out=nk_y)
+    y_out = np.asarray(nk_y if dtype == "float32" else nk_y.astype("float32"))
+    assert_allclose(y_out, expected, atol=atol, rtol=rtol)
+
+    # In-place: out defaults to x.
+    nk_inplace = make_nk(x_raw, dtype)
+    nk.rope(nk_inplace, cos, sin, heads, half_dim)
+    y_inplace = np.asarray(nk_inplace if dtype == "float32" else nk_inplace.astype("float32"))
+    assert_allclose(y_inplace, expected, atol=atol, rtol=rtol)

@@ -278,6 +278,41 @@ NK_DYNAMIC void nk_reduce_minmax_u1(nk_u1x8_t const *data, nk_size_t count, nk_s
                                     nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr, nk_u8_t *max_value_ptr,
                                     nk_size_t *max_index_ptr);
 
+/**
+ *  @brief  Grouped RMSNorm: y = x * rsqrt(mean(x^2) + eps) * gamma, with gamma = NULL meaning unit scale.
+ *  @param[in] x Input matrix; each row holds `groups` independent `cols`-vectors, normalized separately.
+ *  @param[in] gamma Per-column gain of length `cols`, shared across groups and rows; NULL for unit scale.
+ *  @param[out] y Output matrix, same shape and dtype as `x`; may alias `x` for in-place operation.
+ *  @param[in] rows Number of rows in the input and output matrices.
+ *  @param[in] groups Number of independent normalization groups per row.
+ *  @param[in] cols Number of columns per group.
+ *  @param[in] x_row_stride Row (outer) stride of `x` in bytes; groups are packed at `group * cols`.
+ *  @param[in] y_row_stride Row (outer) stride of `y` in bytes.
+ *  @param[in] eps Variance epsilon added before the reciprocal square root.
+ *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32).
+ */
+NK_DYNAMIC void nk_reduce_rmsnorm_f32(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y, nk_size_t rows,
+                                      nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                      nk_f32_t eps, nk_f32_t input_scale);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NK_DYNAMIC void nk_reduce_rmsnorm_bf16(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y, nk_size_t rows,
+                                       nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                       nk_f32_t eps, nk_f32_t input_scale);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NK_DYNAMIC void nk_reduce_rmsnorm_e4m3(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y, nk_size_t rows,
+                                       nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                       nk_f32_t eps, nk_f32_t input_scale);
+
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NK_PUBLIC void nk_reduce_rmsnorm_f32_serial(nk_f32_t const *, nk_f32_t const *, nk_f32_t *, nk_size_t, nk_size_t,
+                                            nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NK_PUBLIC void nk_reduce_rmsnorm_bf16_serial(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t, nk_size_t,
+                                             nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NK_PUBLIC void nk_reduce_rmsnorm_e4m3_serial(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t, nk_size_t,
+                                             nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+
 /** @copydoc nk_reduce_moments_f64 */
 NK_PUBLIC void nk_reduce_moments_f32_serial(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
 /** @copydoc nk_reduce_moments_f64 */
@@ -560,6 +595,15 @@ NK_PUBLIC void nk_reduce_minmax_e2m3_haswell(nk_e2m3_t const *, nk_size_t, nk_si
 /** @copydoc nk_reduce_minmax_f64 */
 NK_PUBLIC void nk_reduce_minmax_e3m2_haswell(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *, nk_size_t *,
                                              nk_e3m2_t *, nk_size_t *);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NK_PUBLIC void nk_reduce_rmsnorm_f32_haswell(nk_f32_t const *, nk_f32_t const *, nk_f32_t *, nk_size_t, nk_size_t,
+                                             nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NK_PUBLIC void nk_reduce_rmsnorm_bf16_haswell(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t, nk_size_t,
+                                              nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NK_PUBLIC void nk_reduce_rmsnorm_e4m3_haswell(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t, nk_size_t,
+                                              nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
 #endif // NK_TARGET_HASWELL
 
 #if NK_TARGET_SKYLAKE
@@ -649,6 +693,15 @@ NK_PUBLIC void nk_reduce_minmax_e2m3_skylake(nk_e2m3_t const *, nk_size_t, nk_si
 /** @copydoc nk_reduce_minmax_f64 */
 NK_PUBLIC void nk_reduce_minmax_e3m2_skylake(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *, nk_size_t *,
                                              nk_e3m2_t *, nk_size_t *);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NK_PUBLIC void nk_reduce_rmsnorm_f32_skylake(nk_f32_t const *, nk_f32_t const *, nk_f32_t *, nk_size_t, nk_size_t,
+                                             nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NK_PUBLIC void nk_reduce_rmsnorm_bf16_skylake(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t, nk_size_t,
+                                              nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NK_PUBLIC void nk_reduce_rmsnorm_e4m3_skylake(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t, nk_size_t,
+                                              nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
 #endif // NK_TARGET_SKYLAKE
 
 #if NK_TARGET_ICELAKE
@@ -671,6 +724,12 @@ NK_PUBLIC void nk_reduce_moments_bf16_genoa(nk_bf16_t const *, nk_size_t, nk_siz
 NK_PUBLIC void nk_reduce_moments_e4m3_genoa(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
 /** @copydoc nk_reduce_moments_f64 */
 NK_PUBLIC void nk_reduce_moments_e5m2_genoa(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NK_PUBLIC void nk_reduce_rmsnorm_bf16_genoa(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t, nk_size_t,
+                                            nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NK_PUBLIC void nk_reduce_rmsnorm_e4m3_genoa(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t, nk_size_t,
+                                            nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
 #endif // NK_TARGET_GENOA
 
 #if NK_TARGET_ALDER
@@ -1571,6 +1630,46 @@ NK_PUBLIC void nk_reduce_moments_u1(nk_u1x8_t const *d, nk_size_t n, nk_size_t s
 NK_PUBLIC void nk_reduce_minmax_u1(nk_u1x8_t const *d, nk_size_t n, nk_size_t s, nk_u8_t *mn, nk_size_t *mi,
                                    nk_u8_t *mx, nk_size_t *xi) {
     nk_reduce_minmax_u1_serial(d, n, s, mn, mi, mx, xi);
+}
+
+NK_PUBLIC void nk_reduce_rmsnorm_f32(nk_f32_t const *x, nk_f32_t const *g, nk_f32_t *y, nk_size_t rows,
+                                     nk_size_t groups, nk_size_t cols, nk_size_t xs, nk_size_t ys, nk_f32_t eps,
+                                     nk_f32_t input_scale) {
+#if NK_TARGET_SKYLAKE
+    nk_reduce_rmsnorm_f32_skylake(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
+#elif NK_TARGET_HASWELL
+    nk_reduce_rmsnorm_f32_haswell(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
+#else
+    nk_reduce_rmsnorm_f32_serial(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
+#endif
+}
+
+NK_PUBLIC void nk_reduce_rmsnorm_bf16(nk_bf16_t const *x, nk_f32_t const *g, nk_bf16_t *y, nk_size_t rows,
+                                      nk_size_t groups, nk_size_t cols, nk_size_t xs, nk_size_t ys, nk_f32_t eps,
+                                      nk_f32_t input_scale) {
+#if NK_TARGET_GENOA
+    nk_reduce_rmsnorm_bf16_genoa(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
+#elif NK_TARGET_SKYLAKE
+    nk_reduce_rmsnorm_bf16_skylake(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
+#elif NK_TARGET_HASWELL
+    nk_reduce_rmsnorm_bf16_haswell(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
+#else
+    nk_reduce_rmsnorm_bf16_serial(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
+#endif
+}
+
+NK_PUBLIC void nk_reduce_rmsnorm_e4m3(nk_e4m3_t const *x, nk_f32_t const *g, nk_e4m3_t *y, nk_size_t rows,
+                                      nk_size_t groups, nk_size_t cols, nk_size_t xs, nk_size_t ys, nk_f32_t eps,
+                                      nk_f32_t input_scale) {
+#if NK_TARGET_GENOA
+    nk_reduce_rmsnorm_e4m3_genoa(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
+#elif NK_TARGET_SKYLAKE
+    nk_reduce_rmsnorm_e4m3_skylake(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
+#elif NK_TARGET_HASWELL
+    nk_reduce_rmsnorm_e4m3_haswell(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
+#else
+    nk_reduce_rmsnorm_e4m3_serial(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
+#endif
 }
 
 #endif // !NK_DYNAMIC_DISPATCH

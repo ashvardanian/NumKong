@@ -498,6 +498,471 @@ cleanup:
     return return_obj;
 }
 
+char const doc_rmsnorm[] =                                                                           //
+    "Grouped RMSNorm: y = x * rsqrt(mean(x^2) + eps) * gamma.\n\n"                                   //
+    "Each row (all axes but the last) holds `groups` independent `cols`-vectors, normalized\n"       //
+    "separately, where `cols = x.shape[-1] // groups`.\n\n"                                          //
+    "Parameters:\n"                                                                                  //
+    "    x (Tensor): Input of dtype float32, bfloat16, or e4m3; last axis contiguous.\n"             //
+    "    gamma (Tensor, optional): Per-column float32 gain of length `cols`; None for unit scale.\n" //
+    "    out (Tensor, optional): Output buffer (same shape/dtype as x); may alias x.\n"              //
+    "    groups (int, optional): Independent sub-vectors per row, 1 by default.\n"                   //
+    "    eps (float, optional): Variance epsilon, 1e-6 by default.\n"                                //
+    "    input_scale (float, optional): Scale folded onto each loaded element, 1.0 by default.\n\n"  //
+    "Returns:\n"                                                                                     //
+    "    Tensor: The result if `out` is not provided.\n"                                             //
+    "    None: If `out` is provided (in-place operation).\n\n"                                       //
+    "Signature:\n"                                                                                   //
+    "    >>> def rmsnorm(x, gamma=None, /, *, out, groups, eps, input_scale) -> Optional[Tensor]: ...";
+
+PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
+                      PyObject *args_names_tuple) {
+    nk_unused_(self);
+    PyObject *return_obj = NULL;
+    PyObject *x_obj = NULL, *gamma_obj = NULL, *out_obj = NULL;
+    PyObject *groups_obj = NULL, *eps_obj = NULL, *input_scale_obj = NULL;
+
+    Py_buffer x_buffer, gamma_buffer, out_buffer;
+    nk_buffer_backing_t x_backing, gamma_backing, out_backing;
+    memset(&x_buffer, 0, sizeof(Py_buffer));
+    memset(&gamma_buffer, 0, sizeof(Py_buffer));
+    memset(&out_buffer, 0, sizeof(Py_buffer));
+    int have_gamma = 0;
+
+    Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
+    Py_ssize_t const args_count = positional_args_count + args_names_count;
+    if (args_count < 1 || args_count > 6) {
+        PyErr_Format(PyExc_TypeError, "Function expects 1-6 arguments, got %zd", args_count);
+        return NULL;
+    }
+    if (positional_args_count > 2) {
+        PyErr_Format(PyExc_TypeError, "Only first 2 arguments can be positional, received %zd", positional_args_count);
+        return NULL;
+    }
+    x_obj = args[0];
+    if (positional_args_count == 2) gamma_obj = args[1];
+    for (Py_ssize_t k = 0, p = positional_args_count; k < args_names_count; ++p, ++k) {
+        PyObject *const key = PyTuple_GetItem(args_names_tuple, k);
+        PyObject *const value = args[p];
+        if (PyUnicode_CompareWithASCIIString(key, "gamma") == 0 && !gamma_obj) gamma_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) out_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "groups") == 0 && !groups_obj) groups_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "eps") == 0 && !eps_obj) eps_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "input_scale") == 0 && !input_scale_obj) input_scale_obj = value;
+        else {
+            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
+            return NULL;
+        }
+    }
+
+    nk_size_t groups = 1;
+    nk_f32_t eps = 1e-6f, input_scale = 1.0f;
+    if (groups_obj) {
+        long g = PyLong_AsLong(groups_obj);
+        if (g <= 0) {
+            if (!PyErr_Occurred()) PyErr_SetString(PyExc_ValueError, "groups must be positive");
+            return NULL;
+        }
+        groups = (nk_size_t)g;
+    }
+    if (eps_obj) {
+        double e = PyFloat_AsDouble(eps_obj);
+        if (PyErr_Occurred()) return NULL;
+        eps = (nk_f32_t)e;
+    }
+    if (input_scale_obj) {
+        double s = PyFloat_AsDouble(input_scale_obj);
+        if (PyErr_Occurred()) return NULL;
+        input_scale = (nk_f32_t)s;
+    }
+    if (gamma_obj == Py_None) gamma_obj = NULL;
+
+    if (!nk_get_buffer(x_obj, &x_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &x_backing)) return NULL;
+    if (x_buffer.ndim < 1 || x_buffer.ndim > NK_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "Tensor rank %d unsupported", x_buffer.ndim);
+        goto cleanup;
+    }
+    nk_dtype_t dtype = resolve_nk_dtype_in_py_buffer(&x_buffer);
+    if (dtype != nk_f32_k && dtype != nk_bf16_k && dtype != nk_e4m3_k) {
+        PyErr_Format(PyExc_TypeError, "rmsnorm supports f32, bf16, e4m3; got '%s'", nk_dtype_name(dtype));
+        goto cleanup;
+    }
+    int const ndim = x_buffer.ndim;
+    size_t const elem = nk_dtype_bytes_per_value(dtype);
+    nk_size_t const width = (nk_size_t)x_buffer.shape[ndim - 1];
+    if ((size_t)x_buffer.strides[ndim - 1] != elem) {
+        PyErr_SetString(PyExc_ValueError, "rmsnorm requires the last axis to be contiguous");
+        goto cleanup;
+    }
+    if (groups == 0 || width % groups != 0) {
+        PyErr_Format(PyExc_ValueError, "last axis (%zu) not divisible by groups (%zu)", (size_t)width, (size_t)groups);
+        goto cleanup;
+    }
+    nk_size_t const cols = width / groups;
+    nk_size_t rows = 1;
+    for (int d = 0; d < ndim - 1; ++d) rows *= (nk_size_t)x_buffer.shape[d];
+    for (int d = 0; d + 2 < ndim; ++d) {
+        if (x_buffer.strides[d] != x_buffer.shape[d + 1] * x_buffer.strides[d + 1]) {
+            PyErr_SetString(PyExc_ValueError, "rmsnorm requires C-contiguous leading axes for rank > 2");
+            goto cleanup;
+        }
+    }
+    nk_size_t const x_row_stride = ndim >= 2 ? (nk_size_t)x_buffer.strides[ndim - 2] : 0;
+
+    nk_f32_t const *gamma_ptr = NULL;
+    if (gamma_obj) {
+        if (!nk_get_buffer(gamma_obj, &gamma_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &gamma_backing)) goto cleanup;
+        have_gamma = 1;
+        nk_dtype_t gdt = resolve_nk_dtype_in_py_buffer(&gamma_buffer);
+        if (gdt != nk_f32_k) {
+            PyErr_SetString(PyExc_TypeError, "gamma must be float32");
+            goto cleanup;
+        }
+        nk_size_t glen = gamma_buffer.ndim >= 1 ? (nk_size_t)gamma_buffer.shape[gamma_buffer.ndim - 1] : 0;
+        if (glen != cols || (size_t)gamma_buffer.strides[gamma_buffer.ndim - 1] != sizeof(nk_f32_t)) {
+            PyErr_Format(PyExc_ValueError, "gamma must be contiguous float32 of length cols=%zu", (size_t)cols);
+            goto cleanup;
+        }
+        gamma_ptr = (nk_f32_t const *)gamma_buffer.buf;
+    }
+
+    nk_kernel_reduce_rmsnorm_punned_t kernel = NULL;
+    nk_capability_t capability = nk_cap_serial_k;
+    nk_find_kernel_punned(nk_kernel_reduce_rmsnorm_k, dtype, static_capabilities, (nk_kernel_punned_t *)&kernel,
+                          &capability);
+    if (!kernel || !capability) {
+        PyErr_Format(PyExc_LookupError, "No rmsnorm kernel for dtype '%s'", nk_dtype_name(dtype));
+        goto cleanup;
+    }
+
+    char *result_data = NULL;
+    Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    int contiguous_tail = 0;
+    Py_buffer const *inputs[] = {&x_buffer};
+    if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 1, dtype, //
+                                 &result_data, result_strides, &contiguous_tail, &return_obj))
+        goto cleanup;
+    nk_size_t const y_row_stride = ndim >= 2 ? (nk_size_t)result_strides[ndim - 2] : 0;
+
+    {
+        PyThreadState *gil = PyEval_SaveThread();
+        kernel(x_buffer.buf, gamma_ptr, result_data, rows, groups, cols, x_row_stride, y_row_stride, eps, input_scale);
+        PyEval_RestoreThread(gil);
+    }
+cleanup:
+    PyBuffer_Release(&x_buffer);
+    if (have_gamma) PyBuffer_Release(&gamma_buffer);
+    PyBuffer_Release(&out_buffer);
+    return return_obj;
+}
+
+char const doc_swiglu[] =                                                                           //
+    "Fused SwiGLU: y = silu(input_scale * gate) * (input_scale * up).\n\n"                          //
+    "With up=None this reduces to plain SiLU: y = silu(input_scale * gate).\n\n"                    //
+    "Parameters:\n"                                                                                 //
+    "    gate (Tensor): Gate input of dtype float32, bfloat16, or e4m3; last axis contiguous.\n"    //
+    "    up (Tensor, optional): Up input, same shape/dtype as gate; None for plain SiLU.\n"         //
+    "    out (Tensor, optional): Output buffer (same shape/dtype as gate); may alias gate.\n"       //
+    "    input_scale (float, optional): Scale folded onto each loaded element, 1.0 by default.\n\n" //
+    "Returns:\n"                                                                                    //
+    "    Tensor: The result if `out` is not provided.\n"                                            //
+    "    None: If `out` is provided (in-place operation).\n\n"                                      //
+    "Signature:\n"                                                                                  //
+    "    >>> def swiglu(gate, up=None, /, *, out, input_scale) -> Optional[Tensor]: ...";
+
+PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
+                     PyObject *args_names_tuple) {
+    nk_unused_(self);
+    PyObject *return_obj = NULL;
+    PyObject *gate_obj = NULL, *up_obj = NULL, *out_obj = NULL, *input_scale_obj = NULL;
+
+    Py_buffer gate_buffer, up_buffer, out_buffer;
+    nk_buffer_backing_t gate_backing, up_backing, out_backing;
+    memset(&gate_buffer, 0, sizeof(Py_buffer));
+    memset(&up_buffer, 0, sizeof(Py_buffer));
+    memset(&out_buffer, 0, sizeof(Py_buffer));
+    int have_up = 0;
+
+    Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
+    Py_ssize_t const args_count = positional_args_count + args_names_count;
+    if (args_count < 1 || args_count > 4) {
+        PyErr_Format(PyExc_TypeError, "Function expects 1-4 arguments, got %zd", args_count);
+        return NULL;
+    }
+    if (positional_args_count > 2) {
+        PyErr_Format(PyExc_TypeError, "Only first 2 arguments can be positional, received %zd", positional_args_count);
+        return NULL;
+    }
+    gate_obj = args[0];
+    if (positional_args_count == 2) up_obj = args[1];
+    for (Py_ssize_t k = 0, p = positional_args_count; k < args_names_count; ++p, ++k) {
+        PyObject *const key = PyTuple_GetItem(args_names_tuple, k);
+        PyObject *const value = args[p];
+        if (PyUnicode_CompareWithASCIIString(key, "up") == 0 && !up_obj) up_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) out_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "input_scale") == 0 && !input_scale_obj) input_scale_obj = value;
+        else {
+            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
+            return NULL;
+        }
+    }
+    if (up_obj == Py_None) up_obj = NULL;
+
+    nk_f32_t input_scale = 1.0f;
+    if (input_scale_obj) {
+        double s = PyFloat_AsDouble(input_scale_obj);
+        if (PyErr_Occurred()) return NULL;
+        input_scale = (nk_f32_t)s;
+    }
+
+    if (!nk_get_buffer(gate_obj, &gate_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &gate_backing)) return NULL;
+    if (gate_buffer.ndim < 1 || gate_buffer.ndim > NK_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "Tensor rank %d unsupported", gate_buffer.ndim);
+        goto cleanup;
+    }
+    nk_dtype_t dtype = resolve_nk_dtype_in_py_buffer(&gate_buffer);
+    if (dtype != nk_f32_k && dtype != nk_bf16_k && dtype != nk_e4m3_k) {
+        PyErr_Format(PyExc_TypeError, "swiglu supports f32, bf16, e4m3; got '%s'", nk_dtype_name(dtype));
+        goto cleanup;
+    }
+    int const ndim = gate_buffer.ndim;
+    size_t const elem = nk_dtype_bytes_per_value(dtype);
+    nk_size_t const cols = (nk_size_t)gate_buffer.shape[ndim - 1];
+    if ((size_t)gate_buffer.strides[ndim - 1] != elem) {
+        PyErr_SetString(PyExc_ValueError, "swiglu requires the last axis to be contiguous");
+        goto cleanup;
+    }
+    nk_size_t rows = 1;
+    for (int d = 0; d < ndim - 1; ++d) rows *= (nk_size_t)gate_buffer.shape[d];
+    for (int d = 0; d + 2 < ndim; ++d) {
+        if (gate_buffer.strides[d] != gate_buffer.shape[d + 1] * gate_buffer.strides[d + 1]) {
+            PyErr_SetString(PyExc_ValueError, "swiglu requires C-contiguous leading axes for rank > 2");
+            goto cleanup;
+        }
+    }
+    nk_size_t const gate_row_stride = ndim >= 2 ? (nk_size_t)gate_buffer.strides[ndim - 2] : 0;
+
+    void const *up_ptr = NK_NULL;
+    nk_size_t up_row_stride = 0;
+    if (up_obj) {
+        if (!nk_get_buffer(up_obj, &up_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &up_backing)) goto cleanup;
+        have_up = 1;
+        if (!buffers_shapes_match(&gate_buffer, &up_buffer)) goto cleanup;
+        if (resolve_nk_dtype_in_py_buffer(&up_buffer) != dtype) {
+            PyErr_SetString(PyExc_TypeError, "up dtype must match gate dtype");
+            goto cleanup;
+        }
+        if ((size_t)up_buffer.strides[ndim - 1] != elem) {
+            PyErr_SetString(PyExc_ValueError, "swiglu requires up's last axis to be contiguous");
+            goto cleanup;
+        }
+        up_ptr = up_buffer.buf;
+        up_row_stride = ndim >= 2 ? (nk_size_t)up_buffer.strides[ndim - 2] : 0;
+    }
+
+    nk_kernel_each_swiglu_punned_t kernel = NULL;
+    nk_capability_t capability = nk_cap_serial_k;
+    nk_find_kernel_punned(nk_kernel_each_swiglu_k, dtype, static_capabilities, (nk_kernel_punned_t *)&kernel,
+                          &capability);
+    if (!kernel || !capability) {
+        PyErr_Format(PyExc_LookupError, "No swiglu kernel for dtype '%s'", nk_dtype_name(dtype));
+        goto cleanup;
+    }
+
+    char *result_data = NULL;
+    Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    int contiguous_tail = 0;
+    Py_buffer const *inputs[] = {&gate_buffer};
+    if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 1, dtype, //
+                                 &result_data, result_strides, &contiguous_tail, &return_obj))
+        goto cleanup;
+    nk_size_t const y_row_stride = ndim >= 2 ? (nk_size_t)result_strides[ndim - 2] : 0;
+
+    {
+        PyThreadState *gil = PyEval_SaveThread();
+        kernel(gate_buffer.buf, up_ptr, result_data, rows, cols, gate_row_stride, up_row_stride, y_row_stride,
+               input_scale);
+        PyEval_RestoreThread(gil);
+    }
+cleanup:
+    PyBuffer_Release(&gate_buffer);
+    if (have_up) PyBuffer_Release(&up_buffer);
+    PyBuffer_Release(&out_buffer);
+    return return_obj;
+}
+
+char const doc_rope[] =                                                                             //
+    "NeoX split-half rotary position embedding (RoPE).\n\n"                                         //
+    "Rotates every channel pair (channel i against i+half_dim) of each head by the per-token\n"     //
+    "angle grids. Bake position lookup and multi-axis (M-RoPE) assignment into the `[rows,\n"       //
+    "half_dim]` cos/sin grids so a single call rotates the whole head.\n\n"                         //
+    "Parameters:\n"                                                                                 //
+    "    x (Tensor): `[rows, heads * 2*half_dim]`, float32/bfloat16/e4m3.\n"                        //
+    "    cos, sin (Tensor): `[rows, half_dim]` float32 angle grids, shared across heads.\n"         //
+    "    heads (int): Number of heads per token.\n"                                                 //
+    "    half_dim (int): Half the head dimension.\n"                                                //
+    "    out (Tensor, optional): Output, same shape/dtype as x; may alias x. Defaults to x.\n"      //
+    "    input_scale (float, optional): Scale folded onto each loaded element, 1.0 by default.\n\n" //
+    "Returns:\n"                                                                                    //
+    "    None: The result is written into `out` (or `x` in place).\n\n"                             //
+    "Signature:\n"                                                                                  //
+    "    >>> def rope(x, cos, sin, heads, half_dim, /, *, out, input_scale) -> None: ...";
+
+PyObject *api_rope(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
+                   PyObject *args_names_tuple) {
+    nk_unused_(self);
+    PyObject *x_obj = NULL, *cos_obj = NULL, *sin_obj = NULL, *heads_obj = NULL, *half_obj = NULL;
+    PyObject *out_obj = NULL, *scale_obj = NULL;
+
+    Py_buffer x_buffer, y_buffer, cos_buffer, sin_buffer;
+    nk_buffer_backing_t x_backing, y_backing, cos_backing, sin_backing;
+    memset(&x_buffer, 0, sizeof(Py_buffer));
+    memset(&y_buffer, 0, sizeof(Py_buffer));
+    memset(&cos_buffer, 0, sizeof(Py_buffer));
+    memset(&sin_buffer, 0, sizeof(Py_buffer));
+    int got_x = 0, got_y = 0, got_cos = 0, got_sin = 0;
+
+    Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
+    Py_ssize_t const args_count = positional_args_count + args_names_count;
+    if (args_count < 5 || args_count > 7) {
+        PyErr_Format(PyExc_TypeError, "Function expects 5-7 arguments, got %zd", args_count);
+        return NULL;
+    }
+    if (positional_args_count > 5) {
+        PyErr_Format(PyExc_TypeError, "Only first 5 arguments can be positional, received %zd", positional_args_count);
+        return NULL;
+    }
+    PyObject *positional[5] = {NULL, NULL, NULL, NULL, NULL};
+    for (Py_ssize_t i = 0; i < positional_args_count; ++i) positional[i] = args[i];
+    x_obj = positional[0], cos_obj = positional[1], sin_obj = positional[2];
+    heads_obj = positional[3], half_obj = positional[4];
+    for (Py_ssize_t k = 0, p = positional_args_count; k < args_names_count; ++p, ++k) {
+        PyObject *const key = PyTuple_GetItem(args_names_tuple, k);
+        PyObject *const value = args[p];
+        if (PyUnicode_CompareWithASCIIString(key, "heads") == 0 && !heads_obj) heads_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "half_dim") == 0 && !half_obj) half_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) out_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "input_scale") == 0 && !scale_obj) scale_obj = value;
+        else {
+            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
+            return NULL;
+        }
+    }
+    if (!x_obj || !cos_obj || !sin_obj || !heads_obj || !half_obj) {
+        PyErr_SetString(PyExc_TypeError, "rope requires x, cos, sin, heads, half_dim");
+        return NULL;
+    }
+
+    long heads_l = PyLong_AsLong(heads_obj), half_l = PyLong_AsLong(half_obj);
+    if (PyErr_Occurred()) return NULL;
+    if (heads_l <= 0 || half_l <= 0) {
+        PyErr_SetString(PyExc_ValueError, "heads and half_dim must be positive");
+        return NULL;
+    }
+    nk_f32_t input_scale = 1.0f;
+    if (scale_obj) {
+        double s = PyFloat_AsDouble(scale_obj);
+        if (PyErr_Occurred()) return NULL;
+        input_scale = (nk_f32_t)s;
+    }
+
+    int const x_flags = out_obj ? (PyBUF_STRIDES | PyBUF_FORMAT) : (PyBUF_WRITABLE | PyBUF_STRIDES | PyBUF_FORMAT);
+    if (!nk_get_buffer(x_obj, &x_buffer, x_flags, &x_backing)) return NULL;
+    got_x = 1;
+    if (x_buffer.ndim < 1 || x_buffer.ndim > NK_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "Tensor rank %d unsupported", x_buffer.ndim);
+        goto cleanup;
+    }
+    nk_dtype_t dtype = resolve_nk_dtype_in_py_buffer(&x_buffer);
+    if (dtype != nk_f32_k && dtype != nk_bf16_k && dtype != nk_e4m3_k) {
+        PyErr_Format(PyExc_TypeError, "rope supports f32, bf16, e4m3; got '%s'", nk_dtype_name(dtype));
+        goto cleanup;
+    }
+    int const ndim = x_buffer.ndim;
+    size_t const elem = nk_dtype_bytes_per_value(dtype);
+    if ((size_t)x_buffer.strides[ndim - 1] != elem) {
+        PyErr_SetString(PyExc_ValueError, "rope requires the last axis to be contiguous");
+        goto cleanup;
+    }
+    if ((nk_size_t)x_buffer.shape[ndim - 1] < (nk_size_t)(heads_l * 2 * half_l)) {
+        PyErr_SetString(PyExc_ValueError, "last axis too small for heads * 2*half_dim");
+        goto cleanup;
+    }
+    nk_size_t rows = 1;
+    for (int d = 0; d < ndim - 1; ++d) rows *= (nk_size_t)x_buffer.shape[d];
+    for (int d = 0; d + 2 < ndim; ++d) {
+        if (x_buffer.strides[d] != x_buffer.shape[d + 1] * x_buffer.strides[d + 1]) {
+            PyErr_SetString(PyExc_ValueError, "rope requires C-contiguous leading axes for rank > 2");
+            goto cleanup;
+        }
+    }
+    nk_size_t const x_row_stride = ndim >= 2 ? (nk_size_t)x_buffer.strides[ndim - 2] : 0;
+
+    void *y_buf = x_buffer.buf;
+    nk_size_t y_row_stride = x_row_stride;
+    if (out_obj) {
+        if (!nk_get_buffer(out_obj, &y_buffer, PyBUF_WRITABLE | PyBUF_STRIDES | PyBUF_FORMAT, &y_backing)) goto cleanup;
+        got_y = 1;
+        if (y_buffer.ndim != ndim || resolve_nk_dtype_in_py_buffer(&y_buffer) != dtype) {
+            PyErr_SetString(PyExc_ValueError, "out must have the same shape and dtype as x");
+            goto cleanup;
+        }
+        for (int d = 0; d < ndim; ++d)
+            if (y_buffer.shape[d] != x_buffer.shape[d]) {
+                PyErr_SetString(PyExc_ValueError, "out must have the same shape as x");
+                goto cleanup;
+            }
+        if ((size_t)y_buffer.strides[ndim - 1] != elem) {
+            PyErr_SetString(PyExc_ValueError, "out requires the last axis to be contiguous");
+            goto cleanup;
+        }
+        y_buf = y_buffer.buf;
+        y_row_stride = ndim >= 2 ? (nk_size_t)y_buffer.strides[ndim - 2] : 0;
+    }
+
+    if (!nk_get_buffer(cos_obj, &cos_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &cos_backing)) goto cleanup;
+    got_cos = 1;
+    if (!nk_get_buffer(sin_obj, &sin_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &sin_backing)) goto cleanup;
+    got_sin = 1;
+    if (resolve_nk_dtype_in_py_buffer(&cos_buffer) != nk_f32_k ||
+        resolve_nk_dtype_in_py_buffer(&sin_buffer) != nk_f32_k) {
+        PyErr_SetString(PyExc_TypeError, "cos and sin must be float32");
+        goto cleanup;
+    }
+    if ((nk_size_t)(cos_buffer.len / (Py_ssize_t)sizeof(nk_f32_t)) < rows * (nk_size_t)half_l ||
+        (nk_size_t)(sin_buffer.len / (Py_ssize_t)sizeof(nk_f32_t)) < rows * (nk_size_t)half_l) {
+        PyErr_SetString(PyExc_ValueError, "cos and sin must each have at least rows * half_dim elements");
+        goto cleanup;
+    }
+
+    nk_kernel_each_rope_punned_t kernel = NULL;
+    nk_capability_t capability = nk_cap_serial_k;
+    nk_find_kernel_punned(nk_kernel_each_rope_k, dtype, static_capabilities, (nk_kernel_punned_t *)&kernel,
+                          &capability);
+    if (!kernel || !capability) {
+        PyErr_Format(PyExc_LookupError, "No rope kernel for dtype '%s'", nk_dtype_name(dtype));
+        goto cleanup;
+    }
+
+    {
+        PyThreadState *gil = PyEval_SaveThread();
+        kernel(x_buffer.buf, y_buf, (nk_f32_t const *)cos_buffer.buf, (nk_f32_t const *)sin_buffer.buf, rows,
+               (nk_size_t)heads_l, (nk_size_t)half_l, x_row_stride, y_row_stride, input_scale);
+        PyEval_RestoreThread(gil);
+    }
+    if (got_x) PyBuffer_Release(&x_buffer);
+    if (got_y) PyBuffer_Release(&y_buffer);
+    if (got_cos) PyBuffer_Release(&cos_buffer);
+    if (got_sin) PyBuffer_Release(&sin_buffer);
+    Py_RETURN_NONE;
+cleanup:
+    if (got_x) PyBuffer_Release(&x_buffer);
+    if (got_y) PyBuffer_Release(&y_buffer);
+    if (got_cos) PyBuffer_Release(&cos_buffer);
+    if (got_sin) PyBuffer_Release(&sin_buffer);
+    return NULL;
+}
+
 char const doc_add[] =                                                                         //
     "Element-wise addition of two vectors or a vector and a scalar.\n\n"                       //
     "Parameters:\n"                                                                            //

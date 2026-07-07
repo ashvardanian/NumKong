@@ -10,7 +10,8 @@
 #define NK_EACH_SERIAL_H
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h" // `nk_f16_to_f32_serial`
+#include "numkong/cast/serial.h"   // `nk_f16_to_f32_serial`
+#include "numkong/scalar/serial.h" // `nk_silu_f32_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -285,6 +286,41 @@ NK_PUBLIC void nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, n
 #pragma GCC pop_options
 #endif
 #endif
+
+/*  SwiGLU: `y = silu(input_scale·gate) ⊙ (input_scale·up)`, with `up = NULL` collapsing to plain
+ *  SiLU (`y = silu(input_scale·gate)`). Separate gate/up pointers and byte row-strides so UForm's
+ *  fused `[rows, 2·ffn]` output is `gate = base, up = base + ffn`, other split-weight models fit
+ *  without a v2, and the FFN head's `fc1 → SiLU → fc2` passes `up = NULL`.  `input_scale` folds an
+ *  E4M3 descale onto the load (1.0 for BF16/F32). */
+#define nk_define_each_swiglu_(input_type, load_and_convert, convert_and_store)                                 \
+    NK_PUBLIC void nk_each_swiglu_##input_type##_serial(                                                        \
+        nk_##input_type##_t const *gate, nk_##input_type##_t const *up, nk_##input_type##_t *y, nk_size_t rows, \
+        nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride,             \
+        nk_f32_t input_scale) {                                                                                 \
+        for (nk_size_t r = 0; r != rows; ++r) {                                                                 \
+            nk_##input_type##_t const *g_row = (nk_##input_type##_t const *)((unsigned char const *)gate +      \
+                                                                             r * gate_row_stride);              \
+            nk_##input_type##_t const *u_row =                                                                  \
+                up ? (nk_##input_type##_t const *)((unsigned char const *)up + r * up_row_stride) : NK_NULL;    \
+            nk_##input_type##_t *y_row = (nk_##input_type##_t *)((unsigned char *)y + r * y_row_stride);        \
+            for (nk_size_t c = 0; c != cols; ++c) {                                                             \
+                nk_f32_t gate;                                                                                  \
+                load_and_convert(g_row + c, &gate);                                                             \
+                nk_f32_t result = nk_silu_f32_serial_(gate * input_scale);                                      \
+                if (u_row) {                                                                                    \
+                    nk_f32_t up;                                                                                \
+                    load_and_convert(u_row + c, &up);                                                           \
+                    result *= up * input_scale;                                                                 \
+                }                                                                                               \
+                convert_and_store(&result, y_row + c);                                                          \
+            }                                                                                                   \
+        }                                                                                                       \
+    }
+
+nk_define_each_swiglu_(f32, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_swiglu_(bf16, nk_bf16_to_f32_serial, nk_f32_to_bf16_serial)
+nk_define_each_swiglu_(e4m3, nk_e4m3_to_f32_serial, nk_f32_to_e4m3_serial)
+#undef nk_define_each_swiglu_
 
 #if defined(__clang__)
 #pragma clang attribute pop

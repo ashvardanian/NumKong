@@ -213,6 +213,42 @@ extern "C" {
         max_val: *mut u8,
         max_idx: *mut usize,
     );
+    fn nk_reduce_rmsnorm_f32(
+        x: *const f32,
+        gamma: *const f32,
+        y: *mut f32,
+        rows: usize,
+        groups: usize,
+        cols: usize,
+        x_row_stride: usize,
+        y_row_stride: usize,
+        eps: f32,
+        input_scale: f32,
+    );
+    fn nk_reduce_rmsnorm_bf16(
+        x: *const u16,
+        gamma: *const f32,
+        y: *mut u16,
+        rows: usize,
+        groups: usize,
+        cols: usize,
+        x_row_stride: usize,
+        y_row_stride: usize,
+        eps: f32,
+        input_scale: f32,
+    );
+    fn nk_reduce_rmsnorm_e4m3(
+        x: *const u8,
+        gamma: *const f32,
+        y: *mut u8,
+        rows: usize,
+        groups: usize,
+        cols: usize,
+        x_row_stride: usize,
+        y_row_stride: usize,
+        eps: f32,
+        input_scale: f32,
+    );
 }
 
 /// Compute first and second moments (sum and sum-of-squares) with stride support.
@@ -1371,4 +1407,200 @@ mod tests {
     }
 
     // endregion: tensor-shaped MomentsOps / MinMaxOps wrappers
+
+    use crate::types::{assert_close, bf16, e4m3, FloatLike, TestableType};
+
+    fn check_rmsnorm<Scalar>(values: &[f32], rows: usize, groups: usize)
+    where
+        Scalar: FloatLike + TestableType + ReduceRmsNorm,
+    {
+        let x: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v)).collect();
+        let mut y = vec![Scalar::zero(); x.len()];
+        let cols = x.len() / rows / groups;
+        let gamma: Vec<f32> = (0..cols).map(|i| 1.0 + 0.01 * i as f32).collect();
+        Scalar::rmsnorm(&x, Some(&gamma), &mut y, rows, groups, 1e-6, 1.0).unwrap();
+        for r in 0..rows {
+            for g in 0..groups {
+                let base = (r * groups + g) * cols;
+                let mean_square: f64 = (0..cols)
+                    .map(|c| {
+                        let v = Scalar::from_f32(values[base + c]).to_f64();
+                        v * v
+                    })
+                    .sum::<f64>()
+                    / cols as f64;
+                let inverse_rms = 1.0 / (mean_square + 1e-6).sqrt();
+                for c in 0..cols {
+                    let v = Scalar::from_f32(values[base + c]).to_f64();
+                    // round the reference through the dtype, matching what the kernel stores
+                    let expected = Scalar::from_f32((v * inverse_rms * gamma[c] as f64) as f32).to_f64();
+                    assert_close(
+                        y[base + c].to_f64(),
+                        expected,
+                        Scalar::atol() * 4.0,
+                        Scalar::rtol() * 4.0,
+                        &format!("rmsnorm<{}>[{base}+{c}]", core::any::type_name::<Scalar>()),
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn rmsnorm_grouped() {
+        let values: Vec<f32> = (0..96).map(|i| ((i % 17) as f32 - 8.0) * 0.3).collect();
+        check_rmsnorm::<f32>(&values, 3, 1);
+        check_rmsnorm::<f32>(&values, 3, 2);
+        check_rmsnorm::<bf16>(&values, 3, 1);
+        check_rmsnorm::<e4m3>(&values, 3, 2);
+    }
 }
+
+// region: Grouped RMSNorm
+
+/// Grouped RMSNorm over a row-major `[rows, groups * cols]` slice: `y = x * rsqrt(mean(x^2) + eps) * gamma`.
+/// Each row holds `groups` independent `cols`-vectors, normalized separately (`cols = x.len() / rows / groups`).
+/// `gamma` is an optional per-column gain of length `cols`; `None` means unit scale.
+pub trait ReduceRmsNorm: Sized + StorageElement {
+    /// Normalizes `x` into `y` (same length). Returns `None` on a shape mismatch.
+    fn rmsnorm(
+        x: &[Self],
+        gamma: Option<&[f32]>,
+        y: &mut [Self],
+        rows: usize,
+        groups: usize,
+        eps: f32,
+        input_scale: f32,
+    ) -> Option<()>;
+}
+
+impl ReduceRmsNorm for f32 {
+    fn rmsnorm(
+        x: &[Self],
+        gamma: Option<&[f32]>,
+        y: &mut [Self],
+        rows: usize,
+        groups: usize,
+        eps: f32,
+        input_scale: f32,
+    ) -> Option<()> {
+        if rows == 0 || groups == 0 || x.len() != y.len() || x.len() % rows != 0 {
+            return None;
+        }
+        let width = x.len() / rows;
+        if width % groups != 0 {
+            return None;
+        }
+        let cols = width / groups;
+        if let Some(g) = gamma {
+            if g.len() != cols {
+                return None;
+            }
+        }
+        let stride = width * core::mem::size_of::<f32>();
+        let gamma_ptr = gamma.map_or(core::ptr::null(), |g| g.as_ptr());
+        unsafe {
+            nk_reduce_rmsnorm_f32(
+                x.as_ptr(),
+                gamma_ptr,
+                y.as_mut_ptr(),
+                rows,
+                groups,
+                cols,
+                stride,
+                stride,
+                eps,
+                input_scale,
+            );
+        }
+        Some(())
+    }
+}
+
+impl ReduceRmsNorm for bf16 {
+    fn rmsnorm(
+        x: &[Self],
+        gamma: Option<&[f32]>,
+        y: &mut [Self],
+        rows: usize,
+        groups: usize,
+        eps: f32,
+        input_scale: f32,
+    ) -> Option<()> {
+        if rows == 0 || groups == 0 || x.len() != y.len() || x.len() % rows != 0 {
+            return None;
+        }
+        let width = x.len() / rows;
+        if width % groups != 0 {
+            return None;
+        }
+        let cols = width / groups;
+        if let Some(g) = gamma {
+            if g.len() != cols {
+                return None;
+            }
+        }
+        let stride = width * core::mem::size_of::<bf16>();
+        let gamma_ptr = gamma.map_or(core::ptr::null(), |g| g.as_ptr());
+        unsafe {
+            nk_reduce_rmsnorm_bf16(
+                x.as_ptr() as *const u16,
+                gamma_ptr,
+                y.as_mut_ptr() as *mut u16,
+                rows,
+                groups,
+                cols,
+                stride,
+                stride,
+                eps,
+                input_scale,
+            );
+        }
+        Some(())
+    }
+}
+
+impl ReduceRmsNorm for e4m3 {
+    fn rmsnorm(
+        x: &[Self],
+        gamma: Option<&[f32]>,
+        y: &mut [Self],
+        rows: usize,
+        groups: usize,
+        eps: f32,
+        input_scale: f32,
+    ) -> Option<()> {
+        if rows == 0 || groups == 0 || x.len() != y.len() || x.len() % rows != 0 {
+            return None;
+        }
+        let width = x.len() / rows;
+        if width % groups != 0 {
+            return None;
+        }
+        let cols = width / groups;
+        if let Some(g) = gamma {
+            if g.len() != cols {
+                return None;
+            }
+        }
+        let stride = width * core::mem::size_of::<e4m3>();
+        let gamma_ptr = gamma.map_or(core::ptr::null(), |g| g.as_ptr());
+        unsafe {
+            nk_reduce_rmsnorm_e4m3(
+                x.as_ptr() as *const u8,
+                gamma_ptr,
+                y.as_mut_ptr() as *mut u8,
+                rows,
+                groups,
+                cols,
+                stride,
+                stride,
+                eps,
+                input_scale,
+            );
+        }
+        Some(())
+    }
+}
+
+// endregion

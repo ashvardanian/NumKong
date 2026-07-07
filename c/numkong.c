@@ -135,6 +135,13 @@ void nk_error_each_fma_(void const *a, void const *b, void const *c, nk_size_t n
     nk_unused_(beta);
     nk_fill_error_(result, n * sizeof(nk_fmax_t));
 }
+void nk_error_each_swiglu_(void const *gate, void const *up, void *y, nk_size_t rows, nk_size_t cols,
+                           nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride,
+                           nk_f32_t input_scale) {
+    nk_unused_(gate), nk_unused_(up), nk_unused_(rows), nk_unused_(cols), nk_unused_(gate_row_stride),
+        nk_unused_(up_row_stride), nk_unused_(y_row_stride), nk_unused_(input_scale);
+    nk_fill_error_(y, sizeof(nk_fmax_t));
+}
 
 void nk_error_each_blend_(void const *a, void const *b, nk_size_t n, void const *alpha, void const *beta,
                           void *result) {
@@ -161,6 +168,12 @@ void nk_error_each_sum_(void const *a, void const *b, nk_size_t n, void *y) {
 void nk_error_trigonometry_(void const *x, nk_size_t n, void *y) {
     nk_unused_(x);
     nk_fill_error_(y, n * sizeof(nk_fmax_t));
+}
+void nk_error_each_rope_(void const *x, void *y, void const *cos, void const *sin, nk_size_t rows, nk_size_t heads,
+                         nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) {
+    nk_unused_(x), nk_unused_(cos), nk_unused_(sin), nk_unused_(rows), nk_unused_(heads), nk_unused_(half_dim),
+        nk_unused_(x_row_stride), nk_unused_(y_row_stride), nk_unused_(input_scale);
+    nk_fill_error_(y, sizeof(nk_fmax_t));
 }
 
 void nk_error_mesh_(void const *a, void const *b, nk_size_t n, void *a_centroid, void *b_centroid, void *rotation,
@@ -190,6 +203,13 @@ void nk_error_reduce_minmax_(void const *data, nk_size_t count, nk_size_t stride
     nk_fill_error_(min_index, sizeof(nk_size_t));
     nk_fill_error_(max_value, sizeof(nk_fmax_t));
     nk_fill_error_(max_index, sizeof(nk_size_t));
+}
+void nk_error_reduce_rmsnorm_(void const *x, void const *gamma, void *y, nk_size_t rows, nk_size_t groups,
+                              nk_size_t cols, nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
+                              nk_f32_t input_scale) {
+    nk_unused_(x), nk_unused_(gamma), nk_unused_(rows), nk_unused_(groups), nk_unused_(cols), nk_unused_(x_row_stride),
+        nk_unused_(y_row_stride), nk_unused_(eps), nk_unused_(input_scale);
+    nk_fill_error_(y, sizeof(nk_fmax_t));
 }
 
 nk_size_t nk_error_packed_size_(nk_size_t n, nk_size_t k) {
@@ -304,6 +324,13 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
         nk_dispatch_table.each_fma_##extension(a, b, c, n, (void const *)alpha, (void const *)beta, result); \
         nk_unpoison_((void *)result, n * sizeof(nk_##extension##_t));                                        \
     }
+#define nk_dispatch_each_swiglu_(extension, data_type)                                                      \
+    NK_DYNAMIC void nk_each_swiglu_##extension(                                                             \
+        data_type const *gate, data_type const *up, data_type *y, nk_size_t rows, nk_size_t cols,           \
+        nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) { \
+        ((nk_kernel_each_swiglu_punned_t)nk_dispatch_table.each_swiglu_##extension)(                        \
+            gate, up, y, rows, cols, gate_row_stride, up_row_stride, y_row_stride, input_scale);            \
+    }
 
 #define nk_dispatch_each_blend_(extension, scalar_type)                                                              \
     NK_DYNAMIC void nk_each_blend_##extension(nk_##extension##_t const *a, nk_##extension##_t const *b, nk_size_t n, \
@@ -333,6 +360,13 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
                                                  nk_##extension##_t *outputs) {                 \
         nk_dispatch_table.each_##name##_##extension(inputs, n, outputs);                        \
         nk_unpoison_((void *)outputs, n * sizeof(nk_##extension##_t));                          \
+    }
+#define nk_dispatch_each_rope_(extension, data_type)                                                                   \
+    NK_DYNAMIC void nk_each_rope_##extension(data_type const *x, data_type *y, nk_f32_t const *cos,                    \
+                                             nk_f32_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim, \
+                                             nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) {   \
+        ((nk_kernel_each_rope_punned_t)nk_dispatch_table.each_rope_##extension)(                                       \
+            x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);                           \
     }
 
 #define nk_dispatch_mesh_(name, extension, transform_type, metric_type)                                               \
@@ -368,6 +402,13 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
         nk_unpoison_(min_index, sizeof(nk_size_t));                                                                    \
         nk_unpoison_((void *)max_value, sizeof(minmax_type));                                                          \
         nk_unpoison_(max_index, sizeof(nk_size_t));                                                                    \
+    }
+#define nk_dispatch_reduce_rmsnorm_(extension, data_type)                                                          \
+    NK_DYNAMIC void nk_reduce_rmsnorm_##extension(                                                                 \
+        data_type const *x, nk_f32_t const *gamma, data_type *y, nk_size_t rows, nk_size_t groups, nk_size_t cols, \
+        nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale) {                      \
+        ((nk_kernel_reduce_rmsnorm_punned_t)nk_dispatch_table.reduce_rmsnorm_##extension)(                         \
+            x, gamma, y, rows, groups, cols, x_row_stride, y_row_stride, eps, input_scale);                        \
     }
 
 #define nk_dispatch_cross_packed_size_(api_name, name, input_type, accum_type)          \
@@ -605,7 +646,7 @@ nk_dispatch_each_blend_(u32, f64)
 nk_dispatch_each_blend_(u16, f32)
 nk_dispatch_each_blend_(u8, f32)
 nk_dispatch_each_fma_(f64c, f64c)
-nk_dispatch_each_fma_(f32c, f32c)
+nk_dispatch_each_swiglu_(f32, nk_f32_t) nk_dispatch_each_swiglu_(bf16, nk_bf16_t) nk_dispatch_each_fma_(f32c, f32c)
 nk_dispatch_each_fma_(f64, f64)
 nk_dispatch_each_fma_(f32, f32)
 nk_dispatch_each_fma_(bf16, f32)
@@ -625,7 +666,7 @@ nk_dispatch_each_fma_(u8, f32)
 
 // Trigonometry functions
 nk_dispatch_trigonometry_(sin, f64)
-nk_dispatch_trigonometry_(sin, f32)
+nk_dispatch_each_rope_(f32, nk_f32_t) nk_dispatch_each_rope_(bf16, nk_bf16_t) nk_dispatch_trigonometry_(sin, f32)
 nk_dispatch_trigonometry_(sin, f16)
 nk_dispatch_trigonometry_(cos, f64)
 nk_dispatch_trigonometry_(cos, f32)
@@ -655,9 +696,19 @@ nk_dispatch_reduce_moments_(u8, nk_u8_t, nk_u64_t, nk_u64_t)
 nk_dispatch_reduce_moments_(u4, nk_u4x2_t, nk_u64_t, nk_u64_t)
 nk_dispatch_reduce_moments_(u1, nk_u1x8_t, nk_u64_t, nk_u64_t)
 
-// Horizontal reductions: minmax (min + max with indices)
-nk_dispatch_reduce_minmax_(f64, nk_f64_t, nk_f64_t)
-nk_dispatch_reduce_minmax_(f32, nk_f32_t, nk_f32_t)
+// Fused transformer nonlinearities: grouped RMSNorm
+nk_dispatch_reduce_rmsnorm_(e4m3, nk_e4m3_t)
+
+    // Fused transformer nonlinearities: SwiGLU / SiLU
+    nk_dispatch_each_swiglu_(e4m3, nk_e4m3_t)
+
+    // Fused transformer nonlinearities: RoPE (NeoX split-half)
+    nk_dispatch_each_rope_(e4m3, nk_e4m3_t)
+
+    // Horizontal reductions: minmax (min + max with indices)
+    nk_dispatch_reduce_minmax_(f64, nk_f64_t, nk_f64_t)
+nk_dispatch_reduce_rmsnorm_(f32, nk_f32_t) nk_dispatch_reduce_rmsnorm_(bf16, nk_bf16_t)
+    nk_dispatch_reduce_minmax_(f32, nk_f32_t, nk_f32_t)
 nk_dispatch_reduce_minmax_(bf16, nk_bf16_t, nk_bf16_t)
 nk_dispatch_reduce_minmax_(f16, nk_f16_t, nk_f16_t)
 nk_dispatch_reduce_minmax_(e5m2, nk_e5m2_t, nk_e5m2_t)

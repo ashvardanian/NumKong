@@ -298,10 +298,16 @@ struct f32_t {
     using blend_kernel_t = void (*)(raw_t const *, raw_t const *, nk_size_t, scale_t const *, scale_t const *, raw_t *);
     using fma_kernel_t = void (*)(raw_t const *, raw_t const *, raw_t const *, nk_size_t, scale_t const *,
                                   scale_t const *, raw_t *);
+    using swiglu_kernel_t = void (*)(raw_t const *, raw_t const *, raw_t *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                     nk_size_t, nk_f32_t);
     using trigonometry_kernel_t = void (*)(raw_t const *, nk_size_t, raw_t *);
+    using rope_kernel_t = void (*)(raw_t const *, raw_t *, nk_f32_t const *, nk_f32_t const *, nk_size_t, nk_size_t,
+                                   nk_size_t, nk_size_t, nk_size_t, nk_f32_t);
     using reduce_moments_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
     using reduce_minmax_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, raw_t *, nk_size_t *, raw_t *,
                                             nk_size_t *);
+    using reduce_rmsnorm_kernel_t = void (*)(raw_t const *, nk_f32_t const *, raw_t *, nk_size_t, nk_size_t, nk_size_t,
+                                             nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
     using dots_packed_size_kernel_t = nk_size_t (*)(nk_size_t, nk_size_t);
     using dots_pack_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *);
     using dots_packed_kernel_t = void (*)(raw_t const *, void const *, nk_f64_t *, nk_size_t, nk_size_t, nk_size_t,
@@ -368,6 +374,7 @@ struct f32_t {
     static constexpr f32_t sqrt2_k() noexcept { return f32_t {1.41421356237309504880f}; }
     static constexpr f32_t inv_sqrt2_k() noexcept { return f32_t {0.70710678118654752440f}; }
     static constexpr f32_t ln2_k() noexcept { return f32_t {0.69314718055994530942f}; }
+    static constexpr f32_t log2e_k() noexcept { return f32_t {1.44269504088896340736f}; }
 
     constexpr bool is_nan() const noexcept { return (to_bits() & 0x7FFFFFFFu) > 0x7F800000u; }
     constexpr bool is_infinite() const noexcept { return (to_bits() & 0x7FFFFFFFu) == 0x7F800000u; }
@@ -637,6 +644,7 @@ struct f64_t {
     static constexpr f64_t sqrt2_k() noexcept { return f64_t {1.41421356237309504880}; }
     static constexpr f64_t inv_sqrt2_k() noexcept { return f64_t {0.70710678118654752440}; }
     static constexpr f64_t ln2_k() noexcept { return f64_t {0.69314718055994530942}; }
+    static constexpr f64_t log2e_k() noexcept { return f64_t {1.44269504088896340736}; }
 
     constexpr bool is_nan() const noexcept { return (to_bits() & 0x7FFFFFFFFFFFFFFFull) > 0x7FF0000000000000ull; }
     constexpr bool is_infinite() const noexcept { return (to_bits() & 0x7FFFFFFFFFFFFFFFull) == 0x7FF0000000000000ull; }
@@ -1409,6 +1417,7 @@ struct f16_t {
     static inline f16_t sqrt2_k() noexcept { return from_f32(1.41421356237309504880f); }
     static inline f16_t inv_sqrt2_k() noexcept { return from_f32(0.70710678118654752440f); }
     static inline f16_t ln2_k() noexcept { return from_f32(0.69314718055994530942f); }
+    static inline f16_t log2e_k() noexcept { return from_f32(1.44269504088896340736f); }
 
     constexpr bool is_nan() const noexcept { return (to_bits() & 0x7FFF) > 0x7C00; }
     constexpr bool is_infinite() const noexcept { return (to_bits() & 0x7FFF) == 0x7C00; }
@@ -1569,9 +1578,15 @@ struct bf16_t {
     using blend_kernel_t = void (*)(raw_t const *, raw_t const *, nk_size_t, scale_t const *, scale_t const *, raw_t *);
     using fma_kernel_t = void (*)(raw_t const *, raw_t const *, raw_t const *, nk_size_t, scale_t const *,
                                   scale_t const *, raw_t *);
+    using swiglu_kernel_t = void (*)(raw_t const *, raw_t const *, raw_t *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                     nk_size_t, nk_f32_t);
+    using rope_kernel_t = void (*)(raw_t const *, raw_t *, nk_f32_t const *, nk_f32_t const *, nk_size_t, nk_size_t,
+                                   nk_size_t, nk_size_t, nk_size_t, nk_f32_t);
     using reduce_moments_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
     using reduce_minmax_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, raw_t *, nk_size_t *, raw_t *,
                                             nk_size_t *);
+    using reduce_rmsnorm_kernel_t = void (*)(raw_t const *, nk_f32_t const *, raw_t *, nk_size_t, nk_size_t, nk_size_t,
+                                             nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
     using dots_packed_size_kernel_t = nk_size_t (*)(nk_size_t, nk_size_t);
     using dots_pack_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *);
     using attention_packed_size_kernel_t = nk_size_t (*)(nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t);
@@ -1665,6 +1680,7 @@ struct bf16_t {
     static inline bf16_t sqrt2_k() noexcept { return from_f32(1.41421356237309504880f); }
     static inline bf16_t inv_sqrt2_k() noexcept { return from_f32(0.70710678118654752440f); }
     static inline bf16_t ln2_k() noexcept { return from_f32(0.69314718055994530942f); }
+    static inline bf16_t log2e_k() noexcept { return from_f32(1.44269504088896340736f); }
 
     constexpr bool is_nan() const noexcept { return (to_bits() & 0x7FFF) > 0x7F80; }
     constexpr bool is_infinite() const noexcept { return (to_bits() & 0x7FFF) == 0x7F80; }
@@ -2011,9 +2027,15 @@ struct e4m3_t {
     using blend_kernel_t = void (*)(raw_t const *, raw_t const *, nk_size_t, scale_t const *, scale_t const *, raw_t *);
     using fma_kernel_t = void (*)(raw_t const *, raw_t const *, raw_t const *, nk_size_t, scale_t const *,
                                   scale_t const *, raw_t *);
+    using swiglu_kernel_t = void (*)(raw_t const *, raw_t const *, raw_t *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                     nk_size_t, nk_f32_t);
+    using rope_kernel_t = void (*)(raw_t const *, raw_t *, nk_f32_t const *, nk_f32_t const *, nk_size_t, nk_size_t,
+                                   nk_size_t, nk_size_t, nk_size_t, nk_f32_t);
     using reduce_moments_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
     using reduce_minmax_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, raw_t *, nk_size_t *, raw_t *,
                                             nk_size_t *);
+    using reduce_rmsnorm_kernel_t = void (*)(raw_t const *, nk_f32_t const *, raw_t *, nk_size_t, nk_size_t, nk_size_t,
+                                             nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
     using dots_packed_size_kernel_t = nk_size_t (*)(nk_size_t, nk_size_t);
     using dots_pack_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *);
     using attention_packed_size_kernel_t = nk_size_t (*)(nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t);
@@ -2101,6 +2123,7 @@ struct e4m3_t {
     static constexpr e4m3_t sqrt2_k() noexcept { return from_bits(0x3B); }     // 1.375 (closest to √2)
     static constexpr e4m3_t inv_sqrt2_k() noexcept { return from_bits(0x33); } // 0.6875 (closest to 1/√2)
     static constexpr e4m3_t ln2_k() noexcept { return from_bits(0x33); }       // 0.6875 (closest to ln(2))
+    static constexpr e4m3_t log2e_k() noexcept { return from_bits(0x3C); }     // 1.5 (closest to log2(e))
 
     constexpr bool is_nan() const noexcept { return (raw_ & 0x7F) == 0x7F; }
     constexpr bool is_infinite() const noexcept { return false; } // E4M3 has no infinity
@@ -2322,6 +2345,7 @@ struct e5m2_t {
     static constexpr e5m2_t sqrt2_k() noexcept { return from_bits(0x3E); }     // 1.5 (closest to √2)
     static constexpr e5m2_t inv_sqrt2_k() noexcept { return from_bits(0x3A); } // 0.75 (closest to 1/√2)
     static constexpr e5m2_t ln2_k() noexcept { return from_bits(0x3A); }       // 0.75 (closest to ln(2))
+    static constexpr e5m2_t log2e_k() noexcept { return from_bits(0x3E); }     // 1.5 (closest to log2(e))
 
     constexpr bool is_nan() const noexcept { return (raw_ & 0x7F) > 0x7C; }
     constexpr bool is_infinite() const noexcept { return (raw_ & 0x7F) == 0x7C; }
@@ -2541,6 +2565,7 @@ struct e2m3_t {
     static constexpr e2m3_t sqrt2_k() noexcept { return from_bits(0x0B); }     // 1.375 (closest to √2)
     static constexpr e2m3_t inv_sqrt2_k() noexcept { return from_bits(0x03); } // 0.375 (closest to 1/√2)
     static constexpr e2m3_t ln2_k() noexcept { return from_bits(0x03); }       // 0.375 (closest to ln(2))
+    static constexpr e2m3_t log2e_k() noexcept { return from_bits(0x0C); }     // 1.5 (closest to log2(e))
 
     constexpr bool is_nan() const noexcept { return false; }
     constexpr bool is_infinite() const noexcept { return false; }
@@ -2725,6 +2750,7 @@ struct e3m2_t {
     static constexpr e3m2_t sqrt2_k() noexcept { return from_bits(0x0E); }     // 1.5 (closest to √2)
     static constexpr e3m2_t inv_sqrt2_k() noexcept { return from_bits(0x0A); } // 0.75 (closest to 1/√2)
     static constexpr e3m2_t ln2_k() noexcept { return from_bits(0x0A); }       // 0.75 (closest to ln(2))
+    static constexpr e3m2_t log2e_k() noexcept { return from_bits(0x0E); }     // 1.5 (closest to log2(e))
 
     constexpr bool is_nan() const noexcept { return false; }
     constexpr bool is_infinite() const noexcept { return false; }

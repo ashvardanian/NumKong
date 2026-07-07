@@ -638,6 +638,120 @@ NK_PUBLIC void nk_each_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64
     }
 }
 
+NK_PUBLIC void nk_each_rope_f32_haswell(nk_f32_t const *x, nk_f32_t *y, nk_f32_t const *cos, nk_f32_t const *sin,
+                                        nk_size_t rows, nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride,
+                                        nk_size_t y_row_stride, nk_f32_t input_scale) {
+    __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *cos_row = cos + r * half_dim;
+        nk_f32_t const *sin_row = sin + r * half_dim;
+        nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_row_stride);
+        nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + r * y_row_stride);
+        for (nk_size_t h = 0; h != heads; ++h) {
+            nk_f32_t const *x_base = x_row + h * 2 * half_dim;
+            nk_f32_t *y_base = y_row + h * 2 * half_dim;
+            nk_size_t i = 0;
+            for (; i + 8 <= half_dim; i += 8) {
+                __m256 low_f32x8 = _mm256_mul_ps(_mm256_loadu_ps(x_base + i), scale_f32x8);
+                __m256 high_f32x8 = _mm256_mul_ps(_mm256_loadu_ps(x_base + i + half_dim), scale_f32x8);
+                __m256 cos_f32x8 = _mm256_loadu_ps(cos_row + i), sin_f32x8 = _mm256_loadu_ps(sin_row + i);
+                _mm256_storeu_ps(y_base + i,
+                                 _mm256_fmsub_ps(low_f32x8, cos_f32x8, _mm256_mul_ps(high_f32x8, sin_f32x8)));
+                _mm256_storeu_ps(y_base + i + half_dim,
+                                 _mm256_fmadd_ps(low_f32x8, sin_f32x8, _mm256_mul_ps(high_f32x8, cos_f32x8)));
+            }
+            for (; i != half_dim; ++i) {
+                nk_f32_t low = x_base[i] * input_scale, high = x_base[i + half_dim] * input_scale;
+                nk_f32_t cosine = cos_row[i], sine = sin_row[i];
+                y_base[i] = low * cosine - high * sine;
+                y_base[i + half_dim] = low * sine + high * cosine;
+            }
+        }
+    }
+}
+
+NK_PUBLIC void nk_each_rope_bf16_haswell(nk_bf16_t const *x, nk_bf16_t *y, nk_f32_t const *cos, nk_f32_t const *sin,
+                                         nk_size_t rows, nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride,
+                                         nk_size_t y_row_stride, nk_f32_t input_scale) {
+    __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *cos_row = cos + r * half_dim;
+        nk_f32_t const *sin_row = sin + r * half_dim;
+        nk_bf16_t const *x_row = (nk_bf16_t const *)((unsigned char const *)x + r * x_row_stride);
+        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + r * y_row_stride);
+        for (nk_size_t h = 0; h != heads; ++h) {
+            nk_bf16_t const *x_base = x_row + h * 2 * half_dim;
+            nk_bf16_t *y_base = y_row + h * 2 * half_dim;
+            nk_size_t i = 0;
+            for (; i + 8 <= half_dim; i += 8) {
+                nk_b256_vec_t low_vec, high_vec;
+                nk_load_bf16x8_to_f32x8_haswell_(x_base + i, &low_vec);
+                nk_load_bf16x8_to_f32x8_haswell_(x_base + i + half_dim, &high_vec);
+                __m256 low_f32x8 = _mm256_mul_ps(low_vec.ymm_ps, scale_f32x8),
+                       high_f32x8 = _mm256_mul_ps(high_vec.ymm_ps, scale_f32x8);
+                __m256 cos_f32x8 = _mm256_loadu_ps(cos_row + i), sin_f32x8 = _mm256_loadu_ps(sin_row + i);
+                _mm_storeu_si128((__m128i *)(y_base + i),
+                                 nk_f32x8_to_bf16x8_haswell_(
+                                     _mm256_fmsub_ps(low_f32x8, cos_f32x8, _mm256_mul_ps(high_f32x8, sin_f32x8))));
+                _mm_storeu_si128((__m128i *)(y_base + i + half_dim),
+                                 nk_f32x8_to_bf16x8_haswell_(
+                                     _mm256_fmadd_ps(low_f32x8, sin_f32x8, _mm256_mul_ps(high_f32x8, cos_f32x8))));
+            }
+            for (; i != half_dim; ++i) {
+                nk_f32_t low, high;
+                nk_bf16_to_f32_serial(x_base + i, &low);
+                nk_bf16_to_f32_serial(x_base + i + half_dim, &high);
+                low *= input_scale, high *= input_scale;
+                nk_f32_t cosine = cos_row[i], sine = sin_row[i], rotated_low = low * cosine - high * sine,
+                         rotated_high = low * sine + high * cosine;
+                nk_f32_to_bf16_serial(&rotated_low, y_base + i);
+                nk_f32_to_bf16_serial(&rotated_high, y_base + i + half_dim);
+            }
+        }
+    }
+}
+
+NK_PUBLIC void nk_each_rope_e4m3_haswell(nk_e4m3_t const *x, nk_e4m3_t *y, nk_f32_t const *cos, nk_f32_t const *sin,
+                                         nk_size_t rows, nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride,
+                                         nk_size_t y_row_stride, nk_f32_t input_scale) {
+    __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *cos_row = cos + r * half_dim;
+        nk_f32_t const *sin_row = sin + r * half_dim;
+        nk_e4m3_t const *x_row = (nk_e4m3_t const *)((unsigned char const *)x + r * x_row_stride);
+        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + r * y_row_stride);
+        for (nk_size_t h = 0; h != heads; ++h) {
+            nk_e4m3_t const *x_base = x_row + h * 2 * half_dim;
+            nk_e4m3_t *y_base = y_row + h * 2 * half_dim;
+            nk_size_t i = 0;
+            for (; i + 8 <= half_dim; i += 8) {
+                nk_b256_vec_t low_vec, high_vec;
+                nk_load_e4m3x8_to_f32x8_haswell_(x_base + i, &low_vec);
+                nk_load_e4m3x8_to_f32x8_haswell_(x_base + i + half_dim, &high_vec);
+                __m256 low_f32x8 = _mm256_mul_ps(low_vec.ymm_ps, scale_f32x8),
+                       high_f32x8 = _mm256_mul_ps(high_vec.ymm_ps, scale_f32x8);
+                __m256 cos_f32x8 = _mm256_loadu_ps(cos_row + i), sin_f32x8 = _mm256_loadu_ps(sin_row + i);
+                _mm_storel_epi64((__m128i *)(y_base + i),
+                                 nk_f32x8_to_e4m3x8_haswell_(
+                                     _mm256_fmsub_ps(low_f32x8, cos_f32x8, _mm256_mul_ps(high_f32x8, sin_f32x8))));
+                _mm_storel_epi64((__m128i *)(y_base + i + half_dim),
+                                 nk_f32x8_to_e4m3x8_haswell_(
+                                     _mm256_fmadd_ps(low_f32x8, sin_f32x8, _mm256_mul_ps(high_f32x8, cos_f32x8))));
+            }
+            for (; i != half_dim; ++i) {
+                nk_f32_t low, high;
+                nk_e4m3_to_f32_serial(x_base + i, &low);
+                nk_e4m3_to_f32_serial(x_base + i + half_dim, &high);
+                low *= input_scale, high *= input_scale;
+                nk_f32_t cosine = cos_row[i], sine = sin_row[i], rotated_low = low * cosine - high * sine,
+                         rotated_high = low * sine + high * cosine;
+                nk_f32_to_e4m3_serial(&rotated_low, y_base + i);
+                nk_f32_to_e4m3_serial(&rotated_high, y_base + i + half_dim);
+            }
+        }
+    }
+}
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)

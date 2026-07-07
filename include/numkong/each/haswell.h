@@ -28,6 +28,7 @@
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"    // `nk_f32_to_i8_serial`
 #include "numkong/reduce/haswell.h" // `nk_e4m3x8_to_f32x8_haswell_`
+#include "numkong/scalar/serial.h"  // `nk_silu_f32_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -1640,6 +1641,118 @@ NK_PUBLIC void nk_each_fma_f64c_haswell(nk_f64c_t const *a, nk_f64c_t const *b, 
         nk_f64_t bc_imag = beta->real * c_imag + beta->imag * c_real;
         result[i].real = aab_real + bc_real;
         result[i].imag = aab_imag + bc_imag;
+    }
+}
+
+/** @brief Vectorized `2^x` (Haswell AVX2); matches `nk_exp2_f32_serial_` to polynomial precision. */
+NK_INTERNAL __m256 nk_exp2_f32x8_haswell_(__m256 x_f32x8) {
+    x_f32x8 = _mm256_max_ps(_mm256_min_ps(x_f32x8, _mm256_set1_ps(127.0f)), _mm256_set1_ps(-125.0f));
+    __m256 n_f32x8 = _mm256_round_ps(x_f32x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+    __m256 r_f32x8 = _mm256_sub_ps(x_f32x8, n_f32x8);
+    __m256 p_f32x8 = _mm256_set1_ps(9.61812910e-3f);
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(5.55041087e-2f));
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(2.40226507e-1f));
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(6.93147181e-1f));
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(1.0f));
+    __m256i n_i32x8 = _mm256_cvtps_epi32(n_f32x8);
+    n_i32x8 = _mm256_slli_epi32(_mm256_add_epi32(n_i32x8, _mm256_set1_epi32(127)), 23);
+    return _mm256_mul_ps(p_f32x8, _mm256_castsi256_ps(n_i32x8));
+}
+
+/** @brief Vectorized SiLU `x / (1 + 2^(-x·log2e))` (Haswell AVX2). */
+NK_INTERNAL __m256 nk_silu_f32x8_haswell_(__m256 x_f32x8) {
+    __m256 e_f32x8 = nk_exp2_f32x8_haswell_(_mm256_mul_ps(x_f32x8, _mm256_set1_ps(-NK_F32_LOG2E_)));
+    return _mm256_div_ps(x_f32x8, _mm256_add_ps(_mm256_set1_ps(1.0f), e_f32x8));
+}
+
+NK_PUBLIC void nk_each_swiglu_f32_haswell(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y, nk_size_t rows,
+                                          nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride,
+                                          nk_size_t y_row_stride, nk_f32_t input_scale) {
+    __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *g_row = (nk_f32_t const *)((unsigned char const *)gate + r * gate_row_stride);
+        nk_f32_t const *u_row = up ? (nk_f32_t const *)((unsigned char const *)up + r * up_row_stride) : NK_NULL;
+        nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + r * y_row_stride);
+        nk_size_t c = 0;
+        for (; c + 8 <= cols; c += 8) {
+            __m256 result_f32x8 = nk_silu_f32x8_haswell_(_mm256_mul_ps(_mm256_loadu_ps(g_row + c), scale_f32x8));
+            if (u_row)
+                result_f32x8 = _mm256_mul_ps(result_f32x8, _mm256_mul_ps(_mm256_loadu_ps(u_row + c), scale_f32x8));
+            _mm256_storeu_ps(y_row + c, result_f32x8);
+        }
+        for (; c != cols; ++c) {
+            nk_f32_t result = nk_silu_f32_serial_(g_row[c] * input_scale);
+            if (u_row) result *= u_row[c] * input_scale;
+            y_row[c] = result;
+        }
+    }
+}
+
+NK_PUBLIC void nk_each_swiglu_bf16_haswell(nk_bf16_t const *gate, nk_bf16_t const *up, nk_bf16_t *y, nk_size_t rows,
+                                           nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride,
+                                           nk_size_t y_row_stride, nk_f32_t input_scale) {
+    __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_bf16_t const *g_row = (nk_bf16_t const *)((unsigned char const *)gate + r * gate_row_stride);
+        nk_bf16_t const *u_row = up ? (nk_bf16_t const *)((unsigned char const *)up + r * up_row_stride) : NK_NULL;
+        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + r * y_row_stride);
+        nk_size_t c = 0;
+        for (; c + 8 <= cols; c += 8) {
+            nk_b256_vec_t gate_vec;
+            nk_load_bf16x8_to_f32x8_haswell_(g_row + c, &gate_vec);
+            __m256 result_f32x8 = nk_silu_f32x8_haswell_(_mm256_mul_ps(gate_vec.ymm_ps, scale_f32x8));
+            if (u_row) {
+                nk_b256_vec_t up_vec;
+                nk_load_bf16x8_to_f32x8_haswell_(u_row + c, &up_vec);
+                result_f32x8 = _mm256_mul_ps(result_f32x8, _mm256_mul_ps(up_vec.ymm_ps, scale_f32x8));
+            }
+            _mm_storeu_si128((__m128i *)(y_row + c), nk_f32x8_to_bf16x8_haswell_(result_f32x8));
+        }
+        for (; c != cols; ++c) {
+            nk_f32_t gate;
+            nk_bf16_to_f32_serial(g_row + c, &gate);
+            nk_f32_t result = nk_silu_f32_serial_(gate * input_scale);
+            if (u_row) {
+                nk_f32_t up;
+                nk_bf16_to_f32_serial(u_row + c, &up);
+                result *= up * input_scale;
+            }
+            nk_f32_to_bf16_serial(&result, y_row + c);
+        }
+    }
+}
+
+NK_PUBLIC void nk_each_swiglu_e4m3_haswell(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y, nk_size_t rows,
+                                           nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride,
+                                           nk_size_t y_row_stride, nk_f32_t input_scale) {
+    __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_e4m3_t const *g_row = (nk_e4m3_t const *)((unsigned char const *)gate + r * gate_row_stride);
+        nk_e4m3_t const *u_row = up ? (nk_e4m3_t const *)((unsigned char const *)up + r * up_row_stride) : NK_NULL;
+        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + r * y_row_stride);
+        nk_size_t c = 0;
+        for (; c + 8 <= cols; c += 8) {
+            nk_b256_vec_t gate_vec;
+            nk_load_e4m3x8_to_f32x8_haswell_(g_row + c, &gate_vec);
+            __m256 result_f32x8 = nk_silu_f32x8_haswell_(_mm256_mul_ps(gate_vec.ymm_ps, scale_f32x8));
+            if (u_row) {
+                nk_b256_vec_t up_vec;
+                nk_load_e4m3x8_to_f32x8_haswell_(u_row + c, &up_vec);
+                result_f32x8 = _mm256_mul_ps(result_f32x8, _mm256_mul_ps(up_vec.ymm_ps, scale_f32x8));
+            }
+            _mm_storel_epi64((__m128i *)(y_row + c), nk_f32x8_to_e4m3x8_haswell_(result_f32x8));
+        }
+        for (; c != cols; ++c) {
+            nk_f32_t gate;
+            nk_e4m3_to_f32_serial(g_row + c, &gate);
+            nk_f32_t result = nk_silu_f32_serial_(gate * input_scale);
+            if (u_row) {
+                nk_f32_t up;
+                nk_e4m3_to_f32_serial(u_row + c, &up);
+                result *= up * input_scale;
+            }
+            nk_f32_to_e4m3_serial(&result, y_row + c);
+        }
     }
 }
 

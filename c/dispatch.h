@@ -225,6 +225,9 @@ typedef struct {
     nk_each_fma_punned_t each_fma_u32;
     nk_each_fma_punned_t each_fma_u16;
     nk_each_fma_punned_t each_fma_u8;
+    nk_kernel_each_swiglu_punned_t each_swiglu_f32;
+    nk_kernel_each_swiglu_punned_t each_swiglu_bf16;
+    nk_kernel_each_swiglu_punned_t each_swiglu_e4m3;
     // Trigonometry
     nk_kernel_trigonometry_punned_t each_sin_f64;
     nk_kernel_trigonometry_punned_t each_sin_f32;
@@ -235,6 +238,9 @@ typedef struct {
     nk_kernel_trigonometry_punned_t each_atan_f64;
     nk_kernel_trigonometry_punned_t each_atan_f32;
     nk_kernel_trigonometry_punned_t each_atan_f16;
+    nk_kernel_each_rope_punned_t each_rope_f32;
+    nk_kernel_each_rope_punned_t each_rope_bf16;
+    nk_kernel_each_rope_punned_t each_rope_e4m3;
     // Reduce moments (sum + sum-of-squares)
     nk_kernel_reduce_moments_punned_t reduce_moments_f64;
     nk_kernel_reduce_moments_punned_t reduce_moments_f32;
@@ -275,6 +281,9 @@ typedef struct {
     nk_kernel_reduce_minmax_punned_t reduce_minmax_u8;
     nk_kernel_reduce_minmax_punned_t reduce_minmax_u4;
     nk_kernel_reduce_minmax_punned_t reduce_minmax_u1;
+    nk_kernel_reduce_rmsnorm_punned_t reduce_rmsnorm_f32;
+    nk_kernel_reduce_rmsnorm_punned_t reduce_rmsnorm_bf16;
+    nk_kernel_reduce_rmsnorm_punned_t reduce_rmsnorm_e4m3;
     // Dots packed size
     nk_dots_packed_size_punned_t dots_packed_size_f64;
     nk_dots_packed_size_punned_t dots_packed_size_f32;
@@ -483,6 +492,12 @@ extern void nk_error_trigonometry_(void const *, nk_size_t, void *);
 extern void nk_error_mesh_(void const *, void const *, nk_size_t, void *, void *, void *, void *, void *);
 extern void nk_error_reduce_moments_(void const *, nk_size_t, nk_size_t, void *, void *);
 extern void nk_error_reduce_minmax_(void const *, nk_size_t, nk_size_t, void *, nk_size_t *, void *, nk_size_t *);
+extern void nk_error_reduce_rmsnorm_(void const *, void const *, void *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                     nk_size_t, nk_f32_t, nk_f32_t);
+extern void nk_error_each_swiglu_(void const *, void const *, void *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                  nk_size_t, nk_f32_t);
+extern void nk_error_each_rope_(void const *, void *, void const *, void const *, nk_size_t, nk_size_t, nk_size_t,
+                                nk_size_t, nk_size_t, nk_f32_t);
 extern nk_size_t nk_error_packed_size_(nk_size_t, nk_size_t);
 extern void nk_error_pack_(void const *, nk_size_t, nk_size_t, nk_size_t, void *);
 extern void nk_error_dots_(void const *, void const *, void *, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t);

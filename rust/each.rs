@@ -307,6 +307,39 @@ extern "C" {
         beta: *const f64,
         result: *mut f64,
     );
+    fn nk_each_swiglu_f32(
+        gate: *const f32,
+        up: *const f32,
+        y: *mut f32,
+        rows: usize,
+        cols: usize,
+        gate_row_stride: usize,
+        up_row_stride: usize,
+        y_row_stride: usize,
+        input_scale: f32,
+    );
+    fn nk_each_swiglu_bf16(
+        gate: *const u16,
+        up: *const u16,
+        y: *mut u16,
+        rows: usize,
+        cols: usize,
+        gate_row_stride: usize,
+        up_row_stride: usize,
+        y_row_stride: usize,
+        input_scale: f32,
+    );
+    fn nk_each_swiglu_e4m3(
+        gate: *const u8,
+        up: *const u8,
+        y: *mut u8,
+        rows: usize,
+        cols: usize,
+        gate_row_stride: usize,
+        up_row_stride: usize,
+        y_row_stride: usize,
+        input_scale: f32,
+    );
 }
 
 // Complex fallback helpers
@@ -3616,4 +3649,154 @@ mod tests {
     }
 
     // endregion
+
+    use crate::types::{assert_close, bf16, e4m3, FloatLike, TestableType};
+
+    fn silu(x: f64) -> f64 { x / (1.0 + (-x).exp()) }
+
+    fn check_swiglu<Scalar>(values: &[f32], with_up: bool)
+    where
+        Scalar: FloatLike + TestableType + EachSwiglu,
+    {
+        let rows = 2;
+        let gate: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v)).collect();
+        let up: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(0.5 - v)).collect();
+        let mut y = vec![Scalar::zero(); gate.len()];
+        let up_arg = if with_up { Some(up.as_slice()) } else { None };
+        Scalar::swiglu(&gate, up_arg, &mut y, rows, 1.0).unwrap();
+        for i in 0..gate.len() {
+            let g = Scalar::from_f32(values[i]).to_f64();
+            let mut expected = silu(g);
+            if with_up {
+                expected *= Scalar::from_f32(0.5 - values[i]).to_f64();
+            }
+            let expected = Scalar::from_f32(expected as f32).to_f64();
+            assert_close(
+                y[i].to_f64(),
+                expected,
+                Scalar::atol() * 4.0,
+                Scalar::rtol() * 4.0,
+                &format!("swiglu<{}>[{i}]", core::any::type_name::<Scalar>()),
+            );
+        }
+    }
+
+    #[test]
+    fn swiglu_and_silu() {
+        let values: Vec<f32> = (0..64).map(|i| ((i % 13) as f32 - 6.0) * 0.4).collect();
+        check_swiglu::<f32>(&values, true);
+        check_swiglu::<f32>(&values, false);
+        check_swiglu::<bf16>(&values, true);
+        check_swiglu::<e4m3>(&values, true);
+    }
 }
+
+// region: Fused SwiGLU
+
+/// Fused SwiGLU over a row-major `[rows, cols]` slice: `y = silu(input_scale * gate) * (input_scale * up)`.
+/// With `up = None` this reduces to plain SiLU (`cols = gate.len() / rows`).
+pub trait EachSwiglu: Sized + StorageElement {
+    /// Computes SwiGLU (or SiLU when `up` is `None`) into `y`. Returns `None` on a shape mismatch.
+    fn swiglu(gate: &[Self], up: Option<&[Self]>, y: &mut [Self], rows: usize, input_scale: f32) -> Option<()>;
+}
+
+impl EachSwiglu for f32 {
+    fn swiglu(gate: &[Self], up: Option<&[Self]>, y: &mut [Self], rows: usize, input_scale: f32) -> Option<()> {
+        if rows == 0 || gate.len() != y.len() || gate.len() % rows != 0 {
+            return None;
+        }
+        if let Some(u) = up {
+            if u.len() != gate.len() {
+                return None;
+            }
+        }
+        let cols = gate.len() / rows;
+        let stride = cols * core::mem::size_of::<f32>();
+        let (up_ptr, up_stride) = match up {
+            Some(u) => (u.as_ptr(), stride),
+            None => (core::ptr::null(), 0usize),
+        };
+        unsafe {
+            nk_each_swiglu_f32(
+                gate.as_ptr(),
+                up_ptr,
+                y.as_mut_ptr(),
+                rows,
+                cols,
+                stride,
+                up_stride,
+                stride,
+                input_scale,
+            );
+        }
+        Some(())
+    }
+}
+
+impl EachSwiglu for bf16 {
+    fn swiglu(gate: &[Self], up: Option<&[Self]>, y: &mut [Self], rows: usize, input_scale: f32) -> Option<()> {
+        if rows == 0 || gate.len() != y.len() || gate.len() % rows != 0 {
+            return None;
+        }
+        if let Some(u) = up {
+            if u.len() != gate.len() {
+                return None;
+            }
+        }
+        let cols = gate.len() / rows;
+        let stride = cols * core::mem::size_of::<bf16>();
+        let (up_ptr, up_stride) = match up {
+            Some(u) => (u.as_ptr() as *const u16, stride),
+            None => (core::ptr::null(), 0usize),
+        };
+        unsafe {
+            nk_each_swiglu_bf16(
+                gate.as_ptr() as *const u16,
+                up_ptr,
+                y.as_mut_ptr() as *mut u16,
+                rows,
+                cols,
+                stride,
+                up_stride,
+                stride,
+                input_scale,
+            );
+        }
+        Some(())
+    }
+}
+
+impl EachSwiglu for e4m3 {
+    fn swiglu(gate: &[Self], up: Option<&[Self]>, y: &mut [Self], rows: usize, input_scale: f32) -> Option<()> {
+        if rows == 0 || gate.len() != y.len() || gate.len() % rows != 0 {
+            return None;
+        }
+        if let Some(u) = up {
+            if u.len() != gate.len() {
+                return None;
+            }
+        }
+        let cols = gate.len() / rows;
+        let stride = cols * core::mem::size_of::<e4m3>();
+        let (up_ptr, up_stride) = match up {
+            Some(u) => (u.as_ptr() as *const u8, stride),
+            None => (core::ptr::null(), 0usize),
+        };
+        unsafe {
+            nk_each_swiglu_e4m3(
+                gate.as_ptr() as *const u8,
+                up_ptr,
+                y.as_mut_ptr() as *mut u8,
+                rows,
+                cols,
+                stride,
+                up_stride,
+                stride,
+                input_scale,
+            );
+        }
+        Some(())
+    }
+}
+
+// endregion

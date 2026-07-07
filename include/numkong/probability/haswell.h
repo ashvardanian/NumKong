@@ -92,7 +92,7 @@ NK_INTERNAL __m256d nk_log2_f64x4_haswell_(__m256d x) {
 
     __m256d two_f64x4 = _mm256_set1_pd(2.0);
     __m256d ln_m_f64x4 = _mm256_mul_pd(_mm256_mul_pd(two_f64x4, s_f64x4), poly_f64x4);
-    __m256d log2e_f64x4 = _mm256_set1_pd(1.4426950408889634);
+    __m256d log2e_f64x4 = _mm256_set1_pd(NK_F64_LOG2E_);
     __m256d log2_m_f64x4 = _mm256_mul_pd(ln_m_f64x4, log2e_f64x4);
 
     return _mm256_add_pd(exponent_f64x4, log2_m_f64x4);
@@ -124,7 +124,7 @@ nk_kld_f16_haswell_cycle:
     sum_f32x8 = _mm256_add_ps(sum_f32x8, contribution_f32x8);
     if (n) goto nk_kld_f16_haswell_cycle;
 
-    nk_f32_t log2_normalizer = 0.6931471805599453f;
+    nk_f32_t log2_normalizer = NK_F32_LN2_;
     nk_f32_t sum = nk_reduce_add_f32x8_haswell_(sum_f32x8);
     sum *= log2_normalizer;
     *result = sum;
@@ -163,7 +163,7 @@ nk_jsd_f16_haswell_cycle:
     sum_f32x8 = _mm256_add_ps(sum_f32x8, contribution_b_f32x8);
     if (n) goto nk_jsd_f16_haswell_cycle;
 
-    nk_f32_t log2_normalizer = 0.6931471805599453f;
+    nk_f32_t log2_normalizer = NK_F32_LN2_;
     nk_f32_t sum = nk_reduce_add_f32x8_haswell_(sum_f32x8);
     sum *= log2_normalizer / 2;
     *result = sum > 0 ? nk_f32_sqrt_haswell(sum) : 0;
@@ -200,7 +200,7 @@ nk_kld_f64_haswell_cycle:
     sum_f64x4 = tentative_f64x4;
     if (n) goto nk_kld_f64_haswell_cycle;
 
-    nk_f64_t log2_normalizer = 0.6931471805599453;
+    nk_f64_t log2_normalizer = NK_F64_LN2_;
     *result = nk_reduce_add_f64x4_haswell_(sum_f64x4) * log2_normalizer;
 }
 
@@ -246,7 +246,7 @@ nk_jsd_f64_haswell_cycle:
     sum_f64x4 = tentative_b_f64x4;
     if (n) goto nk_jsd_f64_haswell_cycle;
 
-    nk_f64_t log2_normalizer = 0.6931471805599453;
+    nk_f64_t log2_normalizer = NK_F64_LN2_;
     nk_f64_t sum = nk_reduce_add_f64x4_haswell_(sum_f64x4);
     sum *= log2_normalizer / 2;
     *result = sum > 0 ? nk_f64_sqrt_haswell(sum) : 0;

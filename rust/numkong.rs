@@ -119,6 +119,7 @@ pub mod reduce;
 pub mod set;
 pub mod sparse;
 pub mod spatial;
+pub mod trigonometry;
 
 // Containers
 pub mod matrix;
@@ -143,12 +144,14 @@ pub use probability::{JensenShannon, KullbackLeibler, ProbabilitySimilarity};
 
 // Re-export elementwise and trig traits
 pub use each::{
-    AllCloseOps, BlendOps, EachATan, EachBlend, EachCos, EachFMA, EachScale, EachSin, EachSum, FmaOps, ScaleOps,
-    SumOps, TrigAtanOps, TrigCosOps, TrigSinOps, Trigonometry,
+    AllCloseOps, BlendOps, EachATan, EachBlend, EachCos, EachFMA, EachScale, EachSin, EachSum, EachSwiglu, FmaOps,
+    ScaleOps, SumOps, TrigAtanOps, TrigCosOps, TrigSinOps, Trigonometry,
 };
 
-// Re-export reduction traits
-pub use reduce::{BitwiseReductions, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, Reductions, SumSqToF64};
+pub use reduce::{
+    BitwiseReductions, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, ReduceRmsNorm, Reductions, SumSqToF64,
+};
+pub use trigonometry::EachRope;
 
 // Re-export curved metric traits
 pub use curved::{Bilinear, Mahalanobis};

@@ -3786,6 +3786,104 @@ NK_PUBLIC void nk_reduce_moments_u1_haswell(                            //
     else nk_reduce_moments_u1_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
+NK_PUBLIC void nk_reduce_rmsnorm_f32_haswell(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y, nk_size_t rows,
+                                             nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
+                                             nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale) {
+    nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_row_stride);
+        nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + r * y_row_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_f32_t const *group_input = x_row + group * cols;
+            nk_f32_t *group_output = y_row + group * cols;
+            nk_f64_t sum, sumsq;
+            nk_reduce_moments_f32_haswell(group_input, cols, sizeof(nk_f32_t), &sum, &sumsq);
+            (void)sum;
+            nk_f32_t mean_square = (nk_f32_t)(scale_sq * sumsq / (nk_f64_t)cols) + eps;
+            nk_f32_t gain = input_scale *
+                            _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            __m256 gain_f32x8 = _mm256_set1_ps(gain);
+            nk_size_t c = 0;
+            for (; c + 8 <= cols; c += 8) {
+                __m256 normalized_f32x8 = _mm256_mul_ps(_mm256_loadu_ps(group_input + c), gain_f32x8);
+                if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
+                _mm256_storeu_ps(group_output + c, normalized_f32x8);
+            }
+            for (; c != cols; ++c) group_output[c] = group_input[c] * gain * (gamma ? gamma[c] : 1.0f);
+        }
+    }
+}
+
+NK_PUBLIC void nk_reduce_rmsnorm_bf16_haswell(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y, nk_size_t rows,
+                                              nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
+                                              nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale) {
+    nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_bf16_t const *x_row = (nk_bf16_t const *)((unsigned char const *)x + r * x_row_stride);
+        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + r * y_row_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_bf16_t const *group_input = x_row + group * cols;
+            nk_bf16_t *group_output = y_row + group * cols;
+            nk_f32_t sum, sumsq;
+            nk_reduce_moments_bf16_haswell(group_input, cols, sizeof(nk_bf16_t), &sum, &sumsq);
+            (void)sum;
+            nk_f32_t mean_square = (nk_f32_t)(scale_sq * (nk_f64_t)sumsq / (nk_f64_t)cols) + eps;
+            nk_f32_t gain = input_scale *
+                            _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            __m256 gain_f32x8 = _mm256_set1_ps(gain);
+            nk_size_t c = 0;
+            for (; c + 8 <= cols; c += 8) {
+                nk_b256_vec_t input_vec;
+                nk_load_bf16x8_to_f32x8_haswell_(group_input + c, &input_vec);
+                __m256 normalized_f32x8 = _mm256_mul_ps(input_vec.ymm_ps, gain_f32x8);
+                if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
+                _mm_storeu_si128((__m128i *)(group_output + c), nk_f32x8_to_bf16x8_haswell_(normalized_f32x8));
+            }
+            for (; c != cols; ++c) {
+                nk_f32_t value;
+                nk_bf16_to_f32_serial(group_input + c, &value);
+                nk_f32_t result = value * gain * (gamma ? gamma[c] : 1.0f);
+                nk_f32_to_bf16_serial(&result, group_output + c);
+            }
+        }
+    }
+}
+
+NK_PUBLIC void nk_reduce_rmsnorm_e4m3_haswell(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y, nk_size_t rows,
+                                              nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
+                                              nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale) {
+    nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_e4m3_t const *x_row = (nk_e4m3_t const *)((unsigned char const *)x + r * x_row_stride);
+        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + r * y_row_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_e4m3_t const *group_input = x_row + group * cols;
+            nk_e4m3_t *group_output = y_row + group * cols;
+            nk_f32_t sum, sumsq;
+            nk_reduce_moments_e4m3_haswell(group_input, cols, sizeof(nk_e4m3_t), &sum, &sumsq);
+            (void)sum;
+            nk_f32_t mean_square = (nk_f32_t)(scale_sq * (nk_f64_t)sumsq / (nk_f64_t)cols) + eps;
+            nk_f32_t gain = input_scale *
+                            _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            __m256 gain_f32x8 = _mm256_set1_ps(gain);
+            nk_size_t c = 0;
+            for (; c + 8 <= cols; c += 8) {
+                nk_b256_vec_t input_vec;
+                nk_load_e4m3x8_to_f32x8_haswell_(group_input + c, &input_vec);
+                __m256 normalized_f32x8 = _mm256_mul_ps(input_vec.ymm_ps, gain_f32x8);
+                if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
+                _mm_storel_epi64((__m128i *)(group_output + c), nk_f32x8_to_e4m3x8_haswell_(normalized_f32x8));
+            }
+            for (; c != cols; ++c) {
+                nk_f32_t value;
+                nk_e4m3_to_f32_serial(group_input + c, &value);
+                nk_f32_t result = value * gain * (gamma ? gamma[c] : 1.0f);
+                nk_f32_to_e4m3_serial(&result, group_output + c);
+            }
+        }
+    }
+}
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)

@@ -27,6 +27,15 @@ PyObject *api_add(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObj
 /** @brief Elementwise multiplication of two tensors or a tensor and a scalar. */
 PyObject *api_multiply(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
+/** @brief Grouped RMSNorm: y = x * rsqrt(mean(x^2) + eps) * gamma. */
+PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
+/** @brief Fused SwiGLU: y = silu(gate) * up  (up=None -> plain SiLU). */
+PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
+/** @brief In-place NeoX split-half rotary position embedding (RoPE), single axis. */
+PyObject *api_rope(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
 /** @brief Elementwise sine. */
 PyObject *api_sin(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 /** @brief Elementwise cosine. */
@@ -39,6 +48,9 @@ extern char const doc_blend[];
 extern char const doc_scale[];
 extern char const doc_add[];
 extern char const doc_multiply[];
+extern char const doc_rmsnorm[];
+extern char const doc_swiglu[];
+extern char const doc_rope[];
 extern char const doc_sin[];
 extern char const doc_cos[];
 extern char const doc_atan[];

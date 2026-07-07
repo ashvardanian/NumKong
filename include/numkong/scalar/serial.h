@@ -325,6 +325,36 @@ NK_PUBLIC int nk_f16_order_serial(nk_f16_t a, nk_f16_t b) {
     return ((int)a_fui.u ^ -sign_a) - ((int)b_fui.u ^ -sign_b);
 }
 
+/**
+ *  @brief Scalar `2^x` via a degree-4 minimax polynomial; no libm.
+ *  The lower clamp is −125 (not the F32 limit) so the smallest result stays a normal float:
+ *  a denormal operand in a downstream multiply costs a ~150-cycle microcode assist on most cores.
+ *  Shared reference for every fused kernel needing a sigmoid / SiLU / softmax weight; the SIMD
+ *  backends match this polynomial to keep serial and vector paths in agreement.
+ */
+NK_INTERNAL nk_f32_t nk_f32_exp2_serial_(nk_f32_t x) {
+    x = x > 127.0f ? 127.0f : x;
+    x = x < -125.0f ? -125.0f : x;
+    nk_i32_t whole = (nk_i32_t)(x >= 0 ? x + 0.5f : x - 0.5f);
+    nk_f32_t reduced = x - (nk_f32_t)whole; // in [-0.5, 0.5]
+    nk_f32_t poly = 9.61812910e-3f;
+    poly = poly * reduced + 5.55041087e-2f;
+    poly = poly * reduced + 2.40226507e-1f;
+    poly = poly * reduced + 6.93147181e-1f;
+    poly = poly * reduced + 1.0f;
+    nk_fui32_t power;
+    power.u = (nk_u32_t)(whole + 127) << 23;
+    return poly * power.f;
+}
+
+/** @brief Scalar logistic sigmoid `1 / (1 + e^-x)`, built on the shared fast exponent. */
+NK_INTERNAL nk_f32_t nk_sigmoid_f32_serial_(nk_f32_t x) {
+    return 1.0f / (1.0f + nk_f32_exp2_serial_(-x * NK_F32_LOG2E_));
+}
+
+/** @brief Scalar SiLU / swish `x · sigmoid(x)`, built on the shared fast exponent. */
+NK_INTERNAL nk_f32_t nk_silu_f32_serial_(nk_f32_t x) { return x * nk_sigmoid_f32_serial_(x); }
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif

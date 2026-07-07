@@ -211,19 +211,22 @@ typedef enum {
     nk_kernel_sparse_intersect_k = 'x', ///< Equivalent to unnormalized Jaccard
 
     // BLAS-like operations:
-    nk_kernel_each_scale_k = '*', ///< Element-wise Scale
-    nk_kernel_each_sum_k = '+',   ///< Element-wise Sum
-    nk_kernel_each_blend_k = 'w', ///< Element-wise Weighted Sum
-    nk_kernel_each_fma_k = 'f',   ///< Element-wise Fused Multiply-Add
+    nk_kernel_each_scale_k = '*',  ///< Element-wise Scale
+    nk_kernel_each_sum_k = '+',    ///< Element-wise Sum
+    nk_kernel_each_blend_k = 'w',  ///< Element-wise Weighted Sum
+    nk_kernel_each_fma_k = 'f',    ///< Element-wise Fused Multiply-Add
+    nk_kernel_each_swiglu_k = 'W', ///< Fused SwiGLU: y = silu(gate) ⊙ up (up = NULL → SiLU)
 
     // Trigonometric functions:
     nk_kernel_each_sin_k = 'S',  ///< Element-wise sine
     nk_kernel_each_cos_k = 'C',  ///< Element-wise cosine
     nk_kernel_each_atan_k = 'A', ///< Element-wise arctangent
+    nk_kernel_each_rope_k = 'I', ///< NeoX split-half rotary position embedding (in place)
 
     // Horizontal reductions:
     nk_kernel_reduce_moments_k = 'R', ///< Horizontal moments reduction (sum + sum-of-squares)
     nk_kernel_reduce_minmax_k = 'X',  ///< Horizontal minmax reduction (min + argmin + max + argmax)
+    nk_kernel_reduce_rmsnorm_k = 'H', ///< Grouped RMSNorm: y = x · rsqrt(mean(x²) + eps) · γ
 
     // GEMM-like batched dot products:
     nk_kernel_dots_packed_size_k = 'P', ///< GEMM packed buffer size
@@ -344,6 +347,18 @@ typedef void (*nk_kernel_reduce_moments_punned_t)(void const *data, nk_size_t co
 typedef void (*nk_kernel_reduce_minmax_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes,
                                                  void *min_value, nk_size_t *min_index, void *max_value,
                                                  nk_size_t *max_index);
+
+typedef void (*nk_kernel_reduce_rmsnorm_punned_t)(void const *x, void const *gamma, void *y, nk_size_t rows,
+                                                  nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
+                                                  nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale);
+
+typedef void (*nk_kernel_each_swiglu_punned_t)(void const *gate, void const *up, void *y, nk_size_t rows,
+                                               nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride,
+                                               nk_size_t y_row_stride, nk_f32_t input_scale);
+
+typedef void (*nk_kernel_each_rope_punned_t)(void const *x, void *y, void const *cos, void const *sin, nk_size_t rows,
+                                             nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride,
+                                             nk_size_t y_row_stride, nk_f32_t input_scale);
 
 typedef nk_size_t (*nk_dots_packed_size_punned_t)(nk_size_t columns, nk_size_t depth);
 

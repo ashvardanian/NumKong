@@ -186,6 +186,58 @@ NK_PUBLIC void nk_reduce_moments_e5m2_genoa(                            //
     else nk_reduce_moments_e5m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
+NK_PUBLIC void nk_reduce_rmsnorm_bf16_genoa(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y, nk_size_t rows,
+                                            nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
+                                            nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale) {
+    nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_bf16_t const *x_row = (nk_bf16_t const *)((unsigned char const *)x + r * x_row_stride);
+        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + r * y_row_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_bf16_t const *group_input = x_row + group * cols;
+            nk_bf16_t *group_output = y_row + group * cols;
+            nk_f32_t sum, sumsq;
+            nk_reduce_moments_bf16_genoa(group_input, cols, sizeof(nk_bf16_t), &sum, &sumsq);
+            (void)sum;
+            nk_f32_t mean_square = (nk_f32_t)(scale_sq * (nk_f64_t)sumsq / (nk_f64_t)cols) + eps;
+            nk_f32_t gain = input_scale *
+                            _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            for (nk_size_t c = 0; c != cols; ++c) {
+                nk_f32_t value;
+                nk_bf16_to_f32_serial(group_input + c, &value);
+                nk_f32_t result = value * gain * (gamma ? gamma[c] : 1.0f);
+                nk_f32_to_bf16_serial(&result, group_output + c);
+            }
+        }
+    }
+}
+
+NK_PUBLIC void nk_reduce_rmsnorm_e4m3_genoa(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y, nk_size_t rows,
+                                            nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
+                                            nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale) {
+    nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_e4m3_t const *x_row = (nk_e4m3_t const *)((unsigned char const *)x + r * x_row_stride);
+        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + r * y_row_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_e4m3_t const *group_input = x_row + group * cols;
+            nk_e4m3_t *group_output = y_row + group * cols;
+            nk_f32_t sum, sumsq;
+            nk_reduce_moments_e4m3_genoa(group_input, cols, sizeof(nk_e4m3_t), &sum, &sumsq);
+            (void)sum;
+            nk_f32_t mean_square = (nk_f32_t)(scale_sq * (nk_f64_t)sumsq / (nk_f64_t)cols) + eps;
+            nk_f32_t gain = input_scale *
+                            _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            for (nk_size_t c = 0; c != cols; ++c) {
+                nk_f32_t value;
+                nk_e4m3_to_f32_serial(group_input + c, &value);
+                nk_f32_t result = value * gain * (gamma ? gamma[c] : 1.0f);
+                nk_f32_to_e4m3_serial(&result, group_output + c);
+            }
+        }
+    }
+}
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)

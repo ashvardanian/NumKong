@@ -77,7 +77,7 @@ nk_kld_f32_skylake_cycle:
     __m256 upper_f32x8 = _mm512_extractf32x8_ps(sum_f32x16, 1);
     nk_f64_t sum = _mm512_reduce_add_pd(_mm512_cvtps_pd(lower_f32x8)) +
                    _mm512_reduce_add_pd(_mm512_cvtps_pd(upper_f32x8));
-    nk_f64_t log2_normalizer = 0.6931471805599453;
+    nk_f64_t log2_normalizer = NK_F64_LN2_;
     *result = sum * log2_normalizer;
 }
 
@@ -117,8 +117,8 @@ nk_jsd_f32_skylake_cycle:
     __m256 upper_f32x8 = _mm512_extractf32x8_ps(sum_f32x16, 1);
     nk_f64_t sum = (_mm512_reduce_add_pd(_mm512_cvtps_pd(lower_f32x8)) +
                     _mm512_reduce_add_pd(_mm512_cvtps_pd(upper_f32x8))) *
-                   0.6931471805599453 / 2.0;
-    nk_f64_t log2_normalizer = 0.6931471805599453;
+                   NK_F64_LN2_ / 2.0;
+    nk_f64_t log2_normalizer = NK_F64_LN2_;
     nk_unused_(log2_normalizer);
     *result = sum > 0 ? nk_f64_sqrt_haswell(sum) : 0;
 }
@@ -155,7 +155,7 @@ NK_INTERNAL __m512d nk_log2_f64x8_skylake_(__m512d x) {
 
     // ln(m) = 2 × s × P(s²), then log2(m) = ln(m) × log2(e)
     __m512d ln_m_f64x8 = _mm512_mul_pd(_mm512_mul_pd(two_f64x8, s_f64x8), poly_f64x8);
-    __m512d log2e_f64x8 = _mm512_set1_pd(1.4426950408889634); // 1/ln(2)
+    __m512d log2e_f64x8 = _mm512_set1_pd(NK_F64_LOG2E_); // 1/ln(2)
     __m512d log2_m_f64x8 = _mm512_mul_pd(ln_m_f64x8, log2e_f64x8);
 
     // log2(x) = exponent + log2(m)
@@ -191,7 +191,7 @@ nk_kld_f64_skylake_cycle:
     sum_f64x8 = tentative_f64x8;
     if (n) goto nk_kld_f64_skylake_cycle;
 
-    nk_f64_t log2_normalizer = 0.6931471805599453;
+    nk_f64_t log2_normalizer = NK_F64_LN2_;
     *result = _mm512_reduce_add_pd(sum_f64x8) * log2_normalizer;
 }
 
@@ -237,7 +237,7 @@ nk_jsd_f64_skylake_cycle:
     sum_f64x8 = tentative_b_f64x8;
     if (n) goto nk_jsd_f64_skylake_cycle;
 
-    nk_f64_t log2_normalizer = 0.6931471805599453;
+    nk_f64_t log2_normalizer = NK_F64_LN2_;
     nk_f64_t sum = _mm512_reduce_add_pd(sum_f64x8);
     sum *= log2_normalizer / 2;
     *result = sum > 0 ? nk_f64_sqrt_haswell(sum) : 0;
@@ -267,7 +267,7 @@ nk_kld_f16_skylake_cycle:
     sum_f32x16 = _mm512_add_ps(sum_f32x16, contribution_f32x16);
     if (n) goto nk_kld_f16_skylake_cycle;
 
-    nk_f32_t log2_normalizer = 0.6931471805599453f;
+    nk_f32_t log2_normalizer = NK_F32_LN2_;
     *result = _mm512_reduce_add_ps(sum_f32x16) * log2_normalizer;
 }
 
@@ -303,7 +303,7 @@ nk_jsd_f16_skylake_cycle:
     sum_b_f32x16 = _mm512_mask3_fmadd_ps(b_f32x16, log_ratio_b_f32x16, sum_b_f32x16, nonzero_mask);
     if (n) goto nk_jsd_f16_skylake_cycle;
 
-    nk_f32_t log2_normalizer = 0.6931471805599453f;
+    nk_f32_t log2_normalizer = NK_F32_LN2_;
     nk_f32_t sum = _mm512_reduce_add_ps(_mm512_add_ps(sum_a_f32x16, sum_b_f32x16));
     sum *= log2_normalizer / 2;
     *result = sum > 0 ? nk_f32_sqrt_haswell(sum) : 0;
