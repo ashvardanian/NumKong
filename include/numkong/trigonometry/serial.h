@@ -703,33 +703,33 @@ NK_PUBLIC void nk_each_atan_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_
  *  The whole head is written, so the output `y` (byte stride `y_row_stride`) may alias `x` for
  *  in-place rotation; the caller bakes position lookup and M-RoPE axis assignment into the grids.
  *  `input_scale` folds an E4M3 descale onto the load (1.0 for BF16/F32). */
-#define nk_define_each_rope_(input_type, load_and_convert, convert_and_store)                                      \
-    NK_PUBLIC void nk_each_rope_##input_type##_serial(nk_##input_type##_t const *x, nk_##input_type##_t *y,        \
-                                                      nk_f32_t const *cos, nk_f32_t const *sin, nk_size_t rows,    \
-                                                      nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride, \
-                                                      nk_size_t y_row_stride, nk_f32_t input_scale) {              \
-        for (nk_size_t r = 0; r != rows; ++r) {                                                                    \
-            nk_f32_t const *cos_row = cos + r * half_dim;                                                          \
-            nk_f32_t const *sin_row = sin + r * half_dim;                                                          \
-            nk_##input_type##_t const *x_row = (nk_##input_type##_t const *)((unsigned char const *)x +            \
-                                                                             r * x_row_stride);                    \
-            nk_##input_type##_t *y_row = (nk_##input_type##_t *)((unsigned char *)y + r * y_row_stride);           \
-            for (nk_size_t h = 0; h != heads; ++h) {                                                               \
-                nk_##input_type##_t const *x_base = x_row + h * 2 * half_dim;                                      \
-                nk_##input_type##_t *y_base = y_row + h * 2 * half_dim;                                            \
-                for (nk_size_t i = 0; i != half_dim; ++i) {                                                        \
-                    nk_f32_t low, high;                                                                            \
-                    load_and_convert(x_base + i, &low);                                                            \
-                    load_and_convert(x_base + i + half_dim, &high);                                                \
-                    low *= input_scale, high *= input_scale;                                                       \
-                    nk_f32_t cosine = cos_row[i], sine = sin_row[i];                                               \
-                    nk_f32_t rotated_low = low * cosine - high * sine;                                             \
-                    nk_f32_t rotated_high = low * sine + high * cosine;                                            \
-                    convert_and_store(&rotated_low, y_base + i);                                                   \
-                    convert_and_store(&rotated_high, y_base + i + half_dim);                                       \
-                }                                                                                                  \
-            }                                                                                                      \
-        }                                                                                                          \
+#define nk_define_each_rope_(input_type, load_and_convert, convert_and_store)                                         \
+    NK_PUBLIC void nk_each_rope_##input_type##_serial(                                                                \
+        nk_##input_type##_t const *x, nk_##input_type##_t *y, nk_rope_angle_t const *cos, nk_rope_angle_t const *sin, \
+        nk_size_t rows, nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,          \
+        nk_f32_t input_scale) {                                                                                       \
+        for (nk_size_t r = 0; r != rows; ++r) {                                                                       \
+            nk_f32_t const *cos_row = cos + r * half_dim;                                                             \
+            nk_f32_t const *sin_row = sin + r * half_dim;                                                             \
+            nk_##input_type##_t const *x_row = (nk_##input_type##_t const *)((unsigned char const *)x +               \
+                                                                             r * x_row_stride);                       \
+            nk_##input_type##_t *y_row = (nk_##input_type##_t *)((unsigned char *)y + r * y_row_stride);              \
+            for (nk_size_t h = 0; h != heads; ++h) {                                                                  \
+                nk_##input_type##_t const *x_base = x_row + h * 2 * half_dim;                                         \
+                nk_##input_type##_t *y_base = y_row + h * 2 * half_dim;                                               \
+                for (nk_size_t i = 0; i != half_dim; ++i) {                                                           \
+                    nk_f32_t low, high;                                                                               \
+                    load_and_convert(x_base + i, &low);                                                               \
+                    load_and_convert(x_base + i + half_dim, &high);                                                   \
+                    low *= input_scale, high *= input_scale;                                                          \
+                    nk_f32_t cosine = cos_row[i], sine = sin_row[i];                                                  \
+                    nk_f32_t rotated_low = low * cosine - high * sine;                                                \
+                    nk_f32_t rotated_high = low * sine + high * cosine;                                               \
+                    convert_and_store(&rotated_low, y_base + i);                                                      \
+                    convert_and_store(&rotated_high, y_base + i + half_dim);                                          \
+                }                                                                                                     \
+            }                                                                                                         \
+        }                                                                                                             \
     }
 
 nk_define_each_rope_(f32, nk_assign_from_to_, nk_assign_from_to_)

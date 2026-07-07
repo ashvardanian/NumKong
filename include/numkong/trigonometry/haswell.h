@@ -638,9 +638,9 @@ NK_PUBLIC void nk_each_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64
     }
 }
 
-NK_PUBLIC void nk_each_rope_f32_haswell(nk_f32_t const *x, nk_f32_t *y, nk_f32_t const *cos, nk_f32_t const *sin,
-                                        nk_size_t rows, nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride,
-                                        nk_size_t y_row_stride, nk_f32_t input_scale) {
+NK_PUBLIC void nk_each_rope_f32_haswell(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
+                                        nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
+                                        nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) {
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f32_t const *cos_row = cos + r * half_dim;
@@ -670,9 +670,10 @@ NK_PUBLIC void nk_each_rope_f32_haswell(nk_f32_t const *x, nk_f32_t *y, nk_f32_t
     }
 }
 
-NK_PUBLIC void nk_each_rope_bf16_haswell(nk_bf16_t const *x, nk_bf16_t *y, nk_f32_t const *cos, nk_f32_t const *sin,
-                                         nk_size_t rows, nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride,
-                                         nk_size_t y_row_stride, nk_f32_t input_scale) {
+NK_PUBLIC void nk_each_rope_bf16_haswell(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
+                                         nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                         nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                         nk_f32_t input_scale) {
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f32_t const *cos_row = cos + r * half_dim;
@@ -711,9 +712,10 @@ NK_PUBLIC void nk_each_rope_bf16_haswell(nk_bf16_t const *x, nk_bf16_t *y, nk_f3
     }
 }
 
-NK_PUBLIC void nk_each_rope_e4m3_haswell(nk_e4m3_t const *x, nk_e4m3_t *y, nk_f32_t const *cos, nk_f32_t const *sin,
-                                         nk_size_t rows, nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride,
-                                         nk_size_t y_row_stride, nk_f32_t input_scale) {
+NK_PUBLIC void nk_each_rope_e4m3_haswell(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
+                                         nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                         nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                         nk_f32_t input_scale) {
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f32_t const *cos_row = cos + r * half_dim;

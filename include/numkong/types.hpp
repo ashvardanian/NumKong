@@ -265,6 +265,7 @@ struct f32_t {
 
     // Type aliases for mixed precision operations
     using scale_t = nk_f32_t;
+    using rope_angle_t = nk_f32_t;
     using sparse_dot_index_t = u32_t;
     using dot_result_t = f64_t;           // `nk_dot_f32` output
     using sqeuclidean_result_t = f64_t;   // `nk_sqeuclidean_f32` output
@@ -1299,6 +1300,7 @@ struct f16_t {
 
     // Type aliases for mixed precision operations
     using scale_t = nk_f32_t;
+    using rope_angle_t = nk_f32_t;
     using dot_result_t = f32_t;           // `nk_dot_f16` output
     using sqeuclidean_result_t = f32_t;   // `nk_sqeuclidean_f16` output
     using euclidean_result_t = f32_t;     // `nk_euclidean_f16` output
@@ -1547,6 +1549,7 @@ struct bf16_t {
 
     // Type aliases for mixed precision operations
     using scale_t = nk_f32_t;
+    using rope_angle_t = nk_f32_t;
     using sparse_dot_index_t = u16_t;
     using dot_result_t = f32_t;           // `nk_dot_bf16` output
     using attention_result_t = f32_t;     // `nk_attention_packed_*` output
@@ -2008,6 +2011,7 @@ struct e4m3_t {
 
     // Type aliases for mixed precision operations
     using scale_t = nk_f32_t;
+    using rope_angle_t = nk_f32_t;
     using dot_result_t = f32_t;           // `nk_dot_e4m3` output
     using attention_result_t = f32_t;     // `nk_attention_packed_*` output
     using sqeuclidean_result_t = f32_t;   // `nk_sqeuclidean_e4m3` output
