@@ -311,6 +311,7 @@ typedef nk_u64_t nk_capability_t;
 #define nk_cap_powervsx_k    ((nk_capability_t)1 << 37)
 #define nk_cap_diamond_k     ((nk_capability_t)1 << 38)
 #define nk_cap_neonfp8_k     ((nk_capability_t)1 << 39)
+#define nk_cap_diamondamx_k  ((nk_capability_t)1 << 40)
 
 typedef void (*nk_metric_dense_punned_t)(void const *a, void const *b, nk_size_t dimensions, void *result);
 
@@ -514,6 +515,22 @@ NK_PUBLIC nk_capability_t nk_capabilities_x8664_(void) {
         supports_avx10v2 = (info24.named.ebx & 0xFF) >= 2;
     }
 
+    unsigned supports_amx_fp8 = 0, supports_amx_avx512 = 0;
+    // Diamond Rapids AMX detection via CPUID leaf 0x1E, subleaf 1: EAX bit 4 = AMX-FP8, EAX bit 7 = AMX-AVX512.
+    if (max_leaf >= 0x1E) {
+        union four_registers_t info1e1;
+#if defined(_MSC_VER)
+        __cpuidex(info1e1.array, 0x1E, 1);
+#else
+        __asm__ __volatile__("cpuid"
+                             : "=a"(info1e1.named.eax), "=b"(info1e1.named.ebx), "=c"(info1e1.named.ecx),
+                               "=d"(info1e1.named.edx)
+                             : "a"(0x1E), "c"(1));
+#endif
+        supports_amx_fp8 = (info1e1.named.eax & 0x00000010) != 0;
+        supports_amx_avx512 = (info1e1.named.eax & 0x00000080) != 0;
+    }
+
     unsigned supports_haswell = supports_avx2 && supports_f16c && supports_fma;
     unsigned supports_skylake = supports_avx512f;
     unsigned supports_icelake = supports_avx512vnni && supports_avx512ifma && supports_avx512bitalg &&
@@ -526,13 +543,15 @@ NK_PUBLIC nk_capability_t nk_capabilities_x8664_(void) {
     unsigned supports_alder = supports_haswell && supports_avxvnni;
     unsigned supports_sapphireamx = supports_amx_tile && supports_amx_bf16 && supports_amx_int8;
     unsigned supports_graniteamx = supports_sapphireamx && supports_amx_fp16;
+    unsigned supports_diamondamx = supports_sapphireamx && supports_amx_fp8 && supports_amx_avx512;
 
     return (nk_capability_t)((nk_cap_haswell_k * supports_haswell) | (nk_cap_skylake_k * supports_skylake) |
                              (nk_cap_icelake_k * supports_icelake) | (nk_cap_genoa_k * supports_genoa) |
                              (nk_cap_diamond_k * supports_diamond) | (nk_cap_sapphire_k * supports_sapphire) |
                              (nk_cap_turin_k * supports_turin) | (nk_cap_sierra_k * supports_sierra) |
                              (nk_cap_alder_k * supports_alder) | (nk_cap_sapphireamx_k * supports_sapphireamx) |
-                             (nk_cap_graniteamx_k * supports_graniteamx) | (nk_cap_serial_k));
+                             (nk_cap_graniteamx_k * supports_graniteamx) | (nk_cap_diamondamx_k * supports_diamondamx) |
+                             (nk_cap_serial_k));
 }
 
 #endif // NK_TARGET_X8664_
@@ -895,6 +914,7 @@ NK_PUBLIC nk_capability_t nk_capabilities_compiled_(void) {
     caps |= nk_cap_sapphire_k * NK_TARGET_SAPPHIRE;
     caps |= nk_cap_sapphireamx_k * NK_TARGET_SAPPHIREAMX;
     caps |= nk_cap_graniteamx_k * NK_TARGET_GRANITEAMX;
+    caps |= nk_cap_diamondamx_k * NK_TARGET_DIAMONDAMX;
     caps |= nk_cap_diamond_k * NK_TARGET_DIAMOND;
     caps |= nk_cap_turin_k * NK_TARGET_TURIN;
     caps |= nk_cap_alder_k * NK_TARGET_ALDER;

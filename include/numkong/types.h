@@ -602,6 +602,16 @@
 #endif
 #endif // !defined(NK_TARGET_GRANITEAMX) || ...
 
+#if !defined(NK_TARGET_DIAMONDAMX) || (NK_TARGET_DIAMONDAMX && !NK_TARGET_X8664_)
+#if defined(__AMX_TILE__) && defined(__AMX_BF16__) && defined(__AMX_INT8__) && defined(__AMX_FP8__) && \
+    defined(__AMX_AVX512__)
+#define NK_TARGET_DIAMONDAMX 1
+#else
+#undef NK_TARGET_DIAMONDAMX
+#define NK_TARGET_DIAMONDAMX 0
+#endif
+#endif // !defined(NK_TARGET_DIAMONDAMX) || ...
+
 #if !defined(NK_TARGET_TURIN) || (NK_TARGET_TURIN && !NK_TARGET_X8664_)
 #if defined(__AVX512VP2INTERSECT__) || (defined(_MSC_VER) && _MSC_VER >= 1944)
 #define NK_TARGET_TURIN 1
@@ -889,6 +899,16 @@ typedef nk_f64_t nk_fmax_t;
 #define NK_F64_MIN (-1.7976931348623157e+308)
 #define NK_F32_MAX 3.402823466e+38f
 #define NK_F32_MIN (-3.402823466e+38f)
+
+/*  Fundamental math constants shared across the scalar, elementwise, reduction, and probability
+ *  kernels. Base-2 polynomial evaluation means natural-log/exp quantities fold through log₂e and
+ *  ln2, so both the single- and double-precision spellings are provided and each site keeps its
+ *  exact bits. Trigonometric range-reduction constants (π high/low, 1/π, π/2) are intentionally
+ *  not here — they are a Cody-Waite set local to `trigonometry/*`, tuned per approximation. */
+#define NK_F32_LN2_   0.6931471805599453f // ln2 (single precision)
+#define NK_F64_LN2_   0.6931471805599453  // ln2 (double precision)
+#define NK_F32_LOG2E_ 1.4426950408889634f // log₂e = 1/ln2 (single)
+#define NK_F64_LOG2E_ 1.4426950408889634  // log₂e (double precision)
 
 #define NK_I64_MAX 9223372036854775807LL
 #define NK_I64_MIN (-9223372036854775807LL - 1LL)
