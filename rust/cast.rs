@@ -5,7 +5,7 @@
 //! - [`CastDtype`]: Trait marking types eligible for bulk casting
 //! - [`cast`]: Bulk-converts a slice from one scalar format to another
 //! - [`CastOps`]: Tensor-shaped extension trait — auto-implemented on every
-//!   [`crate::tensor::TensorRef`] so any container can do `tensor.try_cast_dtype::<Destination>()`
+//!   [`crate::tensor::TensorRef`] so any container can do `tensor.try_cast::<Destination>()`
 
 extern crate alloc;
 
@@ -204,20 +204,18 @@ use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef};
 
 /// Extension trait: type casting for any [`TensorRef`] implementor.
 pub trait CastOps<Source: Clone + CastDtype, const MAX_RANK: usize>: TensorRef<Source, MAX_RANK> {
-    fn try_cast_dtype<Destination: Clone + CastDtype>(
-        &self,
-    ) -> Result<Tensor<Destination, Global, MAX_RANK>, TensorError> {
-        self.view().try_cast_dtype()
+    fn try_cast<Destination: Clone + CastDtype>(&self) -> Result<Tensor<Destination, Global, MAX_RANK>, TensorError> {
+        self.view().try_cast()
     }
 
     /// Cast into a pre-allocated sink. The destination may be a `&mut Tensor<...>`
     /// or a `&mut TensorSpan<...>` (any [`TensorMut`]); a strided sub-span works too.
-    fn try_cast_dtype_into<Destination, OutputTensor>(&self, out: &mut OutputTensor) -> Result<(), TensorError>
+    fn try_cast_into<Destination, OutputTensor>(&self, out: &mut OutputTensor) -> Result<(), TensorError>
     where
         Destination: Clone + CastDtype,
         OutputTensor: TensorMut<Destination, MAX_RANK> + ?Sized,
     {
-        self.view().try_cast_dtype_into(out)
+        self.view().try_cast_into(out)
     }
 }
 
@@ -589,7 +587,7 @@ impl<const R: usize, C: TensorRef<f32, R> + ?Sized> DenseToScaledOps<R> for C {}
 /// Transcode: a [`ScaledTensorView`] → another [`ScaledTensor`].
 impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
     /// Materialize this block-scaled view into a dense `Tensor<T>` of the same shape.
-    pub fn try_cast_dense<T: Clone + CastDtype>(&self) -> Result<Tensor<T>, TensorError> {
+    pub fn try_cast<T: Clone + CastDtype>(&self) -> Result<Tensor<T>, TensorError> {
         let shape = self.shape();
         let count: usize = shape.iter().product();
         let elements_view = self.elements();
@@ -762,7 +760,7 @@ mod tests {
 
     #[test]
     fn cast_via_tensor_view_round_trip() {
-        // Exercises `CastOps::try_cast_dtype` on a strided `TensorView`,
+        // Exercises `CastOps::try_cast` on a strided `TensorView`,
         // mirroring how callers reach the trait through the tensor-shaped wrapper.
         use crate::tensor::{SliceRange, Tensor};
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
@@ -771,11 +769,11 @@ mod tests {
             .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
 
-        let widened = even_columns.try_cast_dtype::<f64>().unwrap();
+        let widened = even_columns.try_cast::<f64>().unwrap();
         assert_eq!(widened.shape(), &[3, 2]);
         assert_eq!(widened.as_slice(), &[0.0, 2.0, 4.0, 6.0, 8.0, 10.0]);
 
-        let complexified = even_columns.try_cast_dtype::<f32c>().unwrap();
+        let complexified = even_columns.try_cast::<f32c>().unwrap();
         assert_eq!(complexified.shape(), &[3, 2]);
         assert_eq!(complexified.as_slice()[0], f32c::from_real_imag(0.0, 0.0));
         assert_eq!(complexified.as_slice()[5], f32c::from_real_imag(10.0, 0.0));
@@ -809,7 +807,7 @@ mod tests {
         assert_eq!(scaled.shape(), &shape[..]);
         assert_eq!(scaled.block_scales().shape(), &[shape[0], shape[1] / F::BLOCK_SIZE]);
 
-        let decoded = scaled.view().try_cast_dense::<f32>().unwrap();
+        let decoded = scaled.view().try_cast::<f32>().unwrap();
         let max_abs = data.iter().fold(0.0f32, |m, &v| m.max(v.abs()));
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
             assert!(
@@ -837,7 +835,7 @@ mod tests {
         // An all-zero block has zero amax → zero scale → all-zero decode (no division by zero / NaN).
         let zeros = Tensor::<f32>::try_zeros(&[1, block]).unwrap();
         let scaled = zeros.view().try_cast_to_scaled::<Mxfp8E4m3>().unwrap();
-        let decoded = scaled.view().try_cast_dense::<f32>().unwrap();
+        let decoded = scaled.view().try_cast::<f32>().unwrap();
         assert!(
             decoded.as_slice().iter().all(|&x| x == 0.0),
             "all-zero block did not decode to zero"
@@ -848,7 +846,7 @@ mod tests {
         data[3] = f32::NAN;
         let dense = Tensor::<f32>::try_from_slice(&data, &[2, block]).unwrap();
         let scaled = dense.view().try_cast_to_scaled::<Mxfp8E4m3>().unwrap();
-        let decoded = scaled.view().try_cast_dense::<f32>().unwrap();
+        let decoded = scaled.view().try_cast::<f32>().unwrap();
         let clean_row = &decoded.as_slice()[block..];
         assert!(
             clean_row.iter().all(|&x| (x - 1.5).abs() <= 0.2),
@@ -884,7 +882,7 @@ mod tests {
         assert_eq!(row1.shape(), &[1, 32]);
         assert_eq!(row1.block_scales().shape(), &[1, 2]);
 
-        let dense_row = row1.try_cast_dense::<f32>().unwrap();
+        let dense_row = row1.try_cast::<f32>().unwrap();
         assert_eq!(dense_row.shape(), &[1, 32]);
 
         // Row 1 of the source should round-trip within FP4 tolerance.
@@ -911,7 +909,7 @@ mod tests {
         assert!(nvfp4.tensor_scale().is_some());
 
         // Transcode then decode: still bounded by the coarsest format (NVFP4).
-        let decoded = nvfp4.view().try_cast_dense::<f32>().unwrap();
+        let decoded = nvfp4.view().try_cast::<f32>().unwrap();
         let max_abs = data.iter().fold(0.0f32, |m, &v| m.max(v.abs()));
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
             assert!(
@@ -930,7 +928,7 @@ mod tests {
         let nvfp4 = dense.view().try_cast_to_scaled::<Nvfp4>().unwrap();
 
         let direct = nvfp4.view().try_cast_to_scaled::<Mxfp8E4m3>().unwrap();
-        let decoded = nvfp4.view().try_cast_dense::<f32>().unwrap();
+        let decoded = nvfp4.view().try_cast::<f32>().unwrap();
         let two_step = decoded.view().try_cast_to_scaled::<Mxfp8E4m3>().unwrap();
 
         let direct_elements = direct.elements();
@@ -960,7 +958,7 @@ mod tests {
         assert_eq!(scaled.shape(), &[cols]);
         assert_eq!(scaled.block_scales().shape(), &[cols / 16]);
 
-        let decoded = scaled.view().try_cast_dense::<f32>().unwrap();
+        let decoded = scaled.view().try_cast::<f32>().unwrap();
         assert_eq!(decoded.shape(), &[cols]);
         let max_abs = data.iter().fold(0.0f32, |m, &v| m.max(v.abs()));
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
@@ -983,7 +981,7 @@ mod tests {
         assert_eq!(scaled.shape(), &[batch, rows, cols]);
         assert_eq!(scaled.block_scales().shape(), &[batch, rows, cols / 32]);
 
-        let decoded = scaled.view().try_cast_dense::<f32>().unwrap();
+        let decoded = scaled.view().try_cast::<f32>().unwrap();
         assert_eq!(decoded.shape(), &[batch, rows, cols]);
         let max_abs = data.iter().fold(0.0f32, |m, &v| m.max(v.abs()));
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
@@ -1111,14 +1109,14 @@ mod tests {
             .try_cast_to_scaled::<F>()
             .unwrap()
             .view()
-            .try_cast_dense::<f32>()
+            .try_cast::<f32>()
             .unwrap();
         let decoded_twice = decoded_once
             .view()
             .try_cast_to_scaled::<F>()
             .unwrap()
             .view()
-            .try_cast_dense::<f32>()
+            .try_cast::<f32>()
             .unwrap();
         assert_eq!(
             decoded_twice.as_slice(),

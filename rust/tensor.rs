@@ -64,9 +64,10 @@ use core::ops::{Index, IndexMut};
 use core::ptr::NonNull;
 
 use crate::cast::{cast, CastDtype};
-use crate::each::{EachATan, EachBlend, EachCos, EachFMA, EachScale, EachSin, EachSum};
+use crate::each::{EachBlend, EachFMA, EachScale, EachSum};
 use crate::reduce::{MomentsOps, ReduceMinMax, ReduceMoments, SumSqToF64};
 use crate::spatial::{Dot, Roots};
+use crate::trigonometry::{TrigAtan, TrigCos, TrigSin};
 use crate::types::{DimMut, DimRef, FloatConvertible, StorageElement};
 use crate::vector::{Vector, VectorIndex};
 
@@ -5482,7 +5483,7 @@ where
     }
 }
 
-impl<'a, Scalar: Clone + EachSin, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
+impl<'a, Scalar: Clone + TrigSin, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
     /// In-place sine: `self[i] = sin(self[i])`.
     pub fn sin_inplace(&mut self) {
         let ptr = self.data;
@@ -5502,7 +5503,7 @@ impl<'a, Scalar: Clone + EachSin, const MAX_RANK: usize> TensorSpan<'a, Scalar, 
     }
 }
 
-impl<'a, Scalar: Clone + EachCos, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
+impl<'a, Scalar: Clone + TrigCos, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
     /// In-place cosine: `self[i] = cos(self[i])`.
     pub fn cos_inplace(&mut self) {
         let ptr = self.data;
@@ -5522,7 +5523,7 @@ impl<'a, Scalar: Clone + EachCos, const MAX_RANK: usize> TensorSpan<'a, Scalar, 
     }
 }
 
-impl<'a, Scalar: Clone + EachATan, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
+impl<'a, Scalar: Clone + TrigAtan, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
     /// In-place arctangent: `self[i] = atan(self[i])`.
     pub fn atan_inplace(&mut self) {
         let ptr = self.data;
@@ -5821,13 +5822,13 @@ where
 }
 
 impl<'a, Source: Clone + CastDtype, const MAX_RANK: usize> TensorView<'a, Source, MAX_RANK> {
-    pub fn try_cast_dtype<Destination: Clone + CastDtype>(
+    pub fn try_cast<Destination: Clone + CastDtype>(
         &self,
     ) -> Result<Tensor<Destination, Global, MAX_RANK>, TensorError> {
-        try_alloc_output_like(self.shape(), |span| self.try_cast_dtype_into(span))
+        try_alloc_output_like(self.shape(), |span| self.try_cast_into(span))
     }
 
-    pub fn try_cast_dtype_into<Destination, OutputTensor>(&self, out: &mut OutputTensor) -> Result<(), TensorError>
+    pub fn try_cast_into<Destination, OutputTensor>(&self, out: &mut OutputTensor) -> Result<(), TensorError>
     where
         Destination: Clone + CastDtype,
         OutputTensor: TensorMut<Destination, MAX_RANK> + ?Sized,
@@ -5842,7 +5843,7 @@ impl<'a, Source: Clone + CastDtype, const MAX_RANK: usize> TensorView<'a, Source
 
 // region: Tensor Trigonometry
 
-impl<'a, Scalar: Clone + EachSin, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
+impl<'a, Scalar: Clone + TrigSin, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     pub fn try_sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         try_alloc_output_like(self.shape(), |span| self.try_sin_into(span))
     }
@@ -5857,7 +5858,7 @@ impl<'a, Scalar: Clone + EachSin, const MAX_RANK: usize> TensorView<'a, Scalar, 
     }
 }
 
-impl<'a, Scalar: Clone + EachCos, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
+impl<'a, Scalar: Clone + TrigCos, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     pub fn try_cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         try_alloc_output_like(self.shape(), |span| self.try_cos_into(span))
     }
@@ -5872,7 +5873,7 @@ impl<'a, Scalar: Clone + EachCos, const MAX_RANK: usize> TensorView<'a, Scalar, 
     }
 }
 
-impl<'a, Scalar: Clone + EachATan, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
+impl<'a, Scalar: Clone + TrigAtan, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     pub fn try_atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         try_alloc_output_like(self.shape(), |span| self.try_atan_into(span))
     }
@@ -6036,7 +6037,7 @@ impl<Scalar: Clone + EachFMA, const R: usize, C: TensorRef<Scalar, R> + ?Sized> 
 }
 
 /// Extension trait: explicit `_into` `sin` for any [`TensorRef`].
-pub trait SinIntoOps<Scalar: Clone + EachSin, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+pub trait SinIntoOps<Scalar: Clone + TrigSin, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     fn try_sin_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
@@ -6045,10 +6046,10 @@ pub trait SinIntoOps<Scalar: Clone + EachSin, const MAX_RANK: usize>: TensorRef<
     }
 }
 
-impl<Scalar: Clone + EachSin, const R: usize, C: TensorRef<Scalar, R> + ?Sized> SinIntoOps<Scalar, R> for C {}
+impl<Scalar: Clone + TrigSin, const R: usize, C: TensorRef<Scalar, R> + ?Sized> SinIntoOps<Scalar, R> for C {}
 
 /// Extension trait: explicit `_into` `cos` for any [`TensorRef`].
-pub trait CosIntoOps<Scalar: Clone + EachCos, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+pub trait CosIntoOps<Scalar: Clone + TrigCos, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     fn try_cos_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
@@ -6057,10 +6058,10 @@ pub trait CosIntoOps<Scalar: Clone + EachCos, const MAX_RANK: usize>: TensorRef<
     }
 }
 
-impl<Scalar: Clone + EachCos, const R: usize, C: TensorRef<Scalar, R> + ?Sized> CosIntoOps<Scalar, R> for C {}
+impl<Scalar: Clone + TrigCos, const R: usize, C: TensorRef<Scalar, R> + ?Sized> CosIntoOps<Scalar, R> for C {}
 
 /// Extension trait: explicit `_into` `atan` for any [`TensorRef`].
-pub trait AtanIntoOps<Scalar: Clone + EachATan, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+pub trait AtanIntoOps<Scalar: Clone + TrigAtan, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     fn try_atan_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
@@ -6069,7 +6070,7 @@ pub trait AtanIntoOps<Scalar: Clone + EachATan, const MAX_RANK: usize>: TensorRe
     }
 }
 
-impl<Scalar: Clone + EachATan, const R: usize, C: TensorRef<Scalar, R> + ?Sized> AtanIntoOps<Scalar, R> for C {}
+impl<Scalar: Clone + TrigAtan, const R: usize, C: TensorRef<Scalar, R> + ?Sized> AtanIntoOps<Scalar, R> for C {}
 
 // endregion: Receiver-generic explicit `_into` extension traits
 
@@ -6453,7 +6454,7 @@ use crate::cast::BlockScaledFormat;
 /// This composes the existing tensor family rather than introducing a parallel hierarchy; the
 /// scale newtypes ([`crate::Ue4m3`] / [`crate::Ue8m0`]) and the packed element scalars are plain
 /// [`StorageElement`]s. Construct one with `dense.view().try_cast_to_scaled::<F>()` and decode it
-/// back with `scaled.view().try_cast_dense::<f32>()`.
+/// back with `scaled.view().try_cast::<f32>()`.
 pub struct ScaledTensor<F: BlockScaledFormat, A: Allocator = Global> {
     elements: Tensor<F::Element, A>,
     block_scales: Tensor<F::Scale, A>,
@@ -7068,7 +7069,7 @@ mod tests {
         inplace.try_add_tensor_inplace(&right).unwrap();
         assert_eq!(inplace.as_slice(), added.as_slice());
 
-        let widened = left.try_cast_dtype::<bf16c>().unwrap();
+        let widened = left.try_cast::<bf16c>().unwrap();
         assert_eq!(widened.as_slice()[0].re.to_f32(), 1.0);
         assert_eq!(widened.as_slice()[0].im.to_f32(), 2.0);
 

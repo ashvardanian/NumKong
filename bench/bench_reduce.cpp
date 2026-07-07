@@ -80,7 +80,7 @@ void measure_rmsnorm(bm::State &state, kernel_type_ kernel, std::size_t dimensio
 }
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void run_rmsnorm(std::string name, kernel_type_ *kernel) {
+void run_reduce_rmsnorm(std::string name, kernel_type_ *kernel) {
     std::string bench_name = name + "<" + std::to_string(bench_config.dense_dimensions) + "d>";
     bm::RegisterBenchmark(bench_name.c_str(), measure_rmsnorm<input_dtype_, kernel_type_ *>, kernel,
                           bench_config.dense_dimensions);
@@ -213,9 +213,9 @@ void bench_reduce() {
     run_reduce_moments<u4_k>("reduce_moments_u4_haswell", nk_reduce_moments_u4_haswell);
     run_reduce_moments<u1_k>("reduce_moments_u1_haswell", nk_reduce_moments_u1_haswell);
     run_reduce_moments<bf16_k>("reduce_moments_bf16_haswell", nk_reduce_moments_bf16_haswell);
-    run_rmsnorm<f32_k>("rmsnorm_f32_haswell", nk_reduce_rmsnorm_f32_haswell);
-    run_rmsnorm<bf16_k>("rmsnorm_bf16_haswell", nk_reduce_rmsnorm_bf16_haswell);
-    run_rmsnorm<e4m3_k>("rmsnorm_e4m3_haswell", nk_reduce_rmsnorm_e4m3_haswell);
+    run_reduce_rmsnorm<f32_k>("reduce_rmsnorm_f32_haswell", nk_reduce_rmsnorm_f32_haswell);
+    run_reduce_rmsnorm<bf16_k>("reduce_rmsnorm_bf16_haswell", nk_reduce_rmsnorm_bf16_haswell);
+    run_reduce_rmsnorm<e4m3_k>("reduce_rmsnorm_e4m3_haswell", nk_reduce_rmsnorm_e4m3_haswell);
     run_reduce_moments<f16_k>("reduce_moments_f16_haswell", nk_reduce_moments_f16_haswell);
     run_reduce_minmax<f32_k>("reduce_minmax_f32_haswell", nk_reduce_minmax_f32_haswell);
     run_reduce_minmax<f64_k>("reduce_minmax_f64_haswell", nk_reduce_minmax_f64_haswell);
@@ -268,9 +268,9 @@ void bench_reduce() {
     run_reduce_minmax<e2m3_k>("reduce_minmax_e2m3_skylake", nk_reduce_minmax_e2m3_skylake);
     run_reduce_minmax<e3m2_k>("reduce_minmax_e3m2_skylake", nk_reduce_minmax_e3m2_skylake);
     run_reduce_moments<bf16_k>("reduce_moments_bf16_skylake", nk_reduce_moments_bf16_skylake);
-    run_rmsnorm<f32_k>("rmsnorm_f32_skylake", nk_reduce_rmsnorm_f32_skylake);
-    run_rmsnorm<bf16_k>("rmsnorm_bf16_skylake", nk_reduce_rmsnorm_bf16_skylake);
-    run_rmsnorm<e4m3_k>("rmsnorm_e4m3_skylake", nk_reduce_rmsnorm_e4m3_skylake);
+    run_reduce_rmsnorm<f32_k>("reduce_rmsnorm_f32_skylake", nk_reduce_rmsnorm_f32_skylake);
+    run_reduce_rmsnorm<bf16_k>("reduce_rmsnorm_bf16_skylake", nk_reduce_rmsnorm_bf16_skylake);
+    run_reduce_rmsnorm<e4m3_k>("reduce_rmsnorm_e4m3_skylake", nk_reduce_rmsnorm_e4m3_skylake);
     run_reduce_minmax<bf16_k>("reduce_minmax_bf16_skylake", nk_reduce_minmax_bf16_skylake);
     run_reduce_moments<f16_k>("reduce_moments_f16_skylake", nk_reduce_moments_f16_skylake);
     run_reduce_minmax<f16_k>("reduce_minmax_f16_skylake", nk_reduce_minmax_f16_skylake);
@@ -286,8 +286,8 @@ void bench_reduce() {
 
 #if NK_TARGET_GENOA
     run_reduce_moments<bf16_k>("reduce_moments_bf16_genoa", nk_reduce_moments_bf16_genoa);
-    run_rmsnorm<bf16_k>("rmsnorm_bf16_genoa", nk_reduce_rmsnorm_bf16_genoa);
-    run_rmsnorm<e4m3_k>("rmsnorm_e4m3_genoa", nk_reduce_rmsnorm_e4m3_genoa);
+    run_reduce_rmsnorm<bf16_k>("reduce_rmsnorm_bf16_genoa", nk_reduce_rmsnorm_bf16_genoa);
+    run_reduce_rmsnorm<e4m3_k>("reduce_rmsnorm_e4m3_genoa", nk_reduce_rmsnorm_e4m3_genoa);
     run_reduce_moments<e4m3_k>("reduce_moments_e4m3_genoa", nk_reduce_moments_e4m3_genoa);
     run_reduce_moments<e5m2_k>("reduce_moments_e5m2_genoa", nk_reduce_moments_e5m2_genoa);
 #endif
@@ -387,9 +387,9 @@ void bench_reduce() {
     run_reduce_moments<u64_k>("reduce_moments_u64_serial", nk_reduce_moments_u64_serial);
     run_reduce_moments<f16_k>("reduce_moments_f16_serial", nk_reduce_moments_f16_serial);
     run_reduce_moments<bf16_k>("reduce_moments_bf16_serial", nk_reduce_moments_bf16_serial);
-    run_rmsnorm<f32_k>("rmsnorm_f32_serial", nk_reduce_rmsnorm_f32_serial);
-    run_rmsnorm<bf16_k>("rmsnorm_bf16_serial", nk_reduce_rmsnorm_bf16_serial);
-    run_rmsnorm<e4m3_k>("rmsnorm_e4m3_serial", nk_reduce_rmsnorm_e4m3_serial);
+    run_reduce_rmsnorm<f32_k>("reduce_rmsnorm_f32_serial", nk_reduce_rmsnorm_f32_serial);
+    run_reduce_rmsnorm<bf16_k>("reduce_rmsnorm_bf16_serial", nk_reduce_rmsnorm_bf16_serial);
+    run_reduce_rmsnorm<e4m3_k>("reduce_rmsnorm_e4m3_serial", nk_reduce_rmsnorm_e4m3_serial);
     run_reduce_moments<e4m3_k>("reduce_moments_e4m3_serial", nk_reduce_moments_e4m3_serial);
     run_reduce_moments<e5m2_k>("reduce_moments_e5m2_serial", nk_reduce_moments_e5m2_serial);
     run_reduce_moments<e2m3_k>("reduce_moments_e2m3_serial", nk_reduce_moments_e2m3_serial);

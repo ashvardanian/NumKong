@@ -72,15 +72,15 @@ NK_INTERNAL v128_t nk_attention_exp2_f32x4_v128relaxed_(v128_t x_f32x4) {
 }
 
 /** @brief Widens 4 raw plane scalars (BF16 or E4M3 at rest) to F32 inside the hot loops. */
-typedef v128_t (*nk_attention_plane_widen_v128relaxed_t_)(void const *plane_chunk);
+typedef v128_t (*nk_attention_load_v128relaxed_t_)(void const *plane_chunk);
 
-NK_INTERNAL v128_t nk_attention_plane_widen_bf16_v128relaxed_(void const *plane_chunk) {
+NK_INTERNAL v128_t nk_attention_load_bf16x4_v128relaxed_(void const *plane_chunk) {
     nk_b64_vec_t raw_vec;
     raw_vec.u64 = *(nk_u64_t const *)plane_chunk;
     return nk_bf16x4_to_f32x4_v128relaxed_(raw_vec).v128;
 }
 
-NK_INTERNAL v128_t nk_attention_plane_widen_e4m3_v128relaxed_(void const *plane_chunk) {
+NK_INTERNAL v128_t nk_attention_load_e4m3x4_v128relaxed_(void const *plane_chunk) {
     nk_b32_vec_t raw_vec;
     raw_vec.u32 = *(nk_u32_t const *)plane_chunk;
     return nk_e4m3x4_to_f32x4_v128relaxed_(raw_vec).v128;
@@ -230,7 +230,7 @@ NK_PUBLIC void nk_attention_pack_i8_v128relaxed(                                
 NK_INTERNAL void nk_attention_packed_float_v128relaxed_(                         //
     void const *queries, nk_size_t element_bytes,                                //
     nk_attention_load_f32_serial_t_ load_f32,                                    //
-    nk_attention_plane_widen_v128relaxed_t_ plane_widen,                         //
+    nk_attention_load_v128relaxed_t_ load,                                       //
     void const *key_value_packed, nk_f32_t *output,                              //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -292,9 +292,9 @@ NK_INTERNAL void nk_attention_packed_float_v128relaxed_(                        
                     for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 8) {
                         nk_size_t const chunk_bytes = channel_idx * element_bytes;
                         sum0_f32x4 = wasm_f32x4_relaxed_madd(wasm_v128_load(query_row + channel_idx),
-                                                             plane_widen(keys_row + chunk_bytes), sum0_f32x4);
+                                                             load(keys_row + chunk_bytes), sum0_f32x4);
                         sum1_f32x4 = wasm_f32x4_relaxed_madd(wasm_v128_load(query_row + channel_idx + 4),
-                                                             plane_widen(keys_row + chunk_bytes + 4 * element_bytes),
+                                                             load(keys_row + chunk_bytes + 4 * element_bytes),
                                                              sum1_f32x4);
                     }
                     scores[position_idx] = nk_reduce_add_f32x4_v128relaxed_(wasm_f32x4_add(sum0_f32x4, sum1_f32x4));
@@ -342,12 +342,12 @@ NK_INTERNAL void nk_attention_packed_float_v128relaxed_(                        
                     for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 8) {
                         nk_size_t const chunk_bytes = channel_idx * element_bytes;
                         wasm_v128_store(output_row + channel_idx,
-                                        wasm_f32x4_relaxed_madd(weight_f32x4, plane_widen(values_row + chunk_bytes),
+                                        wasm_f32x4_relaxed_madd(weight_f32x4, load(values_row + chunk_bytes),
                                                                 wasm_v128_load(output_row + channel_idx)));
-                        wasm_v128_store(output_row + channel_idx + 4,
-                                        wasm_f32x4_relaxed_madd(
-                                            weight_f32x4, plane_widen(values_row + chunk_bytes + 4 * element_bytes),
-                                            wasm_v128_load(output_row + channel_idx + 4)));
+                        wasm_v128_store(
+                            output_row + channel_idx + 4,
+                            wasm_f32x4_relaxed_madd(weight_f32x4, load(values_row + chunk_bytes + 4 * element_bytes),
+                                                    wasm_v128_load(output_row + channel_idx + 4)));
                     }
                 }
             }
@@ -377,8 +377,8 @@ NK_PUBLIC void nk_attention_packed_bf16_v128relaxed(                            
         return;
     }
     nk_attention_packed_float_v128relaxed_(queries, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_,
-                                           &nk_attention_plane_widen_bf16_v128relaxed_, key_value_packed, output,
-                                           head_count, key_value_head_count, depth, query_offsets, query_stride_bytes,
+                                           &nk_attention_load_bf16x4_v128relaxed_, key_value_packed, output, head_count,
+                                           key_value_head_count, depth, query_offsets, query_stride_bytes,
                                            output_stride_bytes, scale, first_task, task_count);
 }
 
@@ -395,8 +395,8 @@ NK_PUBLIC void nk_attention_packed_e4m3_v128relaxed(                            
         return;
     }
     nk_attention_packed_float_v128relaxed_(queries, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_,
-                                           &nk_attention_plane_widen_e4m3_v128relaxed_, key_value_packed, output,
-                                           head_count, key_value_head_count, depth, query_offsets, query_stride_bytes,
+                                           &nk_attention_load_e4m3x4_v128relaxed_, key_value_packed, output, head_count,
+                                           key_value_head_count, depth, query_offsets, query_stride_bytes,
                                            output_stride_bytes, scale, first_task, task_count);
 }
 

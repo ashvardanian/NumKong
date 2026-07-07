@@ -99,7 +99,7 @@ NK_PUBLIC nk_size_t nk_attention_packed_segments(void const *key_value_packed) {
     return ((nk_attention_packed_header_t const *)key_value_packed)->segment_count;
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_head_dim(void const *key_value_packed) {
+NK_PUBLIC nk_size_t nk_attention_packed_depth(void const *key_value_packed) {
     return ((nk_attention_packed_header_t const *)key_value_packed)->depth;
 }
 

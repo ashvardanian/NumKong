@@ -218,10 +218,10 @@ typedef enum {
     nk_kernel_each_swiglu_k = 'W', ///< Fused SwiGLU: y = silu(gate) ⊙ up (up = NULL → SiLU)
 
     // Trigonometric functions:
-    nk_kernel_each_sin_k = 'S',  ///< Element-wise sine
-    nk_kernel_each_cos_k = 'C',  ///< Element-wise cosine
-    nk_kernel_each_atan_k = 'A', ///< Element-wise arctangent
-    nk_kernel_each_rope_k = 'I', ///< NeoX split-half rotary position embedding (in place)
+    nk_kernel_trig_sin_k = 'S',  ///< Element-wise sine
+    nk_kernel_trig_cos_k = 'C',  ///< Element-wise cosine
+    nk_kernel_trig_atan_k = 'A', ///< Element-wise arctangent
+    nk_kernel_trig_rope_k = 'I', ///< NeoX split-half rotary position embedding (in place)
 
     // Horizontal reductions:
     nk_kernel_reduce_moments_k = 'R', ///< Horizontal moments reduction (sum + sum-of-squares)
@@ -337,27 +337,26 @@ typedef void (*nk_each_blend_punned_t)(void const *a, void const *b, nk_size_t c
 typedef void (*nk_each_fma_punned_t)(void const *a, void const *b, void const *c, nk_size_t count, void const *alpha,
                                      void const *beta, void *y);
 
-typedef void (*nk_kernel_trigonometry_punned_t)(void const *x, nk_size_t count, void *y);
+typedef void (*nk_kernel_trig_punned_t)(void const *x, nk_size_t count, void *y);
 
 typedef void (*nk_metric_mesh_punned_t)(void const *a, void const *b, nk_size_t points_count, void *a_centroid,
                                         void *b_centroid, void *rotation, void *scale, void *result);
 
-typedef void (*nk_kernel_reduce_moments_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes,
-                                                  void *sum_ptr, void *sumsq_ptr);
+typedef void (*nk_reduce_moments_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes, void *sum_ptr,
+                                           void *sumsq_ptr);
 
-typedef void (*nk_kernel_reduce_minmax_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes,
-                                                 void *min_value, nk_size_t *min_index, void *max_value,
-                                                 nk_size_t *max_index);
+typedef void (*nk_reduce_minmax_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes, void *min_value,
+                                          nk_size_t *min_index, void *max_value, nk_size_t *max_index);
 
-typedef void (*nk_kernel_reduce_rmsnorm_punned_t)(void const *x, void const *gamma, void *y, nk_size_t rows,
-                                                  nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
-                                                  nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale);
+typedef void (*nk_reduce_rmsnorm_punned_t)(void const *x, void const *gamma, void *y, nk_size_t rows, nk_size_t groups,
+                                           nk_size_t cols, nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
+                                           nk_f32_t input_scale);
 
-typedef void (*nk_kernel_each_swiglu_punned_t)(void const *gate, void const *up, void *y, nk_size_t rows,
-                                               nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride,
-                                               nk_size_t y_row_stride, nk_f32_t input_scale);
+typedef void (*nk_each_swiglu_punned_t)(void const *gate, void const *up, void *y, nk_size_t rows, nk_size_t cols,
+                                        nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride,
+                                        nk_f32_t input_scale);
 
-typedef void (*nk_kernel_each_rope_punned_t)(void const *x, void *y, void const *cos, void const *sin, nk_size_t rows,
+typedef void (*nk_kernel_trig_rope_punned_t)(void const *x, void *y, void const *cos, void const *sin, nk_size_t rows,
                                              nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride,
                                              nk_size_t y_row_stride, nk_f32_t input_scale);
 

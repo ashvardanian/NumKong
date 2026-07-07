@@ -29,7 +29,7 @@
 #include "numkong/spatials.h"     // Batched Angular & Euclidean distances, like `nk_angulars_packed_f32`
 #include "numkong/maxsim.h"       // MaxSim: Multi-Vector Maximum Similarity, like `nk_maxsim_packed_f32`
 #include "numkong/attention.h"    // Ragged Transformer attention, like `nk_attention_packed_bf16`
-#include "numkong/trigonometry.h" // Sin, Cos, Atan, like `nk_each_sin_f64`
+#include "numkong/trigonometry.h" // Sin, Cos, Atan, like `nk_trig_sin_f64`
 
 #if defined(__cplusplus)
 extern "C" {

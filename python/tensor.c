@@ -182,7 +182,7 @@ void each_blend_recursive(                                           //
 }
 
 void each_unary_recursive(                                //
-    nk_kernel_trigonometry_punned_t kernel,               //
+    nk_kernel_trig_punned_t kernel,                       //
     char const *a_data, char *result_data,                //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides, //
     Py_ssize_t const *result_strides,                     //
@@ -1559,7 +1559,7 @@ static size_t build_collapsed_shape(Py_ssize_t const *shape, Py_ssize_t const *s
 /** @brief Recursively reduce moments over an N-D tensor using a SIMD kernel.
  *  Re-analyzes remaining dimensions at each level to collapse uniform-stride tails. */
 static void reduce_moments_recursive(                   //
-    nk_kernel_reduce_moments_punned_t kernel,           //
+    nk_reduce_moments_punned_t kernel,                  //
     nk_dtype_t sum_dtype, nk_dtype_t sumsq_dtype,       //
     char const *data, Py_ssize_t const *shape,          //
     Py_ssize_t const *strides, size_t rank, size_t dim, //
@@ -1612,7 +1612,7 @@ static void reduce_moments_recursive(                   //
 static int impl_reduce_moments(TensorView const *view, nk_scalar_buffer_t *sum_out, nk_dtype_t *sum_dtype_out,
                                nk_scalar_buffer_t *sumsq_out, nk_dtype_t *sumsq_dtype_out) {
 
-    nk_kernel_reduce_moments_punned_t kernel = NULL;
+    nk_reduce_moments_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_reduce_moments_k, view->dtype, static_capabilities, (nk_kernel_punned_t *)&kernel,
                           &cap);
@@ -1684,7 +1684,7 @@ static void minmax_update(nk_scalar_buffer_t *running_min, nk_size_t *running_mi
 /** @brief Recursively reduce minmax over an N-D tensor using a SIMD kernel.
  *  Re-analyzes remaining dimensions at each level to collapse uniform-stride tails. */
 static void reduce_minmax_recursive(                         //
-    nk_kernel_reduce_minmax_punned_t kernel,                 //
+    nk_reduce_minmax_punned_t kernel,                        //
     nk_dtype_t value_dtype,                                  //
     char const *data, Py_ssize_t const *shape,               //
     Py_ssize_t const *strides, size_t rank, size_t dim,      //
@@ -1750,7 +1750,7 @@ static int impl_reduce_minmax(TensorView const *view, nk_scalar_buffer_t *min_ou
                               size_t *min_index_out, nk_scalar_buffer_t *max_out, nk_dtype_t *max_dtype_out,
                               size_t *max_index_out) {
 
-    nk_kernel_reduce_minmax_punned_t kernel = NULL;
+    nk_reduce_minmax_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_reduce_minmax_k, view->dtype, static_capabilities, (nk_kernel_punned_t *)&kernel,
                           &cap);
@@ -3529,12 +3529,8 @@ static PyMethodDef ScaledTensor_methods[] = {
 
 PyTypeObject ScaledTensorType = {
     PyVarObject_HEAD_INIT(NULL, 0).tp_name = "numkong.ScaledTensor",
-    .tp_doc =
-        "Block-scaled tensor (OCP MX family + NVIDIA NVFP4): packed elements, per-block scales, " "optional per-tensor "
-                                                                                                  "scale. Produced by "
-                                                                                                  "Tensor.astype('"
-                                                                                                  "nvfp4'/'mxfp4'/"
-                                                                                                  "...).",
+    .tp_doc = "Block-scaled tensor (OCP MX family + NVIDIA NVFP4): packed elements, per-block scales, " //
+              "optional per-tensor scale. Produced by Tensor.astype('nvfp4'/'mxfp4'/...).",
     .tp_basicsize = sizeof(ScaledTensor),
     .tp_dealloc = ScaledTensor_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT,
@@ -4466,4 +4462,47 @@ PyObject *api_argmax(PyObject *self, PyObject *const *args, Py_ssize_t const nar
     else result = reduce_axis_dispatch(&view, &parsed, nk_i64_k, argmax_slice);
     PyBuffer_Release(&buffer);
     return result;
+}
+
+int elementwise_prepare_out(                                                    //
+    PyObject *out_obj, Py_buffer *out_buffer, nk_buffer_backing_t *out_backing, //
+    Py_buffer const **inputs, size_t num_inputs, nk_dtype_t dtype,              //
+    char **result_data, Py_ssize_t *result_strides, int *contiguous_tail,       //
+    PyObject **return_obj) {
+
+    Py_buffer const *a = inputs[0];
+    int const ndim = a->ndim;
+    size_t const element_size = nk_dtype_bytes_per_value(dtype);
+
+    // Fresh allocation: output is fully contiguous, so the input operands bound the tail.
+    if (!out_obj || out_obj == Py_None) {
+        Tensor *result_tensor = Tensor_new(dtype, (size_t)ndim, a->shape);
+        if (!result_tensor) return 0;
+        *return_obj = (PyObject *)result_tensor;
+        *result_data = result_tensor->data;
+        compute_contiguous_strides((size_t)ndim, a->shape, element_size, result_strides);
+        *contiguous_tail = (int)shared_contiguous_tail_dimensions(inputs, num_inputs, (size_t)ndim);
+        return 1;
+    }
+
+    // In-place: the (possibly strided) out buffer joins the operand set that bounds the tail.
+    if (!nk_get_buffer(out_obj, out_buffer, PyBUF_STRIDES | PyBUF_FORMAT, out_backing)) return 0;
+    if (!buffers_shapes_match(a, out_buffer)) return 0;
+    nk_dtype_t out_dtype = resolve_nk_dtype_in_py_buffer(out_buffer);
+    if (out_dtype != dtype) {
+        PyErr_Format(PyExc_TypeError, "out dtype '%s' must match the compute dtype '%s'",
+                     nk_dtype_to_pybuffer_typestr(out_dtype), nk_dtype_to_pybuffer_typestr(dtype));
+        return 0;
+    }
+    *result_data = out_buffer->buf;
+    for (int dim = 0; dim < ndim; ++dim) result_strides[dim] = out_buffer->strides[dim];
+
+    Py_buffer const *operands[4]; // inputs (≤3) + out
+    for (size_t i = 0; i < num_inputs; ++i) operands[i] = inputs[i];
+    operands[num_inputs] = out_buffer;
+    *contiguous_tail = (int)shared_contiguous_tail_dimensions(operands, num_inputs + 1, (size_t)ndim);
+
+    *return_obj = Py_None;
+    Py_INCREF(Py_None);
+    return 1;
 }

@@ -219,7 +219,7 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             return;
         case nk_kernel_reduce_rmsnorm_k: *m = (m_t)&nk_reduce_rmsnorm_e4m3_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_each_swiglu_k: *m = (m_t)&nk_each_swiglu_e4m3_skylake, *c = nk_cap_skylake_k; return;
-        case nk_kernel_each_rope_k: *m = (m_t)&nk_each_rope_e4m3_skylake, *c = nk_cap_skylake_k; return;
+        case nk_kernel_trig_rope_k: *m = (m_t)&nk_trig_rope_e4m3_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_reduce_moments_k: *m = (m_t)&nk_reduce_moments_e4m3_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_reduce_minmax_k: *m = (m_t)&nk_reduce_minmax_e4m3_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_attention_packed_size_k:
@@ -237,7 +237,7 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_reduce_minmax_k: *m = (m_t)&nk_reduce_minmax_e4m3_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_reduce_rmsnorm_k: *m = (m_t)&nk_reduce_rmsnorm_e4m3_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_each_swiglu_k: *m = (m_t)&nk_each_swiglu_e4m3_haswell, *c = nk_cap_haswell_k; return;
-        case nk_kernel_each_rope_k: *m = (m_t)&nk_each_rope_e4m3_haswell, *c = nk_cap_haswell_k; return;
+        case nk_kernel_trig_rope_k: *m = (m_t)&nk_trig_rope_e4m3_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_dots_packed_size_k: *m = (m_t)&nk_dots_packed_size_e4m3_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_dots_pack_k: *m = (m_t)&nk_dots_pack_e4m3_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_dots_packed_k: *m = (m_t)&nk_dots_packed_e4m3_haswell, *c = nk_cap_haswell_k; return;
@@ -312,7 +312,7 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_reduce_rmsnorm_k: *m = (m_t)&nk_reduce_rmsnorm_e4m3_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_each_sum_k: *m = (m_t)&nk_each_sum_e4m3_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_each_swiglu_k: *m = (m_t)&nk_each_swiglu_e4m3_serial, *c = nk_cap_serial_k; return;
-        case nk_kernel_each_rope_k: *m = (m_t)&nk_each_rope_e4m3_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_trig_rope_k: *m = (m_t)&nk_trig_rope_e4m3_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_e4m3_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_e4m3_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_e4m3_serial, *c = nk_cap_serial_k; return;
@@ -351,7 +351,7 @@ void nk_dispatch_e4m3_init_(nk_capability_t caps) {
     nk_dispatch_e4m3_find_(caps, nk_kernel_each_blend_k, (nk_kernel_punned_t *)&t->each_blend_e4m3, &used);
     nk_dispatch_e4m3_find_(caps, nk_kernel_each_fma_k, (nk_kernel_punned_t *)&t->each_fma_e4m3, &used);
     nk_dispatch_e4m3_find_(caps, nk_kernel_each_swiglu_k, (nk_kernel_punned_t *)&t->each_swiglu_e4m3, &used);
-    nk_dispatch_e4m3_find_(caps, nk_kernel_each_rope_k, (nk_kernel_punned_t *)&t->each_rope_e4m3, &used);
+    nk_dispatch_e4m3_find_(caps, nk_kernel_trig_rope_k, (nk_kernel_punned_t *)&t->trig_rope_e4m3, &used);
     nk_dispatch_e4m3_find_(caps, nk_kernel_reduce_moments_k, (nk_kernel_punned_t *)&t->reduce_moments_e4m3, &used);
     nk_dispatch_e4m3_find_(caps, nk_kernel_reduce_minmax_k, (nk_kernel_punned_t *)&t->reduce_minmax_e4m3, &used);
     nk_dispatch_e4m3_find_(caps, nk_kernel_reduce_rmsnorm_k, (nk_kernel_punned_t *)&t->reduce_rmsnorm_e4m3, &used);

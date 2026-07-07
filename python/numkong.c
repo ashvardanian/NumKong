@@ -96,6 +96,7 @@
 #include "types.h"
 #include "distance.h"
 #include "each.h"
+#include "trigonometry.h"
 #include "mesh.h"
 #include "attention.h"
 #include "maxsim.h"

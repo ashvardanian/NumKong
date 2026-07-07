@@ -1,12 +1,12 @@
-//! NeoX split-half rotary position embedding (RoPE).
+//! Trigonometry — element-wise sin/cos/atan plus NeoX split-half rotary position embedding (RoPE).
 //!
 //! Rotates channel pairs `(i, i + half_dim)` of every head by per-token angle grids. The caller bakes
 //! position lookup and multi-axis (M-RoPE) assignment into the `[rows, half_dim]` cos/sin grids, so a
 //! single call rotates the whole head. The rotation writes every channel it is given, so it is done in
 //! place over the `[rows, heads * 2 * half_dim]` slice.
 
-use crate::tensor::TensorMut;
-use crate::types::{bf16, e4m3, StorageElement};
+use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef};
+use crate::types::{bf16, e4m3, f16, StorageElement};
 
 /// Precision of the RoPE `cos`/`sin` rotation coefficients — always `f32`, deliberately decoupled
 /// from the rotated element dtype (BF16/E4M3 inputs rotate through f32 angles, since a lower-precision
@@ -16,7 +16,7 @@ pub type RopeAngle = f32;
 
 #[link(name = "numkong")]
 extern "C" {
-    fn nk_each_rope_f32(
+    fn nk_trig_rope_f32(
         x: *const f32,
         y: *mut f32,
         cos: *const RopeAngle,
@@ -28,7 +28,7 @@ extern "C" {
         y_row_stride: usize,
         input_scale: f32,
     );
-    fn nk_each_rope_bf16(
+    fn nk_trig_rope_bf16(
         x: *const u16,
         y: *mut u16,
         cos: *const RopeAngle,
@@ -40,7 +40,7 @@ extern "C" {
         y_row_stride: usize,
         input_scale: f32,
     );
-    fn nk_each_rope_e4m3(
+    fn nk_trig_rope_e4m3(
         x: *const u8,
         y: *mut u8,
         cos: *const RopeAngle,
@@ -52,10 +52,19 @@ extern "C" {
         y_row_stride: usize,
         input_scale: f32,
     );
+    fn nk_trig_sin_f32(inputs: *const f32, n: usize, outputs: *mut f32);
+    fn nk_trig_sin_f64(inputs: *const f64, n: usize, outputs: *mut f64);
+    fn nk_trig_sin_f16(inputs: *const u16, n: usize, outputs: *mut u16);
+    fn nk_trig_cos_f32(inputs: *const f32, n: usize, outputs: *mut f32);
+    fn nk_trig_cos_f64(inputs: *const f64, n: usize, outputs: *mut f64);
+    fn nk_trig_cos_f16(inputs: *const u16, n: usize, outputs: *mut u16);
+    fn nk_trig_atan_f32(inputs: *const f32, n: usize, outputs: *mut f32);
+    fn nk_trig_atan_f64(inputs: *const f64, n: usize, outputs: *mut f64);
+    fn nk_trig_atan_f16(inputs: *const u16, n: usize, outputs: *mut u16);
 }
 
 /// In-place NeoX split-half RoPE over a row-major `[rows, heads * 2 * half_dim]` tensor.
-pub trait EachRope: Sized + StorageElement {
+pub trait TrigRope: Sized + StorageElement {
     /// Rotates a 2D `[rows, heads * 2 * half_dim]` tensor in place using the `[rows, half_dim]`
     /// `cos`/`sin` angle grids (row `r` at `r * half_dim`), shared across heads.
     ///
@@ -73,7 +82,7 @@ pub trait EachRope: Sized + StorageElement {
         XMut: TensorMut<Self, RX> + ?Sized;
 }
 
-impl EachRope for f32 {
+impl TrigRope for f32 {
     fn rope_into<XMut, const RX: usize>(
         x: &mut XMut,
         cos: &[RopeAngle],
@@ -95,7 +104,7 @@ impl EachRope for f32 {
         let stride = x.stride_bytes(0) as usize;
         let yp = x.as_mut_ptr();
         unsafe {
-            nk_each_rope_f32(
+            nk_trig_rope_f32(
                 yp,
                 yp,
                 cos.as_ptr(),
@@ -112,7 +121,7 @@ impl EachRope for f32 {
     }
 }
 
-impl EachRope for bf16 {
+impl TrigRope for bf16 {
     fn rope_into<XMut, const RX: usize>(
         x: &mut XMut,
         cos: &[RopeAngle],
@@ -134,7 +143,7 @@ impl EachRope for bf16 {
         let stride = x.stride_bytes(0) as usize;
         let yp = x.as_mut_ptr() as *mut u16;
         unsafe {
-            nk_each_rope_bf16(
+            nk_trig_rope_bf16(
                 yp,
                 yp,
                 cos.as_ptr(),
@@ -151,7 +160,7 @@ impl EachRope for bf16 {
     }
 }
 
-impl EachRope for e4m3 {
+impl TrigRope for e4m3 {
     fn rope_into<XMut, const RX: usize>(
         x: &mut XMut,
         cos: &[RopeAngle],
@@ -173,7 +182,7 @@ impl EachRope for e4m3 {
         let stride = x.stride_bytes(0) as usize;
         let yp = x.as_mut_ptr() as *mut u8;
         unsafe {
-            nk_each_rope_e4m3(
+            nk_trig_rope_e4m3(
                 yp,
                 yp,
                 cos.as_ptr(),
@@ -190,14 +199,298 @@ impl EachRope for e4m3 {
     }
 }
 
+// region: TrigSin
+
+/// Computes **element-wise sine** of a vector.
+pub trait TrigSin: Sized + StorageElement {
+    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
+
+    /// In-place sine: `data[i] = sin(data[i])`.
+    ///
+    /// Both source and destination pointers are derived from the single `&mut`,
+    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
+    fn sin_inplace(data: &mut [Self]) -> Option<()>;
+}
+
+impl TrigSin for f64 {
+    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
+        if inputs.len() != outputs.len() {
+            return None;
+        }
+        unsafe { nk_trig_sin_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn sin_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_trig_sin_f64(p as *const f64, len, p) };
+        Some(())
+    }
+}
+
+impl TrigSin for f32 {
+    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
+        if inputs.len() != outputs.len() {
+            return None;
+        }
+        unsafe { nk_trig_sin_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn sin_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_trig_sin_f32(p as *const f32, len, p) };
+        Some(())
+    }
+}
+
+impl TrigSin for f16 {
+    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
+        if inputs.len() != outputs.len() {
+            return None;
+        }
+        unsafe {
+            nk_trig_sin_f16(
+                inputs.as_ptr() as *const u16,
+                inputs.len(),
+                outputs.as_mut_ptr() as *mut u16,
+            )
+        };
+        Some(())
+    }
+
+    fn sin_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_trig_sin_f16(p as *const u16, len, p as *mut u16) };
+        Some(())
+    }
+}
+
+// endregion: TrigSin
+
+// region: TrigCos
+
+/// Computes **element-wise cosine** of a vector.
+pub trait TrigCos: Sized + StorageElement {
+    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
+
+    /// In-place cosine: `data[i] = cos(data[i])`.
+    ///
+    /// Both source and destination pointers are derived from the single `&mut`,
+    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
+    fn cos_inplace(data: &mut [Self]) -> Option<()>;
+}
+
+impl TrigCos for f64 {
+    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
+        if inputs.len() != outputs.len() {
+            return None;
+        }
+        unsafe { nk_trig_cos_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn cos_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_trig_cos_f64(p as *const f64, len, p) };
+        Some(())
+    }
+}
+
+impl TrigCos for f32 {
+    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
+        if inputs.len() != outputs.len() {
+            return None;
+        }
+        unsafe { nk_trig_cos_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn cos_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_trig_cos_f32(p as *const f32, len, p) };
+        Some(())
+    }
+}
+
+impl TrigCos for f16 {
+    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
+        if inputs.len() != outputs.len() {
+            return None;
+        }
+        unsafe {
+            nk_trig_cos_f16(
+                inputs.as_ptr() as *const u16,
+                inputs.len(),
+                outputs.as_mut_ptr() as *mut u16,
+            )
+        };
+        Some(())
+    }
+
+    fn cos_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_trig_cos_f16(p as *const u16, len, p as *mut u16) };
+        Some(())
+    }
+}
+
+// endregion: TrigCos
+
+// region: TrigAtan
+
+/// Computes **element-wise arctangent** of a vector.
+pub trait TrigAtan: Sized + StorageElement {
+    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
+
+    /// In-place arctangent: `data[i] = atan(data[i])`.
+    ///
+    /// Both source and destination pointers are derived from the single `&mut`,
+    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
+    fn atan_inplace(data: &mut [Self]) -> Option<()>;
+}
+
+impl TrigAtan for f64 {
+    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
+        if inputs.len() != outputs.len() {
+            return None;
+        }
+        unsafe { nk_trig_atan_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn atan_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_trig_atan_f64(p as *const f64, len, p) };
+        Some(())
+    }
+}
+
+impl TrigAtan for f32 {
+    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
+        if inputs.len() != outputs.len() {
+            return None;
+        }
+        unsafe { nk_trig_atan_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        Some(())
+    }
+
+    fn atan_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_trig_atan_f32(p as *const f32, len, p) };
+        Some(())
+    }
+}
+
+impl TrigAtan for f16 {
+    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
+        if inputs.len() != outputs.len() {
+            return None;
+        }
+        unsafe {
+            nk_trig_atan_f16(
+                inputs.as_ptr() as *const u16,
+                inputs.len(),
+                outputs.as_mut_ptr() as *mut u16,
+            )
+        };
+        Some(())
+    }
+
+    fn atan_inplace(data: &mut [Self]) -> Option<()> {
+        let len = data.len();
+        let p = data.as_mut_ptr();
+        unsafe { nk_trig_atan_f16(p as *const u16, len, p as *mut u16) };
+        Some(())
+    }
+}
+
+// endregion: TrigAtan
+
+/// `Trigonometry` bundles trigonometric functions: TrigSin, TrigCos, and TrigAtan.
+pub trait Trigonometry: TrigSin + TrigCos + TrigAtan {}
+impl<Scalar: TrigSin + TrigCos + TrigAtan> Trigonometry for Scalar {}
+
+// region: Tensor-shaped trigonometry (moved from crate::tensor)
+
+/// Extension trait: element-wise sine for any [`TensorRef`] implementor.
+pub trait TrigSinOps<Scalar: Clone + TrigSin, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    fn try_sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_sin() }
+}
+
+impl<Scalar: Clone + TrigSin, const R: usize, C: TensorRef<Scalar, R>> TrigSinOps<Scalar, R> for C {}
+
+/// Extension trait: element-wise cosine for any [`TensorRef`] implementor.
+pub trait TrigCosOps<Scalar: Clone + TrigCos, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    fn try_cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_cos() }
+}
+
+impl<Scalar: Clone + TrigCos, const R: usize, C: TensorRef<Scalar, R>> TrigCosOps<Scalar, R> for C {}
+
+/// Extension trait: element-wise arctangent for any [`TensorRef`] implementor.
+pub trait TrigAtanOps<Scalar: Clone + TrigAtan, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    fn try_atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_atan() }
+}
+
+impl<Scalar: Clone + TrigAtan, const R: usize, C: TensorRef<Scalar, R>> TrigAtanOps<Scalar, R> for C {}
+
+impl<Scalar: Clone + TrigSin, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
+    /// Element-wise sine: result\[i\] = sin(self\[i\])
+    pub fn sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_sin() }
+
+    /// Element-wise sine in-place (infallible — self vs self always matches).
+    pub fn sin_inplace(&mut self) { self.span().sin_inplace(); }
+
+    pub fn try_sin_inplace(&mut self) -> Result<(), TensorError> {
+        self.sin_inplace();
+        Ok(())
+    }
+}
+
+impl<Scalar: Clone + TrigCos, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
+    /// Element-wise cosine: result\[i\] = cos(self\[i\])
+    pub fn cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_cos() }
+
+    /// Element-wise cosine in-place (infallible — self vs self always matches).
+    pub fn cos_inplace(&mut self) { self.span().cos_inplace(); }
+
+    pub fn try_cos_inplace(&mut self) -> Result<(), TensorError> {
+        self.cos_inplace();
+        Ok(())
+    }
+}
+
+impl<Scalar: Clone + TrigAtan, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
+    /// Element-wise arctangent: result\[i\] = atan(self\[i\])
+    pub fn atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_atan() }
+
+    /// Element-wise arctangent in-place (infallible — self vs self always matches).
+    pub fn atan_inplace(&mut self) { self.span().atan_inplace(); }
+
+    pub fn try_atan_inplace(&mut self) -> Result<(), TensorError> {
+        self.atan_inplace();
+        Ok(())
+    }
+}
+
+// endregion: Tensor-shaped trigonometry
+
 #[cfg(test)]
 mod tests {
-    use super::EachRope;
-    use crate::types::{assert_close, bf16, e4m3, FloatLike, TestableType};
+    use super::TrigRope;
+    use crate::types::{assert_close, bf16, e4m3, f16, FloatLike, TestableType};
 
     fn check_rope<Scalar>(values: &[f32], heads: usize, half_dim: usize)
     where
-        Scalar: FloatLike + TestableType + EachRope,
+        Scalar: FloatLike + TestableType + TrigRope,
     {
         let rows = 2;
         let width = heads * 2 * half_dim;
@@ -294,5 +587,93 @@ mod tests {
                 );
             }
         }
+    }
+
+    pub(crate) fn check_trig_unary<Scalar, F>(
+        count: usize,
+        gen_fn: fn(usize, usize) -> f64,
+        op: F,
+        ref_fn: fn(f64) -> f64,
+        label: &str,
+    ) where
+        Scalar: FloatLike + TestableType,
+        F: FnOnce(&[Scalar], &mut [Scalar]) -> Option<()>,
+    {
+        let values: Vec<f64> = (0..count).map(|i| gen_fn(i, count)).collect();
+        let a: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v as f32)).collect();
+        let mut result = vec![Scalar::zero(); count];
+        op(&a, &mut result).unwrap();
+        for (i, r) in result.iter().enumerate() {
+            let expected = ref_fn(values[i]);
+            assert_close(
+                r.to_f64(),
+                expected,
+                Scalar::atol() * 10000.0,
+                Scalar::rtol() * 10000.0,
+                &format!("{}<{}>[{}]", label, core::any::type_name::<Scalar>(), i),
+            );
+        }
+    }
+
+    fn check_trig_sin<Scalar>(count: usize)
+    where
+        Scalar: FloatLike + TestableType + TrigSin,
+    {
+        use core::f64::consts::PI;
+        check_trig_unary::<Scalar, _>(
+            count,
+            |i, n| (i as f64) * 2.0 * PI / (n as f64),
+            Scalar::sin,
+            f64::sin,
+            "sin",
+        );
+    }
+
+    fn check_trig_cos<Scalar>(count: usize)
+    where
+        Scalar: FloatLike + TestableType + TrigCos,
+    {
+        use core::f64::consts::PI;
+        check_trig_unary::<Scalar, _>(
+            count,
+            |i, n| (i as f64) * 2.0 * PI / (n as f64),
+            Scalar::cos,
+            f64::cos,
+            "cos",
+        );
+    }
+
+    fn check_trig_atan<Scalar>(count: usize)
+    where
+        Scalar: FloatLike + TestableType + TrigAtan,
+    {
+        check_trig_unary::<Scalar, _>(
+            count,
+            |i, n| -5.0 + 10.0 * (i as f64) / (n as f64),
+            Scalar::atan,
+            f64::atan,
+            "atan",
+        );
+    }
+
+    #[test]
+    fn sin() {
+        check_trig_sin::<f32>(97);
+        check_trig_sin::<f64>(97);
+        check_trig_sin::<f16>(97);
+    }
+
+    #[test]
+    fn cos() {
+        check_trig_cos::<f32>(97);
+        check_trig_cos::<f64>(97);
+        check_trig_cos::<f16>(97);
+    }
+
+    #[test]
+    fn atan() {
+        check_trig_atan::<f32>(100);
+        check_trig_atan::<f64>(100);
+        check_trig_atan::<f16>(100);
     }
 }

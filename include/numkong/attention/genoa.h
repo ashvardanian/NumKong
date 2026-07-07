@@ -26,7 +26,7 @@
 #if NK_TARGET_GENOA
 
 #include "numkong/attention/serial.h" // shared packed-KV header/offsets, width-agnostic fallback
-#include "numkong/attention/skylake.h" // `nk_attention_exp2_ps_skylake_`; Genoa implies Skylake
+#include "numkong/attention/skylake.h" // `nk_attention_exp2_f32x16_skylake_`; Genoa implies Skylake
 #include "numkong/cast/icelake.h"      // `nk_load_e4m3x32_to_bf16x32_icelake_`
 #include "numkong/cast/skylake.h"      // `nk_bf16x16_to_f32x16_skylake_`
 #include "numkong/reduce/skylake.h"    // `nk_reduce_add_f32x16_skylake_`, `nk_reduce_max_f32x16_skylake_`

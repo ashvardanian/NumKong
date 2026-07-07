@@ -28,7 +28,7 @@
 #if NK_TARGET_DIAMONDAMX
 
 #include "numkong/attention/serial.h"  // shared packed-KV offsets, width-agnostic fallback
-#include "numkong/attention/skylake.h" // `nk_attention_exp2_ps_skylake_`, reduces
+#include "numkong/attention/skylake.h" // `nk_attention_exp2_f32x16_skylake_`, reduces
 #include "numkong/dots/sapphireamx.h"  // tile config, BF16/I8 tile structs, load_a, transposers
 
 #if defined(__cplusplus)
@@ -442,10 +442,10 @@ NK_INTERNAL void nk_attention_panel_rowmax_diamondamx_(nk_f32_t const *scores_pa
 }
 
 /** @brief BF16 Q×Kᵀ: 2×2 register blocking over 32-deep tiles, drained to FP32 via `_tile_movrow`. */
-NK_INTERNAL void nk_attention_score_bf16_diamondamx_(nk_dots_bf16_a16x32_sapphireamx_t const (*queries_tiles)[8],
-                                                     nk_bf16_t const *keys_head_tiles, nk_size_t panel_first_tile,
-                                                     nk_size_t panel_pairs, nk_size_t depth_tiles,
-                                                     nk_f32_t *scores_panel, nk_size_t panel_width) {
+NK_INTERNAL void nk_attention_score_panel_bf16_diamondamx_(nk_dots_bf16_a16x32_sapphireamx_t const (*queries_tiles)[8],
+                                                           nk_bf16_t const *keys_head_tiles, nk_size_t panel_first_tile,
+                                                           nk_size_t panel_pairs, nk_size_t depth_tiles,
+                                                           nk_f32_t *scores_panel, nk_size_t panel_width) {
     nk_size_t const keys_tile_stride = depth_tiles * 512;
     for (nk_size_t pair_idx = 0; pair_idx < panel_pairs; pair_idx++) {
         nk_bf16_t const *keys_tile0 = keys_head_tiles + (panel_first_tile + pair_idx * 2) * keys_tile_stride;
@@ -469,10 +469,10 @@ NK_INTERNAL void nk_attention_score_bf16_diamondamx_(nk_dots_bf16_a16x32_sapphir
 }
 
 /** @brief E4M3 native Q×Kᵀ: `_tile_dphf8ps` over 64-deep raw E4M3 tiles, drained to FP32. */
-NK_INTERNAL void nk_attention_score_e4m3_diamondamx_(nk_dots_i8_a16x64_sapphireamx_t const (*queries_tiles)[4],
-                                                     nk_i8_t const *keys_head_tiles, nk_size_t panel_first_tile,
-                                                     nk_size_t panel_pairs, nk_size_t depth_blocks,
-                                                     nk_f32_t *scores_panel, nk_size_t panel_width) {
+NK_INTERNAL void nk_attention_score_panel_e4m3_diamondamx_(nk_dots_i8_a16x64_sapphireamx_t const (*queries_tiles)[4],
+                                                           nk_i8_t const *keys_head_tiles, nk_size_t panel_first_tile,
+                                                           nk_size_t panel_pairs, nk_size_t depth_blocks,
+                                                           nk_f32_t *scores_panel, nk_size_t panel_width) {
     nk_size_t const keys_tile_stride = depth_blocks * 1024;
     for (nk_size_t pair_idx = 0; pair_idx < panel_pairs; pair_idx++) {
         nk_i8_t const *keys_tile0 = keys_head_tiles + (panel_first_tile + pair_idx * 2) * keys_tile_stride;
@@ -496,10 +496,10 @@ NK_INTERNAL void nk_attention_score_e4m3_diamondamx_(nk_dots_i8_a16x64_sapphirea
 }
 
 /** @brief I8 Q×Kᵀ: exact-integer TDPBSSD over 64-deep tiles, drained to FP32 via `_tile_cvtrowd2ps`. */
-NK_INTERNAL void nk_attention_score_i8_diamondamx_(nk_dots_i8_a16x64_sapphireamx_t const (*queries_tiles)[4],
-                                                   nk_i8_t const *keys_head_tiles, nk_size_t panel_first_tile,
-                                                   nk_size_t panel_pairs, nk_size_t depth_blocks,
-                                                   nk_f32_t *scores_panel, nk_size_t panel_width) {
+NK_INTERNAL void nk_attention_score_panel_i8_diamondamx_(nk_dots_i8_a16x64_sapphireamx_t const (*queries_tiles)[4],
+                                                         nk_i8_t const *keys_head_tiles, nk_size_t panel_first_tile,
+                                                         nk_size_t panel_pairs, nk_size_t depth_blocks,
+                                                         nk_f32_t *scores_panel, nk_size_t panel_width) {
     nk_size_t const keys_tile_stride = depth_blocks * 1024;
     for (nk_size_t pair_idx = 0; pair_idx < panel_pairs; pair_idx++) {
         nk_i8_t const *keys_tile0 = keys_head_tiles + (panel_first_tile + pair_idx * 2) * keys_tile_stride;
@@ -523,10 +523,10 @@ NK_INTERNAL void nk_attention_score_i8_diamondamx_(nk_dots_i8_a16x64_sapphireamx
 }
 
 /** @brief Streaming base-2 softmax → BF16 weights (F32 exp summed), Sapphire's contract verbatim. */
-NK_INTERNAL void nk_attention_exp_bf16_diamondamx_(nk_f32_t const *scores_panel, nk_bf16_t *weights_panel,
-                                                   nk_size_t panel_length, nk_size_t valid_cols, nk_size_t panel_width,
-                                                   nk_f32_t scale2, nk_f32_t const (*new_max)[16],
-                                                   nk_f32_t (*panel_sums)[16]) {
+NK_INTERNAL void nk_attention_exp_panel_bf16_diamondamx_(nk_f32_t const *scores_panel, nk_bf16_t *weights_panel,
+                                                         nk_size_t panel_length, nk_size_t valid_cols,
+                                                         nk_size_t panel_width, nk_f32_t scale2,
+                                                         nk_f32_t const (*new_max)[16], nk_f32_t (*panel_sums)[16]) {
     __m512 const scale_f32x16 = _mm512_set1_ps(scale2);
     nk_size_t const full_cols = valid_cols & ~(nk_size_t)15;
     __mmask16 const tail_mask = (__mmask16)((1u << (valid_cols - full_cols)) - 1);
@@ -537,14 +537,14 @@ NK_INTERNAL void nk_attention_exp_bf16_diamondamx_(nk_f32_t const *scores_panel,
         __m512 sum_f32x16 = _mm512_setzero_ps();
         nk_size_t position_idx = 0;
         for (; position_idx < full_cols; position_idx += 16) {
-            __m512 exp_f32x16 = nk_attention_exp2_ps_skylake_(
+            __m512 exp_f32x16 = nk_attention_exp2_f32x16_skylake_(
                 _mm512_fmsub_ps(_mm512_loadu_ps(scores_row + position_idx), scale_f32x16, max_f32x16));
             sum_f32x16 = _mm512_add_ps(sum_f32x16, exp_f32x16);
             _mm256_store_si256((__m256i *)(weights_row + position_idx), (__m256i)_mm512_cvtneps_pbh(exp_f32x16));
         }
         if (position_idx < valid_cols) {
             __m512 exp_f32x16 = _mm512_maskz_mov_ps(
-                tail_mask, nk_attention_exp2_ps_skylake_(
+                tail_mask, nk_attention_exp2_f32x16_skylake_(
                                _mm512_fmsub_ps(_mm512_loadu_ps(scores_row + position_idx), scale_f32x16, max_f32x16)));
             sum_f32x16 = _mm512_add_ps(sum_f32x16, exp_f32x16);
             _mm256_store_si256((__m256i *)(weights_row + position_idx), (__m256i)_mm512_cvtneps_pbh(exp_f32x16));
@@ -565,10 +565,10 @@ NK_INTERNAL void nk_attention_exp_bf16_diamondamx_(nk_f32_t const *scores_panel,
  *  bias that grows with context length. The sum accumulates the dequantized scaled
  *  weights, so the 256 cancels in normalization.
  */
-NK_INTERNAL void nk_attention_exp_e4m3_diamondamx_(nk_f32_t const *scores_panel, nk_e4m3_t *weights_panel,
-                                                   nk_size_t panel_length, nk_size_t valid_cols, nk_size_t panel_width,
-                                                   nk_f32_t scale2, nk_f32_t const (*new_max)[16],
-                                                   nk_f32_t (*panel_sums)[16]) {
+NK_INTERNAL void nk_attention_exp_panel_e4m3_diamondamx_(nk_f32_t const *scores_panel, nk_e4m3_t *weights_panel,
+                                                         nk_size_t panel_length, nk_size_t valid_cols,
+                                                         nk_size_t panel_width, nk_f32_t scale2,
+                                                         nk_f32_t const (*new_max)[16], nk_f32_t (*panel_sums)[16]) {
     __m512 const scale_f32x16 = _mm512_set1_ps(scale2);
     __m512 const amplitude_f32x16 = _mm512_set1_ps(256.0f);
     nk_size_t const full_cols = valid_cols & ~(nk_size_t)15;
@@ -581,7 +581,7 @@ NK_INTERNAL void nk_attention_exp_e4m3_diamondamx_(nk_f32_t const *scores_panel,
         nk_size_t position_idx = 0;
         for (; position_idx < full_cols; position_idx += 16) {
             __m512 const exp_f32x16 = _mm512_mul_ps(
-                nk_attention_exp2_ps_skylake_(
+                nk_attention_exp2_f32x16_skylake_(
                     _mm512_fmsub_ps(_mm512_loadu_ps(scores_row + position_idx), scale_f32x16, max_f32x16)),
                 amplitude_f32x16);
             __m128i const weight_e4m3x16 = nk_attention_quantize_e4m3x16_diamondamx_(exp_f32x16);
@@ -590,7 +590,7 @@ NK_INTERNAL void nk_attention_exp_e4m3_diamondamx_(nk_f32_t const *scores_panel,
         }
         if (position_idx < valid_cols) {
             __m512 const exp_f32x16 = _mm512_maskz_mov_ps(
-                tail_mask, _mm512_mul_ps(nk_attention_exp2_ps_skylake_(_mm512_fmsub_ps(
+                tail_mask, _mm512_mul_ps(nk_attention_exp2_f32x16_skylake_(_mm512_fmsub_ps(
                                              _mm512_loadu_ps(scores_row + position_idx), scale_f32x16, max_f32x16)),
                                          amplitude_f32x16));
             __m128i const weight_e4m3x16 = nk_attention_quantize_e4m3x16_diamondamx_(exp_f32x16);
@@ -605,10 +605,10 @@ NK_INTERNAL void nk_attention_exp_e4m3_diamondamx_(nk_f32_t const *scores_panel,
 }
 
 /** @brief Streaming base-2 softmax → U8 weights, `round(255·2^(s₂−m₂))`; the max position lands on 255. */
-NK_INTERNAL void nk_attention_exp_i8_diamondamx_(nk_f32_t const *scores_panel, nk_u8_t *weights_panel,
-                                                 nk_size_t panel_length, nk_size_t valid_cols, nk_size_t panel_width,
-                                                 nk_f32_t scale2, nk_f32_t const (*new_max)[16],
-                                                 nk_f32_t (*panel_sums)[16]) {
+NK_INTERNAL void nk_attention_exp_panel_i8_diamondamx_(nk_f32_t const *scores_panel, nk_u8_t *weights_panel,
+                                                       nk_size_t panel_length, nk_size_t valid_cols,
+                                                       nk_size_t panel_width, nk_f32_t scale2,
+                                                       nk_f32_t const (*new_max)[16], nk_f32_t (*panel_sums)[16]) {
     __m512 const scale_f32x16 = _mm512_set1_ps(scale2);
     __m512 const half_f32x16 = _mm512_set1_ps(0.5f);
     __m512 const amplitude_f32x16 = _mm512_set1_ps(255.0f);
@@ -621,7 +621,7 @@ NK_INTERNAL void nk_attention_exp_i8_diamondamx_(nk_f32_t const *scores_panel, n
         __m512 sum_f32x16 = _mm512_setzero_ps();
         nk_size_t position_idx = 0;
         for (; position_idx < full_cols; position_idx += 16) {
-            __m512 const exp_f32x16 = nk_attention_exp2_ps_skylake_(
+            __m512 const exp_f32x16 = nk_attention_exp2_f32x16_skylake_(
                 _mm512_fmsub_ps(_mm512_loadu_ps(scores_row + position_idx), scale_f32x16, max_f32x16));
             __m512i const weight_u32x16 = _mm512_cvttps_epu32(
                 _mm512_add_ps(_mm512_mul_ps(exp_f32x16, amplitude_f32x16), half_f32x16));
@@ -630,7 +630,7 @@ NK_INTERNAL void nk_attention_exp_i8_diamondamx_(nk_f32_t const *scores_panel, n
         }
         if (position_idx < valid_cols) {
             __m512 const exp_f32x16 = _mm512_maskz_mov_ps(
-                tail_mask, nk_attention_exp2_ps_skylake_(
+                tail_mask, nk_attention_exp2_f32x16_skylake_(
                                _mm512_fmsub_ps(_mm512_loadu_ps(scores_row + position_idx), scale_f32x16, max_f32x16)));
             __m512i const weight_u32x16 = _mm512_cvttps_epu32(
                 _mm512_add_ps(_mm512_mul_ps(exp_f32x16, amplitude_f32x16), half_f32x16));
@@ -645,12 +645,12 @@ NK_INTERNAL void nk_attention_exp_i8_diamondamx_(nk_f32_t const *scores_panel, n
 }
 
 /** @brief BF16 P×V: TDPBF16PS over 32-deep steps, each accumulator fused into `o_acc` on drain. */
-NK_INTERNAL void nk_attention_weighted_sum_bf16_diamondamx_(nk_bf16_t const *weights_panel, nk_size_t panel_width,
-                                                            nk_bf16_t const *values_head_tiles,
-                                                            nk_size_t position_blocks_total,
-                                                            nk_size_t panel_first_block, nk_size_t panel_blocks,
-                                                            nk_size_t depth_tiles, nk_size_t output_stride_floats,
-                                                            nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {
+NK_INTERNAL void nk_attention_weighted_sum_panel_bf16_diamondamx_(nk_bf16_t const *weights_panel, nk_size_t panel_width,
+                                                                  nk_bf16_t const *values_head_tiles,
+                                                                  nk_size_t position_blocks_total,
+                                                                  nk_size_t panel_first_block, nk_size_t panel_blocks,
+                                                                  nk_size_t depth_tiles, nk_size_t output_stride_floats,
+                                                                  nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {
     int const weights_stride_bytes = (int)(panel_width * sizeof(nk_bf16_t));
     for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles; depth_tile_idx++) {
         nk_bf16_t const *values_tile0 = values_head_tiles +
@@ -676,12 +676,12 @@ NK_INTERNAL void nk_attention_weighted_sum_bf16_diamondamx_(nk_bf16_t const *wei
 }
 
 /** @brief E4M3 native P×V: `_tile_dphf8ps` (E4M3 weights × E4M3 values → FP32), fused on drain. */
-NK_INTERNAL void nk_attention_weighted_sum_e4m3_diamondamx_(nk_e4m3_t const *weights_panel, nk_size_t panel_width,
-                                                            nk_i8_t const *values_head_tiles,
-                                                            nk_size_t position_blocks_total,
-                                                            nk_size_t panel_first_block, nk_size_t panel_blocks,
-                                                            nk_size_t depth_tiles, nk_size_t output_stride_floats,
-                                                            nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {
+NK_INTERNAL void nk_attention_weighted_sum_panel_e4m3_diamondamx_(nk_e4m3_t const *weights_panel, nk_size_t panel_width,
+                                                                  nk_i8_t const *values_head_tiles,
+                                                                  nk_size_t position_blocks_total,
+                                                                  nk_size_t panel_first_block, nk_size_t panel_blocks,
+                                                                  nk_size_t depth_tiles, nk_size_t output_stride_floats,
+                                                                  nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {
     int const weights_stride_bytes = (int)panel_width;
     for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles; depth_tile_idx++) {
         nk_i8_t const *values_tile0 = values_head_tiles +
@@ -707,12 +707,12 @@ NK_INTERNAL void nk_attention_weighted_sum_e4m3_diamondamx_(nk_e4m3_t const *wei
 }
 
 /** @brief I8 P×V: TDPBUSD (U8 weights × I8 values → I32), converted to FP32 on drain. */
-NK_INTERNAL void nk_attention_weighted_sum_i8_diamondamx_(nk_u8_t const *weights_panel, nk_size_t panel_width,
-                                                          nk_i8_t const *values_head_tiles,
-                                                          nk_size_t position_blocks_total, nk_size_t panel_first_block,
-                                                          nk_size_t panel_blocks, nk_size_t depth_tiles,
-                                                          nk_size_t output_stride_floats,
-                                                          nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {
+NK_INTERNAL void nk_attention_weighted_sum_panel_i8_diamondamx_(nk_u8_t const *weights_panel, nk_size_t panel_width,
+                                                                nk_i8_t const *values_head_tiles,
+                                                                nk_size_t position_blocks_total,
+                                                                nk_size_t panel_first_block, nk_size_t panel_blocks,
+                                                                nk_size_t depth_tiles, nk_size_t output_stride_floats,
+                                                                nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {
     int const weights_stride_bytes = (int)panel_width;
     for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles; depth_tile_idx++) {
         nk_i8_t const *values_tile0 = values_head_tiles +
@@ -813,7 +813,7 @@ NK_INTERNAL void nk_attention_task_bf16_diamondamx_(
                                              ? panel_length
                                              : (position_count - panel_start);
             for (nk_size_t row_block_idx = 0; row_block_idx < row_block_count; row_block_idx++) {
-                nk_attention_score_bf16_diamondamx_(
+                nk_attention_score_panel_bf16_diamondamx_(
                     (nk_dots_bf16_a16x32_sapphireamx_t const(*)[8])scratch->queries_tiles[row_block_idx],
                     keys_head_tiles, panel_start / 16, panel_length / 32, depth_tiles, scratch->scores_panel,
                     panel_width);
@@ -822,20 +822,20 @@ NK_INTERNAL void nk_attention_task_bf16_diamondamx_(
                     __m512 const old_max_f32x16 = row_max2_f32x16[row_block_idx][row_tile_idx];
                     __m512 const new_max_f32x16 = _mm512_max_ps(
                         old_max_f32x16, _mm512_mul_ps(_mm512_load_ps(panel_max[row_tile_idx]), scale2_f32x16));
-                    __m512 const corr_f32x16 = nk_attention_exp2_ps_skylake_(
+                    __m512 const corr_f32x16 = nk_attention_exp2_f32x16_skylake_(
                         _mm512_sub_ps(old_max_f32x16, new_max_f32x16));
                     row_max2_f32x16[row_block_idx][row_tile_idx] = new_max_f32x16;
                     _mm512_store_ps(corrections[row_tile_idx], corr_f32x16);
                     _mm512_store_ps(new_max_arr[row_tile_idx], new_max_f32x16);
                 }
-                nk_attention_exp_bf16_diamondamx_(scratch->scores_panel, scratch->weights_panel, panel_length,
-                                                  valid_cols, panel_width, scale2, (nk_f32_t const(*)[16])new_max_arr,
-                                                  panel_sums);
+                nk_attention_exp_panel_bf16_diamondamx_(scratch->scores_panel, scratch->weights_panel, panel_length,
+                                                        valid_cols, panel_width, scale2,
+                                                        (nk_f32_t const(*)[16])new_max_arr, panel_sums);
                 for (nk_size_t row_tile_idx = 0; row_tile_idx < 2; row_tile_idx++)
                     row_sum_f32x16[row_block_idx][row_tile_idx] = _mm512_fmadd_ps(
                         row_sum_f32x16[row_block_idx][row_tile_idx], _mm512_load_ps(corrections[row_tile_idx]),
                         _mm512_load_ps(panel_sums[row_tile_idx]));
-                nk_attention_weighted_sum_bf16_diamondamx_(
+                nk_attention_weighted_sum_panel_bf16_diamondamx_(
                     scratch->weights_panel, panel_width, values_head_tiles, position_blocks_total, panel_start / 32,
                     panel_length / 32, depth_tiles, output_stride_floats, (nk_f32_t const(*)[16])corrections,
                     scratch->o_acc[row_block_idx]);
@@ -928,7 +928,7 @@ NK_INTERNAL void nk_attention_task_e4m3_diamondamx_(nk_e4m3_t const *queries, nk
                                              ? panel_length
                                              : (position_count - panel_start);
             for (nk_size_t row_block_idx = 0; row_block_idx < row_block_count; row_block_idx++) {
-                nk_attention_score_e4m3_diamondamx_(
+                nk_attention_score_panel_e4m3_diamondamx_(
                     (nk_dots_i8_a16x64_sapphireamx_t const(*)[4])scratch->queries_tiles[row_block_idx], keys_head_tiles,
                     panel_start / 16, panel_length / 32, depth_blocks, scratch->scores_panel, panel_width);
                 nk_attention_panel_rowmax_diamondamx_(scratch->scores_panel, panel_width, valid_cols, panel_max);
@@ -936,20 +936,20 @@ NK_INTERNAL void nk_attention_task_e4m3_diamondamx_(nk_e4m3_t const *queries, nk
                     __m512 const old_max_f32x16 = row_max2_f32x16[row_block_idx][row_tile_idx];
                     __m512 const new_max_f32x16 = _mm512_max_ps(
                         old_max_f32x16, _mm512_mul_ps(_mm512_load_ps(panel_max[row_tile_idx]), scale2_f32x16));
-                    __m512 const corr_f32x16 = nk_attention_exp2_ps_skylake_(
+                    __m512 const corr_f32x16 = nk_attention_exp2_f32x16_skylake_(
                         _mm512_sub_ps(old_max_f32x16, new_max_f32x16));
                     row_max2_f32x16[row_block_idx][row_tile_idx] = new_max_f32x16;
                     _mm512_store_ps(corrections[row_tile_idx], corr_f32x16);
                     _mm512_store_ps(new_max_arr[row_tile_idx], new_max_f32x16);
                 }
-                nk_attention_exp_e4m3_diamondamx_(scratch->scores_panel, scratch->weights_panel, panel_length,
-                                                  valid_cols, panel_width, scale2, (nk_f32_t const(*)[16])new_max_arr,
-                                                  panel_sums);
+                nk_attention_exp_panel_e4m3_diamondamx_(scratch->scores_panel, scratch->weights_panel, panel_length,
+                                                        valid_cols, panel_width, scale2,
+                                                        (nk_f32_t const(*)[16])new_max_arr, panel_sums);
                 for (nk_size_t row_tile_idx = 0; row_tile_idx < 2; row_tile_idx++)
                     row_sum_f32x16[row_block_idx][row_tile_idx] = _mm512_fmadd_ps(
                         row_sum_f32x16[row_block_idx][row_tile_idx], _mm512_load_ps(corrections[row_tile_idx]),
                         _mm512_load_ps(panel_sums[row_tile_idx]));
-                nk_attention_weighted_sum_e4m3_diamondamx_(
+                nk_attention_weighted_sum_panel_e4m3_diamondamx_(
                     scratch->weights_panel, panel_width, values_head_tiles, position_blocks_total, panel_start / 64,
                     panel_length / 64, depth_tiles, output_stride_floats, (nk_f32_t const(*)[16])corrections,
                     scratch->o_acc[row_block_idx]);
@@ -1042,7 +1042,7 @@ NK_INTERNAL void nk_attention_task_i8_diamondamx_(nk_i8_t const *queries, nk_f32
                                              ? panel_length
                                              : (position_count - panel_start);
             for (nk_size_t row_block_idx = 0; row_block_idx < row_block_count; row_block_idx++) {
-                nk_attention_score_i8_diamondamx_(
+                nk_attention_score_panel_i8_diamondamx_(
                     (nk_dots_i8_a16x64_sapphireamx_t const(*)[4])scratch->queries_tiles[row_block_idx], keys_head_tiles,
                     panel_start / 16, panel_length / 32, depth_blocks, scratch->scores_panel, panel_width);
                 nk_attention_panel_rowmax_diamondamx_(scratch->scores_panel, panel_width, valid_cols, panel_max);
@@ -1050,19 +1050,20 @@ NK_INTERNAL void nk_attention_task_i8_diamondamx_(nk_i8_t const *queries, nk_f32
                     __m512 const old_max_f32x16 = row_max2_f32x16[row_block_idx][row_tile_idx];
                     __m512 const new_max_f32x16 = _mm512_max_ps(
                         old_max_f32x16, _mm512_mul_ps(_mm512_load_ps(panel_max[row_tile_idx]), scale2_f32x16));
-                    __m512 const corr_f32x16 = nk_attention_exp2_ps_skylake_(
+                    __m512 const corr_f32x16 = nk_attention_exp2_f32x16_skylake_(
                         _mm512_sub_ps(old_max_f32x16, new_max_f32x16));
                     row_max2_f32x16[row_block_idx][row_tile_idx] = new_max_f32x16;
                     _mm512_store_ps(corrections[row_tile_idx], corr_f32x16);
                     _mm512_store_ps(new_max_arr[row_tile_idx], new_max_f32x16);
                 }
-                nk_attention_exp_i8_diamondamx_(scratch->scores_panel, scratch->weights_panel, panel_length, valid_cols,
-                                                panel_width, scale2, (nk_f32_t const(*)[16])new_max_arr, panel_sums);
+                nk_attention_exp_panel_i8_diamondamx_(scratch->scores_panel, scratch->weights_panel, panel_length,
+                                                      valid_cols, panel_width, scale2,
+                                                      (nk_f32_t const(*)[16])new_max_arr, panel_sums);
                 for (nk_size_t row_tile_idx = 0; row_tile_idx < 2; row_tile_idx++)
                     row_sum_f32x16[row_block_idx][row_tile_idx] = _mm512_fmadd_ps(
                         row_sum_f32x16[row_block_idx][row_tile_idx], _mm512_load_ps(corrections[row_tile_idx]),
                         _mm512_load_ps(panel_sums[row_tile_idx]));
-                nk_attention_weighted_sum_i8_diamondamx_(
+                nk_attention_weighted_sum_panel_i8_diamondamx_(
                     scratch->weights_panel, panel_width, values_head_tiles, position_blocks_total, panel_start / 64,
                     panel_length / 64, depth_tiles, output_stride_floats, (nk_f32_t const(*)[16])corrections,
                     scratch->o_acc[row_block_idx]);

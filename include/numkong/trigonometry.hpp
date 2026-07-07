@@ -30,9 +30,9 @@ template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allo
 void sin(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
     constexpr bool simd = allow_simd_ == prefer_simd_k && std::is_same_v<in_type_, precision_type_>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_each_sin_f64(&in->raw_, n, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_each_sin_f32(&in->raw_, n, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_each_sin_f16(&in->raw_, n, &out->raw_);
+    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_trig_sin_f64(&in->raw_, n, &out->raw_);
+    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_trig_sin_f32(&in->raw_, n, &out->raw_);
+    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_trig_sin_f16(&in->raw_, n, &out->raw_);
     // Scalar fallback
     else {
         for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).sin());
@@ -53,9 +53,9 @@ template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allo
 void cos(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
     constexpr bool simd = allow_simd_ == prefer_simd_k && std::is_same_v<in_type_, precision_type_>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_each_cos_f64(&in->raw_, n, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_each_cos_f32(&in->raw_, n, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_each_cos_f16(&in->raw_, n, &out->raw_);
+    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_trig_cos_f64(&in->raw_, n, &out->raw_);
+    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_trig_cos_f32(&in->raw_, n, &out->raw_);
+    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_trig_cos_f16(&in->raw_, n, &out->raw_);
     // Scalar fallback
     else {
         for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).cos());
@@ -76,9 +76,9 @@ template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allo
 void atan(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
     constexpr bool simd = allow_simd_ == prefer_simd_k && std::is_same_v<in_type_, precision_type_>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_each_atan_f64(&in->raw_, n, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_each_atan_f32(&in->raw_, n, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_each_atan_f16(&in->raw_, n, &out->raw_);
+    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_trig_atan_f64(&in->raw_, n, &out->raw_);
+    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_trig_atan_f32(&in->raw_, n, &out->raw_);
+    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_trig_atan_f16(&in->raw_, n, &out->raw_);
     // Scalar fallback
     else {
         for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).atan());
@@ -106,13 +106,13 @@ void rope(in_type_ const *x, in_type_ *y, f32_t const *cos, f32_t const *sin, st
           std::size_t half_dim, std::size_t x_row_stride, std::size_t y_row_stride, float input_scale = 1.0f) noexcept {
     constexpr bool simd = allow_simd_ == prefer_simd_k;
     if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_each_rope_f32(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim, x_row_stride, y_row_stride,
+        nk_trig_rope_f32(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim, x_row_stride, y_row_stride,
                          input_scale);
     else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_each_rope_bf16(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim, x_row_stride, y_row_stride,
+        nk_trig_rope_bf16(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim, x_row_stride, y_row_stride,
                           input_scale);
     else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd)
-        nk_each_rope_e4m3(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim, x_row_stride, y_row_stride,
+        nk_trig_rope_e4m3(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim, x_row_stride, y_row_stride,
                           input_scale);
     // Scalar fallback for other numeric dtypes or when SIMD is disabled.
     else {

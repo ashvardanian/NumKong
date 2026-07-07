@@ -245,7 +245,7 @@ void each_blend_recursive(                                           //
  *  @brief Recursively apply a unary elementwise kernel (sin/cos/atan) to an N-D tensor.
  */
 void each_unary_recursive(                                //
-    nk_kernel_trigonometry_punned_t kernel,               //
+    nk_kernel_trig_punned_t kernel,                       //
     char const *a_data, char *result_data,                //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides, //
     Py_ssize_t const *result_strides,                     //
@@ -268,6 +268,12 @@ PyObject *api_min(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObj
 PyObject *api_max(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_argmin(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_argmax(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
+int elementwise_prepare_out(                                                    //
+    PyObject *out_obj, Py_buffer *out_buffer, nk_buffer_backing_t *out_backing, //
+    Py_buffer const **inputs, size_t num_inputs, nk_dtype_t dtype,              //
+    char **result_data, Py_ssize_t *result_strides, int *contiguous_tail,       //
+    PyObject **return_obj);
 
 extern char const doc_from_pointer[];
 extern char const doc_empty[];

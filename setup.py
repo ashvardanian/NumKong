@@ -456,6 +456,7 @@ base_sources = [
     "python/types.c",
     "python/distance.c",
     "python/each.c",
+    "python/trigonometry.c",
     "python/mesh.c",
     "python/attention.c",
     "python/maxsim.c",

@@ -93,7 +93,7 @@
 //! - `blend(a, b, alpha, beta, result)`: Blend `result[i] = α × a[i] + β × b[i]`.
 //! - `fma(a, b, c, alpha, beta, result)`: Fused multiply-add `result[i] = α × a[i] × b[i] + β × c[i]`.
 //!
-//! The `Trigonometry` trait (combining `EachSin`, `EachCos`, `EachATan`) covers:
+//! The `Trigonometry` trait (combining `TrigSin`, `TrigCos`, `TrigAtan`) covers:
 //!
 //! - `sin(input, result)`: Element-wise sine.
 //! - `cos(input, result)`: Element-wise cosine.
@@ -143,15 +143,12 @@ pub use set::{BinarySimilarity, Hamming, Jaccard};
 pub use probability::{JensenShannon, KullbackLeibler, ProbabilitySimilarity};
 
 // Re-export elementwise and trig traits
-pub use each::{
-    AllCloseOps, BlendOps, EachATan, EachBlend, EachCos, EachFMA, EachScale, EachSin, EachSum, EachSwiglu, FmaOps,
-    ScaleOps, SumOps, TrigAtanOps, TrigCosOps, TrigSinOps, Trigonometry,
-};
+pub use each::{AllCloseOps, BlendOps, EachBlend, EachFMA, EachScale, EachSum, EachSwiglu, FmaOps, ScaleOps, SumOps};
 
 pub use reduce::{
     BitwiseReductions, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, ReduceRmsNorm, Reductions, SumSqToF64,
 };
-pub use trigonometry::EachRope;
+pub use trigonometry::{TrigAtan, TrigAtanOps, TrigCos, TrigCosOps, TrigRope, TrigSin, TrigSinOps, Trigonometry};
 
 // Re-export curved metric traits
 pub use curved::{Bilinear, Mahalanobis};

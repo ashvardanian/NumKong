@@ -133,7 +133,7 @@ error_stats_t test_attention_packed(typename scalar_type_::attention_packed_size
     nk_f32_t const scale = 0.05f;
 
     for (auto start = test_start_time(); within_time_budget(start);) {
-        for (std::size_t depth : {64ul, 128ul}) {
+        for (std::size_t depth : {1ul, 64ul, 65ul, 127ul, 128ul, 129ul, 255ul, 257ul}) {
             std::size_t const queries_row_width = head_count * depth,
                               key_value_row_width = key_value_head_count * depth;
             std::size_t const query_stride_bytes = queries_row_width * sizeof(scalar_t),

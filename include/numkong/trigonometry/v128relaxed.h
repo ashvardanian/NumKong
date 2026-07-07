@@ -553,7 +553,7 @@ NK_INTERNAL v128_t nk_f64x2_atan2_v128relaxed_(v128_t const ys_inputs, v128_t co
  *  Tails use nk_partial_load_b32x4_serial_/nk_partial_store_b32x4_serial_ via .v128 union member.
  */
 
-NK_PUBLIC void nk_each_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         v128_t angles_f32x4 = wasm_v128_load(ins + i);
@@ -570,7 +570,7 @@ NK_PUBLIC void nk_each_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_
     }
 }
 
-NK_PUBLIC void nk_each_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         v128_t angles_f32x4 = wasm_v128_load(ins + i);
@@ -587,7 +587,7 @@ NK_PUBLIC void nk_each_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_
     }
 }
 
-NK_PUBLIC void nk_each_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         v128_t values_f32x4 = wasm_v128_load(ins + i);
@@ -604,7 +604,7 @@ NK_PUBLIC void nk_each_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk
     }
 }
 
-NK_PUBLIC void nk_each_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         v128_t angles_f64x2 = wasm_v128_load(ins + i);
@@ -621,7 +621,7 @@ NK_PUBLIC void nk_each_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_
     }
 }
 
-NK_PUBLIC void nk_each_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         v128_t angles_f64x2 = wasm_v128_load(ins + i);
@@ -638,7 +638,7 @@ NK_PUBLIC void nk_each_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_
     }
 }
 
-NK_PUBLIC void nk_each_atan_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         v128_t values_f64x2 = wasm_v128_load(ins + i);

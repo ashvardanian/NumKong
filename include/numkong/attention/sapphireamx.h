@@ -124,7 +124,7 @@
 #if NK_TARGET_SAPPHIREAMX
 
 #include "numkong/attention/serial.h"  // shared packed-KV header/directory, width-agnostic fallback
-#include "numkong/attention/skylake.h" // `nk_attention_exp2_ps_skylake_` — AMX implies the Skylake tier
+#include "numkong/attention/skylake.h" // `nk_attention_exp2_f32x16_skylake_` — AMX implies the Skylake tier
 #include "numkong/reduce/skylake.h"    // `nk_reduce_add_f32x16_skylake_`, `nk_reduce_max_f32x16_skylake_`
 #include "numkong/dots/sapphireamx.h"  // `nk_amx_tile_configure_sapphireamx_`, tile transposer, FP8 loaders
 
@@ -448,14 +448,14 @@ NK_INTERNAL void nk_attention_exp_panel_sapphireamx_(                      //
         __m512 sum_f32x16 = _mm512_setzero_ps();
         nk_size_t channel_idx = 0;
         for (; channel_idx < full_cols; channel_idx += 16) {
-            __m512 exp_f32x16 = nk_attention_exp2_ps_skylake_(
+            __m512 exp_f32x16 = nk_attention_exp2_f32x16_skylake_(
                 _mm512_fmsub_ps(_mm512_loadu_ps(scores_row + channel_idx), scale_f32x16, max_f32x16));
             sum_f32x16 = _mm512_add_ps(sum_f32x16, exp_f32x16);
             _mm256_store_si256((__m256i *)(weights_row + channel_idx), (__m256i)_mm512_cvtneps_pbh(exp_f32x16));
         }
         if (channel_idx < valid_channels) {
             __m512 exp_f32x16 = _mm512_maskz_mov_ps(
-                tail_mask, nk_attention_exp2_ps_skylake_(
+                tail_mask, nk_attention_exp2_f32x16_skylake_(
                                _mm512_fmsub_ps(_mm512_loadu_ps(scores_row + channel_idx), scale_f32x16, max_f32x16)));
             sum_f32x16 = _mm512_add_ps(sum_f32x16, exp_f32x16);
             _mm256_store_si256((__m256i *)(weights_row + channel_idx), (__m256i)_mm512_cvtneps_pbh(exp_f32x16));
@@ -596,7 +596,7 @@ NK_INTERNAL void nk_attention_task_sapphireamx_(                                
                     __m512 const old_max_f32x16 = row_max2_f32x16[row_block_idx][row_tile_idx];
                     __m512 const new_max_f32x16 = _mm512_max_ps(
                         old_max_f32x16, _mm512_mul_ps(_mm512_load_ps(panel_max[row_tile_idx]), scale2_f32x16));
-                    __m512 const corrections_f32x16 = nk_attention_exp2_ps_skylake_(
+                    __m512 const corrections_f32x16 = nk_attention_exp2_f32x16_skylake_(
                         _mm512_sub_ps(old_max_f32x16, new_max_f32x16));
                     row_max2_f32x16[row_block_idx][row_tile_idx] = new_max_f32x16;
                     _mm512_store_ps(corrections[row_tile_idx], corrections_f32x16);
@@ -954,7 +954,7 @@ NK_INTERNAL void nk_attention_exp_panel_i8_sapphireamx_(                   //
         __m512 sum_f32x16 = _mm512_setzero_ps();
         nk_size_t channel_idx = 0;
         for (; channel_idx < full_cols; channel_idx += 16) {
-            __m512 const exp_f32x16 = nk_attention_exp2_ps_skylake_(_mm512_fmsub_ps(
+            __m512 const exp_f32x16 = nk_attention_exp2_f32x16_skylake_(_mm512_fmsub_ps(
                 _mm512_cvtepi32_ps(_mm512_load_si512(scores_row + channel_idx)), scale_f32x16, max_f32x16));
             __m512i const weight_u32x16 = _mm512_cvttps_epu32(
                 _mm512_add_ps(_mm512_mul_ps(exp_f32x16, amplitude_f32x16), half_f32x16));
@@ -964,7 +964,7 @@ NK_INTERNAL void nk_attention_exp_panel_i8_sapphireamx_(                   //
         if (channel_idx < valid_channels) {
             __m512 const exp_f32x16 = _mm512_maskz_mov_ps(
                 tail_mask,
-                nk_attention_exp2_ps_skylake_(_mm512_fmsub_ps(
+                nk_attention_exp2_f32x16_skylake_(_mm512_fmsub_ps(
                     _mm512_cvtepi32_ps(_mm512_load_si512(scores_row + channel_idx)), scale_f32x16, max_f32x16)));
             __m512i const weight_u32x16 = _mm512_cvttps_epu32(
                 _mm512_add_ps(_mm512_mul_ps(exp_f32x16, amplitude_f32x16), half_f32x16));
@@ -1109,7 +1109,7 @@ NK_INTERNAL void nk_attention_task_i8_sapphireamx_(                             
                     __m512 const old_max_f32x16 = row_max2_f32x16[row_block_idx][row_tile_idx];
                     __m512 const new_max_f32x16 = _mm512_max_ps(
                         old_max_f32x16, _mm512_mul_ps(_mm512_load_ps(panel_max[row_tile_idx]), scale2_f32x16));
-                    __m512 const corrections_f32x16 = nk_attention_exp2_ps_skylake_(
+                    __m512 const corrections_f32x16 = nk_attention_exp2_f32x16_skylake_(
                         _mm512_sub_ps(old_max_f32x16, new_max_f32x16));
                     row_max2_f32x16[row_block_idx][row_tile_idx] = new_max_f32x16;
                     _mm512_store_ps(corrections[row_tile_idx], corrections_f32x16);

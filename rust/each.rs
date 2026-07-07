@@ -1,4 +1,4 @@
-//! Elementwise operations and trigonometry — slice traits and tensor-shaped wrappers.
+//! Elementwise operations — slice traits and tensor-shaped wrappers.
 //!
 //! This module provides:
 //!
@@ -7,11 +7,8 @@
 //!   - [`EachSum`]: Elementwise addition of two vectors
 //!   - [`EachBlend`]: Weighted blend of two vectors
 //!   - [`EachFMA`]: Fused multiply-add (a * alpha + b * beta)
-//!   - [`EachSin`], [`EachCos`], [`EachATan`]: Trigonometric functions
-//!   - [`Trigonometry`]: Blanket trait combining `EachSin + EachCos + EachATan`
 //! - Tensor-shaped extension traits (auto-implemented on every [`crate::tensor::TensorRef`]):
 //!   - [`ScaleOps`], [`SumOps`], [`BlendOps`], [`FmaOps`]: Tensor wrappers around the slice traits
-//!   - [`TrigSinOps`], [`TrigCosOps`], [`TrigAtanOps`]: Tensor wrappers around the trig traits
 //!   - [`AllCloseOps`]: Tolerance-based equality for any [`crate::tensor::TensorRef`]
 //!
 //! # In-Place vs Allocating Semantics
@@ -53,17 +50,6 @@ use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, S
 
 #[link(name = "numkong")]
 extern "C" {
-    // Trigonometry
-    fn nk_each_sin_f32(inputs: *const f32, n: usize, outputs: *mut f32);
-    fn nk_each_sin_f64(inputs: *const f64, n: usize, outputs: *mut f64);
-    fn nk_each_sin_f16(inputs: *const u16, n: usize, outputs: *mut u16);
-    fn nk_each_cos_f32(inputs: *const f32, n: usize, outputs: *mut f32);
-    fn nk_each_cos_f64(inputs: *const f64, n: usize, outputs: *mut f64);
-    fn nk_each_cos_f16(inputs: *const u16, n: usize, outputs: *mut u16);
-    fn nk_each_atan_f32(inputs: *const f32, n: usize, outputs: *mut f32);
-    fn nk_each_atan_f64(inputs: *const f64, n: usize, outputs: *mut f64);
-    fn nk_each_atan_f16(inputs: *const u16, n: usize, outputs: *mut u16);
-
     // Elementwise operations
     fn nk_each_scale_f64(a: *const f64, n: usize, alpha: *const f64, beta: *const f64, result: *mut f64);
     fn nk_each_scale_f32(a: *const f32, n: usize, alpha: *const f32, beta: *const f32, result: *mut f32);
@@ -473,222 +459,6 @@ where
     }
     Some(())
 }
-
-// region: EachSin
-
-/// Computes **element-wise sine** of a vector.
-pub trait EachSin: Sized + StorageElement {
-    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
-
-    /// In-place sine: `data[i] = sin(data[i])`.
-    ///
-    /// Both source and destination pointers are derived from the single `&mut`,
-    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
-    fn sin_inplace(data: &mut [Self]) -> Option<()>;
-}
-
-impl EachSin for f64 {
-    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe { nk_each_sin_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
-        Some(())
-    }
-
-    fn sin_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_sin_f64(p as *const f64, len, p) };
-        Some(())
-    }
-}
-
-impl EachSin for f32 {
-    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe { nk_each_sin_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
-        Some(())
-    }
-
-    fn sin_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_sin_f32(p as *const f32, len, p) };
-        Some(())
-    }
-}
-
-impl EachSin for f16 {
-    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe {
-            nk_each_sin_f16(
-                inputs.as_ptr() as *const u16,
-                inputs.len(),
-                outputs.as_mut_ptr() as *mut u16,
-            )
-        };
-        Some(())
-    }
-
-    fn sin_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_sin_f16(p as *const u16, len, p as *mut u16) };
-        Some(())
-    }
-}
-
-// endregion: EachSin
-
-// region: EachCos
-
-/// Computes **element-wise cosine** of a vector.
-pub trait EachCos: Sized + StorageElement {
-    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
-
-    /// In-place cosine: `data[i] = cos(data[i])`.
-    ///
-    /// Both source and destination pointers are derived from the single `&mut`,
-    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
-    fn cos_inplace(data: &mut [Self]) -> Option<()>;
-}
-
-impl EachCos for f64 {
-    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe { nk_each_cos_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
-        Some(())
-    }
-
-    fn cos_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_cos_f64(p as *const f64, len, p) };
-        Some(())
-    }
-}
-
-impl EachCos for f32 {
-    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe { nk_each_cos_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
-        Some(())
-    }
-
-    fn cos_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_cos_f32(p as *const f32, len, p) };
-        Some(())
-    }
-}
-
-impl EachCos for f16 {
-    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe {
-            nk_each_cos_f16(
-                inputs.as_ptr() as *const u16,
-                inputs.len(),
-                outputs.as_mut_ptr() as *mut u16,
-            )
-        };
-        Some(())
-    }
-
-    fn cos_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_cos_f16(p as *const u16, len, p as *mut u16) };
-        Some(())
-    }
-}
-
-// endregion: EachCos
-
-// region: EachATan
-
-/// Computes **element-wise arctangent** of a vector.
-pub trait EachATan: Sized + StorageElement {
-    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
-
-    /// In-place arctangent: `data[i] = atan(data[i])`.
-    ///
-    /// Both source and destination pointers are derived from the single `&mut`,
-    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
-    fn atan_inplace(data: &mut [Self]) -> Option<()>;
-}
-
-impl EachATan for f64 {
-    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe { nk_each_atan_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
-        Some(())
-    }
-
-    fn atan_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_atan_f64(p as *const f64, len, p) };
-        Some(())
-    }
-}
-
-impl EachATan for f32 {
-    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe { nk_each_atan_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
-        Some(())
-    }
-
-    fn atan_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_atan_f32(p as *const f32, len, p) };
-        Some(())
-    }
-}
-
-impl EachATan for f16 {
-    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe {
-            nk_each_atan_f16(
-                inputs.as_ptr() as *const u16,
-                inputs.len(),
-                outputs.as_mut_ptr() as *mut u16,
-            )
-        };
-        Some(())
-    }
-
-    fn atan_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_atan_f16(p as *const u16, len, p as *mut u16) };
-        Some(())
-    }
-}
-
-// endregion: EachATan
 
 // region: Scale
 
@@ -1594,7 +1364,7 @@ impl EachSum for bf16c {
 
 // endregion: Sum
 
-// region: WSum
+// region: Blend
 
 /// Applies **element-wise weighted sum** (blend) of two vectors.
 ///
@@ -2160,7 +1930,7 @@ impl EachBlend for bf16c {
     }
 }
 
-// endregion: WSum
+// endregion: Blend
 
 // region: FMA
 
@@ -2883,74 +2653,6 @@ impl EachFMA for bf16c {
 
 // endregion: FMA
 
-/// `Trigonometry` bundles trigonometric functions: EachSin, EachCos, and EachATan.
-pub trait Trigonometry: EachSin + EachCos + EachATan {}
-impl<Scalar: EachSin + EachCos + EachATan> Trigonometry for Scalar {}
-
-// region: Tensor-shaped trigonometry (moved from crate::tensor)
-
-/// Extension trait: element-wise sine for any [`TensorRef`] implementor.
-pub trait TrigSinOps<Scalar: Clone + EachSin, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn try_sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_sin() }
-}
-
-impl<Scalar: Clone + EachSin, const R: usize, C: TensorRef<Scalar, R>> TrigSinOps<Scalar, R> for C {}
-
-/// Extension trait: element-wise cosine for any [`TensorRef`] implementor.
-pub trait TrigCosOps<Scalar: Clone + EachCos, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn try_cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_cos() }
-}
-
-impl<Scalar: Clone + EachCos, const R: usize, C: TensorRef<Scalar, R>> TrigCosOps<Scalar, R> for C {}
-
-/// Extension trait: element-wise arctangent for any [`TensorRef`] implementor.
-pub trait TrigAtanOps<Scalar: Clone + EachATan, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn try_atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_atan() }
-}
-
-impl<Scalar: Clone + EachATan, const R: usize, C: TensorRef<Scalar, R>> TrigAtanOps<Scalar, R> for C {}
-
-impl<Scalar: Clone + EachSin, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise sine: result\[i\] = sin(self\[i\])
-    pub fn sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_sin() }
-
-    /// Element-wise sine in-place (infallible — self vs self always matches).
-    pub fn sin_inplace(&mut self) { self.span().sin_inplace(); }
-
-    pub fn try_sin_inplace(&mut self) -> Result<(), TensorError> {
-        self.sin_inplace();
-        Ok(())
-    }
-}
-
-impl<Scalar: Clone + EachCos, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise cosine: result\[i\] = cos(self\[i\])
-    pub fn cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_cos() }
-
-    /// Element-wise cosine in-place (infallible — self vs self always matches).
-    pub fn cos_inplace(&mut self) { self.span().cos_inplace(); }
-
-    pub fn try_cos_inplace(&mut self) -> Result<(), TensorError> {
-        self.cos_inplace();
-        Ok(())
-    }
-}
-
-impl<Scalar: Clone + EachATan, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise arctangent: result\[i\] = atan(self\[i\])
-    pub fn atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_atan() }
-
-    /// Element-wise arctangent in-place (infallible — self vs self always matches).
-    pub fn atan_inplace(&mut self) { self.span().atan_inplace(); }
-
-    pub fn try_atan_inplace(&mut self) -> Result<(), TensorError> {
-        self.atan_inplace();
-        Ok(())
-    }
-}
-
-// endregion: Tensor-shaped trigonometry
-
 // region: Tensor-shaped tolerance equality (moved from crate::tensor)
 
 use crate::types::{is_close, FloatConvertible, NumberLike};
@@ -3139,6 +2841,171 @@ where
 
 // endregion: Tensor-shaped scale / sum / blend / fma
 
+// region: Fused SwiGLU
+
+/// Fused SwiGLU over a row-major `[rows, cols]` slice: `y = silu(input_scale * gate) * (input_scale * up)`.
+/// With `up = None` this reduces to plain SiLU (`cols = gate.len() / rows`).
+pub trait EachSwiglu: Sized + StorageElement {
+    /// Fused SwiGLU of 2D `[rows, cols]` tensors: `y = silu(input_scale*gate) * (input_scale*up)`.
+    ///
+    /// Strides are read from the tensors, so `gate`, `up`, and `y` may be independent strided
+    /// sub-spans (e.g. the two column halves of a `[rows, 2*cols]` gate|up buffer). `up = None`
+    /// reduces to plain SiLU. Returns `None` on a shape mismatch.
+    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
+        gate: &GIn,
+        up: Option<&UIn>,
+        y: &mut YOut,
+        input_scale: f32,
+    ) -> Option<()>
+    where
+        GIn: TensorRef<Self, RG> + ?Sized,
+        UIn: TensorRef<Self, RU> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized;
+}
+
+impl EachSwiglu for f32 {
+    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
+        gate: &GIn,
+        up: Option<&UIn>,
+        y: &mut YOut,
+        input_scale: f32,
+    ) -> Option<()>
+    where
+        GIn: TensorRef<Self, RG> + ?Sized,
+        UIn: TensorRef<Self, RU> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        if gate.ndim() != 2 || y.ndim() != 2 || gate.shape() != y.shape() {
+            return None;
+        }
+        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
+        if rows == 0 || cols == 0 {
+            return None;
+        }
+        let gate_stride = gate.stride_bytes(0) as usize;
+        let y_stride = y.stride_bytes(0) as usize;
+        let (up_ptr, up_stride) = match up {
+            Some(u) => {
+                if u.ndim() != 2 || u.shape() != gate.shape() {
+                    return None;
+                }
+                (u.as_ptr(), u.stride_bytes(0) as usize)
+            }
+            None => (core::ptr::null(), 0usize),
+        };
+        unsafe {
+            nk_each_swiglu_f32(
+                gate.as_ptr(),
+                up_ptr,
+                y.as_mut_ptr(),
+                rows,
+                cols,
+                gate_stride,
+                up_stride,
+                y_stride,
+                input_scale,
+            );
+        }
+        Some(())
+    }
+}
+
+impl EachSwiglu for bf16 {
+    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
+        gate: &GIn,
+        up: Option<&UIn>,
+        y: &mut YOut,
+        input_scale: f32,
+    ) -> Option<()>
+    where
+        GIn: TensorRef<Self, RG> + ?Sized,
+        UIn: TensorRef<Self, RU> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        if gate.ndim() != 2 || y.ndim() != 2 || gate.shape() != y.shape() {
+            return None;
+        }
+        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
+        if rows == 0 || cols == 0 {
+            return None;
+        }
+        let gate_stride = gate.stride_bytes(0) as usize;
+        let y_stride = y.stride_bytes(0) as usize;
+        let (up_ptr, up_stride) = match up {
+            Some(u) => {
+                if u.ndim() != 2 || u.shape() != gate.shape() {
+                    return None;
+                }
+                (u.as_ptr() as *const u16, u.stride_bytes(0) as usize)
+            }
+            None => (core::ptr::null(), 0usize),
+        };
+        unsafe {
+            nk_each_swiglu_bf16(
+                gate.as_ptr() as *const u16,
+                up_ptr,
+                y.as_mut_ptr() as *mut u16,
+                rows,
+                cols,
+                gate_stride,
+                up_stride,
+                y_stride,
+                input_scale,
+            );
+        }
+        Some(())
+    }
+}
+
+impl EachSwiglu for e4m3 {
+    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
+        gate: &GIn,
+        up: Option<&UIn>,
+        y: &mut YOut,
+        input_scale: f32,
+    ) -> Option<()>
+    where
+        GIn: TensorRef<Self, RG> + ?Sized,
+        UIn: TensorRef<Self, RU> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        if gate.ndim() != 2 || y.ndim() != 2 || gate.shape() != y.shape() {
+            return None;
+        }
+        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
+        if rows == 0 || cols == 0 {
+            return None;
+        }
+        let gate_stride = gate.stride_bytes(0) as usize;
+        let y_stride = y.stride_bytes(0) as usize;
+        let (up_ptr, up_stride) = match up {
+            Some(u) => {
+                if u.ndim() != 2 || u.shape() != gate.shape() {
+                    return None;
+                }
+                (u.as_ptr() as *const u8, u.stride_bytes(0) as usize)
+            }
+            None => (core::ptr::null(), 0usize),
+        };
+        unsafe {
+            nk_each_swiglu_e4m3(
+                gate.as_ptr() as *const u8,
+                up_ptr,
+                y.as_mut_ptr() as *mut u8,
+                rows,
+                cols,
+                gate_stride,
+                up_stride,
+                y_stride,
+                input_scale,
+            );
+        }
+        Some(())
+    }
+}
+
+// endregion: Fused SwiGLU
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3171,31 +3038,6 @@ mod tests {
     }
 
     /// Test a unary elementwise op over generated values.
-    pub(crate) fn check_each_unary<Scalar, F>(
-        count: usize,
-        gen_fn: fn(usize, usize) -> f64,
-        op: F,
-        ref_fn: fn(f64) -> f64,
-        label: &str,
-    ) where
-        Scalar: FloatLike + TestableType,
-        F: FnOnce(&[Scalar], &mut [Scalar]) -> Option<()>,
-    {
-        let values: Vec<f64> = (0..count).map(|i| gen_fn(i, count)).collect();
-        let a: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v as f32)).collect();
-        let mut result = vec![Scalar::zero(); count];
-        op(&a, &mut result).unwrap();
-        for (i, r) in result.iter().enumerate() {
-            let expected = ref_fn(values[i]);
-            assert_close(
-                r.to_f64(),
-                expected,
-                Scalar::atol() * 10000.0,
-                Scalar::rtol() * 10000.0,
-                &format!("{}<{}>[{}]", label, core::any::type_name::<Scalar>(), i),
-            );
-        }
-    }
 
     // region: Elementwise Operations
 
@@ -3373,75 +3215,9 @@ mod tests {
         check_each_sum::<f32>(&values, &b);
     }
 
-    // endregion
+    // endregion: Elementwise Operations
 
-    // region: Trigonometry
-
-    fn check_each_sin<Scalar>(count: usize)
-    where
-        Scalar: FloatLike + TestableType + EachSin,
-    {
-        use core::f64::consts::PI;
-        check_each_unary::<Scalar, _>(
-            count,
-            |i, n| (i as f64) * 2.0 * PI / (n as f64),
-            Scalar::sin,
-            f64::sin,
-            "sin",
-        );
-    }
-
-    fn check_each_cos<Scalar>(count: usize)
-    where
-        Scalar: FloatLike + TestableType + EachCos,
-    {
-        use core::f64::consts::PI;
-        check_each_unary::<Scalar, _>(
-            count,
-            |i, n| (i as f64) * 2.0 * PI / (n as f64),
-            Scalar::cos,
-            f64::cos,
-            "cos",
-        );
-    }
-
-    fn check_each_atan<Scalar>(count: usize)
-    where
-        Scalar: FloatLike + TestableType + EachATan,
-    {
-        check_each_unary::<Scalar, _>(
-            count,
-            |i, n| -5.0 + 10.0 * (i as f64) / (n as f64),
-            Scalar::atan,
-            f64::atan,
-            "atan",
-        );
-    }
-
-    #[test]
-    fn sin_elementwise() {
-        check_each_sin::<f32>(97);
-        check_each_sin::<f64>(97);
-        check_each_sin::<f16>(97);
-    }
-
-    #[test]
-    fn cos_elementwise() {
-        check_each_cos::<f32>(97);
-        check_each_cos::<f64>(97);
-        check_each_cos::<f16>(97);
-    }
-
-    #[test]
-    fn atan_elementwise() {
-        check_each_atan::<f32>(100);
-        check_each_atan::<f64>(100);
-        check_each_atan::<f16>(100);
-    }
-
-    // endregion
-
-    // region: tensor-shaped wrappers (ScaleOps / SumOps / TrigSinOps)
+    // region: tensor-shaped wrappers (ScaleOps / SumOps)
 
     #[test]
     fn tensor_add_tensor_via_sum_ops() {
@@ -3685,168 +3461,3 @@ mod tests {
         }
     }
 }
-
-// region: Fused SwiGLU
-
-/// Fused SwiGLU over a row-major `[rows, cols]` slice: `y = silu(input_scale * gate) * (input_scale * up)`.
-/// With `up = None` this reduces to plain SiLU (`cols = gate.len() / rows`).
-pub trait EachSwiglu: Sized + StorageElement {
-    /// Fused SwiGLU of 2D `[rows, cols]` tensors: `y = silu(input_scale*gate) * (input_scale*up)`.
-    ///
-    /// Strides are read from the tensors, so `gate`, `up`, and `y` may be independent strided
-    /// sub-spans (e.g. the two column halves of a `[rows, 2*cols]` gate|up buffer). `up = None`
-    /// reduces to plain SiLU. Returns `None` on a shape mismatch.
-    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
-        gate: &GIn,
-        up: Option<&UIn>,
-        y: &mut YOut,
-        input_scale: f32,
-    ) -> Option<()>
-    where
-        GIn: TensorRef<Self, RG> + ?Sized,
-        UIn: TensorRef<Self, RU> + ?Sized,
-        YOut: TensorMut<Self, RY> + ?Sized;
-}
-
-impl EachSwiglu for f32 {
-    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
-        gate: &GIn,
-        up: Option<&UIn>,
-        y: &mut YOut,
-        input_scale: f32,
-    ) -> Option<()>
-    where
-        GIn: TensorRef<Self, RG> + ?Sized,
-        UIn: TensorRef<Self, RU> + ?Sized,
-        YOut: TensorMut<Self, RY> + ?Sized,
-    {
-        if gate.ndim() != 2 || y.ndim() != 2 || gate.shape() != y.shape() {
-            return None;
-        }
-        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
-        if rows == 0 || cols == 0 {
-            return None;
-        }
-        let gate_stride = gate.stride_bytes(0) as usize;
-        let y_stride = y.stride_bytes(0) as usize;
-        let (up_ptr, up_stride) = match up {
-            Some(u) => {
-                if u.ndim() != 2 || u.shape() != gate.shape() {
-                    return None;
-                }
-                (u.as_ptr(), u.stride_bytes(0) as usize)
-            }
-            None => (core::ptr::null(), 0usize),
-        };
-        unsafe {
-            nk_each_swiglu_f32(
-                gate.as_ptr(),
-                up_ptr,
-                y.as_mut_ptr(),
-                rows,
-                cols,
-                gate_stride,
-                up_stride,
-                y_stride,
-                input_scale,
-            );
-        }
-        Some(())
-    }
-}
-
-impl EachSwiglu for bf16 {
-    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
-        gate: &GIn,
-        up: Option<&UIn>,
-        y: &mut YOut,
-        input_scale: f32,
-    ) -> Option<()>
-    where
-        GIn: TensorRef<Self, RG> + ?Sized,
-        UIn: TensorRef<Self, RU> + ?Sized,
-        YOut: TensorMut<Self, RY> + ?Sized,
-    {
-        if gate.ndim() != 2 || y.ndim() != 2 || gate.shape() != y.shape() {
-            return None;
-        }
-        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
-        if rows == 0 || cols == 0 {
-            return None;
-        }
-        let gate_stride = gate.stride_bytes(0) as usize;
-        let y_stride = y.stride_bytes(0) as usize;
-        let (up_ptr, up_stride) = match up {
-            Some(u) => {
-                if u.ndim() != 2 || u.shape() != gate.shape() {
-                    return None;
-                }
-                (u.as_ptr() as *const u16, u.stride_bytes(0) as usize)
-            }
-            None => (core::ptr::null(), 0usize),
-        };
-        unsafe {
-            nk_each_swiglu_bf16(
-                gate.as_ptr() as *const u16,
-                up_ptr,
-                y.as_mut_ptr() as *mut u16,
-                rows,
-                cols,
-                gate_stride,
-                up_stride,
-                y_stride,
-                input_scale,
-            );
-        }
-        Some(())
-    }
-}
-
-impl EachSwiglu for e4m3 {
-    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
-        gate: &GIn,
-        up: Option<&UIn>,
-        y: &mut YOut,
-        input_scale: f32,
-    ) -> Option<()>
-    where
-        GIn: TensorRef<Self, RG> + ?Sized,
-        UIn: TensorRef<Self, RU> + ?Sized,
-        YOut: TensorMut<Self, RY> + ?Sized,
-    {
-        if gate.ndim() != 2 || y.ndim() != 2 || gate.shape() != y.shape() {
-            return None;
-        }
-        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
-        if rows == 0 || cols == 0 {
-            return None;
-        }
-        let gate_stride = gate.stride_bytes(0) as usize;
-        let y_stride = y.stride_bytes(0) as usize;
-        let (up_ptr, up_stride) = match up {
-            Some(u) => {
-                if u.ndim() != 2 || u.shape() != gate.shape() {
-                    return None;
-                }
-                (u.as_ptr() as *const u8, u.stride_bytes(0) as usize)
-            }
-            None => (core::ptr::null(), 0usize),
-        };
-        unsafe {
-            nk_each_swiglu_e4m3(
-                gate.as_ptr() as *const u8,
-                up_ptr,
-                y.as_mut_ptr() as *mut u8,
-                rows,
-                cols,
-                gate_stride,
-                up_stride,
-                y_stride,
-                input_scale,
-            );
-        }
-        Some(())
-    }
-}
-
-// endregion

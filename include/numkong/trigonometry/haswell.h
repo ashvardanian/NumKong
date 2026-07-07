@@ -536,7 +536,7 @@ NK_INTERNAL __m256d nk_atan2_f64x4_haswell_(__m256d const ys_inputs, __m256d con
     return results_f64x4;
 }
 
-NK_PUBLIC void nk_each_sin_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_sin_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m256 angles_f32x8 = _mm256_loadu_ps(ins + i);
@@ -553,7 +553,7 @@ NK_PUBLIC void nk_each_sin_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_
     }
 }
 
-NK_PUBLIC void nk_each_cos_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_cos_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m256 angles_f32x8 = _mm256_loadu_ps(ins + i);
@@ -570,7 +570,7 @@ NK_PUBLIC void nk_each_cos_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_
     }
 }
 
-NK_PUBLIC void nk_each_atan_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_atan_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m256 values_f32x8 = _mm256_loadu_ps(ins + i);
@@ -587,7 +587,7 @@ NK_PUBLIC void nk_each_atan_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32
     }
 }
 
-NK_PUBLIC void nk_each_sin_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_sin_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         __m256d angles_f64x4 = _mm256_loadu_pd(ins + i);
@@ -604,7 +604,7 @@ NK_PUBLIC void nk_each_sin_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_
     }
 }
 
-NK_PUBLIC void nk_each_cos_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_cos_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         __m256d angles_f64x4 = _mm256_loadu_pd(ins + i);
@@ -621,7 +621,7 @@ NK_PUBLIC void nk_each_cos_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_
     }
 }
 
-NK_PUBLIC void nk_each_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         __m256d values_f64x4 = _mm256_loadu_pd(ins + i);
@@ -638,7 +638,7 @@ NK_PUBLIC void nk_each_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64
     }
 }
 
-NK_PUBLIC void nk_each_rope_f32_haswell(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
+NK_PUBLIC void nk_trig_rope_f32_haswell(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
                                         nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
                                         nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) {
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
@@ -670,7 +670,7 @@ NK_PUBLIC void nk_each_rope_f32_haswell(nk_f32_t const *x, nk_f32_t *y, nk_rope_
     }
 }
 
-NK_PUBLIC void nk_each_rope_bf16_haswell(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
+NK_PUBLIC void nk_trig_rope_bf16_haswell(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
                                          nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
                                          nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
                                          nk_f32_t input_scale) {
@@ -712,7 +712,7 @@ NK_PUBLIC void nk_each_rope_bf16_haswell(nk_bf16_t const *x, nk_bf16_t *y, nk_ro
     }
 }
 
-NK_PUBLIC void nk_each_rope_e4m3_haswell(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
+NK_PUBLIC void nk_trig_rope_e4m3_haswell(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
                                          nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
                                          nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
                                          nk_f32_t input_scale) {

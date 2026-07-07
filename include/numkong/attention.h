@@ -213,7 +213,7 @@ NK_DYNAMIC void nk_attention_packed_i8(nk_i8_t const *queries, void const *key_v
 /** @brief Number of segments a packed KV buffer was built for. */
 NK_PUBLIC nk_size_t nk_attention_packed_segments(void const *key_value_packed);
 /** @brief Head dimension a packed KV buffer was built for. */
-NK_PUBLIC nk_size_t nk_attention_packed_head_dim(void const *key_value_packed);
+NK_PUBLIC nk_size_t nk_attention_packed_depth(void const *key_value_packed);
 /** @brief Number of K/V heads a packed KV buffer was built for. */
 NK_PUBLIC nk_size_t nk_attention_packed_heads(void const *key_value_packed);
 

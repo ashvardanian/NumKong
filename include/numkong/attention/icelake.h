@@ -52,7 +52,7 @@
 #if NK_TARGET_ICELAKE
 
 #include "numkong/attention/serial.h"  // shared packed-KV header/directory, width-agnostic fallback
-#include "numkong/attention/skylake.h" // `nk_attention_exp2_ps_skylake_`, panel constants
+#include "numkong/attention/skylake.h" // `nk_attention_exp2_f32x16_skylake_`, panel constants
 #include "numkong/reduce/skylake.h"    // `nk_reduce_add_f32x16_skylake_`, `nk_reduce_max_f32x16_skylake_`
 #include "numkong/dot/icelake.h"       // VNNI DPBUSD + SAD correction precedent
 
@@ -266,7 +266,7 @@ NK_INTERNAL nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores,
     nk_f32_t const panel_max2 = nk_reduce_max_f32x16_skylake_(max_f32x16);
     nk_f32_t const new_max2 = *running_max2 > panel_max2 ? *running_max2 : panel_max2;
     nk_f32_t const correction = _mm512_cvtss_f32(
-        nk_attention_exp2_ps_skylake_(_mm512_set1_ps(*running_max2 - new_max2)));
+        nk_attention_exp2_f32x16_skylake_(_mm512_set1_ps(*running_max2 - new_max2)));
     *running_max2 = new_max2;
 
     __m512 const max2_f32x16 = _mm512_set1_ps(new_max2);
@@ -274,7 +274,7 @@ NK_INTERNAL nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores,
     __m512 const half_f32x16 = _mm512_set1_ps(0.5f);
     __m512 sum_f32x16 = _mm512_setzero_ps();
     for (position_idx = 0; position_idx < full; position_idx += 16) {
-        __m512 const exp_f32x16 = nk_attention_exp2_ps_skylake_(
+        __m512 const exp_f32x16 = nk_attention_exp2_f32x16_skylake_(
             _mm512_fmsub_ps(_mm512_cvtepi32_ps(_mm512_load_si512(scores + position_idx)), scale2_f32x16, max2_f32x16));
         __m512i const weight_u32x16 = _mm512_cvttps_epu32(
             _mm512_add_ps(_mm512_mul_ps(exp_f32x16, amplitude_f32x16), half_f32x16));
@@ -283,7 +283,7 @@ NK_INTERNAL nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores,
     }
     if (position_idx < panel_len) {
         __m512 const exp_f32x16 = _mm512_maskz_mov_ps(
-            tail_mask, nk_attention_exp2_ps_skylake_(_mm512_fmsub_ps(
+            tail_mask, nk_attention_exp2_f32x16_skylake_(_mm512_fmsub_ps(
                            _mm512_cvtepi32_ps(_mm512_load_si512(scores + position_idx)), scale2_f32x16, max2_f32x16)));
         __m512i const weight_u32x16 = _mm512_maskz_cvttps_epu32(
             tail_mask, _mm512_add_ps(_mm512_mul_ps(exp_f32x16, amplitude_f32x16), half_f32x16));

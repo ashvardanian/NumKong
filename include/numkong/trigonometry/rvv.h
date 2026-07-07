@@ -598,7 +598,7 @@ NK_INTERNAL vfloat32m2_t nk_f32m2_atan_rvv_(vfloat32m2_t inputs_f32m2, nk_size_t
     return result_f32m2;
 }
 
-NK_PUBLIC void nk_each_sin_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_sin_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
         vfloat32m4_t angles_f32m4 = __riscv_vle32_v_f32m4(ins, vector_length);
@@ -607,7 +607,7 @@ NK_PUBLIC void nk_each_sin_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *o
     }
 }
 
-NK_PUBLIC void nk_each_cos_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_cos_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
         vfloat32m4_t angles_f32m4 = __riscv_vle32_v_f32m4(ins, vector_length);
@@ -616,7 +616,7 @@ NK_PUBLIC void nk_each_cos_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *o
     }
 }
 
-NK_PUBLIC void nk_each_atan_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_atan_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
         vfloat32m4_t values_f32m4 = __riscv_vle32_v_f32m4(ins, vector_length);
@@ -625,7 +625,7 @@ NK_PUBLIC void nk_each_atan_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *
     }
 }
 
-NK_PUBLIC void nk_each_sin_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_sin_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
         vfloat64m4_t angles_f64m4 = __riscv_vle64_v_f64m4(ins, vector_length);
@@ -634,7 +634,7 @@ NK_PUBLIC void nk_each_sin_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *o
     }
 }
 
-NK_PUBLIC void nk_each_cos_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_cos_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
         vfloat64m4_t angles_f64m4 = __riscv_vle64_v_f64m4(ins, vector_length);
@@ -643,7 +643,7 @@ NK_PUBLIC void nk_each_cos_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *o
     }
 }
 
-NK_PUBLIC void nk_each_atan_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_atan_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
         vfloat64m4_t values_f64m4 = __riscv_vle64_v_f64m4(ins, vector_length);
@@ -652,7 +652,7 @@ NK_PUBLIC void nk_each_atan_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *
     }
 }
 
-NK_PUBLIC void nk_each_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NK_PUBLIC void nk_trig_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e16m1(n);
         vuint16m1_t f16_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)ins, vector_length);
@@ -663,7 +663,7 @@ NK_PUBLIC void nk_each_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *o
     }
 }
 
-NK_PUBLIC void nk_each_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NK_PUBLIC void nk_trig_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e16m1(n);
         vuint16m1_t f16_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)ins, vector_length);
@@ -674,7 +674,7 @@ NK_PUBLIC void nk_each_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *o
     }
 }
 
-NK_PUBLIC void nk_each_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NK_PUBLIC void nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e16m1(n);
         vuint16m1_t f16_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)ins, vector_length);

@@ -165,11 +165,11 @@ void nk_error_each_sum_(void const *a, void const *b, nk_size_t n, void *y) {
     nk_fill_error_(y, n * sizeof(nk_fmax_t));
 }
 
-void nk_error_trigonometry_(void const *x, nk_size_t n, void *y) {
+void nk_error_trig_(void const *x, nk_size_t n, void *y) {
     nk_unused_(x);
     nk_fill_error_(y, n * sizeof(nk_fmax_t));
 }
-void nk_error_each_rope_(void const *x, void *y, void const *cos, void const *sin, nk_size_t rows, nk_size_t heads,
+void nk_error_trig_rope_(void const *x, void *y, void const *cos, void const *sin, nk_size_t rows, nk_size_t heads,
                          nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) {
     nk_unused_(x), nk_unused_(cos), nk_unused_(sin), nk_unused_(rows), nk_unused_(heads), nk_unused_(half_dim),
         nk_unused_(x_row_stride), nk_unused_(y_row_stride), nk_unused_(input_scale);
@@ -328,7 +328,7 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
     NK_DYNAMIC void nk_each_swiglu_##extension(                                                             \
         data_type const *gate, data_type const *up, data_type *y, nk_size_t rows, nk_size_t cols,           \
         nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) { \
-        ((nk_kernel_each_swiglu_punned_t)nk_dispatch_table.each_swiglu_##extension)(                        \
+        ((nk_each_swiglu_punned_t)nk_dispatch_table.each_swiglu_##extension)(                               \
             gate, up, y, rows, cols, gate_row_stride, up_row_stride, y_row_stride, input_scale);            \
     }
 
@@ -355,17 +355,17 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
         nk_unpoison_((void *)result, n * sizeof(nk_##extension##_t));                                              \
     }
 
-#define nk_dispatch_trigonometry_(name, extension)                                              \
-    NK_DYNAMIC void nk_each_##name##_##extension(nk_##extension##_t const *inputs, nk_size_t n, \
+#define nk_dispatch_trig_(name, extension)                                                      \
+    NK_DYNAMIC void nk_trig_##name##_##extension(nk_##extension##_t const *inputs, nk_size_t n, \
                                                  nk_##extension##_t *outputs) {                 \
-        nk_dispatch_table.each_##name##_##extension(inputs, n, outputs);                        \
+        nk_dispatch_table.trig_##name##_##extension(inputs, n, outputs);                        \
         nk_unpoison_((void *)outputs, n * sizeof(nk_##extension##_t));                          \
     }
-#define nk_dispatch_each_rope_(extension, data_type)                                                                   \
-    NK_DYNAMIC void nk_each_rope_##extension(data_type const *x, data_type *y, nk_f32_t const *cos,                    \
+#define nk_dispatch_trig_rope_(extension, data_type)                                                                   \
+    NK_DYNAMIC void nk_trig_rope_##extension(data_type const *x, data_type *y, nk_f32_t const *cos,                    \
                                              nk_f32_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim, \
                                              nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) {   \
-        ((nk_kernel_each_rope_punned_t)nk_dispatch_table.each_rope_##extension)(                                       \
+        ((nk_kernel_trig_rope_punned_t)nk_dispatch_table.trig_rope_##extension)(                                       \
             x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);                           \
     }
 
@@ -383,21 +383,21 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
         nk_unpoison_((void *)result, sizeof(nk_##metric_type##_t));                                                   \
     }
 
-#define nk_dispatch_reduce_moments_(extension, data_type, sum_type, sumsq_type)                                      \
-    NK_DYNAMIC void nk_reduce_moments_##extension(data_type const *data, nk_size_t count, nk_size_t stride_bytes,    \
-                                                  sum_type *sum_ptr, sumsq_type *sumsq_ptr) {                        \
-        ((nk_kernel_reduce_moments_punned_t)nk_dispatch_table.reduce_moments_##extension)(data, count, stride_bytes, \
-                                                                                          sum_ptr, sumsq_ptr);       \
-        nk_unpoison_((void *)sum_ptr, sizeof(sum_type));                                                             \
-        nk_unpoison_((void *)sumsq_ptr, sizeof(sumsq_type));                                                         \
+#define nk_dispatch_reduce_moments_(extension, data_type, sum_type, sumsq_type)                                        \
+    NK_DYNAMIC void nk_reduce_moments_##extension(data_type const *data, nk_size_t count, nk_size_t stride_bytes,      \
+                                                  sum_type *sum_ptr, sumsq_type *sumsq_ptr) {                          \
+        ((nk_reduce_moments_punned_t)nk_dispatch_table.reduce_moments_##extension)(data, count, stride_bytes, sum_ptr, \
+                                                                                   sumsq_ptr);                         \
+        nk_unpoison_((void *)sum_ptr, sizeof(sum_type));                                                               \
+        nk_unpoison_((void *)sumsq_ptr, sizeof(sumsq_type));                                                           \
     }
 
 #define nk_dispatch_reduce_minmax_(extension, data_type, minmax_type)                                                  \
     NK_DYNAMIC void nk_reduce_minmax_##extension(data_type const *data, nk_size_t count, nk_size_t stride_bytes,       \
                                                  minmax_type *min_value, nk_size_t *min_index, minmax_type *max_value, \
                                                  nk_size_t *max_index) {                                               \
-        ((nk_kernel_reduce_minmax_punned_t)nk_dispatch_table.reduce_minmax_##extension)(                               \
-            data, count, stride_bytes, min_value, min_index, max_value, max_index);                                    \
+        ((nk_reduce_minmax_punned_t)nk_dispatch_table.reduce_minmax_##extension)(data, count, stride_bytes, min_value, \
+                                                                                 min_index, max_value, max_index);     \
         nk_unpoison_((void *)min_value, sizeof(minmax_type));                                                          \
         nk_unpoison_(min_index, sizeof(nk_size_t));                                                                    \
         nk_unpoison_((void *)max_value, sizeof(minmax_type));                                                          \
@@ -407,7 +407,7 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
     NK_DYNAMIC void nk_reduce_rmsnorm_##extension(                                                                 \
         data_type const *x, nk_f32_t const *gamma, data_type *y, nk_size_t rows, nk_size_t groups, nk_size_t cols, \
         nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale) {                      \
-        ((nk_kernel_reduce_rmsnorm_punned_t)nk_dispatch_table.reduce_rmsnorm_##extension)(                         \
+        ((nk_reduce_rmsnorm_punned_t)nk_dispatch_table.reduce_rmsnorm_##extension)(                                \
             x, gamma, y, rows, groups, cols, x_row_stride, y_row_stride, eps, input_scale);                        \
     }
 
@@ -665,15 +665,15 @@ nk_dispatch_each_fma_(u16, f32)
 nk_dispatch_each_fma_(u8, f32)
 
 // Trigonometry functions
-nk_dispatch_trigonometry_(sin, f64)
-nk_dispatch_each_rope_(f32, nk_f32_t) nk_dispatch_each_rope_(bf16, nk_bf16_t) nk_dispatch_trigonometry_(sin, f32)
-nk_dispatch_trigonometry_(sin, f16)
-nk_dispatch_trigonometry_(cos, f64)
-nk_dispatch_trigonometry_(cos, f32)
-nk_dispatch_trigonometry_(cos, f16)
-nk_dispatch_trigonometry_(atan, f64)
-nk_dispatch_trigonometry_(atan, f32)
-nk_dispatch_trigonometry_(atan, f16)
+nk_dispatch_trig_(sin, f64)
+nk_dispatch_trig_rope_(f32, nk_f32_t) nk_dispatch_trig_rope_(bf16, nk_bf16_t) nk_dispatch_trig_(sin, f32)
+nk_dispatch_trig_(sin, f16)
+nk_dispatch_trig_(cos, f64)
+nk_dispatch_trig_(cos, f32)
+nk_dispatch_trig_(cos, f16)
+nk_dispatch_trig_(atan, f64)
+nk_dispatch_trig_(atan, f32)
+nk_dispatch_trig_(atan, f16)
 
 // Horizontal reductions: moments (sum + sum-of-squares)
 nk_dispatch_reduce_moments_(f64, nk_f64_t, nk_f64_t, nk_f64_t)
@@ -703,7 +703,7 @@ nk_dispatch_reduce_rmsnorm_(e4m3, nk_e4m3_t)
     nk_dispatch_each_swiglu_(e4m3, nk_e4m3_t)
 
     // Fused transformer nonlinearities: RoPE (NeoX split-half)
-    nk_dispatch_each_rope_(e4m3, nk_e4m3_t)
+    nk_dispatch_trig_rope_(e4m3, nk_e4m3_t)
 
     // Horizontal reductions: minmax (min + max with indices)
     nk_dispatch_reduce_minmax_(f64, nk_f64_t, nk_f64_t)
