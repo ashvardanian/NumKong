@@ -293,6 +293,15 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         default: break;
         }
 #endif
+#if NK_TARGET_RVV
+    if (v & nk_cap_rvv_k) switch (k) {
+        case nk_kernel_attention_packed_size_k: *m = (m_t)&nk_attention_packed_size_e4m3_rvv, *c = nk_cap_rvv_k; return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_e4m3_rvv, *c = nk_cap_rvv_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_e4m3_rvv, *c = nk_cap_rvv_k; return;
+        default: break;
+        }
+#endif
+
     if (v & nk_cap_serial_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_e4m3_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_euclidean_k: *m = (m_t)&nk_euclidean_e4m3_serial, *c = nk_cap_serial_k; return;

@@ -290,6 +290,9 @@ void nk_dispatch_i8_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
 #endif
 #if NK_TARGET_RVV
     if (v & nk_cap_rvv_k) switch (k) {
+        case nk_kernel_attention_packed_size_k: *m = (m_t)&nk_attention_packed_size_i8_rvv, *c = nk_cap_rvv_k; return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_i8_rvv, *c = nk_cap_rvv_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_i8_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_i8_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_angular_k: *m = (m_t)&nk_angular_i8_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_sqeuclidean_k: *m = (m_t)&nk_sqeuclidean_i8_rvv, *c = nk_cap_rvv_k; return;
