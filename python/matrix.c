@@ -220,21 +220,21 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
 
     nk_size_t c_stride = n * nk_dtype_bytes_per_value(out_dtype);
     PyThreadState *save = PyEval_SaveThread();
-    // `@` carries no `threads` argument: default to all cores, but keep small
-    // products serial — fork/join overhead dominates below MIN_MACS, and a single
-    // row tile has nothing to distribute. Explicit control lives in
-    // dots_packed(a, packed, threads=N), which remains the tuned entry point.
+    // `@` carries no `threads` argument: default to all cores and let the shared
+    // nk_parallel_worthwhile() policy gate the fork in the if() clause — small
+    // products and single-tile inputs stay serial. The num_threads() clause sets
+    // the count without touching the process-global ICV (see api_packed_common()).
+    // Explicit control lives in dots_packed(a, packed, threads=N), which honors
+    // the caller literally and never consults this policy.
     nk_size_t threads = 1;
 #if defined(NK_USE_OPENMP)
-    // num_threads() clause below, not omp_set_num_threads(): never touch the
-    // process-global ICV — see the note in api_packed_common().
-    if (nk_size_divide_round_up_(height, NK_PARALLEL_PACKED_TILE) > 1 && height * n * k >= NK_PARALLEL_MATMUL_MIN_MACS)
-        threads = (nk_size_t)omp_get_max_threads();
+    threads = (nk_size_t)omp_get_max_threads();
 #endif
     // `int` loop counter pre-declared: see the note in api_packed_common().
     int const tile_count = (int)nk_size_divide_round_up_(height, NK_PARALLEL_PACKED_TILE);
     int tile_idx;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads((int)threads)
+#pragma omp parallel for schedule(dynamic, 1) if (tile_count > 1 && nk_parallel_worthwhile(height * n * k, threads)) \
+    num_threads((int)threads)
     for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
         nk_size_t row = (nk_size_t)tile_idx * NK_PARALLEL_PACKED_TILE;
         nk_size_t chunk = (row + NK_PARALLEL_PACKED_TILE <= height) ? NK_PARALLEL_PACKED_TILE : (height - row);
