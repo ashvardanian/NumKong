@@ -192,6 +192,62 @@ void reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride_b
     if (max_index) *max_index = static_cast<std::size_t>(max_offset);
 }
 
+/**
+ *  @brief Grouped RMSNorm: yᵢ = xᵢ · rsqrt(mean(x²) + eps) · gammaᵢ
+ *
+ *  Each row holds `groups` independent `cols`-vectors, normalized separately.
+ *
+ *  @param[in] x Input matrix; `rows × groups × cols` with `groups` packed at `group · cols`
+ *  @param[in] gamma Per-column gain of length `cols`, shared across groups; `nullptr` for unit scale
+ *  @param[out] y Output matrix, same shape and dtype as `x`; may alias `x`
+ *  @param[in] rows,groups,cols Logical shape
+ *  @param[in] x_row_stride,y_row_stride Row (outer) strides in bytes
+ *  @param[in] eps Variance epsilon added before the reciprocal square root
+ *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32)
+ *
+ *  @tparam in_type_ Element type
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ */
+template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
+void rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t rows, std::size_t groups, std::size_t cols,
+             std::size_t x_row_stride, std::size_t y_row_stride, float eps, float input_scale = 1.0f) noexcept {
+    constexpr bool simd = allow_simd_ == prefer_simd_k;
+    nk_f32_t const *gamma_raw = gamma ? &gamma->raw_ : nullptr;
+    if constexpr (std::is_same_v<in_type_, f32_t> && simd)
+        nk_reduce_rmsnorm_f32(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols, x_row_stride, y_row_stride, eps,
+                              input_scale);
+    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
+        nk_reduce_rmsnorm_bf16(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols, x_row_stride, y_row_stride, eps,
+                               input_scale);
+    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd)
+        nk_reduce_rmsnorm_e4m3(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols, x_row_stride, y_row_stride, eps,
+                               input_scale);
+    // Scalar fallback for other numeric dtypes or when SIMD is disabled.
+    else {
+        for (std::size_t row = 0; row < rows; ++row) {
+            in_type_ const *row_input = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(x) +
+                                                                           row * x_row_stride);
+            in_type_ *row_output = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_row_stride);
+            for (std::size_t group = 0; group < groups; ++group) {
+                in_type_ const *group_input = row_input + group * cols;
+                in_type_ *group_output = row_output + group * cols;
+                double mean_square = 0;
+                for (std::size_t column = 0; column < cols; ++column) {
+                    float value = static_cast<float>(group_input[column]) * input_scale;
+                    mean_square += static_cast<double>(value) * static_cast<double>(value);
+                }
+                float inverse_rms = static_cast<float>(
+                    f32_t(static_cast<float>(mean_square / static_cast<double>(cols)) + eps).rsqrt());
+                for (std::size_t column = 0; column < cols; ++column) {
+                    float value = static_cast<float>(group_input[column]) * input_scale;
+                    float gamma_value = gamma ? static_cast<float>(gamma[column]) : 1.0f;
+                    group_output[column] = f32_t(value * inverse_rms * gamma_value).template to<in_type_>();
+                }
+            }
+        }
+    }
+}
+
 /** @brief Compute sum and sum-of-squares over a vector view. */
 template <numeric_dtype in_type_, numeric_dtype sum_type_ = typename in_type_::reduce_moments_sum_t,
           numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t,
@@ -216,6 +272,38 @@ void reduce_minmax(vector_view<in_type_> input, minmax_type_ *min_value, std::si
 #include "numkong/tensor.hpp"
 
 namespace ashvardanian::numkong {
+
+#pragma region Tensor Nonlinearities
+
+/** @brief Grouped RMSNorm over a `[rows, groups·cols]` matrix into a matching output span. */
+template <numeric_dtype value_type_>
+bool rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma, matrix_span<value_type_> output,
+             std::size_t groups, float eps, float input_scale = 1.0f) noexcept {
+    if (input.extent(0) != output.extent(0) || input.extent(1) != output.extent(1)) return false;
+    std::size_t const columns_total = input.extent(1);
+    if (groups == 0 || columns_total % groups != 0) return false;
+    if (!gamma.empty() && gamma.size() != columns_total / groups) return false;
+    f32_t const *gamma_ptr = gamma.empty() ? nullptr : gamma.data();
+    numkong::rmsnorm<value_type_>(input.data(), gamma_ptr, output.data(), input.extent(0), groups,
+                                  columns_total / groups, static_cast<std::size_t>(input.stride_bytes(0)),
+                                  static_cast<std::size_t>(output.stride_bytes(0)), eps, input_scale);
+    return true;
+}
+
+/** @brief Allocating grouped RMSNorm returning a fresh matrix. */
+template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<value_type_>>
+tensor<value_type_, allocator_type_, 2> try_rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma,
+                                                    std::size_t groups, float eps, float input_scale = 1.0f) noexcept {
+    using out_tensor_t = tensor<value_type_, allocator_type_, 2>;
+    if (input.empty()) return out_tensor_t {};
+    auto &input_shape = input.shape();
+    auto result = out_tensor_t::try_empty(input_shape.extents, input_shape.rank);
+    if (result.empty()) return result;
+    if (!rmsnorm<value_type_>(input, gamma, result.span(), groups, eps, input_scale)) return out_tensor_t {};
+    return result;
+}
+
+#pragma endregion
 
 #pragma region Tensor Reduction Helpers
 
