@@ -1580,7 +1580,7 @@ impl From<i4x2> for (i8, i8) {
 ///
 /// Provides identity elements (`zero`, `one`) and sub-byte packing metadata.
 /// Does not require numeric conversion — use [`NumberLike`] for that.
-pub trait StorageElement: Sized + Copy + Clone + Default {
+pub trait StorageElement: Sized + Copy + Clone + Default + core::fmt::Debug {
     /// The additive identity.
     fn zero() -> Self;
     /// The multiplicative identity.

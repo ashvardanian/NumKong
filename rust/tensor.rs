@@ -1738,7 +1738,7 @@ impl<
 ///
 /// The `'a` lifetime ties the view to the source tensor (or outer view),
 /// ensuring the referenced memory outlives the view itself.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct TensorView<'a, Scalar, const MAX_RANK: usize = DEFAULT_MAX_RANK> {
     /// Pointer to first element of view.
     data: *const Scalar,
@@ -2060,6 +2060,7 @@ impl<'a, Scalar: Clone + StorageElement, const MAX_RANK: usize> TensorView<'a, S
 ///
 /// The `'a` lifetime ties the span to the owning tensor, ensuring the
 /// referenced memory remains valid.
+#[derive(Debug)]
 pub struct TensorSpan<'a, Scalar, const MAX_RANK: usize = DEFAULT_MAX_RANK> {
     /// Pointer to first element of view.
     data: *mut Scalar,
@@ -6273,6 +6274,7 @@ use crate::cast::BlockScaledFormat;
 /// scale newtypes ([`crate::Ue4m3`] / [`crate::Ue8m0`]) and the packed element scalars are plain
 /// [`StorageElement`]s. Construct one with `dense.view().try_cast_to_scaled::<F>()` and decode it
 /// back with `scaled.view().try_cast::<f32>()`.
+#[derive(Debug)]
 pub struct ScaledTensor<F: BlockScaledFormat, A: Allocator = Global> {
     elements: Tensor<F::Element, A>,
     block_scales: Tensor<F::Scale, A>,
@@ -6394,6 +6396,7 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
 }
 
 /// A borrowed, read-only view into a [`ScaledTensor`] — composed [`TensorView`]s plus the scale.
+#[derive(Debug)]
 pub struct ScaledTensorView<'a, F: BlockScaledFormat> {
     elements: TensorView<'a, F::Element>,
     block_scales: TensorView<'a, F::Scale>,
@@ -6442,6 +6445,7 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
 }
 
 /// A borrowed, mutable view into a [`ScaledTensor`] — composed [`TensorSpan`]s plus the scale.
+#[derive(Debug)]
 pub struct ScaledTensorSpan<'a, F: BlockScaledFormat> {
     elements: TensorSpan<'a, F::Element>,
     block_scales: TensorSpan<'a, F::Scale>,

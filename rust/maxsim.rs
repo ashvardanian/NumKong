@@ -199,6 +199,7 @@ impl MaxSim for bf16 {
 /// Both query and document vectors must be packed before scoring.
 /// The buffer uses i8 quantization for fast coarse screening,
 /// with full-precision originals retained for refinement.
+#[derive(Debug)]
 pub struct MaxSimPackedMatrix<Scalar: MaxSim, Alloc: Allocator = Global> {
     data: NonNull<u8>,
     size: usize,

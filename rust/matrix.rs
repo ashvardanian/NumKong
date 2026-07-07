@@ -2813,6 +2813,7 @@ impl Euclideans for i4x2 {
 /// let b_packed = PackedMatrix::try_pack_transposed(&b_array).unwrap();
 /// let c = a_array.dots_packed(&b_packed);
 /// ```
+#[derive(Debug)]
 pub struct PackedMatrix<Scalar: Dots, Alloc: Allocator = Global> {
     /// Raw pointer to packed data buffer.
     data: NonNull<u8>,
