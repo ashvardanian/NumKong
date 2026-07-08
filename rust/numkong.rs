@@ -193,7 +193,7 @@ pub use vector::{Vector, VectorIndex, VectorIterator, VectorSpan, VectorSpanIter
 
 // Re-export maxsim types
 // Re-export attention types
-pub use attention::{Attention, AttentionPackedKV};
+pub use attention::{Attention, AttentionKeyValueCache};
 
 pub use maxsim::{MaxSim, MaxSimPackOps, MaxSimPackedMatrix};
 
@@ -263,10 +263,10 @@ mod tests {
         let values = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.5)).unwrap();
         let offsets = [0u32, 10, 24];
 
-        let kv = AttentionPackedKV::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
+        let kv = AttentionKeyValueCache::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
         assert_eq!(kv.segments(), 2);
         assert_eq!(kv.kv_heads(), kv_heads);
-        assert_eq!(kv.head_dim(), head_dim);
+        assert_eq!(kv.depth(), head_dim);
         assert_eq!(kv.tokens(), tokens);
 
         // With constant V, softmax weights sum to 1 → every output equals V's value.
@@ -291,7 +291,7 @@ mod tests {
 
         let keys = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.125)).unwrap();
         let values = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.75)).unwrap();
-        let kv = AttentionPackedKV::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
+        let kv = AttentionKeyValueCache::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
 
         let sequential = kv.try_attention(&keys.view(), &offsets, None).unwrap();
         let mut pool = fork_union::ThreadPool::try_spawn(4).unwrap();
