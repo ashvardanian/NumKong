@@ -703,18 +703,6 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     /// Returns the number of dimensions.
     pub fn ndim(&self) -> usize { self.ndim }
 
-    /// Returns the number of dimensions (alias for `ndim()`).
-    pub fn rank(&self) -> usize { self.ndim }
-
-    /// Returns the total number of logical elements.
-    ///
-    /// For sub-byte types, this is the logical count (e.g. 6 nibbles for
-    /// shape `[6]` of `i4x2`), not the storage count (3 packed values).
-    pub fn numel(&self) -> usize { self.shape[..self.ndim].iter().product() }
-
-    /// Returns true if the array has no elements.
-    pub fn is_empty(&self) -> bool { self.numel() == 0 }
-
     /// Allocated storage-value capacity (`Scalar` slots) — the ceiling [`try_resize`](Self::try_resize)
     /// honors. Always `>= numel() / Scalar::dimensions_per_value()`.
     pub fn capacity(&self) -> usize { self.capacity }
@@ -847,15 +835,6 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     pub fn as_mut_slice(&mut self) -> &mut [Scalar] {
         let count = self.numel() / Scalar::dimensions_per_value();
         unsafe { core::slice::from_raw_parts_mut(self.data.as_ptr(), count) }
-    }
-
-    /// Check if rows are contiguous (required for GEMM A matrix).
-    pub fn has_contiguous_rows(&self) -> bool {
-        if self.ndim != 2 {
-            return false;
-        }
-        // Last dimension stride should be element size
-        self.strides[1] == core::mem::size_of::<Scalar>() as isize
     }
 
     /// Returns a row of a 2D array.
@@ -1814,44 +1793,11 @@ impl<'a, Scalar, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     /// Returns the number of dimensions.
     pub fn ndim(&self) -> usize { self.ndim }
 
-    /// Returns the number of dimensions (alias for `ndim()`).
-    pub fn rank(&self) -> usize { self.ndim }
-
-    /// Returns the total number of logical elements (computed from shape).
-    pub fn numel(&self) -> usize { self.shape[..self.ndim].iter().product() }
-
-    /// Returns true if the view has no elements.
-    pub fn is_empty(&self) -> bool { self.numel() == 0 }
-
     /// Returns the stride in bytes for the given dimension.
     pub fn stride_bytes(&self, dim: usize) -> isize { self.strides[dim] }
 
     /// Returns a pointer to the first element.
     pub fn as_ptr(&self) -> *const Scalar { self.data }
-
-    /// Check if the view has contiguous rows.
-    pub fn has_contiguous_rows(&self) -> bool {
-        if self.ndim != 2 {
-            return false;
-        }
-        self.strides[1] == core::mem::size_of::<Scalar>() as isize
-    }
-
-    /// Check if the entire view is contiguous in memory.
-    pub fn is_contiguous(&self) -> bool {
-        if self.ndim == 0 {
-            return true;
-        }
-        let elem_size = core::mem::size_of::<Scalar>() as isize;
-        let mut expected_stride = elem_size;
-        for i in (0..self.ndim).rev() {
-            if self.strides[i] != expected_stride {
-                return false;
-            }
-            expected_stride *= self.shape[i] as isize;
-        }
-        true
-    }
 
     /// Get element at flat index (only valid for contiguous views).
     ///
@@ -1880,7 +1826,7 @@ impl<'a, Scalar, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
         if self.ndim == 0 {
             return Err(TensorError::DimensionMismatch { expected: 1, got: 0 });
         }
-        let logical_index = resolve_index_for_size_(index, self.numel())?;
+        let logical_index = resolve_index_for_size_(index, self.shape[..self.ndim].iter().product::<usize>())?;
         let offset = offset_from_flat_(&self.shape, &self.strides, self.ndim, logical_index);
         Ok(unsafe { &*((self.data as *const u8).offset(offset) as *const Scalar) })
     }
@@ -2133,15 +2079,6 @@ impl<'a, Scalar, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
     /// Returns the number of dimensions.
     pub fn ndim(&self) -> usize { self.ndim }
 
-    /// Returns the number of dimensions (alias for `ndim()`).
-    pub fn rank(&self) -> usize { self.ndim }
-
-    /// Returns the total number of logical elements (computed from shape).
-    pub fn numel(&self) -> usize { self.shape[..self.ndim].iter().product() }
-
-    /// Returns true if the view has no elements.
-    pub fn is_empty(&self) -> bool { self.numel() == 0 }
-
     /// Returns the stride in bytes for the given dimension.
     pub fn stride_bytes(&self, dim: usize) -> isize { self.strides[dim] }
 
@@ -2150,30 +2087,6 @@ impl<'a, Scalar, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
 
     /// Returns a mutable pointer to the first element.
     pub fn as_mut_ptr(&mut self) -> *mut Scalar { self.data }
-
-    /// Check if the view has contiguous rows.
-    pub fn has_contiguous_rows(&self) -> bool {
-        if self.ndim != 2 {
-            return false;
-        }
-        self.strides[1] == core::mem::size_of::<Scalar>() as isize
-    }
-
-    /// Check if the entire view is contiguous in memory.
-    pub fn is_contiguous(&self) -> bool {
-        if self.ndim == 0 {
-            return true;
-        }
-        let elem_size = core::mem::size_of::<Scalar>() as isize;
-        let mut expected_stride = elem_size;
-        for i in (0..self.ndim).rev() {
-            if self.strides[i] != expected_stride {
-                return false;
-            }
-            expected_stride *= self.shape[i] as isize;
-        }
-        true
-    }
 
     /// Reborrow as immutable view.
     pub fn as_view(&self) -> TensorView<'_, Scalar, MAX_RANK> {
@@ -2191,7 +2104,7 @@ impl<'a, Scalar, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
         if self.ndim == 0 {
             return Err(TensorError::DimensionMismatch { expected: 1, got: 0 });
         }
-        let logical_index = resolve_index_for_size_(index, self.numel())?;
+        let logical_index = resolve_index_for_size_(index, self.shape[..self.ndim].iter().product::<usize>())?;
         let offset = offset_from_flat_(&self.shape, &self.strides, self.ndim, logical_index);
         Ok(unsafe { &*((self.data as *const u8).offset(offset) as *const Scalar) })
     }
@@ -2216,7 +2129,7 @@ impl<'a, Scalar, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
         if self.ndim == 0 {
             return Err(TensorError::DimensionMismatch { expected: 1, got: 0 });
         }
-        let logical_index = resolve_index_for_size_(index, self.numel())?;
+        let logical_index = resolve_index_for_size_(index, self.shape[..self.ndim].iter().product::<usize>())?;
         let offset = offset_from_flat_(&self.shape, &self.strides, self.ndim, logical_index);
         Ok(unsafe { &mut *((self.data as *mut u8).offset(offset) as *mut Scalar) })
     }
@@ -3523,7 +3436,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         if self.ndim == 0 {
             return Err(TensorError::DimensionMismatch { expected: 1, got: 0 });
         }
-        let logical_index = resolve_index_for_size_(index, self.numel())?;
+        let logical_index = resolve_index_for_size_(index, self.shape[..self.ndim].iter().product::<usize>())?;
         let offset = offset_from_flat_(&self.shape, &self.strides, self.ndim, logical_index);
         Ok(unsafe { &*((self.data.as_ptr() as *const u8).offset(offset) as *const Scalar) })
     }
@@ -3533,7 +3446,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         if self.ndim == 0 {
             return Err(TensorError::DimensionMismatch { expected: 1, got: 0 });
         }
-        let logical_index = resolve_index_for_size_(index, self.numel())?;
+        let logical_index = resolve_index_for_size_(index, self.shape[..self.ndim].iter().product::<usize>())?;
         let offset = offset_from_flat_(&self.shape, &self.strides, self.ndim, logical_index);
         Ok(unsafe { &mut *((self.data.as_ptr() as *mut u8).offset(offset) as *mut Scalar) })
     }
