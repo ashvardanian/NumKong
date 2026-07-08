@@ -445,7 +445,7 @@ mod tests {
     #[test]
     fn maxsim_rejects_non_contiguous_depth_axis() {
         let queries = Tensor::<f32>::try_full(&[4, 16], 1.0).unwrap();
-        let transposed = queries.transpose().unwrap();
+        let transposed = queries.try_transpose().unwrap();
         let result = transposed.try_maxsim_pack();
         assert!(matches!(result, Err(TensorError::NonContiguousRows)));
     }
@@ -454,7 +454,7 @@ mod tests {
     fn maxsim_accepts_outer_strided_views() {
         let queries = Tensor::<f32>::try_full(&[8, 16], 1.0).unwrap();
         let odd_rows = queries
-            .slice(&[SliceRange::range_step(1, 7, 2), SliceRange::range_step(0, 16, 1)])
+            .try_slice(&[SliceRange::range_step(1, 7, 2), SliceRange::range_step(0, 16, 1)])
             .unwrap();
 
         let queries_packed = odd_rows.try_maxsim_pack().unwrap();
@@ -465,7 +465,7 @@ mod tests {
     fn maxsim_rejects_negative_row_stride() {
         let queries = Tensor::<f32>::try_full(&[8, 16], 1.0).unwrap();
         let reversed_rows = queries
-            .slice(&[SliceRange::range_step(7, 0, -1), SliceRange::range_step(0, 16, 1)])
+            .try_slice(&[SliceRange::range_step(7, 0, -1), SliceRange::range_step(0, 16, 1)])
             .unwrap();
 
         let result = reversed_rows.try_maxsim_pack();

@@ -1362,7 +1362,9 @@ mod tests {
         use crate::tensor::{MinMaxResult, SliceRange, Tensor};
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let a = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        let a_even = a.slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)]).unwrap();
+        let a_even = a
+            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .unwrap();
 
         let sum_all = a_even.try_sum_all().unwrap();
         assert!((sum_all - 30.0).abs() < 1e-6);
@@ -1395,7 +1397,7 @@ mod tests {
         assert_eq!(argmax_axis0.as_slice(), &[2, 2]);
 
         let reversed = a
-            .slice(&[SliceRange::full(), SliceRange::range_step(3, 0, -1)])
+            .try_slice(&[SliceRange::full(), SliceRange::range_step(3, 0, -1)])
             .unwrap();
         let reversed_sum = reversed.try_sum_axis(-1_i32, false).unwrap();
         assert_eq!(reversed_sum.shape(), &[3]);

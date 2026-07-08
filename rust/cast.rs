@@ -766,7 +766,7 @@ mod tests {
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
         let even_columns = source
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
 
         let widened = even_columns.try_cast::<f64>().unwrap();

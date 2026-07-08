@@ -43,8 +43,8 @@
 //!
 //! ```rust,ignore
 //! let matrix = Tensor::<f32>::try_full(&[4, 5], 1.0).unwrap();
-//! let row = matrix.slice((1_usize, ..)).unwrap();       // t[1, :]
-//! let block = matrix.slice((0..2_usize, 1..4_usize)).unwrap();
+//! let row = matrix.try_slice((1_usize, ..)).unwrap();       // t[1, :]
+//! let block = matrix.try_slice((0..2_usize, 1..4_usize)).unwrap();
 //! ```
 //!
 //! # Sub-byte types
@@ -988,9 +988,9 @@ impl SliceRange {
 /// A stepped range for use in tuple-based slicing (compile-time dispatch).
 ///
 /// Rust has no built-in literal for stepped ranges, so this struct fills that
-/// gap.  Use it inside `.slice()` tuples:
+/// gap. Use it inside `.try_slice()` tuples:
 /// ```ignore
-/// t.slice((.., RangeStep::new(0, 6, 2))).unwrap();  // t[:, 0:6:2]
+/// t.try_slice((.., RangeStep::new(0, 6, 2))).unwrap();  // t[:, 0:6:2]
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct RangeStep {
@@ -1728,7 +1728,7 @@ impl<
 /// of the underlying storage — iteration and indexing honour those strides.
 ///
 /// A view is normally obtained by calling [`Tensor::view`] or by slicing:
-/// `tensor.slice((0..4_usize, ..))`. For lower-level construction from a
+/// `tensor.try_slice((0..4_usize, ..))`. For lower-level construction from a
 /// raw pointer plus shape/stride arrays, see [`TensorView::from_raw_parts`].
 ///
 /// `TensorView` is the immutable counterpart of [`TensorSpan`]. Both share
@@ -1917,14 +1917,14 @@ impl<'a, Scalar, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     /// let view = t.view();
     ///
     /// // Rust-native tuple syntax
-    /// let row = view.slice((1_usize, ..)).unwrap();            // t[1, :]
-    /// let block = view.slice((1..3_usize, 0..4_usize)).unwrap();// t[1:3, 0:4]
+    /// let row = view.try_slice((1_usize, ..)).unwrap();            // t[1, :]
+    /// let block = view.try_slice((1..3_usize, 0..4_usize)).unwrap();// t[1:3, 0:4]
     ///
     /// // Enum-based syntax for programmatic construction
-    /// let same_row = view.slice(&[SliceRange::index(1), SliceRange::full()]).unwrap();
+    /// let same_row = view.try_slice(&[SliceRange::index(1), SliceRange::full()]).unwrap();
     /// assert_eq!(row.shape(), same_row.shape());
     /// ```
-    pub fn slice(&self, spec: impl SliceSpec) -> Result<TensorView<'a, Scalar, MAX_RANK>, TensorError> {
+    pub fn try_slice(&self, spec: impl SliceSpec) -> Result<TensorView<'a, Scalar, MAX_RANK>, TensorError> {
         let (shape, strides, ndim, offset, _) = spec.apply_layout(&self.shape, &self.strides, self.ndim)?;
         Ok(TensorView {
             data: unsafe { (self.data as *const u8).offset(offset) as *const Scalar },
@@ -1938,7 +1938,7 @@ impl<'a, Scalar, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
 
 impl<'a, Scalar: Clone + StorageElement, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     /// Copy the view contents to a new owned Tensor.
-    pub fn to_owned(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+    pub fn try_to_owned(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         if self.is_contiguous() {
             let slice = unsafe { core::slice::from_raw_parts(self.data, self.storage_len()) };
             Tensor::try_from_slice(slice, self.shape())
@@ -2275,7 +2275,7 @@ impl<'a, Scalar, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
     /// Slice the span along multiple dimensions.
     ///
     /// Accepts tuples of Rust range types or `&[SliceRange]`.
-    pub fn slice(&self, spec: impl SliceSpec) -> Result<TensorView<'_, Scalar, MAX_RANK>, TensorError> {
+    pub fn try_slice(&self, spec: impl SliceSpec) -> Result<TensorView<'_, Scalar, MAX_RANK>, TensorError> {
         let (shape, strides, ndim, offset, _) = spec.apply_layout(&self.shape, &self.strides, self.ndim)?;
         Ok(TensorView {
             data: unsafe { (self.data as *const u8).offset(offset) as *const Scalar },
@@ -2846,7 +2846,7 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorView<'a, Scalar, M
     ///
     /// Returns an error for sub-byte types with ndim >= 2, since transposing
     /// would produce non-contiguous strides that break packed element addressing.
-    pub fn transpose(&self) -> Result<TensorView<'a, Scalar, MAX_RANK>, TensorError> {
+    pub fn try_transpose(&self) -> Result<TensorView<'a, Scalar, MAX_RANK>, TensorError> {
         if self.ndim < 2 {
             return Ok(TensorView {
                 data: self.data,
@@ -2873,7 +2873,7 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorView<'a, Scalar, M
     ///
     /// Returns an error for sub-byte types, since reshape would invalidate
     /// the packed element layout.
-    pub fn reshape(&self, new_shape: &[usize]) -> Result<TensorView<'a, Scalar, MAX_RANK>, TensorError> {
+    pub fn try_reshape(&self, new_shape: &[usize]) -> Result<TensorView<'a, Scalar, MAX_RANK>, TensorError> {
         if Scalar::dimensions_per_value() > 1 {
             return Err(TensorError::SubByteUnsupported);
         }
@@ -2889,7 +2889,9 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorView<'a, Scalar, M
     }
 
     /// Flatten to 1D (requires contiguous layout).
-    pub fn flatten(&self) -> Result<TensorView<'a, Scalar, MAX_RANK>, TensorError> { self.reshape(&[self.numel()]) }
+    pub fn try_flatten(&self) -> Result<TensorView<'a, Scalar, MAX_RANK>, TensorError> {
+        self.try_reshape(&[self.numel()])
+    }
 
     /// Remove dimensions of size 1.
     pub fn squeeze(&self) -> TensorView<'a, Scalar, MAX_RANK> {
@@ -2908,7 +2910,7 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorSpan<'a, Scalar, M
     /// Transpose (reverse all dimensions, no data copy).
     ///
     /// Returns an error for sub-byte types with ndim >= 2.
-    pub fn transpose(&self) -> Result<TensorSpan<'a, Scalar, MAX_RANK>, TensorError> {
+    pub fn try_transpose(&self) -> Result<TensorSpan<'a, Scalar, MAX_RANK>, TensorError> {
         if self.ndim < 2 {
             return Ok(TensorSpan {
                 data: self.data,
@@ -2934,7 +2936,7 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorSpan<'a, Scalar, M
     /// Reshape the span (must have same total elements, contiguous only).
     ///
     /// Returns an error for sub-byte types.
-    pub fn reshape(&self, new_shape: &[usize]) -> Result<TensorSpan<'a, Scalar, MAX_RANK>, TensorError> {
+    pub fn try_reshape(&self, new_shape: &[usize]) -> Result<TensorSpan<'a, Scalar, MAX_RANK>, TensorError> {
         if Scalar::dimensions_per_value() > 1 {
             return Err(TensorError::SubByteUnsupported);
         }
@@ -2950,7 +2952,9 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorSpan<'a, Scalar, M
     }
 
     /// Flatten to 1D (requires contiguous layout).
-    pub fn flatten(&self) -> Result<TensorSpan<'a, Scalar, MAX_RANK>, TensorError> { self.reshape(&[self.numel()]) }
+    pub fn try_flatten(&self) -> Result<TensorSpan<'a, Scalar, MAX_RANK>, TensorError> {
+        self.try_reshape(&[self.numel()])
+    }
 
     /// Remove dimensions of size 1.
     pub fn squeeze(&self) -> TensorSpan<'a, Scalar, MAX_RANK> {
@@ -2967,7 +2971,9 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorSpan<'a, Scalar, M
 
 impl<'a, Scalar: Clone + StorageElement, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
     /// Copy the span contents to a new owned Tensor.
-    pub fn to_owned(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.as_view().to_owned() }
+    pub fn try_to_owned(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.as_view().try_to_owned()
+    }
 }
 
 impl<'a, Scalar, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
@@ -3597,17 +3603,17 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     /// let arr = Tensor::<f32>::try_full(&[4, 5], 1.0).unwrap();
     ///
     /// // Tuple syntax — preferred
-    /// let block = arr.slice((0..2_usize, ..)).unwrap();     // t[0:2, :]
-    /// let row   = arr.slice((1_usize, ..)).unwrap();        // t[1, :]
+    /// let block = arr.try_slice((0..2_usize, ..)).unwrap();     // t[0:2, :]
+    /// let row   = arr.try_slice((1_usize, ..)).unwrap();        // t[1, :]
     /// assert_eq!(block.shape(), &[2, 5]);
     /// assert_eq!(row.shape(),   &[5]);
     ///
     /// // Enum-based syntax still works for programmatic construction
-    /// let same_block = arr.slice(&[SliceRange::range(0, 2), SliceRange::full()]).unwrap();
+    /// let same_block = arr.try_slice(&[SliceRange::range(0, 2), SliceRange::full()]).unwrap();
     /// assert_eq!(block.shape(), same_block.shape());
     /// ```
-    pub fn slice(&self, spec: impl SliceSpec) -> Result<TensorView<'_, Scalar, MAX_RANK>, TensorError> {
-        self.view().slice(spec)
+    pub fn try_slice(&self, spec: impl SliceSpec) -> Result<TensorView<'_, Scalar, MAX_RANK>, TensorError> {
+        self.view().try_slice(spec)
     }
 
     /// Slice the array mutably along multiple dimensions.
@@ -3627,15 +3633,15 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
 
 impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Transpose (reverse all dimensions, no data copy).
-    pub fn transpose(&self) -> Result<TensorView<'_, Scalar, MAX_RANK>, TensorError> { self.view().transpose() }
+    pub fn try_transpose(&self) -> Result<TensorView<'_, Scalar, MAX_RANK>, TensorError> { self.view().try_transpose() }
 
     /// Reshape the array (must have same total elements, contiguous only).
-    pub fn reshape(&self, new_shape: &[usize]) -> Result<TensorView<'_, Scalar, MAX_RANK>, TensorError> {
-        self.view().reshape(new_shape)
+    pub fn try_reshape(&self, new_shape: &[usize]) -> Result<TensorView<'_, Scalar, MAX_RANK>, TensorError> {
+        self.view().try_reshape(new_shape)
     }
 
     /// Flatten to 1D (requires contiguous layout).
-    pub fn flatten(&self) -> Result<TensorView<'_, Scalar, MAX_RANK>, TensorError> { self.view().flatten() }
+    pub fn try_flatten(&self) -> Result<TensorView<'_, Scalar, MAX_RANK>, TensorError> { self.view().try_flatten() }
 
     /// Remove dimensions of size 1.
     pub fn squeeze(&self) -> TensorView<'_, Scalar, MAX_RANK> { self.view().squeeze() }
@@ -6434,8 +6440,8 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
         let mut spec = Vec::with_capacity(ndim);
         spec.push(SliceRange::range(start, end));
         spec.extend(core::iter::repeat(SliceRange::full()).take(ndim.saturating_sub(1)));
-        let elements = self.elements.slice(spec.as_slice())?;
-        let block_scales = self.block_scales.slice(spec.as_slice())?;
+        let elements = self.elements.try_slice(spec.as_slice())?;
+        let block_scales = self.block_scales.try_slice(spec.as_slice())?;
         Ok(ScaledTensorView {
             elements,
             block_scales,
@@ -6566,10 +6572,10 @@ mod tests {
         // inner axis is packed.
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let arr = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        let transposed = arr.view().transpose().unwrap();
+        let transposed = arr.view().try_transpose().unwrap();
         assert_eq!(transposed.shape(), &[4, 3]);
 
-        let owned = transposed.to_owned().unwrap();
+        let owned = transposed.try_to_owned().unwrap();
         assert_eq!(owned.shape(), &[4, 3]);
         let got = owned.as_slice();
         for i in 0..4 {
@@ -6612,11 +6618,11 @@ mod tests {
     #[test]
     fn tensor_slicing() {
         let arr = Tensor::<f32>::try_full(&[4, 5], 1.0f32).unwrap();
-        let view = arr.slice(&[SliceRange::full(), SliceRange::full()]).unwrap();
+        let view = arr.try_slice(&[SliceRange::full(), SliceRange::full()]).unwrap();
         assert_eq!(view.shape(), &[4, 5]);
-        let view = arr.slice(&[SliceRange::range(1, 3), SliceRange::full()]).unwrap();
+        let view = arr.try_slice(&[SliceRange::range(1, 3), SliceRange::full()]).unwrap();
         assert_eq!(view.shape(), &[2, 5]);
-        let view = arr.slice(&[SliceRange::index(0), SliceRange::full()]).unwrap();
+        let view = arr.try_slice(&[SliceRange::index(0), SliceRange::full()]).unwrap();
         assert_eq!(view.shape(), &[5]);
         assert_eq!(view.ndim(), 1);
     }
@@ -6624,7 +6630,7 @@ mod tests {
     #[test]
     fn tensor_transpose_2d() {
         let arr = Tensor::<f32>::try_full(&[3, 4], 1.0f32).unwrap();
-        let transposed = arr.transpose().unwrap();
+        let transposed = arr.try_transpose().unwrap();
         assert_eq!(transposed.shape(), &[4, 3]);
     }
 
@@ -6674,7 +6680,7 @@ mod tests {
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let tensor = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
         let even_columns = tensor
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
 
         assert_eq!(even_columns.shape(), &[3, 2]);
@@ -6688,7 +6694,7 @@ mod tests {
         assert_eq!(row.shape(), &[4]);
         assert_eq!(row[-1_i32], 7.0);
 
-        let scalar = tensor.slice(&[SliceRange::index(2), SliceRange::index(3)]).unwrap();
+        let scalar = tensor.try_slice(&[SliceRange::index(2), SliceRange::index(3)]).unwrap();
         assert_eq!(scalar.ndim(), 0);
         assert_eq!(*scalar.try_scalar().unwrap(), 11.0);
     }
@@ -6697,7 +6703,7 @@ mod tests {
     fn tensor_ops() {
         // Reshape
         let arr = Tensor::<f32>::try_full(&[3, 4], 1.0f32).unwrap();
-        let reshaped = arr.reshape(&[2, 6]).unwrap();
+        let reshaped = arr.try_reshape(&[2, 6]).unwrap();
         assert_eq!(reshaped.shape(), &[2, 6]);
         assert_eq!(reshaped.numel(), 12);
 
@@ -6760,7 +6766,7 @@ mod tests {
 
         // Channel subview: [:, :, 1] → shape [4, 4], stride = 3 * sizeof(f32)
         let channel = t
-            .slice(&[SliceRange::full(), SliceRange::full(), SliceRange::index(1)])
+            .try_slice(&[SliceRange::full(), SliceRange::full(), SliceRange::index(1)])
             .unwrap();
         assert_eq!(channel.shape(), &[4, 4]);
         let (ch_sum, _) = channel.try_moments_all().unwrap();
@@ -6772,7 +6778,7 @@ mod tests {
 
         // Row skip: [::2, :, :] → shape [2, 4, 3], outer stride doubled
         let skipped = t
-            .slice(&[SliceRange::range_step(0, 4, 2), SliceRange::full(), SliceRange::full()])
+            .try_slice(&[SliceRange::range_step(0, 4, 2), SliceRange::full(), SliceRange::full()])
             .unwrap();
         assert_eq!(skipped.shape(), &[2, 4, 3]);
         let (skip_sum, _) = skipped.try_moments_all().unwrap();
@@ -6817,7 +6823,7 @@ mod tests {
         let data48: Vec<f32> = (0..48).map(|i| i as f32).collect();
         let t48 = Tensor::<f32>::try_from_slice(&data48, &[4, 3, 4]).unwrap();
         let skipped = t48
-            .slice(&[SliceRange::range_step(0, 4, 2), SliceRange::full(), SliceRange::full()])
+            .try_slice(&[SliceRange::range_step(0, 4, 2), SliceRange::full(), SliceRange::full()])
             .unwrap();
         assert_eq!(skipped.shape(), &[2, 3, 4]);
         let (sums_skip_last, _) = skipped.try_moments_axis(-1_i32, false).unwrap();
@@ -6918,7 +6924,9 @@ mod tests {
             &[2, 2],
         )
         .unwrap();
-        let complex_column = strided.slice(&[SliceRange::full(), SliceRange::range(0, 1)]).unwrap();
+        let complex_column = strided
+            .try_slice(&[SliceRange::full(), SliceRange::range(0, 1)])
+            .unwrap();
         let mut out = Tensor::<f16c>::try_full(
             &[2, 1],
             f16c {
@@ -7076,50 +7084,50 @@ mod tests {
         let t = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
 
         // Full ranges — tuple of two RangeFull
-        let v = t.slice((.., ..)).unwrap();
+        let v = t.try_slice((.., ..)).unwrap();
         assert_eq!(v.shape(), &[3, 4]);
 
         // Index + full — selects row 0
-        let v = t.slice((0_usize, ..)).unwrap();
+        let v = t.try_slice((0_usize, ..)).unwrap();
         assert_eq!(v.shape(), &[4]);
         assert_eq!(v.numel(), 4);
 
         // Full + index — selects column 1
-        let v = t.slice((.., 1_usize)).unwrap();
+        let v = t.try_slice((.., 1_usize)).unwrap();
         assert_eq!(v.shape(), &[3]);
 
         // Range + full — rows 1..3
-        let v = t.slice((1..3_usize, ..)).unwrap();
+        let v = t.try_slice((1..3_usize, ..)).unwrap();
         assert_eq!(v.shape(), &[2, 4]);
 
         // Full + RangeTo — columns ..2
-        let v = t.slice((.., ..2_usize)).unwrap();
+        let v = t.try_slice((.., ..2_usize)).unwrap();
         assert_eq!(v.shape(), &[3, 2]);
 
         // Full + RangeInclusive — columns 0..=2
-        let v = t.slice((.., 0..=2_usize)).unwrap();
+        let v = t.try_slice((.., 0..=2_usize)).unwrap();
         assert_eq!(v.shape(), &[3, 3]);
 
         // Mixed: tuple with SliceRange pass-through (for RangeStep)
-        let v = t.slice((.., RangeStep::new(0, 4, 2))).unwrap();
+        let v = t.try_slice((.., RangeStep::new(0, 4, 2))).unwrap();
         assert_eq!(v.shape(), &[3, 2]);
 
         // Backward compat: &[SliceRange]
-        let v = t.slice(&[SliceRange::full(), SliceRange::index(0)]).unwrap();
+        let v = t.try_slice(&[SliceRange::full(), SliceRange::index(0)]).unwrap();
         assert_eq!(v.shape(), &[3]);
 
         // Signed (negative) indices — wrap from end
-        let v = t.slice((.., -1_isize)).unwrap(); // last column
+        let v = t.try_slice((.., -1_isize)).unwrap(); // last column
         assert_eq!(v.shape(), &[3]);
 
-        let v = t.slice((-2_isize.., ..)).unwrap(); // last 2 rows
+        let v = t.try_slice((-2_isize.., ..)).unwrap(); // last 2 rows
         assert_eq!(v.shape(), &[2, 4]);
 
-        let v = t.slice((.., -3..-1_isize)).unwrap(); // columns 1..3
+        let v = t.try_slice((.., -3..-1_isize)).unwrap(); // columns 1..3
         assert_eq!(v.shape(), &[3, 2]);
 
         // RangeFrom<usize> — now supported
-        let v = t.slice((1_usize.., ..)).unwrap(); // rows 1..end
+        let v = t.try_slice((1_usize.., ..)).unwrap(); // rows 1..end
         assert_eq!(v.shape(), &[2, 4]);
 
         // Mutable slice with tuple

@@ -3395,10 +3395,10 @@ mod tests {
         let right = Tensor::<f32>::try_full(&[3, 4], 2.0).unwrap();
 
         let left_even = left
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
         let right_even = right
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
 
         let added = left_even.try_add_tensor(&right_even).unwrap();
@@ -3426,7 +3426,7 @@ mod tests {
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
         let even = source
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
         let scaled = even.try_mul_scalar(0.5).unwrap();
         assert_eq!(scaled.as_slice(), &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
@@ -3448,7 +3448,7 @@ mod tests {
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
         let even = source
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
         let mut sin_out = Tensor::<f32>::try_full(&[3, 2], 0.0).unwrap();
         {
@@ -3599,11 +3599,11 @@ mod tests {
         let wide = Tensor::<f32>::try_from_slice(&buf, &[rows, 2 * cols]).unwrap();
         let gate = wide
             .view()
-            .slice(&[SliceRange::Full, SliceRange::range(0, cols)][..])
+            .try_slice(&[SliceRange::Full, SliceRange::range(0, cols)][..])
             .unwrap();
         let up = wide
             .view()
-            .slice(&[SliceRange::Full, SliceRange::range(cols, 2 * cols)][..])
+            .try_slice(&[SliceRange::Full, SliceRange::range(cols, 2 * cols)][..])
             .unwrap();
         let mut y = Tensor::<f32>::try_full(&[rows, cols], 0.0f32).unwrap();
         f32::swiglu_into(&gate, Some(&up), &mut y, 1.0).unwrap();

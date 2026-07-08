@@ -316,14 +316,14 @@ use numkong::{RangeStep, SliceRange, Tensor};
 
 let t = Tensor::<f32>::try_from_slice(&[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], &[3, 3]).unwrap();
 
-let col = t.slice((.., 1_usize)).unwrap();                  // t[:, 1]  — column 1
-let rows = t.slice((0..2_usize, ..)).unwrap();              // t[0:2, :] — first two rows
-let tail = t.slice((-2_isize.., ..)).unwrap();              // t[-2:, :] — last two rows
-let neg = t.slice((.., -2..-1_isize)).unwrap();             // t[:, -2:-1]
-let step = t.slice((.., RangeStep::new(0, 3, 2))).unwrap(); // t[:, ::2]
+let col = t.try_slice((.., 1_usize)).unwrap();                  // t[:, 1]  — column 1
+let rows = t.try_slice((0..2_usize, ..)).unwrap();              // t[0:2, :] — first two rows
+let tail = t.try_slice((-2_isize.., ..)).unwrap();              // t[-2:, :] — last two rows
+let neg = t.try_slice((.., -2..-1_isize)).unwrap();             // t[:, -2:-1]
+let step = t.try_slice((.., RangeStep::new(0, 3, 2))).unwrap(); // t[:, ::2]
 
 // Explicit &[SliceRange] syntax also works
-let col = t.slice(&[SliceRange::full(), SliceRange::index(1)]).unwrap();
+let col = t.try_slice(&[SliceRange::full(), SliceRange::index(1)]).unwrap();
 ```
 
 Tuple elements implement `SliceArg` — each monomorphized with zero runtime dispatch:
@@ -395,7 +395,7 @@ let a = Tensor::<f32>::try_from_slice(&[1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
 let b = Tensor::<f32>::try_full(&[2, 2], 2.0).unwrap();
 
 let blended = a.view().try_blend_tensor(&b.view(), 0.25, 0.75).unwrap();
-let sines = blended.sin().unwrap();
+let sines = blended.try_sin().unwrap();
 
 assert_eq!(sines.shape(), &[2, 2]);
 ```
@@ -420,8 +420,8 @@ They are useful both directly and as a sanity check that the container path is n
 use numkong::Tensor;
 
 let a = Tensor::<f32>::try_from_slice(&[0.0, 1.0, 2.0, 3.0], &[2, 2]).unwrap();
-let c = a.cos().unwrap();
-let s = a.sin().unwrap();
+let c = a.try_cos().unwrap();
+let s = a.try_sin().unwrap();
 
 assert_eq!(c.shape(), &[2, 2]);
 assert_eq!(s.shape(), &[2, 2]);
@@ -458,7 +458,7 @@ let t = Tensor::<f32>::try_from_slice(&[
     4.0, -1.0, 6.0,
 ], &[3, 3]).unwrap();
 
-let second_column = t.slice((.., 1_usize)).unwrap();  // t[:, 1]
+let second_column = t.try_slice((.., 1_usize)).unwrap();  // t[:, 1]
 let idx = second_column.try_argmin_all().unwrap();
 
 assert_eq!(idx, 2);

@@ -515,25 +515,16 @@ pub trait TrigAtanOps<Scalar: Clone + TrigAtan, const MAX_RANK: usize>: TensorRe
 impl<Scalar: Clone + TrigAtan, const R: usize, C: TensorRef<Scalar, R> + ?Sized> TrigAtanOps<Scalar, R> for C {}
 
 impl<Scalar: Clone + TrigSin, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise sine: result\[i\] = sin(self\[i\])
-    pub fn sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_sin() }
-
     /// Element-wise sine in-place (infallible — self vs self always matches).
     pub fn sin_inplace(&mut self) { self.span().sin_inplace(); }
 }
 
 impl<Scalar: Clone + TrigCos, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise cosine: result\[i\] = cos(self\[i\])
-    pub fn cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_cos() }
-
     /// Element-wise cosine in-place (infallible — self vs self always matches).
     pub fn cos_inplace(&mut self) { self.span().cos_inplace(); }
 }
 
 impl<Scalar: Clone + TrigAtan, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise arctangent: result\[i\] = atan(self\[i\])
-    pub fn atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_atan() }
-
     /// Element-wise arctangent in-place (infallible — self vs self always matches).
     pub fn atan_inplace(&mut self) { self.span().atan_inplace(); }
 }

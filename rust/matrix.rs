@@ -2960,7 +2960,7 @@ impl<Scalar: Dots, Alloc: Allocator> PackedMatrix<Scalar, Alloc> {
         // `nk_dots_pack_*` in `numkong/dots.h`), so the transposed view's
         // non-unit inner stride must be materialized into a contiguous buffer
         // first. For sub-byte types, transpose() returns SubByteUnsupported.
-        let transposed = b.view().transpose()?.to_owned()?;
+        let transposed = b.view().try_transpose()?.try_to_owned()?;
         Self::try_pack_in(&transposed, alloc)
     }
 
@@ -5548,7 +5548,7 @@ mod tests {
         // A transposed view has a non-unit inner stride; the symmetric kernels read each row as
         // contiguous, so such a view must be rejected (Err) rather than read out of bounds.
         let m = Tensor::<f32>::try_full(&[4, 6], 1.0f32).unwrap();
-        let transposed = m.view().transpose().unwrap();
+        let transposed = m.view().try_transpose().unwrap();
         assert!(!transposed.has_contiguous_rows());
         assert!(matches!(
             transposed.try_dots_symmetric(),
