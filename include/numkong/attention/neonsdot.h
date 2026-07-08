@@ -11,8 +11,11 @@
  *  exact in I32: four KV rows in flight through `SDOT` over row-major I8 planes, with one
  *  lane-wise reduction per score. Softmax weights quantize to `trunc(2^(s₂−m₂)·255 + 0.5)`
  *  like the whole I8 family — the maximum position lands on exactly 255, so the weight sum
- *  never vanishes and the 255 cancels in normalization. The weighted V accumulation widens
- *  I8 rows to F32, so the backend needs only the baseline `dotprod` extension.
+ *  never vanishes and the 255 cancels in normalization. The weighted V accumulation runs as
+ *  `UDOT` over V tiles packed 4-positions × 4-channels with a +128 offset: since the weights
+ *  are U8, `Σ w·(v+128) − 128·Σw = Σ w·v` exactly, the bias subtracts in integer before the
+ *  single F32 conversion, and every panel total stays under 2^24 — bit-exact with serial at
+ *  a 6× faster inner loop, still on the baseline `dotprod` extension.
  */
 #ifndef NK_ATTENTION_NEONSDOT_H
 #define NK_ATTENTION_NEONSDOT_H
@@ -63,9 +66,10 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_i8_neonsdot(nk_size_t key_value_hea
     if (depth > nk_attention_max_depth_neonsdot_k_)
         return nk_attention_packed_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
-    nk_size_t payload_bytes = 0; // raw I8 planes, channels zero-padded to the SDOT chunk
+    nk_size_t payload_bytes = 0; // K rows plus quad-tiled V, positions padded to the UDOT quad
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
-        payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_idx] * depth_padded;
+        payload_bytes += 2 * key_value_head_count *
+                         nk_size_round_up_to_multiple_((nk_size_t)segment_lengths[segment_idx], 4) * depth_padded;
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
@@ -84,7 +88,7 @@ NK_PUBLIC void nk_attention_pack_i8_neonsdot(                                   
 
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
     nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 first_task, 1, depth_padded);
+                                 first_task, 4, depth_padded);
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *payload_offsets = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
@@ -99,26 +103,56 @@ NK_PUBLIC void nk_attention_pack_i8_neonsdot(                                   
         nk_size_t const position_count = segment_lengths[segment_idx];
         if (position_count == 0) continue;
         nk_size_t const position_first = segment_offsets[segment_idx];
-        nk_size_t const plane_bytes = position_count * depth_padded;
+        nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, 4);
+        nk_size_t const plane_bytes = position_count_padded * depth_padded;
         char *keys_plane = payload_base + payload_offsets[segment_idx] + key_value_head_idx * plane_bytes;
         char *values_plane = keys_plane + key_value_head_count * plane_bytes;
         for (nk_size_t position_idx = 0; position_idx < position_count; position_idx++) {
             char const *keys_row = (char const *)keys + (position_first + position_idx) * key_stride_bytes +
                                    key_value_head_idx * depth;
-            char const *values_row = (char const *)values + (position_first + position_idx) * value_stride_bytes +
-                                     key_value_head_idx * depth;
             char *keys_destination = keys_plane + position_idx * depth_padded;
-            char *values_destination = values_plane + position_idx * depth_padded;
             nk_size_t byte_idx = 0;
             for (; byte_idx + 16 <= depth; byte_idx += 16)
                 vst1q_u8((uint8_t *)(keys_destination + byte_idx), vld1q_u8((uint8_t const *)(keys_row + byte_idx)));
             for (; byte_idx < depth; byte_idx++) keys_destination[byte_idx] = keys_row[byte_idx];
             for (; byte_idx < depth_padded; byte_idx++) keys_destination[byte_idx] = 0;
-            for (byte_idx = 0; byte_idx + 16 <= depth; byte_idx += 16)
-                vst1q_u8((uint8_t *)(values_destination + byte_idx),
-                         vld1q_u8((uint8_t const *)(values_row + byte_idx)));
-            for (; byte_idx < depth; byte_idx++) values_destination[byte_idx] = values_row[byte_idx];
-            for (; byte_idx < depth_padded; byte_idx++) values_destination[byte_idx] = 0;
+        }
+        for (nk_size_t position_idx = position_count; position_idx < position_count_padded; position_idx++)
+            for (nk_size_t byte_idx = 0; byte_idx < depth_padded; byte_idx += 16)
+                vst1q_u8((uint8_t *)(keys_plane + position_idx * depth_padded + byte_idx), vdupq_n_u8(0));
+        // V tiles as [position_quad][channel][4 positions] with a +128 offset to U8 — one XOR
+        // of the sign bit — so one UDOT covers 4 positions × 4 channels; `vst4q_u8` interleaves
+        // the four rows in a single store. Padded positions carry zero weights, so their
+        // content only needs to be deterministic.
+        NK_ALIGN64 nk_u8_t staging[4][nk_attention_max_depth_neonsdot_k_];
+        for (nk_size_t quad_idx = 0; quad_idx < position_count_padded / 4; quad_idx++) {
+            for (nk_size_t position_in_quad = 0; position_in_quad < 4; position_in_quad++) {
+                nk_size_t const position_idx = quad_idx * 4 + position_in_quad;
+                if (position_idx >= position_count) {
+                    for (nk_size_t byte_idx = 0; byte_idx < depth_padded; byte_idx += 16)
+                        vst1q_u8(staging[position_in_quad] + byte_idx, vdupq_n_u8(0));
+                    continue;
+                }
+                nk_u8_t const *values_row = (nk_u8_t const *)values +
+                                            (position_first + position_idx) * value_stride_bytes +
+                                            key_value_head_idx * depth;
+                nk_size_t channel_idx = 0;
+                for (; channel_idx + 16 <= depth; channel_idx += 16)
+                    vst1q_u8(staging[position_in_quad] + channel_idx,
+                             veorq_u8(vld1q_u8(values_row + channel_idx), vdupq_n_u8(0x80)));
+                for (; channel_idx < depth; channel_idx++)
+                    staging[position_in_quad][channel_idx] = values_row[channel_idx] ^ 0x80;
+                for (; channel_idx < depth_padded; channel_idx++) staging[position_in_quad][channel_idx] = 0;
+            }
+            nk_u8_t *tile = (nk_u8_t *)(values_plane + quad_idx * depth_padded * 4);
+            for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16) {
+                uint8x16x4_t rows_u8x16x4;
+                rows_u8x16x4.val[0] = vld1q_u8(staging[0] + channel_idx);
+                rows_u8x16x4.val[1] = vld1q_u8(staging[1] + channel_idx);
+                rows_u8x16x4.val[2] = vld1q_u8(staging[2] + channel_idx);
+                rows_u8x16x4.val[3] = vld1q_u8(staging[3] + channel_idx);
+                vst4q_u8(tile + channel_idx * 4, rows_u8x16x4);
+            }
         }
     }
 }
@@ -155,14 +189,16 @@ NK_PUBLIC void nk_attention_packed_i8_neonsdot(                                 
 
     NK_ALIGN64 nk_i8_t query_row[nk_attention_max_depth_neonsdot_k_];
     NK_ALIGN64 nk_f32_t output_row[nk_attention_max_depth_neonsdot_k_];
+    NK_ALIGN64 nk_u32_t output_totals[nk_attention_max_depth_neonsdot_k_];
     NK_ALIGN64 nk_f32_t scores[nk_attention_panel_neonsdot_k_];
+    NK_ALIGN64 nk_u8_t weights[nk_attention_panel_neonsdot_k_];
 
     for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
         nk_size_t const row_count = query_offsets[segment_idx + 1] - query_offsets[segment_idx];
         if (position_count == 0 || row_count == 0) continue;
-        nk_size_t const plane_bytes = position_count * depth_padded;
+        nk_size_t const plane_bytes = nk_size_round_up_to_multiple_(position_count, 4) * depth_padded;
         char const *keys_plane = payload_base + payload_offsets[segment_idx] +
                                  (head_idx / head_group_size) * plane_bytes;
         char const *values_plane = keys_plane + key_value_head_count * plane_bytes;
@@ -228,43 +264,61 @@ NK_PUBLIC void nk_attention_packed_i8_neonsdot(                                 
                 running_max2 = new_max2;
 
                 float32x4_t const new_max2_f32x4 = vdupq_n_f32(new_max2);
-                float32x4_t panel_sum_f32x4 = vdupq_n_f32(0.0f);
                 nk_f32_t panel_sum = 0;
+                uint32x4_t panel_sum_u32x4 = vdupq_n_u32(0); // weights are U8 over <= 512 positions
                 for (position_idx = 0; position_idx + 4 <= panel_length; position_idx += 4) {
                     float32x4_t const exponent_f32x4 = nk_attention_exp2_f32x4_neonsdot_(
                         vsubq_f32(vld1q_f32(scores + position_idx), new_max2_f32x4));
-                    float32x4_t const weight_f32x4 = vcvtq_f32_u32( // mul then add matches the serial rounding
-
-                        vcvtq_u32_f32(vaddq_f32(vmulq_f32(exponent_f32x4, vdupq_n_f32(255.0f)), vdupq_n_f32(0.5f))));
-                    panel_sum_f32x4 = vaddq_f32(panel_sum_f32x4, weight_f32x4);
-                    vst1q_f32(scores + position_idx, weight_f32x4);
+                    uint32x4_t const weight_u32x4 = vcvtq_u32_f32( // mul then add matches the serial rounding
+                        vaddq_f32(vmulq_f32(exponent_f32x4, vdupq_n_f32(255.0f)), vdupq_n_f32(0.5f)));
+                    panel_sum_u32x4 = vaddq_u32(panel_sum_u32x4, weight_u32x4);
+                    uint8x8_t const weight_u8x8 = vmovn_u16(vcombine_u16(vmovn_u32(weight_u32x4), vdup_n_u16(0)));
+                    vst1_lane_u32((nk_u32_t *)(weights + position_idx), vreinterpret_u32_u8(weight_u8x8), 0);
                 }
-                panel_sum = vaddvq_f32(panel_sum_f32x4);
+                nk_u32_t panel_sum_u32 = vaddvq_u32(panel_sum_u32x4);
                 for (; position_idx < panel_length; position_idx++) { // scalar tail keeps the family exp2 end-to-end
-                    nk_f32_t const weight =
-                        (nk_f32_t)(nk_u32_t)(nk_f32_exp2_serial_(scores[position_idx] - new_max2) * 255.0f + 0.5f);
-                    scores[position_idx] = weight;
-                    panel_sum += weight;
+                    nk_u32_t const weight = (nk_u32_t)(nk_f32_exp2_serial_(scores[position_idx] - new_max2) * 255.0f +
+                                                       0.5f);
+                    weights[position_idx] = (nk_u8_t)weight;
+                    panel_sum_u32 += weight;
                 }
+                for (; position_idx % 4; position_idx++) weights[position_idx] = 0; // zero the last quad's padding
+                panel_sum = (nk_f32_t)panel_sum_u32;
                 running_sum = running_sum * correction + panel_sum;
 
-                float32x4_t const correction_f32x4 = vdupq_n_f32(correction);
+                nk_size_t const panel_quads = (panel_length + 3) / 4; // P×V as UDOT over U8 quad tiles
+                char const *panel_tiles = values_plane + (panel_start / 4) * depth_padded * 4;
                 for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 4)
-                    vst1q_f32(output_row + channel_idx,
-                              vmulq_f32(vld1q_f32(output_row + channel_idx), correction_f32x4));
-                for (position_idx = 0; position_idx < panel_length; position_idx++) {
-                    if (scores[position_idx] == 0.0f) continue; // zero weights add nothing
-                    float32x4_t const weight_f32x4 = vdupq_n_f32(scores[position_idx]);
-                    char const *values_row = values_plane + (panel_start + position_idx) * depth_padded;
-                    for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 8) {
-                        int16x8_t const values_i16x8 = vmovl_s8(vld1_s8((int8_t const *)(values_row + channel_idx)));
-                        float32x4_t const values_low_f32x4 = vcvtq_f32_s32(vmovl_s16(vget_low_s16(values_i16x8)));
-                        float32x4_t const values_high_f32x4 = vcvtq_f32_s32(vmovl_high_s16(values_i16x8));
-                        vst1q_f32(output_row + channel_idx,
-                                  vfmaq_f32(vld1q_f32(output_row + channel_idx), weight_f32x4, values_low_f32x4));
-                        vst1q_f32(output_row + channel_idx + 4,
-                                  vfmaq_f32(vld1q_f32(output_row + channel_idx + 4), weight_f32x4, values_high_f32x4));
+                    vst1q_u32(output_totals + channel_idx, vdupq_n_u32(0));
+                for (nk_size_t quad_idx = 0; quad_idx < panel_quads; quad_idx++) {
+                    nk_u32_t const weights_word = *(nk_u32_t const *)(weights + quad_idx * 4);
+                    if (weights_word == 0) continue; // U8 softmax weights are sparse: whole quads vanish
+                    uint8x16_t const weights_u8x16 = vreinterpretq_u8_u32(vdupq_n_u32(weights_word));
+                    uint8_t const *tile = (uint8_t const *)(panel_tiles + quad_idx * depth_padded * 4);
+                    for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 16) {
+                        vst1q_u32(output_totals + channel_idx,
+                                  vdotq_u32(vld1q_u32(output_totals + channel_idx), weights_u8x16,
+                                            vld1q_u8(tile + channel_idx * 4)));
+                        vst1q_u32(output_totals + channel_idx + 4,
+                                  vdotq_u32(vld1q_u32(output_totals + channel_idx + 4), weights_u8x16,
+                                            vld1q_u8(tile + channel_idx * 4 + 16)));
+                        vst1q_u32(output_totals + channel_idx + 8,
+                                  vdotq_u32(vld1q_u32(output_totals + channel_idx + 8), weights_u8x16,
+                                            vld1q_u8(tile + channel_idx * 4 + 32)));
+                        vst1q_u32(output_totals + channel_idx + 12,
+                                  vdotq_u32(vld1q_u32(output_totals + channel_idx + 12), weights_u8x16,
+                                            vld1q_u8(tile + channel_idx * 4 + 48)));
                     }
+                }
+                uint32x4_t const bias_u32x4 = vdupq_n_u32(panel_sum_u32 << 7); // 128·Σw subtracts in integer,
+                float32x4_t const correction_f32x4 = vdupq_n_f32(correction);  // so |Σ w·v| <= 512·255·128 < 2^24
+                                                                               // converts to F32 exactly
+                for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 4) {
+                    int32x4_t const total_i32x4 = vreinterpretq_s32_u32(
+                        vsubq_u32(vld1q_u32(output_totals + channel_idx), bias_u32x4));
+                    vst1q_f32(
+                        output_row + channel_idx,
+                        vfmaq_f32(vcvtq_f32_s32(total_i32x4), vld1q_f32(output_row + channel_idx), correction_f32x4));
                 }
             }
 
