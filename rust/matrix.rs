@@ -3303,6 +3303,7 @@ impl<Scalar: Dots, const MAX_RANK: usize, A: TensorRef<Scalar, MAX_RANK>> DotsPa
 /// therefore be an owned [`Tensor`], a borrowed [`TensorView`], or a
 /// [`TensorSpan`] without materializing an owned copy.
 #[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 pub trait DotsPackedParallelOps<Scalar, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
 where
     Scalar: Dots + Clone + Send + Sync,
@@ -3427,6 +3428,7 @@ where
 }
 
 #[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 impl<Scalar, const MAX_RANK: usize, A> DotsPackedParallelOps<Scalar, MAX_RANK> for A
 where
     Scalar: Dots + Clone + Send + Sync,
@@ -3440,6 +3442,7 @@ where
 /// For a symmetric matrix, cumulative work up to row r is: r*(2n - r + 1)/2
 /// Solving r*(2n - r + 1)/2 = work using quadratic formula gives exact row.
 #[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 #[inline]
 fn compute_thread_rows(thread_index: usize, num_threads: usize, n: usize) -> (usize, usize) {
     let total_work = n * (n + 1) / 2;
@@ -3476,6 +3479,7 @@ fn compute_thread_rows(thread_index: usize, num_threads: usize, n: usize) -> (us
 }
 
 #[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 impl<Scalar: Dots + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX_RANK: usize>
     Tensor<Scalar, Alloc, MAX_RANK>
 where
@@ -3733,6 +3737,7 @@ impl<Scalar: Euclideans, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar,
 
 // Parallel spatial distance implementations
 #[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 impl<Scalar: Angulars + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX_RANK: usize>
     Tensor<Scalar, Alloc, MAX_RANK>
 where
@@ -3876,6 +3881,7 @@ where
 }
 
 #[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 impl<Scalar: Euclideans + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX_RANK: usize>
     Tensor<Scalar, Alloc, MAX_RANK>
 where
@@ -4189,6 +4195,7 @@ impl<Scalar: Jaccards, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, A
 // region: Parallel Hammings/Jaccards
 
 #[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX_RANK: usize>
     Tensor<Scalar, Alloc, MAX_RANK>
 {
@@ -4323,6 +4330,7 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
 }
 
 #[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 impl<Scalar: Jaccards + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX_RANK: usize>
     Tensor<Scalar, Alloc, MAX_RANK>
 where
@@ -5012,6 +5020,7 @@ mod tests {
     }
 
     #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     fn check_dots_packed_parallel<Scalar: TestableType + Dots + Send + Sync>()
     where
         Scalar::Accumulator: PartialEq + core::fmt::Debug + Send + Sync,
@@ -5033,6 +5042,7 @@ mod tests {
     }
 
     #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     fn check_angulars_packed_parallel<Scalar: TestableType + Angulars + Send + Sync>()
     where
         Scalar::SpatialResult: PartialEq + core::fmt::Debug + Send + Sync,
@@ -5054,6 +5064,7 @@ mod tests {
     }
 
     #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     fn check_euclideans_packed_parallel<Scalar: TestableType + Euclideans + Send + Sync>()
     where
         Scalar::SpatialResult: PartialEq + core::fmt::Debug + Send + Sync,
@@ -5081,6 +5092,7 @@ mod tests {
     }
 
     #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     fn check_hammings_packed_parallel_u1() {
         init_thread();
         let mut pool = fork_union::ThreadPool::try_spawn(4).unwrap();
@@ -5120,6 +5132,7 @@ mod tests {
     }
 
     #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     fn check_symmetric_parallel<Scalar: TestableType + Dots + Angulars + Euclideans + Send + Sync>()
     where
         Scalar::Accumulator: Clone + Default + Copy + PartialEq + core::fmt::Debug + Send + Sync + 'static,
@@ -5205,6 +5218,7 @@ mod tests {
     }
 
     #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     fn check_symmetric_parallel_u1() {
         init_thread();
         let mut pool = fork_union::ThreadPool::try_spawn(4).unwrap();
@@ -5388,6 +5402,7 @@ mod tests {
 
     #[test]
     #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     fn packed_parallel() {
         check_dots_packed_parallel::<f32>();
         check_dots_packed_parallel::<bf16>();
@@ -5398,6 +5413,7 @@ mod tests {
 
     #[test]
     #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     fn symmetric_parallel() {
         check_symmetric_parallel::<f32>();
         check_symmetric_parallel_u1();

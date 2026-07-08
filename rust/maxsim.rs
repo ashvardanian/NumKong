@@ -26,7 +26,7 @@
 //! the `nk_maxsim_*` FFI symbols used here. The in-crate tests at the bottom
 //! of this file exercise the same code path.
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use numkong::{MaxSimPackedMatrix, Tensor};
 //!
 //! let queries = Tensor::<f32>::try_full(&[32, 128], 1.0).unwrap();

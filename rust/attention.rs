@@ -20,7 +20,7 @@
 //! `nk_attention_*` FFI symbols. The in-crate tests at the bottom of this file
 //! exercise the same code path.
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use numkong::{bf16, AttentionKeyValueCache, Tensor};
 //!
 //! let tokens = 128;
@@ -837,6 +837,7 @@ impl<Scalar: Attention> AttentionKeyValueCache<Scalar, Global> {
 }
 
 #[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> {
     /// Ragged attention parallelized over the `(segment, head)` task grid with a
     /// `fork_union` thread pool; each worker computes a contiguous task window.

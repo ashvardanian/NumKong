@@ -190,6 +190,7 @@ pub enum TensorError {
 }
 
 #[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 impl std::error::Error for TensorError {}
 
 impl core::fmt::Display for TensorError {
@@ -258,7 +259,7 @@ pub struct MinMaxResult<Value, AnyIndex = usize> {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// // Requires linking against libnumkong C library
 /// use numkong::{Tensor, PackedMatrix};
 ///
@@ -892,7 +893,7 @@ impl<Scalar: StorageElement + Clone, const MAX_RANK: usize> Tensor<Scalar, Globa
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
     /// use numkong::tensor::Tensor;
     ///
     /// let zeros = Tensor::<f32>::try_full(&[2, 3], 0.0).unwrap();
@@ -1867,7 +1868,7 @@ impl<'a, Scalar, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
     /// use numkong::tensor::Tensor;
     ///
     /// let t = Tensor::<f32>::try_from_slice(&[1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
@@ -1924,7 +1925,7 @@ impl<'a, Scalar, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
     /// use numkong::tensor::{Tensor, SliceRange};
     ///
     /// let t = Tensor::<f32>::try_full(&[4, 5], 1.0).unwrap();
@@ -2203,7 +2204,7 @@ impl<'a, Scalar, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
     /// use numkong::tensor::Tensor;
     ///
     /// let mut t = Tensor::<f32>::try_full(&[3], 0.0).unwrap();
@@ -3499,7 +3500,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
     /// use numkong::tensor::Tensor;
     ///
     /// let mut t = Tensor::<f32>::try_full(&[2, 2], 0.0).unwrap();
@@ -3611,7 +3612,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
     /// use numkong::tensor::{Tensor, SliceRange};
     ///
     /// let arr = Tensor::<f32>::try_full(&[4, 5], 1.0).unwrap();
@@ -6524,6 +6525,44 @@ mod tests {
     use crate::reduce::MomentsOps;
     use crate::trigonometry::TrigSinOps;
     use crate::types::{bf16c, f16, f16c, f32c};
+
+    /// Property test: materializing a random slice of a random iota tensor yields exactly the
+    /// source elements its strides address — exercises the stride/offset/slice math on random shapes.
+    #[test]
+    fn prop_slice_materializes_correct_elements() {
+        // Self-contained xorshift64 PRNG — reproducible, no external dependency.
+        let mut state: u64 = 0x00C0_FFEE_1234_5678;
+        let mut below = |n: usize| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state as usize) % n
+        };
+        for _ in 0..256 {
+            let rows = 1 + below(7);
+            let cols = 1 + below(7);
+            let data: Vec<f32> = (0..(rows * cols) as u32).map(|i| i as f32).collect();
+            let t = Tensor::<f32>::try_from_slice(&data, &[rows, cols]).unwrap();
+
+            let r0 = below(rows);
+            let r1 = r0 + 1 + below(rows - r0);
+            let c0 = below(cols);
+            let c1 = c0 + 1 + below(cols - c0);
+
+            let view = t
+                .try_slice(&[SliceRange::range(r0, r1), SliceRange::range(c0, c1)])
+                .unwrap();
+            assert_eq!(view.shape(), [r1 - r0, c1 - c0]);
+
+            let mut expected: Vec<f32> = Vec::new();
+            for r in r0..r1 {
+                for c in c0..c1 {
+                    expected.push(data[r * cols + c]);
+                }
+            }
+            assert_eq!(view.try_to_owned().unwrap().as_slice(), expected.as_slice());
+        }
+    }
 
     #[test]
     fn tensor_creation_from_factories() {

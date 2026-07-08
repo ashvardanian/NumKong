@@ -104,6 +104,10 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::too_many_arguments)]
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
+// docs.rs builds with `--cfg docsrs` (see Cargo.toml); this enables the "Available on feature …"
+// badges on feature-gated items. It's a nightly-only feature, gated behind `docsrs` so stable
+// builds ignore it.
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 // Domain modules
 pub mod attention;
@@ -182,6 +186,7 @@ pub use tensor::{
 
 // Re-export matrix types
 #[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 pub use matrix::DotsPackedParallelOps;
 pub use matrix::{
     Angulars, Dots, DotsPackedOps, Euclideans, Hammings, Jaccards, PackedMatrix, SymmetricAngulars, SymmetricDots,
@@ -209,6 +214,7 @@ pub mod prelude {
     };
 
     #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     pub use crate::DotsPackedParallelOps;
 }
 
@@ -317,6 +323,7 @@ mod tests {
     }
 
     #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     #[test]
     fn attention_parallel_matches_serial() {
         capabilities::configure_thread();

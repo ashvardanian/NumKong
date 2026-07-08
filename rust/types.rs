@@ -217,16 +217,19 @@ impl f16 {
 
     /// Returns ⌊self⌋. Requires `std`.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn floor(self) -> Self { Self::from_f32(self.to_f32().floor()) }
 
     /// Returns ⌈self⌉. Requires `std`.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn ceil(self) -> Self { Self::from_f32(self.to_f32().ceil()) }
 
     /// Rounds to the nearest integer; half-way cases go away from zero. Requires `std`.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn round(self) -> Self { Self::from_f32(self.to_f32().round()) }
 }
@@ -375,6 +378,7 @@ impl bf16 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn floor(self) -> Self { Self::from_f32(self.to_f32().floor()) }
 
@@ -382,6 +386,7 @@ impl bf16 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn ceil(self) -> Self { Self::from_f32(self.to_f32().ceil()) }
 
@@ -389,6 +394,7 @@ impl bf16 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn round(self) -> Self { Self::from_f32(self.to_f32().round()) }
 }
@@ -533,6 +539,7 @@ impl e4m3 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn floor(self) -> Self { Self::from_f32(self.to_f32().floor()) }
 
@@ -540,6 +547,7 @@ impl e4m3 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn ceil(self) -> Self { Self::from_f32(self.to_f32().ceil()) }
 
@@ -547,6 +555,7 @@ impl e4m3 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn round(self) -> Self { Self::from_f32(self.to_f32().round()) }
 }
@@ -705,6 +714,7 @@ impl e5m2 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn floor(self) -> Self { Self::from_f32(self.to_f32().floor()) }
 
@@ -712,6 +722,7 @@ impl e5m2 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn ceil(self) -> Self { Self::from_f32(self.to_f32().ceil()) }
 
@@ -719,6 +730,7 @@ impl e5m2 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn round(self) -> Self { Self::from_f32(self.to_f32().round()) }
 }
@@ -872,6 +884,7 @@ impl e2m3 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn floor(self) -> Self { Self::from_f32(self.to_f32().floor()) }
 
@@ -879,6 +892,7 @@ impl e2m3 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn ceil(self) -> Self { Self::from_f32(self.to_f32().ceil()) }
 
@@ -886,6 +900,7 @@ impl e2m3 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn round(self) -> Self { Self::from_f32(self.to_f32().round()) }
 }
@@ -1043,6 +1058,7 @@ impl e3m2 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn floor(self) -> Self { Self::from_f32(self.to_f32().floor()) }
 
@@ -1050,6 +1066,7 @@ impl e3m2 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn ceil(self) -> Self { Self::from_f32(self.to_f32().ceil()) }
 
@@ -1057,6 +1074,7 @@ impl e3m2 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn round(self) -> Self { Self::from_f32(self.to_f32().round()) }
 }
