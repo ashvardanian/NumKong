@@ -105,6 +105,9 @@ void test_cross_sme() {
     check("euclideans_symmetric_u8_sme", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_sme);
     check("euclideans_symmetric_i4_sme", test_euclideans_symmetric<i4x2_t>, nk_euclideans_symmetric_i4_sme);
     check("euclideans_symmetric_u4_sme", test_euclideans_symmetric<u4x2_t>, nk_euclideans_symmetric_u4_sme);
+
+    check("attention_packed_bf16_sme", test_attention_packed<bf16_t>, nk_attention_packed_size_bf16_sme,
+          nk_attention_pack_bf16_sme, nk_attention_packed_bf16_sme);
 #endif
 
 #if NK_TARGET_SMEBI32
