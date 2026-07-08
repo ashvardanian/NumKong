@@ -7,9 +7,11 @@
 //! - [`CastOps`]: Tensor-shaped extension trait — auto-implemented on every
 //!   [`crate::tensor::TensorRef`] so any container can do `tensor.try_cast::<Destination>()`
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 use core::ffi::c_void;
 
@@ -200,7 +202,7 @@ pub fn cast<S: CastDtype, D: CastDtype>(source: &[S], dest: &mut [D]) -> Option<
 
 // region: Tensor-shaped cast
 
-use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef};
+use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef, DEFAULT_MAX_RANK};
 
 /// Extension trait: type casting for any [`TensorRef`] implementor.
 pub trait CastOps<Source: Clone + CastDtype, const MAX_RANK: usize>: TensorRef<Source, MAX_RANK> {
@@ -484,7 +486,7 @@ impl BlockScaledFormat for Mxint8 {
 /// Validate a block-scaled shape and return the per-block scales shape: the input shape with its
 /// last extent divided by `block_size`. Quantization runs along the last axis, which must split
 /// evenly into blocks; any rank with at least one axis is accepted.
-fn blocked_scales_shape(shape: &[usize], block_size: usize) -> Result<Vec<usize>, TensorError> {
+fn blocked_scales_shape_into(shape: &[usize], block_size: usize, out: &mut [usize]) -> Result<usize, TensorError> {
     let Some((&last_extent, leading)) = shape.split_last() else {
         return Err(TensorError::DimensionMismatch { expected: 1, got: 0 });
     };
@@ -495,9 +497,9 @@ fn blocked_scales_shape(shape: &[usize], block_size: usize) -> Result<Vec<usize>
             reason: "last axis must be divisible by the format block size",
         });
     }
-    let mut scales = shape.to_vec();
-    *scales.last_mut().expect("shape has a last axis") = last_extent / block_size;
-    Ok(scales)
+    out[..shape.len()].copy_from_slice(shape);
+    out[shape.len() - 1] = last_extent / block_size;
+    Ok(shape.len())
 }
 
 /// The one place the block-scaled C kernel is called. Marshals the per-tensor scale — seeded from
@@ -559,7 +561,9 @@ fn block_scaled_cast_(
 pub trait DenseToScaledOps<const MAX_RANK: usize>: TensorRef<f32, MAX_RANK> {
     fn try_cast_to_scaled<F: BlockScaledFormat>(&self) -> Result<ScaledTensor<F>, TensorError> {
         let shape = self.shape();
-        let scales_shape = blocked_scales_shape(shape, F::BLOCK_SIZE)?;
+        let mut scales_buf = [0usize; DEFAULT_MAX_RANK];
+        let scales_ndim = blocked_scales_shape_into(shape, F::BLOCK_SIZE, &mut scales_buf)?;
+        let scales_shape = &scales_buf[..scales_ndim];
         let count: usize = shape.iter().product();
         let view = self.view();
         let source = view.as_packed_slice().ok_or(TensorError::NonContiguousRows)?;
@@ -613,7 +617,9 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
     /// Transcode this block-scaled view into a different block-scaled format.
     pub fn try_cast_to_scaled<G: BlockScaledFormat>(&self) -> Result<ScaledTensor<G>, TensorError> {
         let shape = self.shape();
-        let scales_shape = blocked_scales_shape(shape, G::BLOCK_SIZE)?;
+        let mut scales_buf = [0usize; DEFAULT_MAX_RANK];
+        let scales_ndim = blocked_scales_shape_into(shape, G::BLOCK_SIZE, &mut scales_buf)?;
+        let scales_shape = &scales_buf[..scales_ndim];
         let count: usize = shape.iter().product();
 
         let src_elements_view = self.elements();

@@ -39,9 +39,10 @@ opt-level = 3 # Corresponds to -O3
 rpath = false # On some systems, setting this to false can help with optimizations
 
 [features]
-default = []
+default = ["alloc"]
+alloc = []
 parallel = ["dep:fork_union", "std"]
-std = []
+std = ["alloc"]
 wasm-runtime = []
 
 [dependencies]

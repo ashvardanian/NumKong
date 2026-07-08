@@ -33,6 +33,7 @@
 //! let outputs = kv.try_attention(&keys.view(), &offsets, None).unwrap();
 //! ```
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 use core::marker::PhantomData;
@@ -331,7 +332,7 @@ impl<Scalar: Attention, Alloc: Allocator> Drop for AttentionPackedKV<Scalar, All
     fn drop(&mut self) {
         if self.size > 0 {
             unsafe {
-                let layout = alloc::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
+                let layout = core::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
                 self.alloc.deallocate(self.data, layout);
             }
         }
@@ -344,7 +345,7 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedKV<Scalar, Allo
         let data = if self.size == 0 {
             NonNull::dangling()
         } else {
-            let layout = alloc::alloc::Layout::from_size_align(self.size, SIMD_ALIGNMENT)
+            let layout = core::alloc::Layout::from_size_align(self.size, SIMD_ALIGNMENT)
                 .map_err(|_| TensorError::AllocationFailed)?;
             let ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
             unsafe { core::ptr::copy_nonoverlapping(self.data.as_ptr(), ptr.as_ptr(), self.size) };
@@ -457,6 +458,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedKV<Scalar, Alloc> {
         }
         let segment_count = validate_offsets(segment_offsets, k_tokens)?;
 
+        #[cfg(feature = "alloc")]
         let mut lengths_storage;
         let segment_lengths = match segment_lengths {
             Some(lengths) => {
@@ -468,6 +470,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedKV<Scalar, Alloc> {
                 }
                 lengths
             }
+            #[cfg(feature = "alloc")]
             None => {
                 lengths_storage = alloc::vec::Vec::with_capacity(segment_count);
                 for pair in segment_offsets.windows(2) {
@@ -475,13 +478,21 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedKV<Scalar, Alloc> {
                 }
                 &lengths_storage[..]
             }
+            #[cfg(not(feature = "alloc"))]
+            None => {
+                return Err(TensorError::InvalidShape {
+                    axis: 0,
+                    size: 0,
+                    reason: "segment_lengths must be supplied without the `alloc` feature",
+                })
+            }
         };
 
         let size = Scalar::attention_packed_size(num_kv_heads, head_dim, segment_lengths, segment_count);
         let data = if size == 0 {
             NonNull::dangling()
         } else {
-            let layout = alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
+            let layout = core::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
                 .map_err(|_| TensorError::AllocationFailed)?;
             alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?
         };

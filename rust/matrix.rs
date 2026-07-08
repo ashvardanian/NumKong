@@ -33,6 +33,7 @@
 //! let angles = queries.angulars_packed(&corpus_packed);   // f32 × f32 → f32
 //! ```
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 use core::marker::PhantomData;
@@ -2836,7 +2837,7 @@ impl<Scalar: Dots, Alloc: Allocator> Drop for PackedMatrix<Scalar, Alloc> {
     fn drop(&mut self) {
         if self.size > 0 {
             unsafe {
-                let layout = alloc::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
+                let layout = core::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
                 self.alloc.deallocate(self.data, layout);
             }
         }
@@ -2857,7 +2858,7 @@ impl<Scalar: Dots, Alloc: Allocator + Clone> PackedMatrix<Scalar, Alloc> {
             });
         }
 
-        let layout = alloc::alloc::Layout::from_size_align(self.size, SIMD_ALIGNMENT)
+        let layout = core::alloc::Layout::from_size_align(self.size, SIMD_ALIGNMENT)
             .map_err(|_| TensorError::AllocationFailed)?;
         let ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         unsafe {
@@ -2910,7 +2911,7 @@ impl<Scalar: Dots, Alloc: Allocator> PackedMatrix<Scalar, Alloc> {
             NonNull::dangling()
         } else {
             // Allocate with SIMD alignment
-            let layout = alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
+            let layout = core::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
                 .map_err(|_| TensorError::AllocationFailed)?;
             let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
             // Zero the memory

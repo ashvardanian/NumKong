@@ -37,6 +37,7 @@
 //! let score = queries_packed.score(&docs_packed);
 //! ```
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 use core::marker::PhantomData;
@@ -217,7 +218,7 @@ impl<Scalar: MaxSim, Alloc: Allocator> Drop for MaxSimPackedMatrix<Scalar, Alloc
     fn drop(&mut self) {
         if self.size > 0 {
             unsafe {
-                let layout = alloc::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
+                let layout = core::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
                 self.alloc.deallocate(self.data, layout);
             }
         }
@@ -238,7 +239,7 @@ impl<Scalar: MaxSim, Alloc: Allocator + Clone> MaxSimPackedMatrix<Scalar, Alloc>
             });
         }
 
-        let layout = alloc::alloc::Layout::from_size_align(self.size, SIMD_ALIGNMENT)
+        let layout = core::alloc::Layout::from_size_align(self.size, SIMD_ALIGNMENT)
             .map_err(|_| TensorError::AllocationFailed)?;
         let ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         unsafe {
@@ -274,7 +275,7 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
         let data = if size == 0 {
             NonNull::dangling()
         } else {
-            let layout = alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
+            let layout = core::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
                 .map_err(|_| TensorError::AllocationFailed)?;
             let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
             unsafe {

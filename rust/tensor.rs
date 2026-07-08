@@ -56,8 +56,10 @@
 //! iterator APIs that yield [`crate::types::DimRef`] / [`crate::types::DimMut`]
 //! proxies.
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 use core::ops::{Index, IndexMut};
@@ -101,7 +103,7 @@ pub unsafe trait Allocator {
     /// fulfil the request — typical causes are out-of-memory conditions or
     /// an alignment the backing allocator cannot provide. Callers must
     /// propagate this `None` as [`TensorError::AllocationFailed`].
-    fn allocate(&self, layout: alloc::alloc::Layout) -> Option<NonNull<u8>>;
+    fn allocate(&self, layout: core::alloc::Layout) -> Option<NonNull<u8>>;
 
     /// Deallocates memory previously allocated with `allocate`.
     ///
@@ -114,7 +116,7 @@ pub unsafe trait Allocator {
     ///   size and same alignment.
     /// - The memory must not be accessed after deallocation.
     /// - `ptr` must not be deallocated twice.
-    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: alloc::alloc::Layout);
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: core::alloc::Layout);
 }
 
 /// Global allocator using the system allocator.
@@ -123,21 +125,35 @@ pub struct Global;
 
 unsafe impl Allocator for Global {
     #[inline]
-    fn allocate(&self, layout: alloc::alloc::Layout) -> Option<NonNull<u8>> {
+    fn allocate(&self, layout: core::alloc::Layout) -> Option<NonNull<u8>> {
         if layout.size() == 0 {
             return Some(NonNull::dangling());
         }
-        unsafe {
-            let ptr = alloc::alloc::alloc(layout);
-            NonNull::new(ptr)
+        // The global heap is only reachable with the `alloc` crate; without it, `Global`
+        // exists but cannot allocate (bring a custom `Allocator`, or use the borrowed/`_into` API).
+        #[cfg(feature = "alloc")]
+        {
+            unsafe {
+                let ptr = alloc::alloc::alloc(layout);
+                NonNull::new(ptr)
+            }
+        }
+        #[cfg(not(feature = "alloc"))]
+        {
+            None
         }
     }
 
     #[inline]
-    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: alloc::alloc::Layout) {
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: core::alloc::Layout) {
+        #[cfg(feature = "alloc")]
         if layout.size() > 0 {
-            alloc::alloc::dealloc(ptr.as_ptr(), layout);
+            unsafe {
+                alloc::alloc::dealloc(ptr.as_ptr(), layout);
+            }
         }
+        #[cfg(not(feature = "alloc"))]
+        let _ = (ptr, layout);
     }
 }
 
@@ -293,7 +309,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Drop for T
                 if live_count > 0 {
                     core::ptr::drop_in_place(core::ptr::slice_from_raw_parts_mut(self.data.as_ptr(), live_count));
                 }
-                let layout = alloc::alloc::Layout::from_size_align(
+                let layout = core::alloc::Layout::from_size_align(
                     self.capacity * core::mem::size_of::<Scalar>(),
                     SIMD_ALIGNMENT,
                 )
@@ -363,7 +379,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             NonNull::dangling()
         } else {
             let layout =
-                alloc::alloc::Layout::from_size_align(storage_count * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
+                core::alloc::Layout::from_size_align(storage_count * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
                     .map_err(|_| TensorError::AllocationFailed)?;
             let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
             // Initialize all storage elements
@@ -452,7 +468,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             NonNull::dangling()
         } else {
             let layout =
-                alloc::alloc::Layout::from_size_align(storage_count * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
+                core::alloc::Layout::from_size_align(storage_count * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
                     .map_err(|_| TensorError::AllocationFailed)?;
             let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
             unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) }
@@ -510,11 +526,9 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         let ptr = if expected_storage == 0 {
             NonNull::dangling()
         } else {
-            let layout = alloc::alloc::Layout::from_size_align(
-                expected_storage * core::mem::size_of::<Scalar>(),
-                SIMD_ALIGNMENT,
-            )
-            .map_err(|_| TensorError::AllocationFailed)?;
+            let layout =
+                core::alloc::Layout::from_size_align(expected_storage * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
+                    .map_err(|_| TensorError::AllocationFailed)?;
             let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
             // Clone all storage elements
             unsafe {
@@ -772,7 +786,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         }
         let size = needed * core::mem::size_of::<Scalar>();
         let layout =
-            alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
+            core::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
         let new_ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         let live = self.numel() / Scalar::dimensions_per_value();
         if live > 0 {
@@ -787,7 +801,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         }
         if self.capacity > 0 {
             let old_layout =
-                alloc::alloc::Layout::from_size_align(self.capacity * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
+                core::alloc::Layout::from_size_align(self.capacity * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
                     .unwrap();
             // SAFETY: `self.data` was allocated with `old_layout` (capacity slots).
             unsafe {
@@ -4517,18 +4531,22 @@ fn slice_leading_layout_<AnyIndex: VectorIndex, const MAX_RANK: usize>(
     Ok((new_shape, new_strides, new_ndim, offset, new_len))
 }
 
-fn reduced_shape(shape: &[usize], axis: usize, keep_dims: bool) -> Vec<usize> {
-    let mut result = Vec::with_capacity(if keep_dims { shape.len() } else { shape.len() - 1 });
+/// Write the axis-reduced shape into `out` (a stack buffer — the rank is bounded by `MAX_RANK`)
+/// and return its length. Heap-free, so it needs no `alloc`.
+fn reduced_shape_into(shape: &[usize], axis: usize, keep_dims: bool, out: &mut [usize]) -> usize {
+    let mut ndim = 0;
     for (dim_index, &dim_size) in shape.iter().enumerate() {
         if dim_index == axis {
             if keep_dims {
-                result.push(1);
+                out[ndim] = 1;
+                ndim += 1;
             }
         } else {
-            result.push(dim_size);
+            out[ndim] = dim_size;
+            ndim += 1;
         }
     }
-    result
+    ndim
 }
 
 fn shared_contiguous_tail_2(
@@ -5950,7 +5968,9 @@ where
         keep_dims: bool,
     ) -> MomentsAxisResult<Scalar, MAX_RANK> {
         let axis = normalize_axis(axis, self.ndim)?;
-        let output_shape = reduced_shape(self.shape(), axis, keep_dims);
+        let mut shape_buf = [0usize; MAX_RANK];
+        let reduced_ndim = reduced_shape_into(self.shape(), axis, keep_dims, &mut shape_buf);
+        let output_shape = &shape_buf[..reduced_ndim];
         let mut sums =
             Tensor::<Scalar::SumOutput, Global, MAX_RANK>::try_full(&output_shape, Scalar::SumOutput::default())?;
         let mut sumsqs =
@@ -5972,7 +5992,9 @@ where
         SumSqTensor: TensorMut<Scalar::SumSqOutput, MAX_RANK> + ?Sized,
     {
         let axis = normalize_axis(axis, self.ndim)?;
-        let expected_shape = reduced_shape(self.shape(), axis, keep_dims);
+        let mut shape_buf = [0usize; MAX_RANK];
+        let reduced_ndim = reduced_shape_into(self.shape(), axis, keep_dims, &mut shape_buf);
+        let expected_shape = &shape_buf[..reduced_ndim];
         validate_same_shape(&expected_shape, sum_out.shape())?;
         validate_same_shape(&expected_shape, sumsq_out.shape())?;
 
@@ -6023,7 +6045,9 @@ where
         SumTensor: TensorMut<Scalar::SumOutput, MAX_RANK> + ?Sized,
     {
         let axis = normalize_axis(axis, self.ndim)?;
-        let expected_shape = reduced_shape(self.shape(), axis, keep_dims);
+        let mut shape_buf = [0usize; MAX_RANK];
+        let reduced_ndim = reduced_shape_into(self.shape(), axis, keep_dims, &mut shape_buf);
+        let expected_shape = &shape_buf[..reduced_ndim];
         validate_same_shape(&expected_shape, out.shape())?;
         let mut scratch =
             Tensor::<Scalar::SumSqOutput, Global, MAX_RANK>::try_full(&expected_shape, Scalar::SumSqOutput::default())?;
@@ -6059,7 +6083,9 @@ where
         NormTensor: TensorMut<f64, MAX_RANK> + ?Sized,
     {
         let axis = normalize_axis(axis, self.ndim)?;
-        let expected_shape = reduced_shape(self.shape(), axis, keep_dims);
+        let mut shape_buf = [0usize; MAX_RANK];
+        let reduced_ndim = reduced_shape_into(self.shape(), axis, keep_dims, &mut shape_buf);
+        let expected_shape = &shape_buf[..reduced_ndim];
         validate_same_shape(&expected_shape, out.shape())?;
         let mut scratch_sum =
             Tensor::<Scalar::SumOutput, Global, MAX_RANK>::try_full(&expected_shape, Scalar::SumOutput::default())?;
@@ -6108,7 +6134,9 @@ where
         keep_dims: bool,
     ) -> MinMaxAxisResult<Scalar, MAX_RANK> {
         let axis = normalize_axis(axis, self.ndim)?;
-        let output_shape = reduced_shape(self.shape(), axis, keep_dims);
+        let mut shape_buf = [0usize; MAX_RANK];
+        let reduced_ndim = reduced_shape_into(self.shape(), axis, keep_dims, &mut shape_buf);
+        let output_shape = &shape_buf[..reduced_ndim];
         let mut min_values =
             Tensor::<Scalar::Output, Global, MAX_RANK>::try_full(&output_shape, Scalar::Output::default())?;
         let mut min_indices = Tensor::<usize, Global, MAX_RANK>::try_full(&output_shape, 0)?;
@@ -6146,7 +6174,9 @@ where
         IndexTensor: TensorMut<usize, MAX_RANK> + ?Sized,
     {
         let axis = normalize_axis(axis, self.ndim)?;
-        let expected_shape = reduced_shape(self.shape(), axis, keep_dims);
+        let mut shape_buf = [0usize; MAX_RANK];
+        let reduced_ndim = reduced_shape_into(self.shape(), axis, keep_dims, &mut shape_buf);
+        let expected_shape = &shape_buf[..reduced_ndim];
         validate_same_shape(&expected_shape, min_out.shape())?;
         validate_same_shape(&expected_shape, argmin_out.shape())?;
         validate_same_shape(&expected_shape, max_out.shape())?;
@@ -6339,7 +6369,7 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
     pub fn capacity(&self) -> usize { self.elements.capacity() }
 
     /// Derive the paired scales shape for an element `shape` (last axis counted in blocks).
-    fn scales_shape_for(shape: &[usize]) -> Result<Vec<usize>, TensorError> {
+    fn scales_shape_into(shape: &[usize], out: &mut [usize]) -> Result<usize, TensorError> {
         let (&last, leading) = shape
             .split_last()
             .ok_or(TensorError::DimensionMismatch { expected: 1, got: 0 })?;
@@ -6350,9 +6380,9 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
                 reason: "last axis must be divisible by the format block size",
             });
         }
-        let mut scales = shape.to_vec();
-        *scales.last_mut().expect("shape has a last axis") = last / F::BLOCK_SIZE;
-        Ok(scales)
+        out[..shape.len()].copy_from_slice(shape);
+        out[shape.len() - 1] = last / F::BLOCK_SIZE;
+        Ok(shape.len())
     }
 
     /// Resize the packed elements and the per-block scales in lockstep, without moving either buffer.
@@ -6360,7 +6390,9 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
     /// Atomic: fails leaving both children unchanged if EITHER would exceed its capacity — call
     /// [`try_reserve`](Self::try_reserve) first to grow.
     pub fn try_resize(&mut self, new_shape: &[usize]) -> Result<(), TensorError> {
-        let scales_shape = Self::scales_shape_for(new_shape)?;
+        let mut scales_buf = [0usize; DEFAULT_MAX_RANK];
+        let scales_ndim = Self::scales_shape_into(new_shape, &mut scales_buf)?;
+        let scales_shape = &scales_buf[..scales_ndim];
         // Pre-validate both capacities so neither child is mutated on failure.
         let elem_storage = Tensor::<F::Element, A>::shape_storage_count(new_shape)?;
         if elem_storage > self.elements.capacity() {
@@ -6388,7 +6420,9 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
     /// Grow both children's capacity to hold `new_shape` (and its paired scales), reallocating if
     /// needed. May move storage. A no-op when already large enough.
     pub fn try_reserve(&mut self, new_shape: &[usize]) -> Result<(), TensorError> {
-        let scales_shape = Self::scales_shape_for(new_shape)?;
+        let mut scales_buf = [0usize; DEFAULT_MAX_RANK];
+        let scales_ndim = Self::scales_shape_into(new_shape, &mut scales_buf)?;
+        let scales_shape = &scales_buf[..scales_ndim];
         self.elements.try_reserve(new_shape)?;
         self.block_scales.try_reserve(&scales_shape)?;
         Ok(())
@@ -6437,11 +6471,11 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
         }
         // Slice the leading axis; keep every trailing axis (incl. the quantized last axis) intact.
         let ndim = self.elements.ndim();
-        let mut spec = Vec::with_capacity(ndim);
-        spec.push(SliceRange::range(start, end));
-        spec.extend(core::iter::repeat(SliceRange::full()).take(ndim.saturating_sub(1)));
-        let elements = self.elements.try_slice(spec.as_slice())?;
-        let block_scales = self.block_scales.try_slice(spec.as_slice())?;
+        let mut spec = [SliceRange::Full; DEFAULT_MAX_RANK];
+        spec[0] = SliceRange::range(start, end);
+        // Trailing axes stay `SliceRange::Full` from the initializer.
+        let elements = self.elements.try_slice(&spec[..ndim])?;
+        let block_scales = self.block_scales.try_slice(&spec[..ndim])?;
         Ok(ScaledTensorView {
             elements,
             block_scales,
