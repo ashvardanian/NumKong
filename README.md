@@ -93,6 +93,7 @@ NumKong covers 17 numeric types — from 6-bit floats to 64-bit complex numbers 
 | "[Spatials]" Metrics        |         ●          |      ●       |     ●      |        ●         |       ●        |      ●       |
 | "[Sets]" Similarities       |         ●          |      ●       |     ●      |        ·         |       ●        |      ●       |
 | [MaxSim] Scoring            |         ●          |      ●       |     ●      |        ·         |       ●        |      ●       |
+| [Attention] SDPA            |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
 | __Scalar Ops__              |                    |              |            |                  |                |              |
 | [Cast]                      |         ●          |      ●       |     ●      |        ●         |       ·        |      ·       |
 | [Reduce]                    |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
@@ -109,6 +110,7 @@ NumKong covers 17 numeric types — from 6-bit floats to 64-bit complex numbers 
 [Reduce]: include/numkong/reduce/README.md
 [Trigonometry]: include/numkong/trigonometry/README.md
 [MaxSim]: include/numkong/maxsim/README.md
+[Attention]: include/numkong/attention/README.md
 [Mesh]: include/numkong/mesh/README.md
 [Each]: include/numkong/each/README.md
 [Sparse]: include/numkong/sparse/README.md
