@@ -92,12 +92,10 @@ NK_INTERNAL svuint16_t nk_attention_bf16_pair_sme_(svfloat32_t even_f32x, svfloa
     svbool_t const predicate_all_b32x = svptrue_b32();
     svuint32_t even_u32x = svreinterpret_u32_f32(even_f32x);
     svuint32_t odd_u32x = svreinterpret_u32_f32(odd_f32x);
-    // Round to nearest even: add 0x7FFF plus the lowest surviving mantissa bit; weights are
-    // positive finite, so no NaN patching is needed.
-    even_u32x = svadd_u32_x(predicate_all_b32x, svadd_n_u32_x(predicate_all_b32x, even_u32x, 0x7FFF),
-                            svand_n_u32_x(predicate_all_b32x, svlsr_n_u32_x(predicate_all_b32x, even_u32x, 16), 1));
-    odd_u32x = svadd_u32_x(predicate_all_b32x, svadd_n_u32_x(predicate_all_b32x, odd_u32x, 0x7FFF),
-                           svand_n_u32_x(predicate_all_b32x, svlsr_n_u32_x(predicate_all_b32x, odd_u32x, 16), 1));
+    // Round half up: the weights are positive finite and already carry ~1e-3 polynomial
+    // error, so the sub-ULP tie direction of round-to-nearest-even buys nothing here.
+    even_u32x = svadd_n_u32_x(predicate_all_b32x, even_u32x, 0x8000);
+    odd_u32x = svadd_n_u32_x(predicate_all_b32x, odd_u32x, 0x8000);
     return svtrn2_u16(svreinterpret_u16_u32(even_u32x), svreinterpret_u16_u32(odd_u32x));
 }
 
@@ -1054,6 +1052,8 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                                                    : panel_width;
                 nk_size_t const panel_quads = (panel_length + 3) / 4;
 
+                svint32_t panel_max_low_i32x = svdup_s32(-2147483647 - 1);
+                svint32_t panel_max_high_i32x = svdup_s32(-2147483647 - 1);
                 // Stage 2: 2×2 SMOPA scores over depth quads, exact in I32, drained
                 // position-major as F32 with one query per lane.
                 for (nk_size_t chunk_start = 0; chunk_start < panel_length; chunk_start += block_rows_capacity) {
@@ -1077,34 +1077,45 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                     }
                     nk_i32_t *chunk_scores = scores_panel + chunk_start * block_rows_capacity;
                     for (nk_size_t slice_idx = 0; slice_idx < tile_dimension; slice_idx++) {
-                        svst1_ver_za32(0, (uint32_t)slice_idx, predicate_all_b32x,
-                                       chunk_scores + slice_idx * block_rows_capacity);
-                        svst1_ver_za32(2, (uint32_t)slice_idx, predicate_all_b32x,
-                                       chunk_scores + slice_idx * block_rows_capacity + tile_dimension);
-                        svst1_ver_za32(1, (uint32_t)slice_idx, predicate_all_b32x,
-                                       chunk_scores + (tile_dimension + slice_idx) * block_rows_capacity);
-                        svst1_ver_za32(
-                            3, (uint32_t)slice_idx, predicate_all_b32x,
-                            chunk_scores + (tile_dimension + slice_idx) * block_rows_capacity + tile_dimension);
+                        svint32_t const column0_low_i32x = svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x, 0,
+                                                                                 (uint32_t)slice_idx);
+                        svint32_t const column0_high_i32x = svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x, 2,
+                                                                                  (uint32_t)slice_idx);
+                        svint32_t const column1_low_i32x = svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x, 1,
+                                                                                 (uint32_t)slice_idx);
+                        svint32_t const column1_high_i32x = svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x, 3,
+                                                                                  (uint32_t)slice_idx);
+                        // Unlike the B16 core, only valid positions may raise the maximum: a padded
+                        // zero score above every real one would quantize all U8 weights to zero and
+                        // break the weight-sum-never-zero invariant.
+                        if (chunk_start + slice_idx < panel_length) {
+                            panel_max_low_i32x = svmax_s32_x(predicate_all_b32x, panel_max_low_i32x, column0_low_i32x);
+                            panel_max_high_i32x = svmax_s32_x(predicate_all_b32x, panel_max_high_i32x,
+                                                              column0_high_i32x);
+                        }
+                        if (chunk_start + tile_dimension + slice_idx < panel_length) {
+                            panel_max_low_i32x = svmax_s32_x(predicate_all_b32x, panel_max_low_i32x, column1_low_i32x);
+                            panel_max_high_i32x = svmax_s32_x(predicate_all_b32x, panel_max_high_i32x,
+                                                              column1_high_i32x);
+                        }
+                        svst1_s32(predicate_all_b32x, (int32_t *)(chunk_scores + slice_idx * block_rows_capacity),
+                                  column0_low_i32x);
+                        svst1_s32(predicate_all_b32x,
+                                  (int32_t *)(chunk_scores + slice_idx * block_rows_capacity + tile_dimension),
+                                  column0_high_i32x);
+                        svst1_s32(predicate_all_b32x,
+                                  (int32_t *)(chunk_scores + (tile_dimension + slice_idx) * block_rows_capacity),
+                                  column1_low_i32x);
+                        svst1_s32(predicate_all_b32x,
+                                  (int32_t *)(chunk_scores + (tile_dimension + slice_idx) * block_rows_capacity +
+                                              tile_dimension),
+                                  column1_high_i32x);
                     }
                 }
 
-                svint32_t panel_max_low_i32x = svdup_s32(-2147483647 - 1);
-                svint32_t panel_max_high_i32x = svdup_s32(-2147483647 - 1);
                 // Stage 3: lane-parallel integer softmax; scores, maxima, and the exponential
                 // all stay in integer arithmetic, and the maximum position lands on exactly
                 // 255, so the weight sum can never be zero.
-                for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
-                    panel_max_low_i32x = svmax_s32_x(
-                        predicate_all_b32x, panel_max_low_i32x,
-                        svld1_s32(predicate_all_b32x,
-                                  (int32_t const *)(scores_panel + position_idx * block_rows_capacity)));
-                    panel_max_high_i32x = svmax_s32_x(
-                        predicate_all_b32x, panel_max_high_i32x,
-                        svld1_s32(
-                            predicate_all_b32x,
-                            (int32_t const *)(scores_panel + position_idx * block_rows_capacity + tile_dimension)));
-                }
                 svint32_t const new_max_low_i32x = svmax_s32_x(predicate_all_b32x, running_max_low_i32x,
                                                                panel_max_low_i32x);
                 svint32_t const new_max_high_i32x = svmax_s32_x(predicate_all_b32x, running_max_high_i32x,

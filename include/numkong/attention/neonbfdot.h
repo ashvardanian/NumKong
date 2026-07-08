@@ -188,6 +188,8 @@ NK_PUBLIC void nk_attention_packed_bf16_neonbfdot(                              
                                                    : (position_count - panel_start);
 
                 nk_size_t position_idx = 0;
+                float32x4_t const scale2_f32x4 = vdupq_n_f32(scale2); // folded into the score store
+                float32x4_t max_f32x4 = vdupq_n_f32(NK_F32_MIN);
                 // Score sweep: four KV rows in flight so each query-vector load feeds four BFDOTs.
                 for (; position_idx + 4 <= panel_length; position_idx += 4) {
                     char const *keys_row0 = keys_plane + (panel_start + position_idx + 0) * plane_row_bytes;
@@ -212,11 +214,13 @@ NK_PUBLIC void nk_attention_packed_bf16_neonbfdot(                              
                             sum3_f32x4, query_bf16x8,
                             vreinterpretq_bf16_u16(vld1q_u16((nk_u16_t const *)(keys_row3 + chunk_bytes))));
                     }
-                    scores[position_idx + 0] = vaddvq_f32(sum0_f32x4);
-                    scores[position_idx + 1] = vaddvq_f32(sum1_f32x4);
-                    scores[position_idx + 2] = vaddvq_f32(sum2_f32x4);
-                    scores[position_idx + 3] = vaddvq_f32(sum3_f32x4);
+                    float32x4_t const sums_f32x4 = vpaddq_f32(vpaddq_f32(sum0_f32x4, sum1_f32x4),
+                                                              vpaddq_f32(sum2_f32x4, sum3_f32x4));
+                    float32x4_t const scores2_f32x4 = vmulq_f32(sums_f32x4, scale2_f32x4);
+                    max_f32x4 = vmaxq_f32(max_f32x4, scores2_f32x4);
+                    vst1q_f32(scores + position_idx, scores2_f32x4);
                 }
+                nk_f32_t panel_max2 = vmaxvq_f32(max_f32x4);
                 for (; position_idx < panel_length; position_idx++) {
                     char const *keys_row = keys_plane + (panel_start + position_idx) * plane_row_bytes;
                     float32x4_t sum_f32x4 = vdupq_n_f32(0.0f);
@@ -224,18 +228,10 @@ NK_PUBLIC void nk_attention_packed_bf16_neonbfdot(                              
                         sum_f32x4 = vbfdotq_f32(sum_f32x4, vreinterpretq_bf16_u16(vld1q_u16(query_row + channel_idx)),
                                                 vreinterpretq_bf16_u16(vld1q_u16(
                                                     (nk_u16_t const *)(keys_row + channel_idx * sizeof(nk_bf16_t)))));
-                    scores[position_idx] = vaddvq_f32(sum_f32x4);
+                    scores[position_idx] = vaddvq_f32(sum_f32x4) * scale2;
+                    if (scores[position_idx] > panel_max2) panel_max2 = scores[position_idx];
                 }
 
-                float32x4_t const scale2_f32x4 = vdupq_n_f32(scale2);
-                float32x4_t max_f32x4 = vdupq_n_f32(NK_F32_MIN);
-                for (position_idx = 0; position_idx + 4 <= panel_length; position_idx += 4)
-                    max_f32x4 = vmaxq_f32(max_f32x4, vmulq_f32(vld1q_f32(scores + position_idx), scale2_f32x4));
-                nk_f32_t panel_max2 = vmaxvq_f32(max_f32x4);
-                for (; position_idx < panel_length; position_idx++) {
-                    nk_f32_t const scaled2 = scores[position_idx] * scale2;
-                    if (scaled2 > panel_max2) panel_max2 = scaled2;
-                }
                 nk_f32_t const new_max2 = running_max2 > panel_max2 ? running_max2 : panel_max2;
                 nk_f32_t const correction = vgetq_lane_f32(
                     nk_attention_exp2_f32x4_neonbfdot_(vdupq_n_f32(running_max2 - new_max2)), 0);
@@ -246,13 +242,13 @@ NK_PUBLIC void nk_attention_packed_bf16_neonbfdot(                              
                 nk_f32_t panel_sum = 0;
                 for (position_idx = 0; position_idx + 4 <= panel_length; position_idx += 4) {
                     float32x4_t const weight_f32x4 = nk_attention_exp2_f32x4_neonbfdot_(
-                        vsubq_f32(vmulq_f32(vld1q_f32(scores + position_idx), scale2_f32x4), new_max2_f32x4));
+                        vsubq_f32(vld1q_f32(scores + position_idx), new_max2_f32x4));
                     panel_sum_f32x4 = vaddq_f32(panel_sum_f32x4, weight_f32x4);
                     vst1q_f32(scores + position_idx, weight_f32x4);
                 }
                 panel_sum = vaddvq_f32(panel_sum_f32x4);
                 for (; position_idx < panel_length; position_idx++) { // scalar tail keeps the family exp2 end-to-end
-                    nk_f32_t const weight = nk_f32_exp2_serial_(scores[position_idx] * scale2 - new_max2);
+                    nk_f32_t const weight = nk_f32_exp2_serial_(scores[position_idx] - new_max2);
                     scores[position_idx] = weight;
                     panel_sum += weight;
                 }
