@@ -82,6 +82,9 @@ void test_cross_arm() {
           nk_dots_pack_bf16_neonbfdot, nk_euclideans_packed_bf16_neonbfdot);
     check("euclideans_symmetric_bf16_neonbfdot", test_euclideans_symmetric<bf16_t>,
           nk_euclideans_symmetric_bf16_neonbfdot);
+
+    check("attention_packed_bf16_neonbfdot", test_attention_packed<bf16_t>, nk_attention_packed_size_bf16_neonbfdot,
+          nk_attention_pack_bf16_neonbfdot, nk_attention_packed_bf16_neonbfdot);
 #endif
 
 #if NK_TARGET_NEONFHM
@@ -110,6 +113,9 @@ void test_cross_arm() {
     check("euclideans_symmetric_f16_neonfhm", test_euclideans_symmetric<f16_t>, nk_euclideans_symmetric_f16_neonfhm);
     check("euclideans_symmetric_e5m2_neonfhm", test_euclideans_symmetric<e5m2_t>, nk_euclideans_symmetric_e5m2_neonfhm);
     check("euclideans_symmetric_e4m3_neonfhm", test_euclideans_symmetric<e4m3_t>, nk_euclideans_symmetric_e4m3_neonfhm);
+
+    check("attention_packed_e4m3_neonfhm", test_attention_packed<e4m3_t>, nk_attention_packed_size_e4m3_neonfhm,
+          nk_attention_pack_e4m3_neonfhm, nk_attention_packed_e4m3_neonfhm);
 #endif
 
 #if NK_TARGET_NEONSDOT
@@ -177,6 +183,9 @@ void test_cross_arm() {
           nk_euclideans_symmetric_e2m3_neonsdot);
     check("euclideans_symmetric_e3m2_neonsdot", test_euclideans_symmetric<e3m2_t>,
           nk_euclideans_symmetric_e3m2_neonsdot);
+
+    check("attention_packed_i8_neonsdot", test_attention_packed<i8_t>, nk_attention_packed_size_i8_neonsdot,
+          nk_attention_pack_i8_neonsdot, nk_attention_packed_i8_neonsdot);
 #endif
 
 #if NK_TARGET_NEONFP8

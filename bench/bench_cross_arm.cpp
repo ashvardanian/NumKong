@@ -12,6 +12,7 @@
 #include "numkong/sets.h"
 #include "numkong/spatials.h"
 
+#include "numkong/attention.h"
 #include "bench.hpp"
 
 void bench_cross_arm() {
@@ -121,6 +122,9 @@ void bench_cross_arm() {
     run_euclideans_symmetric<f16_k>("euclideans_symmetric_f16_neonfhm", nk_euclideans_symmetric_f16_neonfhm);
     run_euclideans_symmetric<e4m3_k>("euclideans_symmetric_e4m3_neonfhm", nk_euclideans_symmetric_e4m3_neonfhm);
     run_euclideans_symmetric<e5m2_k>("euclideans_symmetric_e5m2_neonfhm", nk_euclideans_symmetric_e5m2_neonfhm);
+
+    run_attention<e4m3_k>("attention_packed_e4m3_neonfhm", nk_attention_packed_size_e4m3_neonfhm,
+                          nk_attention_pack_e4m3_neonfhm, nk_attention_packed_e4m3_neonfhm);
 #endif
 
 #if NK_TARGET_NEONBFDOT
@@ -134,6 +138,9 @@ void bench_cross_arm() {
     run_euclideans_packed<bf16_k>("euclideans_packed_bf16_neonbfdot", nk_dots_packed_size_bf16_neonbfdot,
                                   nk_dots_pack_bf16_neonbfdot, nk_euclideans_packed_bf16_neonbfdot);
     run_euclideans_symmetric<bf16_k>("euclideans_symmetric_bf16_neonbfdot", nk_euclideans_symmetric_bf16_neonbfdot);
+
+    run_attention<bf16_k>("attention_packed_bf16_neonbfdot", nk_attention_packed_size_bf16_neonbfdot,
+                          nk_attention_pack_bf16_neonbfdot, nk_attention_packed_bf16_neonbfdot);
 #endif
 
 #if NK_TARGET_NEONSDOT
@@ -200,6 +207,8 @@ void bench_cross_arm() {
     run_euclideans_symmetric<e2m3_k>("euclideans_symmetric_e2m3_neonsdot", nk_euclideans_symmetric_e2m3_neonsdot);
     run_euclideans_symmetric<e3m2_k>("euclideans_symmetric_e3m2_neonsdot", nk_euclideans_symmetric_e3m2_neonsdot);
 
+    run_attention<i8_k>("attention_packed_i8_neonsdot", nk_attention_packed_size_i8_neonsdot,
+                        nk_attention_pack_i8_neonsdot, nk_attention_packed_i8_neonsdot);
 #endif
 
 #if NK_TARGET_NEONFP8
