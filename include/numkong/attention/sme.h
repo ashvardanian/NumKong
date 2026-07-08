@@ -133,6 +133,34 @@ NK_INTERNAL svfloat16_t nk_attention_exp2_fraction_f16x_sme_(svfloat16_t reduced
     return poly_f16x;
 }
 
+/**
+ *  @brief I-BERT-style integer exponential for the I8 weight path: takes the base-2 argument
+ *         as a Q15 fixed-point value in `[-10·2^15, 0]` and returns `round(2^t · 255)` as U8
+ *         weights in I32 lanes. A degree-3 fixed-point polynomial covers the fraction (error
+ *         ~0.03 of a weight step) and a lane-variable shift applies the integer part, so no
+ *         floating-point instruction touches the weights at all.
+ */
+NK_INTERNAL svint32_t nk_attention_iexp2_weight_i32x_sme_(svint32_t t_q15_i32x) NK_STREAMING_ {
+    svbool_t const predicate_all_b32x = svptrue_b32();
+    svint32_t const whole_i32x = svasr_n_s32_x(predicate_all_b32x, t_q15_i32x, 15); // floor, in [-10, 0]
+    svint32_t const fraction_i32x = svand_n_s32_x(predicate_all_b32x, t_q15_i32x, 0x7FFF);
+    svint32_t poly_i32x = svdup_s32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
+    poly_i32x = svadd_n_s32_x(
+        predicate_all_b32x,
+        svasr_n_s32_x(predicate_all_b32x, svmul_s32_x(predicate_all_b32x, fraction_i32x, poly_i32x), 15), 3678);
+    poly_i32x = svadd_n_s32_x(
+        predicate_all_b32x,
+        svasr_n_s32_x(predicate_all_b32x, svmul_s32_x(predicate_all_b32x, fraction_i32x, poly_i32x), 15), 11410);
+    poly_i32x = svadd_n_s32_x(
+        predicate_all_b32x,
+        svasr_n_s32_x(predicate_all_b32x, svmul_s32_x(predicate_all_b32x, fraction_i32x, poly_i32x), 15), 16382);
+    svint32_t const scaled_i32x = svmul_n_s32_x(predicate_all_b32x, poly_i32x, 255); // Q14 of 2^r · 255
+    svuint32_t const shift_u32x = svreinterpret_u32_s32(svsubr_n_s32_x(predicate_all_b32x, whole_i32x, 14));
+    svint32_t const bias_i32x = svlsl_s32_x(predicate_all_b32x, svdup_s32(1),
+                                            svreinterpret_u32_s32(svsubr_n_s32_x(predicate_all_b32x, whole_i32x, 13)));
+    return svasr_s32_x(predicate_all_b32x, svadd_s32_x(predicate_all_b32x, scaled_i32x, bias_i32x), shift_u32x);
+}
+
 NK_INTERNAL nk_size_t nk_attention_packed_size_b16_sme_(nk_size_t key_value_head_count, nk_size_t depth,
                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t const tile_dimension = nk_sme_cntw_();
@@ -945,8 +973,12 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
     if (first_task >= total_tasks) return;
     if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
 
+    nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
+    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t·255 + 0.5 < 1)
+        scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
+
     NK_ALIGN64 nk_u8_t queries_packed[2][(nk_attention_max_depth_sme_k_ / 4) * 4 * nk_attention_max_tile_sme_k_];
-    NK_ALIGN64 nk_f32_t scores_panel[nk_attention_panel_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
+    NK_ALIGN64 nk_i32_t scores_panel[nk_attention_panel_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
     NK_ALIGN64 nk_u8_t weights_panel[nk_attention_panel_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
     NK_ALIGN64 nk_f32_t o_acc[nk_attention_max_depth_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
 
@@ -1008,8 +1040,8 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                 }
             }
 
-            svfloat32_t running_max2_low_f32x = svdup_f32(NK_F32_MIN); // row-tile 0 queries, one per lane
-            svfloat32_t running_max2_high_f32x = svdup_f32(NK_F32_MIN);
+            svint32_t running_max_low_i32x = svdup_s32(-2147483647 - 1); // raw scores, one query per lane
+            svint32_t running_max_high_i32x = svdup_s32(-2147483647 - 1);
             svfloat32_t running_sum_low_f32x = svdup_f32(0.0f);
             svfloat32_t running_sum_high_f32x = svdup_f32(0.0f);
             for (nk_size_t element_idx = 0; element_idx < depth_padded * block_rows_capacity;
@@ -1043,60 +1075,53 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                         svmopa_za32_s8_m(2, predicate_all_b8x, predicate_all_b8x, queries_high_i8x, keys_low_i8x);
                         svmopa_za32_s8_m(3, predicate_all_b8x, predicate_all_b8x, queries_high_i8x, keys_high_i8x);
                     }
-                    nk_f32_t *chunk_scores = scores_panel + chunk_start * block_rows_capacity;
+                    nk_i32_t *chunk_scores = scores_panel + chunk_start * block_rows_capacity;
                     for (nk_size_t slice_idx = 0; slice_idx < tile_dimension; slice_idx++) {
-                        svst1_f32(
-                            predicate_all_b32x, (float32_t *)(chunk_scores + slice_idx * block_rows_capacity),
-                            svcvt_f32_s32_x(predicate_all_b32x, svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x,
-                                                                                      0, (uint32_t)slice_idx)));
-                        svst1_f32(
-                            predicate_all_b32x,
-                            (float32_t *)(chunk_scores + slice_idx * block_rows_capacity + tile_dimension),
-                            svcvt_f32_s32_x(predicate_all_b32x, svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x,
-                                                                                      2, (uint32_t)slice_idx)));
-                        svst1_f32(
-                            predicate_all_b32x,
-                            (float32_t *)(chunk_scores + (tile_dimension + slice_idx) * block_rows_capacity),
-                            svcvt_f32_s32_x(predicate_all_b32x, svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x,
-                                                                                      1, (uint32_t)slice_idx)));
-                        svst1_f32(
-                            predicate_all_b32x,
-                            (float32_t *)(chunk_scores + (tile_dimension + slice_idx) * block_rows_capacity +
-                                          tile_dimension),
-                            svcvt_f32_s32_x(predicate_all_b32x, svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x,
-                                                                                      3, (uint32_t)slice_idx)));
+                        svst1_ver_za32(0, (uint32_t)slice_idx, predicate_all_b32x,
+                                       chunk_scores + slice_idx * block_rows_capacity);
+                        svst1_ver_za32(2, (uint32_t)slice_idx, predicate_all_b32x,
+                                       chunk_scores + slice_idx * block_rows_capacity + tile_dimension);
+                        svst1_ver_za32(1, (uint32_t)slice_idx, predicate_all_b32x,
+                                       chunk_scores + (tile_dimension + slice_idx) * block_rows_capacity);
+                        svst1_ver_za32(
+                            3, (uint32_t)slice_idx, predicate_all_b32x,
+                            chunk_scores + (tile_dimension + slice_idx) * block_rows_capacity + tile_dimension);
                     }
                 }
 
-                svfloat32_t panel_max_low_f32x = svdup_f32(NK_F32_MIN);
-                svfloat32_t panel_max_high_f32x = svdup_f32(NK_F32_MIN);
-                // Stage 3: lane-parallel softmax with U8 weight quantization; the maximum
-                // position lands on exactly 255, so the weight sum can never be zero.
+                svint32_t panel_max_low_i32x = svdup_s32(-2147483647 - 1);
+                svint32_t panel_max_high_i32x = svdup_s32(-2147483647 - 1);
+                // Stage 3: lane-parallel integer softmax; scores, maxima, and the exponential
+                // all stay in integer arithmetic, and the maximum position lands on exactly
+                // 255, so the weight sum can never be zero.
                 for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
-                    panel_max_low_f32x = svmax_f32_x(
-                        predicate_all_b32x, panel_max_low_f32x,
-                        svld1_f32(predicate_all_b32x,
-                                  (float32_t const *)(scores_panel + position_idx * block_rows_capacity)));
-                    panel_max_high_f32x = svmax_f32_x(
-                        predicate_all_b32x, panel_max_high_f32x,
-                        svld1_f32(
+                    panel_max_low_i32x = svmax_s32_x(
+                        predicate_all_b32x, panel_max_low_i32x,
+                        svld1_s32(predicate_all_b32x,
+                                  (int32_t const *)(scores_panel + position_idx * block_rows_capacity)));
+                    panel_max_high_i32x = svmax_s32_x(
+                        predicate_all_b32x, panel_max_high_i32x,
+                        svld1_s32(
                             predicate_all_b32x,
-                            (float32_t const *)(scores_panel + position_idx * block_rows_capacity + tile_dimension)));
+                            (int32_t const *)(scores_panel + position_idx * block_rows_capacity + tile_dimension)));
                 }
-                svfloat32_t const new_max2_low_f32x = svmax_f32_x(
-                    predicate_all_b32x, running_max2_low_f32x,
-                    svmul_f32_x(predicate_all_b32x, panel_max_low_f32x, scale2_f32x));
-                svfloat32_t const new_max2_high_f32x = svmax_f32_x(
-                    predicate_all_b32x, running_max2_high_f32x,
-                    svmul_f32_x(predicate_all_b32x, panel_max_high_f32x, scale2_f32x));
-                svfloat32_t const correction_low_f32x = nk_attention_exp2_f32x_sme_(
-                    svsub_f32_x(predicate_all_b32x, running_max2_low_f32x, new_max2_low_f32x));
-                svfloat32_t const correction_high_f32x = nk_attention_exp2_f32x_sme_(
-                    svsub_f32_x(predicate_all_b32x, running_max2_high_f32x, new_max2_high_f32x));
-                running_max2_low_f32x = new_max2_low_f32x;
-                running_max2_high_f32x = new_max2_high_f32x;
-                svfloat32_t const negated_max2_low_f32x = svneg_f32_x(predicate_all_b32x, new_max2_low_f32x);
-                svfloat32_t const negated_max2_high_f32x = svneg_f32_x(predicate_all_b32x, new_max2_high_f32x);
+                svint32_t const new_max_low_i32x = svmax_s32_x(predicate_all_b32x, running_max_low_i32x,
+                                                               panel_max_low_i32x);
+                svint32_t const new_max_high_i32x = svmax_s32_x(predicate_all_b32x, running_max_high_i32x,
+                                                                panel_max_high_i32x);
+                svfloat32_t const correction_low_f32x = nk_attention_exp2_f32x_sme_(svmul_f32_x( // exact I32→F32
+
+                    predicate_all_b32x,
+                    svsub_f32_x(predicate_all_b32x, svcvt_f32_s32_x(predicate_all_b32x, running_max_low_i32x),
+                                svcvt_f32_s32_x(predicate_all_b32x, new_max_low_i32x)),
+                    scale2_f32x));
+                svfloat32_t const correction_high_f32x = nk_attention_exp2_f32x_sme_(svmul_f32_x(
+                    predicate_all_b32x,
+                    svsub_f32_x(predicate_all_b32x, svcvt_f32_s32_x(predicate_all_b32x, running_max_high_i32x),
+                                svcvt_f32_s32_x(predicate_all_b32x, new_max_high_i32x)),
+                    scale2_f32x));
+                running_max_low_i32x = new_max_low_i32x;
+                running_max_high_i32x = new_max_high_i32x;
 
                 svuint32_t panel_sum_low_u32x = svdup_u32(0); // weights are u8 over <= 512 positions
                 svuint32_t panel_sum_high_u32x = svdup_u32(0);
@@ -1104,40 +1129,28 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                     svuint32_t quantized_low_u32x = svdup_u32(0), quantized_high_u32x = svdup_u32(0);
                     for (nk_size_t position_in_quad = 0; position_in_quad < 4; position_in_quad++) {
                         nk_size_t const position_idx = quad_idx * 4 + position_in_quad;
-                        svfloat32_t argument_low_f32x = svdup_f32(NK_F32_MIN); // padded positions quantize to zero
-                        svfloat32_t argument_high_f32x = svdup_f32(NK_F32_MIN);
+                        svint32_t delta_low_i32x = svdup_s32(delta_floor); // padded positions quantize to zero
+                        svint32_t delta_high_i32x = svdup_s32(delta_floor);
                         if (position_idx < panel_length) {
-                            nk_f32_t const *position_scores = scores_panel + position_idx * block_rows_capacity;
-                            argument_low_f32x = svmla_f32_x(
-                                predicate_all_b32x, negated_max2_low_f32x,
-                                svld1_f32(predicate_all_b32x, (float32_t const *)position_scores), scale2_f32x);
-                            argument_high_f32x = svmla_f32_x(
-                                predicate_all_b32x, negated_max2_high_f32x,
-                                svld1_f32(predicate_all_b32x, (float32_t const *)(position_scores + tile_dimension)),
-                                scale2_f32x);
+                            nk_i32_t const *position_scores = scores_panel + position_idx * block_rows_capacity;
+                            delta_low_i32x = svmax_n_s32_x(
+                                predicate_all_b32x,
+                                svsub_s32_x(predicate_all_b32x,
+                                            svld1_s32(predicate_all_b32x, (int32_t const *)position_scores),
+                                            new_max_low_i32x),
+                                delta_floor);
+                            delta_high_i32x = svmax_n_s32_x(
+                                predicate_all_b32x,
+                                svsub_s32_x(
+                                    predicate_all_b32x,
+                                    svld1_s32(predicate_all_b32x, (int32_t const *)(position_scores + tile_dimension)),
+                                    new_max_high_i32x),
+                                delta_floor);
                         }
-                        svfloat32_t const whole_low_f32x = svrintn_f32_x(predicate_all_b32x, argument_low_f32x);
-                        svfloat32_t const whole_high_f32x = svrintn_f32_x(predicate_all_b32x, argument_high_f32x);
-                        svfloat16_t const fraction_f16x = svcvtnt_f16_f32_m( // split-precision: F16 only here
-
-                            svcvt_f16_f32_x(predicate_all_b32x,
-                                            svsub_f32_x(predicate_all_b32x, argument_low_f32x, whole_low_f32x)),
-                            predicate_all_b32x, svsub_f32_x(predicate_all_b32x, argument_high_f32x, whole_high_f32x));
-                        svfloat16_t const poly_f16x = nk_attention_exp2_fraction_f16x_sme_(fraction_f16x);
-                        svfloat32_t const exponent_low_f32x = svscale_f32_x(
-                            predicate_all_b32x, svcvt_f32_f16_x(predicate_all_b32x, poly_f16x),
-                            svcvt_s32_f32_x(predicate_all_b32x, whole_low_f32x));
-                        svfloat32_t const exponent_high_f32x = svscale_f32_x(
-                            predicate_all_b32x, svcvtlt_f32_f16_x(predicate_all_b32x, poly_f16x),
-                            svcvt_s32_f32_x(predicate_all_b32x, whole_high_f32x));
-                        svuint32_t const weight_low_u32x = svcvt_u32_f32_x( // mul then add matches serial rounding
-                            predicate_all_b32x,
-                            svadd_n_f32_x(predicate_all_b32x,
-                                          svmul_n_f32_x(predicate_all_b32x, exponent_low_f32x, 255.0f), 0.5f));
-                        svuint32_t const weight_high_u32x = svcvt_u32_f32_x(
-                            predicate_all_b32x,
-                            svadd_n_f32_x(predicate_all_b32x,
-                                          svmul_n_f32_x(predicate_all_b32x, exponent_high_f32x, 255.0f), 0.5f));
+                        svuint32_t const weight_low_u32x = svreinterpret_u32_s32(nk_attention_iexp2_weight_i32x_sme_(
+                            svmul_n_s32_x(predicate_all_b32x, delta_low_i32x, scale_fixed)));
+                        svuint32_t const weight_high_u32x = svreinterpret_u32_s32(nk_attention_iexp2_weight_i32x_sme_(
+                            svmul_n_s32_x(predicate_all_b32x, delta_high_i32x, scale_fixed)));
                         panel_sum_low_u32x = svadd_u32_x(predicate_all_b32x, panel_sum_low_u32x, weight_low_u32x);
                         panel_sum_high_u32x = svadd_u32_x(predicate_all_b32x, panel_sum_high_u32x, weight_high_u32x);
                         quantized_low_u32x = svorr_u32_x(
