@@ -62,9 +62,12 @@ NK_PUBLIC nk_f64_t nk_dots_reduce_sumsq_f64_ssve_(nk_f64_t const *data, nk_size_
 NK_PUBLIC svfloat64_t nk_angulars_from_dot_f64x_ssvef64_(svbool_t predicate_b64x, svfloat64_t dots_f64x,
                                                          svfloat64_t query_norm_sq_f64x,
                                                          svfloat64_t target_norms_sq_f64x) NK_STREAMING_ {
-    svfloat64_t norms_product_f64x = svmul_f64_x(predicate_b64x, query_norm_sq_f64x, target_norms_sq_f64x);
-    svbool_t positive_norms_b64x = svcmpgt_n_f64(predicate_b64x, norms_product_f64x, 0.0);
-    svfloat64_t denom_f64x = svsqrt_f64_x(positive_norms_b64x, norms_product_f64x);
+    // Separate square roots avoid overflowing the product of two finite-but-large norms.
+    svbool_t positive_norms_b64x = svand_b_z(predicate_b64x, svcmpgt_n_f64(predicate_b64x, query_norm_sq_f64x, 0.0),
+                                             svcmpgt_n_f64(predicate_b64x, target_norms_sq_f64x, 0.0));
+    svfloat64_t query_sqrt_f64x = svsqrt_f64_x(positive_norms_b64x, query_norm_sq_f64x);
+    svfloat64_t target_sqrt_f64x = svsqrt_f64_x(positive_norms_b64x, target_norms_sq_f64x);
+    svfloat64_t denom_f64x = svmul_f64_x(positive_norms_b64x, query_sqrt_f64x, target_sqrt_f64x);
     svfloat64_t safe_denom_f64x = svsel_f64(positive_norms_b64x, denom_f64x, svdup_n_f64(1.0));
     svfloat64_t normalized_f64x = svdiv_f64_x(predicate_b64x, dots_f64x, safe_denom_f64x);
     svfloat64_t angular_f64x = svsub_f64_x(predicate_b64x, svdup_n_f64(1.0), normalized_f64x);

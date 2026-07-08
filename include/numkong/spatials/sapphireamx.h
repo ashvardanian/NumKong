@@ -36,12 +36,14 @@ extern "C" {
 NK_INTERNAL void nk_angulars_row_f32dots_sapphireamx_(nk_f32_t *results, nk_f32_t const *norms, nk_f32_t query_norm_sq,
                                                       nk_size_t count) {
     __m512 query_norm_sq_f32x16 = _mm512_set1_ps(query_norm_sq);
+    // Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms.
+    __m512 query_rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(query_norm_sq_f32x16);
     nk_size_t i = 0;
     for (; i + 16 <= count; i += 16) {
         __m512 dots_f32x16 = _mm512_loadu_ps(results + i);
         __m512 norms_f32x16 = _mm512_loadu_ps(norms + i);
-        __m512 products_f32x16 = _mm512_mul_ps(query_norm_sq_f32x16, norms_f32x16);
-        __m512 rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(products_f32x16);
+        __m512 target_rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(norms_f32x16);
+        __m512 rsqrt_f32x16 = _mm512_mul_ps(query_rsqrt_f32x16, target_rsqrt_f32x16);
         __m512 normalized_f32x16 = _mm512_mul_ps(dots_f32x16, rsqrt_f32x16);
         __m512 angular_f32x16 = _mm512_sub_ps(_mm512_set1_ps(1.0f), normalized_f32x16);
         _mm512_storeu_ps(results + i, _mm512_max_ps(angular_f32x16, _mm512_setzero_ps()));
@@ -50,8 +52,8 @@ NK_INTERNAL void nk_angulars_row_f32dots_sapphireamx_(nk_f32_t *results, nk_f32_
         __mmask16 tail = (__mmask16)((1u << (count - i)) - 1);
         __m512 dots_f32x16 = _mm512_maskz_loadu_ps(tail, results + i);
         __m512 norms_f32x16 = _mm512_maskz_loadu_ps(tail, norms + i);
-        __m512 products_f32x16 = _mm512_mul_ps(query_norm_sq_f32x16, norms_f32x16);
-        __m512 rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(products_f32x16);
+        __m512 target_rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(norms_f32x16);
+        __m512 rsqrt_f32x16 = _mm512_mul_ps(query_rsqrt_f32x16, target_rsqrt_f32x16);
         __m512 normalized_f32x16 = _mm512_mul_ps(dots_f32x16, rsqrt_f32x16);
         __m512 angular_f32x16 = _mm512_sub_ps(_mm512_set1_ps(1.0f), normalized_f32x16);
         _mm512_mask_storeu_ps(results + i, tail, _mm512_max_ps(angular_f32x16, _mm512_setzero_ps()));
@@ -86,12 +88,14 @@ NK_INTERNAL void nk_angulars_row_i32dots_sapphireamx_(nk_f32_t *results, nk_u32_
                                                       nk_size_t count) {
     nk_i32_t *results_i32 = (nk_i32_t *)results;
     __m512 query_norm_sq_f32x16 = _mm512_set1_ps(query_norm_sq);
+    // Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms.
+    __m512 query_rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(query_norm_sq_f32x16);
     nk_size_t i = 0;
     for (; i + 16 <= count; i += 16) {
         __m512 dots_f32x16 = _mm512_cvtepi32_ps(_mm512_loadu_si512(results_i32 + i));
         __m512 norms_f32x16 = _mm512_cvtepu32_ps(_mm512_loadu_si512((__m512i const *)(norms + i)));
-        __m512 products_f32x16 = _mm512_mul_ps(query_norm_sq_f32x16, norms_f32x16);
-        __m512 rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(products_f32x16);
+        __m512 target_rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(norms_f32x16);
+        __m512 rsqrt_f32x16 = _mm512_mul_ps(query_rsqrt_f32x16, target_rsqrt_f32x16);
         __m512 normalized_f32x16 = _mm512_mul_ps(dots_f32x16, rsqrt_f32x16);
         __m512 angular_f32x16 = _mm512_sub_ps(_mm512_set1_ps(1.0f), normalized_f32x16);
         _mm512_storeu_ps(results + i, _mm512_max_ps(angular_f32x16, _mm512_setzero_ps()));
@@ -100,8 +104,8 @@ NK_INTERNAL void nk_angulars_row_i32dots_sapphireamx_(nk_f32_t *results, nk_u32_
         __mmask16 tail = (__mmask16)((1u << (count - i)) - 1);
         __m512 dots_f32x16 = _mm512_cvtepi32_ps(_mm512_maskz_loadu_epi32(tail, results_i32 + i));
         __m512 norms_f32x16 = _mm512_cvtepu32_ps(_mm512_maskz_loadu_epi32(tail, norms + i));
-        __m512 products_f32x16 = _mm512_mul_ps(query_norm_sq_f32x16, norms_f32x16);
-        __m512 rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(products_f32x16);
+        __m512 target_rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(norms_f32x16);
+        __m512 rsqrt_f32x16 = _mm512_mul_ps(query_rsqrt_f32x16, target_rsqrt_f32x16);
         __m512 normalized_f32x16 = _mm512_mul_ps(dots_f32x16, rsqrt_f32x16);
         __m512 angular_f32x16 = _mm512_sub_ps(_mm512_set1_ps(1.0f), normalized_f32x16);
         _mm512_mask_storeu_ps(results + i, tail, _mm512_max_ps(angular_f32x16, _mm512_setzero_ps()));
@@ -137,12 +141,14 @@ NK_INTERNAL void nk_angulars_row_u32dots_sapphireamx_(nk_f32_t *results, nk_u32_
                                                       nk_size_t count) {
     nk_u32_t *results_u32 = (nk_u32_t *)results;
     __m512 query_norm_sq_f32x16 = _mm512_set1_ps(query_norm_sq);
+    // Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms.
+    __m512 query_rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(query_norm_sq_f32x16);
     nk_size_t i = 0;
     for (; i + 16 <= count; i += 16) {
         __m512 dots_f32x16 = _mm512_cvtepu32_ps(_mm512_loadu_si512((__m512i const *)(results_u32 + i)));
         __m512 norms_f32x16 = _mm512_cvtepu32_ps(_mm512_loadu_si512((__m512i const *)(norms + i)));
-        __m512 products_f32x16 = _mm512_mul_ps(query_norm_sq_f32x16, norms_f32x16);
-        __m512 rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(products_f32x16);
+        __m512 target_rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(norms_f32x16);
+        __m512 rsqrt_f32x16 = _mm512_mul_ps(query_rsqrt_f32x16, target_rsqrt_f32x16);
         __m512 normalized_f32x16 = _mm512_mul_ps(dots_f32x16, rsqrt_f32x16);
         __m512 angular_f32x16 = _mm512_sub_ps(_mm512_set1_ps(1.0f), normalized_f32x16);
         _mm512_storeu_ps(results + i, _mm512_max_ps(angular_f32x16, _mm512_setzero_ps()));
@@ -151,8 +157,8 @@ NK_INTERNAL void nk_angulars_row_u32dots_sapphireamx_(nk_f32_t *results, nk_u32_
         __mmask16 tail = (__mmask16)((1u << (count - i)) - 1);
         __m512 dots_f32x16 = _mm512_cvtepu32_ps(_mm512_maskz_loadu_epi32(tail, results_u32 + i));
         __m512 norms_f32x16 = _mm512_cvtepu32_ps(_mm512_maskz_loadu_epi32(tail, norms + i));
-        __m512 products_f32x16 = _mm512_mul_ps(query_norm_sq_f32x16, norms_f32x16);
-        __m512 rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(products_f32x16);
+        __m512 target_rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(norms_f32x16);
+        __m512 rsqrt_f32x16 = _mm512_mul_ps(query_rsqrt_f32x16, target_rsqrt_f32x16);
         __m512 normalized_f32x16 = _mm512_mul_ps(dots_f32x16, rsqrt_f32x16);
         __m512 angular_f32x16 = _mm512_sub_ps(_mm512_set1_ps(1.0f), normalized_f32x16);
         _mm512_mask_storeu_ps(results + i, tail, _mm512_max_ps(angular_f32x16, _mm512_setzero_ps()));

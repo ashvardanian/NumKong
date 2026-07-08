@@ -264,7 +264,7 @@ NK_PUBLIC void nk_angular_e2m3_alder(nk_e2m3_t const *a_scalars, nk_e2m3_t const
     // Angular distance for e2m3 using dual-VPSHUFB LUT + VPDPBUSD norm decomposition.
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
     // We compute dot(a,b), ||a||^2, ||b||^2 in scaled integer domain,
-    // then normalize: angular = 1 - dot / sqrt(||a||^2 * ||b||^2).
+    // then normalize: angular = 1 - dot × rsqrt(||a||^2) × rsqrt(||b||^2) (separate roots, no product overflow).
     // Final division by 256.0f for dot and norms cancels in the ratio.
     //
     __m256i const lut_low_u8x32 = _mm256_set_epi8(30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0, 30, 28, 26,

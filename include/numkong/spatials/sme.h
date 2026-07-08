@@ -204,12 +204,22 @@ NK_PUBLIC nk_u32_t nk_dots_reduce_sumsq_u4_ssve_(nk_u4x2_t const *data, nk_size_
 NK_PUBLIC svfloat32_t nk_angulars_from_dot_f32x_ssve_(svbool_t predicate_b32x, svfloat32_t dots_f32x,
                                                       svfloat32_t query_norm_sq_f32x,
                                                       svfloat32_t target_norms_sq_f32x) NK_STREAMING_ {
-    svfloat32_t norms_product_f32x = svmul_f32_x(predicate_b32x, query_norm_sq_f32x, target_norms_sq_f32x);
-    svfloat32_t rsqrt_f32x = svrsqrte_f32(norms_product_f32x);
-    rsqrt_f32x = svmul_f32_x(predicate_b32x, rsqrt_f32x,
-                             svrsqrts_f32(svmul_f32_x(predicate_b32x, norms_product_f32x, rsqrt_f32x), rsqrt_f32x));
-    rsqrt_f32x = svmul_f32_x(predicate_b32x, rsqrt_f32x,
-                             svrsqrts_f32(svmul_f32_x(predicate_b32x, norms_product_f32x, rsqrt_f32x), rsqrt_f32x));
+    // Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms.
+    svfloat32_t query_rsqrt_f32x = svrsqrte_f32(query_norm_sq_f32x);
+    query_rsqrt_f32x = svmul_f32_x(
+        predicate_b32x, query_rsqrt_f32x,
+        svrsqrts_f32(svmul_f32_x(predicate_b32x, query_norm_sq_f32x, query_rsqrt_f32x), query_rsqrt_f32x));
+    query_rsqrt_f32x = svmul_f32_x(
+        predicate_b32x, query_rsqrt_f32x,
+        svrsqrts_f32(svmul_f32_x(predicate_b32x, query_norm_sq_f32x, query_rsqrt_f32x), query_rsqrt_f32x));
+    svfloat32_t target_rsqrt_f32x = svrsqrte_f32(target_norms_sq_f32x);
+    target_rsqrt_f32x = svmul_f32_x(
+        predicate_b32x, target_rsqrt_f32x,
+        svrsqrts_f32(svmul_f32_x(predicate_b32x, target_norms_sq_f32x, target_rsqrt_f32x), target_rsqrt_f32x));
+    target_rsqrt_f32x = svmul_f32_x(
+        predicate_b32x, target_rsqrt_f32x,
+        svrsqrts_f32(svmul_f32_x(predicate_b32x, target_norms_sq_f32x, target_rsqrt_f32x), target_rsqrt_f32x));
+    svfloat32_t rsqrt_f32x = svmul_f32_x(predicate_b32x, query_rsqrt_f32x, target_rsqrt_f32x);
     svfloat32_t angular_f32x = svsub_f32_x(predicate_b32x, svdup_n_f32(1.0f),
                                            svmul_f32_x(predicate_b32x, dots_f32x, rsqrt_f32x));
     return svmax_f32_x(predicate_b32x, angular_f32x, svdup_n_f32(0.0f));

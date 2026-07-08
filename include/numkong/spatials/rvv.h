@@ -47,9 +47,10 @@ NK_INTERNAL void nk_angulars_packed_f32_rvv_finalize_(nk_f32_t const *a, void co
             size_t vector_length = __riscv_vsetvl_e64m1(count_columns);
             vfloat64m1_t dots_f64m1 = __riscv_vle64_v_f64m1(result_ptr, vector_length);
             vfloat64m1_t target_norms_sq_f64m1 = __riscv_vle64_v_f64m1(norms_ptr, vector_length);
-            vfloat64m1_t norms_product_f64m1 = __riscv_vfmul_vf_f64m1(target_norms_sq_f64m1, query_norm_sq_f64,
-                                                                      vector_length);
-            vfloat64m1_t rsqrt_f64m1 = nk_rsqrt_f64m1_rvv_(norms_product_f64m1, vector_length);
+            // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+            vfloat64m1_t target_rsqrt_f64m1 = nk_rsqrt_f64m1_rvv_(target_norms_sq_f64m1, vector_length);
+            vfloat64m1_t rsqrt_f64m1 = __riscv_vfmul_vf_f64m1(target_rsqrt_f64m1, nk_f64_rsqrt_rvv(query_norm_sq_f64),
+                                                              vector_length);
             vfloat64m1_t normalized_dots_f64m1 = __riscv_vfmul_vv_f64m1(dots_f64m1, rsqrt_f64m1, vector_length);
             vfloat64m1_t angular_f64m1 = __riscv_vfrsub_vf_f64m1(normalized_dots_f64m1, 1.0, vector_length);
             angular_f64m1 = __riscv_vfmax_vf_f64m1(angular_f64m1, 0.0, vector_length);
@@ -136,9 +137,10 @@ NK_INTERNAL void nk_angulars_symmetric_f32_rvv_finalize_(nk_f32_t const *vectors
                 size_t vector_length = __riscv_vsetvl_e64m1(count_remaining);
                 vfloat64m1_t dots_f64m1 = __riscv_vle64_v_f64m1(result_ptr, vector_length);
                 vfloat64m1_t target_norms_sq_f64m1 = __riscv_vle64_v_f64m1(norms_ptr, vector_length);
-                vfloat64m1_t norms_product_f64m1 = __riscv_vfmul_vf_f64m1(target_norms_sq_f64m1, query_norm_sq_f64,
-                                                                          vector_length);
-                vfloat64m1_t rsqrt_f64m1 = nk_rsqrt_f64m1_rvv_(norms_product_f64m1, vector_length);
+                // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+                vfloat64m1_t target_rsqrt_f64m1 = nk_rsqrt_f64m1_rvv_(target_norms_sq_f64m1, vector_length);
+                vfloat64m1_t rsqrt_f64m1 = __riscv_vfmul_vf_f64m1(target_rsqrt_f64m1,
+                                                                  nk_f64_rsqrt_rvv(query_norm_sq_f64), vector_length);
                 vfloat64m1_t normalized_dots_f64m1 = __riscv_vfmul_vv_f64m1(dots_f64m1, rsqrt_f64m1, vector_length);
                 vfloat64m1_t angular_f64m1 = __riscv_vfrsub_vf_f64m1(normalized_dots_f64m1, 1.0, vector_length);
                 angular_f64m1 = __riscv_vfmax_vf_f64m1(angular_f64m1, 0.0, vector_length);
@@ -238,9 +240,10 @@ NK_INTERNAL void nk_angulars_packed_f64_rvv_finalize_(nk_f64_t const *a, void co
             size_t vector_length = __riscv_vsetvl_e64m1(count_columns);
             vfloat64m1_t dots_f64m1 = __riscv_vle64_v_f64m1(result_ptr, vector_length);
             vfloat64m1_t target_norms_sq_f64m1 = __riscv_vle64_v_f64m1(norms_ptr, vector_length);
-            vfloat64m1_t norms_product_f64m1 = __riscv_vfmul_vf_f64m1(target_norms_sq_f64m1, query_norm_sq_f64,
-                                                                      vector_length);
-            vfloat64m1_t rsqrt_f64m1 = nk_rsqrt_f64m1_rvv_(norms_product_f64m1, vector_length);
+            // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+            vfloat64m1_t target_rsqrt_f64m1 = nk_rsqrt_f64m1_rvv_(target_norms_sq_f64m1, vector_length);
+            vfloat64m1_t rsqrt_f64m1 = __riscv_vfmul_vf_f64m1(target_rsqrt_f64m1, nk_f64_rsqrt_rvv(query_norm_sq_f64),
+                                                              vector_length);
             vfloat64m1_t normalized_dots_f64m1 = __riscv_vfmul_vv_f64m1(dots_f64m1, rsqrt_f64m1, vector_length);
             vfloat64m1_t angular_f64m1 = __riscv_vfrsub_vf_f64m1(normalized_dots_f64m1, 1.0, vector_length);
             angular_f64m1 = __riscv_vfmax_vf_f64m1(angular_f64m1, 0.0, vector_length);
@@ -327,9 +330,10 @@ NK_INTERNAL void nk_angulars_symmetric_f64_rvv_finalize_(nk_f64_t const *vectors
                 size_t vector_length = __riscv_vsetvl_e64m1(count_remaining);
                 vfloat64m1_t dots_f64m1 = __riscv_vle64_v_f64m1(result_ptr, vector_length);
                 vfloat64m1_t target_norms_sq_f64m1 = __riscv_vle64_v_f64m1(norms_ptr, vector_length);
-                vfloat64m1_t norms_product_f64m1 = __riscv_vfmul_vf_f64m1(target_norms_sq_f64m1, query_norm_sq_f64,
-                                                                          vector_length);
-                vfloat64m1_t rsqrt_f64m1 = nk_rsqrt_f64m1_rvv_(norms_product_f64m1, vector_length);
+                // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+                vfloat64m1_t target_rsqrt_f64m1 = nk_rsqrt_f64m1_rvv_(target_norms_sq_f64m1, vector_length);
+                vfloat64m1_t rsqrt_f64m1 = __riscv_vfmul_vf_f64m1(target_rsqrt_f64m1,
+                                                                  nk_f64_rsqrt_rvv(query_norm_sq_f64), vector_length);
                 vfloat64m1_t normalized_dots_f64m1 = __riscv_vfmul_vv_f64m1(dots_f64m1, rsqrt_f64m1, vector_length);
                 vfloat64m1_t angular_f64m1 = __riscv_vfrsub_vf_f64m1(normalized_dots_f64m1, 1.0, vector_length);
                 angular_f64m1 = __riscv_vfmax_vf_f64m1(angular_f64m1, 0.0, vector_length);
@@ -429,9 +433,10 @@ NK_INTERNAL void nk_angulars_packed_f16_rvv_finalize_(nk_f16_t const *a, void co
             size_t vector_length = __riscv_vsetvl_e32m1(count_columns);
             vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
             vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
-            vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                      vector_length);
-            vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+            // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+            vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+            vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1, nk_f32_rsqrt_rvv(query_norm_sq_f32),
+                                                              vector_length);
             vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
             vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
             angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -518,9 +523,10 @@ NK_INTERNAL void nk_angulars_symmetric_f16_rvv_finalize_(nk_f16_t const *vectors
                 size_t vector_length = __riscv_vsetvl_e32m1(count_remaining);
                 vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
                 vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
-                vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                          vector_length);
-                vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+                // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+                vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+                vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1,
+                                                                  nk_f32_rsqrt_rvv(query_norm_sq_f32), vector_length);
                 vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
                 vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
                 angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -620,9 +626,10 @@ NK_INTERNAL void nk_angulars_packed_bf16_rvv_finalize_(nk_bf16_t const *a, void 
             size_t vector_length = __riscv_vsetvl_e32m1(count_columns);
             vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
             vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
-            vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                      vector_length);
-            vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+            // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+            vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+            vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1, nk_f32_rsqrt_rvv(query_norm_sq_f32),
+                                                              vector_length);
             vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
             vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
             angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -709,9 +716,10 @@ NK_INTERNAL void nk_angulars_symmetric_bf16_rvv_finalize_(nk_bf16_t const *vecto
                 size_t vector_length = __riscv_vsetvl_e32m1(count_remaining);
                 vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
                 vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
-                vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                          vector_length);
-                vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+                // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+                vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+                vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1,
+                                                                  nk_f32_rsqrt_rvv(query_norm_sq_f32), vector_length);
                 vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
                 vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
                 angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -811,9 +819,10 @@ NK_INTERNAL void nk_angulars_packed_e2m3_rvv_finalize_(nk_e2m3_t const *a, void 
             size_t vector_length = __riscv_vsetvl_e32m1(count_columns);
             vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
             vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
-            vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                      vector_length);
-            vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+            // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+            vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+            vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1, nk_f32_rsqrt_rvv(query_norm_sq_f32),
+                                                              vector_length);
             vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
             vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
             angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -900,9 +909,10 @@ NK_INTERNAL void nk_angulars_symmetric_e2m3_rvv_finalize_(nk_e2m3_t const *vecto
                 size_t vector_length = __riscv_vsetvl_e32m1(count_remaining);
                 vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
                 vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
-                vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                          vector_length);
-                vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+                // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+                vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+                vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1,
+                                                                  nk_f32_rsqrt_rvv(query_norm_sq_f32), vector_length);
                 vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
                 vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
                 angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -1002,9 +1012,10 @@ NK_INTERNAL void nk_angulars_packed_e3m2_rvv_finalize_(nk_e3m2_t const *a, void 
             size_t vector_length = __riscv_vsetvl_e32m1(count_columns);
             vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
             vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
-            vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                      vector_length);
-            vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+            // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+            vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+            vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1, nk_f32_rsqrt_rvv(query_norm_sq_f32),
+                                                              vector_length);
             vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
             vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
             angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -1091,9 +1102,10 @@ NK_INTERNAL void nk_angulars_symmetric_e3m2_rvv_finalize_(nk_e3m2_t const *vecto
                 size_t vector_length = __riscv_vsetvl_e32m1(count_remaining);
                 vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
                 vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
-                vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                          vector_length);
-                vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+                // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+                vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+                vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1,
+                                                                  nk_f32_rsqrt_rvv(query_norm_sq_f32), vector_length);
                 vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
                 vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
                 angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -1193,9 +1205,10 @@ NK_INTERNAL void nk_angulars_packed_e4m3_rvv_finalize_(nk_e4m3_t const *a, void 
             size_t vector_length = __riscv_vsetvl_e32m1(count_columns);
             vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
             vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
-            vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                      vector_length);
-            vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+            // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+            vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+            vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1, nk_f32_rsqrt_rvv(query_norm_sq_f32),
+                                                              vector_length);
             vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
             vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
             angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -1282,9 +1295,10 @@ NK_INTERNAL void nk_angulars_symmetric_e4m3_rvv_finalize_(nk_e4m3_t const *vecto
                 size_t vector_length = __riscv_vsetvl_e32m1(count_remaining);
                 vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
                 vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
-                vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                          vector_length);
-                vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+                // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+                vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+                vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1,
+                                                                  nk_f32_rsqrt_rvv(query_norm_sq_f32), vector_length);
                 vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
                 vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
                 angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -1384,9 +1398,10 @@ NK_INTERNAL void nk_angulars_packed_e5m2_rvv_finalize_(nk_e5m2_t const *a, void 
             size_t vector_length = __riscv_vsetvl_e32m1(count_columns);
             vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
             vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
-            vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                      vector_length);
-            vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+            // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+            vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+            vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1, nk_f32_rsqrt_rvv(query_norm_sq_f32),
+                                                              vector_length);
             vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
             vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
             angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -1473,9 +1488,10 @@ NK_INTERNAL void nk_angulars_symmetric_e5m2_rvv_finalize_(nk_e5m2_t const *vecto
                 size_t vector_length = __riscv_vsetvl_e32m1(count_remaining);
                 vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
                 vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
-                vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                          vector_length);
-                vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+                // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+                vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+                vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1,
+                                                                  nk_f32_rsqrt_rvv(query_norm_sq_f32), vector_length);
                 vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
                 vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
                 angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -1578,9 +1594,10 @@ NK_INTERNAL void nk_angulars_packed_i8_rvv_finalize_(nk_i8_t const *a, void cons
                 __riscv_vle32_v_i32m1((nk_i32_t const *)result_ptr, vector_length), vector_length);
             vfloat32m1_t target_norms_sq_f32m1 = __riscv_vfcvt_f_xu_v_f32m1(
                 __riscv_vle32_v_u32m1((nk_u32_t const *)norms_ptr, vector_length), vector_length);
-            vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                      vector_length);
-            vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+            // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+            vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+            vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1, nk_f32_rsqrt_rvv(query_norm_sq_f32),
+                                                              vector_length);
             vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
             vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
             angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -1673,9 +1690,10 @@ NK_INTERNAL void nk_angulars_symmetric_i8_rvv_finalize_(nk_i8_t const *vectors, 
                     __riscv_vle32_v_i32m1((nk_i32_t const *)result_ptr, vector_length), vector_length);
                 vfloat32m1_t target_norms_sq_f32m1 = __riscv_vfcvt_f_xu_v_f32m1(
                     __riscv_vle32_v_u32m1((nk_u32_t const *)norms_ptr, vector_length), vector_length);
-                vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                          vector_length);
-                vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+                // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+                vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+                vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1,
+                                                                  nk_f32_rsqrt_rvv(query_norm_sq_f32), vector_length);
                 vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
                 vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
                 angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -1781,9 +1799,10 @@ NK_INTERNAL void nk_angulars_packed_u8_rvv_finalize_(nk_u8_t const *a, void cons
                 __riscv_vle32_v_u32m1((nk_u32_t const *)result_ptr, vector_length), vector_length);
             vfloat32m1_t target_norms_sq_f32m1 = __riscv_vfcvt_f_xu_v_f32m1(
                 __riscv_vle32_v_u32m1((nk_u32_t const *)norms_ptr, vector_length), vector_length);
-            vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                      vector_length);
-            vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+            // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+            vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+            vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1, nk_f32_rsqrt_rvv(query_norm_sq_f32),
+                                                              vector_length);
             vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
             vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
             angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
@@ -1876,9 +1895,10 @@ NK_INTERNAL void nk_angulars_symmetric_u8_rvv_finalize_(nk_u8_t const *vectors, 
                     __riscv_vle32_v_u32m1((nk_u32_t const *)result_ptr, vector_length), vector_length);
                 vfloat32m1_t target_norms_sq_f32m1 = __riscv_vfcvt_f_xu_v_f32m1(
                     __riscv_vle32_v_u32m1((nk_u32_t const *)norms_ptr, vector_length), vector_length);
-                vfloat32m1_t norms_product_f32m1 = __riscv_vfmul_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
-                                                                          vector_length);
-                vfloat32m1_t rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(norms_product_f32m1, vector_length);
+                // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+                vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+                vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1,
+                                                                  nk_f32_rsqrt_rvv(query_norm_sq_f32), vector_length);
                 vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
                 vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
                 angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);

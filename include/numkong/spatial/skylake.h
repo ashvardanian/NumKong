@@ -223,14 +223,15 @@ nk_angular_f64_skylake_cycle:
     *result = nk_angular_normalize_f64_skylake_(dot_product_f64, a_norm_sq_f64, b_norm_sq_f64);
 }
 
-/** @brief Angular from_dot for native f64: 1 − dot / √(query_sumsq × target_sumsq) for 4 pairs. */
+/** @brief Angular from_dot for native f64: 1 − dot / (√query_sumsq × √target_sumsq) for 4 pairs.
+ *  Separate square roots avoid overflowing the product of two finite-but-large norms. */
 NK_INTERNAL void nk_angular_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                     nk_b256_vec_t const *target_sumsqs_vec, nk_b256_vec_t *result_vec) {
     __m256d dots_f64x4 = dots_vec->ymm_pd;
-    __m256d query_sumsq_f64x4 = _mm256_set1_pd(query_sumsq);
-    __m256d products_f64x4 = _mm256_mul_pd(query_sumsq_f64x4, target_sumsqs_vec->ymm_pd);
-    __m256d sqrt_products_f64x4 = _mm256_sqrt_pd(products_f64x4);
-    __m256d normalized_f64x4 = _mm256_div_pd(dots_f64x4, sqrt_products_f64x4);
+    __m256d query_sqrt_f64x4 = _mm256_sqrt_pd(_mm256_set1_pd(query_sumsq));
+    __m256d target_sqrt_f64x4 = _mm256_sqrt_pd(target_sumsqs_vec->ymm_pd);
+    __m256d norm_f64x4 = _mm256_mul_pd(query_sqrt_f64x4, target_sqrt_f64x4);
+    __m256d normalized_f64x4 = _mm256_div_pd(dots_f64x4, norm_f64x4);
     __m256d ones_f64x4 = _mm256_set1_pd(1.0);
     __m256d angular_f64x4 = _mm256_sub_pd(ones_f64x4, normalized_f64x4);
     result_vec->ymm_pd = _mm256_max_pd(angular_f64x4, _mm256_setzero_pd());
@@ -250,17 +251,17 @@ NK_INTERNAL void nk_euclidean_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_
     result_vec->ymm_pd = _mm256_sqrt_pd(clamped_f64x4);
 }
 
-/** @brief Angular from_dot: f32 dots upcast to f64 for precision. Output via nk_b128_vec_t (f32). */
+/** @brief Angular from_dot: f32 dots upcast to f64 for precision. Output via nk_b128_vec_t (f32).
+ *  Separate square roots avoid overflowing the product of two finite-but-large norms. */
 NK_INTERNAL void nk_angular_through_f64_from_dot_skylake_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                           nk_b128_vec_t const *target_sumsqs_vec,
                                                           nk_b128_vec_t *result_vec) {
     __m128 dots_f32x4 = dots_vec->xmm_ps;
     __m256d dots_f64x4 = _mm256_cvtps_pd(dots_f32x4);
-    __m256d query_sumsq_f64x4 = _mm256_set1_pd((nk_f64_t)query_sumsq);
-    __m256d target_sumsqs_f64x4 = _mm256_cvtps_pd(target_sumsqs_vec->xmm_ps);
-    __m256d products_f64x4 = _mm256_mul_pd(query_sumsq_f64x4, target_sumsqs_f64x4);
-    __m256d sqrt_products_f64x4 = _mm256_sqrt_pd(products_f64x4);
-    __m256d normalized_f64x4 = _mm256_div_pd(dots_f64x4, sqrt_products_f64x4);
+    __m256d query_sqrt_f64x4 = _mm256_sqrt_pd(_mm256_set1_pd((nk_f64_t)query_sumsq));
+    __m256d target_sqrt_f64x4 = _mm256_sqrt_pd(_mm256_cvtps_pd(target_sumsqs_vec->xmm_ps));
+    __m256d norm_f64x4 = _mm256_mul_pd(query_sqrt_f64x4, target_sqrt_f64x4);
+    __m256d normalized_f64x4 = _mm256_div_pd(dots_f64x4, norm_f64x4);
     __m256d ones_f64x4 = _mm256_set1_pd(1.0);
     __m256d angular_f64x4 = _mm256_sub_pd(ones_f64x4, normalized_f64x4);
     angular_f64x4 = _mm256_max_pd(angular_f64x4, _mm256_setzero_pd());

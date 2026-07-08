@@ -253,14 +253,16 @@ NK_PUBLIC void nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_s
     }
 }
 
-/** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq × target_sumsq) for 4 pairs (serial). */
+/** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq) × rsqrt(target_sumsq) for 4 pairs (serial).
+ *  Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms. */
 NK_INTERNAL void nk_angular_through_f32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                          nk_b128_vec_t const *target_sumsqs_vec,
                                                          nk_b128_vec_t *result_vec) {
+    nk_f32_t query_rsqrt = query_sumsq > 0 ? nk_f32_rsqrt_serial(query_sumsq) : 0.0f;
     for (int i = 0; i < 4; ++i) {
-        nk_f32_t product = query_sumsq * target_sumsqs_vec->f32s[i];
-        if (product > 0) {
-            nk_f32_t rsqrt_val = nk_f32_rsqrt_serial(product);
+        nk_f32_t target_sumsq = target_sumsqs_vec->f32s[i];
+        if (query_sumsq > 0 && target_sumsq > 0) {
+            nk_f32_t rsqrt_val = query_rsqrt * nk_f32_rsqrt_serial(target_sumsq);
             nk_f32_t normalized = dots_vec->f32s[i] * rsqrt_val;
             nk_f32_t result = 1.0f - normalized;
             result_vec->f32s[i] = result > 0 ? result : 0;
@@ -279,14 +281,15 @@ NK_INTERNAL void nk_euclidean_through_f32_from_dot_serial_(nk_b128_vec_t const *
     }
 }
 
-/** @brief Angular from_dot for f64 precision. */
+/** @brief Angular from_dot for f64 precision. Separate rsqrts avoid the product overflowing. */
 NK_INTERNAL void nk_angular_through_f64_from_dot_serial_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                          nk_b256_vec_t const *target_sumsqs_vec,
                                                          nk_b256_vec_t *result_vec) {
+    nk_f64_t query_rsqrt = query_sumsq > 0 ? nk_f64_rsqrt_serial(query_sumsq) : 0.0;
     for (int i = 0; i < 4; ++i) {
-        nk_f64_t product = query_sumsq * target_sumsqs_vec->f64s[i];
-        if (product > 0) {
-            nk_f64_t rsqrt_val = nk_f64_rsqrt_serial(product);
+        nk_f64_t target_sumsq = target_sumsqs_vec->f64s[i];
+        if (query_sumsq > 0 && target_sumsq > 0) {
+            nk_f64_t rsqrt_val = query_rsqrt * nk_f64_rsqrt_serial(target_sumsq);
             nk_f64_t normalized = dots_vec->f64s[i] * rsqrt_val;
             nk_f64_t result = 1.0 - normalized;
             result_vec->f64s[i] = result > 0 ? result : 0;
@@ -309,10 +312,11 @@ NK_INTERNAL void nk_euclidean_through_f64_from_dot_serial_(nk_b256_vec_t const *
 NK_INTERNAL void nk_angular_through_i32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
                                                          nk_b128_vec_t const *target_sumsqs_vec,
                                                          nk_b128_vec_t *result_vec) {
+    nk_f32_t query_rsqrt = query_sumsq > 0 ? nk_f32_rsqrt_serial((nk_f32_t)query_sumsq) : 0.0f;
     for (int i = 0; i < 4; ++i) {
-        nk_f32_t product = (nk_f32_t)query_sumsq * (nk_f32_t)target_sumsqs_vec->i32s[i];
-        if (product > 0) {
-            nk_f32_t rsqrt_val = nk_f32_rsqrt_serial(product);
+        nk_i32_t target_sumsq = target_sumsqs_vec->i32s[i];
+        if (query_sumsq > 0 && target_sumsq > 0) {
+            nk_f32_t rsqrt_val = query_rsqrt * nk_f32_rsqrt_serial((nk_f32_t)target_sumsq);
             nk_f32_t normalized = (nk_f32_t)dots_vec->i32s[i] * rsqrt_val;
             nk_f32_t result = 1.0f - normalized;
             result_vec->f32s[i] = result > 0 ? result : 0;
@@ -336,10 +340,11 @@ NK_INTERNAL void nk_euclidean_through_i32_from_dot_serial_(nk_b128_vec_t const *
 NK_INTERNAL void nk_angular_through_u32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                          nk_b128_vec_t const *target_sumsqs_vec,
                                                          nk_b128_vec_t *result_vec) {
+    nk_f32_t query_rsqrt = query_sumsq > 0 ? nk_f32_rsqrt_serial((nk_f32_t)query_sumsq) : 0.0f;
     for (int i = 0; i < 4; ++i) {
-        nk_f32_t product = (nk_f32_t)query_sumsq * (nk_f32_t)target_sumsqs_vec->u32s[i];
-        if (product > 0) {
-            nk_f32_t rsqrt_val = nk_f32_rsqrt_serial(product);
+        nk_u32_t target_sumsq = target_sumsqs_vec->u32s[i];
+        if (query_sumsq > 0 && target_sumsq > 0) {
+            nk_f32_t rsqrt_val = query_rsqrt * nk_f32_rsqrt_serial((nk_f32_t)target_sumsq);
             nk_f32_t normalized = (nk_f32_t)dots_vec->u32s[i] * rsqrt_val;
             nk_f32_t result = 1.0f - normalized;
             result_vec->f32s[i] = result > 0 ? result : 0;
