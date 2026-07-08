@@ -56,6 +56,12 @@ The `i8` variant swaps in `TDPBSSD` over quad-interleaved K tiles (depth 64 per 
 Packing converts dtypes only into the ISA's native compute format, mirroring the `dots` family: raw BF16 plus in-loop widening on Haswell and Skylake, `e4m3 → f16` at pack on Skylake so the hot loop widens with one `VCVTPH2PS`, `e4m3 → bf16` through the Ice Lake converters for Genoa's `VDPBF16PS` and the AMX tiles, and raw bytes on Haswell where every conversion is on the fly.
 KV planes are the streamed operand, so at-rest bytes are memory bandwidth.
 
+### SME Streaming Softmax with Lane-Parallel Bookkeeping
+
+The Arm SME backend enters streaming mode once per call and never leaves it: scores accumulate as 2×2 widening MOPA outer products, drain through vertical ZA stores into a position-major panel with one query per lane, and the running maxima, corrections, weight sums, output rescaling, and normalization all run as plain lane-parallel vector operations with no horizontal reductions or scalar broadcasts.
+Probabilities round to pair-interleaved BF16 MOPA operands in registers with one `TRN2` per position pair, and the Q staging plus the final output transpose reuse the ZA horizontal-write/vertical-read idiom from the `dots` packer.
+Non-widening ZA16 tiles measure about twice the MOPA rate but lose ~12% relative accuracy on signed depth-256 reductions, so every reduction stays in F32 accumulators.
+
 ### U8-Quantized Probabilities for INT8
 
 The `i8` kernels quantize softmax weights as $\tilde{w} = \text{round}(255 \cdot 2^{s_2 - m_2})$ and normalize by $\sum \tilde{w}$, so the 255 cancels and no descale constant survives.
@@ -96,24 +102,33 @@ Cells marked `⋯` await measurement on the corresponding platform.
 
 #### Native
 
-| Kernel                            | 1024² | 4096² | 16384² |
-| :-------------------------------- | ----: | ----: | -----: |
-| __bf16__                          | ░░░░░ | ░░░░░ | ░░░░░░ |
-| `nk_attention_packed_bf16_serial` |     ⋯ |     ⋯ |      ⋯ |
-| __e4m3__                          | ░░░░░ | ░░░░░ | ░░░░░░ |
-| `nk_attention_packed_e4m3_serial` |     ⋯ |     ⋯ |      ⋯ |
-| __i8__                            | ░░░░░ | ░░░░░ | ░░░░░░ |
-| `nk_attention_packed_i8_serial`   |     ⋯ |     ⋯ |      ⋯ |
+| Kernel                               | 1024² | 4096² | 16384² |
+| :----------------------------------- | ----: | ----: | -----: |
+| __bf16__                             | ░░░░░ | ░░░░░ | ░░░░░░ |
+| `nk_attention_packed_bf16_serial`    |     ⋯ |     ⋯ |      ⋯ |
+| `nk_attention_packed_bf16_neonbfdot` |     ⋯ |     ⋯ |      ⋯ |
+| __e4m3__                             | ░░░░░ | ░░░░░ | ░░░░░░ |
+| `nk_attention_packed_e4m3_serial`    |     ⋯ |     ⋯ |      ⋯ |
+| `nk_attention_packed_e4m3_neonfhm`   |     ⋯ |     ⋯ |      ⋯ |
+| __i8__                               | ░░░░░ | ░░░░░ | ░░░░░░ |
+| `nk_attention_packed_i8_serial`      |     ⋯ |     ⋯ |      ⋯ |
+| `nk_attention_packed_i8_neonsdot`    |     ⋯ |     ⋯ |      ⋯ |
 
 ### Apple M5
 
 #### Native
 
-| Kernel                            | 1024² | 4096² | 16384² |
-| :-------------------------------- | ----: | ----: | -----: |
-| __bf16__                          | ░░░░░ | ░░░░░ | ░░░░░░ |
-| `nk_attention_packed_bf16_serial` |     ⋯ |     ⋯ |      ⋯ |
-| __e4m3__                          | ░░░░░ | ░░░░░ | ░░░░░░ |
-| `nk_attention_packed_e4m3_serial` |     ⋯ |     ⋯ |      ⋯ |
-| __i8__                            | ░░░░░ | ░░░░░ | ░░░░░░ |
-| `nk_attention_packed_i8_serial`   |     ⋯ |     ⋯ |      ⋯ |
+| Kernel                               | 1024² | 4096² | 16384² |
+| :----------------------------------- | ----: | ----: | -----: |
+| __bf16__                             | ░░░░░ | ░░░░░ | ░░░░░░ |
+| `nk_attention_packed_bf16_serial`    |     ⋯ |     ⋯ |      ⋯ |
+| `nk_attention_packed_bf16_neonbfdot` |     ⋯ |     ⋯ |      ⋯ |
+| `nk_attention_packed_bf16_sme`       |     ⋯ |     ⋯ |      ⋯ |
+| __e4m3__                             | ░░░░░ | ░░░░░ | ░░░░░░ |
+| `nk_attention_packed_e4m3_serial`    |     ⋯ |     ⋯ |      ⋯ |
+| `nk_attention_packed_e4m3_neonfhm`   |     ⋯ |     ⋯ |      ⋯ |
+| `nk_attention_packed_e4m3_sme`       |     ⋯ |     ⋯ |      ⋯ |
+| __i8__                               | ░░░░░ | ░░░░░ | ░░░░░░ |
+| `nk_attention_packed_i8_serial`      |     ⋯ |     ⋯ |      ⋯ |
+| `nk_attention_packed_i8_neonsdot`    |     ⋯ |     ⋯ |      ⋯ |
+| `nk_attention_packed_i8_sme`         |     ⋯ |     ⋯ |      ⋯ |

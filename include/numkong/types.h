@@ -1851,8 +1851,10 @@ NK_INTERNAL int nk_bf16_is_nan_(nk_bf16_t x) {
  *  trap with SIGILL outside streaming mode. These helpers bracket the query with
  *  SMSTART SM / SMSTOP SM so the calling function's ABI is unchanged.
  *  Inside `__arm_locally_streaming` functions the plain `svcntXX()` intrinsics are fine.
- *  The transitions zero every Z and P register, so the asm declares them clobbered —
- *  otherwise values the compiler caches in the callee-saved V8-V15 are silently lost.
+ *  The transitions zero every Z and P register, so the asm declares the V and P
+ *  registers clobbered — the "v" spelling is the one Clang reliably honors for values
+ *  it keeps in FP/SIMD registers; with bare "z" names Clang kept a live `s0` argument
+ *  in place across the bracket and the first SMSTART silently zeroed it.
  */
 #if NK_TARGET_ARM64_ && NK_TARGET_SME
 /** @brief Streaming SVL byte-element count (SVL/8) via SMSTART SM bracket. */
@@ -1861,9 +1863,9 @@ NK_INTERNAL nk_size_t nk_sme_cntb_(void) {
     __asm__ __volatile__("smstart sm\n\t" "cntb %0\n\t" "smstop sm"
                          : "=r"(r)
                          :
-                         : "z0", "z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8", "z9", "z10", "z11", "z12", "z13",
-                           "z14", "z15", "z16", "z17", "z18", "z19", "z20", "z21", "z22", "z23", "z24", "z25", "z26",
-                           "z27", "z28", "z29", "z30", "z31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
+                         : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
+                           "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26",
+                           "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
                            "p9", "p10", "p11", "p12", "p13", "p14", "p15");
     return (nk_size_t)r;
 }
@@ -1873,9 +1875,9 @@ NK_INTERNAL nk_size_t nk_sme_cnth_(void) {
     __asm__ __volatile__("smstart sm\n\t" "cnth %0\n\t" "smstop sm"
                          : "=r"(r)
                          :
-                         : "z0", "z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8", "z9", "z10", "z11", "z12", "z13",
-                           "z14", "z15", "z16", "z17", "z18", "z19", "z20", "z21", "z22", "z23", "z24", "z25", "z26",
-                           "z27", "z28", "z29", "z30", "z31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
+                         : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
+                           "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26",
+                           "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
                            "p9", "p10", "p11", "p12", "p13", "p14", "p15");
     return (nk_size_t)r;
 }
@@ -1885,9 +1887,9 @@ NK_INTERNAL nk_size_t nk_sme_cntw_(void) {
     __asm__ __volatile__("smstart sm\n\t" "cntw %0\n\t" "smstop sm"
                          : "=r"(r)
                          :
-                         : "z0", "z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8", "z9", "z10", "z11", "z12", "z13",
-                           "z14", "z15", "z16", "z17", "z18", "z19", "z20", "z21", "z22", "z23", "z24", "z25", "z26",
-                           "z27", "z28", "z29", "z30", "z31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
+                         : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
+                           "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26",
+                           "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
                            "p9", "p10", "p11", "p12", "p13", "p14", "p15");
     return (nk_size_t)r;
 }
@@ -1897,9 +1899,9 @@ NK_INTERNAL nk_size_t nk_sme_cntd_(void) {
     __asm__ __volatile__("smstart sm\n\t" "cntd %0\n\t" "smstop sm"
                          : "=r"(r)
                          :
-                         : "z0", "z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8", "z9", "z10", "z11", "z12", "z13",
-                           "z14", "z15", "z16", "z17", "z18", "z19", "z20", "z21", "z22", "z23", "z24", "z25", "z26",
-                           "z27", "z28", "z29", "z30", "z31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
+                         : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
+                           "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26",
+                           "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
                            "p9", "p10", "p11", "p12", "p13", "p14", "p15");
     return (nk_size_t)r;
 }
@@ -1911,9 +1913,9 @@ NK_INTERNAL void nk_sme_start_streaming_(void) {
     __asm__ __volatile__("smstart sm"
                          :
                          :
-                         : "z0", "z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8", "z9", "z10", "z11", "z12", "z13",
-                           "z14", "z15", "z16", "z17", "z18", "z19", "z20", "z21", "z22", "z23", "z24", "z25", "z26",
-                           "z27", "z28", "z29", "z30", "z31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
+                         : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
+                           "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26",
+                           "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
                            "p9", "p10", "p11", "p12", "p13", "p14", "p15", "memory");
 }
 /** @brief Exit streaming SVE mode (PSTATE.SM = 0). Must pair with nk_sme_start_streaming_. */
@@ -1921,9 +1923,9 @@ NK_INTERNAL void nk_sme_stop_streaming_(void) {
     __asm__ __volatile__("smstop sm"
                          :
                          :
-                         : "z0", "z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8", "z9", "z10", "z11", "z12", "z13",
-                           "z14", "z15", "z16", "z17", "z18", "z19", "z20", "z21", "z22", "z23", "z24", "z25", "z26",
-                           "z27", "z28", "z29", "z30", "z31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
+                         : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
+                           "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26",
+                           "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
                            "p9", "p10", "p11", "p12", "p13", "p14", "p15", "memory");
 }
 

@@ -51,6 +51,9 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_angulars_symmetric_k: *m = (m_t)&nk_angulars_symmetric_e4m3_sme, *c = nk_cap_sme_k; return;
         case nk_kernel_euclideans_packed_k: *m = (m_t)&nk_euclideans_packed_e4m3_sme, *c = nk_cap_sme_k; return;
         case nk_kernel_euclideans_symmetric_k: *m = (m_t)&nk_euclideans_symmetric_e4m3_sme, *c = nk_cap_sme_k; return;
+        case nk_kernel_attention_packed_size_k: *m = (m_t)&nk_attention_packed_size_e4m3_sme, *c = nk_cap_sme_k; return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_e4m3_sme, *c = nk_cap_sme_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_e4m3_sme, *c = nk_cap_sme_k; return;
         default: break;
         }
 #endif
@@ -91,6 +94,11 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_euclideans_symmetric_k:
             *m = (m_t)&nk_euclideans_symmetric_e4m3_neonfhm, *c = nk_cap_neonfhm_k;
             return;
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_e4m3_neonfhm, *c = nk_cap_neonfhm_k;
+            return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_e4m3_neonfhm, *c = nk_cap_neonfhm_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_e4m3_neonfhm, *c = nk_cap_neonfhm_k; return;
         default: break;
         }
 #endif

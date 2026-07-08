@@ -18,7 +18,7 @@
  *  For hardware architectures:
  *
  *  - x86: Haswell, Skylake, Genoa, Sapphire Rapids AMX
- *  - Arm: SME
+ *  - Arm: SME, and per-feature NEON tiers (BFDOT for BF16, FHM for E4M3, SDOT for I8)
  *  - portable serial fallback
  *
  *  @section attention_usage Usage and Benefits
