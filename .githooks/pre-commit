@@ -124,6 +124,86 @@ if command -v cargo > /dev/null 2>&1; then
     fi
 fi
 
+# Rust — `macro_rules!` is banned: every per-type impl is written out explicitly (see rust/cast.rs). Added
+# lines only, so a pre-existing macro migrates on its own schedule while no new one lands.
+while IFS= read -r file; do
+    case "$file" in
+    *.rs) ;;
+    *) continue ;;
+    esac
+    macro_hits=$(git diff --cached --unified=0 -- "$file" | grep '^+' | grep -v '^+++' |
+        grep -nE 'macro_rules!' || true)
+    if [ -n "$macro_hits" ]; then
+        echo "pre-commit: $file adds a \`macro_rules!\` — banned; write each impl out explicitly:"
+        printf '%s\n' "$macro_hits" | head -5
+        failed=1
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+# ISA kernels — every SIMD register variable must encode its element type and width. The naming grammar
+# is per-ISA: `<role>_<dtype>x<lanes>` for fixed-width lanes (x86 / NEON / WASM / Loongson / Power),
+# `<role>_<dtype>x` for scalable SVE/SME, `<role>_<dtype>m<lmul>` for RISC-V RVV; masks/predicates are
+# `mask`/`<role>_mask` or `<role>_b<n>x<lanes>` (x86), `<role>_b<n>x` (SVE), `<role>_b<n>` (RVV). Scoped to
+# ISA-specific files only
+# — never serial.h, the umbrella <family>.h, or any .hpp. Added lines only; a line carrying an inline
+# `// nk-nolint: naming` comment is grandfathered. Tile-typed locals (`*_tile`/`state`) and `*_vec`/`*_tail`
+# reinterpret-staging unions are exempt. Function signatures are skipped (the name is followed by `(`).
+while IFS= read -r file; do
+    base="${file##*/}"
+    case "$base" in
+    haswell.h | skylake.h | icelake.h | genoa.h | sapphire.h | sapphireamx.h | graniteamx.h | alder.h | \
+        sierra.h | turin.h | v128relaxed.h | loongsonasx.h | powervsx.h | neon*.h) isa="fixed" ;;
+    sve*.h | sme*.h) isa="sve" ;;
+    rvv*.h) isa="rvv" ;;
+    *) continue ;;
+    esac
+    # Only ISA files that live under include/numkong/<family>/ — not a stray same-named file elsewhere.
+    case "$file" in
+    */numkong/*/"$base") ;;
+    *) continue ;;
+    esac
+    bad_names=$(git diff --cached --unified=0 -- "$file" | grep '^+' | grep -v '^+++' |
+        grep -v 'nk-nolint: naming' |
+        awk -v isa="$isa" '
+        function ok_vec(name) {
+            if (isa == "fixed") return name ~ /_(f16|f32|f64|bf16|e2m3|e3m2|e4m3|e5m2|i8|i16|i32|i64|u8|u16|u32|u64)x[0-9]+(x[234])?$/ || name ~ /_b(8|16|32|64)x[0-9]+$/
+            if (isa == "sve")   return name ~ /_(f16|f32|f64|bf16|i8|i16|i32|i64|u8|u16|u32|u64)x$/
+            if (isa == "rvv")   return name ~ /_(f16|f32|f64|bf16|i8|i16|i32|i64|u8|u16|u32|u64)m[1248](x[234])?$/
+        }
+        function ok_mask(name) {
+            if (isa == "fixed") return name == "mask" || name ~ /_mask$/ || name ~ /_b(8|16|32|64)x[0-9]+$/
+            if (isa == "sve")   return name ~ /_b(8|16|32|64)x$/
+            if (isa == "rvv")   return name ~ /_b(1|2|4|8|16|32|64)$/
+        }
+        function exempt(name) { return name ~ /(_vec|_tail|_tile)$/ || name == "state" }
+        {
+            line = $0; sub(/^\+/, "", line); sub(/\/\/.*/, "", line)
+            n = split(line, tok, /[[:space:]]+/)
+            for (i = 1; i <= n; i++) {
+                t = tok[i]
+                is_mask = (t ~ /^(__mmask[0-9]+|svbool_t|vbool[0-9]+_t)$/)
+                is_vec  = (t ~ /^(__m(128|256|512)[id]?|__m512bh|v128_t|(float|int|uint|bfloat|poly)[0-9]+x[0-9]+(x[234])?_t|sv(float|int|uint|bfloat)[0-9]*_t|v(float|int|uint|bfloat)[0-9]+m[1248](x[234])?_t|nk_v[a-z0-9]+_t)$/)
+                if (!is_mask && !is_vec) continue
+                name = tok[i+1]
+                if (name == "const") name = tok[i+2]
+                if (name ~ /\(/) break                 # function signature — skip the whole line
+                sub(/[=;,].*/, "", name)               # strip trailing punctuation / initializer
+                if (name == "" || name ~ /[^A-Za-z0-9_]/) continue
+                if (exempt(name)) break
+                if (is_mask ? ok_mask(name) : ok_vec(name)) break
+                print "    " t " " name
+                break
+            }
+        }' || true)
+    if [ -n "$bad_names" ]; then
+        echo "pre-commit: $file has a SIMD register whose name breaks the $isa naming convention"
+        echo "            (<role>_<dtype>x<lanes> / _<dtype>x / _<dtype>m<lmul>; masks per ISA). Rename, or"
+        echo "            grandfather one line with a trailing \`// nk-nolint: naming\`:"
+        printf '%s\n' "$bad_names" | head -5
+        failed=1
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
 # Python — ruff format + lint on the staged files, plus the ALL-CAPS-emphasis ban on changed lines. Ruff
 # is tool-guarded (a missing ruff skips rather than blocks); the emphasis grep is pure shell and runs
 # whenever a `.py` file is staged.
@@ -176,7 +256,7 @@ while IFS= read -r file; do
     *.md | *.markdown) ;;
     *)
         rulers=$(printf '%s\n' "$added" |
-            grep -nE '^\+[[:space:]]*(([#]+|//)?[[:space:]]*[-=]{3,}|/{3,}|#{3,})[[:space:]]*$' || true)
+            grep -nE '^\+[[:space:]]*(([#]+|//)?[[:space:]]*[-=]{3,}|/{4,}|#{3,})[[:space:]]*$' || true)
         if [ -n "$rulers" ]; then
             echo "pre-commit: $file adds a decorative banner ruler (---/===////+/###; banned outside Markdown):"
             printf '%s\n' "$rulers" | head -5
@@ -190,6 +270,17 @@ while IFS= read -r file; do
         echo "pre-commit: $file disables a formatter in-band — the .clang-format / .cmake-format.py profile is the law,"
         echo "            teach the tool (additional_commands / config) instead of fencing a region off:"
         printf '%s\n' "$format_off" | head -5
+        failed=1
+    fi
+
+    # Prose uses a single space between sentences: a period/question/exclamation followed by two-plus
+    # spaces and a capital is the double-space habit. Added lines only; a line carrying an inline
+    # `nk-nolint: spacing` comment is skipped (e.g. a deliberately column-aligned table).
+    double_space=$(printf '%s\n' "$added" | grep -v 'nk-nolint: spacing' |
+        grep -nE '[.!?]  +[A-Z]' || true)
+    if [ -n "$double_space" ]; then
+        echo "pre-commit: $file double-spaces between sentences — use a single space after . ! ?:"
+        printf '%s\n' "$double_space" | head -5
         failed=1
     fi
 done < <(git diff --cached --name-only --diff-filter=ACM)
