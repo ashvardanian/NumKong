@@ -122,37 +122,43 @@ NK_PUBLIC void nk_attention_pack_i8_neonsdot(                                   
                 vst1q_u8((uint8_t *)(keys_plane + position_idx * depth_padded + byte_idx), vdupq_n_u8(0));
         // V tiles as [position_quad][channel][4 positions] with a +128 offset to U8 — one XOR
         // of the sign bit — so one UDOT covers 4 positions × 4 channels; `vst4q_u8` interleaves
-        // the four rows in a single store. Padded positions carry zero weights, so their
-        // content only needs to be deterministic.
-        NK_ALIGN64 nk_u8_t staging[4][nk_attention_max_depth_neonsdot_k_];
-        for (nk_size_t quad_idx = 0; quad_idx < position_count_padded / 4; quad_idx++) {
-            for (nk_size_t position_in_quad = 0; position_in_quad < 4; position_in_quad++) {
-                nk_size_t const position_idx = quad_idx * 4 + position_in_quad;
-                if (position_idx >= position_count) {
-                    for (nk_size_t byte_idx = 0; byte_idx < depth_padded; byte_idx += 16)
-                        vst1q_u8(staging[position_in_quad] + byte_idx, vdupq_n_u8(0));
-                    continue;
-                }
-                nk_u8_t const *values_row = (nk_u8_t const *)values +
-                                            (position_first + position_idx) * value_stride_bytes +
-                                            key_value_head_idx * depth;
-                nk_size_t channel_idx = 0;
-                for (; channel_idx + 16 <= depth; channel_idx += 16)
-                    vst1q_u8(staging[position_in_quad] + channel_idx,
-                             veorq_u8(vld1q_u8(values_row + channel_idx), vdupq_n_u8(0x80)));
-                for (; channel_idx < depth; channel_idx++)
-                    staging[position_in_quad][channel_idx] = values_row[channel_idx] ^ 0x80;
-                for (; channel_idx < depth_padded; channel_idx++) staging[position_in_quad][channel_idx] = 0;
-            }
+        // four source rows per 16 channels with no staging. Full quads run branch-free; the
+        // ragged last quad and any channel tail fall to scalar code, since padded positions
+        // carry zero weights and only need deterministic content.
+        for (nk_size_t quad_idx = 0; quad_idx < position_count / 4; quad_idx++) {
+            nk_u8_t const *row0 = (nk_u8_t const *)values + (position_first + quad_idx * 4 + 0) * value_stride_bytes +
+                                  key_value_head_idx * depth;
+            nk_u8_t const *row1 = (nk_u8_t const *)values + (position_first + quad_idx * 4 + 1) * value_stride_bytes +
+                                  key_value_head_idx * depth;
+            nk_u8_t const *row2 = (nk_u8_t const *)values + (position_first + quad_idx * 4 + 2) * value_stride_bytes +
+                                  key_value_head_idx * depth;
+            nk_u8_t const *row3 = (nk_u8_t const *)values + (position_first + quad_idx * 4 + 3) * value_stride_bytes +
+                                  key_value_head_idx * depth;
             nk_u8_t *tile = (nk_u8_t *)(values_plane + quad_idx * depth_padded * 4);
-            for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16) {
+            nk_size_t channel_idx = 0;
+            for (; channel_idx + 16 <= depth; channel_idx += 16) {
                 uint8x16x4_t rows_u8x16x4;
-                rows_u8x16x4.val[0] = vld1q_u8(staging[0] + channel_idx);
-                rows_u8x16x4.val[1] = vld1q_u8(staging[1] + channel_idx);
-                rows_u8x16x4.val[2] = vld1q_u8(staging[2] + channel_idx);
-                rows_u8x16x4.val[3] = vld1q_u8(staging[3] + channel_idx);
+                rows_u8x16x4.val[0] = veorq_u8(vld1q_u8(row0 + channel_idx), vdupq_n_u8(0x80));
+                rows_u8x16x4.val[1] = veorq_u8(vld1q_u8(row1 + channel_idx), vdupq_n_u8(0x80));
+                rows_u8x16x4.val[2] = veorq_u8(vld1q_u8(row2 + channel_idx), vdupq_n_u8(0x80));
+                rows_u8x16x4.val[3] = veorq_u8(vld1q_u8(row3 + channel_idx), vdupq_n_u8(0x80));
                 vst4q_u8(tile + channel_idx * 4, rows_u8x16x4);
             }
+            for (; channel_idx < depth_padded; channel_idx++) {
+                tile[channel_idx * 4 + 0] = channel_idx < depth ? (nk_u8_t)(row0[channel_idx] ^ 0x80) : 0;
+                tile[channel_idx * 4 + 1] = channel_idx < depth ? (nk_u8_t)(row1[channel_idx] ^ 0x80) : 0;
+                tile[channel_idx * 4 + 2] = channel_idx < depth ? (nk_u8_t)(row2[channel_idx] ^ 0x80) : 0;
+                tile[channel_idx * 4 + 3] = channel_idx < depth ? (nk_u8_t)(row3[channel_idx] ^ 0x80) : 0;
+            }
+        }
+        for (nk_size_t position_idx = position_count / 4 * 4; position_idx < position_count_padded; position_idx++) {
+            nk_u8_t const *row = (nk_u8_t const *)values + (position_first + position_idx) * value_stride_bytes +
+                                 key_value_head_idx * depth;
+            nk_u8_t *tile = (nk_u8_t *)(values_plane + (position_idx / 4) * depth_padded * 4) + position_idx % 4;
+            for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx++)
+                tile[channel_idx * 4] = position_idx < position_count && channel_idx < depth
+                                            ? (nk_u8_t)(row[channel_idx] ^ 0x80)
+                                            : 0;
         }
     }
 }

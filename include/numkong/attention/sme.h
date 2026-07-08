@@ -1138,26 +1138,24 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                 svuint32_t panel_sum_high_u32x = svdup_u32(0);
                 for (nk_size_t quad_idx = 0; quad_idx < panel_quads; quad_idx++) {
                     svuint32_t quantized_low_u32x = svdup_u32(0), quantized_high_u32x = svdup_u32(0);
-                    for (nk_size_t position_in_quad = 0; position_in_quad < 4; position_in_quad++) {
+                    nk_size_t const quad_length = // padded slots keep their zero bytes: weight zero
+                        panel_length - quad_idx * 4 < 4 ? panel_length - quad_idx * 4 : 4;
+                    for (nk_size_t position_in_quad = 0; position_in_quad < quad_length; position_in_quad++) {
                         nk_size_t const position_idx = quad_idx * 4 + position_in_quad;
-                        svint32_t delta_low_i32x = svdup_s32(delta_floor); // padded positions quantize to zero
-                        svint32_t delta_high_i32x = svdup_s32(delta_floor);
-                        if (position_idx < panel_length) {
-                            nk_i32_t const *position_scores = scores_panel + position_idx * block_rows_capacity;
-                            delta_low_i32x = svmax_n_s32_x(
+                        nk_i32_t const *position_scores = scores_panel + position_idx * block_rows_capacity;
+                        svint32_t const delta_low_i32x = svmax_n_s32_x(
+                            predicate_all_b32x,
+                            svsub_s32_x(predicate_all_b32x,
+                                        svld1_s32(predicate_all_b32x, (int32_t const *)position_scores),
+                                        new_max_low_i32x),
+                            delta_floor);
+                        svint32_t const delta_high_i32x = svmax_n_s32_x(
+                            predicate_all_b32x,
+                            svsub_s32_x(
                                 predicate_all_b32x,
-                                svsub_s32_x(predicate_all_b32x,
-                                            svld1_s32(predicate_all_b32x, (int32_t const *)position_scores),
-                                            new_max_low_i32x),
-                                delta_floor);
-                            delta_high_i32x = svmax_n_s32_x(
-                                predicate_all_b32x,
-                                svsub_s32_x(
-                                    predicate_all_b32x,
-                                    svld1_s32(predicate_all_b32x, (int32_t const *)(position_scores + tile_dimension)),
-                                    new_max_high_i32x),
-                                delta_floor);
-                        }
+                                svld1_s32(predicate_all_b32x, (int32_t const *)(position_scores + tile_dimension)),
+                                new_max_high_i32x),
+                            delta_floor);
                         svuint32_t const weight_low_u32x = svreinterpret_u32_s32(nk_attention_iexp2_weight_i32x_sme_(
                             svmul_n_s32_x(predicate_all_b32x, delta_low_i32x, scale_fixed)));
                         svuint32_t const weight_high_u32x = svreinterpret_u32_s32(nk_attention_iexp2_weight_i32x_sme_(
