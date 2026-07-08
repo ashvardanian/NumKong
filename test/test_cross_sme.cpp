@@ -108,6 +108,10 @@ void test_cross_sme() {
 
     check("attention_packed_bf16_sme", test_attention_packed<bf16_t>, nk_attention_packed_size_bf16_sme,
           nk_attention_pack_bf16_sme, nk_attention_packed_bf16_sme);
+    check("attention_packed_e4m3_sme", test_attention_packed<e4m3_t>, nk_attention_packed_size_e4m3_sme,
+          nk_attention_pack_e4m3_sme, nk_attention_packed_e4m3_sme);
+    check("attention_packed_i8_sme", test_attention_packed<i8_t>, nk_attention_packed_size_i8_sme,
+          nk_attention_pack_i8_sme, nk_attention_packed_i8_sme);
 #endif
 
 #if NK_TARGET_SMEBI32

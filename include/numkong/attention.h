@@ -474,6 +474,37 @@ NK_PUBLIC void nk_attention_packed_bf16_sme(nk_bf16_t const *queries, void const
                                             nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
                                             nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t first_task,
                                             nk_size_t task_count);
+/** @copydoc nk_attention_packed_size_bf16 */
+NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_sme(nk_size_t key_value_head_count, nk_size_t depth,
+                                                      nk_u32_t const *segment_lengths, nk_size_t segment_count);
+/** @copydoc nk_attention_pack_bf16 */
+NK_PUBLIC void nk_attention_pack_e4m3_sme(nk_e4m3_t const *keys, nk_e4m3_t const *values,
+                                          nk_size_t key_value_head_count, nk_size_t depth,
+                                          nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                          nk_size_t segment_count, nk_size_t key_stride_bytes,
+                                          nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
+                                          nk_size_t task_count);
+/** @copydoc nk_attention_packed_bf16 */
+NK_PUBLIC void nk_attention_packed_e4m3_sme(nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,
+                                            nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,
+                                            nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+                                            nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t first_task,
+                                            nk_size_t task_count);
+/** @copydoc nk_attention_packed_size_bf16 */
+NK_PUBLIC nk_size_t nk_attention_packed_size_i8_sme(nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *segment_lengths, nk_size_t segment_count);
+/** @copydoc nk_attention_pack_bf16 */
+NK_PUBLIC void nk_attention_pack_i8_sme(nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count,
+                                        nk_size_t depth, nk_u32_t const *segment_offsets,
+                                        nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                        nk_size_t key_stride_bytes, nk_size_t value_stride_bytes,
+                                        void *key_value_packed, nk_size_t first_task, nk_size_t task_count);
+/** @copydoc nk_attention_packed_bf16 */
+NK_PUBLIC void nk_attention_packed_i8_sme(nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,
+                                          nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,
+                                          nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+                                          nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t first_task,
+                                          nk_size_t task_count);
 #endif // NK_TARGET_SME
 
 #if NK_TARGET_RVV
@@ -643,6 +674,8 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3(nk_size_t key_value_head_count
     return nk_attention_packed_size_e4m3_skylake(key_value_head_count, depth, segment_lengths, segment_count);
 #elif NK_TARGET_HASWELL
     return nk_attention_packed_size_e4m3_haswell(key_value_head_count, depth, segment_lengths, segment_count);
+#elif NK_TARGET_SME
+    return nk_attention_packed_size_e4m3_sme(key_value_head_count, depth, segment_lengths, segment_count);
 #elif NK_TARGET_RVV
     return nk_attention_packed_size_e4m3_rvv(key_value_head_count, depth, segment_lengths, segment_count);
 #elif NK_TARGET_V128RELAXED
@@ -711,6 +744,10 @@ NK_PUBLIC void nk_attention_pack_e4m3(nk_e4m3_t const *keys, nk_e4m3_t const *va
     nk_attention_pack_e4m3_haswell(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                    segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
                                    task_count);
+#elif NK_TARGET_SME
+    nk_attention_pack_e4m3_sme(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
+                               segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
+                               task_count);
 #elif NK_TARGET_RVV
     nk_attention_pack_e4m3_rvv(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
@@ -785,6 +822,9 @@ NK_PUBLIC void nk_attention_packed_e4m3(nk_e4m3_t const *queries, void const *ke
     nk_attention_packed_e4m3_haswell(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                      query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
                                      task_count);
+#elif NK_TARGET_SME
+    nk_attention_packed_e4m3_sme(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                 query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task, task_count);
 #elif NK_TARGET_RVV
     nk_attention_packed_e4m3_rvv(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                  query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task, task_count);
@@ -807,6 +847,8 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_i8(nk_size_t key_value_head_count, 
     return nk_attention_packed_size_i8_icelake(key_value_head_count, depth, segment_lengths, segment_count);
 #elif NK_TARGET_HASWELL
     return nk_attention_packed_size_i8_haswell(key_value_head_count, depth, segment_lengths, segment_count);
+#elif NK_TARGET_SME
+    return nk_attention_packed_size_i8_sme(key_value_head_count, depth, segment_lengths, segment_count);
 #elif NK_TARGET_RVV
     return nk_attention_packed_size_i8_rvv(key_value_head_count, depth, segment_lengths, segment_count);
 #elif NK_TARGET_V128RELAXED
@@ -832,6 +874,9 @@ NK_PUBLIC void nk_attention_pack_i8(nk_i8_t const *keys, nk_i8_t const *values, 
     nk_attention_pack_i8_haswell(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                  segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
                                  task_count);
+#elif NK_TARGET_SME
+    nk_attention_pack_i8_sme(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
+                             key_stride_bytes, value_stride_bytes, key_value_packed, first_task, task_count);
 #elif NK_TARGET_RVV
     nk_attention_pack_i8_rvv(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
                              key_stride_bytes, value_stride_bytes, key_value_packed, first_task, task_count);
@@ -863,6 +908,9 @@ NK_PUBLIC void nk_attention_packed_i8(nk_i8_t const *queries, void const *key_va
     nk_attention_packed_i8_haswell(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                    query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
                                    task_count);
+#elif NK_TARGET_SME
+    nk_attention_packed_i8_sme(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                               query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task, task_count);
 #elif NK_TARGET_RVV
     nk_attention_packed_i8_rvv(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task, task_count);

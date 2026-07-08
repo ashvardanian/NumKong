@@ -5,6 +5,7 @@
  *  @date January 14, 2025
  */
 
+#include "numkong/attention.h"
 #include "numkong/dot.h"
 #include "numkong/dots.h"
 #include "numkong/sets.h"
@@ -28,6 +29,13 @@ void bench_cross_sme() {
     constexpr nk_dtype_t e3m2_k = nk_e3m2_k;
 
 #if NK_TARGET_SME
+    run_attention<bf16_k>("attention_packed_bf16_sme", nk_attention_packed_size_bf16_sme, nk_attention_pack_bf16_sme,
+                          nk_attention_packed_bf16_sme);
+    run_attention<e4m3_k>("attention_packed_e4m3_sme", nk_attention_packed_size_e4m3_sme, nk_attention_pack_e4m3_sme,
+                          nk_attention_packed_e4m3_sme);
+    run_attention<i8_k>("attention_packed_i8_sme", nk_attention_packed_size_i8_sme, nk_attention_pack_i8_sme,
+                        nk_attention_packed_i8_sme);
+
     run_dots_packed<f16_k>("dots_packed_f16_sme", nk_dots_packed_size_f16_sme, nk_dots_pack_f16_sme,
                            nk_dots_packed_f16_sme);
     run_dots_packed<bf16_k>("dots_packed_bf16_sme", nk_dots_packed_size_bf16_sme, nk_dots_pack_bf16_sme,
