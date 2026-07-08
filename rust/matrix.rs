@@ -2818,8 +2818,10 @@ impl Euclideans for i4x2 {
 pub struct PackedMatrix<Scalar: Dots, Alloc: Allocator = Global> {
     /// Raw pointer to packed data buffer.
     data: NonNull<u8>,
-    /// Size of the packed buffer in bytes.
+    /// Bytes of live packed content.
     size: usize,
+    /// Bytes actually allocated (>= size); lets `try_pack_into` reuse the buffer.
+    capacity: usize,
     /// Output columns (B width).
     width: usize,
     /// Inner dimension (depth).
@@ -2835,9 +2837,9 @@ unsafe impl<Scalar: Dots + Sync, Alloc: Allocator + Sync> Sync for PackedMatrix<
 
 impl<Scalar: Dots, Alloc: Allocator> Drop for PackedMatrix<Scalar, Alloc> {
     fn drop(&mut self) {
-        if self.size > 0 {
+        if self.capacity > 0 {
             unsafe {
-                let layout = core::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
+                let layout = core::alloc::Layout::from_size_align_unchecked(self.capacity, SIMD_ALIGNMENT);
                 self.alloc.deallocate(self.data, layout);
             }
         }
@@ -2851,6 +2853,7 @@ impl<Scalar: Dots, Alloc: Allocator + Clone> PackedMatrix<Scalar, Alloc> {
             return Ok(Self {
                 data: NonNull::dangling(),
                 size: 0,
+                capacity: 0,
                 width: self.width,
                 depth: self.depth,
                 alloc: self.alloc.clone(),
@@ -2867,6 +2870,7 @@ impl<Scalar: Dots, Alloc: Allocator + Clone> PackedMatrix<Scalar, Alloc> {
         Ok(Self {
             data: ptr,
             size: self.size,
+            capacity: self.size,
             width: self.width,
             depth: self.depth,
             alloc: self.alloc.clone(),
@@ -2888,7 +2892,33 @@ impl<Scalar: Dots, Alloc: Allocator> PackedMatrix<Scalar, Alloc> {
     /// Returns `Err` if:
     /// - b is not 2D
     /// - allocation fails
+    /// An empty packed matrix owning no allocation; fill it with [`try_pack_into`](Self::try_pack_into).
+    pub fn empty_in(alloc: Alloc) -> Self {
+        Self {
+            data: NonNull::dangling(),
+            size: 0,
+            capacity: 0,
+            width: 0,
+            depth: 0,
+            alloc,
+            _marker: PhantomData,
+        }
+    }
+
     pub fn try_pack_in<B, const MAX_RANK: usize>(b: &B, alloc: Alloc) -> Result<Self, TensorError>
+    where
+        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        let mut packed = Self::empty_in(alloc);
+        packed.try_pack_into(b)?;
+        Ok(packed)
+    }
+
+    /// Repack `b` into this matrix's existing buffer, reusing the allocation when the packed size
+    /// fits `capacity` and reallocating (via the stored allocator) only when it must grow. A
+    /// steady-state loop over same-shaped operands then allocates at most once. `b` must be 2D
+    /// with contiguous rows.
+    pub fn try_pack_into<B, const MAX_RANK: usize>(&mut self, b: &B) -> Result<(), TensorError>
     where
         B: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
@@ -2898,43 +2928,48 @@ impl<Scalar: Dots, Alloc: Allocator> PackedMatrix<Scalar, Alloc> {
                 got: b.ndim(),
             });
         }
-        // The pack kernel reads each row's `depth` elements contiguously (it only
-        // takes a row stride), so a view with a non-unit inner stride — e.g. a
-        // bare transpose — would be mispacked. Reject it, as the maxsim path does.
+        // The pack kernel reads each row's `depth` elements contiguously (it only takes a row
+        // stride), so a view with a non-unit inner stride — e.g. a bare transpose — would be
+        // mispacked. Reject it, as the maxsim path does.
         if !b.has_contiguous_rows() {
             return Err(TensorError::NonContiguousRows);
         }
         let (width, depth) = (b.shape()[0], b.shape()[1]);
         let size = Scalar::dots_packed_size(width, depth);
-
-        let data = if size == 0 {
-            NonNull::dangling()
-        } else {
-            // Allocate with SIMD alignment
-            let layout = core::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
-                .map_err(|_| TensorError::AllocationFailed)?;
-            let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
-            // Zero the memory
-            unsafe {
-                core::ptr::write_bytes(ptr.as_ptr(), 0, size);
-            }
-            ptr
-        };
-
+        if size > self.capacity {
+            self.grow_to(size)?;
+        }
         if size > 0 {
             unsafe {
-                Scalar::dots_pack(b.as_ptr(), width, depth, b.stride_bytes(0) as usize, data.as_ptr());
+                core::ptr::write_bytes(self.data.as_ptr(), 0, size);
+                Scalar::dots_pack(b.as_ptr(), width, depth, b.stride_bytes(0) as usize, self.data.as_ptr());
             }
         }
+        self.size = size;
+        self.width = width;
+        self.depth = depth;
+        Ok(())
+    }
 
-        Ok(Self {
-            data,
-            size,
-            width,
-            depth,
-            alloc,
-            _marker: PhantomData,
-        })
+    /// Grow the backing allocation to at least `needed` bytes (dealloc old, alloc new — the caller
+    /// repacks, so contents need not be preserved).
+    fn grow_to(&mut self, needed: usize) -> Result<(), TensorError> {
+        let new_data = if needed == 0 {
+            NonNull::dangling()
+        } else {
+            let layout = core::alloc::Layout::from_size_align(needed, SIMD_ALIGNMENT)
+                .map_err(|_| TensorError::AllocationFailed)?;
+            self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?
+        };
+        if self.capacity > 0 {
+            unsafe {
+                let old = core::alloc::Layout::from_size_align_unchecked(self.capacity, SIMD_ALIGNMENT);
+                self.alloc.deallocate(self.data, old);
+            }
+        }
+        self.data = new_data;
+        self.capacity = needed;
+        Ok(())
     }
 
     /// Pack Bᵀ where B is (k × n) row-major (standard GEMM layout) using a custom allocator.
@@ -2970,6 +3005,12 @@ impl<Scalar: Dots, Alloc: Allocator> PackedMatrix<Scalar, Alloc> {
 
     /// Returns dimensions (width, depth) of the original B matrix.
     pub fn dims(&self) -> (usize, usize) { (self.width, self.depth) }
+
+    /// Bytes currently allocated (>= the live packed size).
+    pub fn capacity(&self) -> usize { self.capacity }
+
+    /// Reset to logically empty, keeping the allocation so the next `try_pack_into` reuses it.
+    pub fn clear(&mut self) { self.size = 0; }
 
     /// Returns the packed data buffer.
     pub fn as_bytes(&self) -> &[u8] { unsafe { core::slice::from_raw_parts(self.data.as_ptr(), self.size) } }

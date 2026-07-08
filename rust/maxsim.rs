@@ -203,7 +203,10 @@ impl MaxSim for bf16 {
 #[derive(Debug)]
 pub struct MaxSimPackedMatrix<Scalar: MaxSim, Alloc: Allocator = Global> {
     data: NonNull<u8>,
+    /// Bytes of live packed content.
     size: usize,
+    /// Bytes actually allocated (>= size); lets `try_pack_into` reuse the buffer.
+    capacity: usize,
     vector_count: usize,
     depth: usize,
     alloc: Alloc,
@@ -216,9 +219,9 @@ unsafe impl<Scalar: MaxSim + Sync, Alloc: Allocator + Sync> Sync for MaxSimPacke
 
 impl<Scalar: MaxSim, Alloc: Allocator> Drop for MaxSimPackedMatrix<Scalar, Alloc> {
     fn drop(&mut self) {
-        if self.size > 0 {
+        if self.capacity > 0 {
             unsafe {
-                let layout = core::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
+                let layout = core::alloc::Layout::from_size_align_unchecked(self.capacity, SIMD_ALIGNMENT);
                 self.alloc.deallocate(self.data, layout);
             }
         }
@@ -232,6 +235,7 @@ impl<Scalar: MaxSim, Alloc: Allocator + Clone> MaxSimPackedMatrix<Scalar, Alloc>
             return Ok(Self {
                 data: NonNull::dangling(),
                 size: 0,
+                capacity: 0,
                 vector_count: self.vector_count,
                 depth: self.depth,
                 alloc: self.alloc.clone(),
@@ -248,6 +252,7 @@ impl<Scalar: MaxSim, Alloc: Allocator + Clone> MaxSimPackedMatrix<Scalar, Alloc>
         Ok(Self {
             data: ptr,
             size: self.size,
+            capacity: self.size,
             vector_count: self.vector_count,
             depth: self.depth,
             alloc: self.alloc.clone(),
@@ -265,39 +270,76 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
     ///
     /// Returns `Err` if the view is not 2D, the depth axis is not contiguous,
     /// the row stride is negative, or allocation fails.
+    /// An empty packed set owning no allocation; fill it with [`try_pack_into`](Self::try_pack_into).
+    pub fn empty_in(alloc: Alloc) -> Self {
+        Self {
+            data: NonNull::dangling(),
+            size: 0,
+            capacity: 0,
+            vector_count: 0,
+            depth: 0,
+            alloc,
+            _marker: PhantomData,
+        }
+    }
+
     pub fn try_pack_in<Vectors, const MAX_RANK: usize>(vectors: &Vectors, alloc: Alloc) -> Result<Self, TensorError>
+    where
+        Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        let mut packed = Self::empty_in(alloc);
+        packed.try_pack_into(vectors)?;
+        Ok(packed)
+    }
+
+    /// Repack `vectors` into this set's existing buffer, reusing the allocation when the packed size
+    /// fits `capacity` and reallocating (via the stored allocator) only when it must grow.
+    pub fn try_pack_into<Vectors, const MAX_RANK: usize>(&mut self, vectors: &Vectors) -> Result<(), TensorError>
     where
         Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let (vector_count, depth, row_stride_bytes) = validate_maxsim_view(vectors)?;
         let size = Scalar::maxsim_packed_size(vector_count, depth);
-
-        let data = if size == 0 {
-            NonNull::dangling()
-        } else {
-            let layout = core::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
-                .map_err(|_| TensorError::AllocationFailed)?;
-            let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
-            unsafe {
-                core::ptr::write_bytes(ptr.as_ptr(), 0, size);
-            }
-            ptr
-        };
-
+        if size > self.capacity {
+            self.grow_to(size)?;
+        }
         if size > 0 {
             unsafe {
-                Scalar::maxsim_pack(vectors.as_ptr(), vector_count, depth, row_stride_bytes, data.as_ptr());
+                core::ptr::write_bytes(self.data.as_ptr(), 0, size);
+                Scalar::maxsim_pack(
+                    vectors.as_ptr(),
+                    vector_count,
+                    depth,
+                    row_stride_bytes,
+                    self.data.as_ptr(),
+                );
             }
         }
+        self.size = size;
+        self.vector_count = vector_count;
+        self.depth = depth;
+        Ok(())
+    }
 
-        Ok(Self {
-            data,
-            size,
-            vector_count,
-            depth,
-            alloc,
-            _marker: PhantomData,
-        })
+    /// Grow the backing allocation to at least `needed` bytes (dealloc old, alloc new — the caller
+    /// repacks, so contents need not be preserved).
+    fn grow_to(&mut self, needed: usize) -> Result<(), TensorError> {
+        let new_data = if needed == 0 {
+            NonNull::dangling()
+        } else {
+            let layout = core::alloc::Layout::from_size_align(needed, SIMD_ALIGNMENT)
+                .map_err(|_| TensorError::AllocationFailed)?;
+            self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?
+        };
+        if self.capacity > 0 {
+            unsafe {
+                let old = core::alloc::Layout::from_size_align_unchecked(self.capacity, SIMD_ALIGNMENT);
+                self.alloc.deallocate(self.data, old);
+            }
+        }
+        self.data = new_data;
+        self.capacity = needed;
+        Ok(())
     }
 
     /// Compute MaxSim score against another packed matrix.
@@ -337,6 +379,12 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
 
     /// Returns dimensions (vector_count, depth) of the original vector set.
     pub fn dims(&self) -> (usize, usize) { (self.vector_count, self.depth) }
+
+    /// Bytes currently allocated (>= the live packed size).
+    pub fn capacity(&self) -> usize { self.capacity }
+
+    /// Reset to logically empty, keeping the allocation so the next `try_pack_into` reuses it.
+    pub fn clear(&mut self) { self.size = 0; }
 
     /// Returns the packed data buffer.
     pub fn as_bytes(&self) -> &[u8] { unsafe { core::slice::from_raw_parts(self.data.as_ptr(), self.size) } }
