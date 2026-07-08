@@ -65,10 +65,10 @@ extern "C" {
  *  @return          Approximate 1/sqrt(x) with ~23-bit mantissa accuracy
  */
 NK_INTERNAL svfloat32_t nk_rsqrt_f32x_sve_(svbool_t predicate_b32x, svfloat32_t x) NK_STREAMING_COMPATIBLE_ {
-    svfloat32_t r = svrsqrte_f32(x);
-    r = svmul_f32_x(predicate_b32x, r, svrsqrts_f32(svmul_f32_x(predicate_b32x, x, r), r));
-    r = svmul_f32_x(predicate_b32x, r, svrsqrts_f32(svmul_f32_x(predicate_b32x, x, r), r));
-    return r;
+    svfloat32_t r_f32x = svrsqrte_f32(x);
+    r_f32x = svmul_f32_x(predicate_b32x, r_f32x, svrsqrts_f32(svmul_f32_x(predicate_b32x, x, r_f32x), r_f32x));
+    r_f32x = svmul_f32_x(predicate_b32x, r_f32x, svrsqrts_f32(svmul_f32_x(predicate_b32x, x, r_f32x), r_f32x));
+    return r_f32x;
 }
 
 /** @brief Reciprocal square root of an f64 SVE vector via estimate + 3 Newton-Raphson steps.
@@ -85,11 +85,11 @@ NK_INTERNAL svfloat32_t nk_rsqrt_f32x_sve_(svbool_t predicate_b32x, svfloat32_t 
  *  @return          Approximate 1/sqrt(x) with ~52-bit mantissa accuracy
  */
 NK_INTERNAL svfloat64_t nk_rsqrt_f64x_sve_(svbool_t predicate_b64x, svfloat64_t x) NK_STREAMING_COMPATIBLE_ {
-    svfloat64_t r = svrsqrte_f64(x);
-    r = svmul_f64_x(predicate_b64x, r, svrsqrts_f64(svmul_f64_x(predicate_b64x, x, r), r));
-    r = svmul_f64_x(predicate_b64x, r, svrsqrts_f64(svmul_f64_x(predicate_b64x, x, r), r));
-    r = svmul_f64_x(predicate_b64x, r, svrsqrts_f64(svmul_f64_x(predicate_b64x, x, r), r));
-    return r;
+    svfloat64_t r_f64x = svrsqrte_f64(x);
+    r_f64x = svmul_f64_x(predicate_b64x, r_f64x, svrsqrts_f64(svmul_f64_x(predicate_b64x, x, r_f64x), r_f64x));
+    r_f64x = svmul_f64_x(predicate_b64x, r_f64x, svrsqrts_f64(svmul_f64_x(predicate_b64x, x, r_f64x), r_f64x));
+    r_f64x = svmul_f64_x(predicate_b64x, r_f64x, svrsqrts_f64(svmul_f64_x(predicate_b64x, x, r_f64x), r_f64x));
+    return r_f64x;
 }
 
 NK_PUBLIC void nk_sqeuclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {

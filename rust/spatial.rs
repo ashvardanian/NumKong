@@ -50,13 +50,6 @@ use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i
 
 #[link(name = "numkong")]
 extern "C" {
-    // Scalar roots
-    fn nk_f32_sqrt(x: f32) -> f32;
-    fn nk_f32_rsqrt(x: f32) -> f32;
-    fn nk_f64_sqrt(x: f64) -> f64;
-    fn nk_f64_rsqrt(x: f64) -> f64;
-    fn nk_f16_sqrt(x: u16) -> u16;
-    fn nk_f16_rsqrt(x: u16) -> u16;
 
     // Vector dot products
     fn nk_dot_i8(a: *const i8, b: *const i8, c: usize, d: *mut i32);
@@ -124,59 +117,6 @@ extern "C" {
     fn nk_angular_i4(a: *const u8, b: *const u8, n: usize, result: *mut f32);
     fn nk_angular_u4(a: *const u8, b: *const u8, n: usize, result: *mut f32);
 }
-
-// region: Scalar Roots
-
-/// Scalar square-root and reciprocal-square-root operations backed by NumKong's
-/// exported kernels.
-///
-/// Unlike the standard library's `f32::sqrt` / `f64::sqrt`, this trait routes into
-/// the hand-tuned NumKong C kernels. On platforms where the ISA offers dedicated
-/// reciprocal-sqrt instructions (e.g. `vrsqrte` on Arm NEON, `vrsqrt14` on AVX-512)
-/// `rsqrt` uses a single refined Newton step to hit ~1 ULP accuracy — roughly 2-4×
-/// faster than computing `1.0 / sqrt(x)` explicitly.
-///
-/// Implementations are provided for the three scalar float types: `f32`, `f64`, and
-/// `f16`. Half-precision input is upcast to `f32`, computed, and downcast.
-pub trait Roots: Sized {
-    /// Non-negative square root of `self`. Equivalent to the intrinsic `sqrt`
-    /// but routed through NumKong's kernel table — picks up any runtime-dispatched
-    /// fast path available on the host CPU.
-    fn sqrt(self) -> Self;
-
-    /// Reciprocal square root `1 / sqrt(self)` computed as a single primitive op
-    /// when the hardware supports it, or a Newton-refined fallback otherwise.
-    /// Useful inside normalization-heavy kernels (e.g. cosine similarity) where
-    /// a division plus a sqrt would otherwise dominate the cost.
-    fn rsqrt(self) -> Self;
-}
-
-impl Roots for f32 {
-    /// Single-precision square root. Dispatches to the SIMD-assisted kernel.
-    fn sqrt(self) -> Self { unsafe { nk_f32_sqrt(self) } }
-
-    /// Single-precision reciprocal square root with a Newton refinement step.
-    fn rsqrt(self) -> Self { unsafe { nk_f32_rsqrt(self) } }
-}
-
-impl Roots for f64 {
-    /// Double-precision square root — full IEEE 754 accuracy.
-    fn sqrt(self) -> Self { unsafe { nk_f64_sqrt(self) } }
-
-    /// Double-precision reciprocal square root.
-    fn rsqrt(self) -> Self { unsafe { nk_f64_rsqrt(self) } }
-}
-
-impl Roots for f16 {
-    /// Half-precision square root. Input is upcast to `f32` internally and the
-    /// result is rounded back to `f16`.
-    fn sqrt(self) -> Self { f16(unsafe { nk_f16_sqrt(self.0) }) }
-
-    /// Half-precision reciprocal square root with `f32` intermediate precision.
-    fn rsqrt(self) -> Self { f16(unsafe { nk_f16_rsqrt(self.0) }) }
-}
-
-// endregion: Scalar Roots
 
 // region: Dot
 

@@ -49,8 +49,14 @@ jobs:
       - name: Test with All Features
         run: cargo test --all-features
 
-      - name: Test No-Std Build (Check Only)
+      - name: Test with Std Feature
+        run: cargo test --features std
+
+      - name: Test No-Alloc Build (Check Only)
         run: cargo check --no-default-features
+
+      - name: Test Alloc-without-Std Build (Check Only)
+        run: cargo check --no-default-features --features alloc
 
       - name: Test i686 Cross-Compilation Build
         run: cargo build --target i686-unknown-linux-gnu --features std
@@ -70,3 +76,33 @@ jobs:
           CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc-14
           CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc-14
         run: cargo build --target armv7-unknown-linux-gnueabihf --no-default-features
+
+  lint:
+    name: Lint Rust
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install Rust Toolchain
+        uses: moonrepo/setup-rust@v1
+        with:
+          components: clippy
+      - name: Clippy (all features)
+        run: cargo clippy --all-features -- -D warnings
+      - name: Install Nightly rustfmt
+        run: rustup toolchain install nightly --component rustfmt
+      - name: Rustfmt Check
+        run: cargo +nightly fmt --all --check
+
+  msrv:
+    name: MSRV (1.73)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install Rust 1.73
+        run: rustup toolchain install 1.73 --profile minimal
+      - name: Build (default features)
+        run: cargo +1.73 build
+      - name: Build (no-alloc)
+        run: cargo +1.73 build --no-default-features

@@ -220,7 +220,27 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
 
     nk_size_t c_stride = n * nk_dtype_bytes_per_value(out_dtype);
     PyThreadState *save = PyEval_SaveThread();
-    matmul_fn(a->data, packed->start, result->data, height, n, k, row_stride, c_stride);
+    // `@` carries no `threads` argument: default to all cores and let the shared
+    // nk_parallel_worthwhile() policy gate the fork in the if() clause — small
+    // products and single-tile inputs stay serial. The num_threads() clause sets
+    // the count without touching the process-global ICV (see api_packed_common()).
+    // Explicit control lives in dots_packed(a, packed, threads=N), which honors
+    // the caller literally and never consults this policy.
+    nk_size_t threads = 1;
+#if defined(NK_USE_OPENMP)
+    threads = (nk_size_t)omp_get_max_threads();
+#endif
+    // `int` loop counter pre-declared: see the note in api_packed_common().
+    int const tile_count = (int)nk_size_divide_round_up_(height, NK_PARALLEL_PACKED_TILE);
+    int tile_idx;
+#pragma omp parallel for schedule(dynamic, 1) if (tile_count > 1 && nk_parallel_worthwhile(height * n * k, threads)) \
+    num_threads((int)threads)
+    for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
+        nk_size_t row = (nk_size_t)tile_idx * NK_PARALLEL_PACKED_TILE;
+        nk_size_t chunk = (row + NK_PARALLEL_PACKED_TILE <= height) ? NK_PARALLEL_PACKED_TILE : (height - row);
+        matmul_fn(a->data + row * row_stride, packed->start, result->data + row * c_stride, chunk, n, k, row_stride,
+                  c_stride);
+    }
     PyEval_RestoreThread(save);
 
     return (PyObject *)result;
@@ -465,15 +485,18 @@ static PyObject *api_packed_common( //
         nk_size_t slice_height = (nk_size_t)(end_row - start_row);
         PyThreadState *save = PyEval_SaveThread();
 #if defined(NK_USE_OPENMP)
+        // Resolve 0 → all cores. Set the count with the num_threads() clause
+        // rather than omp_set_num_threads(): the latter mutates the process-wide
+        // ICV, so a prior explicit threads=N call would leak into a later
+        // threads=0 (it reads the same ICV back through omp_get_max_threads()).
         if (threads == 0) threads = (nk_size_t)omp_get_max_threads();
-        omp_set_num_threads((int)threads);
 #endif
         // `int` loop counter pre-declared for MSVC compatibility: its
         // OpenMP stays at 2.0 canonical form, which forbids in-init
         // declarations and rejects 64-bit iterators (both trigger C3015).
         int const tile_count = (int)nk_size_divide_round_up_(slice_height, NK_PARALLEL_PACKED_TILE);
         int tile_idx;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads((int)threads)
         for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
             nk_size_t row = (nk_size_t)tile_idx * NK_PARALLEL_PACKED_TILE;
             nk_size_t chunk = (row + NK_PARALLEL_PACKED_TILE <= slice_height) ? NK_PARALLEL_PACKED_TILE
@@ -604,13 +627,14 @@ static PyObject *api_symmetric_common( //
         nk_size_t row_count_val = (nk_size_t)(row_end - row_start);
         PyThreadState *save = PyEval_SaveThread();
 #if defined(NK_USE_OPENMP)
+        // Resolve 0 → all cores; num_threads() clause, not omp_set_num_threads()
+        // — see the note at the packed variant above.
         if (threads == 0) threads = (nk_size_t)omp_get_max_threads();
-        omp_set_num_threads((int)threads);
 #endif
         // `int` loop counter pre-declared: see note at the packed variant above.
         int const tile_count = (int)nk_size_divide_round_up_(row_count_val, NK_PARALLEL_SYMMETRIC_TILE);
         int tile_idx;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads((int)threads)
         for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
             nk_size_t tile_start = row_start + (nk_size_t)tile_idx * NK_PARALLEL_SYMMETRIC_TILE;
             nk_size_t tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= row_end) ? NK_PARALLEL_SYMMETRIC_TILE

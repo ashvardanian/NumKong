@@ -72,14 +72,14 @@ NK_INTERNAL float32x4_t nk_sin_f32x4_neon_(float32x4_t const angles_radians) {
     // Cody-Waite range reduction
     float32x4_t angles_f32x4 = vfmsq_f32(angles_radians, rounded_quotients_f32x4, pi_high_f32x4);
     angles_f32x4 = vfmsq_f32(angles_f32x4, rounded_quotients_f32x4, pi_low_f32x4);
-    float32x4_t const angles_squared_f32x4 = vmulq_f32(angles_f32x4, angles_f32x4);
-    float32x4_t const angles_cubed_f32x4 = vmulq_f32(angles_f32x4, angles_squared_f32x4);
+    float32x4_t const angles_sq_f32x4 = vmulq_f32(angles_f32x4, angles_f32x4);
+    float32x4_t const angles_cubed_f32x4 = vmulq_f32(angles_f32x4, angles_sq_f32x4);
 
     // Degree-9 polynomial via Horner's method
     float32x4_t polynomials_f32x4 = coeff_9_f32x4;
-    polynomials_f32x4 = vfmaq_f32(coeff_7_f32x4, polynomials_f32x4, angles_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_5_f32x4, polynomials_f32x4, angles_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_3_f32x4, polynomials_f32x4, angles_squared_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_7_f32x4, polynomials_f32x4, angles_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_5_f32x4, polynomials_f32x4, angles_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_3_f32x4, polynomials_f32x4, angles_sq_f32x4);
     float32x4_t results_f32x4 = vfmaq_f32(angles_f32x4, angles_cubed_f32x4, polynomials_f32x4);
 
     // If multiples_of_pi_i32x4 is odd, flip the sign
@@ -111,14 +111,14 @@ NK_INTERNAL float32x4_t nk_cos_f32x4_neon_(float32x4_t const angles_radians) {
     float32x4_t shifted_f32x4 = vsubq_f32(angles_radians, pi_half_f32x4);
     float32x4_t angles_f32x4 = vfmsq_f32(shifted_f32x4, rounded_quotients_f32x4, pi_high_f32x4);
     angles_f32x4 = vfmsq_f32(angles_f32x4, rounded_quotients_f32x4, pi_low_f32x4);
-    float32x4_t const angles_squared_f32x4 = vmulq_f32(angles_f32x4, angles_f32x4);
-    float32x4_t const angles_cubed_f32x4 = vmulq_f32(angles_f32x4, angles_squared_f32x4);
+    float32x4_t const angles_sq_f32x4 = vmulq_f32(angles_f32x4, angles_f32x4);
+    float32x4_t const angles_cubed_f32x4 = vmulq_f32(angles_f32x4, angles_sq_f32x4);
 
     // Degree-9 polynomial via Horner's method
     float32x4_t polynomials_f32x4 = coeff_9_f32x4;
-    polynomials_f32x4 = vfmaq_f32(coeff_7_f32x4, polynomials_f32x4, angles_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_5_f32x4, polynomials_f32x4, angles_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_3_f32x4, polynomials_f32x4, angles_squared_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_7_f32x4, polynomials_f32x4, angles_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_5_f32x4, polynomials_f32x4, angles_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_3_f32x4, polynomials_f32x4, angles_sq_f32x4);
     float32x4_t results_f32x4 = vfmaq_f32(angles_f32x4, angles_cubed_f32x4, polynomials_f32x4);
 
     // If multiples_of_pi_i32x4 is even, flip the sign
@@ -150,24 +150,24 @@ NK_INTERNAL float32x4_t nk_atan_f32x4_neon_(float32x4_t const inputs) {
     uint32x4_t reciprocal_mask_u32x4 = vcgtq_f32(values_f32x4, vdupq_n_f32(1.0f));
 
     // Fast reciprocal using vrecpeq + Newton-Raphson (faster than vdivq on many Arm cores)
-    float32x4_t recip_f32x4 = vrecpeq_f32(values_f32x4);
-    recip_f32x4 = vmulq_f32(recip_f32x4, vrecpsq_f32(values_f32x4, recip_f32x4));
-    recip_f32x4 = vmulq_f32(recip_f32x4, vrecpsq_f32(values_f32x4, recip_f32x4));
-    values_f32x4 = vbslq_f32(reciprocal_mask_u32x4, recip_f32x4, values_f32x4);
+    float32x4_t reciprocal_f32x4 = vrecpeq_f32(values_f32x4);
+    reciprocal_f32x4 = vmulq_f32(reciprocal_f32x4, vrecpsq_f32(values_f32x4, reciprocal_f32x4));
+    reciprocal_f32x4 = vmulq_f32(reciprocal_f32x4, vrecpsq_f32(values_f32x4, reciprocal_f32x4));
+    values_f32x4 = vbslq_f32(reciprocal_mask_u32x4, reciprocal_f32x4, values_f32x4);
 
     // Compute powers
-    float32x4_t const values_squared_f32x4 = vmulq_f32(values_f32x4, values_f32x4);
-    float32x4_t const values_cubed_f32x4 = vmulq_f32(values_f32x4, values_squared_f32x4);
+    float32x4_t const values_sq_f32x4 = vmulq_f32(values_f32x4, values_f32x4);
+    float32x4_t const values_cubed_f32x4 = vmulq_f32(values_f32x4, values_sq_f32x4);
 
     // Polynomial evaluation using Horner's method
     float32x4_t polynomials_f32x4 = coeff_1_f32x4;
-    polynomials_f32x4 = vfmaq_f32(coeff_2_f32x4, polynomials_f32x4, values_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_3_f32x4, polynomials_f32x4, values_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_4_f32x4, polynomials_f32x4, values_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_5_f32x4, polynomials_f32x4, values_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_6_f32x4, polynomials_f32x4, values_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_7_f32x4, polynomials_f32x4, values_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_8_f32x4, polynomials_f32x4, values_squared_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_2_f32x4, polynomials_f32x4, values_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_3_f32x4, polynomials_f32x4, values_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_4_f32x4, polynomials_f32x4, values_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_5_f32x4, polynomials_f32x4, values_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_6_f32x4, polynomials_f32x4, values_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_7_f32x4, polynomials_f32x4, values_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_8_f32x4, polynomials_f32x4, values_sq_f32x4);
 
     // Compute result_f32x4: atan(x) ≈ x + x³ * P(x²)
     float32x4_t result_f32x4 = vfmaq_f32(values_f32x4, values_cubed_f32x4, polynomials_f32x4);
@@ -207,22 +207,22 @@ NK_INTERNAL float32x4_t nk_atan2_f32x4_neon_(float32x4_t const ys_inputs, float3
     ys_f32x4 = vbslq_f32(swap_mask_u32x4, vnegq_f32(temps_f32x4), ys_f32x4);
 
     // Fast reciprocal for division: ratio_f32x4 = ys_f32x4 / xs_f32x4 ≈ ys_f32x4 * recip_f32x4(xs_f32x4)
-    float32x4_t recip_f32x4 = vrecpeq_f32(xs_f32x4);
-    recip_f32x4 = vmulq_f32(recip_f32x4, vrecpsq_f32(xs_f32x4, recip_f32x4));
-    recip_f32x4 = vmulq_f32(recip_f32x4, vrecpsq_f32(xs_f32x4, recip_f32x4));
-    float32x4_t const ratio_f32x4 = vmulq_f32(ys_f32x4, recip_f32x4);
-    float32x4_t const ratio_squared_f32x4 = vmulq_f32(ratio_f32x4, ratio_f32x4);
-    float32x4_t const ratio_cubed_f32x4 = vmulq_f32(ratio_f32x4, ratio_squared_f32x4);
+    float32x4_t reciprocal_f32x4 = vrecpeq_f32(xs_f32x4);
+    reciprocal_f32x4 = vmulq_f32(reciprocal_f32x4, vrecpsq_f32(xs_f32x4, reciprocal_f32x4));
+    reciprocal_f32x4 = vmulq_f32(reciprocal_f32x4, vrecpsq_f32(xs_f32x4, reciprocal_f32x4));
+    float32x4_t const ratio_f32x4 = vmulq_f32(ys_f32x4, reciprocal_f32x4);
+    float32x4_t const ratio_sq_f32x4 = vmulq_f32(ratio_f32x4, ratio_f32x4);
+    float32x4_t const ratio_cubed_f32x4 = vmulq_f32(ratio_f32x4, ratio_sq_f32x4);
 
     // Polynomial evaluation using Horner's method
     float32x4_t polynomials_f32x4 = coeff_1_f32x4;
-    polynomials_f32x4 = vfmaq_f32(coeff_2_f32x4, polynomials_f32x4, ratio_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_3_f32x4, polynomials_f32x4, ratio_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_4_f32x4, polynomials_f32x4, ratio_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_5_f32x4, polynomials_f32x4, ratio_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_6_f32x4, polynomials_f32x4, ratio_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_7_f32x4, polynomials_f32x4, ratio_squared_f32x4);
-    polynomials_f32x4 = vfmaq_f32(coeff_8_f32x4, polynomials_f32x4, ratio_squared_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_2_f32x4, polynomials_f32x4, ratio_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_3_f32x4, polynomials_f32x4, ratio_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_4_f32x4, polynomials_f32x4, ratio_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_5_f32x4, polynomials_f32x4, ratio_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_6_f32x4, polynomials_f32x4, ratio_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_7_f32x4, polynomials_f32x4, ratio_sq_f32x4);
+    polynomials_f32x4 = vfmaq_f32(coeff_8_f32x4, polynomials_f32x4, ratio_sq_f32x4);
 
     // Compute the result
     float32x4_t results_f32x4 = vfmaq_f32(ratio_f32x4, ratio_cubed_f32x4, polynomials_f32x4);
@@ -242,10 +242,10 @@ NK_INTERNAL float32x4_t nk_atan2_f32x4_neon_(float32x4_t const ys_inputs, float3
     uint32x4_t sign_mask_u32x4 = vreinterpretq_u32_f32(vdupq_n_f32(-0.0f));
     uint32x4_t xs_sign_u32x4 = vandq_u32(vreinterpretq_u32_f32(xs_inputs), sign_mask_u32x4);
     uint32x4_t ys_sign_u32x4 = vandq_u32(vreinterpretq_u32_f32(ys_inputs), sign_mask_u32x4);
-    uint32x4_t result_bits_u32x4 = vreinterpretq_u32_f32(results_f32x4);
-    result_bits_u32x4 = veorq_u32(result_bits_u32x4, xs_sign_u32x4);
-    result_bits_u32x4 = veorq_u32(result_bits_u32x4, ys_sign_u32x4);
-    results_f32x4 = vreinterpretq_f32_u32(result_bits_u32x4);
+    uint32x4_t result_u32x4 = vreinterpretq_u32_f32(results_f32x4);
+    result_u32x4 = veorq_u32(result_u32x4, xs_sign_u32x4);
+    result_u32x4 = veorq_u32(result_u32x4, ys_sign_u32x4);
+    results_f32x4 = vreinterpretq_f32_u32(result_u32x4);
 
     return results_f32x4;
 }
@@ -283,23 +283,23 @@ NK_INTERNAL float64x2_t nk_sin_f64x2_neon_(float64x2_t const angles_radians) {
     float64x2_t negated_angles_f64x2 = vnegq_f64(angles_f64x2);
     angles_f64x2 = vbslq_f64(odd_mask_u64x2, negated_angles_f64x2, angles_f64x2);
 
-    float64x2_t const angles_squared_f64x2 = vmulq_f64(angles_f64x2, angles_f64x2);
-    float64x2_t const angles_cubed_f64x2 = vmulq_f64(angles_f64x2, angles_squared_f64x2);
-    float64x2_t const angles_quadratic_f64x2 = vmulq_f64(angles_squared_f64x2, angles_squared_f64x2);
+    float64x2_t const angles_sq_f64x2 = vmulq_f64(angles_f64x2, angles_f64x2);
+    float64x2_t const angles_cubed_f64x2 = vmulq_f64(angles_f64x2, angles_sq_f64x2);
+    float64x2_t const angles_quadratic_f64x2 = vmulq_f64(angles_sq_f64x2, angles_sq_f64x2);
     float64x2_t const angles_octic_f64x2 = vmulq_f64(angles_quadratic_f64x2, angles_quadratic_f64x2);
 
     // Compute polynomial terms using Estrin's scheme for better ILP
-    float64x2_t const poly_67_f64x2 = vfmaq_f64(coeff_6_f64x2, angles_squared_f64x2, coeff_7_f64x2);
-    float64x2_t const poly_45_f64x2 = vfmaq_f64(coeff_4_f64x2, angles_squared_f64x2, coeff_5_f64x2);
+    float64x2_t const poly_67_f64x2 = vfmaq_f64(coeff_6_f64x2, angles_sq_f64x2, coeff_7_f64x2);
+    float64x2_t const poly_45_f64x2 = vfmaq_f64(coeff_4_f64x2, angles_sq_f64x2, coeff_5_f64x2);
     float64x2_t const poly_4567_f64x2 = vfmaq_f64(poly_45_f64x2, angles_quadratic_f64x2, poly_67_f64x2);
 
-    float64x2_t const poly_23_f64x2 = vfmaq_f64(coeff_2_f64x2, angles_squared_f64x2, coeff_3_f64x2);
-    float64x2_t const poly_01_f64x2 = vfmaq_f64(coeff_0_f64x2, angles_squared_f64x2, coeff_1_f64x2);
+    float64x2_t const poly_23_f64x2 = vfmaq_f64(coeff_2_f64x2, angles_sq_f64x2, coeff_3_f64x2);
+    float64x2_t const poly_01_f64x2 = vfmaq_f64(coeff_0_f64x2, angles_sq_f64x2, coeff_1_f64x2);
     float64x2_t const poly_0123_f64x2 = vfmaq_f64(poly_01_f64x2, angles_quadratic_f64x2, poly_23_f64x2);
 
     // Combine polynomial terms
     float64x2_t results_f64x2 = vfmaq_f64(poly_0123_f64x2, angles_octic_f64x2, poly_4567_f64x2);
-    results_f64x2 = vfmaq_f64(coeff_8_f64x2, results_f64x2, angles_squared_f64x2);
+    results_f64x2 = vfmaq_f64(coeff_8_f64x2, results_f64x2, angles_sq_f64x2);
     results_f64x2 = vfmaq_f64(angles_f64x2, results_f64x2, angles_cubed_f64x2);
 
     // Handle zero input (preserve sign of zero)
@@ -342,23 +342,23 @@ NK_INTERNAL float64x2_t nk_cos_f64x2_neon_(float64x2_t const angles_radians) {
     float64x2_t negated_angles_f64x2 = vnegq_f64(angles_f64x2);
     angles_f64x2 = vbslq_f64(flip_mask_u64x2, negated_angles_f64x2, angles_f64x2);
 
-    float64x2_t const angles_squared_f64x2 = vmulq_f64(angles_f64x2, angles_f64x2);
-    float64x2_t const angles_cubed_f64x2 = vmulq_f64(angles_f64x2, angles_squared_f64x2);
-    float64x2_t const angles_quadratic_f64x2 = vmulq_f64(angles_squared_f64x2, angles_squared_f64x2);
+    float64x2_t const angles_sq_f64x2 = vmulq_f64(angles_f64x2, angles_f64x2);
+    float64x2_t const angles_cubed_f64x2 = vmulq_f64(angles_f64x2, angles_sq_f64x2);
+    float64x2_t const angles_quadratic_f64x2 = vmulq_f64(angles_sq_f64x2, angles_sq_f64x2);
     float64x2_t const angles_octic_f64x2 = vmulq_f64(angles_quadratic_f64x2, angles_quadratic_f64x2);
 
     // Compute polynomial terms using Estrin's scheme
-    float64x2_t const poly_67_f64x2 = vfmaq_f64(coeff_6_f64x2, angles_squared_f64x2, coeff_7_f64x2);
-    float64x2_t const poly_45_f64x2 = vfmaq_f64(coeff_4_f64x2, angles_squared_f64x2, coeff_5_f64x2);
+    float64x2_t const poly_67_f64x2 = vfmaq_f64(coeff_6_f64x2, angles_sq_f64x2, coeff_7_f64x2);
+    float64x2_t const poly_45_f64x2 = vfmaq_f64(coeff_4_f64x2, angles_sq_f64x2, coeff_5_f64x2);
     float64x2_t const poly_4567_f64x2 = vfmaq_f64(poly_45_f64x2, angles_quadratic_f64x2, poly_67_f64x2);
 
-    float64x2_t const poly_23_f64x2 = vfmaq_f64(coeff_2_f64x2, angles_squared_f64x2, coeff_3_f64x2);
-    float64x2_t const poly_01_f64x2 = vfmaq_f64(coeff_0_f64x2, angles_squared_f64x2, coeff_1_f64x2);
+    float64x2_t const poly_23_f64x2 = vfmaq_f64(coeff_2_f64x2, angles_sq_f64x2, coeff_3_f64x2);
+    float64x2_t const poly_01_f64x2 = vfmaq_f64(coeff_0_f64x2, angles_sq_f64x2, coeff_1_f64x2);
     float64x2_t const poly_0123_f64x2 = vfmaq_f64(poly_01_f64x2, angles_quadratic_f64x2, poly_23_f64x2);
 
     // Combine polynomial terms
     float64x2_t results_f64x2 = vfmaq_f64(poly_0123_f64x2, angles_octic_f64x2, poly_4567_f64x2);
-    results_f64x2 = vfmaq_f64(coeff_8_f64x2, results_f64x2, angles_squared_f64x2);
+    results_f64x2 = vfmaq_f64(coeff_8_f64x2, results_f64x2, angles_sq_f64x2);
     results_f64x2 = vfmaq_f64(angles_f64x2, results_f64x2, angles_cubed_f64x2);
     return results_f64x2;
 }
@@ -397,29 +397,29 @@ NK_INTERNAL float64x2_t nk_atan_f64x2_neon_(float64x2_t const inputs) {
     values_f64x2 = vbslq_f64(reciprocal_mask_u64x2, reciprocal_values_f64x2, values_f64x2);
 
     // Compute powers
-    float64x2_t const values_squared_f64x2 = vmulq_f64(values_f64x2, values_f64x2);
-    float64x2_t const values_cubed_f64x2 = vmulq_f64(values_f64x2, values_squared_f64x2);
+    float64x2_t const values_sq_f64x2 = vmulq_f64(values_f64x2, values_f64x2);
+    float64x2_t const values_cubed_f64x2 = vmulq_f64(values_f64x2, values_sq_f64x2);
 
     // Polynomial evaluation using Horner's method
     float64x2_t polynomials_f64x2 = coeff_19_f64x2;
-    polynomials_f64x2 = vfmaq_f64(coeff_18_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_17_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_16_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_15_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_14_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_13_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_12_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_11_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_10_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_9_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_8_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_7_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_6_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_5_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_4_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_3_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_2_f64x2, polynomials_f64x2, values_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_1_f64x2, polynomials_f64x2, values_squared_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_18_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_17_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_16_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_15_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_14_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_13_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_12_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_11_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_10_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_9_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_8_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_7_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_6_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_5_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_4_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_3_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_2_f64x2, polynomials_f64x2, values_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_1_f64x2, polynomials_f64x2, values_sq_f64x2);
 
     // Compute result_f64x2
     float64x2_t result_f64x2 = vfmaq_f64(values_f64x2, values_cubed_f64x2, polynomials_f64x2);
@@ -471,29 +471,29 @@ NK_INTERNAL float64x2_t nk_atan2_f64x2_neon_(float64x2_t const ys_inputs, float6
 
     // Division for f64 precision
     float64x2_t const ratio_f64x2 = vdivq_f64(ys_f64x2, xs_f64x2);
-    float64x2_t const ratio_squared_f64x2 = vmulq_f64(ratio_f64x2, ratio_f64x2);
-    float64x2_t const ratio_cubed_f64x2 = vmulq_f64(ratio_f64x2, ratio_squared_f64x2);
+    float64x2_t const ratio_sq_f64x2 = vmulq_f64(ratio_f64x2, ratio_f64x2);
+    float64x2_t const ratio_cubed_f64x2 = vmulq_f64(ratio_f64x2, ratio_sq_f64x2);
 
     // Polynomial evaluation using Horner's method
     float64x2_t polynomials_f64x2 = coeff_19_f64x2;
-    polynomials_f64x2 = vfmaq_f64(coeff_18_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_17_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_16_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_15_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_14_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_13_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_12_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_11_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_10_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_9_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_8_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_7_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_6_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_5_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_4_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_3_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_2_f64x2, polynomials_f64x2, ratio_squared_f64x2);
-    polynomials_f64x2 = vfmaq_f64(coeff_1_f64x2, polynomials_f64x2, ratio_squared_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_18_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_17_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_16_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_15_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_14_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_13_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_12_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_11_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_10_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_9_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_8_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_7_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_6_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_5_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_4_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_3_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_2_f64x2, polynomials_f64x2, ratio_sq_f64x2);
+    polynomials_f64x2 = vfmaq_f64(coeff_1_f64x2, polynomials_f64x2, ratio_sq_f64x2);
 
     // Compute the result
     float64x2_t results_f64x2 = vfmaq_f64(ratio_f64x2, ratio_cubed_f64x2, polynomials_f64x2);
@@ -513,15 +513,15 @@ NK_INTERNAL float64x2_t nk_atan2_f64x2_neon_(float64x2_t const ys_inputs, float6
     uint64x2_t sign_mask_u64x2 = vreinterpretq_u64_f64(vdupq_n_f64(-0.0));
     uint64x2_t xs_sign_u64x2 = vandq_u64(vreinterpretq_u64_f64(xs_inputs), sign_mask_u64x2);
     uint64x2_t ys_sign_u64x2 = vandq_u64(vreinterpretq_u64_f64(ys_inputs), sign_mask_u64x2);
-    uint64x2_t result_bits_u64x2 = vreinterpretq_u64_f64(results_f64x2);
-    result_bits_u64x2 = veorq_u64(result_bits_u64x2, xs_sign_u64x2);
-    result_bits_u64x2 = veorq_u64(result_bits_u64x2, ys_sign_u64x2);
-    results_f64x2 = vreinterpretq_f64_u64(result_bits_u64x2);
+    uint64x2_t result_u64x2 = vreinterpretq_u64_f64(results_f64x2);
+    result_u64x2 = veorq_u64(result_u64x2, xs_sign_u64x2);
+    result_u64x2 = veorq_u64(result_u64x2, ys_sign_u64x2);
+    results_f64x2 = vreinterpretq_f64_u64(result_u64x2);
 
     return results_f64x2;
 }
 
-NK_PUBLIC void nk_each_sin_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_sin_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         float32x4_t angles_f32x4 = vld1q_f32(ins + i);
@@ -538,7 +538,7 @@ NK_PUBLIC void nk_each_sin_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *
     }
 }
 
-NK_PUBLIC void nk_each_cos_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_cos_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         float32x4_t angles_f32x4 = vld1q_f32(ins + i);
@@ -555,7 +555,7 @@ NK_PUBLIC void nk_each_cos_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *
     }
 }
 
-NK_PUBLIC void nk_each_atan_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_atan_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         float32x4_t values_f32x4 = vld1q_f32(ins + i);
@@ -572,7 +572,7 @@ NK_PUBLIC void nk_each_atan_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t 
     }
 }
 
-NK_PUBLIC void nk_each_sin_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_sin_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         float64x2_t angles_f64x2 = vld1q_f64(ins + i);
@@ -589,7 +589,7 @@ NK_PUBLIC void nk_each_sin_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *
     }
 }
 
-NK_PUBLIC void nk_each_cos_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_cos_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         float64x2_t angles_f64x2 = vld1q_f64(ins + i);
@@ -606,7 +606,7 @@ NK_PUBLIC void nk_each_cos_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *
     }
 }
 
-NK_PUBLIC void nk_each_atan_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_atan_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         float64x2_t values_f64x2 = vld1q_f64(ins + i);

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -23,7 +24,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     assert_allclose,
     collect_errors,
@@ -38,6 +38,9 @@ from test_base import (
     randomized_repetitions_count,
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
 )
+
+import numkong as nk
+
 
 stats = create_stats()
 atexit.register(print_stats_report, stats)

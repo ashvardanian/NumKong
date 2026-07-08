@@ -95,62 +95,62 @@ void test_trigonometry() {
     error_stats_section_t check("Trigonometry");
 
 #if NK_DYNAMIC_DISPATCH
-    check("each_sin_f32", test_sin<f32_t>, nk_each_sin_f32);
-    check("each_cos_f32", test_cos<f32_t>, nk_each_cos_f32);
-    check("each_atan_f32", test_atan<f32_t>, nk_each_atan_f32);
-    check("each_sin_f64", test_sin<f64_t>, nk_each_sin_f64);
-    check("each_cos_f64", test_cos<f64_t>, nk_each_cos_f64);
-    check("each_atan_f64", test_atan<f64_t>, nk_each_atan_f64);
+    check("trig_sin_f32", test_sin<f32_t>, nk_trig_sin_f32);
+    check("trig_cos_f32", test_cos<f32_t>, nk_trig_cos_f32);
+    check("trig_atan_f32", test_atan<f32_t>, nk_trig_atan_f32);
+    check("trig_sin_f64", test_sin<f64_t>, nk_trig_sin_f64);
+    check("trig_cos_f64", test_cos<f64_t>, nk_trig_cos_f64);
+    check("trig_atan_f64", test_atan<f64_t>, nk_trig_atan_f64);
 #else
 
 #if NK_TARGET_NEON
-    check("each_sin_f32_neon", test_sin<f32_t>, nk_each_sin_f32_neon);
-    check("each_cos_f32_neon", test_cos<f32_t>, nk_each_cos_f32_neon);
-    check("each_atan_f32_neon", test_atan<f32_t>, nk_each_atan_f32_neon);
-    check("each_sin_f64_neon", test_sin<f64_t>, nk_each_sin_f64_neon);
-    check("each_cos_f64_neon", test_cos<f64_t>, nk_each_cos_f64_neon);
-    check("each_atan_f64_neon", test_atan<f64_t>, nk_each_atan_f64_neon);
+    check("trig_sin_f32_neon", test_sin<f32_t>, nk_trig_sin_f32_neon);
+    check("trig_cos_f32_neon", test_cos<f32_t>, nk_trig_cos_f32_neon);
+    check("trig_atan_f32_neon", test_atan<f32_t>, nk_trig_atan_f32_neon);
+    check("trig_sin_f64_neon", test_sin<f64_t>, nk_trig_sin_f64_neon);
+    check("trig_cos_f64_neon", test_cos<f64_t>, nk_trig_cos_f64_neon);
+    check("trig_atan_f64_neon", test_atan<f64_t>, nk_trig_atan_f64_neon);
 #endif
 
 #if NK_TARGET_HASWELL
-    check("each_sin_f32_haswell", test_sin<f32_t>, nk_each_sin_f32_haswell);
-    check("each_cos_f32_haswell", test_cos<f32_t>, nk_each_cos_f32_haswell);
-    check("each_atan_f32_haswell", test_atan<f32_t>, nk_each_atan_f32_haswell);
-    check("each_sin_f64_haswell", test_sin<f64_t>, nk_each_sin_f64_haswell);
-    check("each_cos_f64_haswell", test_cos<f64_t>, nk_each_cos_f64_haswell);
-    check("each_atan_f64_haswell", test_atan<f64_t>, nk_each_atan_f64_haswell);
+    check("trig_sin_f32_haswell", test_sin<f32_t>, nk_trig_sin_f32_haswell);
+    check("trig_cos_f32_haswell", test_cos<f32_t>, nk_trig_cos_f32_haswell);
+    check("trig_atan_f32_haswell", test_atan<f32_t>, nk_trig_atan_f32_haswell);
+    check("trig_sin_f64_haswell", test_sin<f64_t>, nk_trig_sin_f64_haswell);
+    check("trig_cos_f64_haswell", test_cos<f64_t>, nk_trig_cos_f64_haswell);
+    check("trig_atan_f64_haswell", test_atan<f64_t>, nk_trig_atan_f64_haswell);
 #endif
 
 #if NK_TARGET_SKYLAKE
-    check("each_sin_f32_skylake", test_sin<f32_t>, nk_each_sin_f32_skylake);
-    check("each_cos_f32_skylake", test_cos<f32_t>, nk_each_cos_f32_skylake);
-    check("each_atan_f32_skylake", test_atan<f32_t>, nk_each_atan_f32_skylake);
-    check("each_sin_f64_skylake", test_sin<f64_t>, nk_each_sin_f64_skylake);
-    check("each_cos_f64_skylake", test_cos<f64_t>, nk_each_cos_f64_skylake);
-    check("each_atan_f64_skylake", test_atan<f64_t>, nk_each_atan_f64_skylake);
-    check("each_sin_f16_skylake", test_sin<f16_t>, nk_each_sin_f16_skylake);
-    check("each_cos_f16_skylake", test_cos<f16_t>, nk_each_cos_f16_skylake);
-    check("each_atan_f16_skylake", test_atan<f16_t>, nk_each_atan_f16_skylake);
+    check("trig_sin_f32_skylake", test_sin<f32_t>, nk_trig_sin_f32_skylake);
+    check("trig_cos_f32_skylake", test_cos<f32_t>, nk_trig_cos_f32_skylake);
+    check("trig_atan_f32_skylake", test_atan<f32_t>, nk_trig_atan_f32_skylake);
+    check("trig_sin_f64_skylake", test_sin<f64_t>, nk_trig_sin_f64_skylake);
+    check("trig_cos_f64_skylake", test_cos<f64_t>, nk_trig_cos_f64_skylake);
+    check("trig_atan_f64_skylake", test_atan<f64_t>, nk_trig_atan_f64_skylake);
+    check("trig_sin_f16_skylake", test_sin<f16_t>, nk_trig_sin_f16_skylake);
+    check("trig_cos_f16_skylake", test_cos<f16_t>, nk_trig_cos_f16_skylake);
+    check("trig_atan_f16_skylake", test_atan<f16_t>, nk_trig_atan_f16_skylake);
 #endif
 
 #if NK_TARGET_V128RELAXED
-    check("each_sin_f32_v128relaxed", test_sin<f32_t>, nk_each_sin_f32_v128relaxed);
-    check("each_cos_f32_v128relaxed", test_cos<f32_t>, nk_each_cos_f32_v128relaxed);
-    check("each_atan_f32_v128relaxed", test_atan<f32_t>, nk_each_atan_f32_v128relaxed);
-    check("each_sin_f64_v128relaxed", test_sin<f64_t>, nk_each_sin_f64_v128relaxed);
-    check("each_cos_f64_v128relaxed", test_cos<f64_t>, nk_each_cos_f64_v128relaxed);
-    check("each_atan_f64_v128relaxed", test_atan<f64_t>, nk_each_atan_f64_v128relaxed);
+    check("trig_sin_f32_v128relaxed", test_sin<f32_t>, nk_trig_sin_f32_v128relaxed);
+    check("trig_cos_f32_v128relaxed", test_cos<f32_t>, nk_trig_cos_f32_v128relaxed);
+    check("trig_atan_f32_v128relaxed", test_atan<f32_t>, nk_trig_atan_f32_v128relaxed);
+    check("trig_sin_f64_v128relaxed", test_sin<f64_t>, nk_trig_sin_f64_v128relaxed);
+    check("trig_cos_f64_v128relaxed", test_cos<f64_t>, nk_trig_cos_f64_v128relaxed);
+    check("trig_atan_f64_v128relaxed", test_atan<f64_t>, nk_trig_atan_f64_v128relaxed);
 #endif // NK_TARGET_V128RELAXED
 
-    check("each_sin_f32_serial", test_sin<f32_t>, nk_each_sin_f32_serial);
-    check("each_cos_f32_serial", test_cos<f32_t>, nk_each_cos_f32_serial);
-    check("each_atan_f32_serial", test_atan<f32_t>, nk_each_atan_f32_serial);
-    check("each_sin_f64_serial", test_sin<f64_t>, nk_each_sin_f64_serial);
-    check("each_cos_f64_serial", test_cos<f64_t>, nk_each_cos_f64_serial);
-    check("each_atan_f64_serial", test_atan<f64_t>, nk_each_atan_f64_serial);
-    check("each_sin_f16_serial", test_sin<f16_t>, nk_each_sin_f16_serial);
-    check("each_cos_f16_serial", test_cos<f16_t>, nk_each_cos_f16_serial);
-    check("each_atan_f16_serial", test_atan<f16_t>, nk_each_atan_f16_serial);
+    check("trig_sin_f32_serial", test_sin<f32_t>, nk_trig_sin_f32_serial);
+    check("trig_cos_f32_serial", test_cos<f32_t>, nk_trig_cos_f32_serial);
+    check("trig_atan_f32_serial", test_atan<f32_t>, nk_trig_atan_f32_serial);
+    check("trig_sin_f64_serial", test_sin<f64_t>, nk_trig_sin_f64_serial);
+    check("trig_cos_f64_serial", test_cos<f64_t>, nk_trig_cos_f64_serial);
+    check("trig_atan_f64_serial", test_atan<f64_t>, nk_trig_atan_f64_serial);
+    check("trig_sin_f16_serial", test_sin<f16_t>, nk_trig_sin_f16_serial);
+    check("trig_cos_f16_serial", test_cos<f16_t>, nk_trig_cos_f16_serial);
+    check("trig_atan_f16_serial", test_atan<f16_t>, nk_trig_atan_f16_serial);
 
 #endif
 }

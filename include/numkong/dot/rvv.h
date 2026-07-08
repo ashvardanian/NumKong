@@ -313,12 +313,12 @@ NK_PUBLIC void nk_dot_e3m2_rvv(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_sc
         // Magnitude extraction: lower 5 bits as u16 byte offsets for gather
         vuint8m1_t a_mag_u8m1 = __riscv_vand_vx_u8m1(a_e3m2_u8m1, 0x1F, vector_length);
         vuint8m1_t b_mag_u8m1 = __riscv_vand_vx_u8m1(b_e3m2_u8m1, 0x1F, vector_length);
-        vuint16m2_t a_idx_u16m2 = __riscv_vzext_vf2_u16m2(a_mag_u8m1, vector_length);
-        vuint16m2_t b_idx_u16m2 = __riscv_vzext_vf2_u16m2(b_mag_u8m1, vector_length);
+        vuint16m2_t a_index_u16m2 = __riscv_vzext_vf2_u16m2(a_mag_u8m1, vector_length);
+        vuint16m2_t b_index_u16m2 = __riscv_vzext_vf2_u16m2(b_mag_u8m1, vector_length);
 
         // Gather from i16 LUT: byte offsets = index × 2
-        vuint16m2_t a_byte_offsets_u16m2 = __riscv_vsll_vx_u16m2(a_idx_u16m2, 1, vector_length);
-        vuint16m2_t b_byte_offsets_u16m2 = __riscv_vsll_vx_u16m2(b_idx_u16m2, 1, vector_length);
+        vuint16m2_t a_byte_offsets_u16m2 = __riscv_vsll_vx_u16m2(a_index_u16m2, 1, vector_length);
+        vuint16m2_t b_byte_offsets_u16m2 = __riscv_vsll_vx_u16m2(b_index_u16m2, 1, vector_length);
         vuint16m2_t a_unsigned_u16m2 = __riscv_vluxei16_v_u16m2(lut_magnitude, a_byte_offsets_u16m2, vector_length);
         vuint16m2_t b_unsigned_u16m2 = __riscv_vluxei16_v_u16m2(lut_magnitude, b_byte_offsets_u16m2, vector_length);
 

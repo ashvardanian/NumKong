@@ -201,6 +201,7 @@ impl<TMetric> MeshAlignmentResult<f64, TMetric> {
     }
 
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     pub fn transform_points(&self, points: &[[f64; 3]]) -> Vec<[f64; 3]> {
         points.iter().map(|&p| self.transform_point(p)).collect()
     }
@@ -235,6 +236,7 @@ impl<TMetric> MeshAlignmentResult<f32, TMetric> {
     }
 
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     pub fn transform_points(&self, points: &[[f32; 3]]) -> Vec<[f32; 3]> {
         points.iter().map(|&p| self.transform_point(p)).collect()
     }

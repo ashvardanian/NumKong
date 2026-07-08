@@ -42,6 +42,13 @@
 
 #[link(name = "numkong")]
 extern "C" {
+    // Scalar square-root / reciprocal-square-root (backing the `Roots` trait).
+    fn nk_f32_sqrt(x: f32) -> f32;
+    fn nk_f32_rsqrt(x: f32) -> f32;
+    fn nk_f64_sqrt(x: f64) -> f64;
+    fn nk_f64_rsqrt(x: f64) -> f64;
+    fn nk_f16_sqrt(x: u16) -> u16;
+    fn nk_f16_rsqrt(x: u16) -> u16;
     fn nk_f32_to_f16(src: *const f32, dest: *mut u16);
     fn nk_f16_to_f32(src: *const u16, dest: *mut f32);
     fn nk_f32_to_bf16(src: *const f32, dest: *mut u16);
@@ -54,6 +61,33 @@ extern "C" {
     fn nk_e2m3_to_f32(src: *const u8, dest: *mut f32);
     fn nk_f32_to_e3m2(src: *const f32, dest: *mut u8);
     fn nk_e3m2_to_f32(src: *const u8, dest: *mut f32);
+}
+
+/// Scalar square-root and reciprocal-square-root operations backed by NumKong's exported kernels.
+///
+/// Unlike `f32::sqrt` / `f64::sqrt`, this routes into the hand-tuned NumKong C kernels; on ISAs with
+/// a dedicated reciprocal-sqrt (`vrsqrte` on NEON, `vrsqrt14` on AVX-512) `rsqrt` uses a single
+/// Newton refinement to ~1 ULP — roughly 2-4× faster than computing `1.0 / sqrt(x)` explicitly.
+pub trait Roots: Sized {
+    /// Non-negative square root of `self`, routed through NumKong's runtime-dispatched kernel.
+    fn sqrt(self) -> Self;
+    /// Reciprocal square root `1 / sqrt(self)` as a single primitive op where the hardware allows.
+    fn rsqrt(self) -> Self;
+}
+
+impl Roots for f32 {
+    fn sqrt(self) -> Self { unsafe { nk_f32_sqrt(self) } }
+    fn rsqrt(self) -> Self { unsafe { nk_f32_rsqrt(self) } }
+}
+
+impl Roots for f64 {
+    fn sqrt(self) -> Self { unsafe { nk_f64_sqrt(self) } }
+    fn rsqrt(self) -> Self { unsafe { nk_f64_rsqrt(self) } }
+}
+
+impl Roots for f16 {
+    fn sqrt(self) -> Self { f16(unsafe { nk_f16_sqrt(self.0) }) }
+    fn rsqrt(self) -> Self { f16(unsafe { nk_f16_rsqrt(self.0) }) }
 }
 
 /// Compatibility function for pre 1.85 Rust versions lacking `f32::abs`.
@@ -183,16 +217,19 @@ impl f16 {
 
     /// Returns ⌊self⌋. Requires `std`.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn floor(self) -> Self { Self::from_f32(self.to_f32().floor()) }
 
     /// Returns ⌈self⌉. Requires `std`.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn ceil(self) -> Self { Self::from_f32(self.to_f32().ceil()) }
 
     /// Rounds to the nearest integer; half-way cases go away from zero. Requires `std`.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn round(self) -> Self { Self::from_f32(self.to_f32().round()) }
 }
@@ -341,6 +378,7 @@ impl bf16 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn floor(self) -> Self { Self::from_f32(self.to_f32().floor()) }
 
@@ -348,6 +386,7 @@ impl bf16 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn ceil(self) -> Self { Self::from_f32(self.to_f32().ceil()) }
 
@@ -355,6 +394,7 @@ impl bf16 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn round(self) -> Self { Self::from_f32(self.to_f32().round()) }
 }
@@ -499,6 +539,7 @@ impl e4m3 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn floor(self) -> Self { Self::from_f32(self.to_f32().floor()) }
 
@@ -506,6 +547,7 @@ impl e4m3 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn ceil(self) -> Self { Self::from_f32(self.to_f32().ceil()) }
 
@@ -513,6 +555,7 @@ impl e4m3 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn round(self) -> Self { Self::from_f32(self.to_f32().round()) }
 }
@@ -671,6 +714,7 @@ impl e5m2 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn floor(self) -> Self { Self::from_f32(self.to_f32().floor()) }
 
@@ -678,6 +722,7 @@ impl e5m2 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn ceil(self) -> Self { Self::from_f32(self.to_f32().ceil()) }
 
@@ -685,6 +730,7 @@ impl e5m2 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn round(self) -> Self { Self::from_f32(self.to_f32().round()) }
 }
@@ -838,6 +884,7 @@ impl e2m3 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn floor(self) -> Self { Self::from_f32(self.to_f32().floor()) }
 
@@ -845,6 +892,7 @@ impl e2m3 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn ceil(self) -> Self { Self::from_f32(self.to_f32().ceil()) }
 
@@ -852,6 +900,7 @@ impl e2m3 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn round(self) -> Self { Self::from_f32(self.to_f32().round()) }
 }
@@ -1009,6 +1058,7 @@ impl e3m2 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn floor(self) -> Self { Self::from_f32(self.to_f32().floor()) }
 
@@ -1016,6 +1066,7 @@ impl e3m2 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn ceil(self) -> Self { Self::from_f32(self.to_f32().ceil()) }
 
@@ -1023,6 +1074,7 @@ impl e3m2 {
     ///
     /// This method is only available when the `std` feature is enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[inline(always)]
     pub fn round(self) -> Self { Self::from_f32(self.to_f32().round()) }
 }
@@ -1546,7 +1598,7 @@ impl From<i4x2> for (i8, i8) {
 ///
 /// Provides identity elements (`zero`, `one`) and sub-byte packing metadata.
 /// Does not require numeric conversion — use [`NumberLike`] for that.
-pub trait StorageElement: Sized + Copy + Clone + Default {
+pub trait StorageElement: Sized + Copy + Clone + Default + core::fmt::Debug {
     /// The additive identity.
     fn zero() -> Self;
     /// The multiplicative identity.

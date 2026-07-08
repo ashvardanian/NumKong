@@ -38,7 +38,7 @@ NK_PUBLIC void nk_bilinear_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_
     nk_size_t const tail_length = n % 8;
     nk_size_t const tail_start = n - tail_length;
     __m512d sum_f64x8 = _mm512_setzero_pd();
-    __mmask8 const tail_mask = (__mmask8)_bzhi_u32(0xFFFFFFFF, tail_length);
+    __mmask8 const tail_m8 = (__mmask8)_bzhi_u32(0xFFFFFFFF, tail_length);
 
     for (nk_size_t i = 0; i != n; ++i) {
         __m512d a_f64x8 = _mm512_set1_pd((nk_f64_t)a[i]);
@@ -52,8 +52,8 @@ NK_PUBLIC void nk_bilinear_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_
             c_f32x8 = _mm256_loadu_ps(c + i * n + j);
         }
         else {
-            b_f32x8 = _mm256_maskz_loadu_ps(tail_mask, b + tail_start);
-            c_f32x8 = _mm256_maskz_loadu_ps(tail_mask, c + i * n + tail_start);
+            b_f32x8 = _mm256_maskz_loadu_ps(tail_m8, b + tail_start);
+            c_f32x8 = _mm256_maskz_loadu_ps(tail_m8, c + i * n + tail_start);
         }
         cb_j_f64x8 = _mm512_fmadd_pd(_mm512_cvtps_pd(b_f32x8), _mm512_cvtps_pd(c_f32x8), cb_j_f64x8);
         j += 8;
@@ -70,7 +70,7 @@ NK_PUBLIC void nk_mahalanobis_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, 
     nk_size_t const tail_length = n % 8;
     nk_size_t const tail_start = n - tail_length;
     __m512d sum_f64x8 = _mm512_setzero_pd();
-    __mmask8 const tail_mask = (__mmask8)_bzhi_u32(0xFFFFFFFF, tail_length);
+    __mmask8 const tail_m8 = (__mmask8)_bzhi_u32(0xFFFFFFFF, tail_length);
 
     for (nk_size_t i = 0; i != n; ++i) {
         __m512d diff_i_f64x8 = _mm512_set1_pd((nk_f64_t)a[i] - (nk_f64_t)b[i]);
@@ -86,9 +86,9 @@ NK_PUBLIC void nk_mahalanobis_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, 
             c_f32x8 = _mm256_loadu_ps(c + i * n + j);
         }
         else {
-            a_j_f32x8 = _mm256_maskz_loadu_ps(tail_mask, a + tail_start);
-            b_j_f32x8 = _mm256_maskz_loadu_ps(tail_mask, b + tail_start);
-            c_f32x8 = _mm256_maskz_loadu_ps(tail_mask, c + i * n + tail_start);
+            a_j_f32x8 = _mm256_maskz_loadu_ps(tail_m8, a + tail_start);
+            b_j_f32x8 = _mm256_maskz_loadu_ps(tail_m8, b + tail_start);
+            c_f32x8 = _mm256_maskz_loadu_ps(tail_m8, c + i * n + tail_start);
         }
         __m512d diff_j_f64x8 = _mm512_sub_pd(_mm512_cvtps_pd(a_j_f32x8), _mm512_cvtps_pd(b_j_f32x8));
         cdiff_j_f64x8 = _mm512_fmadd_pd(diff_j_f64x8, _mm512_cvtps_pd(c_f32x8), cdiff_j_f64x8);
@@ -117,7 +117,7 @@ NK_PUBLIC void nk_bilinear_f32c_skylake(nk_f32c_t const *a, nk_f32c_t const *b, 
     // Default case for arbitrary size `n`
     nk_size_t const tail_length = n % 4;
     nk_size_t const tail_start = n - tail_length;
-    __mmask8 const tail_mask = (__mmask8)_bzhi_u32(0xFFFFFFFF, tail_length * 2);
+    __mmask8 const tail_m8 = (__mmask8)_bzhi_u32(0xFFFFFFFF, tail_length * 2);
     nk_f64_t sum_real = 0;
     nk_f64_t sum_imag = 0;
 
@@ -135,8 +135,8 @@ NK_PUBLIC void nk_bilinear_f32c_skylake(nk_f32c_t const *a, nk_f32c_t const *b, 
             c_f32x8 = _mm256_loadu_ps((nk_f32_t const *)(c + i * n + j));
         }
         else {
-            b_f32x8 = _mm256_maskz_loadu_ps(tail_mask, (nk_f32_t const *)(b + tail_start));
-            c_f32x8 = _mm256_maskz_loadu_ps(tail_mask, (nk_f32_t const *)(c + i * n + tail_start));
+            b_f32x8 = _mm256_maskz_loadu_ps(tail_m8, (nk_f32_t const *)(b + tail_start));
+            c_f32x8 = _mm256_maskz_loadu_ps(tail_m8, (nk_f32_t const *)(c + i * n + tail_start));
         }
         __m512d b_f64x8 = _mm512_cvtps_pd(b_f32x8);
         __m512d c_f64x8 = _mm512_cvtps_pd(c_f32x8);
@@ -172,7 +172,7 @@ NK_PUBLIC void nk_bilinear_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_
     nk_size_t const tail_start = n - tail_length;
     __m512d sum_f64x8 = _mm512_setzero_pd();
     __m512d compensation_f64x8 = _mm512_setzero_pd();
-    __mmask8 const tail_mask = (__mmask8)_bzhi_u32(0xFFFFFFFF, tail_length);
+    __mmask8 const tail_m8 = (__mmask8)_bzhi_u32(0xFFFFFFFF, tail_length);
 
     for (nk_size_t i = 0; i != n; ++i) {
         __m512d a_f64x8 = _mm512_set1_pd(a[i]);
@@ -187,8 +187,8 @@ NK_PUBLIC void nk_bilinear_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_
             c_f64x8 = _mm512_loadu_pd(c + i * n + j);
         }
         else {
-            b_f64x8 = _mm512_maskz_loadu_pd(tail_mask, b + tail_start);
-            c_f64x8 = _mm512_maskz_loadu_pd(tail_mask, c + i * n + tail_start);
+            b_f64x8 = _mm512_maskz_loadu_pd(tail_m8, b + tail_start);
+            c_f64x8 = _mm512_maskz_loadu_pd(tail_m8, c + i * n + tail_start);
         }
         // Inner loop Dot2: accumulate cb_j = sum(b[j] * c[i,j])
         // TwoProd: product = b * c, product_error = fma(b, c, -product)
@@ -236,7 +236,7 @@ NK_PUBLIC void nk_mahalanobis_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, 
     // Using Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated summation.
     nk_size_t const tail_length = n % 8;
     nk_size_t const tail_start = n - tail_length;
-    __mmask8 const tail_mask = (__mmask8)_bzhi_u32(0xFFFFFFFF, tail_length);
+    __mmask8 const tail_m8 = (__mmask8)_bzhi_u32(0xFFFFFFFF, tail_length);
     __m512d sum_f64x8 = _mm512_setzero_pd();
     __m512d compensation_f64x8 = _mm512_setzero_pd();
 
@@ -255,9 +255,9 @@ NK_PUBLIC void nk_mahalanobis_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, 
             c_f64x8 = _mm512_loadu_pd(c + i * n + j);
         }
         else {
-            a_j_f64x8 = _mm512_maskz_loadu_pd(tail_mask, a + tail_start);
-            b_j_f64x8 = _mm512_maskz_loadu_pd(tail_mask, b + tail_start);
-            c_f64x8 = _mm512_maskz_loadu_pd(tail_mask, c + i * n + tail_start);
+            a_j_f64x8 = _mm512_maskz_loadu_pd(tail_m8, a + tail_start);
+            b_j_f64x8 = _mm512_maskz_loadu_pd(tail_m8, b + tail_start);
+            c_f64x8 = _mm512_maskz_loadu_pd(tail_m8, c + i * n + tail_start);
         }
         diff_j_f64x8 = _mm512_sub_pd(a_j_f64x8, b_j_f64x8);
 
@@ -320,7 +320,7 @@ NK_PUBLIC void nk_bilinear_f64c_skylake(nk_f64c_t const *a, nk_f64c_t const *b, 
     // Default case for arbitrary size `n`
     nk_size_t const tail_length = n % 4;
     nk_size_t const tail_start = n - tail_length;
-    __mmask8 const tail_mask = (__mmask8)_bzhi_u32(0xFFFFFFFF, tail_length * 2);
+    __mmask8 const tail_m8 = (__mmask8)_bzhi_u32(0xFFFFFFFF, tail_length * 2);
     nk_f64_t sum_real = 0;
     nk_f64_t sum_imag = 0;
     nk_f64_t compensation_real = 0;
@@ -342,8 +342,8 @@ NK_PUBLIC void nk_bilinear_f64c_skylake(nk_f64c_t const *a, nk_f64c_t const *b, 
             c_f64x8 = _mm512_loadu_pd((nk_f64_t const *)(c + i * n + j));
         }
         else {
-            b_f64x8 = _mm512_maskz_loadu_pd(tail_mask, (nk_f64_t const *)(b + tail_start));
-            c_f64x8 = _mm512_maskz_loadu_pd(tail_mask, (nk_f64_t const *)(c + i * n + tail_start));
+            b_f64x8 = _mm512_maskz_loadu_pd(tail_m8, (nk_f64_t const *)(b + tail_start));
+            c_f64x8 = _mm512_maskz_loadu_pd(tail_m8, (nk_f64_t const *)(c + i * n + tail_start));
         }
         // The real part of the product: b.real * c.real - b.imag * c.imag.
         // The subtraction will be performed later with a sign flip.

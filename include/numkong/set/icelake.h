@@ -61,30 +61,30 @@ NK_PUBLIC void nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_
     nk_u32_t xor_count;
     // It's harder to squeeze out performance from tiny representations, so we unroll the loops for binary metrics.
     if (n_bytes <= 64) { // Up to 512 bits.
-        __mmask64 mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes);
-        __m512i a_u8x64 = _mm512_maskz_loadu_epi8(mask, a);
-        __m512i b_u8x64 = _mm512_maskz_loadu_epi8(mask, b);
+        __mmask64 mask_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes);
+        __m512i a_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, a);
+        __m512i b_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, b);
         __m512i xor_popcount_u64x8 = _mm512_popcnt_epi64(_mm512_xor_si512(a_u8x64, b_u8x64));
         xor_count = _mm512_reduce_add_epi64(xor_popcount_u64x8);
     }
     else if (n_bytes <= 128) { // Up to 1024 bits.
-        __mmask64 mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes - 64);
+        __mmask64 mask_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes - 64);
         __m512i a_one_u8x64 = _mm512_loadu_epi8(a);
         __m512i b_one_u8x64 = _mm512_loadu_epi8(b);
-        __m512i a_two_u8x64 = _mm512_maskz_loadu_epi8(mask, a + 64);
-        __m512i b_two_u8x64 = _mm512_maskz_loadu_epi8(mask, b + 64);
+        __m512i a_two_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, a + 64);
+        __m512i b_two_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, b + 64);
         __m512i xor_popcount_one_u64x8 = _mm512_popcnt_epi64(_mm512_xor_si512(a_one_u8x64, b_one_u8x64));
         __m512i xor_popcount_two_u64x8 = _mm512_popcnt_epi64(_mm512_xor_si512(a_two_u8x64, b_two_u8x64));
         xor_count = _mm512_reduce_add_epi64(_mm512_add_epi64(xor_popcount_two_u64x8, xor_popcount_one_u64x8));
     }
     else if (n_bytes <= 192) { // Up to 1536 bits.
-        __mmask64 mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes - 128);
+        __mmask64 mask_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes - 128);
         __m512i a_one_u8x64 = _mm512_loadu_epi8(a);
         __m512i b_one_u8x64 = _mm512_loadu_epi8(b);
         __m512i a_two_u8x64 = _mm512_loadu_epi8(a + 64);
         __m512i b_two_u8x64 = _mm512_loadu_epi8(b + 64);
-        __m512i a_three_u8x64 = _mm512_maskz_loadu_epi8(mask, a + 128);
-        __m512i b_three_u8x64 = _mm512_maskz_loadu_epi8(mask, b + 128);
+        __m512i a_three_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, a + 128);
+        __m512i b_three_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, b + 128);
         __m512i xor_popcount_one_u64x8 = _mm512_popcnt_epi64(_mm512_xor_si512(a_one_u8x64, b_one_u8x64));
         __m512i xor_popcount_two_u64x8 = _mm512_popcnt_epi64(_mm512_xor_si512(a_two_u8x64, b_two_u8x64));
         __m512i xor_popcount_three_u64x8 = _mm512_popcnt_epi64(_mm512_xor_si512(a_three_u8x64, b_three_u8x64));
@@ -92,15 +92,15 @@ NK_PUBLIC void nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_
             xor_popcount_three_u64x8, _mm512_add_epi64(xor_popcount_two_u64x8, xor_popcount_one_u64x8)));
     }
     else if (n_bytes <= 256) { // Up to 2048 bits.
-        __mmask64 mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes - 192);
+        __mmask64 mask_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes - 192);
         __m512i a_one_u8x64 = _mm512_loadu_epi8(a);
         __m512i b_one_u8x64 = _mm512_loadu_epi8(b);
         __m512i a_two_u8x64 = _mm512_loadu_epi8(a + 64);
         __m512i b_two_u8x64 = _mm512_loadu_epi8(b + 64);
         __m512i a_three_u8x64 = _mm512_loadu_epi8(a + 128);
         __m512i b_three_u8x64 = _mm512_loadu_epi8(b + 128);
-        __m512i a_four_u8x64 = _mm512_maskz_loadu_epi8(mask, a + 192);
-        __m512i b_four_u8x64 = _mm512_maskz_loadu_epi8(mask, b + 192);
+        __m512i a_four_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, a + 192);
+        __m512i b_four_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, b + 192);
         __m512i xor_popcount_one_u64x8 = _mm512_popcnt_epi64(_mm512_xor_si512(a_one_u8x64, b_one_u8x64));
         __m512i xor_popcount_two_u64x8 = _mm512_popcnt_epi64(_mm512_xor_si512(a_two_u8x64, b_two_u8x64));
         __m512i xor_popcount_three_u64x8 = _mm512_popcnt_epi64(_mm512_xor_si512(a_three_u8x64, b_three_u8x64));
@@ -115,9 +115,9 @@ NK_PUBLIC void nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_
 
     nk_hamming_u1_icelake_cycle:
         if (n_bytes < 64) {
-            __mmask64 mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes);
-            a_u8x64 = _mm512_maskz_loadu_epi8(mask, a);
-            b_u8x64 = _mm512_maskz_loadu_epi8(mask, b);
+            __mmask64 mask_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes);
+            a_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, a);
+            b_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, b);
             n_bytes = 0;
         }
         else {
@@ -140,20 +140,20 @@ NK_PUBLIC void nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_
     nk_u32_t intersection_count = 0, union_count = 0;
     //  It's harder to squeeze out performance from tiny representations, so we unroll the loops for binary metrics.
     if (n_bytes <= 64) { // Up to 512 bits.
-        __mmask64 load_mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes);
-        __m512i a_u8x64 = _mm512_maskz_loadu_epi8(load_mask, a);
-        __m512i b_u8x64 = _mm512_maskz_loadu_epi8(load_mask, b);
+        __mmask64 load_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes);
+        __m512i a_u8x64 = _mm512_maskz_loadu_epi8(load_m64, a);
+        __m512i b_u8x64 = _mm512_maskz_loadu_epi8(load_m64, b);
         __m512i intersection_popcount_u64x8 = _mm512_popcnt_epi64(_mm512_and_si512(a_u8x64, b_u8x64));
         __m512i union_popcount_u64x8 = _mm512_popcnt_epi64(_mm512_or_si512(a_u8x64, b_u8x64));
         intersection_count = _mm512_reduce_add_epi64(intersection_popcount_u64x8);
         union_count = _mm512_reduce_add_epi64(union_popcount_u64x8);
     }
     else if (n_bytes <= 128) { // Up to 1024 bits.
-        __mmask64 load_mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes - 64);
+        __mmask64 load_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes - 64);
         __m512i a_one_u8x64 = _mm512_loadu_epi8(a);
         __m512i b_one_u8x64 = _mm512_loadu_epi8(b);
-        __m512i a_two_u8x64 = _mm512_maskz_loadu_epi8(load_mask, a + 64);
-        __m512i b_two_u8x64 = _mm512_maskz_loadu_epi8(load_mask, b + 64);
+        __m512i a_two_u8x64 = _mm512_maskz_loadu_epi8(load_m64, a + 64);
+        __m512i b_two_u8x64 = _mm512_maskz_loadu_epi8(load_m64, b + 64);
         __m512i intersection_popcount_one_u64x8 = _mm512_popcnt_epi64(_mm512_and_si512(a_one_u8x64, b_one_u8x64));
         __m512i union_popcount_one_u64x8 = _mm512_popcnt_epi64(_mm512_or_si512(a_one_u8x64, b_one_u8x64));
         __m512i intersection_popcount_two_u64x8 = _mm512_popcnt_epi64(_mm512_and_si512(a_two_u8x64, b_two_u8x64));
@@ -163,13 +163,13 @@ NK_PUBLIC void nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_
         union_count = _mm512_reduce_add_epi64(_mm512_add_epi64(union_popcount_two_u64x8, union_popcount_one_u64x8));
     }
     else if (n_bytes <= 192) { // Up to 1536 bits.
-        __mmask64 load_mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes - 128);
+        __mmask64 load_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes - 128);
         __m512i a_one_u8x64 = _mm512_loadu_epi8(a);
         __m512i b_one_u8x64 = _mm512_loadu_epi8(b);
         __m512i a_two_u8x64 = _mm512_loadu_epi8(a + 64);
         __m512i b_two_u8x64 = _mm512_loadu_epi8(b + 64);
-        __m512i a_three_u8x64 = _mm512_maskz_loadu_epi8(load_mask, a + 128);
-        __m512i b_three_u8x64 = _mm512_maskz_loadu_epi8(load_mask, b + 128);
+        __m512i a_three_u8x64 = _mm512_maskz_loadu_epi8(load_m64, a + 128);
+        __m512i b_three_u8x64 = _mm512_maskz_loadu_epi8(load_m64, b + 128);
         __m512i intersection_popcount_one_u64x8 = _mm512_popcnt_epi64(_mm512_and_si512(a_one_u8x64, b_one_u8x64));
         __m512i union_popcount_one_u64x8 = _mm512_popcnt_epi64(_mm512_or_si512(a_one_u8x64, b_one_u8x64));
         __m512i intersection_popcount_two_u64x8 = _mm512_popcnt_epi64(_mm512_and_si512(a_two_u8x64, b_two_u8x64));
@@ -184,15 +184,15 @@ NK_PUBLIC void nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_
                              _mm512_add_epi64(union_popcount_two_u64x8, union_popcount_one_u64x8)));
     }
     else if (n_bytes <= 256) { // Up to 2048 bits.
-        __mmask64 load_mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes - 192);
+        __mmask64 load_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes - 192);
         __m512i a_one_u8x64 = _mm512_loadu_epi8(a);
         __m512i b_one_u8x64 = _mm512_loadu_epi8(b);
         __m512i a_two_u8x64 = _mm512_loadu_epi8(a + 64);
         __m512i b_two_u8x64 = _mm512_loadu_epi8(b + 64);
         __m512i a_three_u8x64 = _mm512_loadu_epi8(a + 128);
         __m512i b_three_u8x64 = _mm512_loadu_epi8(b + 128);
-        __m512i a_four_u8x64 = _mm512_maskz_loadu_epi8(load_mask, a + 192);
-        __m512i b_four_u8x64 = _mm512_maskz_loadu_epi8(load_mask, b + 192);
+        __m512i a_four_u8x64 = _mm512_maskz_loadu_epi8(load_m64, a + 192);
+        __m512i b_four_u8x64 = _mm512_maskz_loadu_epi8(load_m64, b + 192);
         __m512i intersection_popcount_one_u64x8 = _mm512_popcnt_epi64(_mm512_and_si512(a_one_u8x64, b_one_u8x64));
         __m512i union_popcount_one_u64x8 = _mm512_popcnt_epi64(_mm512_or_si512(a_one_u8x64, b_one_u8x64));
         __m512i intersection_popcount_two_u64x8 = _mm512_popcnt_epi64(_mm512_and_si512(a_two_u8x64, b_two_u8x64));
@@ -215,9 +215,9 @@ NK_PUBLIC void nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_
 
     nk_jaccard_u1_icelake_cycle:
         if (n_bytes < 64) {
-            __mmask64 load_mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes);
-            a_u8x64 = _mm512_maskz_loadu_epi8(load_mask, a);
-            b_u8x64 = _mm512_maskz_loadu_epi8(load_mask, b);
+            __mmask64 load_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes);
+            a_u8x64 = _mm512_maskz_loadu_epi8(load_m64, a);
+            b_u8x64 = _mm512_maskz_loadu_epi8(load_m64, b);
             n_bytes = 0;
         }
         else {
@@ -248,15 +248,15 @@ NK_PUBLIC void nk_jaccard_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_s
     for (; n_remaining >= 16; n_remaining -= 16, a += 16, b += 16) {
         __m512i a_u32x16 = _mm512_loadu_epi32(a);
         __m512i b_u32x16 = _mm512_loadu_epi32(b);
-        __mmask16 equality_mask = _mm512_cmpeq_epi32_mask(a_u32x16, b_u32x16);
-        intersection_count += _mm_popcnt_u32((unsigned int)equality_mask);
+        __mmask16 equality_m16 = _mm512_cmpeq_epi32_mask(a_u32x16, b_u32x16);
+        intersection_count += _mm_popcnt_u32((unsigned int)equality_m16);
     }
     if (n_remaining) {
-        __mmask16 load_mask = (__mmask16)_bzhi_u32(0xFFFF, n_remaining);
-        __m512i a_u32x16 = _mm512_maskz_loadu_epi32(load_mask, a);
-        __m512i b_u32x16 = _mm512_maskz_loadu_epi32(load_mask, b);
-        __mmask16 equality_mask = _mm512_mask_cmpeq_epi32_mask(load_mask, a_u32x16, b_u32x16);
-        intersection_count += _mm_popcnt_u32((unsigned int)equality_mask);
+        __mmask16 load_m16 = (__mmask16)_bzhi_u32(0xFFFF, n_remaining);
+        __m512i a_u32x16 = _mm512_maskz_loadu_epi32(load_m16, a);
+        __m512i b_u32x16 = _mm512_maskz_loadu_epi32(load_m16, b);
+        __mmask16 equality_m16 = _mm512_mask_cmpeq_epi32_mask(load_m16, a_u32x16, b_u32x16);
+        intersection_count += _mm_popcnt_u32((unsigned int)equality_m16);
     }
     *result = (n != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)n : 0.0f;
 }
@@ -267,15 +267,15 @@ NK_PUBLIC void nk_hamming_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size
     for (; n_remaining >= 64; n_remaining -= 64, a += 64, b += 64) {
         __m512i a_u8x64 = _mm512_loadu_si512((__m512i const *)a);
         __m512i b_u8x64 = _mm512_loadu_si512((__m512i const *)b);
-        __mmask64 neq_mask = _mm512_cmpneq_epi8_mask(a_u8x64, b_u8x64);
-        differences += _mm_popcnt_u64(neq_mask);
+        __mmask64 neq_m64 = _mm512_cmpneq_epi8_mask(a_u8x64, b_u8x64);
+        differences += _mm_popcnt_u64(neq_m64);
     }
     if (n_remaining) {
-        __mmask64 load_mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_remaining);
-        __m512i a_u8x64 = _mm512_maskz_loadu_epi8(load_mask, a);
-        __m512i b_u8x64 = _mm512_maskz_loadu_epi8(load_mask, b);
-        __mmask64 neq_mask = _mm512_mask_cmpneq_epi8_mask(load_mask, a_u8x64, b_u8x64);
-        differences += _mm_popcnt_u64(neq_mask);
+        __mmask64 load_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_remaining);
+        __m512i a_u8x64 = _mm512_maskz_loadu_epi8(load_m64, a);
+        __m512i b_u8x64 = _mm512_maskz_loadu_epi8(load_m64, b);
+        __mmask64 neq_m64 = _mm512_mask_cmpneq_epi8_mask(load_m64, a_u8x64, b_u8x64);
+        differences += _mm_popcnt_u64(neq_m64);
     }
     *result = differences;
 }
@@ -286,15 +286,15 @@ NK_PUBLIC void nk_jaccard_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_s
     for (; n_remaining >= 32; n_remaining -= 32, a += 32, b += 32) {
         __m512i a_u16x32 = _mm512_loadu_si512((__m512i const *)a);
         __m512i b_u16x32 = _mm512_loadu_si512((__m512i const *)b);
-        __mmask32 equality_mask = _mm512_cmpeq_epi16_mask(a_u16x32, b_u16x32);
-        matches += _mm_popcnt_u32(equality_mask);
+        __mmask32 equality_m32 = _mm512_cmpeq_epi16_mask(a_u16x32, b_u16x32);
+        matches += _mm_popcnt_u32(equality_m32);
     }
     if (n_remaining) {
-        __mmask32 load_mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, n_remaining);
-        __m512i a_u16x32 = _mm512_maskz_loadu_epi16(load_mask, a);
-        __m512i b_u16x32 = _mm512_maskz_loadu_epi16(load_mask, b);
-        __mmask32 equality_mask = _mm512_mask_cmpeq_epi16_mask(load_mask, a_u16x32, b_u16x32);
-        matches += _mm_popcnt_u32(equality_mask);
+        __mmask32 load_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, n_remaining);
+        __m512i a_u16x32 = _mm512_maskz_loadu_epi16(load_m32, a);
+        __m512i b_u16x32 = _mm512_maskz_loadu_epi16(load_m32, b);
+        __mmask32 equality_m32 = _mm512_mask_cmpeq_epi16_mask(load_m32, a_u16x32, b_u16x32);
+        matches += _mm_popcnt_u32(equality_m32);
     }
     *result = (n != 0) ? 1.0f - (nk_f32_t)matches / (nk_f32_t)n : 0.0f;
 }
@@ -418,9 +418,9 @@ NK_INTERNAL void nk_jaccard_u1x512_finalize_icelake( //
     __m128 union_f32x4 = _mm_sub_ps(_mm_add_ps(query_f32x4, targets_f32x4), intersection_f32x4);
 
     // Handle zero-union edge case: if union == 0, result = 0.0
-    __m128 zero_union_mask = _mm_cmpeq_ps(union_f32x4, _mm_setzero_ps());
+    __m128 zero_union_b32x4 = _mm_cmpeq_ps(union_f32x4, _mm_setzero_ps());
     __m128 one_f32x4 = _mm_set1_ps(1.0f);
-    __m128 safe_union_f32x4 = _mm_blendv_ps(union_f32x4, one_f32x4, zero_union_mask);
+    __m128 safe_union_f32x4 = _mm_blendv_ps(union_f32x4, one_f32x4, zero_union_b32x4);
 
     // Fast reciprocal with Newton-Raphson refinement:
     // - `VRCP14PS`: 4cy latency, 1/cy throughput, port p0 (~14-bit precision)
@@ -434,7 +434,7 @@ NK_INTERNAL void nk_jaccard_u1x512_finalize_icelake( //
 
     __m128 ratio_f32x4 = _mm_mul_ps(intersection_f32x4, union_reciprocal_f32x4);
     __m128 jaccard_f32x4 = _mm_sub_ps(one_f32x4, ratio_f32x4);
-    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_mask);
+    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_b32x4);
 }
 
 /** @brief Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (Icelake). */
@@ -454,9 +454,9 @@ NK_INTERNAL void nk_jaccard_f32x4_from_dot_icelake_(nk_b128_vec_t const *dots_ve
     __m128 target_f32x4 = _mm_cvtepi32_ps(target_pops_vec->xmm);
     __m128 union_f32x4 = _mm_sub_ps(_mm_add_ps(query_f32x4, target_f32x4), dot_f32x4);
 
-    __m128 zero_union_mask = _mm_cmpeq_ps(union_f32x4, _mm_setzero_ps());
+    __m128 zero_union_b32x4 = _mm_cmpeq_ps(union_f32x4, _mm_setzero_ps());
     __m128 one_f32x4 = _mm_set1_ps(1.0f);
-    __m128 safe_union_f32x4 = _mm_blendv_ps(union_f32x4, one_f32x4, zero_union_mask);
+    __m128 safe_union_f32x4 = _mm_blendv_ps(union_f32x4, one_f32x4, zero_union_b32x4);
 
     __m128 union_reciprocal_f32x4 = _mm_rcp14_ps(safe_union_f32x4);
     union_reciprocal_f32x4 = _mm_mul_ps(union_reciprocal_f32x4,
@@ -464,7 +464,7 @@ NK_INTERNAL void nk_jaccard_f32x4_from_dot_icelake_(nk_b128_vec_t const *dots_ve
 
     __m128 ratio_f32x4 = _mm_mul_ps(dot_f32x4, union_reciprocal_f32x4);
     __m128 jaccard_f32x4 = _mm_sub_ps(one_f32x4, ratio_f32x4);
-    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_mask);
+    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_b32x4);
 }
 
 #pragma endregion Stateful Streaming

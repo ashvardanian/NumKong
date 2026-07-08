@@ -74,8 +74,9 @@ function inferDtype(arr: TypedArray): DType {
  * (integer switch). Mirrors the C++ pattern: buffer + byteOffset + dtype.
  */
 export abstract class TensorBase {
-  readonly buffer: ArrayBuffer;
-  readonly byteOffset: number;
+  // Mutable so owning subclasses can `reserve()` a larger buffer; `tryResize()`/`clear()` never touch these.
+  buffer: ArrayBuffer;
+  byteOffset: number;
   readonly dtype: DType;
 
   protected constructor(buffer: ArrayBuffer, byteOffset: number, dtype: DType) {
@@ -105,7 +106,8 @@ export abstract class TensorBase {
  * @brief Abstract rank-1 tensor base class.
  */
 export abstract class VectorBase extends TensorBase {
-  readonly length: number;
+  // Mutable so owning Vectors can `tryResize()`/`clear()` within capacity.
+  length: number;
 
   protected constructor(buffer: ArrayBuffer, byteOffset: number, length: number, dtype: DType) {
     super(buffer, byteOffset, dtype);
@@ -198,6 +200,40 @@ export class Vector extends VectorBase {
       default: return new Uint8Array(this.buffer, 0, this.length);
     }
   }
+
+  /** @brief Allocated element capacity (>= length) — the ceiling `tryResize` honors. */
+  get capacity(): number {
+    return Math.floor((this.buffer.byteLength - this.byteOffset) / this.bytesPerElement);
+  }
+
+  /**
+   * @brief Resize within capacity without moving storage — `toTypedArray()` views stay valid.
+   * @returns false (length unchanged) if `length` is negative or exceeds `capacity()`.
+   */
+  tryResize(length: number): boolean {
+    if (length < 0 || length > this.capacity) return false;
+    this.length = length;
+    return true;
+  }
+
+  /**
+   * @brief Grow the allocated capacity to at least `elements`, reallocating and copying the live
+   * elements. A no-op when already large enough. INVALIDATES any TypedArray previously returned by
+   * `toTypedArray()` — they keep pointing at the old buffer.
+   */
+  reserve(elements: number): boolean {
+    if (elements <= this.capacity) return true;
+    const grown = new ArrayBuffer(elements * this.bytesPerElement);
+    new Uint8Array(grown).set(new Uint8Array(this.buffer, this.byteOffset, this.length * this.bytesPerElement));
+    this.buffer = grown;
+    this.byteOffset = 0;
+    return true;
+  }
+
+  /** @brief Reset to length 0 while keeping the allocated capacity. */
+  clear(): void {
+    this.length = 0;
+  }
 }
 
 /**
@@ -207,10 +243,11 @@ export class Vector extends VectorBase {
  * Strides are in bytes to match the C API directly.
  */
 export abstract class MatrixBase extends TensorBase {
-  readonly rows: number;
-  readonly cols: number;
-  readonly rowStride: number;
-  readonly colStride: number;
+  // Mutable so owning Matrices can `tryResize()`/`clear()` within capacity.
+  rows: number;
+  cols: number;
+  rowStride: number;
+  colStride: number;
 
   protected constructor(
     buffer: ArrayBuffer, byteOffset: number, dtype: DType,
@@ -298,6 +335,45 @@ export class Matrix extends MatrixBase {
 
   row(index: number): VectorView {
     return new VectorView(this.buffer, this.byteOffset + index * this.rowStride, this.cols, this.dtype);
+  }
+
+  /** @brief Allocated element capacity (>= rows*cols) — the ceiling `tryResize` honors. */
+  get capacity(): number {
+    return Math.floor((this.buffer.byteLength - this.byteOffset) / this.bytesPerElement);
+  }
+
+  /**
+   * @brief Resize within capacity without moving storage (`row()`/`toTypedArray()` views stay valid),
+   * re-deriving C-contiguous strides.
+   * @returns false (unchanged) if either extent is negative or `rows*cols` exceeds `capacity()`.
+   */
+  tryResize(rows: number, cols: number): boolean {
+    if (rows < 0 || cols < 0 || rows * cols > this.capacity) return false;
+    this.rows = rows;
+    this.cols = cols;
+    this.rowStride = cols * this.bytesPerElement;
+    this.colStride = this.bytesPerElement;
+    return true;
+  }
+
+  /**
+   * @brief Grow the allocated capacity to at least `elements`, reallocating and copying the live
+   * rows*cols elements. A no-op when already large enough. INVALIDATES any prior `toTypedArray()` /
+   * `row()` view. Intended for the C-contiguous owning layout.
+   */
+  reserve(elements: number): boolean {
+    if (elements <= this.capacity) return true;
+    const grown = new ArrayBuffer(elements * this.bytesPerElement);
+    new Uint8Array(grown).set(new Uint8Array(this.buffer, this.byteOffset, this.rows * this.cols * this.bytesPerElement));
+    this.buffer = grown;
+    this.byteOffset = 0;
+    return true;
+  }
+
+  /** @brief Reset to an empty 0x0 matrix while keeping the allocated capacity. */
+  clear(): void {
+    this.rows = 0;
+    this.cols = 0;
   }
 }
 

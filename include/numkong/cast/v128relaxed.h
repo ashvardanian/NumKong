@@ -36,10 +36,10 @@ NK_INTERNAL void nk_store_b256_v128relaxed_(nk_b256_vec_t const *src, void *dst)
 
 /** @brief BF16 is the upper 16 bits of F32, so zero-extend to u32 and shift left by 16. */
 NK_INTERNAL nk_b128_vec_t nk_bf16x4_to_f32x4_v128relaxed_(nk_b64_vec_t bf16_vec) {
-    v128_t bf16_u16x4_in_u64 = wasm_i64x2_splat(bf16_vec.u64);
-    v128_t bf16_u32x4_low = wasm_u32x4_extend_low_u16x8(bf16_u16x4_in_u64);
+    v128_t bf16_i64x2 = wasm_i64x2_splat(bf16_vec.u64);
+    v128_t bf16_low_u32x4 = wasm_u32x4_extend_low_u16x8(bf16_i64x2);
     nk_b128_vec_t result;
-    result.v128 = wasm_i32x4_shl(bf16_u32x4_low, 16);
+    result.v128 = wasm_i32x4_shl(bf16_low_u32x4, 16);
     return result;
 }
 
@@ -54,8 +54,8 @@ NK_INTERNAL nk_b128_vec_t nk_bf16x4_to_f32x4_v128relaxed_(nk_b64_vec_t bf16_vec)
  *  is fixed with a comparison + blend.
  */
 NK_INTERNAL nk_b128_vec_t nk_f16x4_to_f32x4_v128relaxed_(nk_b64_vec_t f16_vec) {
-    v128_t raw_u16x4_in_u64 = wasm_i64x2_splat(f16_vec.u64);
-    v128_t raw_u32x4 = wasm_u32x4_extend_low_u16x8(raw_u16x4_in_u64);
+    v128_t raw_i64x2 = wasm_i64x2_splat(f16_vec.u64);
+    v128_t raw_u32x4 = wasm_u32x4_extend_low_u16x8(raw_i64x2);
 
     // Extract sign and unsigned magnitude
     v128_t sign_u32x4 = wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x8000));
@@ -282,10 +282,10 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e4m3x4_v128relaxed_(nk_b128_vec_t hub_vec) 
     v128_t e4m3_u32x4 = wasm_i32x4_relaxed_laneselect(subnormal_u32x4, normal_u32x4, is_subnormal_u32x4);
 
     // Pack 4x u32 → 4x u8
-    v128_t packed_u16 = wasm_u16x8_narrow_i32x4(e4m3_u32x4, e4m3_u32x4);
-    v128_t packed_u8 = wasm_u8x16_narrow_i16x8(packed_u16, packed_u16);
+    v128_t packed_u16x8 = wasm_u16x8_narrow_i32x4(e4m3_u32x4, e4m3_u32x4);
+    v128_t packed_u8x16 = wasm_u8x16_narrow_i16x8(packed_u16x8, packed_u16x8);
     nk_b32_vec_t result_vec;
-    result_vec.u32 = (nk_u32_t)wasm_i32x4_extract_lane(packed_u8, 0);
+    result_vec.u32 = (nk_u32_t)wasm_i32x4_extract_lane(packed_u8x16, 0);
     return result_vec;
 }
 
@@ -329,10 +329,10 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e5m2x4_v128relaxed_(nk_b128_vec_t hub_vec) 
 
     v128_t e5m2_u32x4 = wasm_i32x4_relaxed_laneselect(subnormal_u32x4, normal_u32x4, is_subnormal_u32x4);
 
-    v128_t packed_u16 = wasm_u16x8_narrow_i32x4(e5m2_u32x4, e5m2_u32x4);
-    v128_t packed_u8 = wasm_u8x16_narrow_i16x8(packed_u16, packed_u16);
+    v128_t packed_u16x8 = wasm_u16x8_narrow_i32x4(e5m2_u32x4, e5m2_u32x4);
+    v128_t packed_u8x16 = wasm_u8x16_narrow_i16x8(packed_u16x8, packed_u16x8);
     nk_b32_vec_t result_vec;
-    result_vec.u32 = (nk_u32_t)wasm_i32x4_extract_lane(packed_u8, 0);
+    result_vec.u32 = (nk_u32_t)wasm_i32x4_extract_lane(packed_u8x16, 0);
     return result_vec;
 }
 
@@ -373,10 +373,10 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e2m3x4_v128relaxed_(nk_b128_vec_t hub_vec) 
 
     v128_t e2m3_u32x4 = wasm_i32x4_relaxed_laneselect(subnormal_u32x4, normal_u32x4, is_subnormal_u32x4);
 
-    v128_t packed_u16 = wasm_u16x8_narrow_i32x4(e2m3_u32x4, e2m3_u32x4);
-    v128_t packed_u8 = wasm_u8x16_narrow_i16x8(packed_u16, packed_u16);
+    v128_t packed_u16x8 = wasm_u16x8_narrow_i32x4(e2m3_u32x4, e2m3_u32x4);
+    v128_t packed_u8x16 = wasm_u8x16_narrow_i16x8(packed_u16x8, packed_u16x8);
     nk_b32_vec_t result_vec;
-    result_vec.u32 = (nk_u32_t)wasm_i32x4_extract_lane(packed_u8, 0);
+    result_vec.u32 = (nk_u32_t)wasm_i32x4_extract_lane(packed_u8x16, 0);
     return result_vec;
 }
 
@@ -417,10 +417,10 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e3m2x4_v128relaxed_(nk_b128_vec_t hub_vec) 
 
     v128_t e3m2_u32x4 = wasm_i32x4_relaxed_laneselect(subnormal_u32x4, normal_u32x4, is_subnormal_u32x4);
 
-    v128_t packed_u16 = wasm_u16x8_narrow_i32x4(e3m2_u32x4, e3m2_u32x4);
-    v128_t packed_u8 = wasm_u8x16_narrow_i16x8(packed_u16, packed_u16);
+    v128_t packed_u16x8 = wasm_u16x8_narrow_i32x4(e3m2_u32x4, e3m2_u32x4);
+    v128_t packed_u8x16 = wasm_u8x16_narrow_i16x8(packed_u16x8, packed_u16x8);
     nk_b32_vec_t result_vec;
-    result_vec.u32 = (nk_u32_t)wasm_i32x4_extract_lane(packed_u8, 0);
+    result_vec.u32 = (nk_u32_t)wasm_i32x4_extract_lane(packed_u8x16, 0);
     return result_vec;
 }
 

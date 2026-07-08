@@ -120,6 +120,13 @@ void nk_dispatch_i8_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         case nk_kernel_euclideans_symmetric_k:
             *m = (m_t)&nk_euclideans_symmetric_i8_sapphireamx, *c = nk_cap_sapphireamx_k;
             return;
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_i8_sapphireamx, *c = nk_cap_sapphireamx_k;
+            return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_i8_sapphireamx, *c = nk_cap_sapphireamx_k; return;
+        case nk_kernel_attention_packed_k:
+            *m = (m_t)&nk_attention_packed_i8_sapphireamx, *c = nk_cap_sapphireamx_k;
+            return;
         default: break;
         }
 #endif
@@ -132,6 +139,11 @@ void nk_dispatch_i8_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
 #endif
 #if NK_TARGET_ICELAKE
     if (v & nk_cap_icelake_k) switch (k) {
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_i8_icelake, *c = nk_cap_icelake_k;
+            return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_i8_icelake, *c = nk_cap_icelake_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_i8_icelake, *c = nk_cap_icelake_k; return;
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_i8_icelake, *c = nk_cap_icelake_k; return;
         case nk_kernel_angular_k: *m = (m_t)&nk_angular_i8_icelake, *c = nk_cap_icelake_k; return;
         case nk_kernel_sqeuclidean_k: *m = (m_t)&nk_sqeuclidean_i8_icelake, *c = nk_cap_icelake_k; return;
@@ -200,6 +212,11 @@ void nk_dispatch_i8_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
 #endif
 #if NK_TARGET_HASWELL
     if (v & nk_cap_haswell_k) switch (k) {
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_i8_haswell, *c = nk_cap_haswell_k;
+            return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_i8_haswell, *c = nk_cap_haswell_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_i8_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_i8_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_angular_k: *m = (m_t)&nk_angular_i8_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_sqeuclidean_k: *m = (m_t)&nk_sqeuclidean_i8_haswell, *c = nk_cap_haswell_k; return;
@@ -273,6 +290,9 @@ void nk_dispatch_i8_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
 #endif
 #if NK_TARGET_RVV
     if (v & nk_cap_rvv_k) switch (k) {
+        case nk_kernel_attention_packed_size_k: *m = (m_t)&nk_attention_packed_size_i8_rvv, *c = nk_cap_rvv_k; return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_i8_rvv, *c = nk_cap_rvv_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_i8_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_i8_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_angular_k: *m = (m_t)&nk_angular_i8_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_sqeuclidean_k: *m = (m_t)&nk_sqeuclidean_i8_rvv, *c = nk_cap_rvv_k; return;
@@ -315,6 +335,11 @@ void nk_dispatch_i8_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         case nk_kernel_euclideans_symmetric_k:
             *m = (m_t)&nk_euclideans_symmetric_i8_serial, *c = nk_cap_serial_k;
             return;
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_i8_serial, *c = nk_cap_serial_k;
+            return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_i8_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_i8_serial, *c = nk_cap_serial_k; return;
         default: break;
         }
 
@@ -325,6 +350,11 @@ void nk_dispatch_i8_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
 void nk_dispatch_i8_init_(nk_capability_t caps) {
     nk_implementations_t *t = &nk_dispatch_table;
     nk_capability_t used;
+
+    nk_dispatch_i8_find_(caps, nk_kernel_attention_packed_size_k, (nk_kernel_punned_t *)&t->attention_packed_size_i8,
+                         &used);
+    nk_dispatch_i8_find_(caps, nk_kernel_attention_pack_k, (nk_kernel_punned_t *)&t->attention_pack_i8, &used);
+    nk_dispatch_i8_find_(caps, nk_kernel_attention_packed_k, (nk_kernel_punned_t *)&t->attention_packed_i8, &used);
 
     nk_dispatch_i8_find_(caps, nk_kernel_dot_k, (nk_kernel_punned_t *)&t->dot_i8, &used);
     nk_dispatch_i8_find_(caps, nk_kernel_angular_k, (nk_kernel_punned_t *)&t->angular_i8, &used);

@@ -1131,6 +1131,101 @@ void test_format_scalars() {
 }
 #endif // NK_TEST_FORMAT_
 
+/** @brief Typed-pointer convenience ctors (count / initializer_list / std::array) + out-of-range guard. */
+void test_typed_pointer_ctors() {
+    alignas(64) float buf[64];
+    for (int i = 0; i < 64; ++i) buf[i] = static_cast<float>(i);
+    auto *p = reinterpret_cast<nk::f32_t *>(buf);
+
+    nk::tensor_view<nk::f32_t> v1(p, 6); // rank-1 (ptr, count)
+    assert(v1.rank() == 1 && v1.numel() == 6 && "typed-ptr view (count) ctor");
+    nk::tensor_span<nk::f32_t> s1(p, 6);
+    assert(s1.rank() == 1 && s1.numel() == 6 && "typed-ptr span (count) ctor");
+
+    nk::tensor_view<nk::f32_t> v2(p, {2, 3}); // (ptr, initializer_list)
+    assert(v2.rank() == 2 && v2.numel() == 6 && "typed-ptr view (list) ctor");
+
+    std::array<std::size_t, 2> ext {3, 4}; // (ptr, std::array)
+    nk::tensor_view<nk::f32_t> v3(p, ext);
+    assert(v3.rank() == 2 && v3.numel() == 12 && "typed-ptr view (array) ctor");
+
+    // An out-of-range rank (too many, or empty) fails closed to an empty handle — like reshape() —
+    // rather than overflowing the fixed-capacity shape storage.
+    nk::tensor_view<nk::f32_t, 2> over(p, {2, 3, 4});
+    assert(over.empty() && "over-rank list -> empty handle");
+    nk::tensor_span<nk::f32_t, 4> empty_list(p, std::initializer_list<std::size_t> {});
+    assert(empty_list.empty() && "empty extents list -> empty handle");
+    std::printf("  typed-pointer ctors + guard:  OK\n");
+}
+
+/** @brief `explicit operator bool` on every owning + non-owning handle type. */
+void test_operator_bool() {
+    auto t = nk::tensor<nk::f32_t>::try_empty({2, 3});
+    nk::tensor<nk::f32_t> te {};
+    assert(static_cast<bool>(t) && !te && "tensor bool");
+    assert(static_cast<bool>(t.view()) && !te.view() && "tensor_view bool");
+    assert(static_cast<bool>(t.span()) && "tensor_span bool");
+
+    auto v = make_vector<nk::f32_t>(4);
+    nk::vector<nk::f32_t> ve {};
+    assert(static_cast<bool>(v) && !ve && "vector bool");
+    assert(static_cast<bool>(v.view()) && static_cast<bool>(v.span()) && "vector view/span bool");
+
+    auto q = nk::scaled_tensor<nk::nvfp4_t>::try_empty({2, 32});
+    nk::scaled_tensor<nk::nvfp4_t> qe {};
+    assert(static_cast<bool>(q) && !qe && "scaled_tensor bool");
+    assert(static_cast<bool>(q.view()) && static_cast<bool>(q.span()) && "scaled view/span bool");
+    std::printf("  operator bool (8 handles):    OK\n");
+}
+
+/** @brief Templated `flatten<out_rank_>()` with an explicit non-default output rank. */
+void test_flatten_out_rank() {
+    auto t = nk::tensor<nk::f32_t>::try_empty({2, 3, 4});
+    auto f1 = t.flatten<1>();
+    assert(f1.rank() == 1 && f1.numel() == 24 && "tensor flatten<1>");
+    auto fv = t.view().flatten<1>();
+    assert(fv.rank() == 1 && fv.numel() == 24 && "view flatten<1>");
+    auto fs = t.span().flatten<2>();
+    assert(fs.numel() == 24 && "span flatten<2>");
+    std::printf("  flatten<out_rank_>:           OK\n");
+}
+
+/** @brief Fixed-capacity resize contract: data()-stability, beyond-capacity fail, reserve/clear/move. */
+void test_resize_capacity() {
+    auto t = nk::tensor<nk::f32_t>::try_empty({8, 4}); // capacity 32
+    assert(t.capacity() == 32 && "capacity from initial shape");
+    auto *p0 = t.data();
+    assert(t.try_resize({2, 4}) && t.numel() == 8 && t.data() == p0 && "resize within capacity keeps data()");
+    assert(!t.try_resize({100, 100}) && t.numel() == 8 && "resize beyond capacity fails, shape kept");
+    std::size_t ext[2] = {4, 4};
+    assert(t.try_resize(ext, 2) && t.numel() == 16 && "resize (ptr,rank) overload");
+    assert(t.reserve(64) && t.capacity() >= 64 && "reserve grows capacity");
+    assert(t.try_resize({8, 8}) && "resize into grown capacity");
+    t.clear();
+    assert(t.empty() && t.capacity() >= 64 && "clear -> empty, capacity kept");
+
+    auto t2 = nk::tensor<nk::f32_t>::try_empty({4, 4});
+    auto cap = t2.capacity();
+    nk::tensor<nk::f32_t> t3 = std::move(t2);
+    assert(t3.capacity() == cap && "move preserves capacity");
+
+    auto q = nk::scaled_tensor<nk::nvfp4_t>::try_empty({2, 32}); // block_size 16
+    assert(q.try_resize({2, 16}) && q.extent(1) == 16 && "scaled coordinated resize");
+    assert(!q.try_resize({2, 20}) && "scaled resize rejects non-block-aligned last extent");
+    assert(!q.try_resize({8, 64}) && "scaled resize beyond capacity fails");
+    assert(q.reserve(256) && q.try_resize({4, 64}) && "scaled reserve then resize");
+
+    auto v = nk::vector<nk::f32_t>::try_empty(16);
+    assert(v.capacity() == 16 && "vector capacity");
+    auto *vp0 = v.values_data();
+    assert(v.try_resize(8) && v.size() == 8 && v.values_data() == vp0 && "vector resize keeps data()");
+    assert(!v.try_resize(100) && "vector resize beyond capacity fails");
+    assert(v.reserve(64) && v.try_resize(50) && "vector reserve then resize");
+    v.clear();
+    assert(v.empty() && v.capacity() >= 64 && "vector clear");
+    std::printf("  resize/capacity/reserve:      OK\n");
+}
+
 void test_tensor_ops() {
     std::printf("Testing tensor op instantiations...\n");
 
@@ -1206,4 +1301,9 @@ void test_tensor_ops() {
     test_cast_for_types<nk::i8_t, nk::i32_t>();
     test_cast_for_types<nk::f64_t, nk::f32_t>();
     std::printf("  cast wrapper (8 pairs):       OK\n");
+
+    test_typed_pointer_ctors();
+    test_operator_bool();
+    test_flatten_out_rank();
+    test_resize_capacity();
 }

@@ -225,56 +225,65 @@ typedef struct {
     nk_each_fma_punned_t each_fma_u32;
     nk_each_fma_punned_t each_fma_u16;
     nk_each_fma_punned_t each_fma_u8;
+    nk_each_swiglu_punned_t each_swiglu_f32;
+    nk_each_swiglu_punned_t each_swiglu_bf16;
+    nk_each_swiglu_punned_t each_swiglu_e4m3;
     // Trigonometry
-    nk_kernel_trigonometry_punned_t each_sin_f64;
-    nk_kernel_trigonometry_punned_t each_sin_f32;
-    nk_kernel_trigonometry_punned_t each_sin_f16;
-    nk_kernel_trigonometry_punned_t each_cos_f64;
-    nk_kernel_trigonometry_punned_t each_cos_f32;
-    nk_kernel_trigonometry_punned_t each_cos_f16;
-    nk_kernel_trigonometry_punned_t each_atan_f64;
-    nk_kernel_trigonometry_punned_t each_atan_f32;
-    nk_kernel_trigonometry_punned_t each_atan_f16;
+    nk_kernel_trig_punned_t trig_sin_f64;
+    nk_kernel_trig_punned_t trig_sin_f32;
+    nk_kernel_trig_punned_t trig_sin_f16;
+    nk_kernel_trig_punned_t trig_cos_f64;
+    nk_kernel_trig_punned_t trig_cos_f32;
+    nk_kernel_trig_punned_t trig_cos_f16;
+    nk_kernel_trig_punned_t trig_atan_f64;
+    nk_kernel_trig_punned_t trig_atan_f32;
+    nk_kernel_trig_punned_t trig_atan_f16;
+    nk_kernel_trig_rope_punned_t trig_rope_f32;
+    nk_kernel_trig_rope_punned_t trig_rope_bf16;
+    nk_kernel_trig_rope_punned_t trig_rope_e4m3;
     // Reduce moments (sum + sum-of-squares)
-    nk_kernel_reduce_moments_punned_t reduce_moments_f64;
-    nk_kernel_reduce_moments_punned_t reduce_moments_f32;
-    nk_kernel_reduce_moments_punned_t reduce_moments_bf16;
-    nk_kernel_reduce_moments_punned_t reduce_moments_f16;
-    nk_kernel_reduce_moments_punned_t reduce_moments_e5m2;
-    nk_kernel_reduce_moments_punned_t reduce_moments_e4m3;
-    nk_kernel_reduce_moments_punned_t reduce_moments_e3m2;
-    nk_kernel_reduce_moments_punned_t reduce_moments_e2m3;
-    nk_kernel_reduce_moments_punned_t reduce_moments_i64;
-    nk_kernel_reduce_moments_punned_t reduce_moments_i32;
-    nk_kernel_reduce_moments_punned_t reduce_moments_i16;
-    nk_kernel_reduce_moments_punned_t reduce_moments_i8;
-    nk_kernel_reduce_moments_punned_t reduce_moments_i4;
-    nk_kernel_reduce_moments_punned_t reduce_moments_u64;
-    nk_kernel_reduce_moments_punned_t reduce_moments_u32;
-    nk_kernel_reduce_moments_punned_t reduce_moments_u16;
-    nk_kernel_reduce_moments_punned_t reduce_moments_u8;
-    nk_kernel_reduce_moments_punned_t reduce_moments_u4;
-    nk_kernel_reduce_moments_punned_t reduce_moments_u1;
+    nk_reduce_moments_punned_t reduce_moments_f64;
+    nk_reduce_moments_punned_t reduce_moments_f32;
+    nk_reduce_moments_punned_t reduce_moments_bf16;
+    nk_reduce_moments_punned_t reduce_moments_f16;
+    nk_reduce_moments_punned_t reduce_moments_e5m2;
+    nk_reduce_moments_punned_t reduce_moments_e4m3;
+    nk_reduce_moments_punned_t reduce_moments_e3m2;
+    nk_reduce_moments_punned_t reduce_moments_e2m3;
+    nk_reduce_moments_punned_t reduce_moments_i64;
+    nk_reduce_moments_punned_t reduce_moments_i32;
+    nk_reduce_moments_punned_t reduce_moments_i16;
+    nk_reduce_moments_punned_t reduce_moments_i8;
+    nk_reduce_moments_punned_t reduce_moments_i4;
+    nk_reduce_moments_punned_t reduce_moments_u64;
+    nk_reduce_moments_punned_t reduce_moments_u32;
+    nk_reduce_moments_punned_t reduce_moments_u16;
+    nk_reduce_moments_punned_t reduce_moments_u8;
+    nk_reduce_moments_punned_t reduce_moments_u4;
+    nk_reduce_moments_punned_t reduce_moments_u1;
     // Reduce minmax (min + argmin + max + argmax)
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_f64;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_f32;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_bf16;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_f16;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_e5m2;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_e4m3;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_e3m2;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_e2m3;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_i64;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_i32;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_i16;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_i8;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_i4;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_u64;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_u32;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_u16;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_u8;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_u4;
-    nk_kernel_reduce_minmax_punned_t reduce_minmax_u1;
+    nk_reduce_minmax_punned_t reduce_minmax_f64;
+    nk_reduce_minmax_punned_t reduce_minmax_f32;
+    nk_reduce_minmax_punned_t reduce_minmax_bf16;
+    nk_reduce_minmax_punned_t reduce_minmax_f16;
+    nk_reduce_minmax_punned_t reduce_minmax_e5m2;
+    nk_reduce_minmax_punned_t reduce_minmax_e4m3;
+    nk_reduce_minmax_punned_t reduce_minmax_e3m2;
+    nk_reduce_minmax_punned_t reduce_minmax_e2m3;
+    nk_reduce_minmax_punned_t reduce_minmax_i64;
+    nk_reduce_minmax_punned_t reduce_minmax_i32;
+    nk_reduce_minmax_punned_t reduce_minmax_i16;
+    nk_reduce_minmax_punned_t reduce_minmax_i8;
+    nk_reduce_minmax_punned_t reduce_minmax_i4;
+    nk_reduce_minmax_punned_t reduce_minmax_u64;
+    nk_reduce_minmax_punned_t reduce_minmax_u32;
+    nk_reduce_minmax_punned_t reduce_minmax_u16;
+    nk_reduce_minmax_punned_t reduce_minmax_u8;
+    nk_reduce_minmax_punned_t reduce_minmax_u4;
+    nk_reduce_minmax_punned_t reduce_minmax_u1;
+    nk_reduce_rmsnorm_punned_t reduce_rmsnorm_f32;
+    nk_reduce_rmsnorm_punned_t reduce_rmsnorm_bf16;
+    nk_reduce_rmsnorm_punned_t reduce_rmsnorm_e4m3;
     // Dots packed size
     nk_dots_packed_size_punned_t dots_packed_size_f64;
     nk_dots_packed_size_punned_t dots_packed_size_f32;
@@ -401,6 +410,15 @@ typedef struct {
     nk_maxsim_packed_punned_t maxsim_packed_f32;
     nk_maxsim_packed_punned_t maxsim_packed_bf16;
     nk_maxsim_packed_punned_t maxsim_packed_f16;
+    nk_attention_packed_size_punned_t attention_packed_size_bf16;
+    nk_attention_packed_size_punned_t attention_packed_size_e4m3;
+    nk_attention_packed_size_punned_t attention_packed_size_i8;
+    nk_attention_pack_punned_t attention_pack_bf16;
+    nk_attention_pack_punned_t attention_pack_e4m3;
+    nk_attention_pack_punned_t attention_pack_i8;
+    nk_attention_packed_punned_t attention_packed_bf16;
+    nk_attention_packed_punned_t attention_packed_e4m3;
+    nk_attention_packed_punned_t attention_packed_i8;
     // Type casting
     nk_kernel_cast_punned_t cast;
     nk_kernel_cast_block_scaled_punned_t cast_block_scaled;
@@ -470,15 +488,26 @@ extern void nk_error_each_fma_(void const *, void const *, void const *, nk_size
 extern void nk_error_each_blend_(void const *, void const *, nk_size_t, void const *, void const *, void *);
 extern void nk_error_each_scale_(void const *, nk_size_t, void const *, void const *, void *);
 extern void nk_error_each_sum_(void const *, void const *, nk_size_t, void *);
-extern void nk_error_trigonometry_(void const *, nk_size_t, void *);
+extern void nk_error_trig_(void const *, nk_size_t, void *);
 extern void nk_error_mesh_(void const *, void const *, nk_size_t, void *, void *, void *, void *, void *);
 extern void nk_error_reduce_moments_(void const *, nk_size_t, nk_size_t, void *, void *);
 extern void nk_error_reduce_minmax_(void const *, nk_size_t, nk_size_t, void *, nk_size_t *, void *, nk_size_t *);
+extern void nk_error_reduce_rmsnorm_(void const *, void const *, void *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                     nk_size_t, nk_f32_t, nk_f32_t);
+extern void nk_error_each_swiglu_(void const *, void const *, void *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                  nk_size_t, nk_f32_t);
+extern void nk_error_trig_rope_(void const *, void *, void const *, void const *, nk_size_t, nk_size_t, nk_size_t,
+                                nk_size_t, nk_size_t, nk_f32_t);
 extern nk_size_t nk_error_packed_size_(nk_size_t, nk_size_t);
 extern void nk_error_pack_(void const *, nk_size_t, nk_size_t, nk_size_t, void *);
 extern void nk_error_dots_(void const *, void const *, void *, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t);
 extern void nk_error_dots_symmetric_(void const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_size_t,
                                      nk_size_t);
+extern nk_size_t nk_error_attention_packed_size_(nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t);
+extern void nk_error_attention_pack_(void const *, void const *, nk_size_t, nk_size_t, nk_u32_t const *,
+                                     nk_u32_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_size_t);
+extern void nk_error_attention_packed_(void const *, void const *, void *, nk_size_t, nk_size_t, nk_size_t,
+                                       nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_size_t, nk_size_t);
 
 // Dtype-specific kernel lookup functions
 extern void nk_dispatch_f64c_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);

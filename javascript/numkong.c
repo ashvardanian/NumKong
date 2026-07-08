@@ -545,8 +545,12 @@ static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_ke
     if (argc == 10) napi_get_value_uint32(env, args[9], &threads);
 
 #if defined(NK_USE_OPENMP)
+    // Resolve 0 → all cores. Set the count with the num_threads() clause below,
+    // never omp_set_num_threads(): the latter writes the process-global
+    // nthreads-var ICV, so a prior explicit threads=N call would leak into a
+    // later threads=0 (which reads that ICV back via omp_get_max_threads()).
+    // Node is long-lived, so this cross-call leakage is especially real.
     if (threads == 0) threads = (uint32_t)omp_get_max_threads();
-    omp_set_num_threads((int)threads);
 #endif
 
     // `int` loop counter pre-declared: MSVC's OpenMP stays at 2.0 canonical
@@ -554,7 +558,7 @@ static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_ke
     // — either would trip C3015.
     int const tile_count = (int)nk_size_divide_round_up_(height, NK_PARALLEL_PACKED_TILE);
     int tile_idx;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads((int)threads)
     for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
         nk_size_t row = (nk_size_t)tile_idx * NK_PARALLEL_PACKED_TILE;
         nk_size_t chunk = (row + NK_PARALLEL_PACKED_TILE <= height) ? NK_PARALLEL_PACKED_TILE : (height - row);
@@ -631,14 +635,15 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
     if (argc == 10) napi_get_value_uint32(env, args[9], &threads);
 
 #if defined(NK_USE_OPENMP)
+    // Resolve 0 → all cores; num_threads() clause, not omp_set_num_threads() —
+    // see the note at `api_packed_common`.
     if (threads == 0) threads = (uint32_t)omp_get_max_threads();
-    omp_set_num_threads((int)threads);
 #endif
 
     // `int` loop counter pre-declared: see note at `api_packed_common`.
     int const tile_count = (int)nk_size_divide_round_up_(row_count, NK_PARALLEL_SYMMETRIC_TILE);
     int tile_idx;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads((int)threads)
     for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
         nk_size_t tile_start = (nk_size_t)row_start + (nk_size_t)tile_idx * NK_PARALLEL_SYMMETRIC_TILE;
         nk_size_t tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= (nk_size_t)row_start + row_count)

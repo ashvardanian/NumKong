@@ -82,6 +82,19 @@ if (CCACHE_PROGRAM)
     message(STATUS "IMPORTANT: Set environment variable CCACHE_SLOPPINESS=pch_defines,time_macros")
 endif ()
 
+# Enable the in-repo Git hooks. Git will not auto-run hooks shipped inside a clone (that would let any
+# cloned repo execute code), so point `core.hooksPath` at `.githooks` here — configuring the build arms
+# the `pre-commit` / `commit-msg` checks. Skipped when there is no `.git` (tarball / export builds).
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+    execute_process(
+        COMMAND git config core.hooksPath .githooks WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        RESULT_VARIABLE _nk_hooks_status OUTPUT_QUIET ERROR_QUIET
+    )
+    if (_nk_hooks_status EQUAL 0)
+        message(STATUS "numkong: Git hooks enabled (core.hooksPath -> .githooks)")
+    endif ()
+endif ()
+
 #
 project(
     numkong
@@ -157,6 +170,19 @@ if (MSVC)
     else ()
         message(WARNING "Unknown CMAKE_C_COMPILER_ARCHITECTURE_ID=${CMAKE_C_COMPILER_ARCHITECTURE_ID}")
     endif ()
+endif ()
+
+# On macOS, CMAKE_SYSTEM_PROCESSOR reflects the host, not CMAKE_OSX_ARCHITECTURES (the target slice
+# Apple Clang compiles via `-arch`). Patch it here so the detection below matches the target. We do
+# not build universal2, so CMAKE_OSX_ARCHITECTURES is always single-valued when set.
+if (APPLE AND CMAKE_OSX_ARCHITECTURES)
+    list(LENGTH CMAKE_OSX_ARCHITECTURES nk_osx_archs_len_)
+    if (nk_osx_archs_len_ EQUAL 1)
+        set(CMAKE_SYSTEM_PROCESSOR "${CMAKE_OSX_ARCHITECTURES}")
+    else ()
+        message(FATAL_ERROR "Multi-arch CMAKE_OSX_ARCHITECTURES='${CMAKE_OSX_ARCHITECTURES}' not supported; build per-arch")
+    endif ()
+    unset(nk_osx_archs_len_)
 endif ()
 
 # Detect target architecture from CMAKE_SYSTEM_PROCESSOR (safe for cross-compilation)
@@ -820,6 +846,11 @@ if (NK_BUILD_CUDA_TEST)
     add_executable(nk_cuda_test test/test.cu)
     target_include_directories(nk_cuda_test PRIVATE "${PROJECT_SOURCE_DIR}/include")
     set_target_properties(nk_cuda_test PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO)
+
+    # Let the `constexpr` host abstractions (tensor_view / vector_view and their accessors) be called
+    # from `__device__` code; test.cu's device kernels then exercise them, making this a compile-level
+    # guarantee that the tensor abstractions stay GPU-friendly (no GPU required to catch a regression).
+    target_compile_options(nk_cuda_test PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
 
     # Forward the baseline flags to NVCC's host compiler, scoped to this target.
     if (NK_IS_64BIT_X86_)

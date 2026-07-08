@@ -11,7 +11,8 @@
 #ifndef NK_TEST_CROSS_HPP
 #define NK_TEST_CROSS_HPP
 
-#include "numkong/spatials.h" // `nk_angulars_packed_*`, `nk_euclideans_packed_*`
+#include "numkong/attention.hpp" // `nk::attention_packed`, `nk::attention_pack`
+#include "numkong/spatials.h"    // `nk_angulars_packed_*`, `nk_euclideans_packed_*`
 
 #include "numkong/dots.hpp"   // `nk::dots_packed`, `nk::dots_symmetric`
 #include "numkong/matrix.hpp" // `nk::dots_packed_size`, `nk::dots_pack`
@@ -107,6 +108,67 @@ error_stats_t test_dots_symmetric(typename scalar_type_::dots_symmetric_kernel_t
         // Only check upper triangle and diagonal
         for (std::size_t i = 0; i < n; i++)
             for (std::size_t j = i; j < n; j++) stats.accumulate(c[i * n + j], c_ref[i * n + j]);
+    }
+    return stats;
+}
+
+/**
+ *  @brief Ragged attention test against the serial backend as reference: fixed segment
+ *         mix with a zero-length PAD segment, GQA 2:1, executed through per-task windows.
+ */
+template <typename scalar_type_>
+error_stats_t test_attention_packed(typename scalar_type_::attention_packed_size_kernel_t packed_size_fn,
+                                    typename scalar_type_::attention_pack_kernel_t pack_fn,
+                                    typename scalar_type_::attention_packed_kernel_t attention_fn) {
+    using scalar_t = scalar_type_;
+    using result_t = typename scalar_t::attention_result_t;
+
+    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    std::mt19937 generator(global_config.seed);
+
+    std::vector<nk_u32_t> const lengths = {60, 130, 0, 33};
+    std::vector<nk_u32_t> offsets = {0};
+    for (auto length : lengths) offsets.push_back(offsets.back() + length);
+    std::size_t const tokens = offsets.back(), head_count = 4, key_value_head_count = 2;
+    nk_f32_t const scale = 0.05f;
+
+    for (auto start = test_start_time(); within_time_budget(start);) {
+        for (std::size_t depth : {1ul, 64ul, 65ul, 127ul, 128ul, 129ul, 255ul, 257ul}) {
+            std::size_t const queries_row_width = head_count * depth,
+                              key_value_row_width = key_value_head_count * depth;
+            std::size_t const query_stride_bytes = queries_row_width * sizeof(scalar_t),
+                              key_value_stride_bytes = key_value_row_width * sizeof(scalar_t);
+            auto queries = make_vector<scalar_t>(tokens * queries_row_width);
+            auto keys = make_vector<scalar_t>(tokens * key_value_row_width),
+                 values = make_vector<scalar_t>(tokens * key_value_row_width);
+            fill_random(generator, queries), fill_random(generator, keys), fill_random(generator, values);
+
+            auto key_value_packed = make_vector<char>(
+                packed_size_fn(key_value_head_count, depth, lengths.data(), lengths.size()));
+            // Run kernel being tested: pack once, then attention through per-task windows
+            pack_fn(keys.raw_values_data(), values.raw_values_data(), key_value_head_count, depth, offsets.data(),
+                    lengths.data(), lengths.size(), key_value_stride_bytes, key_value_stride_bytes,
+                    key_value_packed.raw_values_data(), 0, 0);
+            auto output = make_vector<result_t>(tokens * queries_row_width);
+            for (std::size_t task_idx = 0; task_idx < lengths.size() * head_count; task_idx++)
+                attention_fn(queries.raw_values_data(), key_value_packed.raw_values_data(), output.raw_values_data(),
+                             head_count, key_value_head_count, depth, offsets.data(), query_stride_bytes,
+                             queries_row_width * sizeof(nk_f32_t), scale, task_idx, 1);
+
+            auto key_value_reference = make_vector<char>(nk::attention_packed_size<scalar_t, nk::no_simd_k>(
+                key_value_head_count, depth, lengths.data(), lengths.size()));
+            // Compute reference through the serial backend via the C++ wrappers
+            nk::attention_pack<scalar_t, nk::no_simd_k>(
+                keys.values_data(), values.values_data(), key_value_head_count, depth, offsets.data(), lengths.data(),
+                lengths.size(), key_value_stride_bytes, key_value_stride_bytes, key_value_reference.raw_values_data());
+            auto reference = make_vector<result_t>(tokens * queries_row_width);
+            nk::attention_packed<scalar_t, result_t, nk::no_simd_k>(
+                queries.values_data(), key_value_reference.raw_values_data(), reference.values_data(), head_count,
+                key_value_head_count, depth, offsets.data(), query_stride_bytes, queries_row_width * sizeof(nk_f32_t),
+                scale);
+
+            for (std::size_t i = 0; i < output.size_values(); i++) stats.accumulate(output[i], reference[i]);
+        }
     }
     return stats;
 }

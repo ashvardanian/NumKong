@@ -18,6 +18,28 @@
 #define NK_PARALLEL_PACKED_TILE    64
 #define NK_PARALLEL_SYMMETRIC_TILE 32
 
+/*  Below this many multiply-accumulates an auto-threaded op stays serial: OpenMP
+ *  fork/join overhead dominates small products. Explicit dots_packed(...,
+ *  threads=N) / cdist(..., threads=N) paths are unaffected — they honor the
+ *  caller's request as given; only auto-deciders (the `@` operator) consult it. */
+#define NK_PARALLEL_MIN_MACS ((nk_size_t)1 << 20)
+
+/**
+ *  @brief Shared parallelism policy: is a @p work_units-sized op worth threading across @p threads?
+ *
+ *  The single home for the "big enough to fork a team?" decision used by auto-deciders like the `@`
+ *  operator. Returns true only when more than one thread is available and the work clears the fork/join
+ *  floor. Cheap enough to call from an OpenMP `if(...)` clause (evaluated once when the region is
+ *  encountered). Explicit-`threads=N` call sites do not consult this — they honor the caller literally.
+ *
+ *  @param[in] work_units Problem size in multiply-accumulates (or an equivalent work proxy).
+ *  @param[in] threads Resolved thread count the region would use.
+ *  @return Non-zero when the region should run in parallel, zero to stay serial.
+ */
+static inline int nk_parallel_worthwhile(nk_size_t work_units, nk_size_t threads) {
+    return threads > 1 && work_units >= NK_PARALLEL_MIN_MACS;
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif

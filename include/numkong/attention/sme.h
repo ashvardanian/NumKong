@@ -947,8 +947,8 @@ __arm_new("za") static void nk_attention_bf16_sme_streaming_(
             svfloat32_t corr_f32x = svdup_f32(corrections[0]);
             for (nk_size_t d = 0; d < head_dim; d += svcntw()) {
                 svbool_t predicate_b32x = svwhilelt_b32_u64(d, head_dim);
-                svfloat32_t acc_f32x = svmul_f32_x(predicate_b32x, svld1_f32(predicate_b32x, output_accumulator + d),
-                                                   corr_f32x);
+                svfloat32_t accumulator_f32x = svmul_f32_x(
+                    predicate_b32x, svld1_f32(predicate_b32x, output_accumulator + d), corr_f32x);
                 for (nk_size_t ki = 0; ki < valid_kv; ki++) {
                     nk_size_t dim_tile = d / 16, depth_s = ki / 2, sub = ki % 2;
                     nk_bf16_t const *v_vec = v_packed +
@@ -956,10 +956,11 @@ __arm_new("za") static void nk_attention_bf16_sme_streaming_(
                     svbfloat16_t packed_bf16x = svld1_bf16(predicate_all_b16x, (bfloat16_t const *)v_vec);
                     svbfloat16_t v_selected_bf16x = (sub == 0) ? svuzp1_bf16(packed_bf16x, packed_bf16x)
                                                                : svuzp2_bf16(packed_bf16x, packed_bf16x);
-                    acc_f32x = svmla_f32_x(predicate_b32x, acc_f32x, svdup_f32(decode_weights_ordered[ki]),
-                                           nk_bf16_to_f32_sve_(predicate_b32x, v_selected_bf16x));
+                    accumulator_f32x = svmla_f32_x(predicate_b32x, accumulator_f32x,
+                                                   svdup_f32(decode_weights_ordered[ki]),
+                                                   nk_bf16_to_f32_sve_(predicate_b32x, v_selected_bf16x));
                 }
-                svst1_f32(predicate_b32x, output_accumulator + d, acc_f32x);
+                svst1_f32(predicate_b32x, output_accumulator + d, accumulator_f32x);
             }
         }
         else {
@@ -1768,8 +1769,8 @@ __arm_new("za") static void nk_attention_f16_sme_streaming_( //
             svfloat32_t corr_f32x = svdup_f32(corrections[0]);
             for (nk_size_t d = 0; d < head_dim; d += svcntw()) {
                 svbool_t predicate_b32x = svwhilelt_b32_u64(d, head_dim);
-                svfloat32_t acc_f32x = svmul_f32_x(predicate_b32x, svld1_f32(predicate_b32x, output_accumulator + d),
-                                                   corr_f32x);
+                svfloat32_t accumulator_f32x = svmul_f32_x(
+                    predicate_b32x, svld1_f32(predicate_b32x, output_accumulator + d), corr_f32x);
                 for (nk_size_t ki = 0; ki < valid_kv; ki++) {
                     nk_size_t dim_tile = d / 16, depth_s = ki / 2, sub = ki % 2;
                     nk_f16_t const *v_vec = v_packed +
@@ -1777,10 +1778,11 @@ __arm_new("za") static void nk_attention_f16_sme_streaming_( //
                     svfloat16_t packed_f16x = svld1_f16(predicate_all_b16x, (float16_t const *)v_vec);
                     svfloat16_t v_selected_f16x = (sub == 0) ? svuzp1_f16(packed_f16x, packed_f16x)
                                                              : svuzp2_f16(packed_f16x, packed_f16x);
-                    acc_f32x = svmla_f32_x(predicate_b32x, acc_f32x, svdup_f32(decode_weights_ordered[ki]),
-                                           svcvt_f32_f16_x(predicate_b32x, v_selected_f16x));
+                    accumulator_f32x = svmla_f32_x(predicate_b32x, accumulator_f32x,
+                                                   svdup_f32(decode_weights_ordered[ki]),
+                                                   svcvt_f32_f16_x(predicate_b32x, v_selected_f16x));
                 }
-                svst1_f32(predicate_b32x, output_accumulator + d, acc_f32x);
+                svst1_f32(predicate_b32x, output_accumulator + d, accumulator_f32x);
             }
         }
         else {

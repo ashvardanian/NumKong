@@ -267,6 +267,62 @@ static bool test_device_kernel_usability_() {
     return true;
 }
 
+/** @brief Device kernel exercising the `constexpr` nk::tensor_view / nk::vector_view surface directly
+ *  on the GPU — this is what proves the abstractions are `__device__`-callable under
+ *  `--expt-relaxed-constexpr`. Covers: typed-pointer construction, `operator bool`, 2D `operator()`,
+ *  `slice_leading`, `operator[]` on the reduced-rank row, `flatten<1>()`, and iteration. Writes a
+ *  checksum so nothing is optimized away. */
+__global__ void tensor_view_ops_kernel_(float const *data, std::size_t rows, std::size_t columns, float *out) {
+    if (threadIdx.x != 0 || threadIdx.y != 0 || blockIdx.x != 0 || blockIdx.y != 0) return;
+    nk::tensor_view<float> view(data, rows, columns); // typed-pointer rank-2 ctor
+    float accumulator = 0.0f;
+    if (view) { // operator bool
+        for (std::size_t row = 0; row < view.extent(0); ++row) {
+            auto row_view = view.slice_leading(row); // rank-reducing slice
+            for (std::size_t column = 0; column < row_view.extent(0); ++column)
+                accumulator += static_cast<float>(row_view[column]); // operator[] on the rank-1 view
+        }
+        accumulator += static_cast<float>(view(1, 2)); // 2D operator()
+        auto flat = view.flatten<1>();                 // flatten<out_rank_>
+        accumulator += static_cast<float>(flat.numel());
+    }
+    nk::vector_view<float> vector(data, rows * columns); // (ptr, count) ctor
+    if (vector)
+        for (std::size_t i = 0; i < vector.size(); ++i) accumulator += static_cast<float>(vector[i]);
+    out[0] = accumulator;
+}
+
+/** @brief Run the tensor-abstraction kernel on device and check its checksum equals the identical
+ *  computation on the host — confirms the `constexpr` surface both compiles for and executes on the GPU. */
+static bool test_device_tensor_view_ops_() {
+    constexpr std::size_t rows = 8, columns = 16, count = rows * columns;
+    auto host = nk::tensor<float>::try_zeros({rows, columns});
+    if (host.empty()) return false;
+    for (std::size_t row = 0; row < rows; ++row)
+        for (std::size_t column = 0; column < columns; ++column)
+            host(row, column) = static_cast<float>((row * columns + column) % 13) * 0.5f;
+
+    auto flat = host.view().flatten<1>();
+    float sum_all = 0.0f;
+    for (std::size_t i = 0; i < count; ++i) sum_all += static_cast<float>(flat[i]);
+    float const host_checksum = 2.0f * sum_all + host(1, 2) + static_cast<float>(count);
+
+    float *device_data = nullptr, *device_out = nullptr;
+    nk_cuda_assert_(cudaMalloc(&device_data, count * sizeof(float)));
+    nk_cuda_assert_(cudaMalloc(&device_out, sizeof(float)));
+    nk_cuda_assert_(cudaMemcpy(device_data, host.data(), count * sizeof(float), cudaMemcpyHostToDevice));
+    tensor_view_ops_kernel_<<<1, 1>>>(device_data, rows, columns, device_out);
+    nk_cuda_assert_(cudaGetLastError());
+    nk_cuda_assert_(cudaDeviceSynchronize());
+    float device_checksum = 0.0f;
+    nk_cuda_assert_(cudaMemcpy(&device_checksum, device_out, sizeof(float), cudaMemcpyDeviceToHost));
+    nk_cuda_assert_(cudaFree(device_data));
+    nk_cuda_assert_(cudaFree(device_out));
+    float const diff = device_checksum > host_checksum ? device_checksum - host_checksum //
+                                                       : host_checksum - device_checksum;
+    return diff < 1e-3f * (1.0f + host_checksum);
+}
+
 #pragma endregion
 
 #pragma region FP8 / FP6 Conversion Kernels
@@ -643,6 +699,7 @@ int main() {
     run_("2D sub-view extraction (cudaMemcpy2D)", test_memcpy_2d_subview_());
     run_("3D batched round-trip (cudaMemcpy3D)", test_memcpy_3d_batched_());
     run_("device kernel usability (add-one)", test_device_kernel_usability_());
+    run_("device tensor_view/vector_view ops", test_device_tensor_view_ops_());
 
     std::printf("\nFP8 conformance: nk_cast vs __nv_cvt_* (bit-exact)\n");
     run_("fp32 → e4m3 (exhaustive 2^32)",

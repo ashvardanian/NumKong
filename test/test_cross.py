@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -22,7 +23,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     NATIVE_COMPUTE_DTYPE,
     NK_ATOL,
@@ -34,6 +34,7 @@ from test_base import (
     keep_one_capability,
     make_nk,
     make_random,
+    nk_seed,  # noqa: F401 — pytest fixture
     numpy_available,
     possible_capabilities,
     precise_decimal,
@@ -48,6 +49,9 @@ from test_base import (
     test_width_dimensions,
     tolerances_for_dtype,
 )
+
+import numkong as nk
+
 
 try:
     import scipy.spatial.distance as spd
@@ -103,47 +107,47 @@ KERNELS_CROSS: dict[str, tuple[Callable | None, Callable, Callable]] = {
 @pytest.mark.parametrize("ndim", dense_dimensions)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_batch_sqeuclidean_broadcasting(ndim: int, dtype: str, capability: str):
+def test_batch_sqeuclidean_broadcasting(ndim: int, dtype: str, capability: str, nk_seed: int):
     """Batch sqeuclidean with NxD-vs-NxD, NxD-vs-1xD, strided, transposed, and out_dtype scenarios."""
     keep_one_capability(capability)
 
     # NxD vs NxD
-    a_matrix = np.random.randn(10, ndim).astype(dtype)
-    b_matrix = np.random.randn(10, ndim).astype(dtype)
+    a_matrix, _ = make_random((10, ndim), dtype, seed=nk_seed)
+    b_matrix, _ = make_random((10, ndim), dtype, seed=nk_seed + 1)
     expected_distances = [spd.sqeuclidean(a_matrix[i], b_matrix[i]) for i in range(10)]
     simd_distances = np.array(nk.sqeuclidean(a_matrix, b_matrix)).astype(np.float64)
     assert_allclose(simd_distances, expected_distances, atol=NK_ATOL, rtol=NK_RTOL)
 
     # NxD vs 1xD
-    b_matrix = np.random.randn(1, ndim).astype(dtype)
+    b_matrix, _ = make_random((1, ndim), dtype, seed=nk_seed + 1)
     expected_distances = [spd.sqeuclidean(a_matrix[i], b_matrix[0]) for i in range(10)]
     simd_distances = np.array(nk.sqeuclidean(a_matrix, b_matrix)).astype(np.float64)
     assert_allclose(simd_distances, expected_distances, atol=NK_ATOL, rtol=NK_RTOL)
 
     # 1xD vs NxD
-    a_matrix = np.random.randn(1, ndim).astype(dtype)
-    b_matrix = np.random.randn(10, ndim).astype(dtype)
+    a_matrix, _ = make_random((1, ndim), dtype, seed=nk_seed)
+    b_matrix, _ = make_random((10, ndim), dtype, seed=nk_seed + 1)
     expected_distances = [spd.sqeuclidean(a_matrix[0], b_matrix[i]) for i in range(10)]
     simd_distances = np.array(nk.sqeuclidean(a_matrix, b_matrix)).astype(np.float64)
     assert_allclose(simd_distances, expected_distances, atol=NK_ATOL, rtol=NK_RTOL)
 
     # NxD vs D (1D)
-    a_matrix = np.random.randn(10, ndim).astype(dtype)
-    b_matrix = np.random.randn(ndim).astype(dtype)
+    a_matrix, _ = make_random((10, ndim), dtype, seed=nk_seed)
+    b_matrix, _ = make_random((ndim), dtype, seed=nk_seed + 1)
     expected_distances = [spd.sqeuclidean(a_matrix[i], b_matrix) for i in range(10)]
     simd_distances = np.array(nk.sqeuclidean(a_matrix, b_matrix)).astype(np.float64)
     assert_allclose(simd_distances, expected_distances, atol=NK_ATOL, rtol=NK_RTOL)
 
     # D (1D) vs NxD
-    b_matrix = np.random.randn(10, ndim).astype(dtype)
-    a_matrix = np.random.randn(ndim).astype(dtype)
+    b_matrix, _ = make_random((10, ndim), dtype, seed=nk_seed + 1)
+    a_matrix, _ = make_random((ndim), dtype, seed=nk_seed)
     expected_distances = [spd.sqeuclidean(b_matrix[i], a_matrix) for i in range(10)]
     simd_distances = np.array(nk.sqeuclidean(b_matrix, a_matrix)).astype(np.float64)
     assert_allclose(simd_distances, expected_distances, atol=NK_ATOL, rtol=NK_RTOL)
 
     # Strided slices of bigger matrices
-    a_matrix_extended = np.random.randn(10, ndim + 11).astype(dtype)
-    b_matrix_extended = np.random.randn(10, ndim + 13).astype(dtype)
+    a_matrix_extended, _ = make_random((10, ndim + 11), dtype, seed=nk_seed)
+    b_matrix_extended, _ = make_random((10, ndim + 13), dtype, seed=nk_seed + 1)
     a_matrix = a_matrix_extended[:, 1 : 1 + ndim]
     b_matrix = b_matrix_extended[:, 3 : 3 + ndim]
     assert a_matrix.base is a_matrix_extended and b_matrix.base is b_matrix_extended
@@ -153,23 +157,23 @@ def test_batch_sqeuclidean_broadcasting(ndim: int, dtype: str, capability: str):
     assert_allclose(simd_distances, expected_distances, atol=NK_ATOL, rtol=NK_RTOL)
 
     # Transposed matrix
-    a_matrix = np.random.randn(10, ndim).astype(dtype)
-    b_matrix = np.ascontiguousarray(np.random.randn(ndim, 10).astype(dtype).T)
+    a_matrix, _ = make_random((10, ndim), dtype, seed=nk_seed)
+    b_matrix = np.ascontiguousarray(make_random((ndim, 10), dtype, seed=nk_seed + 1)[0].T)
     expected_distances = [spd.sqeuclidean(a_matrix[i], b_matrix[i]) for i in range(10)]
     simd_distances = np.array(nk.sqeuclidean(a_matrix, b_matrix)).astype(np.float64)
     assert_allclose(simd_distances, expected_distances, atol=NK_ATOL, rtol=NK_RTOL)
 
     # Different output type
-    a_matrix = np.random.randn(10, ndim).astype(dtype)
-    b_matrix = np.random.randn(10, ndim).astype(dtype)
+    a_matrix, _ = make_random((10, ndim), dtype, seed=nk_seed)
+    b_matrix, _ = make_random((10, ndim), dtype, seed=nk_seed + 1)
     expected_distances = np.array([spd.sqeuclidean(a_matrix[i], b_matrix[i]) for i in range(10)]).astype(np.float32)
     simd_distances = np.array(nk.sqeuclidean(a_matrix, b_matrix, out_dtype="float32"))
     assert_allclose(simd_distances, expected_distances, atol=NK_ATOL, rtol=NK_RTOL)
     assert simd_distances.dtype == expected_distances.dtype
 
     # Supplied output buffer
-    a_matrix = np.random.randn(10, ndim).astype(dtype)
-    b_matrix = np.random.randn(10, ndim).astype(dtype)
+    a_matrix, _ = make_random((10, ndim), dtype, seed=nk_seed)
+    b_matrix, _ = make_random((10, ndim), dtype, seed=nk_seed + 1)
     expected_distances = np.array([spd.sqeuclidean(a_matrix[i], b_matrix[i]) for i in range(10)]).astype(np.float32)
     output_buffer = np.zeros(10, dtype=np.float32)
     assert nk.sqeuclidean(a_matrix, b_matrix, out=output_buffer) is None
@@ -316,11 +320,11 @@ def test_dots_pack_and_packed(rows: int, columns: int, depth: int, dtype: str, c
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("numpy_dtype", ["float16", "float32", "float64"])
-def test_dots_pack_infers_dtype(numpy_dtype):
+def test_dots_pack_infers_dtype(numpy_dtype, nk_seed):
     """dots_pack() without explicit dtype should infer from the input array."""
     height, width, depth = 4, 8, 32
-    a = np.random.randn(height, depth).astype(numpy_dtype)
-    b = np.random.randn(width, depth).astype(numpy_dtype)
+    a, _ = make_random((height, depth), numpy_dtype, seed=nk_seed)
+    b, _ = make_random((width, depth), numpy_dtype, seed=nk_seed + 1)
 
     packed = nk.dots_pack(b)  # no dtype= argument
     result = np.asarray(nk.dots_packed(a, packed))
@@ -331,11 +335,11 @@ def test_dots_pack_infers_dtype(numpy_dtype):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_dots_pack_matmul_operator(capability: str):
+def test_dots_pack_matmul_operator(capability: str, nk_seed: int):
     """Test the @ operator with a PackedMatrix (Tensor @ PackedMatrix)."""
     height, width, depth = 8, 16, 64
-    a_matrix = np.random.randn(height, depth).astype(np.float32)
-    b_matrix = np.random.randn(width, depth).astype(np.float32)
+    a_matrix, _ = make_random((height, depth), "float32", seed=nk_seed)
+    b_matrix, _ = make_random((width, depth), "float32", seed=nk_seed + 1)
 
     keep_one_capability(capability)
     a_tensor = nk.zeros((height, depth), dtype="float32")
@@ -376,11 +380,11 @@ def test_hammings_pack_and_packed(capability: str):
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.parametrize("metric", ["angular", "euclidean"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_spatials_pack_and_packed(metric: str, capability: str):
+def test_spatials_pack_and_packed(metric: str, capability: str, nk_seed: int):
     """Test dots_pack + angulars/euclideans_packed against SciPy cdist."""
     num_rows_a, num_rows_b, depth = 8, 16, 64
-    a = np.random.randn(num_rows_a, depth).astype(np.float32)
-    b = np.random.randn(num_rows_b, depth).astype(np.float32)
+    a, _ = make_random((num_rows_a, depth), "float32", seed=nk_seed)
+    b, _ = make_random((num_rows_b, depth), "float32", seed=nk_seed + 1)
 
     keep_one_capability(capability)
     b_packed = nk.dots_pack(b, dtype="float32")
@@ -398,10 +402,10 @@ def test_spatials_pack_and_packed(metric: str, capability: str):
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.parametrize("metric", ["angular", "euclidean"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_spatials_symmetric(metric: str, capability: str):
+def test_spatials_symmetric(metric: str, capability: str, nk_seed: int):
     """Test angulars/euclideans_symmetric against SciPy cdist (upper triangle)."""
     num_rows, depth = 16, 64
-    vectors = np.random.randn(num_rows, depth).astype(np.float32)
+    vectors, _ = make_random((num_rows, depth), "float32", seed=nk_seed)
 
     keep_one_capability(capability)
     if metric == "angular":
@@ -452,10 +456,10 @@ def test_jaccards_symmetric(capability: str):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_packed_kind_validation():
+def test_packed_kind_validation(nk_seed):
     """New packed APIs should enforce the expected packer family."""
-    a_float = np.random.randn(4, 8).astype(np.float32)
-    b_float = np.random.randn(5, 8).astype(np.float32)
+    a_float, _ = make_random((4, 8), "float32", seed=nk_seed)
+    b_float, _ = make_random((5, 8), "float32", seed=nk_seed + 1)
     dots_packed = nk.dots_pack(b_float, dtype="float32")
 
     bits = np.random.randint(2, size=(5, 64)).astype(np.uint8)

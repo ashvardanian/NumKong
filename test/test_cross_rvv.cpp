@@ -9,7 +9,9 @@
 
 void test_cross_rvv() {
     [[maybe_unused]] error_stats_section_t check;
+
 #if NK_TARGET_RVV
+
     check("dots_packed_f64_rvv", test_dots_packed<f64_t>, nk_dots_packed_size_f64_rvv, nk_dots_pack_f64_rvv,
           nk_dots_packed_f64_rvv);
     check("dots_packed_f32_rvv", test_dots_packed<f32_t>, nk_dots_packed_size_f32_rvv, nk_dots_pack_f32_rvv,
@@ -105,5 +107,12 @@ void test_cross_rvv() {
     check("euclideans_symmetric_e3m2_rvv", test_euclideans_symmetric<e3m2_t>, nk_euclideans_symmetric_e3m2_rvv);
     check("euclideans_symmetric_i8_rvv", test_euclideans_symmetric<i8_t>, nk_euclideans_symmetric_i8_rvv);
     check("euclideans_symmetric_u8_rvv", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_rvv);
+
+    check("attention_packed_bf16_rvv", test_attention_packed<bf16_t>, nk_attention_packed_size_bf16_rvv,
+          nk_attention_pack_bf16_rvv, nk_attention_packed_bf16_rvv);
+    check("attention_packed_e4m3_rvv", test_attention_packed<e4m3_t>, nk_attention_packed_size_e4m3_rvv,
+          nk_attention_pack_e4m3_rvv, nk_attention_packed_e4m3_rvv);
+    check("attention_packed_i8_rvv", test_attention_packed<i8_t>, nk_attention_packed_size_i8_rvv,
+          nk_attention_pack_i8_rvv, nk_attention_packed_i8_rvv);
 #endif
 }

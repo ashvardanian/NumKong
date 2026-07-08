@@ -217,9 +217,9 @@ void nk_dispatch_f16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
         case nk_kernel_reduce_minmax_k: *m = (m_t)&nk_reduce_minmax_f16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_kld_k: *m = (m_t)&nk_kld_f16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_jsd_k: *m = (m_t)&nk_jsd_f16_skylake, *c = nk_cap_skylake_k; return;
-        case nk_kernel_each_sin_k: *m = (m_t)&nk_each_sin_f16_skylake, *c = nk_cap_skylake_k; return;
-        case nk_kernel_each_cos_k: *m = (m_t)&nk_each_cos_f16_skylake, *c = nk_cap_skylake_k; return;
-        case nk_kernel_each_atan_k: *m = (m_t)&nk_each_atan_f16_skylake, *c = nk_cap_skylake_k; return;
+        case nk_kernel_trig_sin_k: *m = (m_t)&nk_trig_sin_f16_skylake, *c = nk_cap_skylake_k; return;
+        case nk_kernel_trig_cos_k: *m = (m_t)&nk_trig_cos_f16_skylake, *c = nk_cap_skylake_k; return;
+        case nk_kernel_trig_atan_k: *m = (m_t)&nk_trig_atan_f16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_f16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_f16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_f16_skylake, *c = nk_cap_skylake_k; return;
@@ -355,9 +355,9 @@ void nk_dispatch_f16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
         case nk_kernel_angulars_symmetric_k: *m = (m_t)&nk_angulars_symmetric_f16_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_euclideans_packed_k: *m = (m_t)&nk_euclideans_packed_f16_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_euclideans_symmetric_k: *m = (m_t)&nk_euclideans_symmetric_f16_rvv, *c = nk_cap_rvv_k; return;
-        case nk_kernel_each_sin_k: *m = (m_t)&nk_each_sin_f16_rvv, *c = nk_cap_rvv_k; return;
-        case nk_kernel_each_cos_k: *m = (m_t)&nk_each_cos_f16_rvv, *c = nk_cap_rvv_k; return;
-        case nk_kernel_each_atan_k: *m = (m_t)&nk_each_atan_f16_rvv, *c = nk_cap_rvv_k; return;
+        case nk_kernel_trig_sin_k: *m = (m_t)&nk_trig_sin_f16_rvv, *c = nk_cap_rvv_k; return;
+        case nk_kernel_trig_cos_k: *m = (m_t)&nk_trig_cos_f16_rvv, *c = nk_cap_rvv_k; return;
+        case nk_kernel_trig_atan_k: *m = (m_t)&nk_trig_atan_f16_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_f16_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_f16_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_f16_rvv, *c = nk_cap_rvv_k; return;
@@ -398,9 +398,9 @@ void nk_dispatch_f16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
         case nk_kernel_euclideans_symmetric_k:
             *m = (m_t)&nk_euclideans_symmetric_f16_serial, *c = nk_cap_serial_k;
             return;
-        case nk_kernel_each_sin_k: *m = (m_t)&nk_each_sin_f16_serial, *c = nk_cap_serial_k; return;
-        case nk_kernel_each_cos_k: *m = (m_t)&nk_each_cos_f16_serial, *c = nk_cap_serial_k; return;
-        case nk_kernel_each_atan_k: *m = (m_t)&nk_each_atan_f16_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_trig_sin_k: *m = (m_t)&nk_trig_sin_f16_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_trig_cos_k: *m = (m_t)&nk_trig_cos_f16_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_trig_atan_k: *m = (m_t)&nk_trig_atan_f16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_maxsim_packed_size_k: *m = (m_t)&nk_maxsim_packed_size_f16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_maxsim_pack_k: *m = (m_t)&nk_maxsim_pack_f16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_maxsim_packed_k: *m = (m_t)&nk_maxsim_packed_f16_serial, *c = nk_cap_serial_k; return;
@@ -430,9 +430,9 @@ void nk_dispatch_f16_init_(nk_capability_t caps) {
     nk_dispatch_f16_find_(caps, nk_kernel_each_sum_k, (nk_kernel_punned_t *)&t->each_sum_f16, &used);
     nk_dispatch_f16_find_(caps, nk_kernel_each_blend_k, (nk_kernel_punned_t *)&t->each_blend_f16, &used);
     nk_dispatch_f16_find_(caps, nk_kernel_each_fma_k, (nk_kernel_punned_t *)&t->each_fma_f16, &used);
-    nk_dispatch_f16_find_(caps, nk_kernel_each_sin_k, (nk_kernel_punned_t *)&t->each_sin_f16, &used);
-    nk_dispatch_f16_find_(caps, nk_kernel_each_cos_k, (nk_kernel_punned_t *)&t->each_cos_f16, &used);
-    nk_dispatch_f16_find_(caps, nk_kernel_each_atan_k, (nk_kernel_punned_t *)&t->each_atan_f16, &used);
+    nk_dispatch_f16_find_(caps, nk_kernel_trig_sin_k, (nk_kernel_punned_t *)&t->trig_sin_f16, &used);
+    nk_dispatch_f16_find_(caps, nk_kernel_trig_cos_k, (nk_kernel_punned_t *)&t->trig_cos_f16, &used);
+    nk_dispatch_f16_find_(caps, nk_kernel_trig_atan_k, (nk_kernel_punned_t *)&t->trig_atan_f16, &used);
     nk_dispatch_f16_find_(caps, nk_kernel_reduce_moments_k, (nk_kernel_punned_t *)&t->reduce_moments_f16, &used);
     nk_dispatch_f16_find_(caps, nk_kernel_reduce_minmax_k, (nk_kernel_punned_t *)&t->reduce_minmax_f16, &used);
     nk_dispatch_f16_find_(caps, nk_kernel_dots_packed_size_k, (nk_kernel_punned_t *)&t->dots_packed_size_f16, &used);

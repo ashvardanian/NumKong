@@ -754,6 +754,46 @@ NK_PUBLIC void nk_reduce_minmax_u1_serial(                          //
     *max_value_ptr = max_value, *max_index_ptr = max_idx;
 }
 
+/*  RMSNorm: `y = x · rsqrt(mean(x²) + eps) · γ`, with `γ = NULL` meaning unit scale.
+ *  Grouped: each row (byte stride `x_row_stride`/`y_row_stride`) holds `groups` independent
+ *  `cols`-vectors, each normalized separately — `groups = 1, γ` learned covers pre/post/final/head
+ *  norm, while `groups = heads, cols = head_dim, γ = NULL` is the in-place unit QK-norm over the
+ *  strided sections of a fused `[tokens, 3·hidden]` QKV buffer. Pass 1 reuses the strided moments
+ *  reducer above; pass 2 rescales with the same widening converters.  `input_scale` folds an E4M3
+ *  descale onto the load (1.0 for BF16/F32), matching the scale-free GEMM contract. */
+#define nk_define_reduce_rmsnorm_(input_type, accumulator_type, load_and_convert, convert_and_store)                   \
+    NK_PUBLIC void nk_reduce_rmsnorm_##input_type##_serial(                                                            \
+        nk_##input_type##_t const *x, nk_f32_t const *gamma, nk_##input_type##_t *y, nk_size_t rows, nk_size_t groups, \
+        nk_size_t cols, nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale) {          \
+        nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;                                       \
+        for (nk_size_t r = 0; r != rows; ++r) {                                                                        \
+            nk_##input_type##_t const *x_row = (nk_##input_type##_t const *)((unsigned char const *)x +                \
+                                                                             r * x_row_stride);                        \
+            nk_##input_type##_t *y_row = (nk_##input_type##_t *)((unsigned char *)y + r * y_row_stride);               \
+            for (nk_size_t group = 0; group != groups; ++group) {                                                      \
+                nk_##input_type##_t const *group_input = x_row + group * cols;                                         \
+                nk_##input_type##_t *group_output = y_row + group * cols;                                              \
+                accumulator_type sum, sumsq;                                                                           \
+                nk_reduce_moments_##input_type##_serial(group_input, cols, sizeof(nk_##input_type##_t), &sum, &sumsq); \
+                (void)sum;                                                                                             \
+                nk_f64_t mean_square = scale_sq * (nk_f64_t)sumsq / (nk_f64_t)cols;                                    \
+                nk_f32_t inv_rms = nk_f32_rsqrt_serial((nk_f32_t)mean_square + eps);                                   \
+                for (nk_size_t c = 0; c != cols; ++c) {                                                                \
+                    nk_f32_t value;                                                                                    \
+                    load_and_convert(group_input + c, &value);                                                         \
+                    nk_f32_t gamma_value = gamma ? gamma[c] : 1.0f;                                                    \
+                    nk_f32_t result = value * input_scale * inv_rms * gamma_value;                                     \
+                    convert_and_store(&result, group_output + c);                                                      \
+                }                                                                                                      \
+            }                                                                                                          \
+        }                                                                                                              \
+    }
+
+nk_define_reduce_rmsnorm_(f32, nk_f64_t, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_reduce_rmsnorm_(bf16, nk_f32_t, nk_bf16_to_f32_serial, nk_f32_to_bf16_serial)
+nk_define_reduce_rmsnorm_(e4m3, nk_f32_t, nk_e4m3_to_f32_serial, nk_f32_to_e4m3_serial)
+#undef nk_define_reduce_rmsnorm_
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)

@@ -219,6 +219,12 @@ console.log(owned.byteLength);
 Use `VectorView` when the bytes already live somewhere else.
 Use `Vector` when NumKong should own the storage.
 
+Owned `Vector` and `Matrix` are fixed-capacity resizable.
+`capacity` reports the allocated element ceiling.
+`tryResize(...)` reshapes within capacity without moving the `ArrayBuffer`, so a `toTypedArray()` result stays valid.
+`reserve(elements)` may allocate a new `ArrayBuffer` to grow, which __invalidates__ any `TypedArray` or `row()` handed out earlier.
+`clear()` empties the length while keeping capacity.
+
 ## Capabilities and Runtime Selection
 
 Capability detection is explicit:

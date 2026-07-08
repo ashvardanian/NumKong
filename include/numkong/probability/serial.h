@@ -77,7 +77,7 @@ NK_INTERNAL nk_f32_t nk_f32_log_serial_(nk_f32_t x) {
     nk_f32_t u2 = u * u;
     // log(m) = 2 × (u + u³/3 + u⁵/5 + u⁷/7)
     nk_f32_t log_m = 2.0f * u * (1.0f + u2 * (0.3333333333f + u2 * (0.2f + u2 * 0.142857143f)));
-    return (nk_f32_t)exp * 0.6931471805599453f + log_m;
+    return (nk_f32_t)exp * NK_F32_LN2_ + log_m;
 }
 
 /**
@@ -121,7 +121,7 @@ NK_INTERNAL nk_f64_t nk_f64_log_serial_(nk_f64_t x) {
     poly = u2 * poly + 1.0 / 5.0;
     poly = u2 * poly + 1.0 / 3.0;
     poly = u2 * poly + 1.0;
-    return (nk_f64_t)exp * 0.6931471805599453 + 2.0 * u * poly;
+    return (nk_f64_t)exp * NK_F64_LN2_ + 2.0 * u * poly;
 }
 
 nk_define_kld_(f32, f32, f64, nk_f64_t, nk_assign_from_to_, NK_F32_DIVISION_EPSILON, nk_f32_log_serial_)

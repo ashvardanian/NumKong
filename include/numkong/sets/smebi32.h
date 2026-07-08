@@ -95,13 +95,14 @@ typedef struct {
 /** Count total set bits across a byte vector using streaming SVE.
  *  Accumulates per-byte popcounts into u32 lanes via svdot; single horizontal reduction at end. */
 NK_PUBLIC nk_u32_t nk_sets_reduce_sumsq_u1_streaming_(nk_u1x8_t const *data, nk_size_t n_bytes) NK_STREAMING_ {
-    svuint32_t acc_u32x = svdup_u32(0);
+    svuint32_t accumulator_u32x = svdup_u32(0);
     svuint8_t const ones_u8x = svdup_u8(1);
     for (nk_size_t offset = 0; offset < n_bytes; offset += svcntb()) {
         svbool_t predicate_b8x = svwhilelt_b8_u64(offset, n_bytes);
-        acc_u32x = svdot_u32(acc_u32x, svcnt_u8_z(predicate_b8x, svld1_u8(predicate_b8x, data + offset)), ones_u8x);
+        accumulator_u32x = svdot_u32(accumulator_u32x,
+                                     svcnt_u8_z(predicate_b8x, svld1_u8(predicate_b8x, data + offset)), ones_u8x);
     }
-    return (nk_u32_t)nk_svaddv_u32_(svptrue_b32(), acc_u32x);
+    return (nk_u32_t)nk_svaddv_u32_(svptrue_b32(), accumulator_u32x);
 }
 
 #pragma region Hamming Distance

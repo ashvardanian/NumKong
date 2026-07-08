@@ -93,7 +93,7 @@
 //! - `blend(a, b, alpha, beta, result)`: Blend `result[i] = α × a[i] + β × b[i]`.
 //! - `fma(a, b, c, alpha, beta, result)`: Fused multiply-add `result[i] = α × a[i] × b[i] + β × c[i]`.
 //!
-//! The `Trigonometry` trait (combining `EachSin`, `EachCos`, `EachATan`) covers:
+//! The `Trigonometry` trait (combining `TrigSin`, `TrigCos`, `TrigAtan`) covers:
 //!
 //! - `sin(input, result)`: Element-wise sine.
 //! - `cos(input, result)`: Element-wise cosine.
@@ -104,8 +104,13 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::too_many_arguments)]
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
+// docs.rs builds with `--cfg docsrs` (see Cargo.toml); this enables the "Available on feature …"
+// badges on feature-gated items. It's a nightly-only feature, gated behind `docsrs` so stable
+// builds ignore it.
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 // Domain modules
+pub mod attention;
 pub mod capabilities;
 pub mod cast;
 pub mod curved;
@@ -118,6 +123,7 @@ pub mod reduce;
 pub mod set;
 pub mod sparse;
 pub mod spatial;
+pub mod trigonometry;
 
 // Containers
 pub mod matrix;
@@ -128,11 +134,11 @@ pub mod vector;
 // Re-export scalar types at crate root
 pub use types::{
     bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, is_close, u1x8, u4x2, DimMut, DimRef,
-    FloatConvertible, FloatLike, NumberLike, StorageElement, Ue4m3, Ue8m0,
+    FloatConvertible, FloatLike, NumberLike, Roots, StorageElement, Ue4m3, Ue8m0,
 };
 
 // Re-export spatial traits
-pub use spatial::{Angular, Dot, Euclidean, Roots, SpatialSimilarity, VDot};
+pub use spatial::{Angular, Dot, Euclidean, SpatialSimilarity, VDot};
 
 // Re-export set traits
 pub use set::{BinarySimilarity, Hamming, Jaccard};
@@ -141,13 +147,10 @@ pub use set::{BinarySimilarity, Hamming, Jaccard};
 pub use probability::{JensenShannon, KullbackLeibler, ProbabilitySimilarity};
 
 // Re-export elementwise and trig traits
-pub use each::{
-    AllCloseOps, BlendOps, EachATan, EachBlend, EachCos, EachFMA, EachScale, EachSin, EachSum, FmaOps, ScaleOps,
-    SumOps, TrigAtanOps, TrigCosOps, TrigSinOps, Trigonometry,
-};
+pub use each::{AllCloseOps, BlendOps, EachBlend, EachFMA, EachScale, EachSum, EachSwiglu, FmaOps, ScaleOps, SumOps};
 
-// Re-export reduction traits
-pub use reduce::{BitwiseReductions, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, Reductions, SumSqToF64};
+pub use reduce::{BitwiseReductions, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, ReduceRmsNorm, Reductions};
+pub use trigonometry::{TrigAtan, TrigAtanOps, TrigCos, TrigCosOps, TrigRope, TrigSin, TrigSinOps, Trigonometry};
 
 // Re-export curved metric traits
 pub use curved::{Bilinear, Mahalanobis};
@@ -162,7 +165,7 @@ pub use geospatial::{Geospatial, Haversine, Vincenty};
 pub use sparse::{SparseDot, SparseIntersect};
 
 // Re-export cast operations
-pub use cast::{cast, CastDtype, CastOps};
+pub use cast::{cast, CastDtype, CastOps, DenseToScaledOps};
 
 // Re-export block-scaled formats and casts
 pub use cast::{
@@ -182,8 +185,11 @@ pub use tensor::{
 };
 
 // Re-export matrix types
+#[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
+pub use matrix::DotsPackedParallelOps;
 pub use matrix::{
-    Angulars, Dots, Euclideans, Hammings, Jaccards, PackedMatrix, SymmetricAngulars, SymmetricDots,
+    Angulars, Dots, DotsPackedOps, Euclideans, Hammings, Jaccards, PackedMatrix, SymmetricAngulars, SymmetricDots,
     SymmetricEuclideans, SymmetricHammings, SymmetricJaccards,
 };
 
@@ -191,7 +197,26 @@ pub use matrix::{
 pub use vector::{Vector, VectorIndex, VectorIterator, VectorSpan, VectorSpanIterator, VectorView, VectorViewIterator};
 
 // Re-export maxsim types
-pub use maxsim::{MaxSim, MaxSimPackedMatrix};
+// Re-export attention types
+pub use attention::{Attention, AttentionKeyValueCache};
+
+pub use maxsim::{MaxSim, MaxSimPackOps, MaxSimPackedMatrix};
+
+/// Prelude: `use numkong::prelude::*;` brings the core containers and every extension trait into
+/// scope, so the `.try_*` / `.dots_packed` / `.mean` methods light up without importing each trait
+/// by name.
+pub mod prelude {
+    pub use crate::{
+        AllCloseOps, BitwiseReductions, BlendOps, CastOps, DenseToScaledOps, DotsPackedOps, EachSwiglu, FmaOps, Matrix,
+        MaxSimPackOps, MinMaxOps, MomentsOps, PackedMatrix, ReduceRmsNorm, Reductions, ScaleOps, ScaledTensor, SumOps,
+        Tensor, TensorMut, TensorRef, TensorSpan, TensorView, TrigAtanOps, TrigCosOps, TrigRope, TrigSinOps, Vector,
+        VectorSpan, VectorView,
+    };
+
+    #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
+    pub use crate::DotsPackedParallelOps;
+}
 
 // region: Tests
 
@@ -234,6 +259,97 @@ mod tests {
         assert_eq!(docs_packed.dims(), (8, 16));
         let score = queries_packed.score(&docs_packed);
         assert!(score.is_finite(), "MaxSim score must be finite, got {score}");
+    }
+
+    #[test]
+    fn attention_smoke() {
+        capabilities::configure_thread();
+        let (tokens, kv_heads, head_dim) = (24usize, 2usize, 32usize);
+        let keys = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.25)).unwrap();
+        let values = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.5)).unwrap();
+        let offsets = [0u32, 10, 24];
+
+        let kv = AttentionKeyValueCache::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
+        assert_eq!(kv.segments(), 2);
+        assert_eq!(kv.kv_heads(), kv_heads);
+        assert_eq!(kv.depth(), head_dim);
+        assert_eq!(kv.tokens(), tokens);
+
+        // With constant V, softmax weights sum to 1 → every output equals V's value.
+        let outputs = kv.try_attention(&keys.view(), &offsets, None).unwrap();
+        assert_eq!(outputs.shape(), [tokens, kv_heads * head_dim]);
+        for &x in outputs.as_slice() {
+            assert!((x - 0.5).abs() < 1e-2, "expected 0.5, got {x}");
+        }
+    }
+
+    #[test]
+    fn attention_kv_cache_reuse() {
+        capabilities::configure_thread();
+        let (kv_heads, head_dim) = (2usize, 32usize);
+        let small = Tensor::<bf16>::try_full(&[10, kv_heads * head_dim], bf16::from_f32(0.25)).unwrap();
+        let big = Tensor::<bf16>::try_full(&[24, kv_heads * head_dim], bf16::from_f32(0.25)).unwrap();
+        let small_off = [0u32, 4, 10];
+        let big_off = [0u32, 10, 24];
+
+        let mut kv =
+            AttentionKeyValueCache::try_pack(&small.view(), &small.view(), head_dim, &small_off, None).unwrap();
+        let cap0 = kv.capacity();
+        assert!(cap0 > 0);
+
+        // Same geometry repacked in place -> allocation reused, capacity unchanged.
+        kv.try_pack_into(&small.view(), &small.view(), head_dim, &small_off, None)
+            .unwrap();
+        assert_eq!(kv.capacity(), cap0, "same-size repack must reuse the buffer");
+        assert_eq!(kv.tokens(), 10);
+
+        // Larger geometry -> capacity grows (never shrinks).
+        kv.try_pack_into(&big.view(), &big.view(), head_dim, &big_off, None)
+            .unwrap();
+        assert!(kv.capacity() >= cap0, "grow must not shrink capacity");
+        assert_eq!(kv.tokens(), 24);
+        assert_eq!(kv.segments(), 2);
+
+        // clear() keeps the allocation for the next reuse.
+        let cap_big = kv.capacity();
+        kv.clear();
+        assert_eq!(kv.tokens(), 0);
+        assert_eq!(kv.capacity(), cap_big, "clear keeps the allocation");
+
+        kv.try_pack_into(&small.view(), &small.view(), head_dim, &small_off, None)
+            .unwrap();
+        let outputs = kv.try_attention(&small.view(), &small_off, None).unwrap();
+        assert_eq!(outputs.shape(), [10, kv_heads * head_dim]);
+    }
+
+    #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
+    #[test]
+    fn attention_parallel_matches_serial() {
+        capabilities::configure_thread();
+        let (kv_heads, head_dim) = (4usize, 64usize);
+        let lengths = [7u32, 250, 0, 33, 129]; // ragged mix: tiny, sub-panel, PAD, odd
+        let mut offsets = vec![0u32];
+        for length in lengths {
+            offsets.push(offsets.last().unwrap() + length);
+        }
+        let tokens = *offsets.last().unwrap() as usize;
+
+        let keys = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.125)).unwrap();
+        let values = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.75)).unwrap();
+        let kv = AttentionKeyValueCache::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
+
+        let sequential = kv.try_attention(&keys.view(), &offsets, None).unwrap();
+        let mut pool = fork_union::ThreadPool::try_spawn(4).unwrap();
+        let mut parallel = Tensor::<f32>::try_full(&[tokens, kv_heads * head_dim], 0.0).unwrap();
+        kv.try_attention_parallel_into(&keys.view(), &offsets, None, &mut parallel, &mut pool)
+            .unwrap();
+
+        // Per-task dynamic scheduling must be bit-identical to the single-window run:
+        // tasks are independent and write disjoint rows.
+        for (index, (a, b)) in sequential.as_slice().iter().zip(parallel.as_slice()).enumerate() {
+            assert!(a.to_bits() == b.to_bits(), "mismatch at {index}: {a} vs {b}");
+        }
     }
 
     #[test]

@@ -5,6 +5,7 @@
  *  @date February 15, 2026
  */
 
+#include "numkong/attention.h"
 #include "numkong/dot.h"
 #include "numkong/dots.h"
 #include "numkong/spatials.h"
@@ -117,5 +118,12 @@ void bench_cross_rvv() {
     run_euclideans_symmetric<e3m2_k>("euclideans_symmetric_e3m2_rvv", nk_euclideans_symmetric_e3m2_rvv);
     run_euclideans_symmetric<i8_k>("euclideans_symmetric_i8_rvv", nk_euclideans_symmetric_i8_rvv);
     run_euclideans_symmetric<u8_k>("euclideans_symmetric_u8_rvv", nk_euclideans_symmetric_u8_rvv);
+
+    run_attention<bf16_k>("attention_packed_bf16_rvv", nk_attention_packed_size_bf16_rvv, nk_attention_pack_bf16_rvv,
+                          nk_attention_packed_bf16_rvv);
+    run_attention<e4m3_k>("attention_packed_e4m3_rvv", nk_attention_packed_size_e4m3_rvv, nk_attention_pack_e4m3_rvv,
+                          nk_attention_packed_e4m3_rvv);
+    run_attention<i8_k>("attention_packed_i8_rvv", nk_attention_packed_size_i8_rvv, nk_attention_pack_i8_rvv,
+                        nk_attention_packed_i8_rvv);
 #endif
 }

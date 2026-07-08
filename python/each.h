@@ -4,8 +4,8 @@
  *  @author Ash Vardanian
  *  @date February 19, 2026
  *
- *  Forward declarations for all api_* elementwise and trigonometric functions,
- *  and their documentation strings.
+ *  Forward declarations for all api_* elementwise functions and their
+ *  documentation strings.
  */
 #ifndef NK_PYTHON_EACH_H
 #define NK_PYTHON_EACH_H
@@ -27,21 +27,19 @@ PyObject *api_add(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObj
 /** @brief Elementwise multiplication of two tensors or a tensor and a scalar. */
 PyObject *api_multiply(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
-/** @brief Elementwise sine. */
-PyObject *api_sin(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief Elementwise cosine. */
-PyObject *api_cos(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief Elementwise arctangent. */
-PyObject *api_atan(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+/** @brief Grouped RMSNorm: y = x * rsqrt(mean(x^2) + eps) * gamma. */
+PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
+/** @brief Fused SwiGLU: y = silu(gate) * up  (up=None -> plain SiLU). */
+PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 extern char const doc_fma[];
 extern char const doc_blend[];
 extern char const doc_scale[];
 extern char const doc_add[];
 extern char const doc_multiply[];
-extern char const doc_sin[];
-extern char const doc_cos[];
-extern char const doc_atan[];
+extern char const doc_rmsnorm[];
+extern char const doc_swiglu[];
 
 #ifdef __cplusplus
 }

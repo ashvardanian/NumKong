@@ -164,6 +164,51 @@ test("Matrix.fromTypedArray", () => {
   assertAlmostEqual(arr[5], 6.0, 0.001);
 });
 
+test("Vector resize within capacity, reserve, and clear", () => {
+  const v = new numkong.Vector(8, numkong.DType.F32); // capacity 8
+  assert.strictEqual(v.capacity, 8);
+  assert.strictEqual(v.tryResize(4), true);
+  assert.strictEqual(v.length, 4);
+  assert.strictEqual(v.capacity, 8); // capacity unchanged by resize
+  assert.strictEqual(v.toTypedArray().length, 4);
+  assert.strictEqual(v.tryResize(9), false); // beyond capacity, unchanged
+  assert.strictEqual(v.length, 4);
+  assert.strictEqual(v.reserve(32), true); // grow (may reallocate)
+  assert(v.capacity >= 32);
+  assert.strictEqual(v.tryResize(32), true);
+  assert.strictEqual(v.length, 32);
+  v.clear();
+  assert.strictEqual(v.length, 0);
+  assert(v.capacity >= 32); // capacity retained
+});
+
+test("Vector reserve preserves contents", () => {
+  const v = numkong.Vector.fromTypedArray(new Float32Array([1, 2, 3, 4]));
+  assert.strictEqual(v.reserve(64), true);
+  assert(v.capacity >= 64);
+  assert.strictEqual(v.length, 4);
+  assert.deepStrictEqual(Array.from(v.toTypedArray()), [1, 2, 3, 4]);
+});
+
+test("Matrix resize within capacity, reserve, and clear", () => {
+  const m = new numkong.Matrix(4, 4, numkong.DType.F32); // capacity 16
+  assert.strictEqual(m.capacity, 16);
+  assert.strictEqual(m.tryResize(2, 4), true);
+  assert.strictEqual(m.rows, 2);
+  assert.strictEqual(m.cols, 4);
+  assert.strictEqual(m.rowStride, 4 * 4); // C-contiguous strides re-derived
+  assert.strictEqual(m.toTypedArray().length, 8);
+  assert.strictEqual(m.tryResize(5, 4), false); // 20 > 16, unchanged
+  assert.strictEqual(m.rows, 2);
+  assert.strictEqual(m.reserve(64), true);
+  assert(m.capacity >= 64);
+  assert.strictEqual(m.tryResize(8, 8), true);
+  assert.strictEqual(m.rows, 8);
+  m.clear();
+  assert.strictEqual(m.rows, 0);
+  assert.strictEqual(m.cols, 0);
+});
+
 test("Packed GEMM (dotsPacked)", () => {
   // A is 4x3, B is 5x3 — result should be 4x5 (A @ B.T)
   const aData = new Float32Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);

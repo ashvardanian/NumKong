@@ -94,6 +94,7 @@ StatementMacros:
   - nk_define_each_sum_
   - nk_define_each_blend_
   - nk_define_each_fma_
+  - nk_define_each_swiglu_
   - nk_define_sqeuclidean_
   - nk_define_euclidean_
   - nk_define_angular_
@@ -114,6 +115,7 @@ StatementMacros:
   - nk_define_geospatial_
   - nk_define_reduce_add_
   - nk_define_reduce_minmax_
+  - nk_define_reduce_rmsnorm_
   - nk_define_cross_pack_size_
   - nk_define_cross_pack_
   - nk_define_cross_packed_
@@ -124,7 +126,7 @@ StatementMacros:
   - nk_define_cross_compensated_symmetric_
   - nk_define_cross_normalized_packed_
   - nk_define_cross_normalized_symmetric_
-  - nk_define_trigonometry_
+  - nk_define_trig_rope_
   - nk_define_mesh_
   - nk_define_dense_
   - nk_define_curved_
@@ -137,7 +139,7 @@ StatementMacros:
   - nk_dispatch_each_blend_
   - nk_dispatch_each_scale_
   - nk_dispatch_each_sum_
-  - nk_dispatch_trigonometry_
+  - nk_dispatch_trig_
   - nk_dispatch_mesh_
   - nk_dispatch_reduce_moments_
   - nk_dispatch_reduce_minmax_

@@ -133,7 +133,7 @@ NK_INTERNAL void nk_dot_through_f16_update_diamond_(nk_dot_through_f16_state_dia
                                                     nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    state->sum_f32x16 = _mm512_dpph_ps(state->sum_f32x16, a.zmm_ph, b.zmm_ph);
+    state->sum_f32x16 = _mm512_dpph_ps(state->sum_f32x16, nk_m512h_from_m512i_(a.zmm), nk_m512h_from_m512i_(b.zmm));
 }
 
 NK_INTERNAL void nk_dot_through_f16_finalize_diamond_(                                                      //

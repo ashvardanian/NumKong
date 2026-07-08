@@ -82,9 +82,9 @@ NK_PUBLIC void nk_sqeuclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b,
 
 nk_sqeuclidean_bf16_genoa_cycle:
     if (n < 32) {
-        __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, n);
-        a_bf16x32 = _mm512_maskz_loadu_epi16(mask, a);
-        b_bf16x32 = _mm512_maskz_loadu_epi16(mask, b);
+        __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, n);
+        a_bf16x32 = _mm512_maskz_loadu_epi16(mask_m32, a);
+        b_bf16x32 = _mm512_maskz_loadu_epi16(mask_m32, b);
         n = 0;
     }
     else {
@@ -115,9 +115,9 @@ NK_PUBLIC void nk_angular_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_
 
 nk_angular_bf16_genoa_cycle:
     if (n < 32) {
-        __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, n);
-        a_bf16x32 = _mm512_maskz_loadu_epi16(mask, a);
-        b_bf16x32 = _mm512_maskz_loadu_epi16(mask, b);
+        __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, n);
+        a_bf16x32 = _mm512_maskz_loadu_epi16(mask_m32, a);
+        b_bf16x32 = _mm512_maskz_loadu_epi16(mask_m32, b);
         n = 0;
     }
     else {

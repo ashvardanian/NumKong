@@ -5,11 +5,13 @@
 //! - [`CastDtype`]: Trait marking types eligible for bulk casting
 //! - [`cast`]: Bulk-converts a slice from one scalar format to another
 //! - [`CastOps`]: Tensor-shaped extension trait — auto-implemented on every
-//!   [`crate::tensor::TensorRef`] so any container can do `tensor.try_cast_dtype::<Destination>()`
+//!   [`crate::tensor::TensorRef`] so any container can do `tensor.try_cast::<Destination>()`
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 use core::ffi::c_void;
 
@@ -198,29 +200,28 @@ pub fn cast<S: CastDtype, D: CastDtype>(source: &[S], dest: &mut [D]) -> Option<
     Some(())
 }
 
-// region: Tensor-shaped cast (moved from crate::tensor)
+// region: Tensor-shaped cast
 
-use crate::tensor::{try_reborrow_tensor_into, Global, Tensor, TensorError, TensorRef};
+use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef, DEFAULT_MAX_RANK};
 
 /// Extension trait: type casting for any [`TensorRef`] implementor.
 pub trait CastOps<Source: Clone + CastDtype, const MAX_RANK: usize>: TensorRef<Source, MAX_RANK> {
-    fn try_cast_dtype<Destination: Clone + CastDtype>(
-        &self,
-    ) -> Result<Tensor<Destination, Global, MAX_RANK>, TensorError> {
-        self.view().try_cast_dtype()
+    fn try_cast<Destination: Clone + CastDtype>(&self) -> Result<Tensor<Destination, Global, MAX_RANK>, TensorError> {
+        self.view().try_cast()
+    }
+
+    /// Cast into a pre-allocated sink. The destination may be a `&mut Tensor<...>`
+    /// or a `&mut TensorSpan<...>` (any [`TensorMut`]); a strided sub-span works too.
+    fn try_cast_into<Destination, OutputTensor>(&self, out: &mut OutputTensor) -> Result<(), TensorError>
+    where
+        Destination: Clone + CastDtype,
+        OutputTensor: TensorMut<Destination, MAX_RANK> + ?Sized,
+    {
+        self.view().try_cast_into(out)
     }
 }
 
 impl<Source: Clone + CastDtype, const R: usize, C: TensorRef<Source, R>> CastOps<Source, R> for C {}
-
-impl<Source: Clone + CastDtype, const MAX_RANK: usize> Tensor<Source, Global, MAX_RANK> {
-    pub fn try_cast_dtype_into<Destination: Clone + CastDtype>(
-        &self,
-        out: &mut Tensor<Destination, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_cast_dtype_into(span))
-    }
-}
 
 // endregion: Tensor-shaped cast
 
@@ -482,12 +483,10 @@ impl BlockScaledFormat for Mxint8 {
 
 // region: Block-Scaled Casts
 
-use crate::tensor::TensorView;
-
 /// Validate a block-scaled shape and return the per-block scales shape: the input shape with its
 /// last extent divided by `block_size`. Quantization runs along the last axis, which must split
 /// evenly into blocks; any rank with at least one axis is accepted.
-fn blocked_scales_shape(shape: &[usize], block_size: usize) -> Result<Vec<usize>, TensorError> {
+fn blocked_scales_shape_into(shape: &[usize], block_size: usize, out: &mut [usize]) -> Result<usize, TensorError> {
     let Some((&last_extent, leading)) = shape.split_last() else {
         return Err(TensorError::DimensionMismatch { expected: 1, got: 0 });
     };
@@ -498,9 +497,9 @@ fn blocked_scales_shape(shape: &[usize], block_size: usize) -> Result<Vec<usize>
             reason: "last axis must be divisible by the format block size",
         });
     }
-    let mut scales = shape.to_vec();
-    *scales.last_mut().expect("shape has a last axis") = last_extent / block_size;
-    Ok(scales)
+    out[..shape.len()].copy_from_slice(shape);
+    out[shape.len() - 1] = last_extent / block_size;
+    Ok(shape.len())
 }
 
 /// The one place the block-scaled C kernel is called. Marshals the per-tensor scale — seeded from
@@ -554,12 +553,20 @@ fn block_scaled_cast_(
 /// The source must be a contiguous 2D `(rows, cols)` view with `cols` divisible by
 /// `F::BLOCK_SIZE`. For formats with a per-tensor scale (NVFP4), the multiplier is derived
 /// from the tensor amax by the kernel (we seed the buffer with `0.0` and read it back).
-impl<'a, const MAX_RANK: usize> TensorView<'a, f32, MAX_RANK> {
-    pub fn try_cast_to_scaled<F: BlockScaledFormat>(&self) -> Result<ScaledTensor<F>, TensorError> {
+/// Extension trait: encode any dense `f32` tensor into a block-scaled [`ScaledTensor`].
+///
+/// Blanket-implemented for every [`TensorRef<f32, MAX_RANK>`], so `Tensor<f32>`,
+/// `TensorView<f32>`, and `TensorSpan<f32>` all expose `.try_cast_to_scaled::<F>()`
+/// without an intervening `.view()`.
+pub trait DenseToScaledOps<const MAX_RANK: usize>: TensorRef<f32, MAX_RANK> {
+    fn try_cast_to_scaled<F: BlockScaledFormat>(&self) -> Result<ScaledTensor<F>, TensorError> {
         let shape = self.shape();
-        let scales_shape = blocked_scales_shape(shape, F::BLOCK_SIZE)?;
+        let mut scales_buf = [0usize; DEFAULT_MAX_RANK];
+        let scales_ndim = blocked_scales_shape_into(shape, F::BLOCK_SIZE, &mut scales_buf)?;
+        let scales_shape = &scales_buf[..scales_ndim];
         let count: usize = shape.iter().product();
-        let source = self.as_packed_slice().ok_or(TensorError::NonContiguousRows)?;
+        let view = self.view();
+        let source = view.as_packed_slice().ok_or(TensorError::NonContiguousRows)?;
 
         let mut elements = Tensor::<F::Element>::try_zeros(shape)?;
         let mut block_scales = Tensor::<F::Scale>::try_zeros(&scales_shape)?;
@@ -578,11 +585,13 @@ impl<'a, const MAX_RANK: usize> TensorView<'a, f32, MAX_RANK> {
     }
 }
 
+impl<const R: usize, C: TensorRef<f32, R> + ?Sized> DenseToScaledOps<R> for C {}
+
 /// Decode / materialize: a [`ScaledTensorView`] → a dense `Tensor<T>` (e.g. `f32`).
 /// Transcode: a [`ScaledTensorView`] → another [`ScaledTensor`].
 impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
     /// Materialize this block-scaled view into a dense `Tensor<T>` of the same shape.
-    pub fn try_cast_dense<T: Clone + CastDtype>(&self) -> Result<Tensor<T>, TensorError> {
+    pub fn try_cast<T: Clone + CastDtype>(&self) -> Result<Tensor<T>, TensorError> {
         let shape = self.shape();
         let count: usize = shape.iter().product();
         let elements_view = self.elements();
@@ -608,7 +617,9 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
     /// Transcode this block-scaled view into a different block-scaled format.
     pub fn try_cast_to_scaled<G: BlockScaledFormat>(&self) -> Result<ScaledTensor<G>, TensorError> {
         let shape = self.shape();
-        let scales_shape = blocked_scales_shape(shape, G::BLOCK_SIZE)?;
+        let mut scales_buf = [0usize; DEFAULT_MAX_RANK];
+        let scales_ndim = blocked_scales_shape_into(shape, G::BLOCK_SIZE, &mut scales_buf)?;
+        let scales_shape = &scales_buf[..scales_ndim];
         let count: usize = shape.iter().product();
 
         let src_elements_view = self.elements();
@@ -755,20 +766,20 @@ mod tests {
 
     #[test]
     fn cast_via_tensor_view_round_trip() {
-        // Exercises `CastOps::try_cast_dtype` on a strided `TensorView`,
+        // Exercises `CastOps::try_cast` on a strided `TensorView`,
         // mirroring how callers reach the trait through the tensor-shaped wrapper.
         use crate::tensor::{SliceRange, Tensor};
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
         let even_columns = source
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
 
-        let widened = even_columns.try_cast_dtype::<f64>().unwrap();
+        let widened = even_columns.try_cast::<f64>().unwrap();
         assert_eq!(widened.shape(), &[3, 2]);
         assert_eq!(widened.as_slice(), &[0.0, 2.0, 4.0, 6.0, 8.0, 10.0]);
 
-        let complexified = even_columns.try_cast_dtype::<f32c>().unwrap();
+        let complexified = even_columns.try_cast::<f32c>().unwrap();
         assert_eq!(complexified.shape(), &[3, 2]);
         assert_eq!(complexified.as_slice()[0], f32c::from_real_imag(0.0, 0.0));
         assert_eq!(complexified.as_slice()[5], f32c::from_real_imag(10.0, 0.0));
@@ -802,7 +813,7 @@ mod tests {
         assert_eq!(scaled.shape(), &shape[..]);
         assert_eq!(scaled.block_scales().shape(), &[shape[0], shape[1] / F::BLOCK_SIZE]);
 
-        let decoded = scaled.view().try_cast_dense::<f32>().unwrap();
+        let decoded = scaled.view().try_cast::<f32>().unwrap();
         let max_abs = data.iter().fold(0.0f32, |m, &v| m.max(v.abs()));
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
             assert!(
@@ -830,7 +841,7 @@ mod tests {
         // An all-zero block has zero amax → zero scale → all-zero decode (no division by zero / NaN).
         let zeros = Tensor::<f32>::try_zeros(&[1, block]).unwrap();
         let scaled = zeros.view().try_cast_to_scaled::<Mxfp8E4m3>().unwrap();
-        let decoded = scaled.view().try_cast_dense::<f32>().unwrap();
+        let decoded = scaled.view().try_cast::<f32>().unwrap();
         assert!(
             decoded.as_slice().iter().all(|&x| x == 0.0),
             "all-zero block did not decode to zero"
@@ -841,7 +852,7 @@ mod tests {
         data[3] = f32::NAN;
         let dense = Tensor::<f32>::try_from_slice(&data, &[2, block]).unwrap();
         let scaled = dense.view().try_cast_to_scaled::<Mxfp8E4m3>().unwrap();
-        let decoded = scaled.view().try_cast_dense::<f32>().unwrap();
+        let decoded = scaled.view().try_cast::<f32>().unwrap();
         let clean_row = &decoded.as_slice()[block..];
         assert!(
             clean_row.iter().all(|&x| (x - 1.5).abs() <= 0.2),
@@ -877,7 +888,7 @@ mod tests {
         assert_eq!(row1.shape(), &[1, 32]);
         assert_eq!(row1.block_scales().shape(), &[1, 2]);
 
-        let dense_row = row1.try_cast_dense::<f32>().unwrap();
+        let dense_row = row1.try_cast::<f32>().unwrap();
         assert_eq!(dense_row.shape(), &[1, 32]);
 
         // Row 1 of the source should round-trip within FP4 tolerance.
@@ -904,7 +915,7 @@ mod tests {
         assert!(nvfp4.tensor_scale().is_some());
 
         // Transcode then decode: still bounded by the coarsest format (NVFP4).
-        let decoded = nvfp4.view().try_cast_dense::<f32>().unwrap();
+        let decoded = nvfp4.view().try_cast::<f32>().unwrap();
         let max_abs = data.iter().fold(0.0f32, |m, &v| m.max(v.abs()));
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
             assert!(
@@ -923,7 +934,7 @@ mod tests {
         let nvfp4 = dense.view().try_cast_to_scaled::<Nvfp4>().unwrap();
 
         let direct = nvfp4.view().try_cast_to_scaled::<Mxfp8E4m3>().unwrap();
-        let decoded = nvfp4.view().try_cast_dense::<f32>().unwrap();
+        let decoded = nvfp4.view().try_cast::<f32>().unwrap();
         let two_step = decoded.view().try_cast_to_scaled::<Mxfp8E4m3>().unwrap();
 
         let direct_elements = direct.elements();
@@ -953,7 +964,7 @@ mod tests {
         assert_eq!(scaled.shape(), &[cols]);
         assert_eq!(scaled.block_scales().shape(), &[cols / 16]);
 
-        let decoded = scaled.view().try_cast_dense::<f32>().unwrap();
+        let decoded = scaled.view().try_cast::<f32>().unwrap();
         assert_eq!(decoded.shape(), &[cols]);
         let max_abs = data.iter().fold(0.0f32, |m, &v| m.max(v.abs()));
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
@@ -976,7 +987,7 @@ mod tests {
         assert_eq!(scaled.shape(), &[batch, rows, cols]);
         assert_eq!(scaled.block_scales().shape(), &[batch, rows, cols / 32]);
 
-        let decoded = scaled.view().try_cast_dense::<f32>().unwrap();
+        let decoded = scaled.view().try_cast::<f32>().unwrap();
         assert_eq!(decoded.shape(), &[batch, rows, cols]);
         let max_abs = data.iter().fold(0.0f32, |m, &v| m.max(v.abs()));
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
@@ -1104,14 +1115,14 @@ mod tests {
             .try_cast_to_scaled::<F>()
             .unwrap()
             .view()
-            .try_cast_dense::<f32>()
+            .try_cast::<f32>()
             .unwrap();
         let decoded_twice = decoded_once
             .view()
             .try_cast_to_scaled::<F>()
             .unwrap()
             .view()
-            .try_cast_dense::<f32>()
+            .try_cast::<f32>()
             .unwrap();
         assert_eq!(
             decoded_twice.as_slice(),

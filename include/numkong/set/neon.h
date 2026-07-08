@@ -119,8 +119,8 @@ NK_PUBLIC void nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size
     for (; i + 4 <= n; i += 4) {
         uint32x4_t a_u32x4 = vld1q_u32(a + i);
         uint32x4_t b_u32x4 = vld1q_u32(b + i);
-        uint32x4_t equality_mask = vceqq_u32(a_u32x4, b_u32x4);
-        intersection_count_u32x4 = vaddq_u32(intersection_count_u32x4, vshrq_n_u32(equality_mask, 31));
+        uint32x4_t equality_u32x4 = vceqq_u32(a_u32x4, b_u32x4);
+        intersection_count_u32x4 = vaddq_u32(intersection_count_u32x4, vshrq_n_u32(equality_u32x4, 31));
     }
     intersection_count += vaddvq_u32(intersection_count_u32x4);
     for (; i != n; ++i) intersection_count += (a[i] == b[i]);
@@ -138,9 +138,9 @@ NK_PUBLIC void nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t 
         // vceqq_u8 returns 0xFF for equal, 0x00 for not-equal
         // Invert to get 0xFF for not-equal, then shift right by 7 to get 1
         uint8x16_t not_equal_u8x16 = vmvnq_u8(vceqq_u8(a_u8x16, b_u8x16));
-        uint8x16_t diff_bits_u8x16 = vshrq_n_u8(not_equal_u8x16, 7);
+        uint8x16_t diff_u8x16 = vshrq_n_u8(not_equal_u8x16, 7);
         // Widen: 16 u8 → 8 u16 → 4 u32 using pairwise add and widen
-        uint16x8_t diff_u16x8 = vpaddlq_u8(diff_bits_u8x16);
+        uint16x8_t diff_u16x8 = vpaddlq_u8(diff_u8x16);
         uint32x4_t diff_u32x4 = vpaddlq_u16(diff_u16x8);
         diff_count_u32x4 = vaddq_u32(diff_count_u32x4, diff_u32x4);
     }
@@ -159,12 +159,12 @@ NK_PUBLIC void nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size
         uint16x8_t a_u16x8 = vld1q_u16(a + i);
         uint16x8_t b_u16x8 = vld1q_u16(b + i);
         // vceqq_u16 returns 0xFFFF for equal, 0x0000 for not-equal
-        uint16x8_t equality_mask = vceqq_u16(a_u16x8, b_u16x8);
+        uint16x8_t equality_u16x8 = vceqq_u16(a_u16x8, b_u16x8);
         // Count matches by shifting right by 15 to get 1 for match, 0 for non-match
         // Then widen and accumulate into u32
-        uint16x8_t match_bits = vshrq_n_u16(equality_mask, 15);
+        uint16x8_t match_u16x8 = vshrq_n_u16(equality_u16x8, 15);
         // Pairwise add and widen to u32
-        uint32x4_t match_u32x4 = vpaddlq_u16(match_bits);
+        uint32x4_t match_u32x4 = vpaddlq_u16(match_u16x8);
         match_count_u32x4 = vaddq_u32(match_count_u32x4, match_u32x4);
     }
     matches += vaddvq_u32(match_count_u32x4);
@@ -295,8 +295,8 @@ NK_INTERNAL void nk_jaccard_u1x128_finalize_neon( //
 
     // Handle zero-union edge case (empty vectors → distance = 0.0, matching scipy convention)
     float32x4_t one_f32x4 = vdupq_n_f32(1.0f);
-    uint32x4_t zero_union_mask = vceqq_f32(union_f32x4, vdupq_n_f32(0.0f));
-    float32x4_t safe_union_f32x4 = vbslq_f32(zero_union_mask, one_f32x4, union_f32x4);
+    uint32x4_t zero_union_u32x4 = vceqq_f32(union_f32x4, vdupq_n_f32(0.0f));
+    float32x4_t safe_union_f32x4 = vbslq_f32(zero_union_u32x4, one_f32x4, union_f32x4);
 
     // Fast reciprocal with Newton-Raphson refinement:
     // - `vrecpeq_f32`: ~12-bit estimate, 1 cycle
@@ -310,7 +310,7 @@ NK_INTERNAL void nk_jaccard_u1x128_finalize_neon( //
     // Compute Jaccard distance = 1 - intersection ÷ union
     float32x4_t ratio_f32x4 = vmulq_f32(intersection_f32x4, union_reciprocal_f32x4);
     float32x4_t jaccard_f32x4 = vsubq_f32(one_f32x4, ratio_f32x4);
-    result_vec->f32x4 = vbslq_f32(zero_union_mask, vdupq_n_f32(0.0f), jaccard_f32x4);
+    result_vec->f32x4 = vbslq_f32(zero_union_u32x4, vdupq_n_f32(0.0f), jaccard_f32x4);
 }
 
 /** @brief Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (NEON). */
@@ -331,15 +331,15 @@ NK_INTERNAL void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, 
     float32x4_t union_f32x4 = vsubq_f32(vaddq_f32(query_f32x4, target_f32x4), dot_f32x4);
 
     float32x4_t one_f32x4 = vdupq_n_f32(1.0f);
-    uint32x4_t zero_union_mask = vceqq_f32(union_f32x4, vdupq_n_f32(0.0f));
-    float32x4_t safe_union_f32x4 = vbslq_f32(zero_union_mask, one_f32x4, union_f32x4);
+    uint32x4_t zero_union_u32x4 = vceqq_f32(union_f32x4, vdupq_n_f32(0.0f));
+    float32x4_t safe_union_f32x4 = vbslq_f32(zero_union_u32x4, one_f32x4, union_f32x4);
 
     float32x4_t union_reciprocal_f32x4 = vrecpeq_f32(safe_union_f32x4);
     union_reciprocal_f32x4 = vmulq_f32(union_reciprocal_f32x4, vrecpsq_f32(safe_union_f32x4, union_reciprocal_f32x4));
 
     float32x4_t ratio_f32x4 = vmulq_f32(dot_f32x4, union_reciprocal_f32x4);
     float32x4_t jaccard_f32x4 = vsubq_f32(one_f32x4, ratio_f32x4);
-    result_vec->f32x4 = vbslq_f32(zero_union_mask, vdupq_n_f32(0.0f), jaccard_f32x4);
+    result_vec->f32x4 = vbslq_f32(zero_union_u32x4, vdupq_n_f32(0.0f), jaccard_f32x4);
 }
 
 #pragma endregion Stateful Streaming

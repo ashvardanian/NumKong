@@ -313,9 +313,11 @@ python -m cibuildwheel --platform windows
 Once done editing the code, please run analyzers and formatters:
 
 ```bash
-ruff check test/  # linting
-black .           # format with default settings
+ruff check .   # lint (docstrings, imports, bugbears — see pyproject [tool.ruff])
+ruff format .  # format (replaces Black; same 120-column width)
 ```
+
+Configuring the CMake build (`cmake -B build ...`) arms the repo's Git hooks (`core.hooksPath -> .githooks`), which re-run these formatters plus `clang-format` / `cmake-format` on staged changes and enforce the `<Verb>: <Summary>` commit message. Bypass knowingly with `git commit --no-verify`.
 
 ## Rust
 

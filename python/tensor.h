@@ -40,11 +40,14 @@ extern "C" {
  *  for memory management, and NumKong's extended type system.
  *
  *  Memory layout:
- *  - If parent == NULL: owns data in variable-length `start[]` buffer
+ *  - If parent == NULL: owns a heap-allocated `data` buffer holding `capacity` elements
  *  - If parent != NULL: view into parent's memory, `data` points there
+ *
+ *  Storage lives in a separately heap-allocated buffer (not inline in the object), so `reserve()`
+ *  can grow it in place; `resize()` reshapes within `capacity` without moving `data`.
  */
 typedef struct Tensor {
-    PyObject_VAR_HEAD
+    PyObject_HEAD
     /** Logical dtype (f32, f64, bf16, etc.). */
     nk_dtype_t dtype;
     /** Number of dimensions (0 for scalar). */
@@ -55,10 +58,12 @@ typedef struct Tensor {
     Py_ssize_t strides[NK_TENSOR_MAX_RANK];
     /** Reference to parent (NULL if owns data). */
     PyObject *parent;
-    /** Data pointer (start[] if owns, parent's if view). */
+    /** Data pointer: owned heap buffer when `parent == NULL`, else into parent's memory. */
     char *data;
-    /** Variable-length inline data storage. */
-    char start[];
+    /** Allocated element capacity of the owned buffer (>= numel); equals numel for views. */
+    size_t capacity;
+    /** Outstanding buffer-protocol exports; `resize`/`reserve` raise `BufferError` while > 0. */
+    Py_ssize_t exports;
 } Tensor;
 
 /**
@@ -141,8 +146,11 @@ Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape);
 Tensor *Tensor_view(Tensor *parent, char *data, nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape,
                     Py_ssize_t const *strides);
 
+/** @brief Drain the recycled view-header free-list; call once at interpreter teardown.  */
+void nk_tensor_view_freelist_clear(void);
+
 /** @brief Copy the tensor.  */
-PyObject *Tensor_copy(PyObject *self, PyObject *args);
+PyObject *Tensor_copy(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 /** @brief Reshape the tensor (returns view if possible).  */
 PyObject *Tensor_reshape(PyObject *self, PyObject *const *args, Py_ssize_t nargs);
@@ -154,7 +162,7 @@ PyObject *Tensor_moments(PyObject *self, PyObject *args);
 PyObject *Tensor_minmax(PyObject *self, PyObject *args);
 
 /** @brief Cast tensor to a different dtype. Returns a new tensor.  */
-PyObject *Tensor_astype(PyObject *self, PyObject *dtype_arg);
+PyObject *Tensor_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 /**
  *  @brief Compute C-contiguous strides for a tensor shape.
@@ -233,6 +241,16 @@ void each_blend_recursive(                                           //
     Py_ssize_t const *b_strides, Py_ssize_t const *result_strides,   //
     size_t remaining_dims, size_t contiguous_tail_dims);
 
+/**
+ *  @brief Recursively apply a unary elementwise kernel (sin/cos/atan) to an N-D tensor.
+ */
+void each_unary_recursive(                                //
+    nk_kernel_trig_punned_t kernel,                       //
+    char const *a_data, char *result_data,                //
+    Py_ssize_t const *shape, Py_ssize_t const *a_strides, //
+    Py_ssize_t const *result_strides,                     //
+    size_t remaining_dims, size_t contiguous_tail_dims);
+
 PyObject *api_from_pointer(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_empty(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_zeros(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
@@ -250,6 +268,12 @@ PyObject *api_min(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObj
 PyObject *api_max(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_argmin(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_argmax(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
+int elementwise_prepare_out(                                                    //
+    PyObject *out_obj, Py_buffer *out_buffer, nk_buffer_backing_t *out_backing, //
+    Py_buffer const **inputs, size_t num_inputs, nk_dtype_t dtype,              //
+    char **result_data, Py_ssize_t *result_strides, int *contiguous_tail,       //
+    PyObject **return_obj);
 
 extern char const doc_from_pointer[];
 extern char const doc_empty[];

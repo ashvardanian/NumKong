@@ -96,7 +96,9 @@
 #include "types.h"
 #include "distance.h"
 #include "each.h"
+#include "trigonometry.h"
 #include "mesh.h"
+#include "attention.h"
 #include "maxsim.h"
 #include "numpy_interop.h"
 #include "dlpack_interop.h"
@@ -1160,6 +1162,7 @@ static PyMethodDef nk_methods[] = {
     // Tensor reductions
     {"moments", (PyCFunction)api_moments, METH_FASTCALL | METH_KEYWORDS, doc_reduce_moments},
     {"minmax", (PyCFunction)api_minmax, METH_FASTCALL | METH_KEYWORDS, doc_reduce_minmax},
+    {"rmsnorm", (PyCFunction)api_rmsnorm, METH_FASTCALL | METH_KEYWORDS, doc_rmsnorm},
     {"sum", (PyCFunction)api_sum, METH_FASTCALL | METH_KEYWORDS, doc_reduce_sum},
     {"norm", (PyCFunction)api_norm, METH_FASTCALL | METH_KEYWORDS, doc_reduce_norm},
     {"min", (PyCFunction)api_min, METH_FASTCALL | METH_KEYWORDS, doc_reduce_min},
@@ -1171,6 +1174,7 @@ static PyMethodDef nk_methods[] = {
     {"fma", (PyCFunction)api_fma, METH_FASTCALL | METH_KEYWORDS, doc_fma},
     {"blend", (PyCFunction)api_blend, METH_FASTCALL | METH_KEYWORDS, doc_blend},
     {"scale", (PyCFunction)api_scale, METH_FASTCALL | METH_KEYWORDS, doc_scale},
+    {"swiglu", (PyCFunction)api_swiglu, METH_FASTCALL | METH_KEYWORDS, doc_swiglu},
     {"add", (PyCFunction)api_add, METH_FASTCALL | METH_KEYWORDS, doc_add},
     {"multiply", (PyCFunction)api_multiply, METH_FASTCALL | METH_KEYWORDS, doc_multiply},
 
@@ -1181,6 +1185,7 @@ static PyMethodDef nk_methods[] = {
     {"sin", (PyCFunction)api_sin, METH_FASTCALL | METH_KEYWORDS, doc_sin},
     {"cos", (PyCFunction)api_cos, METH_FASTCALL | METH_KEYWORDS, doc_cos},
     {"atan", (PyCFunction)api_atan, METH_FASTCALL | METH_KEYWORDS, doc_atan},
+    {"rope", (PyCFunction)api_rope, METH_FASTCALL | METH_KEYWORDS, doc_rope},
 
     // Mesh alignment (point cloud registration)
     {"kabsch", (PyCFunction)api_kabsch, METH_FASTCALL | METH_KEYWORDS, doc_kabsch},
@@ -1200,9 +1205,17 @@ static PyMethodDef nk_methods[] = {
     {"maxsim_pack", (PyCFunction)api_maxsim_pack, METH_FASTCALL | METH_KEYWORDS, doc_maxsim_pack},
     {"maxsim_packed", (PyCFunction)api_maxsim_packed, METH_FASTCALL | METH_KEYWORDS, doc_maxsim_packed},
     {"maxsim", (PyCFunction)api_maxsim, METH_FASTCALL | METH_KEYWORDS, doc_maxsim},
+    {"attention_pack", (PyCFunction)api_attention_pack, METH_FASTCALL | METH_KEYWORDS, doc_attention_pack},
+    {"attention_packed", (PyCFunction)api_attention_packed, METH_FASTCALL | METH_KEYWORDS, doc_attention_packed},
 
     // Sentinel
     {NULL, NULL, 0, NULL}};
+
+/** @brief Module teardown hook: release the recycled Tensor-view headers. */
+static void nk_module_free(void *unused) {
+    nk_unused_(unused);
+    nk_tensor_view_freelist_clear();
+}
 
 static char const doc_module[] =                                                                    //
     "Portable mixed-precision BLAS-like vector math library for x86 and Arm.\n"                     //
@@ -1237,7 +1250,8 @@ static char const doc_module[] =                                                
     "    >>> numkong.euclidean(a, b, dtype='bfloat16', out=c)\n";
 
 static PyModuleDef nk_module = {
-    PyModuleDef_HEAD_INIT, .m_name = "NumKong", .m_doc = doc_module, .m_size = -1, .m_methods = nk_methods,
+    PyModuleDef_HEAD_INIT, .m_name = "NumKong",     .m_doc = doc_module,
+    .m_size = -1,          .m_methods = nk_methods, .m_free = nk_module_free,
 };
 
 PyMODINIT_FUNC PyInit__numkong(void) {
@@ -1248,6 +1262,7 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     if (PyType_Ready(&TensorIterType) < 0) return NULL;
     if (PyType_Ready(&PackedMatrixType) < 0) return NULL;
     if (PyType_Ready(&MaxSimPackedMatrixType) < 0) return NULL;
+    if (PyType_Ready(&AttentionPackedKVType) < 0) return NULL;
     if (PyType_Ready(&MeshAlignmentResultType) < 0) return NULL;
 
     m = PyModule_Create(&nk_module);
@@ -1297,6 +1312,14 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     Py_INCREF(&MaxSimPackedMatrixType);
     if (PyModule_AddObject(m, "MaxSimPackedMatrix", (PyObject *)&MaxSimPackedMatrixType) < 0) {
         Py_XDECREF(&MaxSimPackedMatrixType);
+        Py_XDECREF(m);
+        return NULL;
+    }
+
+    // Register AttentionPackedKV type
+    Py_INCREF(&AttentionPackedKVType);
+    if (PyModule_AddObject(m, "AttentionPackedKV", (PyObject *)&AttentionPackedKVType) < 0) {
+        Py_XDECREF(&AttentionPackedKVType);
         Py_XDECREF(m);
         return NULL;
     }

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -23,7 +24,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     NK_ATOL,
     NK_RTOL,
@@ -33,6 +33,7 @@ from test_base import (
     create_stats,
     dense_dimensions,
     keep_one_capability,
+    make_nk,
     make_random,
     nk_seed,  # noqa: F401 — pytest fixture
     numpy_available,
@@ -43,7 +44,11 @@ from test_base import (
     random_of_dtype,
     randomized_repetitions_count,
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
+    tolerances_for_dtype,
 )
+
+import numkong as nk
+
 
 algebraic_dtypes = ["float32", "float64"]
 algebraic_ndims = [7, 97]
@@ -59,6 +64,18 @@ def normalize_elementwise(r, dtype_new):
         r = np.clip(r, dtype_new_info.min, dtype_new_info.max, out=r)
         r = np.rint(r)
     return r.astype(dtype_new)
+
+
+# Elementwise ops are shape-invariant: sweep a couple of rank-N shapes (NumPy-only — the Decimal
+# baseline and the flattening below need it) alongside the 1-D `dense_dimensions`, so the N-D chunk
+# walkers are exercised. The baselines run on the flattened data; the SIMD op runs on the real
+# rank-N tensor and its result is flattened for comparison.
+elementwise_shapes = [(d,) for d in dense_dimensions] + ([(6, 8), (4, 5, 3)] if numpy_available else [])
+
+
+def flatten_for_baseline(x):
+    """Flatten to 1-D for per-element baseline comparison; passthrough without NumPy (1-D only)."""
+    return np.asarray(x).reshape(-1) if numpy_available else x
 
 
 def get_computation_dtypes(x, y):
@@ -118,6 +135,15 @@ def baseline_multiply(x, y, out=None):
     result = np.multiply(a, b, out=out, casting="unsafe")
     result = normalize_elementwise(result, final_dtype)
     return result
+
+
+def baseline_swiglu(gate, up, input_scale):
+    """NumPy float64 reference for SwiGLU / SiLU over the rounded inputs."""
+    g = np.asarray(gate, dtype=np.float64) * input_scale
+    y = g / (1.0 + np.exp(-g))  # SiLU
+    if up is not None:
+        y = y * (np.asarray(up, dtype=np.float64) * input_scale)
+    return y
 
 
 _INT_CLIP_RANGES = {
@@ -201,134 +227,158 @@ def random_coefficients(dtype, alpha_div=2, beta_div=2):
 
 
 @pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_scale_random_accuracy(ndim: int, dtype: str, capability: str, nk_seed: int):
-    """scale(alpha * x + beta) across float and integer dtypes against high-precision Decimal baseline."""
-    input_raw, input_baseline = make_random((ndim,), dtype, seed=nk_seed)
+def test_scale_random_accuracy(shape: tuple, dtype: str, capability: str, nk_seed: int):
+    """scale(alpha * x + beta) across float/int dtypes and ranks against a high-precision Decimal baseline."""
+    input_raw, input_baseline = make_random(shape, dtype, seed=nk_seed)
 
     alpha, beta = random_coefficients(dtype)
 
     keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_EACH["scale"]
 
-    # High-precision baseline
-    accurate_dt, accurate = profile(precise_kernel, input_baseline, alpha=alpha, beta=beta, dtype=dtype)
+    # High-precision baseline (per-element Decimal on the flattened data)
+    accurate_dt, accurate = profile(
+        precise_kernel, flatten_for_baseline(input_baseline), alpha=alpha, beta=beta, dtype=dtype
+    )
 
-    # Native precision baseline
-    expected_dt, expected = profile(baseline_kernel, input_raw, alpha=alpha, beta=beta)
-
+    # Native precision baseline, and the SIMD kernel on the real rank-N tensor
+    expected_dt, expected = profile(baseline_kernel, flatten_for_baseline(input_raw), alpha=alpha, beta=beta)
     result_dt, result = profile(simd_kernel, input_raw, alpha=alpha, beta=beta)
+    result = flatten_for_baseline(result)
 
     assert_allclose(result, accurate)
-    collect_errors("scale", ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors(
+        "scale", len(accurate), dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats
+    )
 
-    # out= must match the allocated result
-    out_nk = nk.zeros((ndim,), dtype=dtype)
+    # out= into a same-shape buffer returns None and matches the allocated result
+    out_nk = nk.zeros(shape, dtype=dtype)
     assert simd_kernel(input_raw, alpha=alpha, beta=beta, out=out_nk) is None
-    assert_allclose(list(out_nk), result)
+    assert_allclose(flatten_for_baseline(out_nk), result)
 
 
 @pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_add_random_accuracy(ndim: int, dtype: str, capability: str, nk_seed: int):
-    """Elementwise addition across float and integer dtypes against high-precision Decimal baseline."""
-    a_raw, a_baseline = make_random((ndim,), dtype, seed=nk_seed)
-    b_raw, b_baseline = make_random((ndim,), dtype, seed=nk_seed + 1)
+def test_add_random_accuracy(shape: tuple, dtype: str, capability: str, nk_seed: int):
+    """Elementwise addition across float/int dtypes and ranks against a high-precision Decimal baseline."""
+    a_raw, a_baseline = make_random(shape, dtype, seed=nk_seed)
+    b_raw, b_baseline = make_random(shape, dtype, seed=nk_seed + 1)
 
     keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_EACH["add"]
 
-    # High-precision baseline
-    accurate_dt, accurate = profile(precise_kernel, a_baseline, b_baseline, dtype=dtype)
+    # High-precision baseline (per-element Decimal on the flattened data)
+    accurate_dt, accurate = profile(
+        precise_kernel, flatten_for_baseline(a_baseline), flatten_for_baseline(b_baseline), dtype=dtype
+    )
 
-    # Native precision baseline
-    expected_dt, expected = profile(baseline_kernel, a_raw, b_raw)
-
+    # Native precision baseline, and the SIMD kernel on the real rank-N tensor
+    expected_dt, expected = profile(baseline_kernel, flatten_for_baseline(a_raw), flatten_for_baseline(b_raw))
     result_dt, result = profile(simd_kernel, a_raw, b_raw)
+    result = flatten_for_baseline(result)
 
     assert_allclose(result, accurate)
-    collect_errors("add", ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors("add", len(accurate), dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
 
-    # out= must match the allocated result
-    out_nk = nk.zeros((ndim,), dtype=dtype)
+    # out= into a same-shape buffer returns None and matches the allocated result
+    out_nk = nk.zeros(shape, dtype=dtype)
     assert simd_kernel(a_raw, b_raw, out=out_nk) is None
-    assert_allclose(list(out_nk), result)
+    assert_allclose(flatten_for_baseline(out_nk), result)
 
 
 @pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_blend_random_accuracy(ndim: int, dtype: str, capability: str, nk_seed: int):
-    """Weighted sum (alpha * x + beta * y) across float and integer dtypes against high-precision Decimal baseline."""
-    a_raw, a_baseline = make_random((ndim,), dtype, seed=nk_seed)
-    b_raw, b_baseline = make_random((ndim,), dtype, seed=nk_seed + 1)
+def test_blend_random_accuracy(shape: tuple, dtype: str, capability: str, nk_seed: int):
+    """Weighted sum (alpha * x + beta * y) across float/int dtypes and ranks against a Decimal baseline."""
+    a_raw, a_baseline = make_random(shape, dtype, seed=nk_seed)
+    b_raw, b_baseline = make_random(shape, dtype, seed=nk_seed + 1)
 
     alpha, beta = random_coefficients(dtype)
 
     keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_EACH["blend"]
 
-    # High-precision baseline
-    accurate_dt, accurate = profile(precise_kernel, a_baseline, b_baseline, alpha=alpha, beta=beta, dtype=dtype)
+    # High-precision baseline (per-element Decimal on the flattened data)
+    accurate_dt, accurate = profile(
+        precise_kernel,
+        flatten_for_baseline(a_baseline),
+        flatten_for_baseline(b_baseline),
+        alpha=alpha,
+        beta=beta,
+        dtype=dtype,
+    )
 
-    # Native precision baseline
-    expected_dt, expected = profile(baseline_kernel, a_raw, b_raw, alpha=alpha, beta=beta)
-
+    # Native precision baseline, and the SIMD kernel on the real rank-N tensor
+    expected_dt, expected = profile(
+        baseline_kernel, flatten_for_baseline(a_raw), flatten_for_baseline(b_raw), alpha=alpha, beta=beta
+    )
     result_dt, result = profile(simd_kernel, a_raw, b_raw, alpha=alpha, beta=beta)
+    result = flatten_for_baseline(result)
 
     assert_allclose(result, accurate)
-    collect_errors("blend", ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors(
+        "blend", len(accurate), dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats
+    )
 
-    # out= must match the allocated result
-    out_nk = nk.zeros((ndim,), dtype=dtype)
+    # out= into a same-shape buffer returns None and matches the allocated result
+    out_nk = nk.zeros(shape, dtype=dtype)
     assert simd_kernel(a_raw, b_raw, alpha=alpha, beta=beta, out=out_nk) is None
-    assert_allclose(list(out_nk), result)
+    assert_allclose(flatten_for_baseline(out_nk), result)
 
 
 @pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_fma_random_accuracy(ndim: int, dtype: str, capability: str, nk_seed: int):
-    """Fused multiply-add (alpha * x * y + beta * z) across float and integer dtypes against high-precision Decimal baseline."""
-    a_raw, a_baseline = make_random((ndim,), dtype, seed=nk_seed)
-    b_raw, b_baseline = make_random((ndim,), dtype, seed=nk_seed + 1)
-    c_raw, c_baseline = make_random((ndim,), dtype, seed=nk_seed + 2)
+def test_fma_random_accuracy(shape: tuple, dtype: str, capability: str, nk_seed: int):
+    """Fused multiply-add (alpha * x * y + beta * z) across float/int dtypes and ranks against a Decimal baseline."""
+    a_raw, a_baseline = make_random(shape, dtype, seed=nk_seed)
+    b_raw, b_baseline = make_random(shape, dtype, seed=nk_seed + 1)
+    c_raw, c_baseline = make_random(shape, dtype, seed=nk_seed + 2)
 
     alpha, beta = random_coefficients(dtype, 512, 3)
 
     keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_EACH["fma"]
 
-    # High-precision baseline
+    # High-precision baseline (per-element Decimal on the flattened data)
     accurate_dt, accurate = profile(
         precise_kernel,
-        a_baseline,
-        b_baseline,
-        c_baseline,
+        flatten_for_baseline(a_baseline),
+        flatten_for_baseline(b_baseline),
+        flatten_for_baseline(c_baseline),
         alpha=alpha,
         beta=beta,
         dtype=dtype,
     )
 
-    # Native precision baseline
-    expected_dt, expected = profile(baseline_kernel, a_raw, b_raw, c_raw, alpha=alpha, beta=beta)
-
+    # Native precision baseline, and the SIMD kernel on the real rank-N tensor
+    expected_dt, expected = profile(
+        baseline_kernel,
+        flatten_for_baseline(a_raw),
+        flatten_for_baseline(b_raw),
+        flatten_for_baseline(c_raw),
+        alpha=alpha,
+        beta=beta,
+    )
     result_dt, result = profile(simd_kernel, a_raw, b_raw, c_raw, alpha=alpha, beta=beta)
+    result = flatten_for_baseline(result)
 
     assert_allclose(result, accurate)
-    collect_errors("fma", ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors("fma", len(accurate), dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
 
-    # out= must match the allocated result
-    out_nk = nk.zeros((ndim,), dtype=dtype)
+    # out= into a same-shape buffer returns None and matches the allocated result
+    out_nk = nk.zeros(shape, dtype=dtype)
     ret = simd_kernel(a_raw, b_raw, c_raw, alpha=alpha, beta=beta, out=out_nk)
     assert ret is None
-    assert_allclose(list(out_nk), result)
+    assert_allclose(flatten_for_baseline(out_nk), result)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -360,15 +410,15 @@ def test_add_multiply_noncontiguous(dtype: str, kernel, capability: str):
     def validate(a, b, inplace_numkong):
         result_numpy = baseline_kernel(a, b)
         result_numkong = np.array(simd_kernel(a, b))
-        assert (
-            result_numkong.size == result_numpy.size
-        ), f"Result sizes differ: {result_numkong.size} vs {result_numpy.size}"
-        assert (
-            result_numkong.shape == result_numpy.shape
-        ), f"Result shapes differ: {result_numkong.shape} vs {result_numpy.shape}"
-        assert (
-            result_numkong.dtype == result_numpy.dtype
-        ), f"Result dtypes differ: {result_numkong.dtype} vs {result_numpy.dtype} for ({a.dtype} {operator} {b.dtype})"
+        assert result_numkong.size == result_numpy.size, (
+            f"Result sizes differ: {result_numkong.size} vs {result_numpy.size}"
+        )
+        assert result_numkong.shape == result_numpy.shape, (
+            f"Result shapes differ: {result_numkong.shape} vs {result_numpy.shape}"
+        )
+        assert result_numkong.dtype == result_numpy.dtype, (
+            f"Result dtypes differ: {result_numkong.dtype} vs {result_numpy.dtype} for ({a.dtype} {operator} {b.dtype})"
+        )
 
         if not np.allclose(result_numkong, result_numpy, atol=NK_ATOL, rtol=NK_RTOL):
             assert_allclose(
@@ -593,10 +643,14 @@ def test_scale_edge_cases(ndim: int, dtype: str, capability: str):
     with pytest.raises(ValueError):
         simd_kernel(a, alpha=alpha, beta=beta, out=np.zeros(ndim + 1, dtype=dtype))
 
-    # out= non-contiguous 1D raises (stride only matters when ndim > 1)
+    # out= into a non-contiguous 1D buffer is written correctly — the N-D walker honors strides
+    # (consistent with add/multiply). Stride only matters when there is more than one element.
     if ndim > 1:
-        with pytest.raises(ValueError):
-            simd_kernel(a, alpha=alpha, beta=beta, out=np.zeros(ndim * 2, dtype=dtype)[::2])
+        strided_out = np.zeros(ndim * 2, dtype=dtype)[::2]
+        assert simd_kernel(a, alpha=alpha, beta=beta, out=strided_out) is None
+        assert_allclose(
+            strided_out, baseline_kernel(a, alpha=alpha, beta=beta).astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL
+        )
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -692,9 +746,10 @@ def test_blend_numpy_buffer_protocol(dtype: str):
     with pytest.raises(ValueError):
         nk.blend(a, b, alpha=alpha, beta=beta, out=np.zeros(49, dtype=dtype))
 
-    # out= non-contiguous 1D raises
-    with pytest.raises(ValueError):
-        nk.blend(a, b, alpha=alpha, beta=beta, out=np.zeros(100, dtype=dtype)[::2])
+    # out= into a non-contiguous 1D buffer is written correctly — the N-D walker honors strides
+    strided_out = np.zeros(100, dtype=dtype)[::2]
+    assert nk.blend(a, b, alpha=alpha, beta=beta, out=strided_out) is None
+    assert_allclose(strided_out, expected)
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -748,3 +803,34 @@ def test_blend_known(ndim: int, dtype: str, capability: str):
     result = list(nk.blend(a, b, alpha=2.0, beta=3.0))
     for i in range(ndim):
         assert abs(result[i] - expected) < NK_ATOL, f"blend[{i}] = {result[i]}, expected {expected}"
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("shape", [(1, 8), (3, 100), (8, 128), (5, 63)])
+@pytest.mark.parametrize("with_up", [False, True])
+@pytest.mark.parametrize(
+    "dtype", [pytest.param("float32", id="f32"), pytest.param("bf16", id="bf16"), pytest.param("e4m3", id="e4m3")]
+)
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_swiglu(shape, with_up, dtype, capability, nk_seed):
+    """Test nk.swiglu() (and plain SiLU when up=None) against a float64 reference."""
+    keep_one_capability(capability)
+    gate_raw, gate_base = make_random(shape, dtype, seed=nk_seed)
+    nk_gate = make_nk(gate_raw, dtype)
+    if with_up:
+        up_raw, up_base = make_random(shape, dtype, seed=nk_seed + 1)
+        nk_up = make_nk(up_raw, dtype)
+    else:
+        nk_up, up_base = None, None
+    input_scale = 0.75 if dtype == "e4m3" else 1.0
+
+    result = nk.swiglu(nk_gate, nk_up, input_scale=input_scale)
+    y = np.asarray(result if dtype == "float32" else result.astype("float32"))
+
+    expected = baseline_swiglu(gate_base, up_base, input_scale)
+    if dtype != "float32":  # round the reference through the lossy output dtype (matches what the kernel stores)
+        expected = np.asarray(
+            nk.Tensor(np.ascontiguousarray(expected.astype(np.float32))).astype(dtype).astype("float32")
+        ).astype(np.float64)
+    atol, rtol = tolerances_for_dtype(dtype)
+    assert_allclose(y, expected, atol=atol, rtol=rtol)

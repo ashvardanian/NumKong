@@ -27,6 +27,7 @@
 #if NK_TARGET_SKYLAKE
 
 #include "numkong/types.h"
+#include "numkong/cast/skylake.h" // `nk_load_bf16x16_to_f32x16_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -72,9 +73,9 @@ NK_INTERNAL __m512 nk_sin_f32x16_skylake_(__m512 const angles_radians) {
     polynomials_f32x16 = _mm512_fmadd_ps(polynomials_f32x16, angles_squared_f32x16, coeff_3_f32x16);
 
     // If multiples_of_pi_i32x16 is odd, flip the sign of the results_f32x16
-    __mmask16 odd_mask = _mm512_test_epi32_mask(multiples_of_pi_i32x16, _mm512_set1_epi32(1));
+    __mmask16 odd_m16 = _mm512_test_epi32_mask(multiples_of_pi_i32x16, _mm512_set1_epi32(1));
     __m512 results_f32x16 = _mm512_fmadd_ps(angles_cubed_f32x16, polynomials_f32x16, angles_f32x16);
-    results_f32x16 = _mm512_mask_sub_ps(results_f32x16, odd_mask, _mm512_setzero_ps(), results_f32x16);
+    results_f32x16 = _mm512_mask_sub_ps(results_f32x16, odd_m16, _mm512_setzero_ps(), results_f32x16);
     return results_f32x16;
 }
 
@@ -113,8 +114,8 @@ NK_INTERNAL __m512 nk_cos_f32x16_skylake_(__m512 const angles_radians) {
     __m512 results_f32x16 = _mm512_fmadd_ps(angles_cubed_f32x16, polynomials_f32x16, angles_f32x16);
 
     // If multiples_of_pi_i32x16 is even, flip the sign of the results_f32x16
-    __mmask16 even_mask = _mm512_testn_epi32_mask(multiples_of_pi_i32x16, _mm512_set1_epi32(1));
-    results_f32x16 = _mm512_mask_sub_ps(results_f32x16, even_mask, _mm512_setzero_ps(), results_f32x16);
+    __mmask16 even_m16 = _mm512_testn_epi32_mask(multiples_of_pi_i32x16, _mm512_set1_epi32(1));
+    results_f32x16 = _mm512_mask_sub_ps(results_f32x16, even_m16, _mm512_setzero_ps(), results_f32x16);
     return results_f32x16;
 }
 
@@ -131,10 +132,10 @@ NK_INTERNAL __m512 nk_atan_f32x16_skylake_(__m512 const inputs) {
 
     // Adjust for quadrant
     __m512 values_f32x16 = inputs;
-    __mmask16 const negative_mask = _mm512_fpclass_ps_mask(values_f32x16, 0x40);
+    __mmask16 const negative_m16 = _mm512_fpclass_ps_mask(values_f32x16, 0x40);
     values_f32x16 = _mm512_abs_ps(values_f32x16);
-    __mmask16 const reciprocal_mask = _mm512_cmp_ps_mask(values_f32x16, _mm512_set1_ps(1.0f), _CMP_GT_OS);
-    values_f32x16 = _mm512_mask_div_ps(values_f32x16, reciprocal_mask, _mm512_set1_ps(1.0f), values_f32x16);
+    __mmask16 const reciprocal_m16 = _mm512_cmp_ps_mask(values_f32x16, _mm512_set1_ps(1.0f), _CMP_GT_OS);
+    values_f32x16 = _mm512_mask_div_ps(values_f32x16, reciprocal_m16, _mm512_set1_ps(1.0f), values_f32x16);
 
     // Argument reduction
     __m512 const values_squared_f32x16 = _mm512_mul_ps(values_f32x16, values_f32x16);
@@ -152,9 +153,9 @@ NK_INTERNAL __m512 nk_atan_f32x16_skylake_(__m512 const inputs) {
 
     // Adjust result_f32x16 for quadrants
     __m512 result_f32x16 = _mm512_fmadd_ps(values_cubed_f32x16, polynomials_f32x16, values_f32x16);
-    result_f32x16 = _mm512_mask_sub_ps(result_f32x16, reciprocal_mask, _mm512_set1_ps(1.5707963267948966f),
+    result_f32x16 = _mm512_mask_sub_ps(result_f32x16, reciprocal_m16, _mm512_set1_ps(1.5707963267948966f),
                                        result_f32x16);
-    result_f32x16 = _mm512_mask_sub_ps(result_f32x16, negative_mask, _mm512_setzero_ps(), result_f32x16);
+    result_f32x16 = _mm512_mask_sub_ps(result_f32x16, negative_m16, _mm512_setzero_ps(), result_f32x16);
     return result_f32x16;
 }
 
@@ -170,14 +171,14 @@ NK_INTERNAL __m512 nk_atan2_f32x16_skylake_(__m512 const ys_inputs, __m512 const
     __m512 const coeff_1_f32x16 = _mm512_set1_ps(+0.00282363896258175373077393f);
 
     // Quadrant adjustments normalizing to absolute values of x and y
-    __mmask16 const xs_negative_mask = _mm512_fpclass_ps_mask(xs_inputs, 0x40);
+    __mmask16 const xs_negative_m16 = _mm512_fpclass_ps_mask(xs_inputs, 0x40);
     __m512 xs_f32x16 = _mm512_abs_ps(xs_inputs);
     __m512 ys_f32x16 = _mm512_abs_ps(ys_inputs);
     // Ensure proper fraction where the numerator is smaller than the denominator
-    __mmask16 const swap_mask = _mm512_cmp_ps_mask(ys_f32x16, xs_f32x16, _CMP_GT_OS);
+    __mmask16 const swap_m16 = _mm512_cmp_ps_mask(ys_f32x16, xs_f32x16, _CMP_GT_OS);
     __m512 temps_f32x16 = xs_f32x16;
-    xs_f32x16 = _mm512_mask_blend_ps(swap_mask, xs_f32x16, ys_f32x16);
-    ys_f32x16 = _mm512_mask_sub_ps(ys_f32x16, swap_mask, _mm512_setzero_ps(), temps_f32x16);
+    xs_f32x16 = _mm512_mask_blend_ps(swap_m16, xs_f32x16, ys_f32x16);
+    ys_f32x16 = _mm512_mask_sub_ps(ys_f32x16, swap_m16, _mm512_setzero_ps(), temps_f32x16);
 
     // Compute ratio_f32x16 and ratio²
     __m512 const ratio_f32x16 = _mm512_div_ps(ys_f32x16, xs_f32x16);
@@ -199,27 +200,27 @@ NK_INTERNAL __m512 nk_atan2_f32x16_skylake_(__m512 const ys_inputs, __m512 const
     __m512 results_f32x16 = _mm512_fmadd_ps(ratio_cubed_f32x16, polynomials_f32x16, ratio_f32x16);
     __m512 quadrant_f32x16 = _mm512_setzero_ps();
     __m512 neg_two_f32x16 = _mm512_set1_ps(-2.0f);
-    quadrant_f32x16 = _mm512_mask_blend_ps(xs_negative_mask, quadrant_f32x16, neg_two_f32x16);
+    quadrant_f32x16 = _mm512_mask_blend_ps(xs_negative_m16, quadrant_f32x16, neg_two_f32x16);
     __m512 one_f32x16 = _mm512_set1_ps(1.0f);
     __m512 quadrant_incremented_f32x16 = _mm512_add_ps(quadrant_f32x16, one_f32x16);
-    quadrant_f32x16 = _mm512_mask_blend_ps(swap_mask, quadrant_f32x16, quadrant_incremented_f32x16);
+    quadrant_f32x16 = _mm512_mask_blend_ps(swap_m16, quadrant_f32x16, quadrant_incremented_f32x16);
 
     // Adjust for quadrant_f32x16: result += quadrant_f32x16 * π/2
     __m512 pi_half_f32x16 = _mm512_set1_ps(1.5707963267948966f);
     results_f32x16 = _mm512_fmadd_ps(quadrant_f32x16, pi_half_f32x16, results_f32x16);
 
     // Transfer sign from x (XOR with sign bit of x_input)
-    __m512 xs_sign_bits_f32x16 = _mm512_and_ps(xs_inputs, _mm512_set1_ps(-0.0f));
-    results_f32x16 = _mm512_xor_ps(results_f32x16, xs_sign_bits_f32x16);
+    __m512 xs_sign_f32x16 = _mm512_and_ps(xs_inputs, _mm512_set1_ps(-0.0f));
+    results_f32x16 = _mm512_xor_ps(results_f32x16, xs_sign_f32x16);
 
     // Transfer sign from y (XOR with sign bit of y_input)
-    __m512 ys_sign_bits_f32x16 = _mm512_and_ps(ys_inputs, _mm512_set1_ps(-0.0f));
-    results_f32x16 = _mm512_xor_ps(results_f32x16, ys_sign_bits_f32x16);
+    __m512 ys_sign_f32x16 = _mm512_and_ps(ys_inputs, _mm512_set1_ps(-0.0f));
+    results_f32x16 = _mm512_xor_ps(results_f32x16, ys_sign_f32x16);
 
     return results_f32x16;
 }
 
-NK_PUBLIC void nk_each_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         __m512 angles_f32x16 = _mm512_loadu_ps(ins + i);
@@ -227,13 +228,13 @@ NK_PUBLIC void nk_each_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_
         _mm512_storeu_ps(outs + i, results_f32x16);
     }
     if (i < n) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n - i);
-        __m512 angles_f32x16 = _mm512_maskz_loadu_ps(mask, ins + i);
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n - i);
+        __m512 angles_f32x16 = _mm512_maskz_loadu_ps(mask_m16, ins + i);
         __m512 results_f32x16 = nk_sin_f32x16_skylake_(angles_f32x16);
-        _mm512_mask_storeu_ps(outs + i, mask, results_f32x16);
+        _mm512_mask_storeu_ps(outs + i, mask_m16, results_f32x16);
     }
 }
-NK_PUBLIC void nk_each_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         __m512 angles_f32x16 = _mm512_loadu_ps(ins + i);
@@ -241,13 +242,13 @@ NK_PUBLIC void nk_each_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_
         _mm512_storeu_ps(outs + i, results_f32x16);
     }
     if (i < n) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n - i);
-        __m512 angles_f32x16 = _mm512_maskz_loadu_ps(mask, ins + i);
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n - i);
+        __m512 angles_f32x16 = _mm512_maskz_loadu_ps(mask_m16, ins + i);
         __m512 results_f32x16 = nk_cos_f32x16_skylake_(angles_f32x16);
-        _mm512_mask_storeu_ps(outs + i, mask, results_f32x16);
+        _mm512_mask_storeu_ps(outs + i, mask_m16, results_f32x16);
     }
 }
-NK_PUBLIC void nk_each_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         __m512 angles_f32x16 = _mm512_loadu_ps(ins + i);
@@ -255,10 +256,10 @@ NK_PUBLIC void nk_each_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32
         _mm512_storeu_ps(outs + i, results_f32x16);
     }
     if (i < n) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n - i);
-        __m512 angles_f32x16 = _mm512_maskz_loadu_ps(mask, ins + i);
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n - i);
+        __m512 angles_f32x16 = _mm512_maskz_loadu_ps(mask_m16, ins + i);
         __m512 results_f32x16 = nk_atan_f32x16_skylake_(angles_f32x16);
-        _mm512_mask_storeu_ps(outs + i, mask, results_f32x16);
+        _mm512_mask_storeu_ps(outs + i, mask_m16, results_f32x16);
     }
 }
 
@@ -291,10 +292,10 @@ NK_INTERNAL __m512d nk_sin_f64x8_skylake_(__m512d const angles_radians) {
 
     // If rounded_quotients_f64x8 is odd (bit 0 set), negate the angle
     // Use explicit rounding to match roundscale (MXCSR-independent)
-    __mmask8 const sign_flip_mask = _mm256_test_epi32_mask(
+    __mmask8 const sign_flip_m8 = _mm256_test_epi32_mask(
         _mm512_cvt_roundpd_epi32(rounded_quotients_f64x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC),
         _mm256_set1_epi32(1));
-    angles_f64x8 = _mm512_mask_sub_pd(angles_f64x8, sign_flip_mask, _mm512_setzero_pd(), angles_f64x8);
+    angles_f64x8 = _mm512_mask_sub_pd(angles_f64x8, sign_flip_m8, _mm512_setzero_pd(), angles_f64x8);
 
     __m512d const angles_squared_f64x8 = _mm512_mul_pd(angles_f64x8, angles_f64x8);
     __m512d const angles_cubed_f64x8 = _mm512_mul_pd(angles_f64x8, angles_squared_f64x8);
@@ -317,8 +318,8 @@ NK_INTERNAL __m512d nk_sin_f64x8_skylake_(__m512d const angles_radians) {
     results_f64x8 = _mm512_fmadd_pd(results_f64x8, angles_cubed_f64x8, angles_f64x8);
 
     // Handle the special case of negative zero input
-    __mmask8 const non_zero_mask = _mm512_cmpneq_pd_mask(angles_radians, _mm512_setzero_pd());
-    results_f64x8 = _mm512_maskz_mov_pd(non_zero_mask, results_f64x8);
+    __mmask8 const non_zero_m8 = _mm512_cmpneq_pd_mask(angles_radians, _mm512_setzero_pd());
+    results_f64x8 = _mm512_maskz_mov_pd(non_zero_m8, results_f64x8);
     return results_f64x8;
 }
 
@@ -352,10 +353,10 @@ NK_INTERNAL __m512d nk_cos_f64x8_skylake_(__m512d const angles_radians) {
     angles_f64x8 = _mm512_fnmadd_pd(rounded_quotients_f64x8, pi_high_half_f64x8, angles_f64x8);
     angles_f64x8 = _mm512_fnmadd_pd(rounded_quotients_f64x8, pi_low_half_f64x8, angles_f64x8);
     // Use explicit rounding to match roundscale (MXCSR-independent)
-    __mmask8 const sign_flip_mask = _mm256_testn_epi32_mask(
+    __mmask8 const sign_flip_m8 = _mm256_testn_epi32_mask(
         _mm512_cvt_roundpd_epi32(rounded_quotients_f64x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC),
         _mm256_set1_epi32(2));
-    angles_f64x8 = _mm512_mask_sub_pd(angles_f64x8, sign_flip_mask, _mm512_setzero_pd(), angles_f64x8);
+    angles_f64x8 = _mm512_mask_sub_pd(angles_f64x8, sign_flip_m8, _mm512_setzero_pd(), angles_f64x8);
     __m512d const angles_squared_f64x8 = _mm512_mul_pd(angles_f64x8, angles_f64x8);
     __m512d const angles_cubed_f64x8 = _mm512_mul_pd(angles_f64x8, angles_squared_f64x8);
     __m512d const angles_quadratic_f64x8 = _mm512_mul_pd(angles_squared_f64x8, angles_squared_f64x8);
@@ -401,10 +402,10 @@ NK_INTERNAL __m512d nk_atan_f64x8_skylake_(__m512d const inputs) {
     __m512d const coeff_1_f64x8 = _mm512_set1_pd(-0.333333333333311110369124);
 
     // Quadrant adjustments
-    __mmask8 negative_mask = _mm512_cmp_pd_mask(inputs, _mm512_setzero_pd(), _CMP_LT_OS);
+    __mmask8 negative_m8 = _mm512_cmp_pd_mask(inputs, _mm512_setzero_pd(), _CMP_LT_OS);
     __m512d values_f64x8 = _mm512_abs_pd(inputs);
-    __mmask8 reciprocal_mask = _mm512_cmp_pd_mask(values_f64x8, _mm512_set1_pd(1.0), _CMP_GT_OS);
-    values_f64x8 = _mm512_mask_div_pd(values_f64x8, reciprocal_mask, _mm512_set1_pd(1.0), values_f64x8);
+    __mmask8 reciprocal_m8 = _mm512_cmp_pd_mask(values_f64x8, _mm512_set1_pd(1.0), _CMP_GT_OS);
+    values_f64x8 = _mm512_mask_div_pd(values_f64x8, reciprocal_m8, _mm512_set1_pd(1.0), values_f64x8);
     __m512d const values_squared_f64x8 = _mm512_mul_pd(values_f64x8, values_f64x8);
     __m512d const values_cubed_f64x8 = _mm512_mul_pd(values_f64x8, values_squared_f64x8);
 
@@ -431,8 +432,8 @@ NK_INTERNAL __m512d nk_atan_f64x8_skylake_(__m512d const inputs) {
 
     // Compute atan approximation
     __m512d result_f64x8 = _mm512_fmadd_pd(values_cubed_f64x8, polynomials_f64x8, values_f64x8);
-    result_f64x8 = _mm512_mask_sub_pd(result_f64x8, reciprocal_mask, _mm512_set1_pd(1.5707963267948966), result_f64x8);
-    result_f64x8 = _mm512_mask_sub_pd(result_f64x8, negative_mask, _mm512_setzero_pd(), result_f64x8);
+    result_f64x8 = _mm512_mask_sub_pd(result_f64x8, reciprocal_m8, _mm512_set1_pd(1.5707963267948966), result_f64x8);
+    result_f64x8 = _mm512_mask_sub_pd(result_f64x8, negative_m8, _mm512_setzero_pd(), result_f64x8);
     return result_f64x8;
 }
 
@@ -463,14 +464,14 @@ NK_INTERNAL __m512d nk_atan2_f64x8_skylake_(__m512d const ys_inputs, __m512d con
     __m512d const coeff_1_f64x8 = _mm512_set1_pd(-0.333333333333311110369124);
 
     // Quadrant adjustments normalizing to absolute values of x and y
-    __mmask8 const xs_negative_mask = _mm512_cmp_pd_mask(xs_inputs, _mm512_setzero_pd(), _CMP_LT_OS);
+    __mmask8 const xs_negative_m8 = _mm512_cmp_pd_mask(xs_inputs, _mm512_setzero_pd(), _CMP_LT_OS);
     __m512d xs_f64x8 = _mm512_abs_pd(xs_inputs);
     __m512d ys_f64x8 = _mm512_abs_pd(ys_inputs);
     // Ensure proper fraction where the numerator is smaller than the denominator
-    __mmask8 const swap_mask = _mm512_cmp_pd_mask(ys_f64x8, xs_f64x8, _CMP_GT_OS);
+    __mmask8 const swap_m8 = _mm512_cmp_pd_mask(ys_f64x8, xs_f64x8, _CMP_GT_OS);
     __m512d temps_f64x8 = xs_f64x8;
-    xs_f64x8 = _mm512_mask_blend_pd(swap_mask, xs_f64x8, ys_f64x8);
-    ys_f64x8 = _mm512_mask_sub_pd(ys_f64x8, swap_mask, _mm512_setzero_pd(), temps_f64x8);
+    xs_f64x8 = _mm512_mask_blend_pd(swap_m8, xs_f64x8, ys_f64x8);
+    ys_f64x8 = _mm512_mask_sub_pd(ys_f64x8, swap_m8, _mm512_setzero_pd(), temps_f64x8);
 
     // Compute ratio_f64x8 and ratio²
     __m512d const ratio_f64x8 = _mm512_div_pd(ys_f64x8, xs_f64x8);
@@ -504,9 +505,9 @@ NK_INTERNAL __m512d nk_atan2_f64x8_skylake_(__m512d const ys_inputs, __m512d con
     // Compute quadrant_f64x8 value: 0 for x>=0 && !swap, 1 for x>=0 && swap,
     //                        -2 for x<0 && !swap, -1 for x<0 && swap
     __m512d quadrant_f64x8 = _mm512_setzero_pd();
-    quadrant_f64x8 = _mm512_mask_blend_pd(xs_negative_mask, quadrant_f64x8, _mm512_set1_pd(-2.0));
+    quadrant_f64x8 = _mm512_mask_blend_pd(xs_negative_m8, quadrant_f64x8, _mm512_set1_pd(-2.0));
     __m512d quadrant_incremented_f64x8 = _mm512_add_pd(quadrant_f64x8, _mm512_set1_pd(1.0));
-    quadrant_f64x8 = _mm512_mask_blend_pd(swap_mask, quadrant_f64x8, quadrant_incremented_f64x8);
+    quadrant_f64x8 = _mm512_mask_blend_pd(swap_m8, quadrant_f64x8, quadrant_incremented_f64x8);
 
     // Adjust for quadrant_f64x8: result += quadrant_f64x8 * π/2
     results_f64x8 = _mm512_fmadd_pd(quadrant_f64x8, _mm512_set1_pd(1.5707963267948966), results_f64x8);
@@ -522,7 +523,7 @@ NK_INTERNAL __m512d nk_atan2_f64x8_skylake_(__m512d const ys_inputs, __m512d con
     return results_f64x8;
 }
 
-NK_PUBLIC void nk_each_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m512d angles_f64x8 = _mm512_loadu_pd(ins + i);
@@ -530,13 +531,13 @@ NK_PUBLIC void nk_each_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_
         _mm512_storeu_pd(outs + i, results_f64x8);
     }
     if (i < n) {
-        __mmask8 mask = (__mmask8)_bzhi_u32(0xFFFF, n - i);
-        __m512d angles_f64x8 = _mm512_maskz_loadu_pd(mask, ins + i);
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFFFF, n - i);
+        __m512d angles_f64x8 = _mm512_maskz_loadu_pd(mask_m8, ins + i);
         __m512d results_f64x8 = nk_sin_f64x8_skylake_(angles_f64x8);
-        _mm512_mask_storeu_pd(outs + i, mask, results_f64x8);
+        _mm512_mask_storeu_pd(outs + i, mask_m8, results_f64x8);
     }
 }
-NK_PUBLIC void nk_each_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m512d angles_f64x8 = _mm512_loadu_pd(ins + i);
@@ -544,13 +545,13 @@ NK_PUBLIC void nk_each_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_
         _mm512_storeu_pd(outs + i, results_f64x8);
     }
     if (i < n) {
-        __mmask8 mask = (__mmask8)_bzhi_u32(0xFFFF, n - i);
-        __m512d angles_f64x8 = _mm512_maskz_loadu_pd(mask, ins + i);
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFFFF, n - i);
+        __m512d angles_f64x8 = _mm512_maskz_loadu_pd(mask_m8, ins + i);
         __m512d results_f64x8 = nk_cos_f64x8_skylake_(angles_f64x8);
-        _mm512_mask_storeu_pd(outs + i, mask, results_f64x8);
+        _mm512_mask_storeu_pd(outs + i, mask_m8, results_f64x8);
     }
 }
-NK_PUBLIC void nk_each_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m512d angles_f64x8 = _mm512_loadu_pd(ins + i);
@@ -558,10 +559,10 @@ NK_PUBLIC void nk_each_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64
         _mm512_storeu_pd(outs + i, results_f64x8);
     }
     if (i < n) {
-        __mmask8 mask = (__mmask8)_bzhi_u32(0xFFFF, n - i);
-        __m512d angles_f64x8 = _mm512_maskz_loadu_pd(mask, ins + i);
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFFFF, n - i);
+        __m512d angles_f64x8 = _mm512_maskz_loadu_pd(mask_m8, ins + i);
         __m512d results_f64x8 = nk_atan_f64x8_skylake_(angles_f64x8);
-        _mm512_mask_storeu_pd(outs + i, mask, results_f64x8);
+        _mm512_mask_storeu_pd(outs + i, mask_m8, results_f64x8);
     }
 }
 
@@ -593,8 +594,8 @@ NK_INTERNAL __m256i nk_sin_f16x16_skylake_(__m256i angles_f16x16) {
     poly_f32x16 = _mm512_mul_ps(poly_f32x16, x2_f32x16);
     __m512 result_f32x16 = _mm512_fmadd_ps(poly_f32x16, angles_f32x16, angles_f32x16);
 
-    __mmask16 odd_mask = _mm512_test_epi32_mask(multiple_i32x16, _mm512_set1_epi32(1));
-    result_f32x16 = _mm512_mask_sub_ps(result_f32x16, odd_mask, _mm512_setzero_ps(), result_f32x16);
+    __mmask16 odd_m16 = _mm512_test_epi32_mask(multiple_i32x16, _mm512_set1_epi32(1));
+    result_f32x16 = _mm512_mask_sub_ps(result_f32x16, odd_m16, _mm512_setzero_ps(), result_f32x16);
     return _mm512_cvtps_ph(result_f32x16, _MM_FROUND_TO_NEAREST_INT);
 }
 
@@ -627,8 +628,8 @@ NK_INTERNAL __m256i nk_cos_f16x16_skylake_(__m256i angles_f16x16) {
     poly_f32x16 = _mm512_mul_ps(poly_f32x16, x2_f32x16);
     __m512 result_f32x16 = _mm512_fmadd_ps(poly_f32x16, angles_f32x16, angles_f32x16);
 
-    __mmask16 even_mask = _mm512_testn_epi32_mask(multiple_i32x16, _mm512_set1_epi32(1));
-    result_f32x16 = _mm512_mask_sub_ps(result_f32x16, even_mask, _mm512_setzero_ps(), result_f32x16);
+    __mmask16 even_m16 = _mm512_testn_epi32_mask(multiple_i32x16, _mm512_set1_epi32(1));
+    result_f32x16 = _mm512_mask_sub_ps(result_f32x16, even_m16, _mm512_setzero_ps(), result_f32x16);
     return _mm512_cvtps_ph(result_f32x16, _MM_FROUND_TO_NEAREST_INT);
 }
 
@@ -646,10 +647,10 @@ NK_INTERNAL __m256i nk_atan_f16x16_skylake_(__m256i values_f16x16) {
     __m512 pi_half_f32x16 = _mm512_set1_ps(1.5707963268f);
     __m512 one_f32x16 = _mm512_set1_ps(1.0f);
 
-    __mmask16 negative_mask = _mm512_cmp_ps_mask(values_f32x16, _mm512_setzero_ps(), _CMP_LT_OS);
+    __mmask16 negative_m16 = _mm512_cmp_ps_mask(values_f32x16, _mm512_setzero_ps(), _CMP_LT_OS);
     values_f32x16 = _mm512_abs_ps(values_f32x16);
-    __mmask16 reciprocal_mask = _mm512_cmp_ps_mask(values_f32x16, one_f32x16, _CMP_GT_OS);
-    values_f32x16 = _mm512_mask_div_ps(values_f32x16, reciprocal_mask, one_f32x16, values_f32x16);
+    __mmask16 reciprocal_m16 = _mm512_cmp_ps_mask(values_f32x16, one_f32x16, _CMP_GT_OS);
+    values_f32x16 = _mm512_mask_div_ps(values_f32x16, reciprocal_m16, one_f32x16, values_f32x16);
 
     __m512 x2_f32x16 = _mm512_mul_ps(values_f32x16, values_f32x16);
     __m512 x3_f32x16 = _mm512_mul_ps(values_f32x16, x2_f32x16);
@@ -660,12 +661,12 @@ NK_INTERNAL __m256i nk_atan_f16x16_skylake_(__m256i values_f16x16) {
     poly_f32x16 = _mm512_fmadd_ps(poly_f32x16, x2_f32x16, c3_f32x16);
 
     __m512 result_f32x16 = _mm512_fmadd_ps(x3_f32x16, poly_f32x16, values_f32x16);
-    result_f32x16 = _mm512_mask_sub_ps(result_f32x16, reciprocal_mask, pi_half_f32x16, result_f32x16);
-    result_f32x16 = _mm512_mask_sub_ps(result_f32x16, negative_mask, _mm512_setzero_ps(), result_f32x16);
+    result_f32x16 = _mm512_mask_sub_ps(result_f32x16, reciprocal_m16, pi_half_f32x16, result_f32x16);
+    result_f32x16 = _mm512_mask_sub_ps(result_f32x16, negative_m16, _mm512_setzero_ps(), result_f32x16);
     return _mm512_cvtps_ph(result_f32x16, _MM_FROUND_TO_NEAREST_INT);
 }
 
-NK_PUBLIC void nk_each_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NK_PUBLIC void nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         __m256i angles_f16x16 = _mm256_loadu_si256((__m256i const *)(ins + i));
@@ -673,14 +674,14 @@ NK_PUBLIC void nk_each_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_
         _mm256_storeu_si256((__m256i *)(outs + i), result_f16x16);
     }
     if (i < n) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n - i);
-        __m256i angles_f16x16 = _mm256_maskz_loadu_epi16(mask, ins + i);
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n - i);
+        __m256i angles_f16x16 = _mm256_maskz_loadu_epi16(mask_m16, ins + i);
         __m256i result_f16x16 = nk_sin_f16x16_skylake_(angles_f16x16);
-        _mm256_mask_storeu_epi16(outs + i, mask, result_f16x16);
+        _mm256_mask_storeu_epi16(outs + i, mask_m16, result_f16x16);
     }
 }
 
-NK_PUBLIC void nk_each_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NK_PUBLIC void nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         __m256i angles_f16x16 = _mm256_loadu_si256((__m256i const *)(ins + i));
@@ -688,14 +689,14 @@ NK_PUBLIC void nk_each_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_
         _mm256_storeu_si256((__m256i *)(outs + i), result_f16x16);
     }
     if (i < n) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n - i);
-        __m256i angles_f16x16 = _mm256_maskz_loadu_epi16(mask, ins + i);
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n - i);
+        __m256i angles_f16x16 = _mm256_maskz_loadu_epi16(mask_m16, ins + i);
         __m256i result_f16x16 = nk_cos_f16x16_skylake_(angles_f16x16);
-        _mm256_mask_storeu_epi16(outs + i, mask, result_f16x16);
+        _mm256_mask_storeu_epi16(outs + i, mask_m16, result_f16x16);
     }
 }
 
-NK_PUBLIC void nk_each_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NK_PUBLIC void nk_trig_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         __m256i values_f16x16 = _mm256_loadu_si256((__m256i const *)(ins + i));
@@ -703,10 +704,146 @@ NK_PUBLIC void nk_each_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16
         _mm256_storeu_si256((__m256i *)(outs + i), result_f16x16);
     }
     if (i < n) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n - i);
-        __m256i values_f16x16 = _mm256_maskz_loadu_epi16(mask, ins + i);
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n - i);
+        __m256i values_f16x16 = _mm256_maskz_loadu_epi16(mask_m16, ins + i);
         __m256i result_f16x16 = nk_atan_f16x16_skylake_(values_f16x16);
-        _mm256_mask_storeu_epi16(outs + i, mask, result_f16x16);
+        _mm256_mask_storeu_epi16(outs + i, mask_m16, result_f16x16);
+    }
+}
+
+NK_PUBLIC void nk_trig_rope_f32_skylake(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
+                                        nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
+                                        nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) {
+    __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *cos_row = cos + r * half_dim;
+        nk_f32_t const *sin_row = sin + r * half_dim;
+        nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_row_stride);
+        nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + r * y_row_stride);
+        for (nk_size_t h = 0; h != heads; ++h) {
+            nk_f32_t const *x_base = x_row + h * 2 * half_dim;
+            nk_f32_t *y_base = y_row + h * 2 * half_dim;
+            nk_size_t i = 0;
+            for (; i + 16 <= half_dim; i += 16) {
+                __m512 low_f32x16 = _mm512_mul_ps(_mm512_loadu_ps(x_base + i), scale_f32x16);
+                __m512 high_f32x16 = _mm512_mul_ps(_mm512_loadu_ps(x_base + i + half_dim), scale_f32x16);
+                __m512 cos_f32x16 = _mm512_loadu_ps(cos_row + i), sin_f32x16 = _mm512_loadu_ps(sin_row + i);
+                _mm512_storeu_ps(y_base + i,
+                                 _mm512_fmsub_ps(low_f32x16, cos_f32x16, _mm512_mul_ps(high_f32x16, sin_f32x16)));
+                _mm512_storeu_ps(y_base + i + half_dim,
+                                 _mm512_fmadd_ps(low_f32x16, sin_f32x16, _mm512_mul_ps(high_f32x16, cos_f32x16)));
+            }
+            if (i < half_dim) {
+                __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)(half_dim - i));
+                __m512 low_f32x16 = _mm512_mul_ps(_mm512_maskz_loadu_ps(mask_m16, x_base + i), scale_f32x16);
+                __m512 high_f32x16 = _mm512_mul_ps(_mm512_maskz_loadu_ps(mask_m16, x_base + i + half_dim),
+                                                   scale_f32x16);
+                __m512 cos_f32x16 = _mm512_maskz_loadu_ps(mask_m16, cos_row + i);
+                __m512 sin_f32x16 = _mm512_maskz_loadu_ps(mask_m16, sin_row + i);
+                _mm512_mask_storeu_ps(y_base + i, mask_m16,
+                                      _mm512_fmsub_ps(low_f32x16, cos_f32x16, _mm512_mul_ps(high_f32x16, sin_f32x16)));
+                _mm512_mask_storeu_ps(y_base + i + half_dim, mask_m16,
+                                      _mm512_fmadd_ps(low_f32x16, sin_f32x16, _mm512_mul_ps(high_f32x16, cos_f32x16)));
+            }
+        }
+    }
+}
+
+NK_PUBLIC void nk_trig_rope_bf16_skylake(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
+                                         nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                         nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                         nk_f32_t input_scale) {
+    __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *cos_row = cos + r * half_dim;
+        nk_f32_t const *sin_row = sin + r * half_dim;
+        nk_bf16_t const *x_row = (nk_bf16_t const *)((unsigned char const *)x + r * x_row_stride);
+        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + r * y_row_stride);
+        for (nk_size_t h = 0; h != heads; ++h) {
+            nk_bf16_t const *x_base = x_row + h * 2 * half_dim;
+            nk_bf16_t *y_base = y_row + h * 2 * half_dim;
+            nk_size_t i = 0;
+            for (; i + 16 <= half_dim; i += 16) {
+                nk_b512_vec_t low_vec, high_vec;
+                nk_load_bf16x16_to_f32x16_skylake_(x_base + i, &low_vec);
+                nk_load_bf16x16_to_f32x16_skylake_(x_base + i + half_dim, &high_vec);
+                __m512 low_f32x16 = _mm512_mul_ps(low_vec.zmm_ps, scale_f32x16);
+                __m512 high_f32x16 = _mm512_mul_ps(high_vec.zmm_ps, scale_f32x16);
+                __m512 cos_f32x16 = _mm512_loadu_ps(cos_row + i), sin_f32x16 = _mm512_loadu_ps(sin_row + i);
+                _mm256_storeu_si256((__m256i *)(y_base + i),
+                                    nk_f32x16_to_bf16x16_skylake_(_mm512_fmsub_ps(
+                                        low_f32x16, cos_f32x16, _mm512_mul_ps(high_f32x16, sin_f32x16))));
+                _mm256_storeu_si256((__m256i *)(y_base + i + half_dim),
+                                    nk_f32x16_to_bf16x16_skylake_(_mm512_fmadd_ps(
+                                        low_f32x16, sin_f32x16, _mm512_mul_ps(high_f32x16, cos_f32x16))));
+            }
+            if (i < half_dim) {
+                nk_size_t remaining = half_dim - i;
+                __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)remaining);
+                nk_b512_vec_t low_vec, high_vec;
+                nk_partial_load_bf16x16_to_f32x16_skylake_(x_base + i, &low_vec, remaining);
+                nk_partial_load_bf16x16_to_f32x16_skylake_(x_base + i + half_dim, &high_vec, remaining);
+                __m512 low_f32x16 = _mm512_mul_ps(low_vec.zmm_ps, scale_f32x16);
+                __m512 high_f32x16 = _mm512_mul_ps(high_vec.zmm_ps, scale_f32x16);
+                __m512 cos_f32x16 = _mm512_maskz_loadu_ps(mask_m16, cos_row + i);
+                __m512 sin_f32x16 = _mm512_maskz_loadu_ps(mask_m16, sin_row + i);
+                _mm256_mask_storeu_epi16((void *)(y_base + i), mask_m16,
+                                         nk_f32x16_to_bf16x16_skylake_(_mm512_fmsub_ps(
+                                             low_f32x16, cos_f32x16, _mm512_mul_ps(high_f32x16, sin_f32x16))));
+                _mm256_mask_storeu_epi16((void *)(y_base + i + half_dim), mask_m16,
+                                         nk_f32x16_to_bf16x16_skylake_(_mm512_fmadd_ps(
+                                             low_f32x16, sin_f32x16, _mm512_mul_ps(high_f32x16, cos_f32x16))));
+            }
+        }
+    }
+}
+
+NK_PUBLIC void nk_trig_rope_e4m3_skylake(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
+                                         nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                         nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                         nk_f32_t input_scale) {
+    __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *cos_row = cos + r * half_dim;
+        nk_f32_t const *sin_row = sin + r * half_dim;
+        nk_e4m3_t const *x_row = (nk_e4m3_t const *)((unsigned char const *)x + r * x_row_stride);
+        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + r * y_row_stride);
+        for (nk_size_t h = 0; h != heads; ++h) {
+            nk_e4m3_t const *x_base = x_row + h * 2 * half_dim;
+            nk_e4m3_t *y_base = y_row + h * 2 * half_dim;
+            nk_size_t i = 0;
+            for (; i + 16 <= half_dim; i += 16) {
+                nk_b512_vec_t low_vec, high_vec;
+                nk_load_e4m3x16_to_f32x16_skylake_(x_base + i, &low_vec);
+                nk_load_e4m3x16_to_f32x16_skylake_(x_base + i + half_dim, &high_vec);
+                __m512 low_f32x16 = _mm512_mul_ps(low_vec.zmm_ps, scale_f32x16);
+                __m512 high_f32x16 = _mm512_mul_ps(high_vec.zmm_ps, scale_f32x16);
+                __m512 cos_f32x16 = _mm512_loadu_ps(cos_row + i), sin_f32x16 = _mm512_loadu_ps(sin_row + i);
+                _mm_storeu_si128((__m128i *)(y_base + i),
+                                 nk_f32x16_to_e4m3x16_skylake_(
+                                     _mm512_fmsub_ps(low_f32x16, cos_f32x16, _mm512_mul_ps(high_f32x16, sin_f32x16))));
+                _mm_storeu_si128((__m128i *)(y_base + i + half_dim),
+                                 nk_f32x16_to_e4m3x16_skylake_(
+                                     _mm512_fmadd_ps(low_f32x16, sin_f32x16, _mm512_mul_ps(high_f32x16, cos_f32x16))));
+            }
+            if (i < half_dim) {
+                nk_size_t remaining = half_dim - i;
+                __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)remaining);
+                nk_b512_vec_t low_vec, high_vec;
+                nk_partial_load_e4m3x16_to_f32x16_skylake_(x_base + i, &low_vec, remaining);
+                nk_partial_load_e4m3x16_to_f32x16_skylake_(x_base + i + half_dim, &high_vec, remaining);
+                __m512 low_f32x16 = _mm512_mul_ps(low_vec.zmm_ps, scale_f32x16);
+                __m512 high_f32x16 = _mm512_mul_ps(high_vec.zmm_ps, scale_f32x16);
+                __m512 cos_f32x16 = _mm512_maskz_loadu_ps(mask_m16, cos_row + i);
+                __m512 sin_f32x16 = _mm512_maskz_loadu_ps(mask_m16, sin_row + i);
+                _mm_mask_storeu_epi8((void *)(y_base + i), mask_m16,
+                                     nk_f32x16_to_e4m3x16_skylake_(_mm512_fmsub_ps(
+                                         low_f32x16, cos_f32x16, _mm512_mul_ps(high_f32x16, sin_f32x16))));
+                _mm_mask_storeu_epi8((void *)(y_base + i + half_dim), mask_m16,
+                                     nk_f32x16_to_e4m3x16_skylake_(_mm512_fmadd_ps(
+                                         low_f32x16, sin_f32x16, _mm512_mul_ps(high_f32x16, cos_f32x16))));
+            }
+        }
     }
 }
 

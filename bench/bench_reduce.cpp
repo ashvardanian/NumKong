@@ -50,6 +50,43 @@ void run_reduce_moments(std::string name, kernel_type_ *kernel) {
 }
 
 /**
+ *  @brief Measures the performance of a grouped RMSNorm kernel (single row, single group).
+ */
+template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
+void measure_rmsnorm(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
+    using input_t = typename nk::type_for<input_dtype_>::type;
+    // Each set holds two buffers (input + output), so size the ring against 2x the per-vector bytes.
+    std::size_t const vectors_count = bench_input_count(bench_dtype_bytes(input_dtype_, 2 * dimensions));
+    std::vector<nk::vector<input_t>> inputs(vectors_count), outputs(vectors_count);
+    auto generator = make_random_engine();
+    for (std::size_t i = 0; i < vectors_count; ++i) {
+        inputs[i] = make_vector<input_t>(dimensions);
+        outputs[i] = make_vector<input_t>(dimensions);
+        nk::fill_uniform(generator, inputs[i].values_data(), inputs[i].size_values());
+    }
+    std::vector<nk_f32_t> gamma(dimensions, 1.0f);
+    std::size_t const stride = dimensions * sizeof(typename input_t::raw_t);
+
+    std::size_t iterations = 0;
+    for (auto _ : state) {
+        std::size_t const index = iterations & (vectors_count - 1);
+        kernel(inputs[index].raw_values_data(), gamma.data(), outputs[index].raw_values_data(), 1, 1, dimensions,
+               stride, stride, 1e-6f, 1.0f);
+        bm::ClobberMemory();
+        ++iterations;
+    }
+    state.counters["bytes"] = bm::Counter(1.0 * iterations * inputs[0].size_bytes(), bm::Counter::kIsRate);
+    state.counters["calls"] = bm::Counter(iterations, bm::Counter::kIsRate);
+}
+
+template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
+void run_reduce_rmsnorm(std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(bench_config.dense_dimensions) + "d>";
+    bm::RegisterBenchmark(bench_name.c_str(), measure_rmsnorm<input_dtype_, kernel_type_ *>, kernel,
+                          bench_config.dense_dimensions);
+}
+
+/**
  *  @brief Measures the performance of a reduce_minmax kernel (min + max with indices).
  */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
@@ -176,6 +213,9 @@ void bench_reduce() {
     run_reduce_moments<u4_k>("reduce_moments_u4_haswell", nk_reduce_moments_u4_haswell);
     run_reduce_moments<u1_k>("reduce_moments_u1_haswell", nk_reduce_moments_u1_haswell);
     run_reduce_moments<bf16_k>("reduce_moments_bf16_haswell", nk_reduce_moments_bf16_haswell);
+    run_reduce_rmsnorm<f32_k>("reduce_rmsnorm_f32_haswell", nk_reduce_rmsnorm_f32_haswell);
+    run_reduce_rmsnorm<bf16_k>("reduce_rmsnorm_bf16_haswell", nk_reduce_rmsnorm_bf16_haswell);
+    run_reduce_rmsnorm<e4m3_k>("reduce_rmsnorm_e4m3_haswell", nk_reduce_rmsnorm_e4m3_haswell);
     run_reduce_moments<f16_k>("reduce_moments_f16_haswell", nk_reduce_moments_f16_haswell);
     run_reduce_minmax<f32_k>("reduce_minmax_f32_haswell", nk_reduce_minmax_f32_haswell);
     run_reduce_minmax<f64_k>("reduce_minmax_f64_haswell", nk_reduce_minmax_f64_haswell);
@@ -228,6 +268,9 @@ void bench_reduce() {
     run_reduce_minmax<e2m3_k>("reduce_minmax_e2m3_skylake", nk_reduce_minmax_e2m3_skylake);
     run_reduce_minmax<e3m2_k>("reduce_minmax_e3m2_skylake", nk_reduce_minmax_e3m2_skylake);
     run_reduce_moments<bf16_k>("reduce_moments_bf16_skylake", nk_reduce_moments_bf16_skylake);
+    run_reduce_rmsnorm<f32_k>("reduce_rmsnorm_f32_skylake", nk_reduce_rmsnorm_f32_skylake);
+    run_reduce_rmsnorm<bf16_k>("reduce_rmsnorm_bf16_skylake", nk_reduce_rmsnorm_bf16_skylake);
+    run_reduce_rmsnorm<e4m3_k>("reduce_rmsnorm_e4m3_skylake", nk_reduce_rmsnorm_e4m3_skylake);
     run_reduce_minmax<bf16_k>("reduce_minmax_bf16_skylake", nk_reduce_minmax_bf16_skylake);
     run_reduce_moments<f16_k>("reduce_moments_f16_skylake", nk_reduce_moments_f16_skylake);
     run_reduce_minmax<f16_k>("reduce_minmax_f16_skylake", nk_reduce_minmax_f16_skylake);
@@ -243,6 +286,8 @@ void bench_reduce() {
 
 #if NK_TARGET_GENOA
     run_reduce_moments<bf16_k>("reduce_moments_bf16_genoa", nk_reduce_moments_bf16_genoa);
+    run_reduce_rmsnorm<bf16_k>("reduce_rmsnorm_bf16_genoa", nk_reduce_rmsnorm_bf16_genoa);
+    run_reduce_rmsnorm<e4m3_k>("reduce_rmsnorm_e4m3_genoa", nk_reduce_rmsnorm_e4m3_genoa);
     run_reduce_moments<e4m3_k>("reduce_moments_e4m3_genoa", nk_reduce_moments_e4m3_genoa);
     run_reduce_moments<e5m2_k>("reduce_moments_e5m2_genoa", nk_reduce_moments_e5m2_genoa);
 #endif
@@ -342,6 +387,9 @@ void bench_reduce() {
     run_reduce_moments<u64_k>("reduce_moments_u64_serial", nk_reduce_moments_u64_serial);
     run_reduce_moments<f16_k>("reduce_moments_f16_serial", nk_reduce_moments_f16_serial);
     run_reduce_moments<bf16_k>("reduce_moments_bf16_serial", nk_reduce_moments_bf16_serial);
+    run_reduce_rmsnorm<f32_k>("reduce_rmsnorm_f32_serial", nk_reduce_rmsnorm_f32_serial);
+    run_reduce_rmsnorm<bf16_k>("reduce_rmsnorm_bf16_serial", nk_reduce_rmsnorm_bf16_serial);
+    run_reduce_rmsnorm<e4m3_k>("reduce_rmsnorm_e4m3_serial", nk_reduce_rmsnorm_e4m3_serial);
     run_reduce_moments<e4m3_k>("reduce_moments_e4m3_serial", nk_reduce_moments_e4m3_serial);
     run_reduce_moments<e5m2_k>("reduce_moments_e5m2_serial", nk_reduce_moments_e5m2_serial);
     run_reduce_moments<e2m3_k>("reduce_moments_e2m3_serial", nk_reduce_moments_e2m3_serial);

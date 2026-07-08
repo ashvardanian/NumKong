@@ -1,4 +1,4 @@
-//! Elementwise operations and trigonometry — slice traits and tensor-shaped wrappers.
+//! Elementwise operations — slice traits and tensor-shaped wrappers.
 //!
 //! This module provides:
 //!
@@ -7,11 +7,8 @@
 //!   - [`EachSum`]: Elementwise addition of two vectors
 //!   - [`EachBlend`]: Weighted blend of two vectors
 //!   - [`EachFMA`]: Fused multiply-add (a * alpha + b * beta)
-//!   - [`EachSin`], [`EachCos`], [`EachATan`]: Trigonometric functions
-//!   - [`Trigonometry`]: Blanket trait combining `EachSin + EachCos + EachATan`
 //! - Tensor-shaped extension traits (auto-implemented on every [`crate::tensor::TensorRef`]):
 //!   - [`ScaleOps`], [`SumOps`], [`BlendOps`], [`FmaOps`]: Tensor wrappers around the slice traits
-//!   - [`TrigSinOps`], [`TrigCosOps`], [`TrigAtanOps`]: Tensor wrappers around the trig traits
 //!   - [`AllCloseOps`]: Tolerance-based equality for any [`crate::tensor::TensorRef`]
 //!
 //! # In-Place vs Allocating Semantics
@@ -48,22 +45,11 @@
 //! assert_eq!(output, [2.5, 4.5, 6.5, 8.5]);
 //! ```
 
-use crate::tensor::{try_reborrow_tensor_into, Global, Tensor, TensorError, TensorRef};
+use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef};
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
 
 #[link(name = "numkong")]
 extern "C" {
-    // Trigonometry
-    fn nk_each_sin_f32(inputs: *const f32, n: usize, outputs: *mut f32);
-    fn nk_each_sin_f64(inputs: *const f64, n: usize, outputs: *mut f64);
-    fn nk_each_sin_f16(inputs: *const u16, n: usize, outputs: *mut u16);
-    fn nk_each_cos_f32(inputs: *const f32, n: usize, outputs: *mut f32);
-    fn nk_each_cos_f64(inputs: *const f64, n: usize, outputs: *mut f64);
-    fn nk_each_cos_f16(inputs: *const u16, n: usize, outputs: *mut u16);
-    fn nk_each_atan_f32(inputs: *const f32, n: usize, outputs: *mut f32);
-    fn nk_each_atan_f64(inputs: *const f64, n: usize, outputs: *mut f64);
-    fn nk_each_atan_f16(inputs: *const u16, n: usize, outputs: *mut u16);
-
     // Elementwise operations
     fn nk_each_scale_f64(a: *const f64, n: usize, alpha: *const f64, beta: *const f64, result: *mut f64);
     fn nk_each_scale_f32(a: *const f32, n: usize, alpha: *const f32, beta: *const f32, result: *mut f32);
@@ -307,6 +293,39 @@ extern "C" {
         beta: *const f64,
         result: *mut f64,
     );
+    fn nk_each_swiglu_f32(
+        gate: *const f32,
+        up: *const f32,
+        y: *mut f32,
+        rows: usize,
+        cols: usize,
+        gate_row_stride: usize,
+        up_row_stride: usize,
+        y_row_stride: usize,
+        input_scale: f32,
+    );
+    fn nk_each_swiglu_bf16(
+        gate: *const u16,
+        up: *const u16,
+        y: *mut u16,
+        rows: usize,
+        cols: usize,
+        gate_row_stride: usize,
+        up_row_stride: usize,
+        y_row_stride: usize,
+        input_scale: f32,
+    );
+    fn nk_each_swiglu_e4m3(
+        gate: *const u8,
+        up: *const u8,
+        y: *mut u8,
+        rows: usize,
+        cols: usize,
+        gate_row_stride: usize,
+        up_row_stride: usize,
+        y_row_stride: usize,
+        input_scale: f32,
+    );
 }
 
 // Complex fallback helpers
@@ -440,222 +459,6 @@ where
     }
     Some(())
 }
-
-// region: EachSin
-
-/// Computes **element-wise sine** of a vector.
-pub trait EachSin: Sized + StorageElement {
-    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
-
-    /// In-place sine: `data[i] = sin(data[i])`.
-    ///
-    /// Both source and destination pointers are derived from the single `&mut`,
-    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
-    fn sin_inplace(data: &mut [Self]) -> Option<()>;
-}
-
-impl EachSin for f64 {
-    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe { nk_each_sin_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
-        Some(())
-    }
-
-    fn sin_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_sin_f64(p as *const f64, len, p) };
-        Some(())
-    }
-}
-
-impl EachSin for f32 {
-    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe { nk_each_sin_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
-        Some(())
-    }
-
-    fn sin_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_sin_f32(p as *const f32, len, p) };
-        Some(())
-    }
-}
-
-impl EachSin for f16 {
-    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe {
-            nk_each_sin_f16(
-                inputs.as_ptr() as *const u16,
-                inputs.len(),
-                outputs.as_mut_ptr() as *mut u16,
-            )
-        };
-        Some(())
-    }
-
-    fn sin_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_sin_f16(p as *const u16, len, p as *mut u16) };
-        Some(())
-    }
-}
-
-// endregion: EachSin
-
-// region: EachCos
-
-/// Computes **element-wise cosine** of a vector.
-pub trait EachCos: Sized + StorageElement {
-    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
-
-    /// In-place cosine: `data[i] = cos(data[i])`.
-    ///
-    /// Both source and destination pointers are derived from the single `&mut`,
-    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
-    fn cos_inplace(data: &mut [Self]) -> Option<()>;
-}
-
-impl EachCos for f64 {
-    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe { nk_each_cos_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
-        Some(())
-    }
-
-    fn cos_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_cos_f64(p as *const f64, len, p) };
-        Some(())
-    }
-}
-
-impl EachCos for f32 {
-    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe { nk_each_cos_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
-        Some(())
-    }
-
-    fn cos_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_cos_f32(p as *const f32, len, p) };
-        Some(())
-    }
-}
-
-impl EachCos for f16 {
-    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe {
-            nk_each_cos_f16(
-                inputs.as_ptr() as *const u16,
-                inputs.len(),
-                outputs.as_mut_ptr() as *mut u16,
-            )
-        };
-        Some(())
-    }
-
-    fn cos_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_cos_f16(p as *const u16, len, p as *mut u16) };
-        Some(())
-    }
-}
-
-// endregion: EachCos
-
-// region: EachATan
-
-/// Computes **element-wise arctangent** of a vector.
-pub trait EachATan: Sized + StorageElement {
-    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
-
-    /// In-place arctangent: `data[i] = atan(data[i])`.
-    ///
-    /// Both source and destination pointers are derived from the single `&mut`,
-    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
-    fn atan_inplace(data: &mut [Self]) -> Option<()>;
-}
-
-impl EachATan for f64 {
-    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe { nk_each_atan_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
-        Some(())
-    }
-
-    fn atan_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_atan_f64(p as *const f64, len, p) };
-        Some(())
-    }
-}
-
-impl EachATan for f32 {
-    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe { nk_each_atan_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
-        Some(())
-    }
-
-    fn atan_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_atan_f32(p as *const f32, len, p) };
-        Some(())
-    }
-}
-
-impl EachATan for f16 {
-    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()> {
-        if inputs.len() != outputs.len() {
-            return None;
-        }
-        unsafe {
-            nk_each_atan_f16(
-                inputs.as_ptr() as *const u16,
-                inputs.len(),
-                outputs.as_mut_ptr() as *mut u16,
-            )
-        };
-        Some(())
-    }
-
-    fn atan_inplace(data: &mut [Self]) -> Option<()> {
-        let len = data.len();
-        let p = data.as_mut_ptr();
-        unsafe { nk_each_atan_f16(p as *const u16, len, p as *mut u16) };
-        Some(())
-    }
-}
-
-// endregion: EachATan
 
 // region: Scale
 
@@ -1561,7 +1364,7 @@ impl EachSum for bf16c {
 
 // endregion: Sum
 
-// region: WSum
+// region: Blend
 
 /// Applies **element-wise weighted sum** (blend) of two vectors.
 ///
@@ -2127,7 +1930,7 @@ impl EachBlend for bf16c {
     }
 }
 
-// endregion: WSum
+// endregion: Blend
 
 // region: FMA
 
@@ -2850,75 +2653,7 @@ impl EachFMA for bf16c {
 
 // endregion: FMA
 
-/// `Trigonometry` bundles trigonometric functions: EachSin, EachCos, and EachATan.
-pub trait Trigonometry: EachSin + EachCos + EachATan {}
-impl<Scalar: EachSin + EachCos + EachATan> Trigonometry for Scalar {}
-
-// region: Tensor-shaped trigonometry (moved from crate::tensor)
-
-/// Extension trait: element-wise sine for any [`TensorRef`] implementor.
-pub trait TrigSinOps<Scalar: Clone + EachSin, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn try_sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_sin() }
-}
-
-impl<Scalar: Clone + EachSin, const R: usize, C: TensorRef<Scalar, R>> TrigSinOps<Scalar, R> for C {}
-
-/// Extension trait: element-wise cosine for any [`TensorRef`] implementor.
-pub trait TrigCosOps<Scalar: Clone + EachCos, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn try_cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_cos() }
-}
-
-impl<Scalar: Clone + EachCos, const R: usize, C: TensorRef<Scalar, R>> TrigCosOps<Scalar, R> for C {}
-
-/// Extension trait: element-wise arctangent for any [`TensorRef`] implementor.
-pub trait TrigAtanOps<Scalar: Clone + EachATan, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn try_atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_atan() }
-}
-
-impl<Scalar: Clone + EachATan, const R: usize, C: TensorRef<Scalar, R>> TrigAtanOps<Scalar, R> for C {}
-
-impl<Scalar: Clone + EachSin, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise sine: result\[i\] = sin(self\[i\])
-    pub fn sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_sin() }
-
-    /// Element-wise sine in-place (infallible — self vs self always matches).
-    pub fn sin_inplace(&mut self) { self.span().sin_inplace(); }
-
-    pub fn try_sin_inplace(&mut self) -> Result<(), TensorError> {
-        self.sin_inplace();
-        Ok(())
-    }
-}
-
-impl<Scalar: Clone + EachCos, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise cosine: result\[i\] = cos(self\[i\])
-    pub fn cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_cos() }
-
-    /// Element-wise cosine in-place (infallible — self vs self always matches).
-    pub fn cos_inplace(&mut self) { self.span().cos_inplace(); }
-
-    pub fn try_cos_inplace(&mut self) -> Result<(), TensorError> {
-        self.cos_inplace();
-        Ok(())
-    }
-}
-
-impl<Scalar: Clone + EachATan, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise arctangent: result\[i\] = atan(self\[i\])
-    pub fn atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_atan() }
-
-    /// Element-wise arctangent in-place (infallible — self vs self always matches).
-    pub fn atan_inplace(&mut self) { self.span().atan_inplace(); }
-
-    pub fn try_atan_inplace(&mut self) -> Result<(), TensorError> {
-        self.atan_inplace();
-        Ok(())
-    }
-}
-
-// endregion: Tensor-shaped trigonometry
-
-// region: Tensor-shaped tolerance equality (moved from crate::tensor)
+// region: Tensor-shaped tolerance equality
 
 use crate::types::{is_close, FloatConvertible, NumberLike};
 
@@ -2951,7 +2686,7 @@ where
 
 // endregion: Tensor-shaped tolerance equality
 
-// region: Tensor-shaped scale / sum / blend / fma (moved from crate::tensor)
+// region: Tensor-shaped scale / sum / blend / fma
 
 /// Extension trait: scalar arithmetic for any [`TensorRef`] implementor.
 pub trait ScaleOps<Scalar: Clone + EachScale, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
@@ -2969,9 +2704,42 @@ where
     fn try_mul_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         self.view().try_mul_scalar(scalar)
     }
+
+    fn try_scale_tensor_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+        &self,
+        alpha: Scalar::Scalar,
+        beta: Scalar::Scalar,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError> {
+        self.view().try_scale_tensor_into(alpha, beta, out)
+    }
+
+    fn try_add_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+        &self,
+        scalar: Scalar::Scalar,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError> {
+        self.view().try_add_scalar_into(scalar, out)
+    }
+
+    fn try_sub_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+        &self,
+        scalar: Scalar::Scalar,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError> {
+        self.view().try_sub_scalar_into(scalar, out)
+    }
+
+    fn try_mul_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+        &self,
+        scalar: Scalar::Scalar,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError> {
+        self.view().try_mul_scalar_into(scalar, out)
+    }
 }
 
-impl<Scalar: Clone + EachScale, const R: usize, C: TensorRef<Scalar, R>> ScaleOps<Scalar, R> for C where
+impl<Scalar: Clone + EachScale, const R: usize, C: TensorRef<Scalar, R> + ?Sized> ScaleOps<Scalar, R> for C where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy
 {
 }
@@ -2980,45 +2748,6 @@ impl<Scalar: Clone + EachScale, const MAX_RANK: usize> Tensor<Scalar, Global, MA
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
-    pub fn try_add_scalar_into(
-        &self,
-        scalar: Scalar::Scalar,
-        out: &mut Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_add_scalar_into(scalar, span))
-    }
-
-    pub fn try_sub_scalar_into(
-        &self,
-        scalar: Scalar::Scalar,
-        out: &mut Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_sub_scalar_into(scalar, span))
-    }
-
-    pub fn try_mul_scalar_into(
-        &self,
-        scalar: Scalar::Scalar,
-        out: &mut Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_mul_scalar_into(scalar, span))
-    }
-
-    pub fn try_add_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
-        self.add_scalar_inplace(scalar);
-        Ok(())
-    }
-
-    pub fn try_sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
-        self.sub_scalar_inplace(scalar);
-        Ok(())
-    }
-
-    pub fn try_mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
-        self.mul_scalar_inplace(scalar);
-        Ok(())
-    }
-
     /// Element-wise add scalar in-place (infallible — self vs self always matches).
     pub fn add_scalar_inplace(&mut self, scalar: Scalar::Scalar) { self.span().add_scalar_inplace(scalar); }
 
@@ -3061,19 +2790,23 @@ pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>: TensorRef<Scal
     ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         self.view().try_add_tensor(&other.view())
     }
+
+    fn try_add_tensor_into<OtherTensor, OutputTensor>(
+        &self,
+        other: &OtherTensor,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError>
+    where
+        OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
+    {
+        self.view().try_add_tensor_into(&other.view(), out)
+    }
 }
 
-impl<Scalar: Clone + EachSum, const R: usize, C: TensorRef<Scalar, R>> SumOps<Scalar, R> for C {}
+impl<Scalar: Clone + EachSum, const R: usize, C: TensorRef<Scalar, R> + ?Sized> SumOps<Scalar, R> for C {}
 
 impl<Scalar: Clone + EachSum, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    pub fn try_add_tensor_into(
-        &self,
-        other: &Tensor<Scalar, Global, MAX_RANK>,
-        out: &mut Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_add_tensor_into(&other.view(), span))
-    }
-
     pub fn try_add_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().add_inplace(&other_view)
@@ -3091,9 +2824,35 @@ where
     ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         self.view().try_sub_tensor(&other.view())
     }
+
+    fn try_blend_tensor_into<OtherTensor, OutputTensor>(
+        &self,
+        other: &OtherTensor,
+        alpha: Scalar::Scalar,
+        beta: Scalar::Scalar,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError>
+    where
+        OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
+    {
+        self.view().try_blend_tensor_into(&other.view(), alpha, beta, out)
+    }
+
+    fn try_sub_tensor_into<OtherTensor, OutputTensor>(
+        &self,
+        other: &OtherTensor,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError>
+    where
+        OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
+    {
+        self.view().try_sub_tensor_into(&other.view(), out)
+    }
 }
 
-impl<Scalar: Clone + EachBlend, const R: usize, C: TensorRef<Scalar, R>> BlendOps<Scalar, R> for C where
+impl<Scalar: Clone + EachBlend, const R: usize, C: TensorRef<Scalar, R> + ?Sized> BlendOps<Scalar, R> for C where
     Scalar::Scalar: From<f32> + Copy
 {
 }
@@ -3102,14 +2861,6 @@ impl<Scalar: Clone + EachBlend, const MAX_RANK: usize> Tensor<Scalar, Global, MA
 where
     Scalar::Scalar: From<f32> + Copy,
 {
-    pub fn try_sub_tensor_into(
-        &self,
-        other: &Tensor<Scalar, Global, MAX_RANK>,
-        out: &mut Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_sub_tensor_into(&other.view(), span))
-    }
-
     pub fn try_sub_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().sub_inplace(&other_view)
@@ -3127,9 +2878,37 @@ where
     ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
         self.view().try_mul_tensor(&other.view())
     }
+
+    fn try_fma_tensors_into<BTensor, CTensor, OutputTensor>(
+        &self,
+        b: &BTensor,
+        c: &CTensor,
+        alpha: Scalar::Scalar,
+        beta: Scalar::Scalar,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError>
+    where
+        BTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        CTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
+    {
+        self.view().try_fma_tensors_into(&b.view(), &c.view(), alpha, beta, out)
+    }
+
+    fn try_mul_tensor_into<OtherTensor, OutputTensor>(
+        &self,
+        other: &OtherTensor,
+        out: &mut OutputTensor,
+    ) -> Result<(), TensorError>
+    where
+        OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
+    {
+        self.view().try_mul_tensor_into(&other.view(), out)
+    }
 }
 
-impl<Scalar: Clone + EachFMA, const R: usize, C: TensorRef<Scalar, R>> FmaOps<Scalar, R> for C where
+impl<Scalar: Clone + EachFMA, const R: usize, C: TensorRef<Scalar, R> + ?Sized> FmaOps<Scalar, R> for C where
     Scalar::Scalar: From<f32> + Copy
 {
 }
@@ -3138,14 +2917,6 @@ impl<Scalar: Clone + EachFMA, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_
 where
     Scalar::Scalar: From<f32> + Copy,
 {
-    pub fn try_mul_tensor_into(
-        &self,
-        other: &Tensor<Scalar, Global, MAX_RANK>,
-        out: &mut Tensor<Scalar, Global, MAX_RANK>,
-    ) -> Result<(), TensorError> {
-        try_reborrow_tensor_into(self, out, |view, span| view.try_mul_tensor_into(&other.view(), span))
-    }
-
     pub fn try_mul_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().mul_inplace(&other_view)
@@ -3153,6 +2924,255 @@ where
 }
 
 // endregion: Tensor-shaped scale / sum / blend / fma
+
+// region: Fused SwiGLU
+
+/// Fused SwiGLU over a row-major `[rows, cols]` slice: `y = silu(input_scale * gate) * (input_scale * up)`.
+/// With `up = None` this reduces to plain SiLU (`cols = gate.len() / rows`).
+pub trait EachSwiglu: Sized + StorageElement {
+    /// Fused SwiGLU of 2D `[rows, cols]` tensors: `y = silu(input_scale*gate) * (input_scale*up)`.
+    ///
+    /// Strides are read from the tensors, so `gate`, `up`, and `y` may be independent strided
+    /// sub-spans (e.g. the two column halves of a `[rows, 2*cols]` gate|up buffer). `up = None`
+    /// reduces to plain SiLU. Returns `Err` on a shape mismatch.
+    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
+        gate: &GIn,
+        up: Option<&UIn>,
+        y: &mut YOut,
+        input_scale: f32,
+    ) -> Result<(), TensorError>
+    where
+        GIn: TensorRef<Self, RG> + ?Sized,
+        UIn: TensorRef<Self, RU> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized;
+}
+
+impl EachSwiglu for f32 {
+    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
+        gate: &GIn,
+        up: Option<&UIn>,
+        y: &mut YOut,
+        input_scale: f32,
+    ) -> Result<(), TensorError>
+    where
+        GIn: TensorRef<Self, RG> + ?Sized,
+        UIn: TensorRef<Self, RU> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        if gate.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: gate.ndim(),
+            });
+        }
+        if y.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: y.ndim(),
+            });
+        }
+        if gate.shape() != y.shape() {
+            let axis = if gate.shape()[0] != y.shape()[0] { 0 } else { 1 };
+            return Err(TensorError::ShapeMismatch {
+                axis,
+                expected: gate.shape()[axis],
+                got: y.shape()[axis],
+            });
+        }
+        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
+        if rows == 0 || cols == 0 {
+            return Ok(());
+        }
+        let gate_stride = gate.stride_bytes(0) as usize;
+        let y_stride = y.stride_bytes(0) as usize;
+        let (up_ptr, up_stride) = match up {
+            Some(u) => {
+                if u.ndim() != 2 {
+                    return Err(TensorError::DimensionMismatch {
+                        expected: 2,
+                        got: u.ndim(),
+                    });
+                }
+                if u.shape() != gate.shape() {
+                    let axis = if u.shape()[0] != gate.shape()[0] { 0 } else { 1 };
+                    return Err(TensorError::ShapeMismatch {
+                        axis,
+                        expected: gate.shape()[axis],
+                        got: u.shape()[axis],
+                    });
+                }
+                (u.as_ptr(), u.stride_bytes(0) as usize)
+            }
+            None => (core::ptr::null(), 0usize),
+        };
+        unsafe {
+            nk_each_swiglu_f32(
+                gate.as_ptr(),
+                up_ptr,
+                y.as_mut_ptr(),
+                rows,
+                cols,
+                gate_stride,
+                up_stride,
+                y_stride,
+                input_scale,
+            );
+        }
+        Ok(())
+    }
+}
+
+impl EachSwiglu for bf16 {
+    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
+        gate: &GIn,
+        up: Option<&UIn>,
+        y: &mut YOut,
+        input_scale: f32,
+    ) -> Result<(), TensorError>
+    where
+        GIn: TensorRef<Self, RG> + ?Sized,
+        UIn: TensorRef<Self, RU> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        if gate.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: gate.ndim(),
+            });
+        }
+        if y.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: y.ndim(),
+            });
+        }
+        if gate.shape() != y.shape() {
+            let axis = if gate.shape()[0] != y.shape()[0] { 0 } else { 1 };
+            return Err(TensorError::ShapeMismatch {
+                axis,
+                expected: gate.shape()[axis],
+                got: y.shape()[axis],
+            });
+        }
+        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
+        if rows == 0 || cols == 0 {
+            return Ok(());
+        }
+        let gate_stride = gate.stride_bytes(0) as usize;
+        let y_stride = y.stride_bytes(0) as usize;
+        let (up_ptr, up_stride) = match up {
+            Some(u) => {
+                if u.ndim() != 2 {
+                    return Err(TensorError::DimensionMismatch {
+                        expected: 2,
+                        got: u.ndim(),
+                    });
+                }
+                if u.shape() != gate.shape() {
+                    let axis = if u.shape()[0] != gate.shape()[0] { 0 } else { 1 };
+                    return Err(TensorError::ShapeMismatch {
+                        axis,
+                        expected: gate.shape()[axis],
+                        got: u.shape()[axis],
+                    });
+                }
+                (u.as_ptr() as *const u16, u.stride_bytes(0) as usize)
+            }
+            None => (core::ptr::null(), 0usize),
+        };
+        unsafe {
+            nk_each_swiglu_bf16(
+                gate.as_ptr() as *const u16,
+                up_ptr,
+                y.as_mut_ptr() as *mut u16,
+                rows,
+                cols,
+                gate_stride,
+                up_stride,
+                y_stride,
+                input_scale,
+            );
+        }
+        Ok(())
+    }
+}
+
+impl EachSwiglu for e4m3 {
+    fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
+        gate: &GIn,
+        up: Option<&UIn>,
+        y: &mut YOut,
+        input_scale: f32,
+    ) -> Result<(), TensorError>
+    where
+        GIn: TensorRef<Self, RG> + ?Sized,
+        UIn: TensorRef<Self, RU> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        if gate.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: gate.ndim(),
+            });
+        }
+        if y.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: y.ndim(),
+            });
+        }
+        if gate.shape() != y.shape() {
+            let axis = if gate.shape()[0] != y.shape()[0] { 0 } else { 1 };
+            return Err(TensorError::ShapeMismatch {
+                axis,
+                expected: gate.shape()[axis],
+                got: y.shape()[axis],
+            });
+        }
+        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
+        if rows == 0 || cols == 0 {
+            return Ok(());
+        }
+        let gate_stride = gate.stride_bytes(0) as usize;
+        let y_stride = y.stride_bytes(0) as usize;
+        let (up_ptr, up_stride) = match up {
+            Some(u) => {
+                if u.ndim() != 2 {
+                    return Err(TensorError::DimensionMismatch {
+                        expected: 2,
+                        got: u.ndim(),
+                    });
+                }
+                if u.shape() != gate.shape() {
+                    let axis = if u.shape()[0] != gate.shape()[0] { 0 } else { 1 };
+                    return Err(TensorError::ShapeMismatch {
+                        axis,
+                        expected: gate.shape()[axis],
+                        got: u.shape()[axis],
+                    });
+                }
+                (u.as_ptr() as *const u8, u.stride_bytes(0) as usize)
+            }
+            None => (core::ptr::null(), 0usize),
+        };
+        unsafe {
+            nk_each_swiglu_e4m3(
+                gate.as_ptr() as *const u8,
+                up_ptr,
+                y.as_mut_ptr() as *mut u8,
+                rows,
+                cols,
+                gate_stride,
+                up_stride,
+                y_stride,
+                input_scale,
+            );
+        }
+        Ok(())
+    }
+}
+
+// endregion: Fused SwiGLU
 
 #[cfg(test)]
 mod tests {
@@ -3186,31 +3206,6 @@ mod tests {
     }
 
     /// Test a unary elementwise op over generated values.
-    pub(crate) fn check_each_unary<Scalar, F>(
-        count: usize,
-        gen_fn: fn(usize, usize) -> f64,
-        op: F,
-        ref_fn: fn(f64) -> f64,
-        label: &str,
-    ) where
-        Scalar: FloatLike + TestableType,
-        F: FnOnce(&[Scalar], &mut [Scalar]) -> Option<()>,
-    {
-        let values: Vec<f64> = (0..count).map(|i| gen_fn(i, count)).collect();
-        let a: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v as f32)).collect();
-        let mut result = vec![Scalar::zero(); count];
-        op(&a, &mut result).unwrap();
-        for (i, r) in result.iter().enumerate() {
-            let expected = ref_fn(values[i]);
-            assert_close(
-                r.to_f64(),
-                expected,
-                Scalar::atol() * 10000.0,
-                Scalar::rtol() * 10000.0,
-                &format!("{}<{}>[{}]", label, core::any::type_name::<Scalar>(), i),
-            );
-        }
-    }
 
     // region: Elementwise Operations
 
@@ -3388,75 +3383,9 @@ mod tests {
         check_each_sum::<f32>(&values, &b);
     }
 
-    // endregion
+    // endregion: Elementwise Operations
 
-    // region: Trigonometry
-
-    fn check_each_sin<Scalar>(count: usize)
-    where
-        Scalar: FloatLike + TestableType + EachSin,
-    {
-        use core::f64::consts::PI;
-        check_each_unary::<Scalar, _>(
-            count,
-            |i, n| (i as f64) * 2.0 * PI / (n as f64),
-            Scalar::sin,
-            f64::sin,
-            "sin",
-        );
-    }
-
-    fn check_each_cos<Scalar>(count: usize)
-    where
-        Scalar: FloatLike + TestableType + EachCos,
-    {
-        use core::f64::consts::PI;
-        check_each_unary::<Scalar, _>(
-            count,
-            |i, n| (i as f64) * 2.0 * PI / (n as f64),
-            Scalar::cos,
-            f64::cos,
-            "cos",
-        );
-    }
-
-    fn check_each_atan<Scalar>(count: usize)
-    where
-        Scalar: FloatLike + TestableType + EachATan,
-    {
-        check_each_unary::<Scalar, _>(
-            count,
-            |i, n| -5.0 + 10.0 * (i as f64) / (n as f64),
-            Scalar::atan,
-            f64::atan,
-            "atan",
-        );
-    }
-
-    #[test]
-    fn sin_elementwise() {
-        check_each_sin::<f32>(97);
-        check_each_sin::<f64>(97);
-        check_each_sin::<f16>(97);
-    }
-
-    #[test]
-    fn cos_elementwise() {
-        check_each_cos::<f32>(97);
-        check_each_cos::<f64>(97);
-        check_each_cos::<f16>(97);
-    }
-
-    #[test]
-    fn atan_elementwise() {
-        check_each_atan::<f32>(100);
-        check_each_atan::<f64>(100);
-        check_each_atan::<f16>(100);
-    }
-
-    // endregion
-
-    // region: tensor-shaped wrappers (ScaleOps / SumOps / TrigSinOps)
+    // region: tensor-shaped wrappers (ScaleOps / SumOps)
 
     #[test]
     fn tensor_add_tensor_via_sum_ops() {
@@ -3466,10 +3395,10 @@ mod tests {
         let right = Tensor::<f32>::try_full(&[3, 4], 2.0).unwrap();
 
         let left_even = left
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
         let right_even = right
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
 
         let added = left_even.try_add_tensor(&right_even).unwrap();
@@ -3480,6 +3409,7 @@ mod tests {
     #[test]
     fn tensor_add_tensor_into_owning_destination() {
         use crate::tensor::Tensor;
+        use crate::SumOps;
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let left = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
         let right = Tensor::<f32>::try_full(&[3, 4], 2.0).unwrap();
@@ -3496,7 +3426,7 @@ mod tests {
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
         let even = source
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
         let scaled = even.try_mul_scalar(0.5).unwrap();
         assert_eq!(scaled.as_slice(), &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
@@ -3507,7 +3437,7 @@ mod tests {
         use crate::tensor::Tensor;
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let mut tensor = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        tensor.try_add_scalar_inplace(1.0).unwrap();
+        tensor.add_scalar_inplace(1.0);
         assert_eq!(tensor.as_slice()[0], 1.0);
         assert_eq!(tensor.as_slice()[11], 12.0);
     }
@@ -3518,7 +3448,7 @@ mod tests {
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
         let even = source
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
         let mut sin_out = Tensor::<f32>::try_full(&[3, 2], 0.0).unwrap();
         {
@@ -3616,4 +3546,87 @@ mod tests {
     }
 
     // endregion
+
+    fn silu(x: f64) -> f64 { x / (1.0 + (-x).exp()) }
+
+    fn check_swiglu<Scalar>(values: &[f32], with_up: bool)
+    where
+        Scalar: FloatLike + TestableType + EachSwiglu,
+    {
+        let rows = 2;
+        let gate: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v)).collect();
+        let up: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(0.5 - v)).collect();
+        let cols = gate.len() / rows;
+        let gate_t = crate::tensor::Tensor::<Scalar>::try_from_slice(&gate, &[rows, cols]).unwrap();
+        let up_t = crate::tensor::Tensor::<Scalar>::try_from_slice(&up, &[rows, cols]).unwrap();
+        let mut y_t = crate::tensor::Tensor::<Scalar>::try_full(&[rows, cols], Scalar::zero()).unwrap();
+        let up_ref = if with_up { Some(&up_t) } else { None };
+        Scalar::swiglu_into(&gate_t, up_ref, &mut y_t, 1.0).unwrap();
+        let y = y_t.as_slice().to_vec();
+        for i in 0..gate.len() {
+            let g = Scalar::from_f32(values[i]).to_f64();
+            let mut expected = silu(g);
+            if with_up {
+                expected *= Scalar::from_f32(0.5 - values[i]).to_f64();
+            }
+            let expected = Scalar::from_f32(expected as f32).to_f64();
+            assert_close(
+                y[i].to_f64(),
+                expected,
+                Scalar::atol() * 4.0,
+                Scalar::rtol() * 4.0,
+                &format!("swiglu<{}>[{i}]", core::any::type_name::<Scalar>()),
+            );
+        }
+    }
+
+    #[test]
+    fn swiglu_and_silu() {
+        let values: Vec<f32> = (0..64).map(|i| ((i % 13) as f32 - 6.0) * 0.4).collect();
+        check_swiglu::<f32>(&values, true);
+        check_swiglu::<f32>(&values, false);
+        check_swiglu::<bf16>(&values, true);
+        check_swiglu::<e4m3>(&values, true);
+    }
+
+    #[test]
+    fn swiglu_gate_up_halves() {
+        use crate::tensor::{SliceRange, Tensor};
+        // gate|up are the two strided column halves of one `[rows, 2*cols]` buffer (row stride 2*cols).
+        let rows = 3;
+        let cols = 8;
+        let buf: Vec<f32> = (0..rows * 2 * cols).map(|i| ((i % 11) as f32 - 5.0) * 0.3).collect();
+        let wide = Tensor::<f32>::try_from_slice(&buf, &[rows, 2 * cols]).unwrap();
+        let gate = wide
+            .view()
+            .try_slice(&[SliceRange::Full, SliceRange::range(0, cols)][..])
+            .unwrap();
+        let up = wide
+            .view()
+            .try_slice(&[SliceRange::Full, SliceRange::range(cols, 2 * cols)][..])
+            .unwrap();
+        let mut y = Tensor::<f32>::try_full(&[rows, cols], 0.0f32).unwrap();
+        f32::swiglu_into(&gate, Some(&up), &mut y, 1.0).unwrap();
+
+        // Contiguous reference over dense copies of the same two halves.
+        let mut gate_c = vec![0.0f32; rows * cols];
+        let mut up_c = vec![0.0f32; rows * cols];
+        for r in 0..rows {
+            for c in 0..cols {
+                gate_c[r * cols + c] = buf[r * 2 * cols + c];
+                up_c[r * cols + c] = buf[r * 2 * cols + cols + c];
+            }
+        }
+        let gate_ct = Tensor::<f32>::try_from_slice(&gate_c, &[rows, cols]).unwrap();
+        let up_ct = Tensor::<f32>::try_from_slice(&up_c, &[rows, cols]).unwrap();
+        let mut y_ref = Tensor::<f32>::try_full(&[rows, cols], 0.0f32).unwrap();
+        f32::swiglu_into(&gate_ct, Some(&up_ct), &mut y_ref, 1.0).unwrap();
+
+        for i in 0..rows * cols {
+            assert!(
+                (y.as_slice()[i] - y_ref.as_slice()[i]).abs() < 1e-5,
+                "strided gate|up SwiGLU mismatch at {i}"
+            );
+        }
+    }
 }

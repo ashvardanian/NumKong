@@ -721,24 +721,24 @@ nk_sqeuclidean_u8_v128relaxed_cycle:
     }
 
     // |a-b| via saturating subtraction: diff = (a ⊖ b) | (b ⊖ a)
-    v128_t difference_u8x16 = wasm_v128_or(wasm_u8x16_sub_sat(a_u8x16, b_u8x16), wasm_u8x16_sub_sat(b_u8x16, a_u8x16));
+    v128_t diff_u8x16 = wasm_v128_or(wasm_u8x16_sub_sat(a_u8x16, b_u8x16), wasm_u8x16_sub_sat(b_u8x16, a_u8x16));
 
     // Widen to u16 and square via extmul
-    v128_t difference_low_u16x8 = wasm_u16x8_extend_low_u8x16(difference_u8x16);
-    v128_t difference_high_u16x8 = wasm_u16x8_extend_high_u8x16(difference_u8x16);
-    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_low_i16x8(difference_low_u16x8, difference_low_u16x8));
-    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_high_i16x8(difference_low_u16x8, difference_low_u16x8));
-    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_low_i16x8(difference_high_u16x8, difference_high_u16x8));
-    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_high_i16x8(difference_high_u16x8, difference_high_u16x8));
+    v128_t diff_low_u16x8 = wasm_u16x8_extend_low_u8x16(diff_u8x16);
+    v128_t diff_high_u16x8 = wasm_u16x8_extend_high_u8x16(diff_u8x16);
+    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_low_i16x8(diff_low_u16x8, diff_low_u16x8));
+    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_high_i16x8(diff_low_u16x8, diff_low_u16x8));
+    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_low_i16x8(diff_high_u16x8, diff_high_u16x8));
+    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_high_i16x8(diff_high_u16x8, diff_high_u16x8));
     if (count_scalars) goto nk_sqeuclidean_u8_v128relaxed_cycle;
 
     *result = nk_reduce_add_u32x4_v128relaxed_(sum_u32x4);
 }
 
 NK_PUBLIC void nk_euclidean_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_u32_t distance_squared;
-    nk_sqeuclidean_u8_v128relaxed(a, b, n, &distance_squared);
-    *result = nk_f32_sqrt_v128relaxed((nk_f32_t)distance_squared);
+    nk_u32_t distance_sq;
+    nk_sqeuclidean_u8_v128relaxed(a, b, n, &distance_sq);
+    *result = nk_f32_sqrt_v128relaxed((nk_f32_t)distance_sq);
 }
 
 NK_PUBLIC void nk_angular_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
@@ -796,12 +796,12 @@ NK_PUBLIC void nk_angular_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_
             dot_bb_i32x4 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(b_i8x16, b_7bit_u8x16, dot_bb_i32x4);
 
             // Accumulate corrections in i16 (1 widening/iter instead of 2)
-            v128_t a_where_b_neg = wasm_v128_and(a_i8x16, b_neg_mask_i8x16);
-            v128_t a_where_a_neg = wasm_v128_and(a_i8x16, a_neg_mask_i8x16);
-            v128_t b_where_b_neg = wasm_v128_and(b_i8x16, b_neg_mask_i8x16);
-            corr_ab_i16x8 = wasm_i16x8_add(corr_ab_i16x8, wasm_i16x8_extadd_pairwise_i8x16(a_where_b_neg));
-            corr_aa_i16x8 = wasm_i16x8_add(corr_aa_i16x8, wasm_i16x8_extadd_pairwise_i8x16(a_where_a_neg));
-            corr_bb_i16x8 = wasm_i16x8_add(corr_bb_i16x8, wasm_i16x8_extadd_pairwise_i8x16(b_where_b_neg));
+            v128_t a_where_b_neg_i8x16 = wasm_v128_and(a_i8x16, b_neg_mask_i8x16);
+            v128_t a_where_a_neg_i8x16 = wasm_v128_and(a_i8x16, a_neg_mask_i8x16);
+            v128_t b_where_b_neg_i8x16 = wasm_v128_and(b_i8x16, b_neg_mask_i8x16);
+            corr_ab_i16x8 = wasm_i16x8_add(corr_ab_i16x8, wasm_i16x8_extadd_pairwise_i8x16(a_where_b_neg_i8x16));
+            corr_aa_i16x8 = wasm_i16x8_add(corr_aa_i16x8, wasm_i16x8_extadd_pairwise_i8x16(a_where_a_neg_i8x16));
+            corr_bb_i16x8 = wasm_i16x8_add(corr_bb_i16x8, wasm_i16x8_extadd_pairwise_i8x16(b_where_b_neg_i8x16));
 
             // Unsigned sums for final unbias correction
             sum_a_u16x8 = wasm_i16x8_add(sum_a_u16x8, wasm_u16x8_extadd_pairwise_u8x16(a_u8x16));
@@ -870,22 +870,22 @@ nk_sqeuclidean_i8_v128relaxed_cycle:
         a_scalars += 16, b_scalars += 16, count_scalars -= 16;
     }
 
-    v128_t difference_u8x16 = wasm_v128_or(wasm_u8x16_sub_sat(a_u8x16, b_u8x16), wasm_u8x16_sub_sat(b_u8x16, a_u8x16));
-    v128_t difference_low_u16x8 = wasm_u16x8_extend_low_u8x16(difference_u8x16);
-    v128_t difference_high_u16x8 = wasm_u16x8_extend_high_u8x16(difference_u8x16);
-    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_low_i16x8(difference_low_u16x8, difference_low_u16x8));
-    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_high_i16x8(difference_low_u16x8, difference_low_u16x8));
-    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_low_i16x8(difference_high_u16x8, difference_high_u16x8));
-    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_high_i16x8(difference_high_u16x8, difference_high_u16x8));
+    v128_t diff_u8x16 = wasm_v128_or(wasm_u8x16_sub_sat(a_u8x16, b_u8x16), wasm_u8x16_sub_sat(b_u8x16, a_u8x16));
+    v128_t diff_low_u16x8 = wasm_u16x8_extend_low_u8x16(diff_u8x16);
+    v128_t diff_high_u16x8 = wasm_u16x8_extend_high_u8x16(diff_u8x16);
+    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_low_i16x8(diff_low_u16x8, diff_low_u16x8));
+    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_high_i16x8(diff_low_u16x8, diff_low_u16x8));
+    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_low_i16x8(diff_high_u16x8, diff_high_u16x8));
+    sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_extmul_high_i16x8(diff_high_u16x8, diff_high_u16x8));
     if (count_scalars) goto nk_sqeuclidean_i8_v128relaxed_cycle;
 
     *result = nk_reduce_add_u32x4_v128relaxed_(sum_u32x4);
 }
 
 NK_PUBLIC void nk_euclidean_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_u32_t distance_squared;
-    nk_sqeuclidean_i8_v128relaxed(a, b, n, &distance_squared);
-    *result = nk_f32_sqrt_v128relaxed((nk_f32_t)distance_squared);
+    nk_u32_t distance_sq;
+    nk_sqeuclidean_i8_v128relaxed(a, b, n, &distance_sq);
+    *result = nk_f32_sqrt_v128relaxed((nk_f32_t)distance_sq);
 }
 
 NK_PUBLIC void nk_angular_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
@@ -927,12 +927,12 @@ NK_PUBLIC void nk_angular_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_
             dot_bb_i32x4 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(b_i8x16, b_7bit_u8x16, dot_bb_i32x4);
 
             // Accumulate corrections in i16 (1 widening/iter instead of 2)
-            v128_t a_where_b_neg = wasm_v128_and(a_i8x16, b_neg_mask_i8x16);
-            v128_t a_where_a_neg = wasm_v128_and(a_i8x16, a_neg_mask_i8x16);
-            v128_t b_where_b_neg = wasm_v128_and(b_i8x16, b_neg_mask_i8x16);
-            corr_ab_i16x8 = wasm_i16x8_add(corr_ab_i16x8, wasm_i16x8_extadd_pairwise_i8x16(a_where_b_neg));
-            corr_aa_i16x8 = wasm_i16x8_add(corr_aa_i16x8, wasm_i16x8_extadd_pairwise_i8x16(a_where_a_neg));
-            corr_bb_i16x8 = wasm_i16x8_add(corr_bb_i16x8, wasm_i16x8_extadd_pairwise_i8x16(b_where_b_neg));
+            v128_t a_where_b_neg_i8x16 = wasm_v128_and(a_i8x16, b_neg_mask_i8x16);
+            v128_t a_where_a_neg_i8x16 = wasm_v128_and(a_i8x16, a_neg_mask_i8x16);
+            v128_t b_where_b_neg_i8x16 = wasm_v128_and(b_i8x16, b_neg_mask_i8x16);
+            corr_ab_i16x8 = wasm_i16x8_add(corr_ab_i16x8, wasm_i16x8_extadd_pairwise_i8x16(a_where_b_neg_i8x16));
+            corr_aa_i16x8 = wasm_i16x8_add(corr_aa_i16x8, wasm_i16x8_extadd_pairwise_i8x16(a_where_a_neg_i8x16));
+            corr_bb_i16x8 = wasm_i16x8_add(corr_bb_i16x8, wasm_i16x8_extadd_pairwise_i8x16(b_where_b_neg_i8x16));
         }
 
         // Deferred widening: i16 → i32 once per window

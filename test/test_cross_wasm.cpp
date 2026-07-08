@@ -137,5 +137,11 @@ void test_cross_wasm() {
     check("hammings_symmetric_u1_v128relaxed", test_hammings_symmetric<u1x8_t>, nk_hammings_symmetric_u1_v128relaxed);
     check("jaccards_symmetric_u1_v128relaxed", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1_v128relaxed);
 
+    check("attention_packed_bf16_v128relaxed", test_attention_packed<bf16_t>, nk_attention_packed_size_bf16_v128relaxed,
+          nk_attention_pack_bf16_v128relaxed, nk_attention_packed_bf16_v128relaxed);
+    check("attention_packed_e4m3_v128relaxed", test_attention_packed<e4m3_t>, nk_attention_packed_size_e4m3_v128relaxed,
+          nk_attention_pack_e4m3_v128relaxed, nk_attention_packed_e4m3_v128relaxed);
+    check("attention_packed_i8_v128relaxed", test_attention_packed<i8_t>, nk_attention_packed_size_i8_v128relaxed,
+          nk_attention_pack_i8_v128relaxed, nk_attention_packed_i8_v128relaxed);
 #endif
 }

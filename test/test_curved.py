@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -22,7 +23,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     NK_ATOL,
     NK_RTOL,
@@ -42,6 +42,9 @@ from test_base import (
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
     test_curved_dimensions,
 )
+
+import numkong as nk
+
 
 stats = create_stats()
 atexit.register(print_stats_report, stats)

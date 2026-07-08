@@ -161,6 +161,15 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             return;
         case nk_kernel_maxsim_pack_k: *m = (m_t)&nk_maxsim_pack_bf16_sapphireamx, *c = nk_cap_sapphireamx_k; return;
         case nk_kernel_maxsim_packed_k: *m = (m_t)&nk_maxsim_packed_bf16_sapphireamx, *c = nk_cap_sapphireamx_k; return;
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_bf16_sapphireamx, *c = nk_cap_sapphireamx_k;
+            return;
+        case nk_kernel_attention_pack_k:
+            *m = (m_t)&nk_attention_pack_bf16_sapphireamx, *c = nk_cap_sapphireamx_k;
+            return;
+        case nk_kernel_attention_packed_k:
+            *m = (m_t)&nk_attention_packed_bf16_sapphireamx, *c = nk_cap_sapphireamx_k;
+            return;
         default: break;
         }
 #endif
@@ -189,9 +198,15 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_euclideans_symmetric_bf16_genoa, *c = nk_cap_genoa_k;
             return;
         case nk_kernel_reduce_moments_k: *m = (m_t)&nk_reduce_moments_bf16_genoa, *c = nk_cap_genoa_k; return;
+        case nk_kernel_reduce_rmsnorm_k: *m = (m_t)&nk_reduce_rmsnorm_bf16_genoa, *c = nk_cap_genoa_k; return;
         case nk_kernel_maxsim_packed_size_k: *m = (m_t)&nk_maxsim_packed_size_bf16_genoa, *c = nk_cap_genoa_k; return;
         case nk_kernel_maxsim_pack_k: *m = (m_t)&nk_maxsim_pack_bf16_genoa, *c = nk_cap_genoa_k; return;
         case nk_kernel_maxsim_packed_k: *m = (m_t)&nk_maxsim_packed_bf16_genoa, *c = nk_cap_genoa_k; return;
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_bf16_genoa, *c = nk_cap_genoa_k;
+            return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_bf16_genoa, *c = nk_cap_genoa_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_bf16_genoa, *c = nk_cap_genoa_k; return;
         default: break;
         }
 #endif
@@ -202,6 +217,8 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_bf16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_bf16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_each_sum_k: *m = (m_t)&nk_each_sum_bf16_skylake, *c = nk_cap_skylake_k; return;
+        case nk_kernel_each_swiglu_k: *m = (m_t)&nk_each_swiglu_bf16_skylake, *c = nk_cap_skylake_k; return;
+        case nk_kernel_trig_rope_k: *m = (m_t)&nk_trig_rope_bf16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_dots_packed_size_k: *m = (m_t)&nk_dots_packed_size_bf16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_dots_pack_k: *m = (m_t)&nk_dots_pack_bf16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_dots_packed_k: *m = (m_t)&nk_dots_packed_bf16_skylake, *c = nk_cap_skylake_k; return;
@@ -216,9 +233,15 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             return;
         case nk_kernel_reduce_moments_k: *m = (m_t)&nk_reduce_moments_bf16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_reduce_minmax_k: *m = (m_t)&nk_reduce_minmax_bf16_skylake, *c = nk_cap_skylake_k; return;
+        case nk_kernel_reduce_rmsnorm_k: *m = (m_t)&nk_reduce_rmsnorm_bf16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_rmsd_k: *m = (m_t)&nk_rmsd_bf16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_kabsch_k: *m = (m_t)&nk_kabsch_bf16_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_umeyama_k: *m = (m_t)&nk_umeyama_bf16_skylake, *c = nk_cap_skylake_k; return;
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_bf16_skylake, *c = nk_cap_skylake_k;
+            return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_bf16_skylake, *c = nk_cap_skylake_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_bf16_skylake, *c = nk_cap_skylake_k; return;
         default: break;
         }
 #endif
@@ -245,6 +268,8 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_bf16_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_bf16_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_each_sum_k: *m = (m_t)&nk_each_sum_bf16_haswell, *c = nk_cap_haswell_k; return;
+        case nk_kernel_each_swiglu_k: *m = (m_t)&nk_each_swiglu_bf16_haswell, *c = nk_cap_haswell_k; return;
+        case nk_kernel_trig_rope_k: *m = (m_t)&nk_trig_rope_bf16_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_dots_packed_size_k: *m = (m_t)&nk_dots_packed_size_bf16_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_dots_pack_k: *m = (m_t)&nk_dots_pack_bf16_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_dots_packed_k: *m = (m_t)&nk_dots_packed_bf16_haswell, *c = nk_cap_haswell_k; return;
@@ -259,11 +284,17 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             return;
         case nk_kernel_reduce_moments_k: *m = (m_t)&nk_reduce_moments_bf16_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_reduce_minmax_k: *m = (m_t)&nk_reduce_minmax_bf16_haswell, *c = nk_cap_haswell_k; return;
+        case nk_kernel_reduce_rmsnorm_k: *m = (m_t)&nk_reduce_rmsnorm_bf16_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_maxsim_packed_size_k:
             *m = (m_t)&nk_maxsim_packed_size_bf16_haswell, *c = nk_cap_haswell_k;
             return;
         case nk_kernel_maxsim_pack_k: *m = (m_t)&nk_maxsim_pack_bf16_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_maxsim_packed_k: *m = (m_t)&nk_maxsim_packed_bf16_haswell, *c = nk_cap_haswell_k; return;
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_bf16_haswell, *c = nk_cap_haswell_k;
+            return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_bf16_haswell, *c = nk_cap_haswell_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_bf16_haswell, *c = nk_cap_haswell_k; return;
         default: break;
         }
 #endif
@@ -368,6 +399,15 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         default: break;
         }
 #endif
+#if NK_TARGET_RVV
+    if (v & nk_cap_rvv_k) switch (k) {
+        case nk_kernel_attention_packed_size_k: *m = (m_t)&nk_attention_packed_size_bf16_rvv, *c = nk_cap_rvv_k; return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_bf16_rvv, *c = nk_cap_rvv_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_bf16_rvv, *c = nk_cap_rvv_k; return;
+        default: break;
+        }
+#endif
+
     if (v & nk_cap_serial_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_angular_k: *m = (m_t)&nk_angular_bf16_serial, *c = nk_cap_serial_k; return;
@@ -381,12 +421,15 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_each_sum_k: *m = (m_t)&nk_each_sum_bf16_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_each_swiglu_k: *m = (m_t)&nk_each_swiglu_bf16_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_trig_rope_k: *m = (m_t)&nk_trig_rope_bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_rmsd_k: *m = (m_t)&nk_rmsd_bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_kabsch_k: *m = (m_t)&nk_kabsch_bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_umeyama_k: *m = (m_t)&nk_umeyama_bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_sparse_dot_k: *m = (m_t)&nk_sparse_dot_u16bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_reduce_moments_k: *m = (m_t)&nk_reduce_moments_bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_reduce_minmax_k: *m = (m_t)&nk_reduce_minmax_bf16_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_reduce_rmsnorm_k: *m = (m_t)&nk_reduce_rmsnorm_bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_dots_packed_size_k: *m = (m_t)&nk_dots_packed_size_bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_dots_pack_k: *m = (m_t)&nk_dots_pack_bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_dots_packed_k: *m = (m_t)&nk_dots_packed_bf16_serial, *c = nk_cap_serial_k; return;
@@ -400,6 +443,11 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_maxsim_packed_size_k: *m = (m_t)&nk_maxsim_packed_size_bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_maxsim_pack_k: *m = (m_t)&nk_maxsim_pack_bf16_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_maxsim_packed_k: *m = (m_t)&nk_maxsim_packed_bf16_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_bf16_serial, *c = nk_cap_serial_k;
+            return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_bf16_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_bf16_serial, *c = nk_cap_serial_k; return;
         default: break;
         }
 
@@ -427,8 +475,11 @@ void nk_dispatch_bf16_init_(nk_capability_t caps) {
     nk_dispatch_bf16_find_(caps, nk_kernel_each_sum_k, (nk_kernel_punned_t *)&t->each_sum_bf16, &used);
     nk_dispatch_bf16_find_(caps, nk_kernel_each_blend_k, (nk_kernel_punned_t *)&t->each_blend_bf16, &used);
     nk_dispatch_bf16_find_(caps, nk_kernel_each_fma_k, (nk_kernel_punned_t *)&t->each_fma_bf16, &used);
+    nk_dispatch_bf16_find_(caps, nk_kernel_each_swiglu_k, (nk_kernel_punned_t *)&t->each_swiglu_bf16, &used);
+    nk_dispatch_bf16_find_(caps, nk_kernel_trig_rope_k, (nk_kernel_punned_t *)&t->trig_rope_bf16, &used);
     nk_dispatch_bf16_find_(caps, nk_kernel_reduce_moments_k, (nk_kernel_punned_t *)&t->reduce_moments_bf16, &used);
     nk_dispatch_bf16_find_(caps, nk_kernel_reduce_minmax_k, (nk_kernel_punned_t *)&t->reduce_minmax_bf16, &used);
+    nk_dispatch_bf16_find_(caps, nk_kernel_reduce_rmsnorm_k, (nk_kernel_punned_t *)&t->reduce_rmsnorm_bf16, &used);
     nk_dispatch_bf16_find_(caps, nk_kernel_dots_packed_size_k, (nk_kernel_punned_t *)&t->dots_packed_size_bf16, &used);
     nk_dispatch_bf16_find_(caps, nk_kernel_dots_pack_k, (nk_kernel_punned_t *)&t->dots_pack_bf16, &used);
     nk_dispatch_bf16_find_(caps, nk_kernel_dots_packed_k, (nk_kernel_punned_t *)&t->dots_packed_bf16, &used);
@@ -444,4 +495,8 @@ void nk_dispatch_bf16_init_(nk_capability_t caps) {
                            &used);
     nk_dispatch_bf16_find_(caps, nk_kernel_maxsim_pack_k, (nk_kernel_punned_t *)&t->maxsim_pack_bf16, &used);
     nk_dispatch_bf16_find_(caps, nk_kernel_maxsim_packed_k, (nk_kernel_punned_t *)&t->maxsim_packed_bf16, &used);
+    nk_dispatch_bf16_find_(caps, nk_kernel_attention_packed_size_k,
+                           (nk_kernel_punned_t *)&t->attention_packed_size_bf16, &used);
+    nk_dispatch_bf16_find_(caps, nk_kernel_attention_pack_k, (nk_kernel_punned_t *)&t->attention_pack_bf16, &used);
+    nk_dispatch_bf16_find_(caps, nk_kernel_attention_packed_k, (nk_kernel_punned_t *)&t->attention_packed_bf16, &used);
 }

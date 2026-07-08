@@ -6,6 +6,7 @@
  */
 
 #include "numkong/dot.h"
+#include "numkong/attention.h"
 #include "numkong/dots.h"
 #include "numkong/sets.h"
 #include "numkong/spatials.h"
@@ -148,4 +149,11 @@ void bench_cross_serial() {
     run_euclideans_symmetric<u8_k>("euclideans_symmetric_u8_serial", nk_euclideans_symmetric_u8_serial);
     run_euclideans_symmetric<i4_k>("euclideans_symmetric_i4_serial", nk_euclideans_symmetric_i4_serial);
     run_euclideans_symmetric<u4_k>("euclideans_symmetric_u4_serial", nk_euclideans_symmetric_u4_serial);
+
+    run_attention<bf16_k>("attention_packed_bf16_serial", nk_attention_packed_size_bf16_serial,
+                          nk_attention_pack_bf16_serial, nk_attention_packed_bf16_serial);
+    run_attention<e4m3_k>("attention_packed_e4m3_serial", nk_attention_packed_size_e4m3_serial,
+                          nk_attention_pack_e4m3_serial, nk_attention_packed_e4m3_serial);
+    run_attention<i8_k>("attention_packed_i8_serial", nk_attention_packed_size_i8_serial, nk_attention_pack_i8_serial,
+                        nk_attention_packed_i8_serial);
 }

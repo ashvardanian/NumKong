@@ -7,7 +7,7 @@
  *  Provides owning and non-owning vector types with signed indexing,
  *  strided views, and sub-byte element support.
  *
- *  - `nk::vector<T, A>`: Owning, non-resizable, SIMD-aligned
+ *  - `nk::vector<T, A>`: Owning, resizable-within-capacity, SIMD-aligned
  *  - `nk::vector_view<T>`: Non-owning, const, strided
  *  - `nk::vector_span<T>`: Non-owning, mutable, strided
  *
@@ -342,6 +342,9 @@ struct vector_view {
     /** @brief Check if empty. */
     constexpr bool empty() const noexcept { return dimensions_ == 0; }
 
+    /** @brief Contextual-bool: truthy when the handle is non-empty. Enables the `if(!v)` empty-check idiom. */
+    constexpr explicit operator bool() const noexcept { return !empty(); }
+
     /** @brief Stride in bytes between consecutive elements. */
     constexpr difference_type stride_bytes() const noexcept { return stride_bytes_; }
 
@@ -358,7 +361,7 @@ struct vector_view {
 
     /** @brief Integral indexing: signed negatives wrap from end. */
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) const noexcept {
+    constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         auto i = resolve_index_(idx, dimensions_);
         if constexpr (dimensions_per_value<value_type>() > 1) {
             constexpr auto dims_per_value = dimensions_per_value<value_type>();
@@ -373,7 +376,7 @@ struct vector_view {
     }
 
     /** @brief Sub-slice via range. */
-    vector_view operator[](range r) const noexcept {
+    constexpr vector_view operator[](range r) const noexcept {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
@@ -381,7 +384,7 @@ struct vector_view {
     }
 
     /** @brief Select all elements (identity). */
-    vector_view operator[](all_t) const noexcept { return *this; }
+    constexpr vector_view operator[](all_t) const noexcept { return *this; }
 
     /** @brief Create a reversed view by negating the stride and pointing to the last element.
      *  Iterating the returned view visits elements in reverse order. */
@@ -391,12 +394,12 @@ struct vector_view {
     }
 
     /** @brief Dimension iterator to beginning. */
-    const_iterator begin() const noexcept { return {*this, 0}; }
-    const_iterator cbegin() const noexcept { return {*this, 0}; }
+    constexpr const_iterator begin() const noexcept { return {*this, 0}; }
+    constexpr const_iterator cbegin() const noexcept { return {*this, 0}; }
 
     /** @brief Dimension iterator to end. */
-    const_iterator end() const noexcept { return {*this, dimensions_}; }
-    const_iterator cend() const noexcept { return {*this, dimensions_}; }
+    constexpr const_iterator end() const noexcept { return {*this, dimensions_}; }
+    constexpr const_iterator cend() const noexcept { return {*this, dimensions_}; }
 };
 
 #pragma endregion Vector View
@@ -445,6 +448,9 @@ struct vector_span {
     /** @brief Check if empty. */
     constexpr bool empty() const noexcept { return dimensions_ == 0; }
 
+    /** @brief Contextual-bool: truthy when the handle is non-empty. Enables the `if(!v)` empty-check idiom. */
+    constexpr explicit operator bool() const noexcept { return !empty(); }
+
     /** @brief Stride in bytes. */
     constexpr difference_type stride_bytes() const noexcept { return stride_bytes_; }
 
@@ -466,7 +472,7 @@ struct vector_span {
 
     /** @brief Mutable integral indexing. Signed negatives wrap from end. */
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) const noexcept {
+    constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         auto i = resolve_index_(idx, dimensions_);
         if constexpr (dimensions_per_value<value_type>() > 1) {
             constexpr auto dims_per_value = dimensions_per_value<value_type>();
@@ -481,7 +487,7 @@ struct vector_span {
     }
 
     /** @brief Sub-slice via range. */
-    vector_span operator[](range r) const noexcept {
+    constexpr vector_span operator[](range r) const noexcept {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
@@ -489,15 +495,15 @@ struct vector_span {
     }
 
     /** @brief Select all elements. */
-    vector_span operator[](all_t) const noexcept { return *this; }
+    constexpr vector_span operator[](all_t) const noexcept { return *this; }
 
     /** @brief Dimension iterator to beginning. The handle is shallow-const, so iteration yields mutable refs. */
-    iterator begin() const noexcept { return {const_cast<vector_span &>(*this), 0}; }
-    const_iterator cbegin() const noexcept { return {*this, 0}; }
+    constexpr iterator begin() const noexcept { return {const_cast<vector_span &>(*this), 0}; }
+    constexpr const_iterator cbegin() const noexcept { return {*this, 0}; }
 
     /** @brief Dimension iterator to end. */
-    iterator end() const noexcept { return {const_cast<vector_span &>(*this), dimensions_}; }
-    const_iterator cend() const noexcept { return {*this, dimensions_}; }
+    constexpr iterator end() const noexcept { return {const_cast<vector_span &>(*this), dimensions_}; }
+    constexpr const_iterator cend() const noexcept { return {*this, dimensions_}; }
 
     /** @brief Zero-fill every element. memset on the contiguous fast path,
      *  one memset per element on the strided slow path. */
@@ -517,8 +523,8 @@ struct vector_span {
                 return true;
             }
             for (size_type element_index = 0; element_index < dimensions_; ++element_index)
-                std::memset(static_cast<void *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_),
-                            0, sizeof(value_type));
+                std::memset(static_cast<void *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_), 0,
+                            sizeof(value_type));
             return true;
         }
     }
@@ -558,8 +564,8 @@ struct vector_span {
                 return true;
             }
             for (size_type element_index = 0; element_index < dimensions_; ++element_index) {
-                auto *target =
-                    reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_);
+                auto *target = reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(element_index) *
+                                                                          stride_bytes_);
                 *target = value;
             }
             return true;
@@ -585,8 +591,8 @@ struct vector_span {
             }
             auto input_stride_bytes = input.stride_bytes();
             for (size_type element_index = 0; element_index < dimensions_; ++element_index) {
-                auto *target =
-                    reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_);
+                auto *target = reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(element_index) *
+                                                                          stride_bytes_);
                 auto const *source = reinterpret_cast<value_type const *>(
                     input.byte_data() + static_cast<difference_type>(element_index) * input_stride_bytes);
                 *target = *source;
@@ -601,10 +607,11 @@ struct vector_span {
 #pragma region Vector
 
 /**
- *  @brief Owning, non-resizable, SIMD-aligned vector.
+ *  @brief Owning, resizable-within-capacity, SIMD-aligned vector.
  *
- *  Size is fixed at construction. Use `try_zeros()` factory for
- *  non-throwing construction, or `from_raw()` to adopt existing memory.
+ *  Use the `try_zeros()`/`try_empty()` factories for non-throwing construction, or `from_raw()` to
+ *  adopt existing memory. `try_resize()` changes the size within the allocated `capacity()` without
+ *  moving `values_data()`; `reserve()` is the explicit opt-in that may reallocate to grow capacity.
  *
  *  Supports signed indexing (`v[-1]`), sub-byte types via proxy references,
  *  and slicing via `operator[](range)`.
@@ -630,6 +637,7 @@ struct vector {
   private:
     pointer data_ = nullptr;
     size_type dimensions_ = 0;
+    size_type capacity_values_ = 0; // Allocated storage values; the size may cover any prefix of them.
     [[no_unique_address]] allocator_type_ alloc_;
 
     /** @brief Convert dimension count to value count. */
@@ -642,25 +650,26 @@ struct vector {
     vector() noexcept = default;
 
     /** @brief Construct with custom allocator. */
-    explicit vector(allocator_type_ const &alloc) noexcept : alloc_(alloc) {}
+    constexpr explicit vector(allocator_type_ const &alloc) noexcept : alloc_(alloc) {}
 
     /** @brief Destructor — deallocates memory. */
     ~vector() noexcept {
-        if (data_) alloc_traits::deallocate(alloc_, data_, dims_to_values(dimensions_));
+        if (data_) alloc_traits::deallocate(alloc_, data_, capacity_values_);
     }
 
     /** @brief Move constructor. */
-    vector(vector &&other) noexcept
+    constexpr vector(vector &&other) noexcept
         : data_(std::exchange(other.data_, nullptr)), dimensions_(std::exchange(other.dimensions_, 0)),
-          alloc_(std::move(other.alloc_)) {}
+          capacity_values_(std::exchange(other.capacity_values_, 0)), alloc_(std::move(other.alloc_)) {}
 
     /** @brief Move assignment with allocator propagation. */
     vector &operator=(vector &&other) noexcept {
         if (this != &other) {
-            if (data_) alloc_traits::deallocate(alloc_, data_, dims_to_values(dimensions_));
+            if (data_) alloc_traits::deallocate(alloc_, data_, capacity_values_);
             if constexpr (alloc_traits::propagate_on_container_move_assignment::value) alloc_ = std::move(other.alloc_);
             data_ = std::exchange(other.data_, nullptr);
             dimensions_ = std::exchange(other.dimensions_, 0);
+            capacity_values_ = std::exchange(other.capacity_values_, 0);
         }
         return *this;
     }
@@ -683,6 +692,7 @@ struct vector {
             for (size_type i = 0; i < values; ++i) ptr[i] = value_type_ {};
         v.data_ = ptr;
         v.dimensions_ = dims;
+        v.capacity_values_ = values;
         return v;
     }
 
@@ -707,6 +717,7 @@ struct vector {
         for (size_type i = 0; i < values; ++i) ptr[i] = val;
         v.data_ = ptr;
         v.dimensions_ = dims;
+        v.capacity_values_ = values;
         return v;
     }
 
@@ -723,6 +734,7 @@ struct vector {
         if (!ptr) return v;
         v.data_ = ptr;
         v.dimensions_ = dims;
+        v.capacity_values_ = values;
         return v;
     }
 
@@ -736,38 +748,83 @@ struct vector {
         vector v(alloc);
         v.data_ = ptr;
         v.dimensions_ = dims;
+        v.capacity_values_ = dims_to_values(dims);
         return v;
     }
 
     /** @brief Swap with another vector. */
-    void swap(vector &other) noexcept {
+    constexpr void swap(vector &other) noexcept {
         using std::swap;
         swap(data_, other.data_);
         swap(dimensions_, other.dimensions_);
+        swap(capacity_values_, other.capacity_values_);
         if constexpr (alloc_traits::propagate_on_container_swap::value) swap(alloc_, other.alloc_);
     }
 
+    /** @brief Allocated storage-value capacity — the ceiling `try_resize()` honors. */
+    constexpr size_type capacity() const noexcept { return capacity_values_; }
+
+    /**
+     *  @brief Resize in place to @p dims dimensions without reallocating: succeeds iff the packed
+     *      storage fits `capacity()`, so `values_data()` never moves. @return `true` on success;
+     *      `false` leaves the size untouched.
+     */
+    [[nodiscard]] constexpr bool try_resize(size_type dims) noexcept {
+        if (dims_to_values(dims) > capacity_values_) return false;
+        dimensions_ = dims;
+        return true;
+    }
+
+    /**
+     *  @brief Grow the allocated `capacity()` to at least @p values storage values. Unlike
+     *      `try_resize()`, this MAY reallocate and move `values_data()`; the live elements are
+     *      preserved. No-op when already large enough. @return `true` on success/no-op; `false` on
+     *      allocation failure (state unchanged).
+     */
+    [[nodiscard]] bool reserve(size_type values) noexcept {
+        if (values <= capacity_values_) return true;
+        pointer fresh = alloc_traits::allocate(alloc_, values);
+        if (!fresh) return false;
+        if (data_) {
+            size_type const live = dims_to_values(dimensions_);
+            if (live)
+                std::memcpy(static_cast<void *>(fresh), static_cast<void const *>(data_), live * sizeof(value_type_));
+            alloc_traits::deallocate(alloc_, data_, capacity_values_);
+        }
+        data_ = fresh;
+        capacity_values_ = values;
+        return true;
+    }
+
+    /** @brief Reset to an empty size while keeping `capacity()`; storage frees on destruction. */
+    constexpr void clear() noexcept { dimensions_ = 0; }
+
     /** @brief Number of logical dimensions. */
-    size_type size() const noexcept { return dimensions_; }
+    constexpr size_type size() const noexcept { return dimensions_; }
 
     /** @brief Check if empty. */
-    bool empty() const noexcept { return dimensions_ == 0; }
+    constexpr bool empty() const noexcept { return dimensions_ == 0; }
+
+    /** @brief Contextual-bool: truthy when the vector owns storage. Enables the `if(!v)` empty-check idiom. */
+    constexpr explicit operator bool() const noexcept { return !empty(); }
 
     /** @brief Number of storage values. */
-    size_type size_values() const noexcept { return dims_to_values(dimensions_); }
+    constexpr size_type size_values() const noexcept { return dims_to_values(dimensions_); }
 
     /** @brief Size in bytes. */
-    size_type size_bytes() const noexcept { return dims_to_values(dimensions_) * sizeof(value_type_); }
+    constexpr size_type size_bytes() const noexcept { return dims_to_values(dimensions_) * sizeof(value_type_); }
 
     /** @brief Pointer to underlying data. */
-    value_type *values_data() noexcept { return data_; }
-    value_type const *values_data() const noexcept { return data_; }
+    constexpr value_type *values_data() noexcept { return data_; }
+    constexpr value_type const *values_data() const noexcept { return data_; }
 
-    raw_value_type *raw_values_data() noexcept { return reinterpret_cast<raw_value_type *>(data_); }
-    raw_value_type const *raw_values_data() const noexcept { return reinterpret_cast<raw_value_type const *>(data_); }
+    constexpr raw_value_type *raw_values_data() noexcept { return reinterpret_cast<raw_value_type *>(data_); }
+    constexpr raw_value_type const *raw_values_data() const noexcept {
+        return reinterpret_cast<raw_value_type const *>(data_);
+    }
 
     /** @brief Get a copy of the allocator. */
-    allocator_type get_allocator() const noexcept { return alloc_; }
+    constexpr allocator_type get_allocator() const noexcept { return alloc_; }
 
     /**
      *  @brief Signed dimension access. Negative indices wrap from end.
@@ -775,7 +832,7 @@ struct vector {
      *  @retval For normal types, returns direct reference.
      */
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) noexcept {
+    constexpr decltype(auto) operator[](index_type_ idx) noexcept {
         auto i = resolve_index_(idx, dimensions_);
         if constexpr (dimensions_per_value<value_type>() > 1)
             return sub_byte_ref<value_type>(reinterpret_cast<raw_value_type *>(data_), i);
@@ -783,7 +840,7 @@ struct vector {
     }
 
     template <std::integral index_type_>
-    decltype(auto) operator[](index_type_ idx) const noexcept {
+    constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         auto i = resolve_index_(idx, dimensions_);
         if constexpr (dimensions_per_value<value_type>() > 1)
             return sub_byte_ref<value_type>(
@@ -793,7 +850,7 @@ struct vector {
     }
 
     /** @brief Slice via range, returns a vector_span. */
-    vector_span<value_type> operator[](range r) noexcept {
+    constexpr vector_span<value_type> operator[](range r) noexcept {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
@@ -804,7 +861,7 @@ struct vector {
     }
 
     /** @brief Slice via range (const), returns a vector_view. */
-    vector_view<value_type> operator[](range r) const noexcept {
+    constexpr vector_view<value_type> operator[](range r) const noexcept {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
@@ -815,26 +872,26 @@ struct vector {
     }
 
     /** @brief Select all elements as a span. */
-    vector_span<value_type> operator[](all_t) noexcept { return span(); }
+    constexpr vector_span<value_type> operator[](all_t) noexcept { return span(); }
 
     /** @brief Select all elements as a view. */
-    vector_view<value_type> operator[](all_t) const noexcept { return view(); }
+    constexpr vector_view<value_type> operator[](all_t) const noexcept { return view(); }
 
     /** @brief Create an immutable view. */
-    vector_view<value_type> view() const noexcept { return {data_, dimensions_}; }
+    constexpr vector_view<value_type> view() const noexcept { return {data_, dimensions_}; }
 
     /** @brief Create a mutable span. */
-    vector_span<value_type> span() noexcept { return {data_, dimensions_}; }
+    constexpr vector_span<value_type> span() noexcept { return {data_, dimensions_}; }
 
     /** @brief Dimension iterator to beginning. */
-    iterator begin() noexcept { return {*this, 0}; }
-    const_iterator begin() const noexcept { return {*this, 0}; }
-    const_iterator cbegin() const noexcept { return {*this, 0}; }
+    constexpr iterator begin() noexcept { return {*this, 0}; }
+    constexpr const_iterator begin() const noexcept { return {*this, 0}; }
+    constexpr const_iterator cbegin() const noexcept { return {*this, 0}; }
 
     /** @brief Dimension iterator to end. */
-    iterator end() noexcept { return {*this, dimensions_}; }
-    const_iterator end() const noexcept { return {*this, dimensions_}; }
-    const_iterator cend() const noexcept { return {*this, dimensions_}; }
+    constexpr iterator end() noexcept { return {*this, dimensions_}; }
+    constexpr const_iterator end() const noexcept { return {*this, dimensions_}; }
+    constexpr const_iterator cend() const noexcept { return {*this, dimensions_}; }
 
     /** @brief Zero-fill every element. */
     bool fill_zeros() noexcept { return span().fill_zeros(); }
@@ -848,7 +905,7 @@ struct vector {
 
 /** @brief Non-member swap. */
 template <typename value_type_, typename allocator_type_>
-void swap(vector<value_type_, allocator_type_> &a, vector<value_type_, allocator_type_> &b) noexcept {
+constexpr void swap(vector<value_type_, allocator_type_> &a, vector<value_type_, allocator_type_> &b) noexcept {
     a.swap(b);
 }
 

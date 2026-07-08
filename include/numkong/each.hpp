@@ -193,6 +193,55 @@ void fma(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ const *c,
     }
 }
 
+/**
+ *  @brief Fused SwiGLU: yᵢ = silu(input_scale · gateᵢ) · (input_scale · upᵢ)
+ *
+ *  With `up = nullptr` this reduces to plain SiLU.
+ *
+ *  @param[in] gate Gate input, `rows × cols`
+ *  @param[in] up Up input, same shape as `gate`; `nullptr` collapses to plain SiLU
+ *  @param[out] y Output, same shape and dtype as `gate`; may alias `gate`
+ *  @param[in] rows,cols Logical shape
+ *  @param[in] gate_row_stride,up_row_stride,y_row_stride Row strides in bytes
+ *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32)
+ *
+ *  @tparam in_type_ Element type
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ */
+template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
+void swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size_t rows, std::size_t cols,
+            std::size_t gate_row_stride, std::size_t up_row_stride, std::size_t y_row_stride,
+            float input_scale = 1.0f) noexcept {
+    constexpr bool simd = allow_simd_ == prefer_simd_k;
+    if constexpr (std::is_same_v<in_type_, f32_t> && simd)
+        nk_each_swiglu_f32(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, cols, gate_row_stride, up_row_stride,
+                           y_row_stride, input_scale);
+    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
+        nk_each_swiglu_bf16(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, cols, gate_row_stride, up_row_stride,
+                            y_row_stride, input_scale);
+    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd)
+        nk_each_swiglu_e4m3(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, cols, gate_row_stride, up_row_stride,
+                            y_row_stride, input_scale);
+    // Scalar fallback for other numeric dtypes or when SIMD is disabled.
+    else {
+        for (std::size_t row = 0; row < rows; ++row) {
+            in_type_ const *gate_row = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(gate) +
+                                                                          row * gate_row_stride);
+            in_type_ const *up_row = up ? reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(up) +
+                                                                             row * up_row_stride)
+                                        : nullptr;
+            in_type_ *output_row = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_row_stride);
+            // SiLU(g) = g * sigmoid(g) = g / (1 + exp(-g)); exp via the type method, like sin/cos fallbacks.
+            for (std::size_t column = 0; column < cols; ++column) {
+                float gate_value = static_cast<float>(gate_row[column]) * input_scale;
+                float result = gate_value / (1.0f + static_cast<float>(f32_t(-gate_value).exp()));
+                if (up_row) result *= static_cast<float>(up_row[column]) * input_scale;
+                output_row[column] = f32_t(result).template to<in_type_>();
+            }
+        }
+    }
+}
+
 } // namespace ashvardanian::numkong
 
 #include "numkong/tensor.hpp"
@@ -200,6 +249,34 @@ void fma(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ const *c,
 namespace ashvardanian::numkong {
 
 #pragma region Tensor Elementwise
+
+/** @brief Fused SwiGLU over `[rows, cols]` matrices into a matching output span (`up` empty → SiLU). */
+template <numeric_dtype value_type_>
+bool swiglu(matrix_view<value_type_> gate, matrix_view<value_type_> up, matrix_span<value_type_> output,
+            float input_scale = 1.0f) noexcept {
+    bool const has_up = !up.empty();
+    if (gate.extent(0) != output.extent(0) || gate.extent(1) != output.extent(1)) return false;
+    if (has_up && (up.extent(0) != gate.extent(0) || up.extent(1) != gate.extent(1))) return false;
+    value_type_ const *up_ptr = has_up ? up.data() : nullptr;
+    std::size_t const up_stride = has_up ? static_cast<std::size_t>(up.stride_bytes(0)) : 0;
+    numkong::swiglu<value_type_>(gate.data(), up_ptr, output.data(), gate.extent(0), gate.extent(1),
+                                 static_cast<std::size_t>(gate.stride_bytes(0)), up_stride,
+                                 static_cast<std::size_t>(output.stride_bytes(0)), input_scale);
+    return true;
+}
+
+/** @brief Allocating SwiGLU returning a fresh matrix (`up` empty → SiLU). */
+template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<value_type_>>
+tensor<value_type_, allocator_type_, 2> try_swiglu(matrix_view<value_type_> gate, matrix_view<value_type_> up,
+                                                   float input_scale = 1.0f) noexcept {
+    using out_tensor_t = tensor<value_type_, allocator_type_, 2>;
+    if (gate.empty()) return out_tensor_t {};
+    auto &gate_shape = gate.shape();
+    auto result = out_tensor_t::try_empty(gate_shape.extents, gate_shape.rank);
+    if (result.empty()) return result;
+    if (!swiglu<value_type_>(gate, up, result.span(), input_scale)) return out_tensor_t {};
+    return result;
+}
 
 /** @brief Scale: output[i] = α × input[i] + β. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>

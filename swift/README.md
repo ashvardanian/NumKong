@@ -167,6 +167,12 @@ let view: MatrixView<Float32>  = t.view()  // immutable
 let span: MatrixSpan<Float32>  = t.span()  // mutable
 ```
 
+`Tensor<T>` is fixed-capacity resizable.
+`capacity` reports the allocated element ceiling.
+`tryResize(rows:cols:)` reshapes within capacity without moving storage, so an existing `view()`, `span()`, or `row()` stays valid.
+`reserve(_:)` may reallocate to grow, which __invalidates__ any view, span, or row pointer obtained earlier.
+`clear()` empties the tensor while keeping capacity.
+
 The view/span split is the same aliasing discipline used throughout the binding.
 `MatrixView` is non-owning and immutable.
 `MatrixSpan` is non-owning and mutable.

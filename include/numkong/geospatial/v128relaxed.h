@@ -63,10 +63,10 @@ NK_INTERNAL v128_t nk_haversine_f64x2_v128relaxed_(              //
     v128_t longitude_delta_half_f64x2 = wasm_f64x2_mul(longitude_delta_f64x2, half_f64x2);
     v128_t sin_latitude_delta_half_f64x2 = nk_f64x2_sin_v128relaxed_(latitude_delta_half_f64x2);
     v128_t sin_longitude_delta_half_f64x2 = nk_f64x2_sin_v128relaxed_(longitude_delta_half_f64x2);
-    v128_t sin_squared_latitude_delta_half_f64x2 = wasm_f64x2_mul(sin_latitude_delta_half_f64x2,
-                                                                  sin_latitude_delta_half_f64x2);
-    v128_t sin_squared_longitude_delta_half_f64x2 = wasm_f64x2_mul(sin_longitude_delta_half_f64x2,
-                                                                   sin_longitude_delta_half_f64x2);
+    v128_t sin_sq_latitude_delta_half_f64x2 = wasm_f64x2_mul(sin_latitude_delta_half_f64x2,
+                                                             sin_latitude_delta_half_f64x2);
+    v128_t sin_sq_longitude_delta_half_f64x2 = wasm_f64x2_mul(sin_longitude_delta_half_f64x2,
+                                                              sin_longitude_delta_half_f64x2);
 
     // Latitude cosine product
     v128_t cos_first_latitude_f64x2 = nk_f64x2_cos_v128relaxed_(first_latitudes_f64x2);
@@ -75,8 +75,8 @@ NK_INTERNAL v128_t nk_haversine_f64x2_v128relaxed_(              //
 
     // a = sin^2(dlat/2) + cos(lat1) * cos(lat2) * sin^2(dlon/2)
     v128_t haversine_term_f64x2 = wasm_f64x2_add(
-        sin_squared_latitude_delta_half_f64x2,
-        wasm_f64x2_mul(cos_latitude_product_f64x2, sin_squared_longitude_delta_half_f64x2));
+        sin_sq_latitude_delta_half_f64x2,
+        wasm_f64x2_mul(cos_latitude_product_f64x2, sin_sq_longitude_delta_half_f64x2));
     // Clamp haversine_term_f64x2 to [0, 1] to prevent NaN from sqrt of negative values
     // relaxed_min/max: 1 instruction (minpd/maxpd) vs 6-9 (with NaN/signed-zero_f64x2 fixup) on x86.
     // Safe because haversine_term_f64x2 is a product of finite sin/cos values — NaN is impossible.
@@ -141,10 +141,10 @@ NK_INTERNAL v128_t nk_haversine_f32x4_v128relaxed_(              //
     v128_t longitude_delta_half_f32x4 = wasm_f32x4_mul(longitude_delta_f32x4, half_f32x4);
     v128_t sin_latitude_delta_half_f32x4 = nk_f32x4_sin_v128relaxed_(latitude_delta_half_f32x4);
     v128_t sin_longitude_delta_half_f32x4 = nk_f32x4_sin_v128relaxed_(longitude_delta_half_f32x4);
-    v128_t sin_squared_latitude_delta_half_f32x4 = wasm_f32x4_mul(sin_latitude_delta_half_f32x4,
-                                                                  sin_latitude_delta_half_f32x4);
-    v128_t sin_squared_longitude_delta_half_f32x4 = wasm_f32x4_mul(sin_longitude_delta_half_f32x4,
-                                                                   sin_longitude_delta_half_f32x4);
+    v128_t sin_sq_latitude_delta_half_f32x4 = wasm_f32x4_mul(sin_latitude_delta_half_f32x4,
+                                                             sin_latitude_delta_half_f32x4);
+    v128_t sin_sq_longitude_delta_half_f32x4 = wasm_f32x4_mul(sin_longitude_delta_half_f32x4,
+                                                              sin_longitude_delta_half_f32x4);
 
     // Latitude cosine product
     v128_t cos_first_latitude_f32x4 = nk_f32x4_cos_v128relaxed_(first_latitudes_f32x4);
@@ -153,8 +153,8 @@ NK_INTERNAL v128_t nk_haversine_f32x4_v128relaxed_(              //
 
     // a = sin^2(dlat/2) + cos(lat1) * cos(lat2) * sin^2(dlon/2)
     v128_t haversine_term_f32x4 = wasm_f32x4_add(
-        sin_squared_latitude_delta_half_f32x4,
-        wasm_f32x4_mul(cos_latitude_product_f32x4, sin_squared_longitude_delta_half_f32x4));
+        sin_sq_latitude_delta_half_f32x4,
+        wasm_f32x4_mul(cos_latitude_product_f32x4, sin_sq_longitude_delta_half_f32x4));
 
     // Clamp to [0, 1] to avoid NaN from sqrt of negative numbers (due to floating point errors)
     // relaxed_min/max: 1 instruction (minps/maxps) vs 6-9 (with NaN/signed-zero_f32x4 fixup) on x86.
@@ -224,16 +224,16 @@ NK_INTERNAL v128_t nk_vincenty_f64x2_v128relaxed_(               //
     v128_t const epsilon_f64x2 = wasm_f64x2_splat(1e-15);
 
     // Longitude difference
-    v128_t longitude_difference_f64x2 = wasm_f64x2_sub(second_longitudes_f64x2, first_longitudes_f64x2);
+    v128_t longitude_diff_f64x2 = wasm_f64x2_sub(second_longitudes_f64x2, first_longitudes_f64x2);
 
     // Reduced latitudes: tan(U) = (1-f) * tan(lat)
-    v128_t one_minus_f_f64x2 = wasm_f64x2_sub(one_f64x2, flattening_f64x2);
+    v128_t one_minus_f64x2 = wasm_f64x2_sub(one_f64x2, flattening_f64x2);
     v128_t tan_first_f64x2 = wasm_f64x2_div(nk_f64x2_sin_v128relaxed_(first_latitudes_f64x2),
                                             nk_f64x2_cos_v128relaxed_(first_latitudes_f64x2));
     v128_t tan_second_f64x2 = wasm_f64x2_div(nk_f64x2_sin_v128relaxed_(second_latitudes_f64x2),
                                              nk_f64x2_cos_v128relaxed_(second_latitudes_f64x2));
-    v128_t tan_reduced_first_f64x2 = wasm_f64x2_mul(one_minus_f_f64x2, tan_first_f64x2);
-    v128_t tan_reduced_second_f64x2 = wasm_f64x2_mul(one_minus_f_f64x2, tan_second_f64x2);
+    v128_t tan_reduced_first_f64x2 = wasm_f64x2_mul(one_minus_f64x2, tan_first_f64x2);
+    v128_t tan_reduced_second_f64x2 = wasm_f64x2_mul(one_minus_f64x2, tan_second_f64x2);
 
     // cos(U) = 1/sqrt(1 + tan^2(U)), sin(U) = tan(U) * cos(U)
     v128_t cos_reduced_first_f64x2 = wasm_f64x2_div(
@@ -246,9 +246,9 @@ NK_INTERNAL v128_t nk_vincenty_f64x2_v128relaxed_(               //
     v128_t sin_reduced_second_f64x2 = wasm_f64x2_mul(tan_reduced_second_f64x2, cos_reduced_second_f64x2);
 
     // Initialize lambda_f64x2 and tracking variables
-    v128_t lambda_f64x2 = longitude_difference_f64x2;
+    v128_t lambda_f64x2 = longitude_diff_f64x2;
     v128_t sin_angular_distance_f64x2, cos_angular_distance_f64x2, angular_distance_f64x2;
-    v128_t sin_azimuth_f64x2, cos_squared_azimuth_f64x2, cos_double_angular_midpoint_f64x2;
+    v128_t sin_azimuth_f64x2, cos_sq_azimuth_f64x2, cos_double_angular_midpoint_f64x2;
 
     // Track convergence and coincident points using masks
     v128_t converged_mask_i64x2 = wasm_i64x2_splat(0);
@@ -290,11 +290,11 @@ NK_INTERNAL v128_t nk_vincenty_f64x2_v128relaxed_(               //
         sin_azimuth_f64x2 = wasm_f64x2_div(
             wasm_f64x2_mul(wasm_f64x2_mul(cos_reduced_first_f64x2, cos_reduced_second_f64x2), sin_lambda_f64x2),
             safe_sin_angular_i64x2);
-        cos_squared_azimuth_f64x2 = wasm_f64x2_relaxed_nmadd(sin_azimuth_f64x2, sin_azimuth_f64x2, one_f64x2);
+        cos_sq_azimuth_f64x2 = wasm_f64x2_relaxed_nmadd(sin_azimuth_f64x2, sin_azimuth_f64x2, one_f64x2);
 
         // Handle equatorial case: cos^2(a) ~ 0
-        v128_t equatorial_mask_f64x2 = wasm_f64x2_lt(cos_squared_azimuth_f64x2, epsilon_f64x2);
-        v128_t safe_cos_sq_azimuth_i64x2 = wasm_i64x2_relaxed_laneselect(one_f64x2, cos_squared_azimuth_f64x2,
+        v128_t equatorial_mask_f64x2 = wasm_f64x2_lt(cos_sq_azimuth_f64x2, epsilon_f64x2);
+        v128_t safe_cos_sq_azimuth_i64x2 = wasm_i64x2_relaxed_laneselect(one_f64x2, cos_sq_azimuth_f64x2,
                                                                          equatorial_mask_f64x2);
 
         // cos(2sm) = cos(s) - 2 * sin(U1) * sin(U2) / cos^2(a)
@@ -308,11 +308,10 @@ NK_INTERNAL v128_t nk_vincenty_f64x2_v128relaxed_(               //
         // C = f/16 * cos^2(a) * (4 + f*(4 - 3*cos^2(a)))
         v128_t correction_factor_f64x2 = wasm_f64x2_mul(
             wasm_f64x2_div(flattening_f64x2, sixteen_f64x2),
-            wasm_f64x2_mul(
-                cos_squared_azimuth_f64x2,
-                wasm_f64x2_relaxed_madd(flattening_f64x2,
-                                        wasm_f64x2_relaxed_nmadd(three_f64x2, cos_squared_azimuth_f64x2, four_f64x2),
-                                        four_f64x2)));
+            wasm_f64x2_mul(cos_sq_azimuth_f64x2,
+                           wasm_f64x2_relaxed_madd(
+                               flattening_f64x2,
+                               wasm_f64x2_relaxed_nmadd(three_f64x2, cos_sq_azimuth_f64x2, four_f64x2), four_f64x2)));
 
         // l' = L + (1-C) * f * sin(a) * (s + C * sin(s) * (cos(2sm) + C * cos(s) * (-1 + 2 * cos^2(2sm))))
         v128_t cos_2sm_sq_f64x2 = wasm_f64x2_mul(cos_double_angular_midpoint_f64x2, cos_double_angular_midpoint_f64x2);
@@ -330,7 +329,7 @@ NK_INTERNAL v128_t nk_vincenty_f64x2_v128relaxed_(               //
         v128_t lambda_new_f64x2 = wasm_f64x2_relaxed_madd(
             wasm_f64x2_mul(wasm_f64x2_mul(wasm_f64x2_sub(one_f64x2, correction_factor_f64x2), flattening_f64x2),
                            sin_azimuth_f64x2),
-            wasm_f64x2_add(angular_distance_f64x2, inner_f64x2), longitude_difference_f64x2);
+            wasm_f64x2_add(angular_distance_f64x2, inner_f64x2), longitude_diff_f64x2);
 
         // Check convergence: |l - l'| < threshold
         v128_t lambda_diff_f64x2 = wasm_f64x2_sub(lambda_new_f64x2, lambda_f64x2);
@@ -348,21 +347,21 @@ NK_INTERNAL v128_t nk_vincenty_f64x2_v128relaxed_(               //
     // u^2 = cos^2(a) * (a^2 - b^2) / b^2
     v128_t a_sq_f64x2 = wasm_f64x2_mul(equatorial_radius_f64x2, equatorial_radius_f64x2);
     v128_t b_sq_f64x2 = wasm_f64x2_mul(polar_radius_f64x2, polar_radius_f64x2);
-    v128_t u_squared_f64x2 = wasm_f64x2_div(
-        wasm_f64x2_mul(cos_squared_azimuth_f64x2, wasm_f64x2_sub(a_sq_f64x2, b_sq_f64x2)), b_sq_f64x2);
+    v128_t u_sq_f64x2 = wasm_f64x2_div(wasm_f64x2_mul(cos_sq_azimuth_f64x2, wasm_f64x2_sub(a_sq_f64x2, b_sq_f64x2)),
+                                       b_sq_f64x2);
 
     // A = 1 + u^2/16384 * (4096 + u^2*(-768 + u^2*(320 - 175*u^2)))
-    v128_t series_a_f64x2 = wasm_f64x2_relaxed_madd(u_squared_f64x2, wasm_f64x2_splat(-175.0), wasm_f64x2_splat(320.0));
-    series_a_f64x2 = wasm_f64x2_relaxed_madd(u_squared_f64x2, series_a_f64x2, wasm_f64x2_splat(-768.0));
-    series_a_f64x2 = wasm_f64x2_relaxed_madd(u_squared_f64x2, series_a_f64x2, wasm_f64x2_splat(4096.0));
-    series_a_f64x2 = wasm_f64x2_relaxed_madd(wasm_f64x2_div(u_squared_f64x2, wasm_f64x2_splat(16384.0)), series_a_f64x2,
+    v128_t series_a_f64x2 = wasm_f64x2_relaxed_madd(u_sq_f64x2, wasm_f64x2_splat(-175.0), wasm_f64x2_splat(320.0));
+    series_a_f64x2 = wasm_f64x2_relaxed_madd(u_sq_f64x2, series_a_f64x2, wasm_f64x2_splat(-768.0));
+    series_a_f64x2 = wasm_f64x2_relaxed_madd(u_sq_f64x2, series_a_f64x2, wasm_f64x2_splat(4096.0));
+    series_a_f64x2 = wasm_f64x2_relaxed_madd(wasm_f64x2_div(u_sq_f64x2, wasm_f64x2_splat(16384.0)), series_a_f64x2,
                                              one_f64x2);
 
     // B = u^2/1024 * (256 + u^2*(-128 + u^2*(74 - 47*u^2)))
-    v128_t series_b_f64x2 = wasm_f64x2_relaxed_madd(u_squared_f64x2, wasm_f64x2_splat(-47.0), wasm_f64x2_splat(74.0));
-    series_b_f64x2 = wasm_f64x2_relaxed_madd(u_squared_f64x2, series_b_f64x2, wasm_f64x2_splat(-128.0));
-    series_b_f64x2 = wasm_f64x2_relaxed_madd(u_squared_f64x2, series_b_f64x2, wasm_f64x2_splat(256.0));
-    series_b_f64x2 = wasm_f64x2_mul(wasm_f64x2_div(u_squared_f64x2, wasm_f64x2_splat(1024.0)), series_b_f64x2);
+    v128_t series_b_f64x2 = wasm_f64x2_relaxed_madd(u_sq_f64x2, wasm_f64x2_splat(-47.0), wasm_f64x2_splat(74.0));
+    series_b_f64x2 = wasm_f64x2_relaxed_madd(u_sq_f64x2, series_b_f64x2, wasm_f64x2_splat(-128.0));
+    series_b_f64x2 = wasm_f64x2_relaxed_madd(u_sq_f64x2, series_b_f64x2, wasm_f64x2_splat(256.0));
+    series_b_f64x2 = wasm_f64x2_mul(wasm_f64x2_div(u_sq_f64x2, wasm_f64x2_splat(1024.0)), series_b_f64x2);
 
     // Delta-sigma calculation
     v128_t cos_2sm_sq_f64x2 = wasm_f64x2_mul(cos_double_angular_midpoint_f64x2, cos_double_angular_midpoint_f64x2);
@@ -445,16 +444,16 @@ NK_INTERNAL v128_t nk_vincenty_f32x4_v128relaxed_(               //
     v128_t const epsilon_f32x4 = wasm_f32x4_splat(1e-7f);
 
     // Longitude difference
-    v128_t longitude_difference_f32x4 = wasm_f32x4_sub(second_longitudes_f32x4, first_longitudes_f32x4);
+    v128_t longitude_diff_f32x4 = wasm_f32x4_sub(second_longitudes_f32x4, first_longitudes_f32x4);
 
     // Reduced latitudes: tan(U) = (1-f) * tan(lat)
-    v128_t one_minus_f_f32x4 = wasm_f32x4_sub(one_f32x4, flattening_f32x4);
+    v128_t one_minus_f32x4 = wasm_f32x4_sub(one_f32x4, flattening_f32x4);
     v128_t tan_first_f32x4 = wasm_f32x4_div(nk_f32x4_sin_v128relaxed_(first_latitudes_f32x4),
                                             nk_f32x4_cos_v128relaxed_(first_latitudes_f32x4));
     v128_t tan_second_f32x4 = wasm_f32x4_div(nk_f32x4_sin_v128relaxed_(second_latitudes_f32x4),
                                              nk_f32x4_cos_v128relaxed_(second_latitudes_f32x4));
-    v128_t tan_reduced_first_f32x4 = wasm_f32x4_mul(one_minus_f_f32x4, tan_first_f32x4);
-    v128_t tan_reduced_second_f32x4 = wasm_f32x4_mul(one_minus_f_f32x4, tan_second_f32x4);
+    v128_t tan_reduced_first_f32x4 = wasm_f32x4_mul(one_minus_f32x4, tan_first_f32x4);
+    v128_t tan_reduced_second_f32x4 = wasm_f32x4_mul(one_minus_f32x4, tan_second_f32x4);
 
     // cos(U) = 1/sqrt(1 + tan^2(U)), sin(U) = tan(U) * cos(U)
     v128_t cos_reduced_first_f32x4 = wasm_f32x4_div(
@@ -467,9 +466,9 @@ NK_INTERNAL v128_t nk_vincenty_f32x4_v128relaxed_(               //
     v128_t sin_reduced_second_f32x4 = wasm_f32x4_mul(tan_reduced_second_f32x4, cos_reduced_second_f32x4);
 
     // Initialize lambda_f32x4 and tracking variables
-    v128_t lambda_f32x4 = longitude_difference_f32x4;
+    v128_t lambda_f32x4 = longitude_diff_f32x4;
     v128_t sin_angular_distance_f32x4, cos_angular_distance_f32x4, angular_distance_f32x4;
-    v128_t sin_azimuth_f32x4, cos_squared_azimuth_f32x4, cos_double_angular_midpoint_f32x4;
+    v128_t sin_azimuth_f32x4, cos_sq_azimuth_f32x4, cos_double_angular_midpoint_f32x4;
 
     // Track convergence and coincident points using masks
     v128_t converged_mask_i32x4 = wasm_i32x4_splat(0);
@@ -510,11 +509,11 @@ NK_INTERNAL v128_t nk_vincenty_f32x4_v128relaxed_(               //
         sin_azimuth_f32x4 = wasm_f32x4_div(
             wasm_f32x4_mul(wasm_f32x4_mul(cos_reduced_first_f32x4, cos_reduced_second_f32x4), sin_lambda_f32x4),
             safe_sin_angular_i32x4);
-        cos_squared_azimuth_f32x4 = wasm_f32x4_relaxed_nmadd(sin_azimuth_f32x4, sin_azimuth_f32x4, one_f32x4);
+        cos_sq_azimuth_f32x4 = wasm_f32x4_relaxed_nmadd(sin_azimuth_f32x4, sin_azimuth_f32x4, one_f32x4);
 
         // Handle equatorial case: cos^2(a) ~ 0
-        v128_t equatorial_mask_f32x4 = wasm_f32x4_lt(cos_squared_azimuth_f32x4, epsilon_f32x4);
-        v128_t safe_cos_sq_azimuth_i32x4 = wasm_i32x4_relaxed_laneselect(one_f32x4, cos_squared_azimuth_f32x4,
+        v128_t equatorial_mask_f32x4 = wasm_f32x4_lt(cos_sq_azimuth_f32x4, epsilon_f32x4);
+        v128_t safe_cos_sq_azimuth_i32x4 = wasm_i32x4_relaxed_laneselect(one_f32x4, cos_sq_azimuth_f32x4,
                                                                          equatorial_mask_f32x4);
 
         // cos(2sm) = cos(s) - 2 * sin(U1) * sin(U2) / cos^2(a)
@@ -528,11 +527,10 @@ NK_INTERNAL v128_t nk_vincenty_f32x4_v128relaxed_(               //
         // C = f/16 * cos^2(a) * (4 + f*(4 - 3*cos^2(a)))
         v128_t correction_factor_f32x4 = wasm_f32x4_mul(
             wasm_f32x4_div(flattening_f32x4, sixteen_f32x4),
-            wasm_f32x4_mul(
-                cos_squared_azimuth_f32x4,
-                wasm_f32x4_relaxed_madd(flattening_f32x4,
-                                        wasm_f32x4_relaxed_nmadd(three_f32x4, cos_squared_azimuth_f32x4, four_f32x4),
-                                        four_f32x4)));
+            wasm_f32x4_mul(cos_sq_azimuth_f32x4,
+                           wasm_f32x4_relaxed_madd(
+                               flattening_f32x4,
+                               wasm_f32x4_relaxed_nmadd(three_f32x4, cos_sq_azimuth_f32x4, four_f32x4), four_f32x4)));
 
         // l' = L + (1-C) * f * sin(a) * (s + C * sin(s) * (cos(2sm) + C * cos(s) * (-1 + 2 * cos^2(2sm))))
         v128_t cos_2sm_sq_f32x4 = wasm_f32x4_mul(cos_double_angular_midpoint_f32x4, cos_double_angular_midpoint_f32x4);
@@ -546,7 +544,7 @@ NK_INTERNAL v128_t nk_vincenty_f32x4_v128relaxed_(               //
         v128_t lambda_new_f32x4 = wasm_f32x4_relaxed_madd(
             wasm_f32x4_mul(wasm_f32x4_mul(wasm_f32x4_sub(one_f32x4, correction_factor_f32x4), flattening_f32x4),
                            sin_azimuth_f32x4),
-            wasm_f32x4_add(angular_distance_f32x4, inner_f32x4), longitude_difference_f32x4);
+            wasm_f32x4_add(angular_distance_f32x4, inner_f32x4), longitude_diff_f32x4);
 
         // Check convergence: |l - l'| < threshold
         v128_t lambda_diff_f32x4 = wasm_f32x4_sub(lambda_new_f32x4, lambda_f32x4);
@@ -563,22 +561,21 @@ NK_INTERNAL v128_t nk_vincenty_f32x4_v128relaxed_(               //
     // Final distance calculation
     v128_t a_sq_f32x4 = wasm_f32x4_mul(equatorial_radius_f32x4, equatorial_radius_f32x4);
     v128_t b_sq_f32x4 = wasm_f32x4_mul(polar_radius_f32x4, polar_radius_f32x4);
-    v128_t u_squared_f32x4 = wasm_f32x4_div(
-        wasm_f32x4_mul(cos_squared_azimuth_f32x4, wasm_f32x4_sub(a_sq_f32x4, b_sq_f32x4)), b_sq_f32x4);
+    v128_t u_sq_f32x4 = wasm_f32x4_div(wasm_f32x4_mul(cos_sq_azimuth_f32x4, wasm_f32x4_sub(a_sq_f32x4, b_sq_f32x4)),
+                                       b_sq_f32x4);
 
     // A = 1 + u^2/16384 * (4096 + u^2*(-768 + u^2*(320 - 175*u^2)))
-    v128_t series_a_f32x4 = wasm_f32x4_relaxed_madd(u_squared_f32x4, wasm_f32x4_splat(-175.0f),
-                                                    wasm_f32x4_splat(320.0f));
-    series_a_f32x4 = wasm_f32x4_relaxed_madd(u_squared_f32x4, series_a_f32x4, wasm_f32x4_splat(-768.0f));
-    series_a_f32x4 = wasm_f32x4_relaxed_madd(u_squared_f32x4, series_a_f32x4, wasm_f32x4_splat(4096.0f));
-    series_a_f32x4 = wasm_f32x4_relaxed_madd(wasm_f32x4_div(u_squared_f32x4, wasm_f32x4_splat(16384.0f)),
-                                             series_a_f32x4, one_f32x4);
+    v128_t series_a_f32x4 = wasm_f32x4_relaxed_madd(u_sq_f32x4, wasm_f32x4_splat(-175.0f), wasm_f32x4_splat(320.0f));
+    series_a_f32x4 = wasm_f32x4_relaxed_madd(u_sq_f32x4, series_a_f32x4, wasm_f32x4_splat(-768.0f));
+    series_a_f32x4 = wasm_f32x4_relaxed_madd(u_sq_f32x4, series_a_f32x4, wasm_f32x4_splat(4096.0f));
+    series_a_f32x4 = wasm_f32x4_relaxed_madd(wasm_f32x4_div(u_sq_f32x4, wasm_f32x4_splat(16384.0f)), series_a_f32x4,
+                                             one_f32x4);
 
     // B = u^2/1024 * (256 + u^2*(-128 + u^2*(74 - 47*u^2)))
-    v128_t series_b_f32x4 = wasm_f32x4_relaxed_madd(u_squared_f32x4, wasm_f32x4_splat(-47.0f), wasm_f32x4_splat(74.0f));
-    series_b_f32x4 = wasm_f32x4_relaxed_madd(u_squared_f32x4, series_b_f32x4, wasm_f32x4_splat(-128.0f));
-    series_b_f32x4 = wasm_f32x4_relaxed_madd(u_squared_f32x4, series_b_f32x4, wasm_f32x4_splat(256.0f));
-    series_b_f32x4 = wasm_f32x4_mul(wasm_f32x4_div(u_squared_f32x4, wasm_f32x4_splat(1024.0f)), series_b_f32x4);
+    v128_t series_b_f32x4 = wasm_f32x4_relaxed_madd(u_sq_f32x4, wasm_f32x4_splat(-47.0f), wasm_f32x4_splat(74.0f));
+    series_b_f32x4 = wasm_f32x4_relaxed_madd(u_sq_f32x4, series_b_f32x4, wasm_f32x4_splat(-128.0f));
+    series_b_f32x4 = wasm_f32x4_relaxed_madd(u_sq_f32x4, series_b_f32x4, wasm_f32x4_splat(256.0f));
+    series_b_f32x4 = wasm_f32x4_mul(wasm_f32x4_div(u_sq_f32x4, wasm_f32x4_splat(1024.0f)), series_b_f32x4);
 
     // Delta-sigma calculation
     v128_t cos_2sm_sq_f32x4 = wasm_f32x4_mul(cos_double_angular_midpoint_f32x4, cos_double_angular_midpoint_f32x4);

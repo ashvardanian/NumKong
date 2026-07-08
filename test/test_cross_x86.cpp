@@ -12,6 +12,7 @@
 void test_cross_x86() {
     [[maybe_unused]] error_stats_section_t check;
 #if NK_TARGET_HASWELL
+
     check("dots_packed_f64_haswell", test_dots_packed<f64_t>, nk_dots_packed_size_f64_haswell, nk_dots_pack_f64_haswell,
           nk_dots_packed_f64_haswell);
     check("dots_packed_f32_haswell", test_dots_packed<f32_t>, nk_dots_packed_size_f32_haswell, nk_dots_pack_f32_haswell,
@@ -118,9 +119,18 @@ void test_cross_x86() {
     check("euclideans_symmetric_e3m2_haswell", test_euclideans_symmetric<e3m2_t>, nk_euclideans_symmetric_e3m2_haswell);
     check("euclideans_symmetric_i8_haswell", test_euclideans_symmetric<i8_t>, nk_euclideans_symmetric_i8_haswell);
     check("euclideans_symmetric_u8_haswell", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_haswell);
+
+    check("attention_packed_bf16_haswell", test_attention_packed<bf16_t>, nk_attention_packed_size_bf16_haswell,
+          nk_attention_pack_bf16_haswell, nk_attention_packed_bf16_haswell);
+    check("attention_packed_e4m3_haswell", test_attention_packed<e4m3_t>, nk_attention_packed_size_e4m3_haswell,
+          nk_attention_pack_e4m3_haswell, nk_attention_packed_e4m3_haswell);
+    check("attention_packed_i8_haswell", test_attention_packed<i8_t>, nk_attention_packed_size_i8_haswell,
+          nk_attention_pack_i8_haswell, nk_attention_packed_i8_haswell);
+
 #endif
 
 #if NK_TARGET_SKYLAKE
+
     check("dots_packed_f64_skylake", test_dots_packed<f64_t>, nk_dots_packed_size_f64_skylake, nk_dots_pack_f64_skylake,
           nk_dots_packed_f64_skylake);
     check("dots_packed_f32_skylake", test_dots_packed<f32_t>, nk_dots_packed_size_f32_skylake, nk_dots_pack_f32_skylake,
@@ -198,6 +208,12 @@ void test_cross_x86() {
     check("euclideans_symmetric_e5m2_skylake", test_euclideans_symmetric<e5m2_t>, nk_euclideans_symmetric_e5m2_skylake);
     check("euclideans_symmetric_e2m3_skylake", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3_skylake);
     check("euclideans_symmetric_e3m2_skylake", test_euclideans_symmetric<e3m2_t>, nk_euclideans_symmetric_e3m2_skylake);
+
+    check("attention_packed_bf16_skylake", test_attention_packed<bf16_t>, nk_attention_packed_size_bf16_skylake,
+          nk_attention_pack_bf16_skylake, nk_attention_packed_bf16_skylake);
+    check("attention_packed_e4m3_skylake", test_attention_packed<e4m3_t>, nk_attention_packed_size_e4m3_skylake,
+          nk_attention_pack_e4m3_skylake, nk_attention_packed_e4m3_skylake);
+
 #endif
 
 #if NK_TARGET_ICELAKE
@@ -253,9 +269,14 @@ void test_cross_x86() {
     check("euclideans_symmetric_u8_icelake", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_icelake);
     check("euclideans_symmetric_i4_icelake", test_euclideans_symmetric<i4x2_t>, nk_euclideans_symmetric_i4_icelake);
     check("euclideans_symmetric_u4_icelake", test_euclideans_symmetric<u4x2_t>, nk_euclideans_symmetric_u4_icelake);
+
+    check("attention_packed_i8_icelake", test_attention_packed<i8_t>, nk_attention_packed_size_i8_icelake,
+          nk_attention_pack_i8_icelake, nk_attention_packed_i8_icelake);
+
 #endif
 
 #if NK_TARGET_GENOA
+
     check("dots_packed_bf16_genoa", test_dots_packed<bf16_t>, nk_dots_packed_size_bf16_genoa, nk_dots_pack_bf16_genoa,
           nk_dots_packed_bf16_genoa);
     check("dots_packed_e4m3_genoa", test_dots_packed<e4m3_t>, nk_dots_packed_size_e4m3_genoa, nk_dots_pack_e4m3_genoa,
@@ -283,6 +304,12 @@ void test_cross_x86() {
     check("euclideans_symmetric_bf16_genoa", test_euclideans_symmetric<bf16_t>, nk_euclideans_symmetric_bf16_genoa);
     check("euclideans_symmetric_e4m3_genoa", test_euclideans_symmetric<e4m3_t>, nk_euclideans_symmetric_e4m3_genoa);
     check("euclideans_symmetric_e5m2_genoa", test_euclideans_symmetric<e5m2_t>, nk_euclideans_symmetric_e5m2_genoa);
+
+    check("attention_packed_bf16_genoa", test_attention_packed<bf16_t>, nk_attention_packed_size_bf16_genoa,
+          nk_attention_pack_bf16_genoa, nk_attention_packed_bf16_genoa);
+    check("attention_packed_e4m3_genoa", test_attention_packed<e4m3_t>, nk_attention_packed_size_e4m3_genoa,
+          nk_attention_pack_e4m3_genoa, nk_attention_packed_e4m3_genoa);
+
 #endif
 
 #if NK_TARGET_DIAMOND
@@ -304,6 +331,7 @@ void test_cross_x86() {
           nk_dots_pack_e5m2_diamond, nk_euclideans_packed_e5m2_diamond);
     check("euclideans_symmetric_e4m3_diamond", test_euclideans_symmetric<e4m3_t>, nk_euclideans_symmetric_e4m3_diamond);
     check("euclideans_symmetric_e5m2_diamond", test_euclideans_symmetric<e5m2_t>, nk_euclideans_symmetric_e5m2_diamond);
+
 #endif
 
 #if NK_TARGET_ALDER

@@ -8,7 +8,7 @@
 #include <cstring> // std::memset
 
 #include "numkong/capabilities.h" // nk_kernel_kind_t
-#include "numkong/each.h"
+#include "numkong/each.h"         // nk_each_swiglu_*
 
 #include "bench.hpp"
 
@@ -124,6 +124,46 @@ void run_each(std::string name, kernel_type_ *kernel) {
                           kernel, bench_config.dense_dimensions);
 }
 
+/**
+ *  @brief Measures a fused SwiGLU kernel (single row, gate ⊙ up).
+ */
+template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
+void measure_swiglu(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
+    using input_t = typename nk::type_for<input_dtype_>::type;
+    std::size_t const vectors_count = bench_input_count(bench_dtype_bytes(input_dtype_, 3 * dimensions));
+    std::vector<nk::vector<input_t>> gate(vectors_count), up(vectors_count), output(vectors_count);
+    auto generator = make_random_engine();
+    for (std::size_t i = 0; i < vectors_count; ++i) {
+        gate[i] = make_vector<input_t>(dimensions);
+        up[i] = make_vector<input_t>(dimensions);
+        output[i] = make_vector<input_t>(dimensions);
+        nk::fill_uniform(generator, gate[i].values_data(), gate[i].size_values());
+        nk::fill_uniform(generator, up[i].values_data(), up[i].size_values());
+    }
+    std::size_t const stride = dimensions * sizeof(typename input_t::raw_t);
+
+    std::size_t iterations = 0;
+    for (auto _ : state) {
+        std::size_t const index = iterations & (vectors_count - 1);
+        kernel(gate[index].raw_values_data(), up[index].raw_values_data(), output[index].raw_values_data(), 1,
+               dimensions, stride, stride, stride, 1.0f);
+        bm::ClobberMemory();
+        ++iterations;
+    }
+    state.counters["bytes"] = bm::Counter(2.0 * iterations * gate[0].size_bytes(), bm::Counter::kIsRate);
+    state.counters["calls"] = bm::Counter(iterations, bm::Counter::kIsRate);
+}
+
+template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
+void run_swiglu(std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(bench_config.dense_dimensions) + "d>";
+    bm::RegisterBenchmark(bench_name.c_str(), measure_swiglu<input_dtype_, kernel_type_ *>, kernel,
+                          bench_config.dense_dimensions);
+}
+
+/**
+ *  @brief Measures an in-place NeoX split-half RoPE kernel (single head, all pairs rotated).
+ */
 void bench_each() {
     constexpr nk_dtype_t i8_k = nk_i8_k;
     constexpr nk_dtype_t u8_k = nk_u8_k;
@@ -252,6 +292,9 @@ void bench_each() {
     run_each<bf16_k, scale_k, f32_k>("each_scale_bf16_haswell", nk_each_scale_bf16_haswell);
     run_each<bf16_k, blend_k, f32_k>("each_blend_bf16_haswell", nk_each_blend_bf16_haswell);
     run_each<bf16_k, fma_k, f32_k>("each_fma_bf16_haswell", nk_each_fma_bf16_haswell);
+    run_swiglu<f32_k>("each_swiglu_f32_haswell", nk_each_swiglu_f32_haswell);
+    run_swiglu<bf16_k>("each_swiglu_bf16_haswell", nk_each_swiglu_bf16_haswell);
+    run_swiglu<e4m3_k>("each_swiglu_e4m3_haswell", nk_each_swiglu_e4m3_haswell);
     // e4m3
     run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_haswell", nk_each_sum_e4m3_haswell);
     run_each<e4m3_k, scale_k, f32_k>("each_scale_e4m3_haswell", nk_each_scale_e4m3_haswell);
@@ -314,6 +357,9 @@ void bench_each() {
     run_each<bf16_k, scale_k, f32_k>("each_scale_bf16_skylake", nk_each_scale_bf16_skylake);
     run_each<bf16_k, blend_k, f32_k>("each_blend_bf16_skylake", nk_each_blend_bf16_skylake);
     run_each<bf16_k, fma_k, f32_k>("each_fma_bf16_skylake", nk_each_fma_bf16_skylake);
+    run_swiglu<f32_k>("each_swiglu_f32_skylake", nk_each_swiglu_f32_skylake);
+    run_swiglu<bf16_k>("each_swiglu_bf16_skylake", nk_each_swiglu_bf16_skylake);
+    run_swiglu<e4m3_k>("each_swiglu_e4m3_skylake", nk_each_swiglu_e4m3_skylake);
     // e4m3
     run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_skylake", nk_each_sum_e4m3_skylake);
     run_each<e4m3_k, scale_k, f32_k>("each_scale_e4m3_skylake", nk_each_scale_e4m3_skylake);
@@ -438,6 +484,9 @@ void bench_each() {
     run_each<bf16_k, scale_k, f32_k>("each_scale_bf16_serial", nk_each_scale_bf16_serial);
     run_each<bf16_k, blend_k, f32_k>("each_blend_bf16_serial", nk_each_blend_bf16_serial);
     run_each<bf16_k, fma_k, f32_k>("each_fma_bf16_serial", nk_each_fma_bf16_serial);
+    run_swiglu<f32_k>("each_swiglu_f32_serial", nk_each_swiglu_f32_serial);
+    run_swiglu<bf16_k>("each_swiglu_bf16_serial", nk_each_swiglu_bf16_serial);
+    run_swiglu<e4m3_k>("each_swiglu_e4m3_serial", nk_each_swiglu_e4m3_serial);
     // Serial fallbacks — e4m3, e5m2, e2m3, e3m2
     run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_serial", nk_each_sum_e4m3_serial);
     run_each<e4m3_k, scale_k, f32_k>("each_scale_e4m3_serial", nk_each_scale_e4m3_serial);

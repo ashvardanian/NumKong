@@ -22,8 +22,10 @@ import time
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
 
-import numkong as nk
 import pytest
+
+import numkong as nk
+
 
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative

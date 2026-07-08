@@ -168,8 +168,8 @@ NK_PUBLIC void nk_jaccard_u32_v128relaxed(nk_u32_t const *a, nk_u32_t const *b, 
         v128_t a_u32x4 = wasm_v128_load(a + i);
         v128_t b_u32x4 = wasm_v128_load(b + i);
         v128_t eq_mask_u32x4 = wasm_i32x4_eq(a_u32x4, b_u32x4);
-        v128_t match_bits_u32x4 = wasm_u32x4_shr(eq_mask_u32x4, 31);
-        matches_u32x4 = wasm_i32x4_add(matches_u32x4, match_bits_u32x4);
+        v128_t match_u32x4 = wasm_u32x4_shr(eq_mask_u32x4, 31);
+        matches_u32x4 = wasm_i32x4_add(matches_u32x4, match_u32x4);
     }
 
     matches += nk_reduce_add_u32x4_v128relaxed_(matches_u32x4);
@@ -187,8 +187,8 @@ NK_PUBLIC void nk_jaccard_u16_v128relaxed(nk_u16_t const *a, nk_u16_t const *b, 
         v128_t a_u16x8 = wasm_v128_load(a + i);
         v128_t b_u16x8 = wasm_v128_load(b + i);
         v128_t eq_mask_u16x8 = wasm_i16x8_eq(a_u16x8, b_u16x8);
-        v128_t match_bits_u16x8 = wasm_u16x8_shr(eq_mask_u16x8, 15);
-        matches_u32x4 = wasm_i32x4_add(matches_u32x4, wasm_u32x4_extadd_pairwise_u16x8(match_bits_u16x8));
+        v128_t match_u16x8 = wasm_u16x8_shr(eq_mask_u16x8, 15);
+        matches_u32x4 = wasm_i32x4_add(matches_u32x4, wasm_u32x4_extadd_pairwise_u16x8(match_u16x8));
     }
 
     matches += nk_reduce_add_u32x4_v128relaxed_(matches_u32x4);

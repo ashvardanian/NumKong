@@ -20,6 +20,7 @@ from pathlib import Path
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 
+
 __lib_name__ = "numkong"
 __version__ = Path("VERSION").read_text().strip()
 
@@ -95,24 +96,24 @@ def march_baseline_args() -> list[str]:
         print("[NumKong] NK_MARCH_NATIVE=1: building -march=native, result will not run on older CPUs")
         return ["-march=native"]
     no_vectorize = ["-fno-tree-vectorize", "-fno-tree-slp-vectorize"]
-    # On macOS, `-arch arm64`/`-arch x86_64` already pins the ABI floor, and
-    # universal2 wheels pass both `-arch` flags to a single clang invocation —
-    # a per-arch `-march=` would then conflict with the other slice (e.g.
-    # `-march=armv8-a` is rejected by the x86_64 compile). Let Apple's `-arch`
-    # drive the baseline and keep only the auto-vectorizer lockdown.
+    # On macOS, `-arch arm64`/`-arch x86_64` already pins the ABI floor. When
+    # cibuildwheel cross-compiles (e.g. arm64 host → x86_64 wheel) a per-arch
+    # `-march=` would disagree with Apple's `-arch` (e.g. `-march=armv8-a` is
+    # rejected by the x86_64 compile). Let `-arch` drive the baseline and keep
+    # only the auto-vectorizer lockdown. We ship per-arch wheels only.
     if sys.platform == "darwin":
         return no_vectorize
     if is_64bit_arm():
-        return ["-march=armv8-a"] + no_vectorize
+        return ["-march=armv8-a", *no_vectorize]
     if is_64bit_x86():
-        return ["-march=x86-64"] + no_vectorize
+        return ["-march=x86-64", *no_vectorize]
     if is_64bit_riscv():
-        return ["-march=rv64gc"] + no_vectorize
+        return ["-march=rv64gc", *no_vectorize]
     if is_64bit_power():
-        return ["-mcpu=power8"] + no_vectorize
+        return ["-mcpu=power8", *no_vectorize]
     if is_64bit_loongarch():
         # LASX needs TU-level `-mlasx` until GCC >= 15 / Clang >= 22 ship per-function support.
-        return ["-march=loongarch64", "-mlasx"] + no_vectorize
+        return ["-march=loongarch64", "-mlasx", *no_vectorize]
     return no_vectorize
 
 
@@ -150,7 +151,10 @@ def probe_isa(cc, probe_file, flags, is_msvc=False):
         prefix = [cc, "/c"] if is_msvc else [cc, "-c"]
         out_flag = ["/Fo" + obj_path] if is_msvc else ["-o", obj_path]
         extra = [] if is_msvc else cross_target_flags()
-        return subprocess.run(prefix + extra + flags + [probe_file] + out_flag, capture_output=True, timeout=30).returncode == 0
+        return (
+            subprocess.run(prefix + extra + flags + [probe_file] + out_flag, capture_output=True, timeout=30).returncode
+            == 0
+        )
     except Exception:
         return False
     finally:
@@ -315,7 +319,10 @@ def darwin_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     try:
         libomp_prefix = subprocess.run(
             ["brew", "--prefix", "libomp"],
-            capture_output=True, text=True, timeout=10, check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
         ).stdout.strip()
     except (subprocess.SubprocessError, FileNotFoundError):
         libomp_prefix = ""
@@ -449,7 +456,9 @@ base_sources = [
     "python/types.c",
     "python/distance.c",
     "python/each.c",
+    "python/trigonometry.c",
     "python/mesh.c",
+    "python/attention.c",
     "python/maxsim.c",
     "python/numpy_interop.c",
     "python/dlpack_interop.c",
@@ -490,7 +499,7 @@ setup(
     author="Ash Vardanian",
     author_email="1983160+ashvardanian@users.noreply.github.com",
     url="https://github.com/ashvardanian/NumKong",
-    description="Portable mixed-precision math, linear-algebra, & retrieval library with 2000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly",
+    description="Portable mixed-precision math, linear-algebra, & retrieval library with 2000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly",  # noqa: E501
     long_description=(
         Path("python/README.md").read_text(encoding="utf8") + "\n\n" + Path("README.md").read_text(encoding="utf8")
     ),

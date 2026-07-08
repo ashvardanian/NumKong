@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -26,7 +27,6 @@ try:
 except ImportError:
     scipy_entropy = None  # type: ignore[assignment]
 
-import numkong as nk
 from test_base import (
     NK_ATOL,
     NK_RTOL,
@@ -47,6 +47,9 @@ from test_base import (
     scipy_metric_name,
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
 )
+
+import numkong as nk
+
 
 try:
     import scipy.spatial.distance as spd
@@ -77,7 +80,7 @@ def round_and_clip_even(values, out_dtype):
 @pytest.mark.parametrize("input_dtype", ["float64", "float32"])
 @pytest.mark.parametrize("metric", ["dot", "angular", "euclidean"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_batch_metrics(ndim, input_dtype, metric, capability):
+def test_cdist_batch_metrics(ndim, input_dtype, metric, capability, nk_seed):
     """Verify the SIMD batch dispatch for dot, angular, and euclidean.
 
     Sets ``out_dtype`` equal to ``input_dtype`` (float64 or float32) so that the
@@ -93,8 +96,8 @@ def test_cdist_batch_metrics(ndim, input_dtype, metric, capability):
     keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 7, 11
-    a_matrix = np.random.randn(num_rows_a, ndim).astype(input_dtype)
-    b_matrix = np.random.randn(num_rows_b, ndim).astype(input_dtype)
+    a_matrix, _ = make_random((num_rows_a, ndim), input_dtype, seed=nk_seed)
+    b_matrix, _ = make_random((num_rows_b, ndim), input_dtype, seed=nk_seed + 1)
 
     # Use native out_dtype to force batch path (float64->float64, float32->float32)
     out_dtype = input_dtype
@@ -116,7 +119,7 @@ def test_cdist_batch_metrics(ndim, input_dtype, metric, capability):
 @pytest.mark.parametrize("ndim", dense_dimensions)
 @pytest.mark.parametrize("input_dtype", ["float64", "float32"])
 @pytest.mark.parametrize("metric", ["dot", "angular", "euclidean", "sqeuclidean"])
-def test_cdist_self_distance(ndim, input_dtype, metric):
+def test_cdist_self_distance(ndim, input_dtype, metric, nk_seed):
     """Verify ``cdist(A, A)`` produces a complete, correct symmetric matrix.
 
     When both operands are the same object the C code takes a symmetric batch
@@ -133,7 +136,7 @@ def test_cdist_self_distance(ndim, input_dtype, metric):
     ISA-specific paths are already covered by ``test_cdist_batch_metrics``).
     Dimensions from ``NK_DENSE_DIMENSIONS``.
     """
-    a_matrix = np.random.randn(10, ndim).astype(input_dtype)
+    a_matrix, _ = make_random((10, ndim), input_dtype, seed=nk_seed)
 
     scipy_metric = scipy_metric_name(metric)
     if metric == "dot":
@@ -170,7 +173,7 @@ def test_cdist_self_distance(ndim, input_dtype, metric):
 @pytest.mark.parametrize("out_dtype", [None, "float32", "int32"])
 @pytest.mark.parametrize("metric", ["angular", "sqeuclidean", "euclidean", "dot"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability):
+def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, nk_seed):
     """Broad coverage of cdist for standard IEEE float inputs.
 
     Exercises four metrics (angular, sqeuclidean, euclidean, dot) across three
@@ -194,8 +197,8 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability):
     keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 10, 15
-    a_matrix_extended = np.random.randn(num_rows_a, ndim + 1).astype(input_dtype)
-    b_matrix_extended = np.random.randn(num_rows_b, ndim + 3).astype(input_dtype)
+    a_matrix_extended, _ = make_random((num_rows_a, ndim + 1), input_dtype, seed=nk_seed)
+    b_matrix_extended, _ = make_random((num_rows_b, ndim + 3), input_dtype, seed=nk_seed + 1)
     a_matrix = a_matrix_extended[:, :ndim]
     b_matrix = b_matrix_extended[:, :ndim]
 
@@ -465,7 +468,7 @@ def test_cdist_exotic_dtypes(ndim, input_dtype, metric):
     "m,n,k",
     [(1, 1, 8), (1, 5, 16), (5, 1, 16), (1, 1, 1), (2, 3, 4096), (13, 17, 97)],
 )
-def test_cdist_shapes(m, n, k):
+def test_cdist_shapes(m, n, k, nk_seed):
     """Verify cdist output shape and correctness for diverse matrix geometries.
 
     Uses a hardcoded list of ``(m, n, k)`` triples that exercise edge cases
@@ -483,8 +486,8 @@ def test_cdist_shapes(m, n, k):
 
     Not parameterised by capability — shape handling is ISA-independent.
     """
-    a_matrix = np.random.randn(m, k).astype(np.float32)
-    b_matrix = np.random.randn(n, k).astype(np.float32)
+    a_matrix, _ = make_random((m, k), "float32", seed=nk_seed)
+    b_matrix, _ = make_random((n, k), "float32", seed=nk_seed + 1)
 
     # euclidean (may use batch path)
     expected_euc = spd.cdist(a_matrix, b_matrix, "euclidean")
@@ -501,7 +504,7 @@ def test_cdist_shapes(m, n, k):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("m", [31, 64, 129])
-def test_cdist_threads(m):
+def test_cdist_threads(m, nk_seed):
     """Verify OpenMP-parallel cdist matches the serial path across tile boundaries.
 
     Exercises both the symmetric batch path (A vs A) and the packed batch path
@@ -509,8 +512,8 @@ def test_cdist_threads(m):
     chosen to straddle one and two tiles.
     """
     k = 32
-    a_matrix = np.random.randn(m, k).astype(np.float32)
-    b_matrix = np.random.randn(m, k).astype(np.float32)
+    a_matrix, _ = make_random((m, k), "float32", seed=nk_seed)
+    b_matrix, _ = make_random((m, k), "float32", seed=nk_seed + 1)
 
     # Symmetric batch path
     serial_symmetric = nk.cdist(a_matrix, a_matrix, "sqeuclidean", threads=1)

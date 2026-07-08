@@ -11,6 +11,48 @@
     "clangd.fallbackFlags": [
         "-I${workspaceFolder}/include"
     ],
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "editor.formatOnSave": true,
+    "editor.rulers": [
+        120
+    ],
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "[cpp]": {
+        "editor.defaultFormatter": "xaver.clang-format"
+    },
+    "[c]": {
+        "editor.defaultFormatter": "xaver.clang-format"
+    },
+    "[cuda-cpp]": {
+        "editor.defaultFormatter": "xaver.clang-format"
+    },
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.codeActionsOnSave": {
+            "source.organizeImports.ruff": "explicit"
+        }
+    },
+    "[rust]": {
+        "editor.defaultFormatter": "rust-lang.rust-analyzer"
+    },
+    "search.exclude": {
+        "build*/**": true,
+        "target/**": true,
+        "**/node_modules": true,
+        "**/__pycache__": true
+    },
+    "files.watcherExclude": {
+        "**/build*/**": true,
+        "**/target/**": true,
+        "**/node_modules/**": true,
+        "**/__pycache__": true
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/.ruff_cache": true
+    },
     "cSpell.words": [
         "allclose",
         "Altra",
@@ -168,6 +210,8 @@
         "__tuple": "cpp",
         "__verbose_abort": "cpp",
         "*.gyp": "jsonc",
+        "*.cu": "cuda-cpp",
+        "*.cuh": "cuda-cpp",
         "*.tcc": "cpp",
         "algorithm": "cpp",
         "arm_neon.h": "c",

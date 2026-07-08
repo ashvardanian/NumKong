@@ -211,19 +211,22 @@ typedef enum {
     nk_kernel_sparse_intersect_k = 'x', ///< Equivalent to unnormalized Jaccard
 
     // BLAS-like operations:
-    nk_kernel_each_scale_k = '*', ///< Element-wise Scale
-    nk_kernel_each_sum_k = '+',   ///< Element-wise Sum
-    nk_kernel_each_blend_k = 'w', ///< Element-wise Weighted Sum
-    nk_kernel_each_fma_k = 'f',   ///< Element-wise Fused Multiply-Add
+    nk_kernel_each_scale_k = '*',  ///< Element-wise Scale
+    nk_kernel_each_sum_k = '+',    ///< Element-wise Sum
+    nk_kernel_each_blend_k = 'w',  ///< Element-wise Weighted Sum
+    nk_kernel_each_fma_k = 'f',    ///< Element-wise Fused Multiply-Add
+    nk_kernel_each_swiglu_k = 'W', ///< Fused SwiGLU: y = silu(gate) ⊙ up (up = NULL → SiLU)
 
     // Trigonometric functions:
-    nk_kernel_each_sin_k = 'S',  ///< Element-wise sine
-    nk_kernel_each_cos_k = 'C',  ///< Element-wise cosine
-    nk_kernel_each_atan_k = 'A', ///< Element-wise arctangent
+    nk_kernel_trig_sin_k = 'S',  ///< Element-wise sine
+    nk_kernel_trig_cos_k = 'C',  ///< Element-wise cosine
+    nk_kernel_trig_atan_k = 'A', ///< Element-wise arctangent
+    nk_kernel_trig_rope_k = 'I', ///< NeoX split-half rotary position embedding (in place)
 
     // Horizontal reductions:
     nk_kernel_reduce_moments_k = 'R', ///< Horizontal moments reduction (sum + sum-of-squares)
     nk_kernel_reduce_minmax_k = 'X',  ///< Horizontal minmax reduction (min + argmin + max + argmax)
+    nk_kernel_reduce_rmsnorm_k = 'H', ///< Grouped RMSNorm: y = x · rsqrt(mean(x²) + eps) · γ
 
     // GEMM-like batched dot products:
     nk_kernel_dots_packed_size_k = 'P', ///< GEMM packed buffer size
@@ -247,6 +250,11 @@ typedef enum {
     nk_kernel_maxsim_packed_size_k = 'L', ///< MaxSim packed buffer size
     nk_kernel_maxsim_pack_k = 'l',        ///< MaxSim vector packing
     nk_kernel_maxsim_packed_k = 'T',      ///< MaxSim late-interaction computation
+
+    // Ragged scaled-dot-product attention functions:
+    nk_kernel_attention_packed_size_k = 'B', ///< Attention packed KV-cache Buffer size in Bytes
+    nk_kernel_attention_pack_k = 'V',        ///< Attention K/V packing (KV cache → backend format)
+    nk_kernel_attention_packed_k = 'F',      ///< Fused (Flash-style) attention computation
 
     nk_kernel_cast_k = '-',              ///< Type casting from one type to another
     nk_kernel_cast_block_scaled_k = '~', ///< Block-scaled cast (MX / NVFP4 encode / decode / transcode)
@@ -303,6 +311,7 @@ typedef nk_u64_t nk_capability_t;
 #define nk_cap_powervsx_k    ((nk_capability_t)1 << 37)
 #define nk_cap_diamond_k     ((nk_capability_t)1 << 38)
 #define nk_cap_neonfp8_k     ((nk_capability_t)1 << 39)
+#define nk_cap_diamondamx_k  ((nk_capability_t)1 << 40)
 
 typedef void (*nk_metric_dense_punned_t)(void const *a, void const *b, nk_size_t dimensions, void *result);
 
@@ -328,17 +337,28 @@ typedef void (*nk_each_blend_punned_t)(void const *a, void const *b, nk_size_t c
 typedef void (*nk_each_fma_punned_t)(void const *a, void const *b, void const *c, nk_size_t count, void const *alpha,
                                      void const *beta, void *y);
 
-typedef void (*nk_kernel_trigonometry_punned_t)(void const *x, nk_size_t count, void *y);
+typedef void (*nk_kernel_trig_punned_t)(void const *x, nk_size_t count, void *y);
 
 typedef void (*nk_metric_mesh_punned_t)(void const *a, void const *b, nk_size_t points_count, void *a_centroid,
                                         void *b_centroid, void *rotation, void *scale, void *result);
 
-typedef void (*nk_kernel_reduce_moments_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes,
-                                                  void *sum_ptr, void *sumsq_ptr);
+typedef void (*nk_reduce_moments_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes, void *sum_ptr,
+                                           void *sumsq_ptr);
 
-typedef void (*nk_kernel_reduce_minmax_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes,
-                                                 void *min_value, nk_size_t *min_index, void *max_value,
-                                                 nk_size_t *max_index);
+typedef void (*nk_reduce_minmax_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes, void *min_value,
+                                          nk_size_t *min_index, void *max_value, nk_size_t *max_index);
+
+typedef void (*nk_reduce_rmsnorm_punned_t)(void const *x, void const *gamma, void *y, nk_size_t rows, nk_size_t groups,
+                                           nk_size_t cols, nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
+                                           nk_f32_t input_scale);
+
+typedef void (*nk_each_swiglu_punned_t)(void const *gate, void const *up, void *y, nk_size_t rows, nk_size_t cols,
+                                        nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride,
+                                        nk_f32_t input_scale);
+
+typedef void (*nk_kernel_trig_rope_punned_t)(void const *x, void *y, void const *cos, void const *sin, nk_size_t rows,
+                                             nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride,
+                                             nk_size_t y_row_stride, nk_f32_t input_scale);
 
 typedef nk_size_t (*nk_dots_packed_size_punned_t)(nk_size_t columns, nk_size_t depth);
 
@@ -383,6 +403,17 @@ typedef void (*nk_euclideans_symmetric_punned_t)(void const *vectors, nk_size_t 
 
 typedef void (*nk_maxsim_packed_punned_t)(void const *q_packed, void const *d_packed, nk_size_t query_count,
                                           nk_size_t document_count, nk_size_t depth, void *result);
+
+typedef nk_size_t (*nk_attention_packed_size_punned_t)(nk_size_t num_kv_heads, nk_size_t head_dim,
+                                                       nk_u32_t const *segment_lengths, nk_size_t segment_count);
+typedef void (*nk_attention_pack_punned_t)(void const *k, void const *v, nk_size_t num_kv_heads, nk_size_t head_dim,
+                                           nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                           nk_size_t segment_count, nk_size_t k_stride_bytes, nk_size_t v_stride_bytes,
+                                           void *kv_packed, nk_size_t first_task, nk_size_t task_count);
+typedef void (*nk_attention_packed_punned_t)(void const *q, void const *kv_packed, void *output, nk_size_t num_heads,
+                                             nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets,
+                                             nk_size_t q_stride_bytes, nk_size_t o_stride_bytes, nk_f32_t scale,
+                                             nk_size_t first_task, nk_size_t task_count);
 
 typedef void (*nk_kernel_cast_punned_t)(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
                                         nk_dtype_t to_type);
@@ -483,6 +514,22 @@ NK_PUBLIC nk_capability_t nk_capabilities_x8664_(void) {
         supports_avx10v2 = (info24.named.ebx & 0xFF) >= 2;
     }
 
+    unsigned supports_amx_fp8 = 0, supports_amx_avx512 = 0;
+    // Diamond Rapids AMX detection via CPUID leaf 0x1E, subleaf 1: EAX bit 4 = AMX-FP8, EAX bit 7 = AMX-AVX512.
+    if (max_leaf >= 0x1E) {
+        union four_registers_t info1e1;
+#if defined(_MSC_VER)
+        __cpuidex(info1e1.array, 0x1E, 1);
+#else
+        __asm__ __volatile__("cpuid"
+                             : "=a"(info1e1.named.eax), "=b"(info1e1.named.ebx), "=c"(info1e1.named.ecx),
+                               "=d"(info1e1.named.edx)
+                             : "a"(0x1E), "c"(1));
+#endif
+        supports_amx_fp8 = (info1e1.named.eax & 0x00000010) != 0;
+        supports_amx_avx512 = (info1e1.named.eax & 0x00000080) != 0;
+    }
+
     unsigned supports_haswell = supports_avx2 && supports_f16c && supports_fma;
     unsigned supports_skylake = supports_avx512f;
     unsigned supports_icelake = supports_avx512vnni && supports_avx512ifma && supports_avx512bitalg &&
@@ -495,13 +542,15 @@ NK_PUBLIC nk_capability_t nk_capabilities_x8664_(void) {
     unsigned supports_alder = supports_haswell && supports_avxvnni;
     unsigned supports_sapphireamx = supports_amx_tile && supports_amx_bf16 && supports_amx_int8;
     unsigned supports_graniteamx = supports_sapphireamx && supports_amx_fp16;
+    unsigned supports_diamondamx = supports_sapphireamx && supports_amx_fp8 && supports_amx_avx512;
 
     return (nk_capability_t)((nk_cap_haswell_k * supports_haswell) | (nk_cap_skylake_k * supports_skylake) |
                              (nk_cap_icelake_k * supports_icelake) | (nk_cap_genoa_k * supports_genoa) |
                              (nk_cap_diamond_k * supports_diamond) | (nk_cap_sapphire_k * supports_sapphire) |
                              (nk_cap_turin_k * supports_turin) | (nk_cap_sierra_k * supports_sierra) |
                              (nk_cap_alder_k * supports_alder) | (nk_cap_sapphireamx_k * supports_sapphireamx) |
-                             (nk_cap_graniteamx_k * supports_graniteamx) | (nk_cap_serial_k));
+                             (nk_cap_graniteamx_k * supports_graniteamx) | (nk_cap_diamondamx_k * supports_diamondamx) |
+                             (nk_cap_serial_k));
 }
 
 #endif // NK_TARGET_X8664_
@@ -864,6 +913,7 @@ NK_PUBLIC nk_capability_t nk_capabilities_compiled_(void) {
     caps |= nk_cap_sapphire_k * NK_TARGET_SAPPHIRE;
     caps |= nk_cap_sapphireamx_k * NK_TARGET_SAPPHIREAMX;
     caps |= nk_cap_graniteamx_k * NK_TARGET_GRANITEAMX;
+    caps |= nk_cap_diamondamx_k * NK_TARGET_DIAMONDAMX;
     caps |= nk_cap_diamond_k * NK_TARGET_DIAMOND;
     caps |= nk_cap_turin_k * NK_TARGET_TURIN;
     caps |= nk_cap_alder_k * NK_TARGET_ALDER;

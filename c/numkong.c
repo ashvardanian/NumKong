@@ -135,6 +135,13 @@ void nk_error_each_fma_(void const *a, void const *b, void const *c, nk_size_t n
     nk_unused_(beta);
     nk_fill_error_(result, n * sizeof(nk_fmax_t));
 }
+void nk_error_each_swiglu_(void const *gate, void const *up, void *y, nk_size_t rows, nk_size_t cols,
+                           nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride,
+                           nk_f32_t input_scale) {
+    nk_unused_(gate), nk_unused_(up), nk_unused_(rows), nk_unused_(cols), nk_unused_(gate_row_stride),
+        nk_unused_(up_row_stride), nk_unused_(y_row_stride), nk_unused_(input_scale);
+    nk_fill_error_(y, sizeof(nk_fmax_t));
+}
 
 void nk_error_each_blend_(void const *a, void const *b, nk_size_t n, void const *alpha, void const *beta,
                           void *result) {
@@ -158,9 +165,15 @@ void nk_error_each_sum_(void const *a, void const *b, nk_size_t n, void *y) {
     nk_fill_error_(y, n * sizeof(nk_fmax_t));
 }
 
-void nk_error_trigonometry_(void const *x, nk_size_t n, void *y) {
+void nk_error_trig_(void const *x, nk_size_t n, void *y) {
     nk_unused_(x);
     nk_fill_error_(y, n * sizeof(nk_fmax_t));
+}
+void nk_error_trig_rope_(void const *x, void *y, void const *cos, void const *sin, nk_size_t rows, nk_size_t heads,
+                         nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) {
+    nk_unused_(x), nk_unused_(cos), nk_unused_(sin), nk_unused_(rows), nk_unused_(heads), nk_unused_(half_dim),
+        nk_unused_(x_row_stride), nk_unused_(y_row_stride), nk_unused_(input_scale);
+    nk_fill_error_(y, sizeof(nk_fmax_t));
 }
 
 void nk_error_mesh_(void const *a, void const *b, nk_size_t n, void *a_centroid, void *b_centroid, void *rotation,
@@ -190,6 +203,13 @@ void nk_error_reduce_minmax_(void const *data, nk_size_t count, nk_size_t stride
     nk_fill_error_(min_index, sizeof(nk_size_t));
     nk_fill_error_(max_value, sizeof(nk_fmax_t));
     nk_fill_error_(max_index, sizeof(nk_size_t));
+}
+void nk_error_reduce_rmsnorm_(void const *x, void const *gamma, void *y, nk_size_t rows, nk_size_t groups,
+                              nk_size_t cols, nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
+                              nk_f32_t input_scale) {
+    nk_unused_(x), nk_unused_(gamma), nk_unused_(rows), nk_unused_(groups), nk_unused_(cols), nk_unused_(x_row_stride),
+        nk_unused_(y_row_stride), nk_unused_(eps), nk_unused_(input_scale);
+    nk_fill_error_(y, sizeof(nk_fmax_t));
 }
 
 nk_size_t nk_error_packed_size_(nk_size_t n, nk_size_t k) {
@@ -224,6 +244,32 @@ void nk_error_dots_symmetric_(void const *vectors, nk_size_t n_vectors, nk_size_
     nk_unused_(row_count);
     for (nk_size_t row = 0; row < n_vectors; ++row)
         nk_fill_error_((nk_u8_t *)result + row * result_stride, n_vectors * sizeof(nk_fmax_t));
+}
+
+nk_size_t nk_error_attention_packed_size_(nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *segment_lengths,
+                                          nk_size_t segment_count) {
+    nk_unused_(num_kv_heads), nk_unused_(head_dim), nk_unused_(segment_lengths), nk_unused_(segment_count);
+    return 0;
+}
+
+void nk_error_attention_pack_(void const *k, void const *v, nk_size_t num_kv_heads, nk_size_t head_dim,
+                              nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                              nk_size_t k_stride, nk_size_t v_stride, void *kv_packed, nk_size_t first_task,
+                              nk_size_t task_count) {
+    nk_unused_(k), nk_unused_(v), nk_unused_(num_kv_heads), nk_unused_(head_dim), nk_unused_(segment_offsets);
+    nk_unused_(segment_lengths), nk_unused_(segment_count), nk_unused_(k_stride), nk_unused_(v_stride);
+    nk_unused_(kv_packed), nk_unused_(first_task), nk_unused_(task_count);
+}
+
+void nk_error_attention_packed_(void const *q, void const *kv_packed, void *output, nk_size_t num_heads,
+                                nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets,
+                                nk_size_t q_stride, nk_size_t o_stride, nk_f32_t scale, nk_size_t first_task,
+                                nk_size_t task_count) {
+    // The ragged output extent (query_offsets[segments] rows) lives behind the backend-private
+    // packed header, so unlike the dense error handlers this one cannot poison the output.
+    nk_unused_(q), nk_unused_(kv_packed), nk_unused_(output), nk_unused_(num_heads), nk_unused_(num_kv_heads);
+    nk_unused_(head_dim), nk_unused_(query_offsets), nk_unused_(q_stride), nk_unused_(o_stride), nk_unused_(scale);
+    nk_unused_(first_task), nk_unused_(task_count);
 }
 
 // Global dispatch table - 64-byte aligned for cache performance
@@ -278,6 +324,13 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
         nk_dispatch_table.each_fma_##extension(a, b, c, n, (void const *)alpha, (void const *)beta, result); \
         nk_unpoison_((void *)result, n * sizeof(nk_##extension##_t));                                        \
     }
+#define nk_dispatch_each_swiglu_(extension, data_type)                                                      \
+    NK_DYNAMIC void nk_each_swiglu_##extension(                                                             \
+        data_type const *gate, data_type const *up, data_type *y, nk_size_t rows, nk_size_t cols,           \
+        nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) { \
+        ((nk_each_swiglu_punned_t)nk_dispatch_table.each_swiglu_##extension)(                               \
+            gate, up, y, rows, cols, gate_row_stride, up_row_stride, y_row_stride, input_scale);            \
+    }
 
 #define nk_dispatch_each_blend_(extension, scalar_type)                                                              \
     NK_DYNAMIC void nk_each_blend_##extension(nk_##extension##_t const *a, nk_##extension##_t const *b, nk_size_t n, \
@@ -302,11 +355,18 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
         nk_unpoison_((void *)result, n * sizeof(nk_##extension##_t));                                              \
     }
 
-#define nk_dispatch_trigonometry_(name, extension)                                              \
-    NK_DYNAMIC void nk_each_##name##_##extension(nk_##extension##_t const *inputs, nk_size_t n, \
+#define nk_dispatch_trig_(name, extension)                                                      \
+    NK_DYNAMIC void nk_trig_##name##_##extension(nk_##extension##_t const *inputs, nk_size_t n, \
                                                  nk_##extension##_t *outputs) {                 \
-        nk_dispatch_table.each_##name##_##extension(inputs, n, outputs);                        \
+        nk_dispatch_table.trig_##name##_##extension(inputs, n, outputs);                        \
         nk_unpoison_((void *)outputs, n * sizeof(nk_##extension##_t));                          \
+    }
+#define nk_dispatch_trig_rope_(extension, data_type)                                                                   \
+    NK_DYNAMIC void nk_trig_rope_##extension(data_type const *x, data_type *y, nk_f32_t const *cos,                    \
+                                             nk_f32_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim, \
+                                             nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) {   \
+        ((nk_kernel_trig_rope_punned_t)nk_dispatch_table.trig_rope_##extension)(                                       \
+            x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);                           \
     }
 
 #define nk_dispatch_mesh_(name, extension, transform_type, metric_type)                                               \
@@ -323,25 +383,32 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
         nk_unpoison_((void *)result, sizeof(nk_##metric_type##_t));                                                   \
     }
 
-#define nk_dispatch_reduce_moments_(extension, data_type, sum_type, sumsq_type)                                      \
-    NK_DYNAMIC void nk_reduce_moments_##extension(data_type const *data, nk_size_t count, nk_size_t stride_bytes,    \
-                                                  sum_type *sum_ptr, sumsq_type *sumsq_ptr) {                        \
-        ((nk_kernel_reduce_moments_punned_t)nk_dispatch_table.reduce_moments_##extension)(data, count, stride_bytes, \
-                                                                                          sum_ptr, sumsq_ptr);       \
-        nk_unpoison_((void *)sum_ptr, sizeof(sum_type));                                                             \
-        nk_unpoison_((void *)sumsq_ptr, sizeof(sumsq_type));                                                         \
+#define nk_dispatch_reduce_moments_(extension, data_type, sum_type, sumsq_type)                                        \
+    NK_DYNAMIC void nk_reduce_moments_##extension(data_type const *data, nk_size_t count, nk_size_t stride_bytes,      \
+                                                  sum_type *sum_ptr, sumsq_type *sumsq_ptr) {                          \
+        ((nk_reduce_moments_punned_t)nk_dispatch_table.reduce_moments_##extension)(data, count, stride_bytes, sum_ptr, \
+                                                                                   sumsq_ptr);                         \
+        nk_unpoison_((void *)sum_ptr, sizeof(sum_type));                                                               \
+        nk_unpoison_((void *)sumsq_ptr, sizeof(sumsq_type));                                                           \
     }
 
 #define nk_dispatch_reduce_minmax_(extension, data_type, minmax_type)                                                  \
     NK_DYNAMIC void nk_reduce_minmax_##extension(data_type const *data, nk_size_t count, nk_size_t stride_bytes,       \
                                                  minmax_type *min_value, nk_size_t *min_index, minmax_type *max_value, \
                                                  nk_size_t *max_index) {                                               \
-        ((nk_kernel_reduce_minmax_punned_t)nk_dispatch_table.reduce_minmax_##extension)(                               \
-            data, count, stride_bytes, min_value, min_index, max_value, max_index);                                    \
+        ((nk_reduce_minmax_punned_t)nk_dispatch_table.reduce_minmax_##extension)(data, count, stride_bytes, min_value, \
+                                                                                 min_index, max_value, max_index);     \
         nk_unpoison_((void *)min_value, sizeof(minmax_type));                                                          \
         nk_unpoison_(min_index, sizeof(nk_size_t));                                                                    \
         nk_unpoison_((void *)max_value, sizeof(minmax_type));                                                          \
         nk_unpoison_(max_index, sizeof(nk_size_t));                                                                    \
+    }
+#define nk_dispatch_reduce_rmsnorm_(extension, data_type)                                                          \
+    NK_DYNAMIC void nk_reduce_rmsnorm_##extension(                                                                 \
+        data_type const *x, nk_f32_t const *gamma, data_type *y, nk_size_t rows, nk_size_t groups, nk_size_t cols, \
+        nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale) {                      \
+        ((nk_reduce_rmsnorm_punned_t)nk_dispatch_table.reduce_rmsnorm_##extension)(                                \
+            x, gamma, y, rows, groups, cols, x_row_stride, y_row_stride, eps, input_scale);                        \
     }
 
 #define nk_dispatch_cross_packed_size_(api_name, name, input_type, accum_type)          \
@@ -377,6 +444,31 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
                                             nk_size_t depth, nk_##output_type##_t *result) {                          \
         nk_dispatch_table.maxsim_packed_##name(q_packed, d_packed, n_q, n_d, depth, (void *)result);                  \
         nk_unpoison_((void *)result, sizeof(nk_##output_type##_t));                                                   \
+    }
+
+#define nk_dispatch_attention_packed_size_(name)                                                                       \
+    NK_DYNAMIC nk_size_t nk_attention_packed_size_##name(nk_size_t num_kv_heads, nk_size_t head_dim,                   \
+                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count) {   \
+        return nk_dispatch_table.attention_packed_size_##name(num_kv_heads, head_dim, segment_lengths, segment_count); \
+    }
+
+#define nk_dispatch_attention_pack_(name)                                                                              \
+    NK_DYNAMIC void nk_attention_pack_##name(                                                                          \
+        nk_##name##_t const *k, nk_##name##_t const *v, nk_size_t num_kv_heads, nk_size_t head_dim,                    \
+        nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t k_stride, \
+        nk_size_t v_stride, void *kv_packed, nk_size_t first_task, nk_size_t task_count) {                             \
+        nk_dispatch_table.attention_pack_##name(k, v, num_kv_heads, head_dim, segment_offsets, segment_lengths,        \
+                                                segment_count, k_stride, v_stride, kv_packed, first_task, task_count); \
+    }
+
+#define nk_dispatch_attention_packed_(name)                                                                            \
+    NK_DYNAMIC void nk_attention_packed_##name(nk_##name##_t const *q, void const *kv_packed, nk_f32_t *output,        \
+                                               nk_size_t num_heads, nk_size_t num_kv_heads, nk_size_t head_dim,        \
+                                               nk_u32_t const *query_offsets, nk_size_t q_stride, nk_size_t o_stride,  \
+                                               nk_f32_t scale, nk_size_t first_task, nk_size_t task_count) {           \
+        nk_dispatch_table.attention_packed_##name((void const *)q, kv_packed, (void *)output, num_heads, num_kv_heads, \
+                                                  head_dim, query_offsets, q_stride, o_stride, scale, first_task,      \
+                                                  task_count);                                                         \
     }
 
 // Dot products
@@ -554,7 +646,7 @@ nk_dispatch_each_blend_(u32, f64)
 nk_dispatch_each_blend_(u16, f32)
 nk_dispatch_each_blend_(u8, f32)
 nk_dispatch_each_fma_(f64c, f64c)
-nk_dispatch_each_fma_(f32c, f32c)
+nk_dispatch_each_swiglu_(f32, nk_f32_t) nk_dispatch_each_swiglu_(bf16, nk_bf16_t) nk_dispatch_each_fma_(f32c, f32c)
 nk_dispatch_each_fma_(f64, f64)
 nk_dispatch_each_fma_(f32, f32)
 nk_dispatch_each_fma_(bf16, f32)
@@ -573,15 +665,15 @@ nk_dispatch_each_fma_(u16, f32)
 nk_dispatch_each_fma_(u8, f32)
 
 // Trigonometry functions
-nk_dispatch_trigonometry_(sin, f64)
-nk_dispatch_trigonometry_(sin, f32)
-nk_dispatch_trigonometry_(sin, f16)
-nk_dispatch_trigonometry_(cos, f64)
-nk_dispatch_trigonometry_(cos, f32)
-nk_dispatch_trigonometry_(cos, f16)
-nk_dispatch_trigonometry_(atan, f64)
-nk_dispatch_trigonometry_(atan, f32)
-nk_dispatch_trigonometry_(atan, f16)
+nk_dispatch_trig_(sin, f64)
+nk_dispatch_trig_rope_(f32, nk_f32_t) nk_dispatch_trig_rope_(bf16, nk_bf16_t) nk_dispatch_trig_(sin, f32)
+nk_dispatch_trig_(sin, f16)
+nk_dispatch_trig_(cos, f64)
+nk_dispatch_trig_(cos, f32)
+nk_dispatch_trig_(cos, f16)
+nk_dispatch_trig_(atan, f64)
+nk_dispatch_trig_(atan, f32)
+nk_dispatch_trig_(atan, f16)
 
 // Horizontal reductions: moments (sum + sum-of-squares)
 nk_dispatch_reduce_moments_(f64, nk_f64_t, nk_f64_t, nk_f64_t)
@@ -604,9 +696,19 @@ nk_dispatch_reduce_moments_(u8, nk_u8_t, nk_u64_t, nk_u64_t)
 nk_dispatch_reduce_moments_(u4, nk_u4x2_t, nk_u64_t, nk_u64_t)
 nk_dispatch_reduce_moments_(u1, nk_u1x8_t, nk_u64_t, nk_u64_t)
 
-// Horizontal reductions: minmax (min + max with indices)
-nk_dispatch_reduce_minmax_(f64, nk_f64_t, nk_f64_t)
-nk_dispatch_reduce_minmax_(f32, nk_f32_t, nk_f32_t)
+// Fused transformer nonlinearities: grouped RMSNorm
+nk_dispatch_reduce_rmsnorm_(e4m3, nk_e4m3_t)
+
+    // Fused transformer nonlinearities: SwiGLU / SiLU
+    nk_dispatch_each_swiglu_(e4m3, nk_e4m3_t)
+
+    // Fused transformer nonlinearities: RoPE (NeoX split-half)
+    nk_dispatch_trig_rope_(e4m3, nk_e4m3_t)
+
+    // Horizontal reductions: minmax (min + max with indices)
+    nk_dispatch_reduce_minmax_(f64, nk_f64_t, nk_f64_t)
+nk_dispatch_reduce_rmsnorm_(f32, nk_f32_t) nk_dispatch_reduce_rmsnorm_(bf16, nk_bf16_t)
+    nk_dispatch_reduce_minmax_(f32, nk_f32_t, nk_f32_t)
 nk_dispatch_reduce_minmax_(bf16, nk_bf16_t, nk_bf16_t)
 nk_dispatch_reduce_minmax_(f16, nk_f16_t, nk_f16_t)
 nk_dispatch_reduce_minmax_(e5m2, nk_e5m2_t, nk_e5m2_t)
@@ -764,7 +866,18 @@ nk_dispatch_maxsim_packed_(f32, f64)
 nk_dispatch_maxsim_packed_(bf16, f32)
 nk_dispatch_maxsim_packed_(f16, f32)
 
-NK_DYNAMIC int nk_uses_dynamic_dispatch(void) { return 1; }
+// Attention packed KV sizes
+nk_dispatch_attention_packed_size_(bf16) nk_dispatch_attention_packed_size_(e4m3)
+
+    // Attention KV packing
+    nk_dispatch_attention_pack_(bf16) nk_dispatch_attention_pack_(e4m3)
+
+    // Attention computation
+    nk_dispatch_attention_packed_(bf16) nk_dispatch_attention_packed_(e4m3)
+
+        NK_DYNAMIC int nk_uses_dynamic_dispatch(void) {
+    return 1;
+}
 NK_DYNAMIC int nk_configure_thread(nk_capability_t c) { return nk_configure_thread_(c); }
 
 NK_DYNAMIC void nk_cast(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type) {

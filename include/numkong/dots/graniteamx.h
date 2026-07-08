@@ -125,12 +125,12 @@ NK_INTERNAL void nk_dots_f16_load_a_graniteamx_(        //
     nk_f16_t const *src, nk_size_t src_stride_elements, //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
-    __mmask32 column_mask = (valid_cols >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_cols) - 1;
+    __mmask32 column_m32 = (valid_cols >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_cols) - 1;
     __m512i zero_i16x32 = _mm512_setzero_si512();
 
     for (nk_size_t row_idx = 0; row_idx < 16; row_idx++) {
         if (row_idx < valid_rows) {
-            __m512i row_i16x32 = _mm512_maskz_loadu_epi16(column_mask, src + row_idx * src_stride_elements);
+            __m512i row_i16x32 = _mm512_maskz_loadu_epi16(column_m32, src + row_idx * src_stride_elements);
             _mm512_store_si512((__m512i *)a_tile->data[row_idx], row_i16x32);
         }
         else { _mm512_store_si512((__m512i *)a_tile->data[row_idx], zero_i16x32); }
@@ -144,11 +144,11 @@ NK_INTERNAL void nk_dots_f16_store_graniteamx_(   //
     nk_f32_t *dst, nk_size_t dst_stride_elements, //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
-    __mmask16 column_mask = (valid_cols >= 16) ? 0xFFFF : ((__mmask16)1 << valid_cols) - 1;
+    __mmask16 column_m16 = (valid_cols >= 16) ? 0xFFFF : ((__mmask16)1 << valid_cols) - 1;
 
     for (nk_size_t row_idx = 0; row_idx < valid_rows; row_idx++) {
         __m512 row_f32x16 = _mm512_load_ps(state->data[row_idx]);
-        _mm512_mask_storeu_ps(dst + row_idx * dst_stride_elements, column_mask, row_f32x16);
+        _mm512_mask_storeu_ps(dst + row_idx * dst_stride_elements, column_m16, row_f32x16);
     }
 }
 
@@ -282,10 +282,10 @@ NK_PUBLIC void nk_dots_pack_f16_graniteamx(                     //
                 }
             }
             else {
-                __mmask32 depth_mask = (__mmask32)((columns_to_pack < 32) ? ((1U << columns_to_pack) - 1) : ~0U);
+                __mmask32 depth_m32 = (__mmask32)((columns_to_pack < 32) ? ((1U << columns_to_pack) - 1) : ~0U);
                 for (nk_size_t row_idx = 0; row_idx < tmm_rows; row_idx++) {
                     nk_f16_t const *source_row = b + (src_row_start + row_idx) * b_stride_elements + src_column_start;
-                    _mm512_store_si512(&source_tile.data[row_idx][0], _mm512_maskz_loadu_epi16(depth_mask, source_row));
+                    _mm512_store_si512(&source_tile.data[row_idx][0], _mm512_maskz_loadu_epi16(depth_m32, source_row));
                 }
             }
 
@@ -309,9 +309,9 @@ NK_PUBLIC void nk_dots_pack_f16_graniteamx(                     //
                 _mm512_storeu_si512(dst_row + column_idx, _mm512_loadu_si512(src_row + column_idx));
             }
             if (column_idx < depth) {
-                __mmask32 tail_mask = (__mmask32)((1U << (depth - column_idx)) - 1);
-                _mm512_mask_storeu_epi16(dst_row + column_idx, tail_mask,
-                                         _mm512_maskz_loadu_epi16(tail_mask, src_row + column_idx));
+                __mmask32 tail_m32 = (__mmask32)((1U << (depth - column_idx)) - 1);
+                _mm512_mask_storeu_epi16(dst_row + column_idx, tail_m32,
+                                         _mm512_maskz_loadu_epi16(tail_m32, src_row + column_idx));
             }
         }
     }
@@ -742,15 +742,15 @@ NK_INTERNAL void nk_dots_e5m2_load_a_graniteamx_(        //
     nk_e5m2_t const *src, nk_size_t src_stride_elements, //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
-    __mmask32 column_mask = (valid_cols >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_cols) - 1;
+    __mmask32 column_m32 = (valid_cols >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_cols) - 1;
     __m512i zero_i16x32 = _mm512_setzero_si512();
 
     for (nk_size_t row_idx = 0; row_idx < 16; row_idx++) {
         if (row_idx < valid_rows) {
-            __m256i e5m2_u8x32 = _mm256_maskz_loadu_epi8(column_mask, src + row_idx * src_stride_elements);
+            __m256i e5m2_u8x32 = _mm256_maskz_loadu_epi8(column_m32, src + row_idx * src_stride_elements);
             __m512i word_u16x32 = _mm512_cvtepu8_epi16(e5m2_u8x32);
-            __m512i f16_bits_i16x32 = _mm512_slli_epi16(word_u16x32, 8);
-            _mm512_store_si512((__m512i *)a_tile->data[row_idx], f16_bits_i16x32);
+            __m512i f16_i16x32 = _mm512_slli_epi16(word_u16x32, 8);
+            _mm512_store_si512((__m512i *)a_tile->data[row_idx], f16_i16x32);
         }
         else { _mm512_store_si512((__m512i *)a_tile->data[row_idx], zero_i16x32); }
     }
@@ -815,13 +815,13 @@ NK_PUBLIC void nk_dots_pack_e5m2_graniteamx(                     //
                                                                                      : (depth - src_column_start);
 
             nk_dots_bf16_a16x32_sapphireamx_t source_tile;
-            __mmask32 depth_mask = (__mmask32)((columns_to_pack < 32) ? ((1U << columns_to_pack) - 1) : ~0U);
+            __mmask32 depth_m32 = (__mmask32)((columns_to_pack < 32) ? ((1U << columns_to_pack) - 1) : ~0U);
             for (nk_size_t row_idx = 0; row_idx < tmm_rows; row_idx++) {
                 nk_e5m2_t const *source_row = b + (src_row_start + row_idx) * b_stride_elements + src_column_start;
-                __m256i e5m2_u8x32 = _mm256_maskz_loadu_epi8(depth_mask, source_row);
+                __m256i e5m2_u8x32 = _mm256_maskz_loadu_epi8(depth_m32, source_row);
                 __m512i word_u16x32 = _mm512_cvtepu8_epi16(e5m2_u8x32);
-                __m512i f16_bits_i16x32 = _mm512_slli_epi16(word_u16x32, 8);
-                _mm512_store_si512(&source_tile.data[row_idx][0], f16_bits_i16x32);
+                __m512i f16_i16x32 = _mm512_slli_epi16(word_u16x32, 8);
+                _mm512_store_si512(&source_tile.data[row_idx][0], f16_i16x32);
             }
 
             nk_dots_bf16_b32x16_sapphireamx_t transposed_tile;
@@ -841,15 +841,15 @@ NK_PUBLIC void nk_dots_pack_e5m2_graniteamx(                     //
             for (; column_idx + 32 <= depth; column_idx += 32) {
                 __m256i e5m2_u8x32 = _mm256_loadu_si256((__m256i const *)(src_row + column_idx));
                 __m512i word_u16x32 = _mm512_cvtepu8_epi16(e5m2_u8x32);
-                __m512i f16_bits_i16x32 = _mm512_slli_epi16(word_u16x32, 8);
-                _mm512_storeu_si512(dst_row + column_idx, f16_bits_i16x32);
+                __m512i f16_i16x32 = _mm512_slli_epi16(word_u16x32, 8);
+                _mm512_storeu_si512(dst_row + column_idx, f16_i16x32);
             }
             if (column_idx < depth) {
-                __mmask32 tail_mask = (__mmask32)((1U << (depth - column_idx)) - 1);
-                __m256i e5m2_u8x32 = _mm256_maskz_loadu_epi8(tail_mask, src_row + column_idx);
+                __mmask32 tail_m32 = (__mmask32)((1U << (depth - column_idx)) - 1);
+                __m256i e5m2_u8x32 = _mm256_maskz_loadu_epi8(tail_m32, src_row + column_idx);
                 __m512i word_u16x32 = _mm512_cvtepu8_epi16(e5m2_u8x32);
-                __m512i f16_bits_i16x32 = _mm512_slli_epi16(word_u16x32, 8);
-                _mm512_mask_storeu_epi16(dst_row + column_idx, tail_mask, f16_bits_i16x32);
+                __m512i f16_i16x32 = _mm512_slli_epi16(word_u16x32, 8);
+                _mm512_mask_storeu_epi16(dst_row + column_idx, tail_m32, f16_i16x32);
             }
         }
     }

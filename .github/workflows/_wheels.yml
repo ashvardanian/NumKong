@@ -280,6 +280,9 @@ jobs:
     name: Build Python Wheels (Other Platforms)
     runs-on: ubuntu-24.04
     strategy:
+      # One emulated arch failing must not cancel its siblings — we want per-arch truth,
+      # not a single red leg hiding the status of the other five.
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "314", "314t"]
         architecture: [ppc64le, s390x, i686]

@@ -1264,15 +1264,19 @@ NK_INTERNAL void nk_dot_e3m2x32_finalize_haswell(                               
     nk_unused_(total_dimensions);
 
     // Merge two accumulators per state, then same 4-way transpose-reduce as Sierra
-    __m256i merged_a = _mm256_add_epi32(state_a->sum_a_i32x8, state_a->sum_b_i32x8);
-    __m256i merged_b = _mm256_add_epi32(state_b->sum_a_i32x8, state_b->sum_b_i32x8);
-    __m256i merged_c = _mm256_add_epi32(state_c->sum_a_i32x8, state_c->sum_b_i32x8);
-    __m256i merged_d = _mm256_add_epi32(state_d->sum_a_i32x8, state_d->sum_b_i32x8);
+    __m256i merged_a_i32x8 = _mm256_add_epi32(state_a->sum_a_i32x8, state_a->sum_b_i32x8);
+    __m256i merged_b_i32x8 = _mm256_add_epi32(state_b->sum_a_i32x8, state_b->sum_b_i32x8);
+    __m256i merged_c_i32x8 = _mm256_add_epi32(state_c->sum_a_i32x8, state_c->sum_b_i32x8);
+    __m256i merged_d_i32x8 = _mm256_add_epi32(state_d->sum_a_i32x8, state_d->sum_b_i32x8);
 
-    __m128i sum_a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(merged_a), _mm256_extracti128_si256(merged_a, 1));
-    __m128i sum_b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(merged_b), _mm256_extracti128_si256(merged_b, 1));
-    __m128i sum_c_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(merged_c), _mm256_extracti128_si256(merged_c, 1));
-    __m128i sum_d_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(merged_d), _mm256_extracti128_si256(merged_d, 1));
+    __m128i sum_a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(merged_a_i32x8),
+                                        _mm256_extracti128_si256(merged_a_i32x8, 1));
+    __m128i sum_b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(merged_b_i32x8),
+                                        _mm256_extracti128_si256(merged_b_i32x8, 1));
+    __m128i sum_c_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(merged_c_i32x8),
+                                        _mm256_extracti128_si256(merged_c_i32x8, 1));
+    __m128i sum_d_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(merged_d_i32x8),
+                                        _mm256_extracti128_si256(merged_d_i32x8, 1));
 
     __m128i transpose_ab_low_i32x4 = _mm_unpacklo_epi32(sum_a_i32x4, sum_b_i32x4);
     __m128i transpose_cd_low_i32x4 = _mm_unpacklo_epi32(sum_c_i32x4, sum_d_i32x4);
@@ -1655,14 +1659,15 @@ NK_INTERNAL void nk_dot_i4x32_finalize_haswell(                                 
                                             _mm256_extracti128_si256(state_d->biased_product_sum_i32x8, 1));
 
     // 4-way transpose to get [a,b,c,d] in lanes
-    __m128i transpose_ab_low = _mm_unpacklo_epi32(product_a_i32x4, product_b_i32x4);
-    __m128i transpose_cd_low = _mm_unpacklo_epi32(product_c_i32x4, product_d_i32x4);
-    __m128i transpose_ab_high = _mm_unpackhi_epi32(product_a_i32x4, product_b_i32x4);
-    __m128i transpose_cd_high = _mm_unpackhi_epi32(product_c_i32x4, product_d_i32x4);
-    __m128i biased_i32x4 = _mm_add_epi32(_mm_add_epi32(_mm_unpacklo_epi64(transpose_ab_low, transpose_cd_low),
-                                                       _mm_unpackhi_epi64(transpose_ab_low, transpose_cd_low)),
-                                         _mm_add_epi32(_mm_unpacklo_epi64(transpose_ab_high, transpose_cd_high),
-                                                       _mm_unpackhi_epi64(transpose_ab_high, transpose_cd_high)));
+    __m128i transpose_ab_low_i32x4 = _mm_unpacklo_epi32(product_a_i32x4, product_b_i32x4);
+    __m128i transpose_cd_low_i32x4 = _mm_unpacklo_epi32(product_c_i32x4, product_d_i32x4);
+    __m128i transpose_ab_high_i32x4 = _mm_unpackhi_epi32(product_a_i32x4, product_b_i32x4);
+    __m128i transpose_cd_high_i32x4 = _mm_unpackhi_epi32(product_c_i32x4, product_d_i32x4);
+    __m128i biased_i32x4 = _mm_add_epi32(
+        _mm_add_epi32(_mm_unpacklo_epi64(transpose_ab_low_i32x4, transpose_cd_low_i32x4),
+                      _mm_unpackhi_epi64(transpose_ab_low_i32x4, transpose_cd_low_i32x4)),
+        _mm_add_epi32(_mm_unpacklo_epi64(transpose_ab_high_i32x4, transpose_cd_high_i32x4),
+                      _mm_unpackhi_epi64(transpose_ab_high_i32x4, transpose_cd_high_i32x4)));
 
     // Apply compensation: result = biased − 8×(Σa + Σb) − 64×depth_padded
     __m128i a_sum_broadcast_i32x4 = _mm_set1_epi32(a_sum);

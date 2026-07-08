@@ -133,7 +133,7 @@ NK_INTERNAL void nk_mesh_streaming_stats_f32_skylake_( //
     __m512i const idx_channel_x_i64x8 = _mm512_setr_epi64(0, 3, 6, 9, 12, 0, 0, 0);
     __m512i const idx_channel_y_i64x8 = _mm512_setr_epi64(1, 4, 7, 10, 13, 0, 0, 0);
     __m512i const idx_channel_z_i64x8 = _mm512_setr_epi64(2, 5, 8, 11, 14, 0, 0, 0);
-    __mmask8 const channel_lanes_mask = 0x1F;
+    __mmask8 const channel_lanes_m8 = 0x1F;
 
     __m512d const zeros_f64x8 = _mm512_setzero_pd();
     __m512d sum_a_low_f64x8 = zeros_f64x8, sum_a_high_f64x8 = zeros_f64x8;
@@ -181,9 +181,9 @@ NK_INTERNAL void nk_mesh_streaming_stats_f32_skylake_( //
     // Tail: 1..4 points (3..12 fp32) via narrower mask; identical body.
     if (index < n) {
         nk_size_t tail_floats = (n - index) * 3;
-        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, tail_floats);
-        __m512 a_f32x16 = _mm512_maskz_loadu_ps(tail_mask, a + index * 3);
-        __m512 b_f32x16 = _mm512_maskz_loadu_ps(tail_mask, b + index * 3);
+        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0x7FFF, tail_floats);
+        __m512 a_f32x16 = _mm512_maskz_loadu_ps(tail_m16, a + index * 3);
+        __m512 b_f32x16 = _mm512_maskz_loadu_ps(tail_m16, b + index * 3);
 
         __m512d a_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_f32x16));
         __m512d a_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_f32x16, 1));
@@ -217,21 +217,21 @@ NK_INTERNAL void nk_mesh_streaming_stats_f32_skylake_( //
     // maskz-permutex2var_pd across (low, high) halves, then one _mm512_reduce_add_pd per scalar
     // output. 17 reductions total (6 sums + 9 H cells + 2 norms) = the scalar-output floor.
 
-    __m512d sum_a_x_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_mask, sum_a_low_f64x8, idx_channel_x_i64x8,
+    __m512d sum_a_x_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_m8, sum_a_low_f64x8, idx_channel_x_i64x8,
                                                          sum_a_high_f64x8);
-    __m512d sum_a_y_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_mask, sum_a_low_f64x8, idx_channel_y_i64x8,
+    __m512d sum_a_y_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_m8, sum_a_low_f64x8, idx_channel_y_i64x8,
                                                          sum_a_high_f64x8);
-    __m512d sum_a_z_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_mask, sum_a_low_f64x8, idx_channel_z_i64x8,
+    __m512d sum_a_z_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_m8, sum_a_low_f64x8, idx_channel_z_i64x8,
                                                          sum_a_high_f64x8);
     sum_a_out[0] = _mm512_reduce_add_pd(sum_a_x_f64x8);
     sum_a_out[1] = _mm512_reduce_add_pd(sum_a_y_f64x8);
     sum_a_out[2] = _mm512_reduce_add_pd(sum_a_z_f64x8);
 
-    __m512d sum_b_x_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_mask, sum_b_low_f64x8, idx_channel_x_i64x8,
+    __m512d sum_b_x_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_m8, sum_b_low_f64x8, idx_channel_x_i64x8,
                                                          sum_b_high_f64x8);
-    __m512d sum_b_y_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_mask, sum_b_low_f64x8, idx_channel_y_i64x8,
+    __m512d sum_b_y_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_m8, sum_b_low_f64x8, idx_channel_y_i64x8,
                                                          sum_b_high_f64x8);
-    __m512d sum_b_z_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_mask, sum_b_low_f64x8, idx_channel_z_i64x8,
+    __m512d sum_b_z_f64x8 = _mm512_maskz_permutex2var_pd(channel_lanes_m8, sum_b_low_f64x8, idx_channel_z_i64x8,
                                                          sum_b_high_f64x8);
     sum_b_out[0] = _mm512_reduce_add_pd(sum_b_x_f64x8);
     sum_b_out[1] = _mm512_reduce_add_pd(sum_b_y_f64x8);
@@ -240,23 +240,23 @@ NK_INTERNAL void nk_mesh_streaming_stats_f32_skylake_( //
     // H cells: a-channel picks which demux mask applies; prod-vector picks which b-channel the
     // product pairs a with (diag -> same, rot1 -> +1, rot2 -> +2 mod 3).
     __m512d product_diagonal_x_f64x8 = _mm512_maskz_permutex2var_pd( //
-        channel_lanes_mask, product_diagonal_low_f64x8, idx_channel_x_i64x8, product_diagonal_high_f64x8);
+        channel_lanes_m8, product_diagonal_low_f64x8, idx_channel_x_i64x8, product_diagonal_high_f64x8);
     __m512d product_diagonal_y_f64x8 = _mm512_maskz_permutex2var_pd( //
-        channel_lanes_mask, product_diagonal_low_f64x8, idx_channel_y_i64x8, product_diagonal_high_f64x8);
+        channel_lanes_m8, product_diagonal_low_f64x8, idx_channel_y_i64x8, product_diagonal_high_f64x8);
     __m512d product_diagonal_z_f64x8 = _mm512_maskz_permutex2var_pd( //
-        channel_lanes_mask, product_diagonal_low_f64x8, idx_channel_z_i64x8, product_diagonal_high_f64x8);
+        channel_lanes_m8, product_diagonal_low_f64x8, idx_channel_z_i64x8, product_diagonal_high_f64x8);
     __m512d product_rotation_1_x_f64x8 = _mm512_maskz_permutex2var_pd( //
-        channel_lanes_mask, product_rotation_1_low_f64x8, idx_channel_x_i64x8, product_rotation_1_high_f64x8);
+        channel_lanes_m8, product_rotation_1_low_f64x8, idx_channel_x_i64x8, product_rotation_1_high_f64x8);
     __m512d product_rotation_1_y_f64x8 = _mm512_maskz_permutex2var_pd( //
-        channel_lanes_mask, product_rotation_1_low_f64x8, idx_channel_y_i64x8, product_rotation_1_high_f64x8);
+        channel_lanes_m8, product_rotation_1_low_f64x8, idx_channel_y_i64x8, product_rotation_1_high_f64x8);
     __m512d product_rotation_1_z_f64x8 = _mm512_maskz_permutex2var_pd( //
-        channel_lanes_mask, product_rotation_1_low_f64x8, idx_channel_z_i64x8, product_rotation_1_high_f64x8);
+        channel_lanes_m8, product_rotation_1_low_f64x8, idx_channel_z_i64x8, product_rotation_1_high_f64x8);
     __m512d product_rotation_2_x_f64x8 = _mm512_maskz_permutex2var_pd( //
-        channel_lanes_mask, product_rotation_2_low_f64x8, idx_channel_x_i64x8, product_rotation_2_high_f64x8);
+        channel_lanes_m8, product_rotation_2_low_f64x8, idx_channel_x_i64x8, product_rotation_2_high_f64x8);
     __m512d product_rotation_2_y_f64x8 = _mm512_maskz_permutex2var_pd( //
-        channel_lanes_mask, product_rotation_2_low_f64x8, idx_channel_y_i64x8, product_rotation_2_high_f64x8);
+        channel_lanes_m8, product_rotation_2_low_f64x8, idx_channel_y_i64x8, product_rotation_2_high_f64x8);
     __m512d product_rotation_2_z_f64x8 = _mm512_maskz_permutex2var_pd( //
-        channel_lanes_mask, product_rotation_2_low_f64x8, idx_channel_z_i64x8, product_rotation_2_high_f64x8);
+        channel_lanes_m8, product_rotation_2_low_f64x8, idx_channel_z_i64x8, product_rotation_2_high_f64x8);
 
     raw_covarianceariance_out[0] = _mm512_reduce_add_pd(product_diagonal_x_f64x8);   // H[x,x]
     raw_covarianceariance_out[1] = _mm512_reduce_add_pd(product_rotation_1_x_f64x8); // H[x,y]
@@ -309,9 +309,9 @@ NK_PUBLIC void nk_rmsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size
 
     if (index < n) {
         nk_size_t tail_floats = (n - index) * 3;
-        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, tail_floats);
-        __m512 a_f32x16 = _mm512_maskz_loadu_ps(tail_mask, a + index * 3);
-        __m512 b_f32x16 = _mm512_maskz_loadu_ps(tail_mask, b + index * 3);
+        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0x7FFF, tail_floats);
+        __m512 a_f32x16 = _mm512_maskz_loadu_ps(tail_m16, a + index * 3);
+        __m512 b_f32x16 = _mm512_maskz_loadu_ps(tail_m16, b + index * 3);
         __m512d a_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(a_f32x16));
         __m512d a_high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(a_f32x16, 1));
         __m512d b_low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(b_f32x16));
@@ -483,16 +483,16 @@ NK_PUBLIC void nk_rmsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size
     // Tail: use masked gather
     if (i < n) {
         nk_size_t tail = n - i;
-        __mmask8 mask = (__mmask8)_bzhi_u32(0xFF, tail);
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFF, tail);
         nk_f64_t const *a_tail = a + i * 3;
         nk_f64_t const *b_tail = b + i * 3;
 
-        a_x_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, a_tail + 0, 8);
-        a_y_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, a_tail + 1, 8);
-        a_z_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, a_tail + 2, 8);
-        b_x_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, b_tail + 0, 8);
-        b_y_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, b_tail + 1, 8);
-        b_z_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, b_tail + 2, 8);
+        a_x_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, a_tail + 0, 8);
+        a_y_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, a_tail + 1, 8);
+        a_z_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, a_tail + 2, 8);
+        b_x_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, b_tail + 0, 8);
+        b_y_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, b_tail + 1, 8);
+        b_z_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, b_tail + 2, 8);
 
         __m512d delta_x_f64x8 = _mm512_sub_pd(a_x_f64x8, b_x_f64x8),
                 delta_y_f64x8 = _mm512_sub_pd(a_y_f64x8, b_y_f64x8),
@@ -588,16 +588,16 @@ NK_PUBLIC void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_si
     // Tail: masked gather for remaining points
     if (i < n) {
         nk_size_t tail = n - i;
-        __mmask8 mask = (__mmask8)_bzhi_u32(0xFF, tail);
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFF, tail);
         nk_f64_t const *a_tail = a + i * 3;
         nk_f64_t const *b_tail = b + i * 3;
 
-        a_x_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, a_tail + 0, 8);
-        a_y_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, a_tail + 1, 8);
-        a_z_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, a_tail + 2, 8);
-        b_x_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, b_tail + 0, 8);
-        b_y_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, b_tail + 1, 8);
-        b_z_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, b_tail + 2, 8);
+        a_x_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, a_tail + 0, 8);
+        a_y_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, a_tail + 1, 8);
+        a_z_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, a_tail + 2, 8);
+        b_x_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, b_tail + 0, 8);
+        b_y_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, b_tail + 1, 8);
+        b_z_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, b_tail + 2, 8);
 
         sum_a_x_f64x8 = _mm512_add_pd(sum_a_x_f64x8, a_x_f64x8),
         sum_a_y_f64x8 = _mm512_add_pd(sum_a_y_f64x8, a_y_f64x8),
@@ -917,16 +917,16 @@ NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
 
     if (i < n) {
         nk_size_t tail = n - i;
-        __mmask8 mask = (__mmask8)_bzhi_u32(0xFF, tail);
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFF, tail);
         nk_f64_t const *a_tail = a + i * 3;
         nk_f64_t const *b_tail = b + i * 3;
 
-        a_x_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, a_tail + 0, 8);
-        a_y_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, a_tail + 1, 8);
-        a_z_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, a_tail + 2, 8);
-        b_x_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, b_tail + 0, 8);
-        b_y_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, b_tail + 1, 8);
-        b_z_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask, gather_idx_i64x8, b_tail + 2, 8);
+        a_x_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, a_tail + 0, 8);
+        a_y_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, a_tail + 1, 8);
+        a_z_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, a_tail + 2, 8);
+        b_x_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, b_tail + 0, 8);
+        b_y_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, b_tail + 1, 8);
+        b_z_f64x8 = _mm512_mask_i64gather_pd(zeros_f64x8, mask_m8, gather_idx_i64x8, b_tail + 2, 8);
 
         sum_a_x_f64x8 = _mm512_add_pd(sum_a_x_f64x8, a_x_f64x8),
         sum_a_y_f64x8 = _mm512_add_pd(sum_a_y_f64x8, a_y_f64x8);
@@ -1124,9 +1124,9 @@ NK_PUBLIC void nk_rmsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size
     }
 
     if (index < n) {
-        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
-        __m256i a_f16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(a + index * 3));
-        __m256i b_f16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(b + index * 3));
+        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
+        __m256i a_f16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(a + index * 3));
+        __m256i b_f16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(b + index * 3));
         __m512 a_f32x16 = _mm512_cvtph_ps(a_f16x16);
         __m512 b_f32x16 = _mm512_cvtph_ps(b_f16x16);
         __m512 delta_f32x16 = _mm512_sub_ps(a_f32x16, b_f32x16);
@@ -1165,9 +1165,9 @@ NK_PUBLIC void nk_rmsd_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_s
     }
 
     if (index < n) {
-        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
-        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(a + index * 3));
-        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(b + index * 3));
+        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
+        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(a + index * 3));
+        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(b + index * 3));
         __m512 a_f32x16 = nk_bf16x16_to_f32x16_skylake_(a_bf16x16);
         __m512 b_f32x16 = nk_bf16x16_to_f32x16_skylake_(b_bf16x16);
         __m512 delta_f32x16 = _mm512_sub_ps(a_f32x16, b_f32x16);
@@ -1222,9 +1222,9 @@ NK_PUBLIC void nk_kabsch_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_si
     }
 
     if (index < n) {
-        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
-        __m256i a_f16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(a + index * 3));
-        __m256i b_f16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(b + index * 3));
+        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
+        __m256i a_f16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(a + index * 3));
+        __m256i b_f16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(b + index * 3));
         __m512 a_f32x16 = _mm512_cvtph_ps(a_f16x16);
         __m512 b_f32x16 = _mm512_cvtph_ps(b_f16x16);
         __m512 b_rotation_1_f32x16 = _mm512_permutexvar_ps(idx_rotation_1_i32x16, b_f32x16);
@@ -1239,28 +1239,28 @@ NK_PUBLIC void nk_kabsch_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_si
     }
 
     // Per-channel demux via mask-reduce on the fp32 accumulators (lane i carries channel i%3).
-    __mmask16 const mask_channel_x_f32 = 0x1249; // lanes {0, 3, 6, 9, 12}
-    __mmask16 const mask_channel_y_f32 = 0x2492; // lanes {1, 4, 7, 10, 13}
-    __mmask16 const mask_channel_z_f32 = 0x4924; // lanes {2, 5, 8, 11, 14}
+    __mmask16 const mask_channel_x_m16 = 0x1249; // lanes {0, 3, 6, 9, 12}
+    __mmask16 const mask_channel_y_m16 = 0x2492; // lanes {1, 4, 7, 10, 13}
+    __mmask16 const mask_channel_z_m16 = 0x4924; // lanes {2, 5, 8, 11, 14}
 
-    nk_f32_t sum_a_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_a_f32x16);
-    nk_f32_t sum_a_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_a_f32x16);
-    nk_f32_t sum_a_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_a_f32x16);
-    nk_f32_t sum_b_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_b_f32x16);
-    nk_f32_t sum_b_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_b_f32x16);
-    nk_f32_t sum_b_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_b_f32x16);
+    nk_f32_t sum_a_x = _mm512_mask_reduce_add_ps(mask_channel_x_m16, sum_a_f32x16);
+    nk_f32_t sum_a_y = _mm512_mask_reduce_add_ps(mask_channel_y_m16, sum_a_f32x16);
+    nk_f32_t sum_a_z = _mm512_mask_reduce_add_ps(mask_channel_z_m16, sum_a_f32x16);
+    nk_f32_t sum_b_x = _mm512_mask_reduce_add_ps(mask_channel_x_m16, sum_b_f32x16);
+    nk_f32_t sum_b_y = _mm512_mask_reduce_add_ps(mask_channel_y_m16, sum_b_f32x16);
+    nk_f32_t sum_b_z = _mm512_mask_reduce_add_ps(mask_channel_z_m16, sum_b_f32x16);
     nk_f32_t norm_squared_a = _mm512_reduce_add_ps(norm_squared_a_f32x16);
     nk_f32_t norm_squared_b = _mm512_reduce_add_ps(norm_squared_b_f32x16);
 
-    nk_f32_t covariance_x_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_diagonal_f32x16);
-    nk_f32_t covariance_x_y = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_1_f32x16);
-    nk_f32_t covariance_x_z = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_2_f32x16);
-    nk_f32_t covariance_y_x = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_2_f32x16);
-    nk_f32_t covariance_y_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_diagonal_f32x16);
-    nk_f32_t covariance_y_z = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_1_f32x16);
-    nk_f32_t covariance_z_x = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_1_f32x16);
-    nk_f32_t covariance_z_y = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_2_f32x16);
-    nk_f32_t covariance_z_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_diagonal_f32x16);
+    nk_f32_t covariance_x_x = _mm512_mask_reduce_add_ps(mask_channel_x_m16, product_diagonal_f32x16);
+    nk_f32_t covariance_x_y = _mm512_mask_reduce_add_ps(mask_channel_x_m16, product_rotation_1_f32x16);
+    nk_f32_t covariance_x_z = _mm512_mask_reduce_add_ps(mask_channel_x_m16, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_x = _mm512_mask_reduce_add_ps(mask_channel_y_m16, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_y = _mm512_mask_reduce_add_ps(mask_channel_y_m16, product_diagonal_f32x16);
+    nk_f32_t covariance_y_z = _mm512_mask_reduce_add_ps(mask_channel_y_m16, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_x = _mm512_mask_reduce_add_ps(mask_channel_z_m16, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_y = _mm512_mask_reduce_add_ps(mask_channel_z_m16, product_rotation_2_f32x16);
+    nk_f32_t covariance_z_z = _mm512_mask_reduce_add_ps(mask_channel_z_m16, product_diagonal_f32x16);
 
     nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
     nk_f32_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;
@@ -1358,9 +1358,9 @@ NK_PUBLIC void nk_kabsch_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk
     }
 
     if (index < n) {
-        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
-        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(a + index * 3));
-        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(b + index * 3));
+        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
+        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(a + index * 3));
+        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(b + index * 3));
         __m512 a_f32x16 = nk_bf16x16_to_f32x16_skylake_(a_bf16x16);
         __m512 b_f32x16 = nk_bf16x16_to_f32x16_skylake_(b_bf16x16);
         __m512 b_rotation_1_f32x16 = _mm512_permutexvar_ps(idx_rotation_1_i32x16, b_f32x16);
@@ -1375,28 +1375,28 @@ NK_PUBLIC void nk_kabsch_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk
     }
 
     // Per-channel demux via mask-reduce on the fp32 accumulators (lane i carries channel i%3).
-    __mmask16 const mask_channel_x_f32 = 0x1249; // lanes {0, 3, 6, 9, 12}
-    __mmask16 const mask_channel_y_f32 = 0x2492; // lanes {1, 4, 7, 10, 13}
-    __mmask16 const mask_channel_z_f32 = 0x4924; // lanes {2, 5, 8, 11, 14}
+    __mmask16 const mask_channel_x_m16 = 0x1249; // lanes {0, 3, 6, 9, 12}
+    __mmask16 const mask_channel_y_m16 = 0x2492; // lanes {1, 4, 7, 10, 13}
+    __mmask16 const mask_channel_z_m16 = 0x4924; // lanes {2, 5, 8, 11, 14}
 
-    nk_f32_t sum_a_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_a_f32x16);
-    nk_f32_t sum_a_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_a_f32x16);
-    nk_f32_t sum_a_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_a_f32x16);
-    nk_f32_t sum_b_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_b_f32x16);
-    nk_f32_t sum_b_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_b_f32x16);
-    nk_f32_t sum_b_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_b_f32x16);
+    nk_f32_t sum_a_x = _mm512_mask_reduce_add_ps(mask_channel_x_m16, sum_a_f32x16);
+    nk_f32_t sum_a_y = _mm512_mask_reduce_add_ps(mask_channel_y_m16, sum_a_f32x16);
+    nk_f32_t sum_a_z = _mm512_mask_reduce_add_ps(mask_channel_z_m16, sum_a_f32x16);
+    nk_f32_t sum_b_x = _mm512_mask_reduce_add_ps(mask_channel_x_m16, sum_b_f32x16);
+    nk_f32_t sum_b_y = _mm512_mask_reduce_add_ps(mask_channel_y_m16, sum_b_f32x16);
+    nk_f32_t sum_b_z = _mm512_mask_reduce_add_ps(mask_channel_z_m16, sum_b_f32x16);
     nk_f32_t norm_squared_a = _mm512_reduce_add_ps(norm_squared_a_f32x16);
     nk_f32_t norm_squared_b = _mm512_reduce_add_ps(norm_squared_b_f32x16);
 
-    nk_f32_t covariance_x_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_diagonal_f32x16);
-    nk_f32_t covariance_x_y = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_1_f32x16);
-    nk_f32_t covariance_x_z = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_2_f32x16);
-    nk_f32_t covariance_y_x = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_2_f32x16);
-    nk_f32_t covariance_y_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_diagonal_f32x16);
-    nk_f32_t covariance_y_z = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_1_f32x16);
-    nk_f32_t covariance_z_x = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_1_f32x16);
-    nk_f32_t covariance_z_y = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_2_f32x16);
-    nk_f32_t covariance_z_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_diagonal_f32x16);
+    nk_f32_t covariance_x_x = _mm512_mask_reduce_add_ps(mask_channel_x_m16, product_diagonal_f32x16);
+    nk_f32_t covariance_x_y = _mm512_mask_reduce_add_ps(mask_channel_x_m16, product_rotation_1_f32x16);
+    nk_f32_t covariance_x_z = _mm512_mask_reduce_add_ps(mask_channel_x_m16, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_x = _mm512_mask_reduce_add_ps(mask_channel_y_m16, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_y = _mm512_mask_reduce_add_ps(mask_channel_y_m16, product_diagonal_f32x16);
+    nk_f32_t covariance_y_z = _mm512_mask_reduce_add_ps(mask_channel_y_m16, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_x = _mm512_mask_reduce_add_ps(mask_channel_z_m16, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_y = _mm512_mask_reduce_add_ps(mask_channel_z_m16, product_rotation_2_f32x16);
+    nk_f32_t covariance_z_z = _mm512_mask_reduce_add_ps(mask_channel_z_m16, product_diagonal_f32x16);
 
     nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
     nk_f32_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;
@@ -1492,9 +1492,9 @@ NK_PUBLIC void nk_umeyama_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_s
     }
 
     if (index < n) {
-        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
-        __m256i a_f16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(a + index * 3));
-        __m256i b_f16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(b + index * 3));
+        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
+        __m256i a_f16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(a + index * 3));
+        __m256i b_f16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(b + index * 3));
         __m512 a_f32x16 = _mm512_cvtph_ps(a_f16x16);
         __m512 b_f32x16 = _mm512_cvtph_ps(b_f16x16);
         __m512 b_rotation_1_f32x16 = _mm512_permutexvar_ps(idx_rotation_1_i32x16, b_f32x16);
@@ -1508,28 +1508,28 @@ NK_PUBLIC void nk_umeyama_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_s
         product_rotation_2_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_2_f32x16, product_rotation_2_f32x16);
     }
 
-    __mmask16 const mask_channel_x_f32 = 0x1249;
-    __mmask16 const mask_channel_y_f32 = 0x2492;
-    __mmask16 const mask_channel_z_f32 = 0x4924;
+    __mmask16 const mask_channel_x_m16 = 0x1249;
+    __mmask16 const mask_channel_y_m16 = 0x2492;
+    __mmask16 const mask_channel_z_m16 = 0x4924;
 
-    nk_f32_t sum_a_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_a_f32x16);
-    nk_f32_t sum_a_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_a_f32x16);
-    nk_f32_t sum_a_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_a_f32x16);
-    nk_f32_t sum_b_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_b_f32x16);
-    nk_f32_t sum_b_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_b_f32x16);
-    nk_f32_t sum_b_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_b_f32x16);
+    nk_f32_t sum_a_x = _mm512_mask_reduce_add_ps(mask_channel_x_m16, sum_a_f32x16);
+    nk_f32_t sum_a_y = _mm512_mask_reduce_add_ps(mask_channel_y_m16, sum_a_f32x16);
+    nk_f32_t sum_a_z = _mm512_mask_reduce_add_ps(mask_channel_z_m16, sum_a_f32x16);
+    nk_f32_t sum_b_x = _mm512_mask_reduce_add_ps(mask_channel_x_m16, sum_b_f32x16);
+    nk_f32_t sum_b_y = _mm512_mask_reduce_add_ps(mask_channel_y_m16, sum_b_f32x16);
+    nk_f32_t sum_b_z = _mm512_mask_reduce_add_ps(mask_channel_z_m16, sum_b_f32x16);
     nk_f32_t norm_squared_a = _mm512_reduce_add_ps(norm_squared_a_f32x16);
     nk_f32_t norm_squared_b = _mm512_reduce_add_ps(norm_squared_b_f32x16);
 
-    nk_f32_t covariance_x_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_diagonal_f32x16);
-    nk_f32_t covariance_x_y = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_1_f32x16);
-    nk_f32_t covariance_x_z = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_2_f32x16);
-    nk_f32_t covariance_y_x = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_2_f32x16);
-    nk_f32_t covariance_y_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_diagonal_f32x16);
-    nk_f32_t covariance_y_z = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_1_f32x16);
-    nk_f32_t covariance_z_x = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_1_f32x16);
-    nk_f32_t covariance_z_y = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_2_f32x16);
-    nk_f32_t covariance_z_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_diagonal_f32x16);
+    nk_f32_t covariance_x_x = _mm512_mask_reduce_add_ps(mask_channel_x_m16, product_diagonal_f32x16);
+    nk_f32_t covariance_x_y = _mm512_mask_reduce_add_ps(mask_channel_x_m16, product_rotation_1_f32x16);
+    nk_f32_t covariance_x_z = _mm512_mask_reduce_add_ps(mask_channel_x_m16, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_x = _mm512_mask_reduce_add_ps(mask_channel_y_m16, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_y = _mm512_mask_reduce_add_ps(mask_channel_y_m16, product_diagonal_f32x16);
+    nk_f32_t covariance_y_z = _mm512_mask_reduce_add_ps(mask_channel_y_m16, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_x = _mm512_mask_reduce_add_ps(mask_channel_z_m16, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_y = _mm512_mask_reduce_add_ps(mask_channel_z_m16, product_rotation_2_f32x16);
+    nk_f32_t covariance_z_z = _mm512_mask_reduce_add_ps(mask_channel_z_m16, product_diagonal_f32x16);
 
     nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
     nk_f32_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;
@@ -1632,9 +1632,9 @@ NK_PUBLIC void nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, n
     }
 
     if (index < n) {
-        __mmask16 tail_mask = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
-        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(a + index * 3));
-        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(tail_mask, (__m256i const *)(b + index * 3));
+        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
+        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(a + index * 3));
+        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(b + index * 3));
         __m512 a_f32x16 = nk_bf16x16_to_f32x16_skylake_(a_bf16x16);
         __m512 b_f32x16 = nk_bf16x16_to_f32x16_skylake_(b_bf16x16);
         __m512 b_rotation_1_f32x16 = _mm512_permutexvar_ps(idx_rotation_1_i32x16, b_f32x16);
@@ -1648,28 +1648,28 @@ NK_PUBLIC void nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, n
         product_rotation_2_f32x16 = _mm512_fmadd_ps(a_f32x16, b_rotation_2_f32x16, product_rotation_2_f32x16);
     }
 
-    __mmask16 const mask_channel_x_f32 = 0x1249;
-    __mmask16 const mask_channel_y_f32 = 0x2492;
-    __mmask16 const mask_channel_z_f32 = 0x4924;
+    __mmask16 const mask_channel_x_m16 = 0x1249;
+    __mmask16 const mask_channel_y_m16 = 0x2492;
+    __mmask16 const mask_channel_z_m16 = 0x4924;
 
-    nk_f32_t sum_a_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_a_f32x16);
-    nk_f32_t sum_a_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_a_f32x16);
-    nk_f32_t sum_a_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_a_f32x16);
-    nk_f32_t sum_b_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, sum_b_f32x16);
-    nk_f32_t sum_b_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, sum_b_f32x16);
-    nk_f32_t sum_b_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, sum_b_f32x16);
+    nk_f32_t sum_a_x = _mm512_mask_reduce_add_ps(mask_channel_x_m16, sum_a_f32x16);
+    nk_f32_t sum_a_y = _mm512_mask_reduce_add_ps(mask_channel_y_m16, sum_a_f32x16);
+    nk_f32_t sum_a_z = _mm512_mask_reduce_add_ps(mask_channel_z_m16, sum_a_f32x16);
+    nk_f32_t sum_b_x = _mm512_mask_reduce_add_ps(mask_channel_x_m16, sum_b_f32x16);
+    nk_f32_t sum_b_y = _mm512_mask_reduce_add_ps(mask_channel_y_m16, sum_b_f32x16);
+    nk_f32_t sum_b_z = _mm512_mask_reduce_add_ps(mask_channel_z_m16, sum_b_f32x16);
     nk_f32_t norm_squared_a = _mm512_reduce_add_ps(norm_squared_a_f32x16);
     nk_f32_t norm_squared_b = _mm512_reduce_add_ps(norm_squared_b_f32x16);
 
-    nk_f32_t covariance_x_x = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_diagonal_f32x16);
-    nk_f32_t covariance_x_y = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_1_f32x16);
-    nk_f32_t covariance_x_z = _mm512_mask_reduce_add_ps(mask_channel_x_f32, product_rotation_2_f32x16);
-    nk_f32_t covariance_y_x = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_2_f32x16);
-    nk_f32_t covariance_y_y = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_diagonal_f32x16);
-    nk_f32_t covariance_y_z = _mm512_mask_reduce_add_ps(mask_channel_y_f32, product_rotation_1_f32x16);
-    nk_f32_t covariance_z_x = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_1_f32x16);
-    nk_f32_t covariance_z_y = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_rotation_2_f32x16);
-    nk_f32_t covariance_z_z = _mm512_mask_reduce_add_ps(mask_channel_z_f32, product_diagonal_f32x16);
+    nk_f32_t covariance_x_x = _mm512_mask_reduce_add_ps(mask_channel_x_m16, product_diagonal_f32x16);
+    nk_f32_t covariance_x_y = _mm512_mask_reduce_add_ps(mask_channel_x_m16, product_rotation_1_f32x16);
+    nk_f32_t covariance_x_z = _mm512_mask_reduce_add_ps(mask_channel_x_m16, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_x = _mm512_mask_reduce_add_ps(mask_channel_y_m16, product_rotation_2_f32x16);
+    nk_f32_t covariance_y_y = _mm512_mask_reduce_add_ps(mask_channel_y_m16, product_diagonal_f32x16);
+    nk_f32_t covariance_y_z = _mm512_mask_reduce_add_ps(mask_channel_y_m16, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_x = _mm512_mask_reduce_add_ps(mask_channel_z_m16, product_rotation_1_f32x16);
+    nk_f32_t covariance_z_y = _mm512_mask_reduce_add_ps(mask_channel_z_m16, product_rotation_2_f32x16);
+    nk_f32_t covariance_z_z = _mm512_mask_reduce_add_ps(mask_channel_z_m16, product_diagonal_f32x16);
 
     nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
     nk_f32_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;

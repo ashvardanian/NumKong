@@ -337,6 +337,23 @@ class Tensor(memoryview):
         """Integer address of the underlying data buffer."""
         ...
 
+    @property
+    def capacity(self) -> int:
+        """Allocated element capacity of the owned buffer (>= size)."""
+        ...
+
+    def resize(self, *shape: int) -> Tensor:
+        """Reshape in place within capacity without moving storage; returns self."""
+        ...
+
+    def reserve(self, capacity: int) -> None:
+        """Grow the allocated capacity to at least `capacity` elements (may move); preserves contents."""
+        ...
+
+    def clear(self) -> None:
+        """Reset to an empty shape (size 0) while keeping the allocated capacity."""
+        ...
+
     def sum(
         self, axis: int | tuple[int, ...] | None = None, *, keepdims: bool = False, out: Tensor | None = None
     ) -> float | int | Tensor:
@@ -727,6 +744,7 @@ def from_dlpack(obj: Any, /) -> Tensor:
     ``jax.Array``). Only CPU tensors are supported.
     """
     ...
+
 def empty(
     shape: int | tuple[int, ...],
     /,
@@ -761,6 +779,7 @@ def iota(
 ) -> Tensor:
     """Tensor filled with ``seed, seed+1, seed+2, ...`` reshaped to ``shape``."""
     ...
+
 def diagonal(
     n: int,
     seed: int | float = 1,
@@ -770,6 +789,7 @@ def diagonal(
 ) -> Tensor:
     """Square ``n x n`` tensor with ``seed`` on the main diagonal and zeros elsewhere."""
     ...
+
 def hash(
     shape: int | tuple[int, ...],
     seed: int = 0,

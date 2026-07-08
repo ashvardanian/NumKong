@@ -147,7 +147,7 @@ NK_PUBLIC void nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size
 #pragma region Integer Sets
 
 NK_PUBLIC void nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
-    vuint32m1_t difference_count_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
+    vuint32m1_t diff_count_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
 
     nk_size_t i = 0;
     for (nk_size_t vector_length; i + 1 <= n; i += vector_length) {
@@ -160,13 +160,13 @@ NK_PUBLIC void nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n
         vbool8_t not_equal_mask_b8 = __riscv_vmsne_vv_u8m1_b8(a_u8m1, b_u8m1, vector_length);
 
         // Count set bits in mask via vcpop.m (this IS available in base RVV 1.0)
-        nk_u32_t difference_count_u32 = __riscv_vcpop_m_b8(not_equal_mask_b8, vector_length);
+        nk_u32_t diff_count_u32 = __riscv_vcpop_m_b8(not_equal_mask_b8, vector_length);
 
         // Accumulate (scalar addition is fine here, vcpop already reduced)
-        difference_count_u32m1 = __riscv_vadd_vx_u32m1(difference_count_u32m1, difference_count_u32, 1);
+        diff_count_u32m1 = __riscv_vadd_vx_u32m1(diff_count_u32m1, diff_count_u32, 1);
     }
 
-    *result = __riscv_vmv_x_s_u32m1_u32(difference_count_u32m1);
+    *result = __riscv_vmv_x_s_u32m1_u32(diff_count_u32m1);
 }
 
 NK_PUBLIC void nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {

@@ -31,6 +31,7 @@ import pytest
 
 import numkong as nk
 
+
 # region Helpers
 
 
@@ -379,7 +380,7 @@ def test_mlx_import(mlx_dtype_attr, nk_dtype):
 def test_mlx_export(mlx_dtype_attr, nk_dtype):
     """NumKong → MLX zero-copy across every MLX-supported dtype incl. bf16."""
     mx = pytest.importorskip("mlx.core")
-    if nk_dtype == "bfloat16":
+    if nk_dtype == "bfloat16":  # noqa: SIM108 — keep the branch to explain the bf16 staging
         # bf16 isn't constructible via nk.zeros directly across all paths; stage via float32 + astype.
         src = nk.zeros(20, dtype="float32").astype("bfloat16")
     else:

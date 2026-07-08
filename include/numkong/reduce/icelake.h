@@ -54,9 +54,9 @@ NK_INTERNAL void nk_reduce_moments_i8_icelake_contiguous_( //
     }
     nk_size_t remaining = count - idx;
     if (remaining > 0) {
-        __mmask64 tail_mask = _bzhi_u64(0xFFFFFFFFFFFFFFFFull, (unsigned int)remaining);
-        __m512i data_i8x64 = _mm512_maskz_loadu_epi8(tail_mask, data_ptr + idx);
-        __m512i unsigned_i8x64 = _mm512_xor_si512(data_i8x64, _mm512_maskz_mov_epi8(tail_mask, bias_i8x64));
+        __mmask64 tail_m64 = _bzhi_u64(0xFFFFFFFFFFFFFFFFull, (unsigned int)remaining);
+        __m512i data_i8x64 = _mm512_maskz_loadu_epi8(tail_m64, data_ptr + idx);
+        __m512i unsigned_i8x64 = _mm512_xor_si512(data_i8x64, _mm512_maskz_mov_epi8(tail_m64, bias_i8x64));
         sum_u64x8 = _mm512_add_epi64(sum_u64x8, _mm512_sad_epu8(unsigned_i8x64, zero_i8x64));
         __m512i low_i16x32 = _mm512_cvtepi8_epi16(_mm512_castsi512_si256(data_i8x64));
         __m512i high_i16x32 = _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(data_i8x64, 1));
@@ -93,10 +93,10 @@ NK_INTERNAL void nk_reduce_moments_i8_icelake_strided_(                  //
     }
     nk_size_t remaining_scalars = total_scalars - idx_scalars;
     if (remaining_scalars > 0) {
-        __mmask64 tail_mask = stride_mask_m64 & _bzhi_u64(0xFFFFFFFFFFFFFFFFull, (unsigned int)remaining_scalars);
-        __m512i data_i8x64 = _mm512_maskz_loadu_epi8(tail_mask, data_ptr + idx_scalars);
+        __mmask64 tail_m64 = stride_mask_m64 & _bzhi_u64(0xFFFFFFFFFFFFFFFFull, (unsigned int)remaining_scalars);
+        __m512i data_i8x64 = _mm512_maskz_loadu_epi8(tail_m64, data_ptr + idx_scalars);
         __m512i unsigned_i8x64 = _mm512_xor_si512(data_i8x64,
-                                                  _mm512_maskz_mov_epi8(tail_mask, _mm512_set1_epi8((char)0x80)));
+                                                  _mm512_maskz_mov_epi8(tail_m64, _mm512_set1_epi8((char)0x80)));
         sum_u64x8 = _mm512_add_epi64(sum_u64x8, _mm512_sad_epu8(unsigned_i8x64, zero_i8x64));
         __m512i low_i16x32 = _mm512_cvtepi8_epi16(_mm512_castsi512_si256(data_i8x64));
         __m512i high_i16x32 = _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(data_i8x64, 1));
@@ -152,8 +152,8 @@ NK_INTERNAL void nk_reduce_moments_u8_icelake_contiguous_( //
     }
     nk_size_t remaining = count - idx;
     if (remaining > 0) {
-        __mmask64 tail_mask = _bzhi_u64(0xFFFFFFFFFFFFFFFFull, (unsigned int)remaining);
-        __m512i data_u8x64 = _mm512_maskz_loadu_epi8(tail_mask, data_ptr + idx);
+        __mmask64 tail_m64 = _bzhi_u64(0xFFFFFFFFFFFFFFFFull, (unsigned int)remaining);
+        __m512i data_u8x64 = _mm512_maskz_loadu_epi8(tail_m64, data_ptr + idx);
         sum_u64x8 = _mm512_add_epi64(sum_u64x8, _mm512_sad_epu8(data_u8x64, zero_u8x64));
         __m512i low_i16x32 = _mm512_cvtepu8_epi16(_mm512_castsi512_si256(data_u8x64));
         __m512i high_i16x32 = _mm512_cvtepu8_epi16(_mm512_extracti64x4_epi64(data_u8x64, 1));
@@ -188,8 +188,8 @@ NK_INTERNAL void nk_reduce_moments_u8_icelake_strided_(                  //
     }
     nk_size_t remaining_scalars = total_scalars - idx_scalars;
     if (remaining_scalars > 0) {
-        __mmask64 tail_mask = stride_mask_m64 & _bzhi_u64(0xFFFFFFFFFFFFFFFFull, (unsigned int)remaining_scalars);
-        __m512i data_u8x64 = _mm512_maskz_loadu_epi8(tail_mask, data_ptr + idx_scalars);
+        __mmask64 tail_m64 = stride_mask_m64 & _bzhi_u64(0xFFFFFFFFFFFFFFFFull, (unsigned int)remaining_scalars);
+        __m512i data_u8x64 = _mm512_maskz_loadu_epi8(tail_m64, data_ptr + idx_scalars);
         sum_u64x8 = _mm512_add_epi64(sum_u64x8, _mm512_sad_epu8(data_u8x64, zero_u8x64));
         __m512i low_i16x32 = _mm512_cvtepu8_epi16(_mm512_castsi512_si256(data_u8x64));
         __m512i high_i16x32 = _mm512_cvtepu8_epi16(_mm512_extracti64x4_epi64(data_u8x64, 1));
@@ -244,8 +244,8 @@ NK_INTERNAL void nk_reduce_moments_i16_icelake_contiguous_( //
     }
     nk_size_t remaining = count - idx;
     if (remaining > 0) {
-        __mmask32 tail_mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)remaining);
-        __m512i data_i16x32 = _mm512_maskz_loadu_epi16(tail_mask, data_ptr + idx);
+        __mmask32 tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)remaining);
+        __m512i data_i16x32 = _mm512_maskz_loadu_epi16(tail_m32, data_ptr + idx);
         sum_i32x16 = _mm512_dpwssd_epi32(sum_i32x16, data_i16x32, ones_i16x32);
         __m512i sq_i32x16 = _mm512_dpwssd_epi32(_mm512_setzero_si512(), data_i16x32, data_i16x32);
         sumsq_i64x8 = _mm512_add_epi64(sumsq_i64x8, _mm512_cvtepi32_epi64(_mm512_castsi512_si256(sq_i32x16)));
@@ -277,8 +277,8 @@ NK_INTERNAL void nk_reduce_moments_i16_icelake_strided_(                  //
     }
     nk_size_t remaining_scalars = total_scalars - idx_scalars;
     if (remaining_scalars > 0) {
-        __mmask32 tail_mask = stride_mask_m32 & (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)(remaining_scalars));
-        __m512i data_i16x32 = _mm512_maskz_loadu_epi16(tail_mask, data_ptr + idx_scalars);
+        __mmask32 tail_m32 = stride_mask_m32 & (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)(remaining_scalars));
+        __m512i data_i16x32 = _mm512_maskz_loadu_epi16(tail_m32, data_ptr + idx_scalars);
         sum_i32x16 = _mm512_dpwssd_epi32(sum_i32x16, data_i16x32, ones_i16x32);
         __m512i sq_i32x16 = _mm512_dpwssd_epi32(_mm512_setzero_si512(), data_i16x32, data_i16x32);
         sumsq_i64x8 = _mm512_add_epi64(sumsq_i64x8, _mm512_cvtepi32_epi64(_mm512_castsi512_si256(sq_i32x16)));
@@ -336,8 +336,8 @@ NK_INTERNAL void nk_reduce_moments_e2m3_icelake_contiguous_( //
         __m512i magnitude_u8x64 = _mm512_and_si512(data_u8x64, magnitude_mask_u8x64);
         __m512i unsigned_mag_u8x64 = _mm512_permutexvar_epi8(magnitude_u8x64, lut_magnitude_u8x64);
         // Apply sign for sum: negate where bit 5 is set
-        __mmask64 sign_mask = _mm512_test_epi8_mask(data_u8x64, sign_mask_u8x64);
-        __m512i signed_mag_i8x64 = _mm512_mask_sub_epi8(unsigned_mag_u8x64, sign_mask, _mm512_setzero_si512(),
+        __mmask64 sign_m64 = _mm512_test_epi8_mask(data_u8x64, sign_mask_u8x64);
+        __m512i signed_mag_i8x64 = _mm512_mask_sub_epi8(unsigned_mag_u8x64, sign_m64, _mm512_setzero_si512(),
                                                         unsigned_mag_u8x64);
         // Sum: VPDPBUSD(acc, ones_u8, signed_i8) = acc + sum(1 * signed_val) per 4-byte group
         sum_i32x16 = _mm512_dpbusd_epi32(sum_i32x16, ones_u8x64, signed_mag_i8x64);
@@ -347,12 +347,12 @@ NK_INTERNAL void nk_reduce_moments_e2m3_icelake_contiguous_( //
     }
     nk_size_t remaining = count - idx;
     if (remaining > 0) {
-        __mmask64 tail_mask = _bzhi_u64(0xFFFFFFFFFFFFFFFFull, (unsigned int)remaining);
-        __m512i data_u8x64 = _mm512_maskz_loadu_epi8(tail_mask, data_ptr + idx);
+        __mmask64 tail_m64 = _bzhi_u64(0xFFFFFFFFFFFFFFFFull, (unsigned int)remaining);
+        __m512i data_u8x64 = _mm512_maskz_loadu_epi8(tail_m64, data_ptr + idx);
         __m512i magnitude_u8x64 = _mm512_and_si512(data_u8x64, magnitude_mask_u8x64);
         __m512i unsigned_mag_u8x64 = _mm512_permutexvar_epi8(magnitude_u8x64, lut_magnitude_u8x64);
-        __mmask64 sign_mask = _mm512_test_epi8_mask(data_u8x64, sign_mask_u8x64);
-        __m512i signed_mag_i8x64 = _mm512_mask_sub_epi8(unsigned_mag_u8x64, sign_mask, _mm512_setzero_si512(),
+        __mmask64 sign_m64 = _mm512_test_epi8_mask(data_u8x64, sign_mask_u8x64);
+        __m512i signed_mag_i8x64 = _mm512_mask_sub_epi8(unsigned_mag_u8x64, sign_m64, _mm512_setzero_si512(),
                                                         unsigned_mag_u8x64);
         sum_i32x16 = _mm512_dpbusd_epi32(sum_i32x16, ones_u8x64, signed_mag_i8x64);
         sumsq_i32x16 = _mm512_dpbusd_epi32(sumsq_i32x16, unsigned_mag_u8x64, unsigned_mag_u8x64);
@@ -381,20 +381,20 @@ NK_INTERNAL void nk_reduce_moments_e2m3_icelake_strided_(                  //
         __m512i data_u8x64 = _mm512_maskz_loadu_epi8(stride_mask_m64, data_ptr + idx_scalars);
         __m512i magnitude_u8x64 = _mm512_and_si512(data_u8x64, magnitude_mask_u8x64);
         __m512i unsigned_mag_u8x64 = _mm512_permutexvar_epi8(magnitude_u8x64, lut_magnitude_u8x64);
-        __mmask64 sign_mask = _mm512_test_epi8_mask(data_u8x64, sign_mask_u8x64);
-        __m512i signed_mag_i8x64 = _mm512_mask_sub_epi8(unsigned_mag_u8x64, sign_mask, _mm512_setzero_si512(),
+        __mmask64 sign_m64 = _mm512_test_epi8_mask(data_u8x64, sign_mask_u8x64);
+        __m512i signed_mag_i8x64 = _mm512_mask_sub_epi8(unsigned_mag_u8x64, sign_m64, _mm512_setzero_si512(),
                                                         unsigned_mag_u8x64);
         sum_i32x16 = _mm512_dpbusd_epi32(sum_i32x16, ones_u8x64, signed_mag_i8x64);
         sumsq_i32x16 = _mm512_dpbusd_epi32(sumsq_i32x16, unsigned_mag_u8x64, unsigned_mag_u8x64);
     }
     nk_size_t remaining_scalars = total_scalars - idx_scalars;
     if (remaining_scalars > 0) {
-        __mmask64 tail_mask = stride_mask_m64 & _bzhi_u64(0xFFFFFFFFFFFFFFFFull, (unsigned int)remaining_scalars);
-        __m512i data_u8x64 = _mm512_maskz_loadu_epi8(tail_mask, data_ptr + idx_scalars);
+        __mmask64 tail_m64 = stride_mask_m64 & _bzhi_u64(0xFFFFFFFFFFFFFFFFull, (unsigned int)remaining_scalars);
+        __m512i data_u8x64 = _mm512_maskz_loadu_epi8(tail_m64, data_ptr + idx_scalars);
         __m512i magnitude_u8x64 = _mm512_and_si512(data_u8x64, magnitude_mask_u8x64);
         __m512i unsigned_mag_u8x64 = _mm512_permutexvar_epi8(magnitude_u8x64, lut_magnitude_u8x64);
-        __mmask64 sign_mask = _mm512_test_epi8_mask(data_u8x64, sign_mask_u8x64);
-        __m512i signed_mag_i8x64 = _mm512_mask_sub_epi8(unsigned_mag_u8x64, sign_mask, _mm512_setzero_si512(),
+        __mmask64 sign_m64 = _mm512_test_epi8_mask(data_u8x64, sign_mask_u8x64);
+        __m512i signed_mag_i8x64 = _mm512_mask_sub_epi8(unsigned_mag_u8x64, sign_m64, _mm512_setzero_si512(),
                                                         unsigned_mag_u8x64);
         sum_i32x16 = _mm512_dpbusd_epi32(sum_i32x16, ones_u8x64, signed_mag_i8x64);
         sumsq_i32x16 = _mm512_dpbusd_epi32(sumsq_i32x16, unsigned_mag_u8x64, unsigned_mag_u8x64);
@@ -447,8 +447,8 @@ NK_INTERNAL void nk_reduce_moments_e3m2_icelake_contiguous_( //
         __m512i magnitude_u16x32 = _mm512_and_si512(data_u16x32, magnitude_mask_i16x32);
         __m512i unsigned_mag_i16x32 = _mm512_permutexvar_epi16(magnitude_u16x32, lut_magnitude_i16x32);
         // Apply sign for sum: negate where bit 5 is set
-        __mmask32 sign_mask = _mm512_test_epi16_mask(data_u16x32, sign_mask_i16x32);
-        __m512i signed_mag_i16x32 = _mm512_mask_sub_epi16(unsigned_mag_i16x32, sign_mask, _mm512_setzero_si512(),
+        __mmask32 sign_m32 = _mm512_test_epi16_mask(data_u16x32, sign_mask_i16x32);
+        __m512i signed_mag_i16x32 = _mm512_mask_sub_epi16(unsigned_mag_i16x32, sign_m32, _mm512_setzero_si512(),
                                                           unsigned_mag_i16x32);
         // Sum: VPMADDWD(signed_i16, ones) = sum of pairs -> i32
         sum_i32x16 = _mm512_add_epi32(sum_i32x16, _mm512_madd_epi16(signed_mag_i16x32, ones_i16x32));
@@ -458,13 +458,13 @@ NK_INTERNAL void nk_reduce_moments_e3m2_icelake_contiguous_( //
     }
     nk_size_t remaining = count - idx;
     if (remaining > 0) {
-        __mmask32 tail_mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)remaining);
-        __m256i data_u8x32 = _mm256_maskz_loadu_epi8(tail_mask, data_ptr + idx);
+        __mmask32 tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)remaining);
+        __m256i data_u8x32 = _mm256_maskz_loadu_epi8(tail_m32, data_ptr + idx);
         __m512i data_u16x32 = _mm512_cvtepu8_epi16(data_u8x32);
         __m512i magnitude_u16x32 = _mm512_and_si512(data_u16x32, magnitude_mask_i16x32);
         __m512i unsigned_mag_i16x32 = _mm512_permutexvar_epi16(magnitude_u16x32, lut_magnitude_i16x32);
-        __mmask32 sign_mask = _mm512_test_epi16_mask(data_u16x32, sign_mask_i16x32);
-        __m512i signed_mag_i16x32 = _mm512_mask_sub_epi16(unsigned_mag_i16x32, sign_mask, _mm512_setzero_si512(),
+        __mmask32 sign_m32 = _mm512_test_epi16_mask(data_u16x32, sign_mask_i16x32);
+        __m512i signed_mag_i16x32 = _mm512_mask_sub_epi16(unsigned_mag_i16x32, sign_m32, _mm512_setzero_si512(),
                                                           unsigned_mag_i16x32);
         sum_i32x16 = _mm512_add_epi32(sum_i32x16, _mm512_madd_epi16(signed_mag_i16x32, ones_i16x32));
         sumsq_i32x16 = _mm512_add_epi32(sumsq_i32x16, _mm512_madd_epi16(unsigned_mag_i16x32, unsigned_mag_i16x32));
@@ -493,21 +493,21 @@ NK_INTERNAL void nk_reduce_moments_e3m2_icelake_strided_(                  //
         __m512i data_u16x32 = _mm512_cvtepu8_epi16(data_u8x32);
         __m512i magnitude_u16x32 = _mm512_and_si512(data_u16x32, magnitude_mask_i16x32);
         __m512i unsigned_mag_i16x32 = _mm512_permutexvar_epi16(magnitude_u16x32, lut_magnitude_i16x32);
-        __mmask32 sign_mask = _mm512_test_epi16_mask(data_u16x32, sign_mask_i16x32);
-        __m512i signed_mag_i16x32 = _mm512_mask_sub_epi16(unsigned_mag_i16x32, sign_mask, _mm512_setzero_si512(),
+        __mmask32 sign_m32 = _mm512_test_epi16_mask(data_u16x32, sign_mask_i16x32);
+        __m512i signed_mag_i16x32 = _mm512_mask_sub_epi16(unsigned_mag_i16x32, sign_m32, _mm512_setzero_si512(),
                                                           unsigned_mag_i16x32);
         sum_i32x16 = _mm512_add_epi32(sum_i32x16, _mm512_madd_epi16(signed_mag_i16x32, ones_i16x32));
         sumsq_i32x16 = _mm512_add_epi32(sumsq_i32x16, _mm512_madd_epi16(unsigned_mag_i16x32, unsigned_mag_i16x32));
     }
     nk_size_t remaining_scalars = total_scalars - idx_scalars;
     if (remaining_scalars > 0) {
-        __mmask32 tail_mask = stride_mask_m32 & (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)remaining_scalars);
-        __m256i data_u8x32 = _mm256_maskz_loadu_epi8(tail_mask, data_ptr + idx_scalars);
+        __mmask32 tail_m32 = stride_mask_m32 & (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)remaining_scalars);
+        __m256i data_u8x32 = _mm256_maskz_loadu_epi8(tail_m32, data_ptr + idx_scalars);
         __m512i data_u16x32 = _mm512_cvtepu8_epi16(data_u8x32);
         __m512i magnitude_u16x32 = _mm512_and_si512(data_u16x32, magnitude_mask_i16x32);
         __m512i unsigned_mag_i16x32 = _mm512_permutexvar_epi16(magnitude_u16x32, lut_magnitude_i16x32);
-        __mmask32 sign_mask = _mm512_test_epi16_mask(data_u16x32, sign_mask_i16x32);
-        __m512i signed_mag_i16x32 = _mm512_mask_sub_epi16(unsigned_mag_i16x32, sign_mask, _mm512_setzero_si512(),
+        __mmask32 sign_m32 = _mm512_test_epi16_mask(data_u16x32, sign_mask_i16x32);
+        __m512i signed_mag_i16x32 = _mm512_mask_sub_epi16(unsigned_mag_i16x32, sign_m32, _mm512_setzero_si512(),
                                                           unsigned_mag_i16x32);
         sum_i32x16 = _mm512_add_epi32(sum_i32x16, _mm512_madd_epi16(signed_mag_i16x32, ones_i16x32));
         sumsq_i32x16 = _mm512_add_epi32(sumsq_i32x16, _mm512_madd_epi16(unsigned_mag_i16x32, unsigned_mag_i16x32));

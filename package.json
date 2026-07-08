@@ -78,7 +78,7 @@
     "esbuild": "^0.25.0",
     "typescript": "^5.9.3",
     "benchmark": "^2.1.4",
-    "mathjs": "^14.9.0",
+    "mathjs": "^15.2.0",
     "usearch": "^2.21.0"
   },
   "files": [

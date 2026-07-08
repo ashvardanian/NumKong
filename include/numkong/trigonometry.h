@@ -120,13 +120,18 @@ extern "C" {
 #endif
 
 /**
+ *  @brief RoPE rotation-coefficient type for the cos/sin angle grids.
+ */
+typedef nk_f32_t nk_rope_angle_t;
+
+/**
  *  @brief Element-wise sine over f64 inputs in radians.
  *
  *  @param[in] ins Input array of angles in radians.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of sine values.
  */
-NK_DYNAMIC void nk_each_sin_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+NK_DYNAMIC void nk_trig_sin_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
 
 /**
  *  @brief Element-wise cosine over f64 inputs in radians.
@@ -135,7 +140,7 @@ NK_DYNAMIC void nk_each_sin_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of cosine values.
  */
-NK_DYNAMIC void nk_each_cos_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+NK_DYNAMIC void nk_trig_cos_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
 
 /**
  *  @brief Element-wise arc-tangent over f64 inputs.
@@ -144,7 +149,7 @@ NK_DYNAMIC void nk_each_cos_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of arc-tangent values.
  */
-NK_DYNAMIC void nk_each_atan_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+NK_DYNAMIC void nk_trig_atan_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
 
 /**
  *  @brief Element-wise sine over f32 inputs in radians.
@@ -153,7 +158,7 @@ NK_DYNAMIC void nk_each_atan_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *out
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of sine values.
  */
-NK_DYNAMIC void nk_each_sin_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+NK_DYNAMIC void nk_trig_sin_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
 
 /**
  *  @brief Element-wise cosine over f32 inputs in radians.
@@ -162,7 +167,7 @@ NK_DYNAMIC void nk_each_sin_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of cosine values.
  */
-NK_DYNAMIC void nk_each_cos_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+NK_DYNAMIC void nk_trig_cos_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
 
 /**
  *  @brief Element-wise arc-tangent over f32 inputs.
@@ -171,7 +176,7 @@ NK_DYNAMIC void nk_each_cos_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of arc-tangent values.
  */
-NK_DYNAMIC void nk_each_atan_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+NK_DYNAMIC void nk_trig_atan_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
 
 /**
  *  @brief Element-wise sine over f16 inputs in radians.
@@ -180,7 +185,7 @@ NK_DYNAMIC void nk_each_atan_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *out
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of sine values.
  */
-NK_DYNAMIC void nk_each_sin_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+NK_DYNAMIC void nk_trig_sin_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
 
 /**
  *  @brief Element-wise cosine over f16 inputs in radians.
@@ -189,7 +194,7 @@ NK_DYNAMIC void nk_each_sin_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of cosine values.
  */
-NK_DYNAMIC void nk_each_cos_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+NK_DYNAMIC void nk_trig_cos_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
 
 /**
  *  @brief Element-wise arc-tangent over f16 inputs.
@@ -198,40 +203,40 @@ NK_DYNAMIC void nk_each_cos_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of arc-tangent values.
  */
-NK_DYNAMIC void nk_each_atan_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+NK_DYNAMIC void nk_trig_atan_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
 
-/** @copydoc nk_each_sin_f64 */
-NK_PUBLIC void nk_each_sin_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_cos_f64 */
-NK_PUBLIC void nk_each_cos_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_atan_f64 */
-NK_PUBLIC void nk_each_atan_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_sin_f32 */
-NK_PUBLIC void nk_each_sin_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_cos_f32 */
-NK_PUBLIC void nk_each_cos_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_atan_f32 */
-NK_PUBLIC void nk_each_atan_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_sin_f16 */
-NK_PUBLIC void nk_each_sin_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
-/** @copydoc nk_each_cos_f16 */
-NK_PUBLIC void nk_each_cos_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
-/** @copydoc nk_each_atan_f16 */
-NK_PUBLIC void nk_each_atan_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+/** @copydoc nk_trig_sin_f64 */
+NK_PUBLIC void nk_trig_sin_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_cos_f64 */
+NK_PUBLIC void nk_trig_cos_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_atan_f64 */
+NK_PUBLIC void nk_trig_atan_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_sin_f32 */
+NK_PUBLIC void nk_trig_sin_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_cos_f32 */
+NK_PUBLIC void nk_trig_cos_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_atan_f32 */
+NK_PUBLIC void nk_trig_atan_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_sin_f16 */
+NK_PUBLIC void nk_trig_sin_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+/** @copydoc nk_trig_cos_f16 */
+NK_PUBLIC void nk_trig_cos_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+/** @copydoc nk_trig_atan_f16 */
+NK_PUBLIC void nk_trig_atan_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
 
 #if NK_TARGET_NEON
-/** @copydoc nk_each_sin_f64 */
-NK_PUBLIC void nk_each_sin_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_cos_f64 */
-NK_PUBLIC void nk_each_cos_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_atan_f64 */
-NK_PUBLIC void nk_each_atan_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_sin_f32 */
-NK_PUBLIC void nk_each_sin_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_cos_f32 */
-NK_PUBLIC void nk_each_cos_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_atan_f32 */
-NK_PUBLIC void nk_each_atan_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_sin_f64 */
+NK_PUBLIC void nk_trig_sin_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_cos_f64 */
+NK_PUBLIC void nk_trig_cos_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_atan_f64 */
+NK_PUBLIC void nk_trig_atan_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_sin_f32 */
+NK_PUBLIC void nk_trig_sin_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_cos_f32 */
+NK_PUBLIC void nk_trig_cos_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_atan_f32 */
+NK_PUBLIC void nk_trig_atan_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
 #endif // NK_TARGET_NEON
 
 /*  SIMD-powered backends for AVX2 CPUs of Haswell generation and newer, using 32-bit arithmetic over 256-bit words.
@@ -240,79 +245,147 @@ NK_PUBLIC void nk_each_atan_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t 
  *  On other hand, there is no need to implement AVX2 versions of `f32` and `f64` functions, as those are
  *  properly vectorized by recent compilers.
  */
+
+/**
+ *  @brief NeoX split-half rotary position embedding (RoPE): rotates channel pairs by per-token angles.
+ *
+ *  Rotates each pair `(i, i + half_dim)` of every head: `y[i] = x[i]·cos - x[i+half_dim]·sin`,
+ *  `y[i+half_dim] = x[i]·sin + x[i+half_dim]·cos`, over the whole `[rows, heads · 2·half_dim]` tensor.
+ *
+ *  @param[in] x Input token matrix of shape rows by (heads * 2 * half_dim).
+ *  @param[out] y Output matrix, same shape and dtype as x; may alias x for in-place rotation.
+ *  @param[in] cos Per-token cosine angle grid of shape rows by half_dim, shared across heads.
+ *  @param[in] sin Per-token sine angle grid of shape rows by half_dim, shared across heads.
+ *  @param[in] rows The number of token rows.
+ *  @param[in] heads The number of heads per token.
+ *  @param[in] half_dim Half the head dimension; channel i pairs with channel i + half_dim.
+ *  @param[in] x_row_stride Row (token) stride of x in bytes.
+ *  @param[in] y_row_stride Row (token) stride of y in bytes.
+ *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32).
+ */
+NK_DYNAMIC void nk_trig_rope_f32(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos, nk_rope_angle_t const *sin,
+                                 nk_size_t rows, nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride,
+                                 nk_size_t y_row_stride, nk_f32_t input_scale);
+/** @copydoc nk_trig_rope_f32 */
+NK_DYNAMIC void nk_trig_rope_bf16(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
+                                  nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
+                                  nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale);
+/** @copydoc nk_trig_rope_f32 */
+NK_DYNAMIC void nk_trig_rope_e4m3(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
+                                  nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
+                                  nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale);
+/** @copydoc nk_trig_rope_f32 */
+NK_PUBLIC void nk_trig_rope_f32_serial(nk_f32_t const *, nk_f32_t *, nk_rope_angle_t const *, nk_rope_angle_t const *,
+                                       nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t);
+/** @copydoc nk_trig_rope_f32 */
+NK_PUBLIC void nk_trig_rope_bf16_serial(nk_bf16_t const *, nk_bf16_t *, nk_rope_angle_t const *,
+                                        nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                        nk_f32_t);
+/** @copydoc nk_trig_rope_f32 */
+NK_PUBLIC void nk_trig_rope_e4m3_serial(nk_e4m3_t const *, nk_e4m3_t *, nk_rope_angle_t const *,
+                                        nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                        nk_f32_t);
+
 #if NK_TARGET_HASWELL
-/** @copydoc nk_each_sin_f64 */
-NK_PUBLIC void nk_each_sin_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_cos_f64 */
-NK_PUBLIC void nk_each_cos_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_atan_f64 */
-NK_PUBLIC void nk_each_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_sin_f32 */
-NK_PUBLIC void nk_each_sin_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_cos_f32 */
-NK_PUBLIC void nk_each_cos_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_atan_f32 */
-NK_PUBLIC void nk_each_atan_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_rope_f32 */
+NK_PUBLIC void nk_trig_rope_f32_haswell(nk_f32_t const *, nk_f32_t *, nk_rope_angle_t const *, nk_rope_angle_t const *,
+                                        nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t);
+/** @copydoc nk_trig_rope_f32 */
+NK_PUBLIC void nk_trig_rope_bf16_haswell(nk_bf16_t const *, nk_bf16_t *, nk_rope_angle_t const *,
+                                         nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                         nk_f32_t);
+/** @copydoc nk_trig_rope_f32 */
+NK_PUBLIC void nk_trig_rope_e4m3_haswell(nk_e4m3_t const *, nk_e4m3_t *, nk_rope_angle_t const *,
+                                         nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                         nk_f32_t);
+#endif // NK_TARGET_HASWELL
+#if NK_TARGET_SKYLAKE
+/** @copydoc nk_trig_rope_f32 */
+NK_PUBLIC void nk_trig_rope_f32_skylake(nk_f32_t const *, nk_f32_t *, nk_rope_angle_t const *, nk_rope_angle_t const *,
+                                        nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t);
+/** @copydoc nk_trig_rope_f32 */
+NK_PUBLIC void nk_trig_rope_bf16_skylake(nk_bf16_t const *, nk_bf16_t *, nk_rope_angle_t const *,
+                                         nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                         nk_f32_t);
+/** @copydoc nk_trig_rope_f32 */
+NK_PUBLIC void nk_trig_rope_e4m3_skylake(nk_e4m3_t const *, nk_e4m3_t *, nk_rope_angle_t const *,
+                                         nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                         nk_f32_t);
+#endif // NK_TARGET_SKYLAKE
+
+#if NK_TARGET_HASWELL
+/** @copydoc nk_trig_sin_f64 */
+NK_PUBLIC void nk_trig_sin_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_cos_f64 */
+NK_PUBLIC void nk_trig_cos_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_atan_f64 */
+NK_PUBLIC void nk_trig_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_sin_f32 */
+NK_PUBLIC void nk_trig_sin_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_cos_f32 */
+NK_PUBLIC void nk_trig_cos_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_atan_f32 */
+NK_PUBLIC void nk_trig_atan_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
 #endif // NK_TARGET_HASWELL
 
 /*  SIMD-powered backends for various generations of AVX512 CPUs.
  *  Skylake is handy, as it supports masked loads and other operations, avoiding the need for the tail loop.
  */
 #if NK_TARGET_SKYLAKE
-/** @copydoc nk_each_sin_f64 */
-NK_PUBLIC void nk_each_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_cos_f64 */
-NK_PUBLIC void nk_each_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_atan_f64 */
-NK_PUBLIC void nk_each_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_sin_f32 */
-NK_PUBLIC void nk_each_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_cos_f32 */
-NK_PUBLIC void nk_each_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_atan_f32 */
-NK_PUBLIC void nk_each_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_sin_f16 */
-NK_PUBLIC void nk_each_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
-/** @copydoc nk_each_cos_f16 */
-NK_PUBLIC void nk_each_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
-/** @copydoc nk_each_atan_f16 */
-NK_PUBLIC void nk_each_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+/** @copydoc nk_trig_sin_f64 */
+NK_PUBLIC void nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_cos_f64 */
+NK_PUBLIC void nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_atan_f64 */
+NK_PUBLIC void nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_sin_f32 */
+NK_PUBLIC void nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_cos_f32 */
+NK_PUBLIC void nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_atan_f32 */
+NK_PUBLIC void nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_sin_f16 */
+NK_PUBLIC void nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+/** @copydoc nk_trig_cos_f16 */
+NK_PUBLIC void nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+/** @copydoc nk_trig_atan_f16 */
+NK_PUBLIC void nk_trig_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
 #endif // NK_TARGET_SKYLAKE
 
 #if NK_TARGET_V128RELAXED
-/** @copydoc nk_each_sin_f64 */
-NK_PUBLIC void nk_each_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_cos_f64 */
-NK_PUBLIC void nk_each_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_atan_f64 */
-NK_PUBLIC void nk_each_atan_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_sin_f32 */
-NK_PUBLIC void nk_each_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_cos_f32 */
-NK_PUBLIC void nk_each_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_atan_f32 */
-NK_PUBLIC void nk_each_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_sin_f64 */
+NK_PUBLIC void nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_cos_f64 */
+NK_PUBLIC void nk_trig_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_atan_f64 */
+NK_PUBLIC void nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_sin_f32 */
+NK_PUBLIC void nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_cos_f32 */
+NK_PUBLIC void nk_trig_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_atan_f32 */
+NK_PUBLIC void nk_trig_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
 #endif // NK_TARGET_V128RELAXED
 
 #if NK_TARGET_RVV
-/** @copydoc nk_each_sin_f64 */
-NK_PUBLIC void nk_each_sin_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_cos_f64 */
-NK_PUBLIC void nk_each_cos_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_atan_f64 */
-NK_PUBLIC void nk_each_atan_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_each_sin_f32 */
-NK_PUBLIC void nk_each_sin_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_cos_f32 */
-NK_PUBLIC void nk_each_cos_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_atan_f32 */
-NK_PUBLIC void nk_each_atan_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_each_sin_f16 */
-NK_PUBLIC void nk_each_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
-/** @copydoc nk_each_cos_f16 */
-NK_PUBLIC void nk_each_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
-/** @copydoc nk_each_atan_f16 */
-NK_PUBLIC void nk_each_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+/** @copydoc nk_trig_sin_f64 */
+NK_PUBLIC void nk_trig_sin_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_cos_f64 */
+NK_PUBLIC void nk_trig_cos_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_atan_f64 */
+NK_PUBLIC void nk_trig_atan_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+/** @copydoc nk_trig_sin_f32 */
+NK_PUBLIC void nk_trig_sin_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_cos_f32 */
+NK_PUBLIC void nk_trig_cos_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_atan_f32 */
+NK_PUBLIC void nk_trig_atan_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_sin_f16 */
+NK_PUBLIC void nk_trig_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+/** @copydoc nk_trig_cos_f16 */
+NK_PUBLIC void nk_trig_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+/** @copydoc nk_trig_atan_f16 */
+NK_PUBLIC void nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
 #endif // NK_TARGET_RVV
 
 #if defined(__cplusplus)
@@ -332,129 +405,165 @@ extern "C" {
 
 #if !NK_DYNAMIC_DISPATCH
 
-NK_PUBLIC void nk_each_sin_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_sin_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
 #if NK_TARGET_NEON
-    nk_each_sin_f64_neon(ins, n, outs);
+    nk_trig_sin_f64_neon(ins, n, outs);
 #elif NK_TARGET_SKYLAKE
-    nk_each_sin_f64_skylake(ins, n, outs);
+    nk_trig_sin_f64_skylake(ins, n, outs);
 #elif NK_TARGET_HASWELL
-    nk_each_sin_f64_haswell(ins, n, outs);
+    nk_trig_sin_f64_haswell(ins, n, outs);
 #elif NK_TARGET_V128RELAXED
-    nk_each_sin_f64_v128relaxed(ins, n, outs);
+    nk_trig_sin_f64_v128relaxed(ins, n, outs);
 #elif NK_TARGET_RVV
-    nk_each_sin_f64_rvv(ins, n, outs);
+    nk_trig_sin_f64_rvv(ins, n, outs);
 #else
-    nk_each_sin_f64_serial(ins, n, outs);
+    nk_trig_sin_f64_serial(ins, n, outs);
 #endif
 }
 
-NK_PUBLIC void nk_each_cos_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_cos_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
 #if NK_TARGET_NEON
-    nk_each_cos_f64_neon(ins, n, outs);
+    nk_trig_cos_f64_neon(ins, n, outs);
 #elif NK_TARGET_SKYLAKE
-    nk_each_cos_f64_skylake(ins, n, outs);
+    nk_trig_cos_f64_skylake(ins, n, outs);
 #elif NK_TARGET_HASWELL
-    nk_each_cos_f64_haswell(ins, n, outs);
+    nk_trig_cos_f64_haswell(ins, n, outs);
 #elif NK_TARGET_V128RELAXED
-    nk_each_cos_f64_v128relaxed(ins, n, outs);
+    nk_trig_cos_f64_v128relaxed(ins, n, outs);
 #elif NK_TARGET_RVV
-    nk_each_cos_f64_rvv(ins, n, outs);
+    nk_trig_cos_f64_rvv(ins, n, outs);
 #else
-    nk_each_cos_f64_serial(ins, n, outs);
+    nk_trig_cos_f64_serial(ins, n, outs);
 #endif
 }
 
-NK_PUBLIC void nk_each_atan_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_PUBLIC void nk_trig_atan_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
 #if NK_TARGET_NEON
-    nk_each_atan_f64_neon(ins, n, outs);
+    nk_trig_atan_f64_neon(ins, n, outs);
 #elif NK_TARGET_SKYLAKE
-    nk_each_atan_f64_skylake(ins, n, outs);
+    nk_trig_atan_f64_skylake(ins, n, outs);
 #elif NK_TARGET_HASWELL
-    nk_each_atan_f64_haswell(ins, n, outs);
+    nk_trig_atan_f64_haswell(ins, n, outs);
 #elif NK_TARGET_V128RELAXED
-    nk_each_atan_f64_v128relaxed(ins, n, outs);
+    nk_trig_atan_f64_v128relaxed(ins, n, outs);
 #elif NK_TARGET_RVV
-    nk_each_atan_f64_rvv(ins, n, outs);
+    nk_trig_atan_f64_rvv(ins, n, outs);
 #else
-    nk_each_atan_f64_serial(ins, n, outs);
+    nk_trig_atan_f64_serial(ins, n, outs);
 #endif
 }
 
-NK_PUBLIC void nk_each_sin_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_sin_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
 #if NK_TARGET_NEON
-    nk_each_sin_f32_neon(ins, n, outs);
+    nk_trig_sin_f32_neon(ins, n, outs);
 #elif NK_TARGET_SKYLAKE
-    nk_each_sin_f32_skylake(ins, n, outs);
+    nk_trig_sin_f32_skylake(ins, n, outs);
 #elif NK_TARGET_HASWELL
-    nk_each_sin_f32_haswell(ins, n, outs);
+    nk_trig_sin_f32_haswell(ins, n, outs);
 #elif NK_TARGET_V128RELAXED
-    nk_each_sin_f32_v128relaxed(ins, n, outs);
+    nk_trig_sin_f32_v128relaxed(ins, n, outs);
 #elif NK_TARGET_RVV
-    nk_each_sin_f32_rvv(ins, n, outs);
+    nk_trig_sin_f32_rvv(ins, n, outs);
 #else
-    nk_each_sin_f32_serial(ins, n, outs);
+    nk_trig_sin_f32_serial(ins, n, outs);
 #endif
 }
 
-NK_PUBLIC void nk_each_cos_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_cos_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
 #if NK_TARGET_NEON
-    nk_each_cos_f32_neon(ins, n, outs);
+    nk_trig_cos_f32_neon(ins, n, outs);
 #elif NK_TARGET_SKYLAKE
-    nk_each_cos_f32_skylake(ins, n, outs);
+    nk_trig_cos_f32_skylake(ins, n, outs);
 #elif NK_TARGET_HASWELL
-    nk_each_cos_f32_haswell(ins, n, outs);
+    nk_trig_cos_f32_haswell(ins, n, outs);
 #elif NK_TARGET_V128RELAXED
-    nk_each_cos_f32_v128relaxed(ins, n, outs);
+    nk_trig_cos_f32_v128relaxed(ins, n, outs);
 #elif NK_TARGET_RVV
-    nk_each_cos_f32_rvv(ins, n, outs);
+    nk_trig_cos_f32_rvv(ins, n, outs);
 #else
-    nk_each_cos_f32_serial(ins, n, outs);
+    nk_trig_cos_f32_serial(ins, n, outs);
 #endif
 }
 
-NK_PUBLIC void nk_each_atan_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_PUBLIC void nk_trig_atan_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
 #if NK_TARGET_NEON
-    nk_each_atan_f32_neon(ins, n, outs);
+    nk_trig_atan_f32_neon(ins, n, outs);
 #elif NK_TARGET_SKYLAKE
-    nk_each_atan_f32_skylake(ins, n, outs);
+    nk_trig_atan_f32_skylake(ins, n, outs);
 #elif NK_TARGET_HASWELL
-    nk_each_atan_f32_haswell(ins, n, outs);
+    nk_trig_atan_f32_haswell(ins, n, outs);
 #elif NK_TARGET_V128RELAXED
-    nk_each_atan_f32_v128relaxed(ins, n, outs);
+    nk_trig_atan_f32_v128relaxed(ins, n, outs);
 #elif NK_TARGET_RVV
-    nk_each_atan_f32_rvv(ins, n, outs);
+    nk_trig_atan_f32_rvv(ins, n, outs);
 #else
-    nk_each_atan_f32_serial(ins, n, outs);
+    nk_trig_atan_f32_serial(ins, n, outs);
 #endif
 }
 
-NK_PUBLIC void nk_each_sin_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NK_PUBLIC void nk_trig_sin_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
 #if NK_TARGET_SKYLAKE
-    nk_each_sin_f16_skylake(ins, n, outs);
+    nk_trig_sin_f16_skylake(ins, n, outs);
 #elif NK_TARGET_RVV
-    nk_each_sin_f16_rvv(ins, n, outs);
+    nk_trig_sin_f16_rvv(ins, n, outs);
 #else
-    nk_each_sin_f16_serial(ins, n, outs);
+    nk_trig_sin_f16_serial(ins, n, outs);
 #endif
 }
 
-NK_PUBLIC void nk_each_cos_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NK_PUBLIC void nk_trig_cos_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
 #if NK_TARGET_SKYLAKE
-    nk_each_cos_f16_skylake(ins, n, outs);
+    nk_trig_cos_f16_skylake(ins, n, outs);
 #elif NK_TARGET_RVV
-    nk_each_cos_f16_rvv(ins, n, outs);
+    nk_trig_cos_f16_rvv(ins, n, outs);
 #else
-    nk_each_cos_f16_serial(ins, n, outs);
+    nk_trig_cos_f16_serial(ins, n, outs);
 #endif
 }
 
-NK_PUBLIC void nk_each_atan_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NK_PUBLIC void nk_trig_atan_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
 #if NK_TARGET_SKYLAKE
-    nk_each_atan_f16_skylake(ins, n, outs);
+    nk_trig_atan_f16_skylake(ins, n, outs);
 #elif NK_TARGET_RVV
-    nk_each_atan_f16_rvv(ins, n, outs);
+    nk_trig_atan_f16_rvv(ins, n, outs);
 #else
-    nk_each_atan_f16_serial(ins, n, outs);
+    nk_trig_atan_f16_serial(ins, n, outs);
+#endif
+}
+
+NK_PUBLIC void nk_trig_rope_f32(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos, nk_rope_angle_t const *sin,
+                                nk_size_t rows, nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride,
+                                nk_size_t y_row_stride, nk_f32_t input_scale) {
+#if NK_TARGET_SKYLAKE
+    nk_trig_rope_f32_skylake(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
+#elif NK_TARGET_HASWELL
+    nk_trig_rope_f32_haswell(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
+#else
+    nk_trig_rope_f32_serial(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
+#endif
+}
+
+NK_PUBLIC void nk_trig_rope_bf16(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
+                                 nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
+                                 nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) {
+#if NK_TARGET_SKYLAKE
+    nk_trig_rope_bf16_skylake(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
+#elif NK_TARGET_HASWELL
+    nk_trig_rope_bf16_haswell(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
+#else
+    nk_trig_rope_bf16_serial(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
+#endif
+}
+
+NK_PUBLIC void nk_trig_rope_e4m3(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
+                                 nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
+                                 nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) {
+#if NK_TARGET_SKYLAKE
+    nk_trig_rope_e4m3_skylake(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
+#elif NK_TARGET_HASWELL
+    nk_trig_rope_e4m3_haswell(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
+#else
+    nk_trig_rope_e4m3_serial(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
 #endif
 }
 

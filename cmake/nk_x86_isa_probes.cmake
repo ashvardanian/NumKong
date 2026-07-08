@@ -24,6 +24,10 @@ nk_isa_probe_(nk_target_graniteamx "/arch:AVX512" "-mamx-tile -mamx-fp16" "probe
 
 nk_isa_probe_(nk_target_diamond "/arch:AVX10.2" "-mavx10.2-512" "probes/x86_diamond.c")
 
+nk_isa_probe_(
+    nk_target_diamondamx "/arch:AVX10.2" "-mamx-tile -mamx-fp8 -mamx-avx512 -mavx10.2-512" "probes/x86_diamondamx.c"
+)
+
 nk_isa_probe_(nk_target_turin "/arch:AVX512" "-mavx512vp2intersect" "probes/x86_turin.c")
 
 nk_isa_probe_(nk_target_alder "/arch:AVX2" "-mavxvnni" "probes/x86_alder.c")
@@ -32,4 +36,6 @@ nk_isa_probe_(nk_target_sierra "/arch:AVX2" "-mavxvnniint8" "probes/x86_sierra.c
 
 nk_isa_probes_end_()
 
-nk_build_isa_defs_(x86 "x86" "HASWELL;SKYLAKE;ICELAKE;GENOA;SAPPHIRE;SAPPHIREAMX;GRANITEAMX;DIAMOND;TURIN;ALDER;SIERRA")
+nk_build_isa_defs_(
+    x86 "x86" "HASWELL;SKYLAKE;ICELAKE;GENOA;SAPPHIRE;SAPPHIREAMX;GRANITEAMX;DIAMOND;DIAMONDAMX;TURIN;ALDER;SIERRA"
+)

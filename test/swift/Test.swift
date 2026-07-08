@@ -384,6 +384,35 @@ class NumKongTests: XCTestCase {
         }
     }
 
+    func testTensorResizeWithinCapacity() throws {
+        let t = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6, 7, 8], rows: 2, cols: 4)  // capacity 8
+        XCTAssertEqual(t.capacity, 8)
+        XCTAssertTrue(t.tryResize(rows: 2, cols: 2))
+        XCTAssertEqual(t.rows, 2)
+        XCTAssertEqual(t.cols, 2)
+        XCTAssertEqual(t.count, 4)
+        XCTAssertEqual(t.capacity, 8)  // capacity is unchanged by resize
+        XCTAssertEqual(t[0, 0], 1)  // storage never moves within capacity
+        XCTAssertEqual(t[1, 1], 4)  // flat index 1*2 + 1 = 3
+        XCTAssertFalse(t.tryResize(rows: 3, cols: 4))  // 12 > 8, left unchanged
+        XCTAssertEqual(t.rows, 2)
+        XCTAssertEqual(t.cols, 2)
+    }
+
+    func testTensorReserveAndClear() throws {
+        let t = try Tensor<Float32>.fromArray([1, 2, 3, 4], rows: 1, cols: 4)
+        t.reserve(64)
+        XCTAssertGreaterThanOrEqual(t.capacity, 64)
+        XCTAssertEqual(t.count, 4)  // reserve grows capacity, it does not reshape
+        XCTAssertEqual(t[0, 0], 1)  // contents preserved across the reallocation
+        XCTAssertEqual(t[0, 3], 4)
+        XCTAssertTrue(t.tryResize(rows: 8, cols: 8))  // the grown capacity admits a larger shape
+        XCTAssertEqual(t.count, 64)
+        t.clear()
+        XCTAssertEqual(t.count, 0)
+        XCTAssertGreaterThanOrEqual(t.capacity, 64)  // capacity retained
+    }
+
     func testTensorDotsPacked_Float32() throws {
         let a = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, cols: 3)
         let b = try Tensor<Float32>.fromArray([7, 8, 9, 1, 0, 1], rows: 2, cols: 3)

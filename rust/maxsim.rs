@@ -15,7 +15,7 @@
 //! # Typical flow
 //!
 //! 1. Pack both the query set and the document set with
-//!    [`MaxSimPackedMatrix::try_pack`] (or [`TensorView::try_maxsim_pack`]).
+//!    [`MaxSimPackedMatrix::try_pack`] (or [`MaxSimPackOps::try_maxsim_pack`]).
 //! 2. Call [`MaxSimPackedMatrix::try_score`] on the pair; the score type is
 //!    `f64` for `f32` inputs and `f32` for `f16` / `bf16` inputs.
 //!
@@ -26,23 +26,24 @@
 //! the `nk_maxsim_*` FFI symbols used here. The in-crate tests at the bottom
 //! of this file exercise the same code path.
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use numkong::{MaxSimPackedMatrix, Tensor};
 //!
 //! let queries = Tensor::<f32>::try_full(&[32, 128], 1.0).unwrap();
 //! let documents = Tensor::<f32>::try_full(&[1024, 128], 1.0).unwrap();
 //!
-//! let queries_packed = MaxSimPackedMatrix::try_pack(&queries.view()).unwrap();
-//! let docs_packed = MaxSimPackedMatrix::try_pack(&documents.view()).unwrap();
+//! let queries_packed = MaxSimPackedMatrix::try_pack(&queries).unwrap();
+//! let docs_packed = MaxSimPackedMatrix::try_pack(&documents).unwrap();
 //! let score = queries_packed.score(&docs_packed);
 //! ```
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use crate::tensor::{Allocator, Global, TensorError, TensorView, SIMD_ALIGNMENT};
+use crate::tensor::{Allocator, Global, TensorError, TensorRef, SIMD_ALIGNMENT};
 use crate::types::{bf16, f16, StorageElement};
 
 // region: FFI
@@ -199,9 +200,13 @@ impl MaxSim for bf16 {
 /// Both query and document vectors must be packed before scoring.
 /// The buffer uses i8 quantization for fast coarse screening,
 /// with full-precision originals retained for refinement.
+#[derive(Debug)]
 pub struct MaxSimPackedMatrix<Scalar: MaxSim, Alloc: Allocator = Global> {
     data: NonNull<u8>,
+    /// Bytes of live packed content.
     size: usize,
+    /// Bytes actually allocated (>= size); lets `try_pack_into` reuse the buffer.
+    capacity: usize,
     vector_count: usize,
     depth: usize,
     alloc: Alloc,
@@ -214,9 +219,9 @@ unsafe impl<Scalar: MaxSim + Sync, Alloc: Allocator + Sync> Sync for MaxSimPacke
 
 impl<Scalar: MaxSim, Alloc: Allocator> Drop for MaxSimPackedMatrix<Scalar, Alloc> {
     fn drop(&mut self) {
-        if self.size > 0 {
+        if self.capacity > 0 {
             unsafe {
-                let layout = alloc::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
+                let layout = core::alloc::Layout::from_size_align_unchecked(self.capacity, SIMD_ALIGNMENT);
                 self.alloc.deallocate(self.data, layout);
             }
         }
@@ -230,6 +235,7 @@ impl<Scalar: MaxSim, Alloc: Allocator + Clone> MaxSimPackedMatrix<Scalar, Alloc>
             return Ok(Self {
                 data: NonNull::dangling(),
                 size: 0,
+                capacity: 0,
                 vector_count: self.vector_count,
                 depth: self.depth,
                 alloc: self.alloc.clone(),
@@ -237,7 +243,7 @@ impl<Scalar: MaxSim, Alloc: Allocator + Clone> MaxSimPackedMatrix<Scalar, Alloc>
             });
         }
 
-        let layout = alloc::alloc::Layout::from_size_align(self.size, SIMD_ALIGNMENT)
+        let layout = core::alloc::Layout::from_size_align(self.size, SIMD_ALIGNMENT)
             .map_err(|_| TensorError::AllocationFailed)?;
         let ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         unsafe {
@@ -246,6 +252,7 @@ impl<Scalar: MaxSim, Alloc: Allocator + Clone> MaxSimPackedMatrix<Scalar, Alloc>
         Ok(Self {
             data: ptr,
             size: self.size,
+            capacity: self.size,
             vector_count: self.vector_count,
             depth: self.depth,
             alloc: self.alloc.clone(),
@@ -263,39 +270,76 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
     ///
     /// Returns `Err` if the view is not 2D, the depth axis is not contiguous,
     /// the row stride is negative, or allocation fails.
-    pub fn try_pack_in<const MAX_RANK: usize>(
-        vectors: &TensorView<'_, Scalar, MAX_RANK>,
-        alloc: Alloc,
-    ) -> Result<Self, TensorError> {
-        let (vector_count, depth, row_stride_bytes) = validate_maxsim_view(vectors)?;
-        let size = Scalar::maxsim_packed_size(vector_count, depth);
-
-        let data = if size == 0 {
-            NonNull::dangling()
-        } else {
-            let layout = alloc::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
-                .map_err(|_| TensorError::AllocationFailed)?;
-            let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
-            unsafe {
-                core::ptr::write_bytes(ptr.as_ptr(), 0, size);
-            }
-            ptr
-        };
-
-        if size > 0 {
-            unsafe {
-                Scalar::maxsim_pack(vectors.as_ptr(), vector_count, depth, row_stride_bytes, data.as_ptr());
-            }
-        }
-
-        Ok(Self {
-            data,
-            size,
-            vector_count,
-            depth,
+    /// An empty packed set owning no allocation; fill it with [`try_pack_into`](Self::try_pack_into).
+    pub fn empty_in(alloc: Alloc) -> Self {
+        Self {
+            data: NonNull::dangling(),
+            size: 0,
+            capacity: 0,
+            vector_count: 0,
+            depth: 0,
             alloc,
             _marker: PhantomData,
-        })
+        }
+    }
+
+    pub fn try_pack_in<Vectors, const MAX_RANK: usize>(vectors: &Vectors, alloc: Alloc) -> Result<Self, TensorError>
+    where
+        Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        let mut packed = Self::empty_in(alloc);
+        packed.try_pack_into(vectors)?;
+        Ok(packed)
+    }
+
+    /// Repack `vectors` into this set's existing buffer, reusing the allocation when the packed size
+    /// fits `capacity` and reallocating (via the stored allocator) only when it must grow.
+    pub fn try_pack_into<Vectors, const MAX_RANK: usize>(&mut self, vectors: &Vectors) -> Result<(), TensorError>
+    where
+        Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        let (vector_count, depth, row_stride_bytes) = validate_maxsim_view(vectors)?;
+        let size = Scalar::maxsim_packed_size(vector_count, depth);
+        if size > self.capacity {
+            self.grow_to(size)?;
+        }
+        if size > 0 {
+            unsafe {
+                core::ptr::write_bytes(self.data.as_ptr(), 0, size);
+                Scalar::maxsim_pack(
+                    vectors.as_ptr(),
+                    vector_count,
+                    depth,
+                    row_stride_bytes,
+                    self.data.as_ptr(),
+                );
+            }
+        }
+        self.size = size;
+        self.vector_count = vector_count;
+        self.depth = depth;
+        Ok(())
+    }
+
+    /// Grow the backing allocation to at least `needed` bytes (dealloc old, alloc new — the caller
+    /// repacks, so contents need not be preserved).
+    fn grow_to(&mut self, needed: usize) -> Result<(), TensorError> {
+        let new_data = if needed == 0 {
+            NonNull::dangling()
+        } else {
+            let layout = core::alloc::Layout::from_size_align(needed, SIMD_ALIGNMENT)
+                .map_err(|_| TensorError::AllocationFailed)?;
+            self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?
+        };
+        if self.capacity > 0 {
+            unsafe {
+                let old = core::alloc::Layout::from_size_align_unchecked(self.capacity, SIMD_ALIGNMENT);
+                self.alloc.deallocate(self.data, old);
+            }
+        }
+        self.data = new_data;
+        self.capacity = needed;
+        Ok(())
     }
 
     /// Compute MaxSim score against another packed matrix.
@@ -336,6 +380,12 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
     /// Returns dimensions (vector_count, depth) of the original vector set.
     pub fn dims(&self) -> (usize, usize) { (self.vector_count, self.depth) }
 
+    /// Bytes currently allocated (>= the live packed size).
+    pub fn capacity(&self) -> usize { self.capacity }
+
+    /// Reset to logically empty, keeping the allocation so the next `try_pack_into` reuses it.
+    pub fn clear(&mut self) { self.size = 0; }
+
     /// Returns the packed data buffer.
     pub fn as_bytes(&self) -> &[u8] { unsafe { core::slice::from_raw_parts(self.data.as_ptr(), self.size) } }
 
@@ -346,21 +396,31 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
 // Convenience methods using Global allocator
 impl<Scalar: MaxSim> MaxSimPackedMatrix<Scalar, Global> {
     /// Pack vectors from a 2D tensor view using the global allocator.
-    pub fn try_pack<const MAX_RANK: usize>(vectors: &TensorView<'_, Scalar, MAX_RANK>) -> Result<Self, TensorError> {
+    pub fn try_pack<Vectors, const MAX_RANK: usize>(vectors: &Vectors) -> Result<Self, TensorError>
+    where
+        Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         Self::try_pack_in(vectors, Global)
     }
 
     /// Convenience constructor that panics on error.
-    pub fn pack<const MAX_RANK: usize>(vectors: &TensorView<'_, Scalar, MAX_RANK>) -> Self {
+    pub fn pack<Vectors, const MAX_RANK: usize>(vectors: &Vectors) -> Self
+    where
+        Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
         Self::try_pack(vectors).expect("MaxSimPackedMatrix::pack failed")
     }
 }
 
 // endregion: MaxSimPackedMatrix
 
-fn validate_maxsim_view<Scalar, const MAX_RANK: usize>(
-    vectors: &TensorView<'_, Scalar, MAX_RANK>,
-) -> Result<(usize, usize, usize), TensorError> {
+fn validate_maxsim_view<Scalar, Vectors, const MAX_RANK: usize>(
+    vectors: &Vectors,
+) -> Result<(usize, usize, usize), TensorError>
+where
+    Scalar: StorageElement,
+    Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
+{
     if vectors.ndim() != 2 {
         return Err(TensorError::DimensionMismatch {
             expected: 2,
@@ -384,24 +444,34 @@ fn validate_maxsim_view<Scalar, const MAX_RANK: usize>(
     Ok((vectors.shape()[0], vectors.shape()[1], row_stride_bytes as usize))
 }
 
-// region: TensorView convenience
+// region: MaxSimPackOps convenience
 
-impl<'a, Scalar: MaxSim, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
-    /// Pack this 2D tensor view for MaxSim scoring using the provided allocator.
-    pub fn try_maxsim_pack_in<Alloc: Allocator>(
+/// Extension trait: MaxSim packing for any [`TensorRef`] implementor.
+///
+/// Blanket-implemented for `Tensor`, `TensorView`, and `TensorSpan`, so a
+/// caller holding any immutable tensor reference can pack for MaxSim scoring
+/// without first calling `.view()`.
+pub trait MaxSimPackOps<Scalar: MaxSim, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    /// Pack this 2D tensor for MaxSim scoring using the provided allocator.
+    fn try_maxsim_pack_in<Alloc: Allocator>(
         &self,
         alloc: Alloc,
     ) -> Result<MaxSimPackedMatrix<Scalar, Alloc>, TensorError> {
         MaxSimPackedMatrix::try_pack_in(self, alloc)
     }
 
-    /// Pack this 2D tensor view for MaxSim scoring using the global allocator.
-    pub fn try_maxsim_pack(&self) -> Result<MaxSimPackedMatrix<Scalar, Global>, TensorError> {
+    /// Pack this 2D tensor for MaxSim scoring using the global allocator.
+    fn try_maxsim_pack(&self) -> Result<MaxSimPackedMatrix<Scalar, Global>, TensorError> {
         self.try_maxsim_pack_in(Global)
     }
 }
 
-// endregion: TensorView convenience
+impl<Scalar: MaxSim, const MAX_RANK: usize, Vectors: TensorRef<Scalar, MAX_RANK>> MaxSimPackOps<Scalar, MAX_RANK>
+    for Vectors
+{
+}
+
+// endregion: MaxSimPackOps convenience
 
 #[cfg(test)]
 mod tests {
@@ -413,8 +483,8 @@ mod tests {
         let queries = Tensor::<f32>::try_full(&[4, 16], 1.0).unwrap();
         let docs = Tensor::<f32>::try_full(&[8, 16], 1.0).unwrap();
 
-        let queries_packed = queries.view().try_maxsim_pack().unwrap();
-        let docs_packed = docs.view().try_maxsim_pack().unwrap();
+        let queries_packed = queries.try_maxsim_pack().unwrap();
+        let docs_packed = docs.try_maxsim_pack().unwrap();
 
         assert_eq!(queries_packed.dims(), (4, 16));
         assert_eq!(docs_packed.dims(), (8, 16));
@@ -424,7 +494,7 @@ mod tests {
     #[test]
     fn maxsim_rejects_non_contiguous_depth_axis() {
         let queries = Tensor::<f32>::try_full(&[4, 16], 1.0).unwrap();
-        let transposed = queries.transpose().unwrap();
+        let transposed = queries.try_transpose().unwrap();
         let result = transposed.try_maxsim_pack();
         assert!(matches!(result, Err(TensorError::NonContiguousRows)));
     }
@@ -433,7 +503,7 @@ mod tests {
     fn maxsim_accepts_outer_strided_views() {
         let queries = Tensor::<f32>::try_full(&[8, 16], 1.0).unwrap();
         let odd_rows = queries
-            .slice(&[SliceRange::range_step(1, 7, 2), SliceRange::range_step(0, 16, 1)])
+            .try_slice(&[SliceRange::range_step(1, 7, 2), SliceRange::range_step(0, 16, 1)])
             .unwrap();
 
         let queries_packed = odd_rows.try_maxsim_pack().unwrap();
@@ -444,7 +514,7 @@ mod tests {
     fn maxsim_rejects_negative_row_stride() {
         let queries = Tensor::<f32>::try_full(&[8, 16], 1.0).unwrap();
         let reversed_rows = queries
-            .slice(&[SliceRange::range_step(7, 0, -1), SliceRange::range_step(0, 16, 1)])
+            .try_slice(&[SliceRange::range_step(7, 0, -1), SliceRange::range_step(0, 16, 1)])
             .unwrap();
 
         let result = reversed_rows.try_maxsim_pack();

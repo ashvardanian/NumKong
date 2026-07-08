@@ -280,11 +280,11 @@ NK_PUBLIC void nk_maxsim_packed_f32_sapphireamx( //
                                                                    _mm512_set1_epi32((int)column_within_tile));
                     __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16,
                                                                         tile_results_i32[tile_offset], 4);
-                    __mmask16 is_better_bx16 = _mm512_cmpgt_epi32_mask(column_dots_i32x16, running_maximum_i32x16);
-                    running_maximum_i32x16 = _mm512_mask_mov_epi32(running_maximum_i32x16, is_better_bx16,
+                    __mmask16 is_better_m16 = _mm512_cmpgt_epi32_mask(column_dots_i32x16, running_maximum_i32x16);
+                    running_maximum_i32x16 = _mm512_mask_mov_epi32(running_maximum_i32x16, is_better_m16,
                                                                    column_dots_i32x16);
                     running_argmax_i32x16 = _mm512_mask_mov_epi32(
-                        running_argmax_i32x16, is_better_bx16,
+                        running_argmax_i32x16, is_better_m16,
                         _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
                 }
             }
@@ -314,11 +314,11 @@ NK_PUBLIC void nk_maxsim_packed_f32_sapphireamx( //
                 __m512i gather_index_i32x16 = _mm512_add_epi32(row_stride_indices_i32x16,
                                                                _mm512_set1_epi32((int)column_within_tile));
                 __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16, tile_results_i32[0], 4);
-                __mmask16 is_better_bx16 = _mm512_cmpgt_epi32_mask(column_dots_i32x16, running_maximum_i32x16);
-                running_maximum_i32x16 = _mm512_mask_mov_epi32(running_maximum_i32x16, is_better_bx16,
+                __mmask16 is_better_m16 = _mm512_cmpgt_epi32_mask(column_dots_i32x16, running_maximum_i32x16);
+                running_maximum_i32x16 = _mm512_mask_mov_epi32(running_maximum_i32x16, is_better_m16,
                                                                column_dots_i32x16);
                 running_argmax_i32x16 = _mm512_mask_mov_epi32(
-                    running_argmax_i32x16, is_better_bx16,
+                    running_argmax_i32x16, is_better_m16,
                     _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
             }
         }
@@ -535,11 +535,11 @@ NK_PUBLIC void nk_maxsim_packed_f16_sapphireamx( //
                                                                    _mm512_set1_epi32((int)column_within_tile));
                     __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16,
                                                                         tile_results_i32[tile_offset], 4);
-                    __mmask16 is_better_bx16 = _mm512_cmpgt_epi32_mask(column_dots_i32x16, running_maximum_i32x16);
-                    running_maximum_i32x16 = _mm512_mask_mov_epi32(running_maximum_i32x16, is_better_bx16,
+                    __mmask16 is_better_m16 = _mm512_cmpgt_epi32_mask(column_dots_i32x16, running_maximum_i32x16);
+                    running_maximum_i32x16 = _mm512_mask_mov_epi32(running_maximum_i32x16, is_better_m16,
                                                                    column_dots_i32x16);
                     running_argmax_i32x16 = _mm512_mask_mov_epi32(
-                        running_argmax_i32x16, is_better_bx16,
+                        running_argmax_i32x16, is_better_m16,
                         _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
                 }
             }
@@ -569,11 +569,11 @@ NK_PUBLIC void nk_maxsim_packed_f16_sapphireamx( //
                 __m512i gather_index_i32x16 = _mm512_add_epi32(row_stride_indices_i32x16,
                                                                _mm512_set1_epi32((int)column_within_tile));
                 __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16, tile_results_i32[0], 4);
-                __mmask16 is_better_bx16 = _mm512_cmpgt_epi32_mask(column_dots_i32x16, running_maximum_i32x16);
-                running_maximum_i32x16 = _mm512_mask_mov_epi32(running_maximum_i32x16, is_better_bx16,
+                __mmask16 is_better_m16 = _mm512_cmpgt_epi32_mask(column_dots_i32x16, running_maximum_i32x16);
+                running_maximum_i32x16 = _mm512_mask_mov_epi32(running_maximum_i32x16, is_better_m16,
                                                                column_dots_i32x16);
                 running_argmax_i32x16 = _mm512_mask_mov_epi32(
-                    running_argmax_i32x16, is_better_bx16,
+                    running_argmax_i32x16, is_better_m16,
                     _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
             }
         }
@@ -747,8 +747,7 @@ NK_PUBLIC void nk_maxsim_packed_bf16_sapphireamx( //
     for (nk_size_t query_tile_index = 0; query_tile_index < query_column_tile_count; query_tile_index++) {
         nk_size_t query_row_start = query_tile_index * 16;
         nk_size_t valid_queries = (query_row_start + 16 <= query_count) ? 16 : (query_count - query_row_start);
-        __mmask16 valid_query_mask_bx16 = (valid_queries >= 16) ? (__mmask16)0xFFFF
-                                                                : (__mmask16)((1u << valid_queries) - 1);
+        __mmask16 valid_query_m16 = (valid_queries >= 16) ? (__mmask16)0xFFFF : (__mmask16)((1u << valid_queries) - 1);
 
         __m512 running_maximum_f32x16 = _mm512_set1_ps(NK_F32_MIN);
         __m512i running_argmax_i32x16 = _mm512_setzero_si512();
@@ -796,12 +795,12 @@ NK_PUBLIC void nk_maxsim_packed_bf16_sapphireamx( //
                                                                    _mm512_set1_epi32((int)column_within_tile));
                     __m512 column_dots_f32x16 = _mm512_i32gather_ps(gather_index_i32x16,
                                                                     (float const *)tile_results_f32[tile_offset], 4);
-                    __mmask16 is_better_bx16 = _mm512_cmp_ps_mask(column_dots_f32x16, running_maximum_f32x16,
-                                                                  _CMP_GT_OQ);
-                    running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_bx16,
+                    __mmask16 is_better_m16 = _mm512_cmp_ps_mask(column_dots_f32x16, running_maximum_f32x16,
+                                                                 _CMP_GT_OQ);
+                    running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_m16,
                                                                 column_dots_f32x16);
                     running_argmax_i32x16 = _mm512_mask_mov_epi32(
-                        running_argmax_i32x16, is_better_bx16,
+                        running_argmax_i32x16, is_better_m16,
                         _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
                 }
             }
@@ -832,16 +831,16 @@ NK_PUBLIC void nk_maxsim_packed_bf16_sapphireamx( //
                                                                _mm512_set1_epi32((int)column_within_tile));
                 __m512 column_dots_f32x16 = _mm512_i32gather_ps(gather_index_i32x16, (float const *)tile_results_f32[0],
                                                                 4);
-                __mmask16 is_better_bx16 = _mm512_cmp_ps_mask(column_dots_f32x16, running_maximum_f32x16, _CMP_GT_OQ);
-                running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_bx16, column_dots_f32x16);
+                __mmask16 is_better_m16 = _mm512_cmp_ps_mask(column_dots_f32x16, running_maximum_f32x16, _CMP_GT_OQ);
+                running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_m16, column_dots_f32x16);
                 running_argmax_i32x16 = _mm512_mask_mov_epi32(
-                    running_argmax_i32x16, is_better_bx16,
+                    running_argmax_i32x16, is_better_m16,
                     _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
             }
         }
 
         // Angular distance finalization using AVX-512
-        __m512 query_inverse_norms_f32x16 = _mm512_maskz_loadu_ps(valid_query_mask_bx16,
+        __m512 query_inverse_norms_f32x16 = _mm512_maskz_loadu_ps(valid_query_m16,
                                                                   query_inverse_norms + query_row_start);
         __m512 document_inverse_norms_f32x16 = _mm512_i32gather_ps(running_argmax_i32x16, document_inverse_norms, 4);
 
@@ -852,7 +851,7 @@ NK_PUBLIC void nk_maxsim_packed_bf16_sapphireamx( //
         // angular = max(1 - cosine, 0), masked to valid queries only
         __m512 angular_distance_f32x16 = _mm512_max_ps(_mm512_sub_ps(_mm512_set1_ps(1.0f), cosine_f32x16),
                                                        _mm512_setzero_ps());
-        angular_distance_f32x16 = _mm512_maskz_mov_ps(valid_query_mask_bx16, angular_distance_f32x16);
+        angular_distance_f32x16 = _mm512_maskz_mov_ps(valid_query_m16, angular_distance_f32x16);
 
         total_angular_distance_f64 += (nk_f64_t)_mm512_reduce_add_ps(angular_distance_f32x16);
     }

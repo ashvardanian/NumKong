@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
@@ -23,7 +24,6 @@ try:
 except Exception:
     numpy_available = False
 
-import numkong as nk
 from test_base import (
     NK_ATOL,
     NK_RTOL,
@@ -42,6 +42,9 @@ from test_base import (
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
     tolerances_for_dtype,
 )
+
+import numkong as nk
+
 
 algebraic_dtypes = ["float32", "float64"]
 algebraic_ndims = [7, 97]
@@ -83,6 +86,18 @@ def baseline_argmax(a, dtype=None):
 def baseline_norm(a, dtype=None):
     """Reference L2 norm at f64 precision."""
     return np.linalg.norm(np.asarray(a).astype(np.float64))
+
+
+def baseline_rmsnorm(x, gamma, groups, eps, input_scale):
+    """NumPy float64 reference for grouped RMSNorm over the rounded input."""
+    rows, width = x.shape
+    cols = width // groups
+    scaled = (np.asarray(x, dtype=np.float64) * input_scale).reshape(rows, groups, cols)
+    mean_sq = np.mean(scaled * scaled, axis=2, keepdims=True)
+    normalized = scaled / np.sqrt(mean_sq + eps)
+    if gamma is not None:
+        normalized = normalized * np.asarray(gamma, dtype=np.float64).reshape(1, 1, cols)
+    return normalized.reshape(rows, width)
 
 
 def precise_sum(a, dtype=None):
@@ -138,10 +153,10 @@ KERNELS_REDUCE: dict[str, tuple[Callable | None, Callable, Callable | None]] = {
     "dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32"), pytest.param("float16", id="f16")]
 )
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_moments(ndim: int, dtype: str, capability: str):
+def test_moments(ndim: int, dtype: str, capability: str, nk_seed: int):
     """Test nk.moments() against NumPy sum and sum-of-squares."""
     keep_one_capability(capability)
-    np_arr = np.random.randn(ndim).astype(dtype)
+    np_arr, _ = make_random((ndim), dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
 
     baseline_kernel, simd_kernel, _ = KERNELS_REDUCE["moments"]
@@ -160,10 +175,10 @@ def test_moments(ndim: int, dtype: str, capability: str):
     "dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32"), pytest.param("float16", id="f16")]
 )
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_minmax(ndim: int, dtype: str, capability: str):
+def test_minmax(ndim: int, dtype: str, capability: str, nk_seed: int):
     """Test nk.minmax() against NumPy min/argmin/max/argmax."""
     keep_one_capability(capability)
-    np_arr = np.random.randn(ndim).astype(dtype)
+    np_arr, _ = make_random((ndim), dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
 
     baseline_kernel, simd_kernel, _ = KERNELS_REDUCE["minmax"]
@@ -188,7 +203,7 @@ def test_minmax(ndim: int, dtype: str, capability: str):
     ],
 )
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_minmax_all_nan(ndim: int, dtype: str, capability: str):
+def test_minmax_all_nan(ndim: int, dtype: str, capability: str, nk_seed: int):
     """All-NaN input returns None from minmax."""
     keep_one_capability(capability)
     np_arr = np.full(ndim, np.nan, dtype=dtype)
@@ -206,7 +221,7 @@ def test_minmax_all_nan(ndim: int, dtype: str, capability: str):
     ],
 )
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_minmax_mixed_nan(dtype: str, capability: str):
+def test_minmax_mixed_nan(dtype: str, capability: str, nk_seed: int):
     """Mixed NaN + valid values returns correct min/max."""
     keep_one_capability(capability)
     np_arr = np.array([np.nan, 3.0, np.nan, 1.0, np.nan, 5.0, np.nan], dtype=dtype)
@@ -231,7 +246,7 @@ def test_minmax_mixed_nan(dtype: str, capability: str):
     ],
 )
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_individual_reductions_all_nan(ndim: int, dtype: str, capability: str):
+def test_individual_reductions_all_nan(ndim: int, dtype: str, capability: str, nk_seed: int):
     """All-NaN input returns None from min, max, argmin, argmax."""
     keep_one_capability(capability)
     np_arr = np.full(ndim, np.nan, dtype=dtype)
@@ -272,27 +287,29 @@ def test_module_level_reductions(ndim: int, dtype: str, capability: str, metric:
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(randomized_repetitions_count)
+@pytest.mark.parametrize("shape, axis", [((5, 7), 0), ((5, 7), 1), ((3, 4, 5), 0), ((3, 4, 5), 1), ((3, 4, 5), 2)])
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_sum_axis(dtype: str, capability: str):
-    """sum(axis=) on 2D and 3D tensors vs NumPy, including out= parameter."""
+def test_sum_axis(shape: tuple, axis: int, dtype: str, capability: str, nk_seed: int):
+    """sum(axis=) on 2D and 3D tensors vs NumPy."""
     keep_one_capability(capability)
     atol, rtol = tolerances_for_dtype(dtype)
-    # 2D
-    np_arr = np.random.randn(5, 7).astype(dtype)
+    np_arr, _ = make_random(shape, dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
-    for axis in [0, 1]:
-        result = np.asarray(nk_arr.sum(axis=axis))
-        expected = np_arr.astype(np.float64).sum(axis=axis)
-        assert_allclose(result, expected, rtol=rtol, atol=atol)
-    # 3D
-    np_arr3 = np.random.randn(3, 4, 5).astype(dtype)
-    nk_arr3 = make_nk(np_arr3, dtype)
-    for axis in [0, 1, 2]:
-        result = np.asarray(nk_arr3.sum(axis=axis))
-        expected = np_arr3.astype(np.float64).sum(axis=axis)
-        assert_allclose(result, expected, rtol=rtol, atol=atol)
-    # out= parameter: writes to pre-allocated tensor, returns it
+    result = np.asarray(nk_arr.sum(axis=axis))
+    expected = np_arr.astype(np.float64).sum(axis=axis)
+    assert_allclose(result, expected, rtol=rtol, atol=atol)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_sum_axis_out(dtype: str, capability: str, nk_seed: int):
+    """sum(axis=, out=) writes into a pre-allocated tensor, returns it, and rejects a shape mismatch."""
+    keep_one_capability(capability)
+    atol, rtol = tolerances_for_dtype(dtype)
+    np_arr, _ = make_random((5, 7), dtype, seed=nk_seed)
+    nk_arr = make_nk(np_arr, dtype)
     out = nk.zeros((7,), dtype="float64")
     ret = nk_arr.sum(axis=0, out=out)
     assert np.asarray(ret).ctypes.data == np.asarray(out).ctypes.data
@@ -311,25 +328,25 @@ def test_sum_axis(dtype: str, capability: str):
         pytest.param("float32", id="f32"),
     ],
 )
+@pytest.mark.parametrize("axis", [0, 1])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_min_max_axis(dtype: str, capability: str):
+def test_min_max_axis(axis: int, dtype: str, capability: str, nk_seed: int):
     """min/max(axis=) on 2D tensors vs NumPy, including out= path."""
     keep_one_capability(capability)
-    np_arr = np.random.randn(6, 8).astype(dtype)
+    np_arr, _ = make_random((6, 8), dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
     atol, rtol = tolerances_for_dtype(dtype)
-    for axis in [0, 1]:
-        result_min = np.asarray(nk_arr.min(axis=axis))
-        result_max = np.asarray(nk_arr.max(axis=axis))
-        assert_allclose(result_min, np_arr.min(axis=axis), rtol=rtol, atol=atol)
-        assert_allclose(result_max, np_arr.max(axis=axis), rtol=rtol, atol=atol)
-        # out= must match the allocated result
-        out_min = nk.zeros(result_min.shape, dtype=nk_arr.dtype)
-        out_max = nk.zeros(result_max.shape, dtype=nk_arr.dtype)
-        nk_arr.min(axis=axis, out=out_min)
-        nk_arr.max(axis=axis, out=out_max)
-        assert_allclose(np.asarray(out_min), result_min, rtol=rtol, atol=atol)
-        assert_allclose(np.asarray(out_max), result_max, rtol=rtol, atol=atol)
+    result_min = np.asarray(nk_arr.min(axis=axis))
+    result_max = np.asarray(nk_arr.max(axis=axis))
+    assert_allclose(result_min, np_arr.min(axis=axis), rtol=rtol, atol=atol)
+    assert_allclose(result_max, np_arr.max(axis=axis), rtol=rtol, atol=atol)
+    # out= must match the allocated result
+    out_min = nk.zeros(result_min.shape, dtype=nk_arr.dtype)
+    out_max = nk.zeros(result_max.shape, dtype=nk_arr.dtype)
+    nk_arr.min(axis=axis, out=out_min)
+    nk_arr.max(axis=axis, out=out_max)
+    assert_allclose(np.asarray(out_min), result_min, rtol=rtol, atol=atol)
+    assert_allclose(np.asarray(out_max), result_max, rtol=rtol, atol=atol)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -341,17 +358,17 @@ def test_min_max_axis(dtype: str, capability: str):
         pytest.param("float32", id="f32"),
     ],
 )
+@pytest.mark.parametrize("axis", [0, 1])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_argmin_argmax_axis(dtype: str, capability: str):
+def test_argmin_argmax_axis(axis: int, dtype: str, capability: str, nk_seed: int):
     """argmin/argmax(axis=) on 2D tensors vs NumPy."""
     keep_one_capability(capability)
-    np_arr = np.random.randn(6, 8).astype(dtype)
+    np_arr, _ = make_random((6, 8), dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
-    for axis in [0, 1]:
-        nk_argmin = np.asarray(nk_arr.argmin(axis=axis))
-        nk_argmax = np.asarray(nk_arr.argmax(axis=axis))
-        np.testing.assert_array_equal(nk_argmin, np_arr.argmin(axis=axis))
-        np.testing.assert_array_equal(nk_argmax, np_arr.argmax(axis=axis))
+    nk_argmin = np.asarray(nk_arr.argmin(axis=axis))
+    nk_argmax = np.asarray(nk_arr.argmax(axis=axis))
+    np.testing.assert_array_equal(nk_argmin, np_arr.argmin(axis=axis))
+    np.testing.assert_array_equal(nk_argmax, np_arr.argmax(axis=axis))
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -363,21 +380,21 @@ def test_argmin_argmax_axis(dtype: str, capability: str):
         pytest.param("float32", id="f32"),
     ],
 )
+@pytest.mark.parametrize("axis", [0, 1])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_norm_axis(dtype: str, capability: str):
+def test_norm_axis(axis: int, dtype: str, capability: str, nk_seed: int):
     """norm(axis=) vs np.linalg.norm(x, axis=), including out= path."""
     keep_one_capability(capability)
     atol, rtol = tolerances_for_dtype(dtype)
-    np_arr = np.random.randn(5, 7).astype(dtype)
+    np_arr, _ = make_random((5, 7), dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
-    for axis in [0, 1]:
-        result = np.asarray(nk_arr.norm(axis=axis))
-        expected = np.linalg.norm(np_arr.astype(np.float64), axis=axis)
-        assert_allclose(result, expected, rtol=rtol, atol=atol)
-        # out= must match the allocated result
-        out = nk.zeros(result.shape, dtype="float64")
-        nk_arr.norm(axis=axis, out=out)
-        assert_allclose(np.asarray(out), result, rtol=rtol, atol=atol)
+    result = np.asarray(nk_arr.norm(axis=axis))
+    expected = np.linalg.norm(np_arr.astype(np.float64), axis=axis)
+    assert_allclose(result, expected, rtol=rtol, atol=atol)
+    # out= must match the allocated result
+    out = nk.zeros(result.shape, dtype="float64")
+    nk_arr.norm(axis=axis, out=out)
+    assert_allclose(np.asarray(out), result, rtol=rtol, atol=atol)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -389,28 +406,28 @@ def test_norm_axis(dtype: str, capability: str):
         pytest.param("float32", id="f32"),
     ],
 )
+@pytest.mark.parametrize("op", ["sum", "min", "max", "norm"])
+@pytest.mark.parametrize("axis", [0, 1])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_keepdims(dtype: str, capability: str):
+def test_keepdims(op: str, axis: int, dtype: str, capability: str, nk_seed: int):
     """keepdims=True preserves rank with size-1 at reduced axis."""
     keep_one_capability(capability)
-    np_arr = np.random.randn(4, 5).astype(dtype)
+    np_arr, _ = make_random((4, 5), dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
-    for axis in [0, 1]:
-        expected_shape = list(np_arr.shape)
-        expected_shape[axis] = 1
-        for op in ["sum", "min", "max", "norm"]:
-            result = getattr(nk_arr, op)(axis=axis, keepdims=True)
-            assert result.ndim == 2, f"{op} keepdims ndim"
-            assert list(result.shape) == expected_shape, f"{op} keepdims shape"
+    expected_shape = list(np_arr.shape)
+    expected_shape[axis] = 1
+    result = getattr(nk_arr, op)(axis=axis, keepdims=True)
+    assert result.ndim == 2, f"{op} keepdims ndim"
+    assert list(result.shape) == expected_shape, f"{op} keepdims shape"
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(randomized_repetitions_count)
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_module_level_axis(capability: str):
+def test_module_level_axis(capability: str, nk_seed: int):
     """nk.sum(a, axis=0), nk.min(a, axis=1), etc."""
     keep_one_capability(capability)
-    np_arr = np.random.randn(4, 5).astype("float64")
+    np_arr, _ = make_random((4, 5), "float64", seed=nk_seed)
     nk_arr = make_nk(np_arr, "float64")
     assert_allclose(np.asarray(nk.sum(nk_arr, axis=0)), np_arr.sum(axis=0))
     assert_allclose(np.asarray(nk.min(nk_arr, axis=1)), np_arr.min(axis=1))
@@ -422,17 +439,17 @@ def test_module_level_axis(capability: str):
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(randomized_repetitions_count)
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_negative_axis(capability: str):
+def test_negative_axis(capability: str, nk_seed: int):
     """axis=-1 on 2D and axis=-2 on 3D reduce the correct dimension."""
     keep_one_capability(capability)
     # 2D, axis=-1
-    np_arr = np.random.randn(3, 4).astype("float64")
+    np_arr, _ = make_random((3, 4), "float64", seed=nk_seed)
     nk_arr = make_nk(np_arr, "float64")
     result = np.asarray(nk_arr.sum(axis=-1))
     expected = np_arr.sum(axis=-1)
     assert_allclose(result, expected)
     # 3D, axis=-2
-    np_arr3 = np.random.randn(2, 3, 4).astype("float64")
+    np_arr3, _ = make_random((2, 3, 4), "float64", seed=nk_seed + 1)
     nk_arr3 = make_nk(np_arr3, "float64")
     result3 = np.asarray(nk_arr3.sum(axis=-2))
     expected3 = np_arr3.sum(axis=-2)
@@ -440,7 +457,7 @@ def test_negative_axis(capability: str):
 
 
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_axis_error(capability: str):
+def test_axis_error(capability: str, nk_seed: int):
     """axis out of range raises ValueError."""
     keep_one_capability(capability)
     nk_arr = nk.zeros((3, 4), dtype="float64")
@@ -451,37 +468,37 @@ def test_axis_error(capability: str):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("axis", [0, 1])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_integer_axis_reductions(capability: str):
+def test_integer_axis_reductions(axis: int, capability: str, nk_seed: int):
     """sum/min/max/argmin/argmax along axis on int32 tensors."""
     keep_one_capability(capability)
     np_arr = np.array([[10, 3, 7], [1, 8, 5], [4, 9, 2]], dtype=np.int32)
     nk_arr = make_nk(np_arr, "int32")
-    for axis in [0, 1]:
-        assert_allclose(np.asarray(nk_arr.sum(axis=axis)), np_arr.astype(np.float64).sum(axis=axis))
-        np.testing.assert_array_equal(np.asarray(nk_arr.min(axis=axis)), np_arr.min(axis=axis))
-        np.testing.assert_array_equal(np.asarray(nk_arr.max(axis=axis)), np_arr.max(axis=axis))
-        np.testing.assert_array_equal(np.asarray(nk_arr.argmin(axis=axis)), np_arr.argmin(axis=axis))
-        np.testing.assert_array_equal(np.asarray(nk_arr.argmax(axis=axis)), np_arr.argmax(axis=axis))
+    assert_allclose(np.asarray(nk_arr.sum(axis=axis)), np_arr.astype(np.float64).sum(axis=axis))
+    np.testing.assert_array_equal(np.asarray(nk_arr.min(axis=axis)), np_arr.min(axis=axis))
+    np.testing.assert_array_equal(np.asarray(nk_arr.max(axis=axis)), np_arr.max(axis=axis))
+    np.testing.assert_array_equal(np.asarray(nk_arr.argmin(axis=axis)), np_arr.argmin(axis=axis))
+    np.testing.assert_array_equal(np.asarray(nk_arr.argmax(axis=axis)), np_arr.argmax(axis=axis))
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("axis", [0, 1])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_norm_integer(capability: str):
+def test_norm_integer(axis: int, capability: str, nk_seed: int):
     """norm(axis=) on int32 must include sqrt (the fix norm_slice was made for)."""
     keep_one_capability(capability)
     np_arr = np.array([[3, 4], [5, 12]], dtype=np.int32)
     nk_arr = make_nk(np_arr, "int32")
-    for axis in [0, 1]:
-        result = np.asarray(nk_arr.norm(axis=axis))
-        expected = np.linalg.norm(np_arr.astype(np.float64), axis=axis)
-        assert_allclose(result, expected)
+    result = np.asarray(nk_arr.norm(axis=axis))
+    expected = np.linalg.norm(np_arr.astype(np.float64), axis=axis)
+    assert_allclose(result, expected)
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_sum_known(ndim: int, dtype: str, capability: str):
+def test_sum_known(ndim: int, dtype: str, capability: str, nk_seed: int):
     """sum(ones(n)) ~ n."""
     keep_one_capability(capability)
     ones_tensor = nk.ones((ndim,), dtype=dtype)
@@ -492,7 +509,7 @@ def test_sum_known(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_norm_known(ndim: int, dtype: str, capability: str):
+def test_norm_known(ndim: int, dtype: str, capability: str, nk_seed: int):
     """norm(ones(n)) ~ sqrt(n)."""
     keep_one_capability(capability)
     ones_tensor = nk.ones((ndim,), dtype=dtype)
@@ -501,10 +518,55 @@ def test_norm_known(ndim: int, dtype: str, capability: str):
     assert abs(result - expected) < 0.1 + 0.1 * expected
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("shape", [(1, 8), (3, 100), (8, 128), (7, 63)])
+@pytest.mark.parametrize("groups", [1, 2])
+@pytest.mark.parametrize("with_gamma", [False, True])
+@pytest.mark.parametrize(
+    "dtype", [pytest.param("float32", id="f32"), pytest.param("bf16", id="bf16"), pytest.param("e4m3", id="e4m3")]
+)
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_rmsnorm(shape, groups, with_gamma, dtype, capability, nk_seed):
+    """Test nk.rmsnorm() against a float64 reference; low-precision dtypes use dtype-aware tolerances."""
+    keep_one_capability(capability)
+    _rows, width = shape
+    if width % groups != 0:
+        pytest.skip("width not divisible by groups")
+    cols = width // groups
+    x_raw, x_base = make_random(shape, dtype, seed=nk_seed)
+    nk_x = make_nk(x_raw, dtype)
+    gamma = make_random((cols,), "float32", seed=nk_seed + 1)[0] if with_gamma else None
+    input_scale = 0.75 if dtype == "e4m3" else 1.0
+
+    result = nk.rmsnorm(nk_x, gamma, groups=groups, eps=1e-6, input_scale=input_scale)
+    y = np.asarray(result if dtype == "float32" else result.astype("float32"))
+
+    expected = baseline_rmsnorm(x_base, gamma, groups, 1e-6, input_scale)
+    if dtype != "float32":  # round the reference through the lossy output dtype (matches what the kernel stores)
+        expected = np.asarray(
+            nk.Tensor(np.ascontiguousarray(expected.astype(np.float32))).astype(dtype).astype("float32")
+        ).astype(np.float64)
+    atol, rtol = tolerances_for_dtype(dtype)
+    assert_allclose(y, expected, atol=atol, rtol=rtol)
+
+
+def test_rmsnorm_strided_qk_norm():
+    """Unit QK-norm shape: a strided [tokens, head_dim] view of a fused [tokens, 3*hidden] buffer."""
+    keep_one_capability("serial")
+    rng = np.random.default_rng(3)
+    tokens, hidden = 5, 96
+    qkv = rng.standard_normal((tokens, 3 * hidden)).astype(np.float32)
+    q_view = qkv[:, 0:hidden]  # row stride = 3*hidden*4 bytes
+    heads = 3
+    out = np.asarray(nk.rmsnorm(q_view, None, groups=heads, eps=1e-6))
+    expected = baseline_rmsnorm(np.ascontiguousarray(q_view), None, heads, 1e-6, 1.0)
+    assert_allclose(out, expected, atol=1e-4, rtol=1e-4)
+
+
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_min_max_known(ndim: int, dtype: str, capability: str):
+def test_min_max_known(ndim: int, dtype: str, capability: str, nk_seed: int):
     """min(full(c)) = max(full(c)) = c."""
     keep_one_capability(capability)
     fill_value = 3.14
@@ -516,7 +578,7 @@ def test_min_max_known(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_argmin_argmax_constant(ndim: int, dtype: str, capability: str):
+def test_argmin_argmax_constant(ndim: int, dtype: str, capability: str, nk_seed: int):
     """For a constant tensor, argmin and argmax return valid indices in [0, n)."""
     keep_one_capability(capability)
     constant_tensor = nk.full((ndim,), 2.0, dtype=dtype)
@@ -533,17 +595,17 @@ def test_argmin_argmax_constant(ndim: int, dtype: str, capability: str):
     "dtype",
     [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")],
 )
+@pytest.mark.parametrize("axes", [(0, 1), (1, 2), (0, 2), (0, 1, 2)])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_multi_axis_sum(dtype: str, capability: str):
+def test_multi_axis_sum(axes: tuple, dtype: str, capability: str, nk_seed: int):
     """sum(axis=tuple) on 3D tensor vs NumPy."""
     keep_one_capability(capability)
     atol, rtol = tolerances_for_dtype(dtype)
-    np_arr = np.random.randn(3, 4, 5).astype(dtype)
+    np_arr, _ = make_random((3, 4, 5), dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
-    for axes in [(0, 1), (1, 2), (0, 2), (0, 1, 2)]:
-        result = np.asarray(nk_arr.sum(axis=axes))
-        expected = np_arr.astype(np.float64).sum(axis=axes)
-        assert_allclose(result, expected, rtol=rtol, atol=atol)
+    result = np.asarray(nk_arr.sum(axis=axes))
+    expected = np_arr.astype(np.float64).sum(axis=axes)
+    assert_allclose(result, expected, rtol=rtol, atol=atol)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -552,16 +614,16 @@ def test_multi_axis_sum(dtype: str, capability: str):
     "dtype",
     [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")],
 )
+@pytest.mark.parametrize("axes", [(0, 1), (1, 2), (0, 2)])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_multi_axis_min_max(dtype: str, capability: str):
+def test_multi_axis_min_max(axes: tuple, dtype: str, capability: str, nk_seed: int):
     """min/max(axis=tuple) on 3D tensor vs NumPy."""
     keep_one_capability(capability)
     atol, rtol = tolerances_for_dtype(dtype)
-    np_arr = np.random.randn(3, 4, 5).astype(dtype)
+    np_arr, _ = make_random((3, 4, 5), dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
-    for axes in [(0, 1), (1, 2), (0, 2)]:
-        assert_allclose(np.asarray(nk_arr.min(axis=axes)), np_arr.min(axis=axes), rtol=rtol, atol=atol)
-        assert_allclose(np.asarray(nk_arr.max(axis=axes)), np_arr.max(axis=axes), rtol=rtol, atol=atol)
+    assert_allclose(np.asarray(nk_arr.min(axis=axes)), np_arr.min(axis=axes), rtol=rtol, atol=atol)
+    assert_allclose(np.asarray(nk_arr.max(axis=axes)), np_arr.max(axis=axes), rtol=rtol, atol=atol)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -570,39 +632,39 @@ def test_multi_axis_min_max(dtype: str, capability: str):
     "dtype",
     [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")],
 )
+@pytest.mark.parametrize("axes", [(0, 1), (1, 2), (0, 2)])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_multi_axis_norm(dtype: str, capability: str):
+def test_multi_axis_norm(axes: tuple, dtype: str, capability: str, nk_seed: int):
     """norm(axis=tuple) vs manual sqrt(sum(x**2, axis=axes))."""
     keep_one_capability(capability)
     atol, rtol = tolerances_for_dtype(dtype)
-    np_arr = np.random.randn(3, 4, 5).astype(dtype)
+    np_arr, _ = make_random((3, 4, 5), dtype, seed=nk_seed)
     nk_arr = make_nk(np_arr, dtype)
-    for axes in [(0, 1), (1, 2), (0, 2)]:
-        result = np.asarray(nk_arr.norm(axis=axes))
-        expected = np.sqrt(np.sum(np_arr.astype(np.float64) ** 2, axis=axes))
-        assert_allclose(result, expected, rtol=rtol, atol=atol)
+    result = np.asarray(nk_arr.norm(axis=axes))
+    expected = np.sqrt(np.sum(np_arr.astype(np.float64) ** 2, axis=axes))
+    assert_allclose(result, expected, rtol=rtol, atol=atol)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("axes", [(0, 2), (0, 1), (1, 2), (0, 1, 2)])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_multi_axis_keepdims(capability: str):
+def test_multi_axis_keepdims(axes: tuple, capability: str, nk_seed: int):
     """keepdims=True preserves rank with size-1 at each reduced axis."""
     keep_one_capability(capability)
-    np_arr = np.random.randn(3, 4, 5).astype(np.float64)
+    np_arr, _ = make_random((3, 4, 5), "float64", seed=nk_seed)
     nk_arr = make_nk(np_arr, "float64")
-    for axes in [(0, 2), (0, 1), (1, 2), (0, 1, 2)]:
-        result = nk_arr.sum(axis=axes, keepdims=True)
-        expected = np_arr.sum(axis=axes, keepdims=True)
-        assert result.shape == expected.shape, f"axes={axes}: {result.shape} != {expected.shape}"
-        assert_allclose(np.asarray(result), expected)
+    result = nk_arr.sum(axis=axes, keepdims=True)
+    expected = np_arr.sum(axis=axes, keepdims=True)
+    assert result.shape == expected.shape, f"axes={axes}: {result.shape} != {expected.shape}"
+    assert_allclose(np.asarray(result), expected)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_multi_axis_negative(capability: str):
+def test_multi_axis_negative(capability: str, nk_seed: int):
     """Negative indices in axis tuple are normalized correctly."""
     keep_one_capability(capability)
-    np_arr = np.random.randn(3, 4, 5).astype(np.float64)
+    np_arr, _ = make_random((3, 4, 5), "float64", seed=nk_seed)
     nk_arr = make_nk(np_arr, "float64")
     result = np.asarray(nk_arr.sum(axis=(-1, 0)))
     expected = np_arr.sum(axis=(0, 2))  # -1 -> 2, sorted -> (0, 2)
@@ -611,10 +673,10 @@ def test_multi_axis_negative(capability: str):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_multi_axis_single_element_tuple(capability: str):
+def test_multi_axis_single_element_tuple(capability: str, nk_seed: int):
     """axis=(1,) should behave identically to axis=1."""
     keep_one_capability(capability)
-    np_arr = np.random.randn(3, 4, 5).astype(np.float64)
+    np_arr, _ = make_random((3, 4, 5), "float64", seed=nk_seed)
     nk_arr = make_nk(np_arr, "float64")
     result_tuple = np.asarray(nk_arr.sum(axis=(1,)))
     result_int = np.asarray(nk_arr.sum(axis=1))
@@ -622,7 +684,7 @@ def test_multi_axis_single_element_tuple(capability: str):
 
 
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_multi_axis_errors(capability: str):
+def test_multi_axis_errors(capability: str, nk_seed: int):
     """Error cases for multi-axis reductions."""
     keep_one_capability(capability)
     nk_arr = nk.zeros((3, 4, 5), dtype="float64")
@@ -652,10 +714,10 @@ def test_multi_axis_errors(capability: str):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_multi_axis_module_level(capability: str):
+def test_multi_axis_module_level(capability: str, nk_seed: int):
     """Module-level nk.sum(arr, axis=tuple) works for buffer-protocol inputs."""
     keep_one_capability(capability)
-    np_arr = np.random.randn(3, 4, 5).astype(np.float64)
+    np_arr, _ = make_random((3, 4, 5), "float64", seed=nk_seed)
     result = np.asarray(nk.sum(np_arr, axis=(0, 2)))
     expected = np_arr.sum(axis=(0, 2))
     assert_allclose(result, expected)
@@ -691,18 +753,18 @@ def _nd_axis_case(description, np_arr, axis):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("shape", [(4, 64, 64, 3), (2, 3, 4, 5, 6), (8, 12, 16), (1, 1, 256)])
 @pytest.mark.parametrize("dtype", ["uint8", "float32"])
-def test_nd_contiguous_global_reduction(dtype: str):
+def test_nd_contiguous_global_reduction(shape: tuple, dtype: str):
     """Global reduction on contiguous N-D tensors: all dims should collapse into one kernel call."""
     np_dtype = np.dtype(dtype)
     rng = np.random.RandomState(42)
-    for shape in [(4, 64, 64, 3), (2, 3, 4, 5, 6), (8, 12, 16), (1, 1, 256)]:
-        arr = (
-            rng.randint(0, 100, shape).astype(np_dtype)
-            if np.issubdtype(np_dtype, np.integer)
-            else rng.randn(*shape).astype(np_dtype)
-        )
-        _nd_global_case(f"contiguous {shape} {dtype}", arr)
+    arr = (
+        rng.randint(0, 100, shape).astype(np_dtype)
+        if np.issubdtype(np_dtype, np.integer)
+        else rng.randn(*shape).astype(np_dtype)
+    )
+    _nd_global_case(f"contiguous {shape} {dtype}", arr)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
