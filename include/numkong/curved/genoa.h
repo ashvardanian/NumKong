@@ -35,7 +35,7 @@ NK_PUBLIC void nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk
                                       nk_f32_t *result) {
     nk_size_t const tail_length = n % 32;
     nk_size_t const tail_start = n - tail_length;
-    __mmask32 const tail_mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, tail_length);
+    __mmask32 const tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, tail_length);
     __m512 sum_f32x16 = _mm512_setzero_ps();
 
     for (nk_size_t i = 0; i != n; ++i) {
@@ -52,8 +52,8 @@ NK_PUBLIC void nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk
             c_bf16x32 = _mm512_loadu_epi16(c + i * n + j);
         }
         else {
-            b_bf16x32 = _mm512_maskz_loadu_epi16(tail_mask, b + tail_start);
-            c_bf16x32 = _mm512_maskz_loadu_epi16(tail_mask, c + i * n + tail_start);
+            b_bf16x32 = _mm512_maskz_loadu_epi16(tail_m32, b + tail_start);
+            c_bf16x32 = _mm512_maskz_loadu_epi16(tail_m32, c + i * n + tail_start);
         }
         cb_j_f32x16 = _mm512_dpbf16_ps(cb_j_f32x16, nk_m512bh_from_m512i_(b_bf16x32), nk_m512bh_from_m512i_(c_bf16x32));
         j += 32;
@@ -68,7 +68,7 @@ NK_PUBLIC void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b,
                                          nk_f32_t *result) {
     nk_size_t const tail_length = n % 32;
     nk_size_t const tail_start = n - tail_length;
-    __mmask32 const tail_mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, tail_length);
+    __mmask32 const tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, tail_length);
     __m512 sum_f32x16 = _mm512_setzero_ps();
 
     for (nk_size_t i = 0; i != n; ++i) {
@@ -88,9 +88,9 @@ NK_PUBLIC void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b,
             c_bf16x32 = _mm512_loadu_epi16(c + i * n + j);
         }
         else {
-            a_j_bf16x32 = _mm512_maskz_loadu_epi16(tail_mask, a + tail_start);
-            b_j_bf16x32 = _mm512_maskz_loadu_epi16(tail_mask, b + tail_start);
-            c_bf16x32 = _mm512_maskz_loadu_epi16(tail_mask, c + i * n + tail_start);
+            a_j_bf16x32 = _mm512_maskz_loadu_epi16(tail_m32, a + tail_start);
+            b_j_bf16x32 = _mm512_maskz_loadu_epi16(tail_m32, b + tail_start);
+            c_bf16x32 = _mm512_maskz_loadu_epi16(tail_m32, c + i * n + tail_start);
         }
         diff_j_bf16x32 = nk_substract_bf16x32_genoa_(a_j_bf16x32, b_j_bf16x32);
         cdiff_j_f32x16 = _mm512_dpbf16_ps(cdiff_j_f32x16, nk_m512bh_from_m512i_(diff_j_bf16x32),
@@ -123,7 +123,7 @@ NK_PUBLIC void nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b,
     // Default case for arbitrary size `n`
     nk_size_t const tail_length = n % 16;
     nk_size_t const tail_start = n - tail_length;
-    __mmask32 const tail_mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, tail_length * 2);
+    __mmask32 const tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, tail_length * 2);
     nk_f32_t sum_real = 0;
     nk_f32_t sum_imag = 0;
 
@@ -142,8 +142,8 @@ NK_PUBLIC void nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b,
             c_bf16x32 = _mm512_loadu_epi16((nk_i16_t const *)(c + i * n + j));
         }
         else {
-            b_bf16x32 = _mm512_maskz_loadu_epi16(tail_mask, (nk_i16_t const *)(b + tail_start));
-            c_bf16x32 = _mm512_maskz_loadu_epi16(tail_mask, (nk_i16_t const *)(c + i * n + tail_start));
+            b_bf16x32 = _mm512_maskz_loadu_epi16(tail_m32, (nk_i16_t const *)(b + tail_start));
+            c_bf16x32 = _mm512_maskz_loadu_epi16(tail_m32, (nk_i16_t const *)(c + i * n + tail_start));
         }
         cb_j_real_f32x16 = _mm512_dpbf16_ps(                                      //
             cb_j_real_f32x16,                                                     //

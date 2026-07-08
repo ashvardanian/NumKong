@@ -551,12 +551,12 @@ NK_PUBLIC void nk_attention_packed_i8_v128relaxed(                              
                     channel_idx = 0;
                     for (; channel_idx < depth_full16; channel_idx += 16) { // one 16-byte V load, widen to four f32x4
                         v128_t values_i8x16 = wasm_v128_load(values_row + channel_idx);
-                        v128_t lo_i16x8 = wasm_i16x8_extend_low_i8x16(values_i8x16);
-                        v128_t hi_i16x8 = wasm_i16x8_extend_high_i8x16(values_i8x16);
-                        v128_t v0_f32x4 = wasm_f32x4_convert_i32x4(wasm_i32x4_extend_low_i16x8(lo_i16x8));
-                        v128_t v1_f32x4 = wasm_f32x4_convert_i32x4(wasm_i32x4_extend_high_i16x8(lo_i16x8));
-                        v128_t v2_f32x4 = wasm_f32x4_convert_i32x4(wasm_i32x4_extend_low_i16x8(hi_i16x8));
-                        v128_t v3_f32x4 = wasm_f32x4_convert_i32x4(wasm_i32x4_extend_high_i16x8(hi_i16x8));
+                        v128_t low_i16x8 = wasm_i16x8_extend_low_i8x16(values_i8x16);
+                        v128_t high_i16x8 = wasm_i16x8_extend_high_i8x16(values_i8x16);
+                        v128_t v0_f32x4 = wasm_f32x4_convert_i32x4(wasm_i32x4_extend_low_i16x8(low_i16x8));
+                        v128_t v1_f32x4 = wasm_f32x4_convert_i32x4(wasm_i32x4_extend_high_i16x8(low_i16x8));
+                        v128_t v2_f32x4 = wasm_f32x4_convert_i32x4(wasm_i32x4_extend_low_i16x8(high_i16x8));
+                        v128_t v3_f32x4 = wasm_f32x4_convert_i32x4(wasm_i32x4_extend_high_i16x8(high_i16x8));
                         // weight·V is an exact integer product in F32, so relaxed_madd fusing cannot change it.
                         wasm_v128_store(output_row + channel_idx + 0,
                                         wasm_f32x4_relaxed_madd(weight_f32x4, v0_f32x4,
@@ -573,9 +573,9 @@ NK_PUBLIC void nk_attention_packed_i8_v128relaxed(                              
                     }
                     if (channel_idx < depth_padded) { // trailing 8-channel chunk; upper V lanes unused
                         v128_t values_i8x16 = wasm_v128_load64_zero(values_row + channel_idx);
-                        v128_t lo_i16x8 = wasm_i16x8_extend_low_i8x16(values_i8x16);
-                        v128_t v0_f32x4 = wasm_f32x4_convert_i32x4(wasm_i32x4_extend_low_i16x8(lo_i16x8));
-                        v128_t v1_f32x4 = wasm_f32x4_convert_i32x4(wasm_i32x4_extend_high_i16x8(lo_i16x8));
+                        v128_t low_i16x8 = wasm_i16x8_extend_low_i8x16(values_i8x16);
+                        v128_t v0_f32x4 = wasm_f32x4_convert_i32x4(wasm_i32x4_extend_low_i16x8(low_i16x8));
+                        v128_t v1_f32x4 = wasm_f32x4_convert_i32x4(wasm_i32x4_extend_high_i16x8(low_i16x8));
                         wasm_v128_store(output_row + channel_idx + 0,
                                         wasm_f32x4_relaxed_madd(weight_f32x4, v0_f32x4,
                                                                 wasm_v128_load(output_row + channel_idx + 0)));

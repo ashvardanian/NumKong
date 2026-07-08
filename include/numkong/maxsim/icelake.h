@@ -171,19 +171,19 @@ NK_INTERNAL void nk_maxsim_coarse_argmax_icelake_(        //
                     accumulator_tiles_i32x16[query_tile_index][document_tile_index] = _mm512_setzero_si512();
 
             for (nk_size_t depth_index = 0; depth_index < depth_i8_padded; depth_index += 64) {
-                __m512i query_biased_u8x64_0 = _mm512_xor_si512(
+                __m512i query_biased_0_u8x64 = _mm512_xor_si512(
                     _mm512_loadu_si512(
                         (__m512i const *)(query_i8 + (query_block_start_index + 0) * depth_i8_padded + depth_index)),
                     xor_mask_u8x64);
-                __m512i query_biased_u8x64_1 = _mm512_xor_si512(
+                __m512i query_biased_1_u8x64 = _mm512_xor_si512(
                     _mm512_loadu_si512(
                         (__m512i const *)(query_i8 + (query_block_start_index + 1) * depth_i8_padded + depth_index)),
                     xor_mask_u8x64);
-                __m512i query_biased_u8x64_2 = _mm512_xor_si512(
+                __m512i query_biased_2_u8x64 = _mm512_xor_si512(
                     _mm512_loadu_si512(
                         (__m512i const *)(query_i8 + (query_block_start_index + 2) * depth_i8_padded + depth_index)),
                     xor_mask_u8x64);
-                __m512i query_biased_u8x64_3 = _mm512_xor_si512(
+                __m512i query_biased_3_u8x64 = _mm512_xor_si512(
                     _mm512_loadu_si512(
                         (__m512i const *)(query_i8 + (query_block_start_index + 3) * depth_i8_padded + depth_index)),
                     xor_mask_u8x64);
@@ -193,46 +193,46 @@ NK_INTERNAL void nk_maxsim_coarse_argmax_icelake_(        //
                 document_i8x64 = _mm512_loadu_si512(
                     (__m512i const *)(document_i8 + (document_block_start_index + 0) * depth_i8_padded + depth_index));
                 accumulator_tiles_i32x16[0][0] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[0][0],
-                                                                     query_biased_u8x64_0, document_i8x64);
+                                                                     query_biased_0_u8x64, document_i8x64);
                 accumulator_tiles_i32x16[1][0] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[1][0],
-                                                                     query_biased_u8x64_1, document_i8x64);
+                                                                     query_biased_1_u8x64, document_i8x64);
                 accumulator_tiles_i32x16[2][0] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[2][0],
-                                                                     query_biased_u8x64_2, document_i8x64);
+                                                                     query_biased_2_u8x64, document_i8x64);
                 accumulator_tiles_i32x16[3][0] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[3][0],
-                                                                     query_biased_u8x64_3, document_i8x64);
+                                                                     query_biased_3_u8x64, document_i8x64);
 
                 document_i8x64 = _mm512_loadu_si512(
                     (__m512i const *)(document_i8 + (document_block_start_index + 1) * depth_i8_padded + depth_index));
                 accumulator_tiles_i32x16[0][1] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[0][1],
-                                                                     query_biased_u8x64_0, document_i8x64);
+                                                                     query_biased_0_u8x64, document_i8x64);
                 accumulator_tiles_i32x16[1][1] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[1][1],
-                                                                     query_biased_u8x64_1, document_i8x64);
+                                                                     query_biased_1_u8x64, document_i8x64);
                 accumulator_tiles_i32x16[2][1] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[2][1],
-                                                                     query_biased_u8x64_2, document_i8x64);
+                                                                     query_biased_2_u8x64, document_i8x64);
                 accumulator_tiles_i32x16[3][1] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[3][1],
-                                                                     query_biased_u8x64_3, document_i8x64);
+                                                                     query_biased_3_u8x64, document_i8x64);
 
                 document_i8x64 = _mm512_loadu_si512(
                     (__m512i const *)(document_i8 + (document_block_start_index + 2) * depth_i8_padded + depth_index));
                 accumulator_tiles_i32x16[0][2] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[0][2],
-                                                                     query_biased_u8x64_0, document_i8x64);
+                                                                     query_biased_0_u8x64, document_i8x64);
                 accumulator_tiles_i32x16[1][2] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[1][2],
-                                                                     query_biased_u8x64_1, document_i8x64);
+                                                                     query_biased_1_u8x64, document_i8x64);
                 accumulator_tiles_i32x16[2][2] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[2][2],
-                                                                     query_biased_u8x64_2, document_i8x64);
+                                                                     query_biased_2_u8x64, document_i8x64);
                 accumulator_tiles_i32x16[3][2] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[3][2],
-                                                                     query_biased_u8x64_3, document_i8x64);
+                                                                     query_biased_3_u8x64, document_i8x64);
 
                 document_i8x64 = _mm512_loadu_si512(
                     (__m512i const *)(document_i8 + (document_block_start_index + 3) * depth_i8_padded + depth_index));
                 accumulator_tiles_i32x16[0][3] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[0][3],
-                                                                     query_biased_u8x64_0, document_i8x64);
+                                                                     query_biased_0_u8x64, document_i8x64);
                 accumulator_tiles_i32x16[1][3] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[1][3],
-                                                                     query_biased_u8x64_1, document_i8x64);
+                                                                     query_biased_1_u8x64, document_i8x64);
                 accumulator_tiles_i32x16[2][3] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[2][3],
-                                                                     query_biased_u8x64_2, document_i8x64);
+                                                                     query_biased_2_u8x64, document_i8x64);
                 accumulator_tiles_i32x16[3][3] = _mm512_dpbusd_epi32(accumulator_tiles_i32x16[3][3],
-                                                                     query_biased_u8x64_3, document_i8x64);
+                                                                     query_biased_3_u8x64, document_i8x64);
             }
 
             __m128i query_0_coarse_dots_i32x4 = nk_maxsim_reduce_i32x16x4_icelake_(
@@ -303,37 +303,37 @@ NK_INTERNAL void nk_maxsim_coarse_argmax_icelake_(        //
         for (nk_size_t document_index = document_block_start_index; document_index < document_count; document_index++) {
             nk_i8_t const *document_i8_row = document_i8 + document_index * depth_i8_padded;
 
-            __m512i accumulator_i32x16_0 = _mm512_setzero_si512();
-            __m512i accumulator_i32x16_1 = _mm512_setzero_si512();
-            __m512i accumulator_i32x16_2 = _mm512_setzero_si512();
-            __m512i accumulator_i32x16_3 = _mm512_setzero_si512();
+            __m512i accumulator_0_i32x16 = _mm512_setzero_si512();
+            __m512i accumulator_1_i32x16 = _mm512_setzero_si512();
+            __m512i accumulator_2_i32x16 = _mm512_setzero_si512();
+            __m512i accumulator_3_i32x16 = _mm512_setzero_si512();
 
             for (nk_size_t depth_index = 0; depth_index < depth_i8_padded; depth_index += 64) {
                 __m512i document_i8x64 = _mm512_loadu_si512((__m512i const *)(document_i8_row + depth_index));
 
-                accumulator_i32x16_0 = _mm512_dpbusd_epi32(
-                    accumulator_i32x16_0,
+                accumulator_0_i32x16 = _mm512_dpbusd_epi32(
+                    accumulator_0_i32x16,
                     _mm512_xor_si512(
                         _mm512_loadu_si512((
                             __m512i const *)(query_i8 + (query_block_start_index + 0) * depth_i8_padded + depth_index)),
                         xor_mask_u8x64),
                     document_i8x64);
-                accumulator_i32x16_1 = _mm512_dpbusd_epi32(
-                    accumulator_i32x16_1,
+                accumulator_1_i32x16 = _mm512_dpbusd_epi32(
+                    accumulator_1_i32x16,
                     _mm512_xor_si512(
                         _mm512_loadu_si512((
                             __m512i const *)(query_i8 + (query_block_start_index + 1) * depth_i8_padded + depth_index)),
                         xor_mask_u8x64),
                     document_i8x64);
-                accumulator_i32x16_2 = _mm512_dpbusd_epi32(
-                    accumulator_i32x16_2,
+                accumulator_2_i32x16 = _mm512_dpbusd_epi32(
+                    accumulator_2_i32x16,
                     _mm512_xor_si512(
                         _mm512_loadu_si512((
                             __m512i const *)(query_i8 + (query_block_start_index + 2) * depth_i8_padded + depth_index)),
                         xor_mask_u8x64),
                     document_i8x64);
-                accumulator_i32x16_3 = _mm512_dpbusd_epi32(
-                    accumulator_i32x16_3,
+                accumulator_3_i32x16 = _mm512_dpbusd_epi32(
+                    accumulator_3_i32x16,
                     _mm512_xor_si512(
                         _mm512_loadu_si512((
                             __m512i const *)(query_i8 + (query_block_start_index + 3) * depth_i8_padded + depth_index)),
@@ -343,10 +343,10 @@ NK_INTERNAL void nk_maxsim_coarse_argmax_icelake_(        //
 
             nk_i32_t bias_correction_i32 = 128 * document_metadata[document_index].sum_i8_i32;
             __m128i coarse_dots_i32x4 = _mm_set_epi32(
-                _mm512_reduce_add_epi32(accumulator_i32x16_3) - bias_correction_i32,
-                _mm512_reduce_add_epi32(accumulator_i32x16_2) - bias_correction_i32,
-                _mm512_reduce_add_epi32(accumulator_i32x16_1) - bias_correction_i32,
-                _mm512_reduce_add_epi32(accumulator_i32x16_0) - bias_correction_i32);
+                _mm512_reduce_add_epi32(accumulator_3_i32x16) - bias_correction_i32,
+                _mm512_reduce_add_epi32(accumulator_2_i32x16) - bias_correction_i32,
+                _mm512_reduce_add_epi32(accumulator_1_i32x16) - bias_correction_i32,
+                _mm512_reduce_add_epi32(accumulator_0_i32x16) - bias_correction_i32);
 
             __m128i comparison_mask_i32x4 = _mm_cmpgt_epi32(coarse_dots_i32x4, running_max_i32x4);
             __m128i document_index_i32x4 = _mm_set1_epi32((int)document_index);

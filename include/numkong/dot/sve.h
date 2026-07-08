@@ -59,13 +59,14 @@ extern "C" {
  *  return 0 (SVE spec), which is harmless since only the lower half is meaningful
  *  after each halving stage.
  */
-NK_INTERNAL nk_f64_t nk_dot_stable_sum_f64_sve_(svbool_t predicate_b64x, svfloat64_t sum, svfloat64_t compensation) {
+NK_INTERNAL nk_f64_t nk_dot_stable_sum_f64_sve_(svbool_t predicate_b64x, svfloat64_t sum_f64x,
+                                                svfloat64_t compensation) {
     // Stage 0: TwoSum merge of sum + compensation (parallel across all active lanes)
-    svfloat64_t tentative_sum_f64x = svadd_f64_x(predicate_b64x, sum, compensation);
-    svfloat64_t virtual_addend_f64x = svsub_f64_x(predicate_b64x, tentative_sum_f64x, sum);
+    svfloat64_t tentative_sum_f64x = svadd_f64_x(predicate_b64x, sum_f64x, compensation);
+    svfloat64_t virtual_addend_f64x = svsub_f64_x(predicate_b64x, tentative_sum_f64x, sum_f64x);
     svfloat64_t accumulated_error_f64x = svadd_f64_x(
         predicate_b64x,
-        svsub_f64_x(predicate_b64x, sum, svsub_f64_x(predicate_b64x, tentative_sum_f64x, virtual_addend_f64x)),
+        svsub_f64_x(predicate_b64x, sum_f64x, svsub_f64_x(predicate_b64x, tentative_sum_f64x, virtual_addend_f64x)),
         svsub_f64_x(predicate_b64x, compensation, virtual_addend_f64x));
 
     // Tree reduction: TwoSum halving at each level, log2(VL) iterations

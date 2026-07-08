@@ -726,16 +726,16 @@ NK_PUBLIC void nk_sqeuclidean_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const
         vuint8m1_t a_packed_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)a_scalars, vector_length);
         vuint8m1_t b_packed_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)b_scalars, vector_length);
         // Build LUT indices: high nibble pair = (a_high << 4) | b_hi
-        vuint8m1_t high_idx_u8m1 = __riscv_vor_vv_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0xF0, vector_length),
-                                                       __riscv_vsrl_vx_u8m1(b_packed_u8m1, 4, vector_length),
-                                                       vector_length);
+        vuint8m1_t high_index_u8m1 = __riscv_vor_vv_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0xF0, vector_length),
+                                                         __riscv_vsrl_vx_u8m1(b_packed_u8m1, 4, vector_length),
+                                                         vector_length);
         // Low nibble pair = (a_low << 4) | b_lo
-        vuint8m1_t low_idx_u8m1 = __riscv_vor_vv_u8m1(
+        vuint8m1_t low_index_u8m1 = __riscv_vor_vv_u8m1(
             __riscv_vsll_vx_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0x0F, vector_length), 4, vector_length),
             __riscv_vand_vx_u8m1(b_packed_u8m1, 0x0F, vector_length), vector_length);
         // Gather squared differences from LUT (0-225, fits u8)
-        vuint8m1_t sq_high_u8m1 = __riscv_vluxei8_v_u8m1(nk_i4_sqd_lut_, high_idx_u8m1, vector_length);
-        vuint8m1_t sq_low_u8m1 = __riscv_vluxei8_v_u8m1(nk_i4_sqd_lut_, low_idx_u8m1, vector_length);
+        vuint8m1_t sq_high_u8m1 = __riscv_vluxei8_v_u8m1(nk_i4_sqd_lut_, high_index_u8m1, vector_length);
+        vuint8m1_t sq_low_u8m1 = __riscv_vluxei8_v_u8m1(nk_i4_sqd_lut_, low_index_u8m1, vector_length);
         // Combine and per-lane accumulate: u8+u8→u16, then u32+=u16
         vuint16m2_t combined_u16m2 = __riscv_vwaddu_vv_u16m2(sq_high_u8m1, sq_low_u8m1, vector_length);
         sum_u32m4 = __riscv_vwaddu_wv_u32m4_tu(sum_u32m4, sum_u32m4, combined_u16m2, vector_length);
@@ -793,12 +793,12 @@ NK_PUBLIC void nk_angular_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_
         vuint8m1_t b_low_u8m1 = __riscv_vand_vx_u8m1(b_packed_u8m1, 0x0F, vector_length);
 
         // Dot product via 256-entry LUT: dot_lut[(a<<4)|b] = a_signed * b_signed (i8)
-        vuint8m1_t high_idx_u8m1 = __riscv_vor_vv_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0xF0, vector_length),
-                                                       b_high_u8m1, vector_length);
-        vuint8m1_t low_idx_u8m1 = __riscv_vor_vv_u8m1(__riscv_vsll_vx_u8m1(a_low_u8m1, 4, vector_length), b_low_u8m1,
-                                                      vector_length);
-        vint8m1_t dot_high_i8m1 = __riscv_vluxei8_v_i8m1(nk_i4_dot_lut_, high_idx_u8m1, vector_length);
-        vint8m1_t dot_low_i8m1 = __riscv_vluxei8_v_i8m1(nk_i4_dot_lut_, low_idx_u8m1, vector_length);
+        vuint8m1_t high_index_u8m1 = __riscv_vor_vv_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0xF0, vector_length),
+                                                         b_high_u8m1, vector_length);
+        vuint8m1_t low_index_u8m1 = __riscv_vor_vv_u8m1(__riscv_vsll_vx_u8m1(a_low_u8m1, 4, vector_length), b_low_u8m1,
+                                                        vector_length);
+        vint8m1_t dot_high_i8m1 = __riscv_vluxei8_v_i8m1(nk_i4_dot_lut_, high_index_u8m1, vector_length);
+        vint8m1_t dot_low_i8m1 = __riscv_vluxei8_v_i8m1(nk_i4_dot_lut_, low_index_u8m1, vector_length);
         // Widen i8→i16, add hi+lo, then per-lane accumulate i32+=i16
         vint16m2_t dot_combined_i16m2 = __riscv_vwadd_vv_i16m2(dot_high_i8m1, dot_low_i8m1, vector_length);
         dot_i32m4 = __riscv_vwadd_wv_i32m4_tu(dot_i32m4, dot_i32m4, dot_combined_i16m2, vector_length);
@@ -866,16 +866,16 @@ NK_PUBLIC void nk_sqeuclidean_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const
         vuint8m1_t a_packed_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)a_scalars, vector_length);
         vuint8m1_t b_packed_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)b_scalars, vector_length);
         // Build LUT indices: high nibble pair = (a_high & 0xF0) | (b_high >> 4)
-        vuint8m1_t high_idx_u8m1 = __riscv_vor_vv_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0xF0, vector_length),
-                                                       __riscv_vsrl_vx_u8m1(b_packed_u8m1, 4, vector_length),
-                                                       vector_length);
+        vuint8m1_t high_index_u8m1 = __riscv_vor_vv_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0xF0, vector_length),
+                                                         __riscv_vsrl_vx_u8m1(b_packed_u8m1, 4, vector_length),
+                                                         vector_length);
         // Low nibble pair = (a_low << 4) | b_lo
-        vuint8m1_t low_idx_u8m1 = __riscv_vor_vv_u8m1(
+        vuint8m1_t low_index_u8m1 = __riscv_vor_vv_u8m1(
             __riscv_vsll_vx_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0x0F, vector_length), 4, vector_length),
             __riscv_vand_vx_u8m1(b_packed_u8m1, 0x0F, vector_length), vector_length);
         // Gather squared differences from LUT (0-225, fits u8)
-        vuint8m1_t sq_high_u8m1 = __riscv_vluxei8_v_u8m1(nk_u4_sqd_lut_, high_idx_u8m1, vector_length);
-        vuint8m1_t sq_low_u8m1 = __riscv_vluxei8_v_u8m1(nk_u4_sqd_lut_, low_idx_u8m1, vector_length);
+        vuint8m1_t sq_high_u8m1 = __riscv_vluxei8_v_u8m1(nk_u4_sqd_lut_, high_index_u8m1, vector_length);
+        vuint8m1_t sq_low_u8m1 = __riscv_vluxei8_v_u8m1(nk_u4_sqd_lut_, low_index_u8m1, vector_length);
         // Combine and per-lane accumulate: u8+u8→u16, then u32+=u16
         vuint16m2_t combined_u16m2 = __riscv_vwaddu_vv_u16m2(sq_high_u8m1, sq_low_u8m1, vector_length);
         sum_u32m4 = __riscv_vwaddu_wv_u32m4_tu(sum_u32m4, sum_u32m4, combined_u16m2, vector_length);
@@ -933,12 +933,12 @@ NK_PUBLIC void nk_angular_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_
         vuint8m1_t b_low_u8m1 = __riscv_vand_vx_u8m1(b_packed_u8m1, 0x0F, vector_length);
 
         // Dot product via 256-entry LUT: dot_lut[(a<<4)|b] = a * b (u8)
-        vuint8m1_t high_idx_u8m1 = __riscv_vor_vv_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0xF0, vector_length),
-                                                       b_high_u8m1, vector_length);
-        vuint8m1_t low_idx_u8m1 = __riscv_vor_vv_u8m1(__riscv_vsll_vx_u8m1(a_low_u8m1, 4, vector_length), b_low_u8m1,
-                                                      vector_length);
-        vuint8m1_t dot_high_u8m1 = __riscv_vluxei8_v_u8m1(nk_u4_dot_lut_, high_idx_u8m1, vector_length);
-        vuint8m1_t dot_low_u8m1 = __riscv_vluxei8_v_u8m1(nk_u4_dot_lut_, low_idx_u8m1, vector_length);
+        vuint8m1_t high_index_u8m1 = __riscv_vor_vv_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0xF0, vector_length),
+                                                         b_high_u8m1, vector_length);
+        vuint8m1_t low_index_u8m1 = __riscv_vor_vv_u8m1(__riscv_vsll_vx_u8m1(a_low_u8m1, 4, vector_length), b_low_u8m1,
+                                                        vector_length);
+        vuint8m1_t dot_high_u8m1 = __riscv_vluxei8_v_u8m1(nk_u4_dot_lut_, high_index_u8m1, vector_length);
+        vuint8m1_t dot_low_u8m1 = __riscv_vluxei8_v_u8m1(nk_u4_dot_lut_, low_index_u8m1, vector_length);
         // Widen u8→u16, add hi+lo, then per-lane accumulate u32+=u16
         vuint16m2_t dot_combined_u16m2 = __riscv_vwaddu_vv_u16m2(dot_high_u8m1, dot_low_u8m1, vector_length);
         dot_u32m4 = __riscv_vwaddu_wv_u32m4_tu(dot_u32m4, dot_u32m4, dot_combined_u16m2, vector_length);

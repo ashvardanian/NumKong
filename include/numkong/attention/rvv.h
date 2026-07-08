@@ -125,9 +125,11 @@ typedef void (*nk_attention_pack_row_rvv_t_)(void const *source, void *destinati
 NK_INTERNAL void nk_attention_pack_row_bf16_rvv_(void const *source, void *destination, nk_size_t count) {
     nk_u16_t const *source_u16 = (nk_u16_t const *)source;
     nk_u16_t *destination_u16 = (nk_u16_t *)destination;
-    for (nk_size_t channel_idx = 0, remaining = count, vl = 0; remaining > 0; remaining -= vl, channel_idx += vl) {
-        vl = __riscv_vsetvl_e16m2(remaining);
-        __riscv_vse16_v_u16m2(destination_u16 + channel_idx, __riscv_vle16_v_u16m2(source_u16 + channel_idx, vl), vl);
+    for (nk_size_t channel_idx = 0, remaining = count, vector_length = 0; remaining > 0;
+         remaining -= vector_length, channel_idx += vector_length) {
+        vector_length = __riscv_vsetvl_e16m2(remaining);
+        __riscv_vse16_v_u16m2(destination_u16 + channel_idx,
+                              __riscv_vle16_v_u16m2(source_u16 + channel_idx, vector_length), vector_length);
     }
 }
 
@@ -136,19 +138,23 @@ NK_INTERNAL void nk_attention_pack_row_e4m3_rvv_(void const *source, void *desti
     // paying one LUT gather per value here keeps every hot-loop K/V load a two-op shift.
     nk_e4m3_t const *source_e4m3 = (nk_e4m3_t const *)source;
     nk_u16_t *destination_u16 = (nk_u16_t *)destination;
-    for (nk_size_t channel_idx = 0, remaining = count, vl = 0; remaining > 0; remaining -= vl, channel_idx += vl) {
-        vl = __riscv_vsetvl_e32m2(remaining);
-        vfloat32m2_t values_f32m2 = nk_attention_load_e4m3_f32m2_rvv_(source_e4m3 + channel_idx, vl);
-        __riscv_vse16_v_u16m1(destination_u16 + channel_idx, nk_f32m2_to_bf16m1_rvv_(values_f32m2, vl), vl);
+    for (nk_size_t channel_idx = 0, remaining = count, vector_length = 0; remaining > 0;
+         remaining -= vector_length, channel_idx += vector_length) {
+        vector_length = __riscv_vsetvl_e32m2(remaining);
+        vfloat32m2_t values_f32m2 = nk_attention_load_e4m3_f32m2_rvv_(source_e4m3 + channel_idx, vector_length);
+        __riscv_vse16_v_u16m1(destination_u16 + channel_idx, nk_f32m2_to_bf16m1_rvv_(values_f32m2, vector_length),
+                              vector_length);
     }
 }
 
 NK_INTERNAL void nk_attention_pack_row_i8_rvv_(void const *source, void *destination, nk_size_t count) {
     nk_i8_t const *source_i8 = (nk_i8_t const *)source;
     nk_i8_t *destination_i8 = (nk_i8_t *)destination;
-    for (nk_size_t channel_idx = 0, remaining = count, vl = 0; remaining > 0; remaining -= vl, channel_idx += vl) {
-        vl = __riscv_vsetvl_e8m2(remaining);
-        __riscv_vse8_v_i8m2(destination_i8 + channel_idx, __riscv_vle8_v_i8m2(source_i8 + channel_idx, vl), vl);
+    for (nk_size_t channel_idx = 0, remaining = count, vector_length = 0; remaining > 0;
+         remaining -= vector_length, channel_idx += vector_length) {
+        vector_length = __riscv_vsetvl_e8m2(remaining);
+        __riscv_vse8_v_i8m2(destination_i8 + channel_idx, __riscv_vle8_v_i8m2(source_i8 + channel_idx, vector_length),
+                            vector_length);
     }
 }
 
@@ -327,12 +333,14 @@ NK_INTERNAL void nk_attention_packed_float_rvv_(                                
             char const *query_source = (char const *)queries +
                                        (query_offsets[segment_idx] + row_idx) * query_stride_bytes +
                                        head_idx * depth * query_element_bytes;
-            for (nk_size_t channel_idx = 0, remaining = depth, vl = 0; remaining > 0;
-                 remaining -= vl, channel_idx += vl) {
-                vl = __riscv_vsetvl_e32m2(remaining);
+            for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                 remaining -= vector_length, channel_idx += vector_length) {
+                vector_length = __riscv_vsetvl_e32m2(remaining);
                 __riscv_vse32_v_f32m2(query_row + channel_idx,
-                                      query_load(query_source + channel_idx * query_element_bytes, vl), vl);
-                __riscv_vse32_v_f32m2(output_row + channel_idx, __riscv_vfmv_v_f_f32m2(0.0f, vl), vl);
+                                      query_load(query_source + channel_idx * query_element_bytes, vector_length),
+                                      vector_length);
+                __riscv_vse32_v_f32m2(output_row + channel_idx, __riscv_vfmv_v_f_f32m2(0.0f, vector_length),
+                                      vector_length);
             }
             nk_f32_t running_max2 = NK_F32_MIN, running_sum = 0;
 
@@ -342,24 +350,26 @@ NK_INTERNAL void nk_attention_packed_float_rvv_(                                
                                                    : (position_count - panel_start);
                 for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
                     char const *keys_row = keys_plane + (panel_start + position_idx) * plane_row_bytes;
-                    vfloat32m2_t acc_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, vlmax2);
-                    for (nk_size_t channel_idx = 0, remaining = depth, vl = 0; remaining > 0;
-                         remaining -= vl, channel_idx += vl) {
-                        vl = __riscv_vsetvl_e32m2(remaining);
-                        acc_f32m2 = __riscv_vfmacc_vv_f32m2_tu(
-                            acc_f32m2, __riscv_vle32_v_f32m2(query_row + channel_idx, vl),
-                            key_value_load(keys_row + channel_idx * key_value_element_bytes, vl), vl);
+                    vfloat32m2_t accumulator_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, vlmax2);
+                    for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                         remaining -= vector_length, channel_idx += vector_length) {
+                        vector_length = __riscv_vsetvl_e32m2(remaining);
+                        accumulator_f32m2 = __riscv_vfmacc_vv_f32m2_tu(
+                            accumulator_f32m2, __riscv_vle32_v_f32m2(query_row + channel_idx, vector_length),
+                            key_value_load(keys_row + channel_idx * key_value_element_bytes, vector_length),
+                            vector_length);
                     }
                     scores[position_idx] = __riscv_vfmv_f_s_f32m1_f32(
-                        __riscv_vfredusum_vs_f32m2_f32m1(acc_f32m2, __riscv_vfmv_v_f_f32m1(0.0f, 1), vlmax2));
+                        __riscv_vfredusum_vs_f32m2_f32m1(accumulator_f32m2, __riscv_vfmv_v_f_f32m1(0.0f, 1), vlmax2));
                 }
 
                 vfloat32m4_t max_f32m4 = __riscv_vfmv_v_f_f32m4(NK_F32_MIN, vlmax4);
-                for (nk_size_t position_idx = 0, remaining = panel_length, vl = 0; remaining > 0;
-                     remaining -= vl, position_idx += vl) {
-                    vl = __riscv_vsetvl_e32m4(remaining);
+                for (nk_size_t position_idx = 0, remaining = panel_length, vector_length = 0; remaining > 0;
+                     remaining -= vector_length, position_idx += vector_length) {
+                    vector_length = __riscv_vsetvl_e32m4(remaining);
                     max_f32m4 = __riscv_vfmax_vv_f32m4_tu(max_f32m4, max_f32m4,
-                                                          __riscv_vle32_v_f32m4(scores + position_idx, vl), vl);
+                                                          __riscv_vle32_v_f32m4(scores + position_idx, vector_length),
+                                                          vector_length);
                 }
                 nk_f32_t const panel_max2 = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m4_f32m1(
                                                 max_f32m4, __riscv_vfmv_v_f_f32m1(NK_F32_MIN, 1), vlmax4)) *
@@ -367,26 +377,28 @@ NK_INTERNAL void nk_attention_packed_float_rvv_(                                
                 nk_f32_t const new_max2 = running_max2 > panel_max2 ? running_max2 : panel_max2;
                 nk_f32_t const correction = nk_f32_exp2_serial_(running_max2 - new_max2);
                 running_max2 = new_max2;
-                for (nk_size_t channel_idx = 0, remaining = depth, vl = 0; remaining > 0;
-                     remaining -= vl, channel_idx += vl) {
-                    vl = __riscv_vsetvl_e32m2(remaining);
+                for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                     remaining -= vector_length, channel_idx += vector_length) {
+                    vector_length = __riscv_vsetvl_e32m2(remaining);
                     __riscv_vse32_v_f32m2(
                         output_row + channel_idx,
-                        __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vl), correction, vl),
-                        vl);
+                        __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length),
+                                               correction, vector_length),
+                        vector_length);
                 }
 
                 vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, vlmax4);
-                for (nk_size_t position_idx = 0, remaining = panel_length, vl = 0; remaining > 0;
-                     remaining -= vl, position_idx += vl) {
-                    vl = __riscv_vsetvl_e32m4(remaining);
+                for (nk_size_t position_idx = 0, remaining = panel_length, vector_length = 0; remaining > 0;
+                     remaining -= vector_length, position_idx += vector_length) {
+                    vector_length = __riscv_vsetvl_e32m4(remaining);
                     vfloat32m4_t weights_f32m4 = nk_attention_exp2_f32m4_rvv_(
                         __riscv_vfsub_vf_f32m4(
-                            __riscv_vfmul_vf_f32m4(__riscv_vle32_v_f32m4(scores + position_idx, vl), scale2, vl),
-                            new_max2, vl),
-                        vl);
-                    sum_f32m4 = __riscv_vfadd_vv_f32m4_tu(sum_f32m4, sum_f32m4, weights_f32m4, vl);
-                    __riscv_vse32_v_f32m4(scores + position_idx, weights_f32m4, vl);
+                            __riscv_vfmul_vf_f32m4(__riscv_vle32_v_f32m4(scores + position_idx, vector_length), scale2,
+                                                   vector_length),
+                            new_max2, vector_length),
+                        vector_length);
+                    sum_f32m4 = __riscv_vfadd_vv_f32m4_tu(sum_f32m4, sum_f32m4, weights_f32m4, vector_length);
+                    __riscv_vse32_v_f32m4(scores + position_idx, weights_f32m4, vector_length);
                 }
                 nk_f32_t const panel_sum = __riscv_vfmv_f_s_f32m1_f32(
                     __riscv_vfredusum_vs_f32m4_f32m1(sum_f32m4, __riscv_vfmv_v_f_f32m1(0.0f, 1), vlmax4));
@@ -394,15 +406,16 @@ NK_INTERNAL void nk_attention_packed_float_rvv_(                                
                 for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
                     nk_f32_t const weight = scores[position_idx];
                     char const *values_row = values_plane + (panel_start + position_idx) * plane_row_bytes;
-                    for (nk_size_t channel_idx = 0, remaining = depth, vl = 0; remaining > 0;
-                         remaining -= vl, channel_idx += vl) {
-                        vl = __riscv_vsetvl_e32m2(remaining);
+                    for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                         remaining -= vector_length, channel_idx += vector_length) {
+                        vector_length = __riscv_vsetvl_e32m2(remaining);
                         __riscv_vse32_v_f32m2(
                             output_row + channel_idx,
                             __riscv_vfmacc_vf_f32m2(
-                                __riscv_vle32_v_f32m2(output_row + channel_idx, vl), weight,
-                                key_value_load(values_row + channel_idx * key_value_element_bytes, vl), vl),
-                            vl);
+                                __riscv_vle32_v_f32m2(output_row + channel_idx, vector_length), weight,
+                                key_value_load(values_row + channel_idx * key_value_element_bytes, vector_length),
+                                vector_length),
+                            vector_length);
                     }
                 }
                 running_sum = running_sum * correction + panel_sum;
@@ -411,12 +424,14 @@ NK_INTERNAL void nk_attention_packed_float_rvv_(                                
             nk_f32_t const inverse_sum = 1.0f / running_sum;
             nk_f32_t *destination = output + (query_offsets[segment_idx] + row_idx) * output_stride_floats +
                                     head_idx * depth;
-            for (nk_size_t channel_idx = 0, remaining = depth, vl = 0; remaining > 0;
-                 remaining -= vl, channel_idx += vl) {
-                vl = __riscv_vsetvl_e32m2(remaining);
+            for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                 remaining -= vector_length, channel_idx += vector_length) {
+                vector_length = __riscv_vsetvl_e32m2(remaining);
                 __riscv_vse32_v_f32m2(
                     destination + channel_idx,
-                    __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vl), inverse_sum, vl), vl);
+                    __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length), inverse_sum,
+                                           vector_length),
+                    vector_length);
             }
         }
     }
@@ -506,10 +521,11 @@ NK_PUBLIC void nk_attention_packed_i8_rvv(                                      
             nk_i8_t const *query_row = (nk_i8_t const *)((char const *)queries +
                                                          (query_offsets[segment_idx] + row_idx) * query_stride_bytes) +
                                        head_idx * depth;
-            for (nk_size_t channel_idx = 0, remaining = depth, vl = 0; remaining > 0;
-                 remaining -= vl, channel_idx += vl) {
-                vl = __riscv_vsetvl_e32m2(remaining);
-                __riscv_vse32_v_f32m2(output_row + channel_idx, __riscv_vfmv_v_f_f32m2(0.0f, vl), vl);
+            for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                 remaining -= vector_length, channel_idx += vector_length) {
+                vector_length = __riscv_vsetvl_e32m2(remaining);
+                __riscv_vse32_v_f32m2(output_row + channel_idx, __riscv_vfmv_v_f_f32m2(0.0f, vector_length),
+                                      vector_length);
             }
             nk_f32_t running_max2 = NK_F32_MIN, running_sum = 0;
 
@@ -519,17 +535,18 @@ NK_PUBLIC void nk_attention_packed_i8_rvv(                                      
                                                    : (position_count - panel_start);
                 for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
                     nk_i8_t const *keys_row = keys_plane + (panel_start + position_idx) * depth;
-                    vint32m4_t acc_i32m4 = __riscv_vmv_v_x_i32m4(0, vlmax4);
-                    for (nk_size_t channel_idx = 0, remaining = depth, vl = 0; remaining > 0;
-                         remaining -= vl, channel_idx += vl) {
-                        vl = __riscv_vsetvl_e8m1(remaining);
+                    vint32m4_t accumulator_i32m4 = __riscv_vmv_v_x_i32m4(0, vlmax4);
+                    for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                         remaining -= vector_length, channel_idx += vector_length) {
+                        vector_length = __riscv_vsetvl_e8m1(remaining);
                         vint16m2_t product_i16m2 = __riscv_vwmul_vv_i16m2(
-                            __riscv_vle8_v_i8m1(query_row + channel_idx, vl),
-                            __riscv_vle8_v_i8m1(keys_row + channel_idx, vl), vl);
-                        acc_i32m4 = __riscv_vwadd_wv_i32m4_tu(acc_i32m4, acc_i32m4, product_i16m2, vl);
+                            __riscv_vle8_v_i8m1(query_row + channel_idx, vector_length),
+                            __riscv_vle8_v_i8m1(keys_row + channel_idx, vector_length), vector_length);
+                        accumulator_i32m4 = __riscv_vwadd_wv_i32m4_tu(accumulator_i32m4, accumulator_i32m4,
+                                                                      product_i16m2, vector_length);
                     }
                     scores[position_idx] = __riscv_vmv_x_s_i32m1_i32(
-                        __riscv_vredsum_vs_i32m4_i32m1(acc_i32m4, __riscv_vmv_v_x_i32m1(0, 1), vlmax4));
+                        __riscv_vredsum_vs_i32m4_i32m1(accumulator_i32m4, __riscv_vmv_v_x_i32m1(0, 1), vlmax4));
                 }
 
                 nk_f32_t panel_max2 = NK_F32_MIN;
@@ -540,13 +557,14 @@ NK_PUBLIC void nk_attention_packed_i8_rvv(                                      
                 nk_f32_t const new_max2 = running_max2 > panel_max2 ? running_max2 : panel_max2;
                 nk_f32_t const correction = nk_f32_exp2_serial_(running_max2 - new_max2);
                 running_max2 = new_max2;
-                for (nk_size_t channel_idx = 0, remaining = depth, vl = 0; remaining > 0;
-                     remaining -= vl, channel_idx += vl) {
-                    vl = __riscv_vsetvl_e32m2(remaining);
+                for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                     remaining -= vector_length, channel_idx += vector_length) {
+                    vector_length = __riscv_vsetvl_e32m2(remaining);
                     __riscv_vse32_v_f32m2(
                         output_row + channel_idx,
-                        __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vl), correction, vl),
-                        vl);
+                        __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length),
+                                               correction, vector_length),
+                        vector_length);
                 }
 
                 nk_f32_t panel_sum = 0;
@@ -558,16 +576,18 @@ NK_PUBLIC void nk_attention_packed_i8_rvv(                                      
                     panel_sum += (nk_f32_t)weight_u8;
                     nk_f32_t const weight = (nk_f32_t)weight_u8;
                     nk_i8_t const *values_row = values_plane + (panel_start + position_idx) * depth;
-                    for (nk_size_t channel_idx = 0, remaining = depth, vl = 0; remaining > 0;
-                         remaining -= vl, channel_idx += vl) {
-                        vl = __riscv_vsetvl_e32m2(remaining);
+                    for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                         remaining -= vector_length, channel_idx += vector_length) {
+                        vector_length = __riscv_vsetvl_e32m2(remaining);
                         vfloat32m2_t value_f32m2 = __riscv_vfcvt_f_x_v_f32m2(
-                            __riscv_vsext_vf4_i32m2(__riscv_vle8_v_i8mf2(values_row + channel_idx, vl), vl), vl);
+                            __riscv_vsext_vf4_i32m2(__riscv_vle8_v_i8mf2(values_row + channel_idx, vector_length),
+                                                    vector_length),
+                            vector_length);
                         __riscv_vse32_v_f32m2(
                             output_row + channel_idx,
-                            __riscv_vfmacc_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vl), weight,
-                                                    value_f32m2, vl),
-                            vl);
+                            __riscv_vfmacc_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length),
+                                                    weight, value_f32m2, vector_length),
+                            vector_length);
                     }
                 }
                 running_sum = running_sum * correction + panel_sum;
@@ -576,12 +596,14 @@ NK_PUBLIC void nk_attention_packed_i8_rvv(                                      
             nk_f32_t const inverse_sum = 1.0f / running_sum;
             nk_f32_t *destination = output + (query_offsets[segment_idx] + row_idx) * output_stride_floats +
                                     head_idx * depth;
-            for (nk_size_t channel_idx = 0, remaining = depth, vl = 0; remaining > 0;
-                 remaining -= vl, channel_idx += vl) {
-                vl = __riscv_vsetvl_e32m2(remaining);
+            for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                 remaining -= vector_length, channel_idx += vector_length) {
+                vector_length = __riscv_vsetvl_e32m2(remaining);
                 __riscv_vse32_v_f32m2(
                     destination + channel_idx,
-                    __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vl), inverse_sum, vl), vl);
+                    __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length), inverse_sum,
+                                           vector_length),
+                    vector_length);
             }
         }
     }

@@ -280,31 +280,33 @@ NK_INTERNAL void nk_attention_packed_haswell_(                                  
                 nk_size_t position_idx = 0;
                 for (; position_idx + 4 <= panel_length; position_idx += 4) {
                     char const *keys_row = keys_plane + (panel_start + position_idx) * plane_row_bytes;
-                    __m256 acc0_f32x8 = _mm256_setzero_ps(), acc1_f32x8 = _mm256_setzero_ps();
-                    __m256 acc2_f32x8 = _mm256_setzero_ps(), acc3_f32x8 = _mm256_setzero_ps();
+                    __m256 accumulator0_f32x8 = _mm256_setzero_ps(), accumulator1_f32x8 = _mm256_setzero_ps();
+                    __m256 accumulator2_f32x8 = _mm256_setzero_ps(), accumulator3_f32x8 = _mm256_setzero_ps();
                     for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 8) {
                         __m256 const query_f32x8 = _mm256_load_ps(query_row + channel_idx);
                         nk_size_t const chunk_bytes = channel_idx * element_bytes;
-                        acc0_f32x8 = _mm256_fmadd_ps(query_f32x8, load(keys_row + chunk_bytes), acc0_f32x8);
-                        acc1_f32x8 = _mm256_fmadd_ps(query_f32x8, load(keys_row + plane_row_bytes + chunk_bytes),
-                                                     acc1_f32x8);
-                        acc2_f32x8 = _mm256_fmadd_ps(query_f32x8, load(keys_row + 2 * plane_row_bytes + chunk_bytes),
-                                                     acc2_f32x8);
-                        acc3_f32x8 = _mm256_fmadd_ps(query_f32x8, load(keys_row + 3 * plane_row_bytes + chunk_bytes),
-                                                     acc3_f32x8);
+                        accumulator0_f32x8 = _mm256_fmadd_ps(query_f32x8, load(keys_row + chunk_bytes),
+                                                             accumulator0_f32x8);
+                        accumulator1_f32x8 = _mm256_fmadd_ps(
+                            query_f32x8, load(keys_row + plane_row_bytes + chunk_bytes), accumulator1_f32x8);
+                        accumulator2_f32x8 = _mm256_fmadd_ps(
+                            query_f32x8, load(keys_row + 2 * plane_row_bytes + chunk_bytes), accumulator2_f32x8);
+                        accumulator3_f32x8 = _mm256_fmadd_ps(
+                            query_f32x8, load(keys_row + 3 * plane_row_bytes + chunk_bytes), accumulator3_f32x8);
                     }
-                    scores[position_idx + 0] = nk_reduce_add_f32x8_haswell_(acc0_f32x8);
-                    scores[position_idx + 1] = nk_reduce_add_f32x8_haswell_(acc1_f32x8);
-                    scores[position_idx + 2] = nk_reduce_add_f32x8_haswell_(acc2_f32x8);
-                    scores[position_idx + 3] = nk_reduce_add_f32x8_haswell_(acc3_f32x8);
+                    scores[position_idx + 0] = nk_reduce_add_f32x8_haswell_(accumulator0_f32x8);
+                    scores[position_idx + 1] = nk_reduce_add_f32x8_haswell_(accumulator1_f32x8);
+                    scores[position_idx + 2] = nk_reduce_add_f32x8_haswell_(accumulator2_f32x8);
+                    scores[position_idx + 3] = nk_reduce_add_f32x8_haswell_(accumulator3_f32x8);
                 }
                 for (; position_idx < panel_length; position_idx++) {
                     char const *keys_row = keys_plane + (panel_start + position_idx) * plane_row_bytes;
-                    __m256 acc_f32x8 = _mm256_setzero_ps();
+                    __m256 accumulator_f32x8 = _mm256_setzero_ps();
                     for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 8)
-                        acc_f32x8 = _mm256_fmadd_ps(_mm256_load_ps(query_row + channel_idx),
-                                                    load(keys_row + channel_idx * element_bytes), acc_f32x8);
-                    scores[position_idx] = nk_reduce_add_f32x8_haswell_(acc_f32x8);
+                        accumulator_f32x8 = _mm256_fmadd_ps(_mm256_load_ps(query_row + channel_idx),
+                                                            load(keys_row + channel_idx * element_bytes),
+                                                            accumulator_f32x8);
+                    scores[position_idx] = nk_reduce_add_f32x8_haswell_(accumulator_f32x8);
                 }
 
                 // Panel max, online correction, exp2 in place (scalar tail via the serial exp2).
@@ -333,9 +335,9 @@ NK_INTERNAL void nk_attention_packed_haswell_(                                  
                     _mm256_storeu_ps(scores + position_idx, weights_f32x8);
                 }
                 if (position_idx < panel_length) { // masked tail keeps the vector rounding mode end-to-end
-                    __m256i const lane_idx_i32x8 = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+                    __m256i const lane_index_i32x8 = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
                     __m256i const tail_mask_i32x8 = _mm256_cmpgt_epi32(
-                        _mm256_set1_epi32((int)(panel_length - position_idx)), lane_idx_i32x8);
+                        _mm256_set1_epi32((int)(panel_length - position_idx)), lane_index_i32x8);
                     __m256 weights_f32x8 = nk_attention_exp2_f32x8_haswell_(_mm256_fmsub_ps(
                         _mm256_maskload_ps(scores + position_idx, tail_mask_i32x8), scale2_f32x8, max2_f32x8));
                     weights_f32x8 = _mm256_and_ps(weights_f32x8, _mm256_castsi256_ps(tail_mask_i32x8));
@@ -416,22 +418,22 @@ NK_PUBLIC void nk_attention_packed_e4m3_haswell(                                
  *         The 128-bit unpacks never cross lanes, so the columns emerge in natural pair order.
  */
 NK_INTERNAL void nk_attention_transpose_i16x8x8_haswell_(__m128i const rows_i16x8[8], __m128i columns_i16x8[8]) {
-    __m128i const stage01_lo_i16x8 = _mm_unpacklo_epi16(rows_i16x8[0], rows_i16x8[1]);
-    __m128i const stage23_lo_i16x8 = _mm_unpacklo_epi16(rows_i16x8[2], rows_i16x8[3]);
-    __m128i const stage45_lo_i16x8 = _mm_unpacklo_epi16(rows_i16x8[4], rows_i16x8[5]);
-    __m128i const stage67_lo_i16x8 = _mm_unpacklo_epi16(rows_i16x8[6], rows_i16x8[7]);
-    __m128i const stage01_hi_i16x8 = _mm_unpackhi_epi16(rows_i16x8[0], rows_i16x8[1]);
-    __m128i const stage23_hi_i16x8 = _mm_unpackhi_epi16(rows_i16x8[2], rows_i16x8[3]);
-    __m128i const stage45_hi_i16x8 = _mm_unpackhi_epi16(rows_i16x8[4], rows_i16x8[5]);
-    __m128i const stage67_hi_i16x8 = _mm_unpackhi_epi16(rows_i16x8[6], rows_i16x8[7]);
-    __m128i const quad0123_ll_i16x8 = _mm_unpacklo_epi32(stage01_lo_i16x8, stage23_lo_i16x8);
-    __m128i const quad4567_ll_i16x8 = _mm_unpacklo_epi32(stage45_lo_i16x8, stage67_lo_i16x8);
-    __m128i const quad0123_lh_i16x8 = _mm_unpackhi_epi32(stage01_lo_i16x8, stage23_lo_i16x8);
-    __m128i const quad4567_lh_i16x8 = _mm_unpackhi_epi32(stage45_lo_i16x8, stage67_lo_i16x8);
-    __m128i const quad0123_hl_i16x8 = _mm_unpacklo_epi32(stage01_hi_i16x8, stage23_hi_i16x8);
-    __m128i const quad4567_hl_i16x8 = _mm_unpacklo_epi32(stage45_hi_i16x8, stage67_hi_i16x8);
-    __m128i const quad0123_hh_i16x8 = _mm_unpackhi_epi32(stage01_hi_i16x8, stage23_hi_i16x8);
-    __m128i const quad4567_hh_i16x8 = _mm_unpackhi_epi32(stage45_hi_i16x8, stage67_hi_i16x8);
+    __m128i const stage01_low_i16x8 = _mm_unpacklo_epi16(rows_i16x8[0], rows_i16x8[1]);
+    __m128i const stage23_low_i16x8 = _mm_unpacklo_epi16(rows_i16x8[2], rows_i16x8[3]);
+    __m128i const stage45_low_i16x8 = _mm_unpacklo_epi16(rows_i16x8[4], rows_i16x8[5]);
+    __m128i const stage67_low_i16x8 = _mm_unpacklo_epi16(rows_i16x8[6], rows_i16x8[7]);
+    __m128i const stage01_high_i16x8 = _mm_unpackhi_epi16(rows_i16x8[0], rows_i16x8[1]);
+    __m128i const stage23_high_i16x8 = _mm_unpackhi_epi16(rows_i16x8[2], rows_i16x8[3]);
+    __m128i const stage45_high_i16x8 = _mm_unpackhi_epi16(rows_i16x8[4], rows_i16x8[5]);
+    __m128i const stage67_high_i16x8 = _mm_unpackhi_epi16(rows_i16x8[6], rows_i16x8[7]);
+    __m128i const quad0123_ll_i16x8 = _mm_unpacklo_epi32(stage01_low_i16x8, stage23_low_i16x8);
+    __m128i const quad4567_ll_i16x8 = _mm_unpacklo_epi32(stage45_low_i16x8, stage67_low_i16x8);
+    __m128i const quad0123_lh_i16x8 = _mm_unpackhi_epi32(stage01_low_i16x8, stage23_low_i16x8);
+    __m128i const quad4567_lh_i16x8 = _mm_unpackhi_epi32(stage45_low_i16x8, stage67_low_i16x8);
+    __m128i const quad0123_hl_i16x8 = _mm_unpacklo_epi32(stage01_high_i16x8, stage23_high_i16x8);
+    __m128i const quad4567_hl_i16x8 = _mm_unpacklo_epi32(stage45_high_i16x8, stage67_high_i16x8);
+    __m128i const quad0123_hh_i16x8 = _mm_unpackhi_epi32(stage01_high_i16x8, stage23_high_i16x8);
+    __m128i const quad4567_hh_i16x8 = _mm_unpackhi_epi32(stage45_high_i16x8, stage67_high_i16x8);
     columns_i16x8[0] = _mm_unpacklo_epi64(quad0123_ll_i16x8, quad4567_ll_i16x8);
     columns_i16x8[1] = _mm_unpackhi_epi64(quad0123_ll_i16x8, quad4567_ll_i16x8);
     columns_i16x8[2] = _mm_unpacklo_epi64(quad0123_lh_i16x8, quad4567_lh_i16x8);
@@ -520,9 +522,9 @@ NK_INTERNAL nk_f32_t nk_attention_softmax_panel_i8_haswell_(nk_i32_t const *scor
         _mm_storel_epi64((__m128i *)(weights + position_idx), _mm_packus_epi16(weight_i16x8, zero_u8x16));
     }
     if (position_idx < panel_length) { // masked tail keeps the vector rounding mode end-to-end
-        __m256i const lane_idx_i32x8 = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+        __m256i const lane_index_i32x8 = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
         __m256i const tail_mask_i32x8 = _mm256_cmpgt_epi32(_mm256_set1_epi32((int)(panel_length - position_idx)),
-                                                           lane_idx_i32x8);
+                                                           lane_index_i32x8);
         __m256 exp_f32x8 = nk_attention_exp2_f32x8_haswell_(_mm256_fmsub_ps(
             _mm256_cvtepi32_ps(_mm256_maskload_epi32((int const *)(scores + position_idx), tail_mask_i32x8)),
             scale2_f32x8, max2_f32x8));

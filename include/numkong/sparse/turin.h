@@ -43,7 +43,7 @@ NK_PUBLIC void nk_sparse_intersect_u16_turin( //
     nk_b256_vec_t a_vec, b_vec;
 
     // Broadcast index for last element (hoisted outside loop)
-    __m256i const last_idx = _mm256_set1_epi16(15);
+    __m256i const last_idx_i16x16 = _mm256_set1_epi16(15);
     while (a + 16 <= a_end && b + 16 <= b_end) {
         a_vec.ymm = _mm256_loadu_si256((__m256i const *)a);
         b_vec.ymm = _mm256_loadu_si256((__m256i const *)b);
@@ -51,19 +51,19 @@ NK_PUBLIC void nk_sparse_intersect_u16_turin( //
         // Intersect the registers
         __m512i a_i32x16 = _mm512_cvtepu16_epi32(a_vec.ymm);
         __m512i b_i32x16 = _mm512_cvtepu16_epi32(b_vec.ymm);
-        __mmask16 a_matches_any_in_b, b_matches_any_in_a;
-        _mm512_2intersect_epi32(a_i32x16, b_i32x16, &a_matches_any_in_b, &b_matches_any_in_a);
+        __mmask16 a_matches_any_in_b_m16, b_matches_any_in_a;
+        _mm512_2intersect_epi32(a_i32x16, b_i32x16, &a_matches_any_in_b_m16, &b_matches_any_in_a);
 
         // Export matches if result buffer is provided
-        if (result) { _mm256_mask_compressstoreu_epi16(result + c, a_matches_any_in_b, a_vec.ymm); }
-        c += _mm_popcnt_u32(a_matches_any_in_b); // MSVC has no `_popcnt32`
+        if (result) { _mm256_mask_compressstoreu_epi16(result + c, a_matches_any_in_b_m16, a_vec.ymm); }
+        c += _mm_popcnt_u32(a_matches_any_in_b_m16); // MSVC has no `_popcnt32`
 
-        __m256i a_max_u16x16 = _mm256_permutexvar_epi16(last_idx, a_vec.ymm);
-        __m256i b_max_u16x16 = _mm256_permutexvar_epi16(last_idx, b_vec.ymm);
-        __mmask16 a_step_mask = _mm256_cmple_epu16_mask(a_vec.ymm, b_max_u16x16);
-        __mmask16 b_step_mask = _mm256_cmple_epu16_mask(b_vec.ymm, a_max_u16x16);
-        a += _tzcnt_u32(~(nk_u32_t)a_step_mask | 0x10000);
-        b += _tzcnt_u32(~(nk_u32_t)b_step_mask | 0x10000);
+        __m256i a_max_u16x16 = _mm256_permutexvar_epi16(last_idx_i16x16, a_vec.ymm);
+        __m256i b_max_u16x16 = _mm256_permutexvar_epi16(last_idx_i16x16, b_vec.ymm);
+        __mmask16 a_step_mask_m16 = _mm256_cmple_epu16_mask(a_vec.ymm, b_max_u16x16);
+        __mmask16 b_step_mask_m16 = _mm256_cmple_epu16_mask(b_vec.ymm, a_max_u16x16);
+        a += _tzcnt_u32(~(nk_u32_t)a_step_mask_m16 | 0x10000);
+        b += _tzcnt_u32(~(nk_u32_t)b_step_mask_m16 | 0x10000);
     }
 
     nk_size_t tail_count = 0;
@@ -82,26 +82,26 @@ NK_PUBLIC void nk_sparse_intersect_u32_turin( //
     nk_b512_vec_t a_vec, b_vec;
 
     // Broadcast index for last element (hoisted outside loop)
-    __m512i const last_idx = _mm512_set1_epi32(15);
+    __m512i const last_idx_i32x16 = _mm512_set1_epi32(15);
     while (a + 16 <= a_end && b + 16 <= b_end) {
         a_vec.zmm = _mm512_loadu_si512((__m512i const *)a);
         b_vec.zmm = _mm512_loadu_si512((__m512i const *)b);
 
         // Intersect the registers
-        __mmask16 a_matches_any_in_b, b_matches_any_in_a;
-        _mm512_2intersect_epi32(a_vec.zmm, b_vec.zmm, &a_matches_any_in_b, &b_matches_any_in_a);
+        __mmask16 a_matches_any_in_b_m16, b_matches_any_in_a;
+        _mm512_2intersect_epi32(a_vec.zmm, b_vec.zmm, &a_matches_any_in_b_m16, &b_matches_any_in_a);
 
         // Export matches if result buffer is provided
-        if (result) { _mm512_mask_compressstoreu_epi32(result + c, a_matches_any_in_b, a_vec.zmm); }
-        c += _mm_popcnt_u32(a_matches_any_in_b); // MSVC has no `_popcnt32`
+        if (result) { _mm512_mask_compressstoreu_epi32(result + c, a_matches_any_in_b_m16, a_vec.zmm); }
+        c += _mm_popcnt_u32(a_matches_any_in_b_m16); // MSVC has no `_popcnt32`
 
         // Pure SIMD broadcasts - no scalar extraction needed
-        __m512i a_max_u32x16 = _mm512_permutexvar_epi32(last_idx, a_vec.zmm);
-        __m512i b_max_u32x16 = _mm512_permutexvar_epi32(last_idx, b_vec.zmm);
-        __mmask16 a_step_mask = _mm512_cmple_epu32_mask(a_vec.zmm, b_max_u32x16);
-        __mmask16 b_step_mask = _mm512_cmple_epu32_mask(b_vec.zmm, a_max_u32x16);
-        a += _tzcnt_u32(~(nk_u32_t)a_step_mask | 0x10000);
-        b += _tzcnt_u32(~(nk_u32_t)b_step_mask | 0x10000);
+        __m512i a_max_u32x16 = _mm512_permutexvar_epi32(last_idx_i32x16, a_vec.zmm);
+        __m512i b_max_u32x16 = _mm512_permutexvar_epi32(last_idx_i32x16, b_vec.zmm);
+        __mmask16 a_step_mask_m16 = _mm512_cmple_epu32_mask(a_vec.zmm, b_max_u32x16);
+        __mmask16 b_step_mask_m16 = _mm512_cmple_epu32_mask(b_vec.zmm, a_max_u32x16);
+        a += _tzcnt_u32(~(nk_u32_t)a_step_mask_m16 | 0x10000);
+        b += _tzcnt_u32(~(nk_u32_t)b_step_mask_m16 | 0x10000);
     }
 
     nk_size_t tail_count = 0;
@@ -120,26 +120,26 @@ NK_PUBLIC void nk_sparse_intersect_u64_turin( //
     nk_b512_vec_t a_vec, b_vec;
 
     // Broadcast index for last element (hoisted outside loop)
-    __m512i const last_idx = _mm512_set1_epi64(7);
+    __m512i const last_idx_i64x8 = _mm512_set1_epi64(7);
     while (a + 8 <= a_end && b + 8 <= b_end) {
         a_vec.zmm = _mm512_loadu_si512((__m512i const *)a);
         b_vec.zmm = _mm512_loadu_si512((__m512i const *)b);
 
         // Intersect the registers
-        __mmask8 a_matches_any_in_b, b_matches_any_in_a;
-        _mm512_2intersect_epi64(a_vec.zmm, b_vec.zmm, &a_matches_any_in_b, &b_matches_any_in_a);
+        __mmask8 a_matches_any_in_b_m8, b_matches_any_in_a;
+        _mm512_2intersect_epi64(a_vec.zmm, b_vec.zmm, &a_matches_any_in_b_m8, &b_matches_any_in_a);
 
         // Export matches if result buffer is provided
-        if (result) { _mm512_mask_compressstoreu_epi64(result + c, a_matches_any_in_b, a_vec.zmm); }
-        c += _mm_popcnt_u32(a_matches_any_in_b); // MSVC has no `_popcnt32`
+        if (result) { _mm512_mask_compressstoreu_epi64(result + c, a_matches_any_in_b_m8, a_vec.zmm); }
+        c += _mm_popcnt_u32(a_matches_any_in_b_m8); // MSVC has no `_popcnt32`
 
         // Pure SIMD broadcasts - no scalar extraction needed
-        __m512i a_max_u64x8 = _mm512_permutexvar_epi64(last_idx, a_vec.zmm);
-        __m512i b_max_u64x8 = _mm512_permutexvar_epi64(last_idx, b_vec.zmm);
-        __mmask8 a_step_mask = _mm512_cmple_epu64_mask(a_vec.zmm, b_max_u64x8);
-        __mmask8 b_step_mask = _mm512_cmple_epu64_mask(b_vec.zmm, a_max_u64x8);
-        a += _tzcnt_u32(~(nk_u32_t)a_step_mask | 0x100);
-        b += _tzcnt_u32(~(nk_u32_t)b_step_mask | 0x100);
+        __m512i a_max_u64x8 = _mm512_permutexvar_epi64(last_idx_i64x8, a_vec.zmm);
+        __m512i b_max_u64x8 = _mm512_permutexvar_epi64(last_idx_i64x8, b_vec.zmm);
+        __mmask8 a_step_mask_m8 = _mm512_cmple_epu64_mask(a_vec.zmm, b_max_u64x8);
+        __mmask8 b_step_mask_m8 = _mm512_cmple_epu64_mask(b_vec.zmm, a_max_u64x8);
+        a += _tzcnt_u32(~(nk_u32_t)a_step_mask_m8 | 0x100);
+        b += _tzcnt_u32(~(nk_u32_t)b_step_mask_m8 | 0x100);
     }
 
     nk_size_t tail_count = 0;
@@ -170,7 +170,7 @@ NK_PUBLIC void nk_sparse_dot_u16bf16_turin(                 //
     __m256 product_f32x8 = _mm256_setzero_ps();
 
     // Broadcast index for last element (hoisted outside loop)
-    __m256i const last_idx = _mm256_set1_epi16(15);
+    __m256i const last_idx_i16x16 = _mm256_set1_epi16(15);
     while (a + 16 <= a_end && b + 16 <= b_end) {
         a_vec.ymm = _mm256_loadu_si256((__m256i const *)a);
         b_vec.ymm = _mm256_loadu_si256((__m256i const *)b);
@@ -199,25 +199,25 @@ NK_PUBLIC void nk_sparse_dot_u16bf16_turin(                 //
         // Now we are likely to have some overlap, so we can intersect the registers
         __m512i a_i32x16 = _mm512_cvtepu16_epi32(a_vec.ymm);
         __m512i b_i32x16 = _mm512_cvtepu16_epi32(b_vec.ymm);
-        __mmask16 a_matches_any_in_b, b_matches_any_in_a;
-        _mm512_2intersect_epi32(a_i32x16, b_i32x16, &a_matches_any_in_b, &b_matches_any_in_a);
+        __mmask16 a_matches_any_in_b_m16, b_matches_any_in_a;
+        _mm512_2intersect_epi32(a_i32x16, b_i32x16, &a_matches_any_in_b_m16, &b_matches_any_in_a);
 
         // Load and shift all the relevant weights to the start of the vector before doing the dot product
-        if (a_matches_any_in_b) {
+        if (a_matches_any_in_b_m16) {
             __m256i a_weights_bf16x16 = _mm256_loadu_si256((__m256i const *)a_weights);
-            a_weights_bf16x16 = _mm256_maskz_compress_epi16(a_matches_any_in_b, a_weights_bf16x16);
+            a_weights_bf16x16 = _mm256_maskz_compress_epi16(a_matches_any_in_b_m16, a_weights_bf16x16);
             __m256i b_weights_bf16x16 = _mm256_loadu_si256((__m256i const *)b_weights);
             b_weights_bf16x16 = _mm256_maskz_compress_epi16(b_matches_any_in_a, b_weights_bf16x16);
             product_f32x8 = _mm256_dpbf16_ps(product_f32x8, nk_m256bh_from_m256i_(a_weights_bf16x16),
                                              nk_m256bh_from_m256i_(b_weights_bf16x16));
         }
 
-        __m256i a_max_u16x16 = _mm256_permutexvar_epi16(last_idx, a_vec.ymm);
-        __m256i b_max_u16x16 = _mm256_permutexvar_epi16(last_idx, b_vec.ymm);
-        __mmask16 a_step_mask = _mm256_cmple_epu16_mask(a_vec.ymm, b_max_u16x16);
-        __mmask16 b_step_mask = _mm256_cmple_epu16_mask(b_vec.ymm, a_max_u16x16);
-        nk_size_t a_step = _tzcnt_u32(~(nk_u32_t)a_step_mask | 0x10000);
-        nk_size_t b_step = _tzcnt_u32(~(nk_u32_t)b_step_mask | 0x10000);
+        __m256i a_max_u16x16 = _mm256_permutexvar_epi16(last_idx_i16x16, a_vec.ymm);
+        __m256i b_max_u16x16 = _mm256_permutexvar_epi16(last_idx_i16x16, b_vec.ymm);
+        __mmask16 a_step_mask_m16 = _mm256_cmple_epu16_mask(a_vec.ymm, b_max_u16x16);
+        __mmask16 b_step_mask_m16 = _mm256_cmple_epu16_mask(b_vec.ymm, a_max_u16x16);
+        nk_size_t a_step = _tzcnt_u32(~(nk_u32_t)a_step_mask_m16 | 0x10000);
+        nk_size_t b_step = _tzcnt_u32(~(nk_u32_t)b_step_mask_m16 | 0x10000);
         a += a_step, a_weights += a_step;
         b += b_step, b_weights += b_step;
     }
@@ -272,14 +272,14 @@ NK_PUBLIC void nk_sparse_dot_u32f32_turin(                //
         b_min = b_vec.u32s[0];
 
         // Native u32 intersection - no conversion needed!
-        __mmask16 a_matches, b_matches;
-        _mm512_2intersect_epi32(a_vec.zmm, b_vec.zmm, &a_matches, &b_matches);
+        __mmask16 a_matches_m16, b_matches;
+        _mm512_2intersect_epi32(a_vec.zmm, b_vec.zmm, &a_matches_m16, &b_matches);
 
         // Load and compress matching weights, then FMA
-        if (a_matches) {
+        if (a_matches_m16) {
             __m512 a_weights_f32x16 = _mm512_loadu_ps(a_weights);
             __m512 b_weights_f32x16 = _mm512_loadu_ps(b_weights);
-            __m512 a_matched_f32x16 = _mm512_maskz_compress_ps(a_matches, a_weights_f32x16);
+            __m512 a_matched_f32x16 = _mm512_maskz_compress_ps(a_matches_m16, a_weights_f32x16);
             __m512 b_matched_f32x16 = _mm512_maskz_compress_ps(b_matches, b_weights_f32x16);
             __m256 a_matched_low_f32x8 = _mm512_castps512_ps256(a_matched_f32x16);
             __m256 a_matched_high_f32x8 = _mm512_extractf32x8_ps(a_matched_f32x16, 1);
@@ -294,10 +294,10 @@ NK_PUBLIC void nk_sparse_dot_u32f32_turin(                //
 
         __m512i a_max_u32x16 = _mm512_set1_epi32(*(int const *)&a_max);
         __m512i b_max_u32x16 = _mm512_set1_epi32(*(int const *)&b_max);
-        __mmask16 a_step_mask = _mm512_cmple_epu32_mask(a_vec.zmm, b_max_u32x16);
-        __mmask16 b_step_mask = _mm512_cmple_epu32_mask(b_vec.zmm, a_max_u32x16);
-        nk_size_t a_step = _tzcnt_u32(~(nk_u32_t)a_step_mask | 0x10000);
-        nk_size_t b_step = _tzcnt_u32(~(nk_u32_t)b_step_mask | 0x10000);
+        __mmask16 a_step_mask_m16 = _mm512_cmple_epu32_mask(a_vec.zmm, b_max_u32x16);
+        __mmask16 b_step_mask_m16 = _mm512_cmple_epu32_mask(b_vec.zmm, a_max_u32x16);
+        nk_size_t a_step = _tzcnt_u32(~(nk_u32_t)a_step_mask_m16 | 0x10000);
+        nk_size_t b_step = _tzcnt_u32(~(nk_u32_t)b_step_mask_m16 | 0x10000);
         a += a_step, a_weights += a_step;
         b += b_step, b_weights += b_step;
     }

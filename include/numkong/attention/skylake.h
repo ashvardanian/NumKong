@@ -73,12 +73,12 @@ NK_INTERNAL __m512 nk_attention_exp2_f32x16_skylake_(__m512 x_f32x16) {
 NK_INTERNAL nk_f32_t nk_attention_softmax_panel_skylake_(nk_f32_t *scores, nk_size_t panel_length, nk_f32_t scale2,
                                                          nk_f32_t *running_max2, nk_f32_t *running_sum) {
     __m512 max_f32x16 = _mm512_set1_ps(NK_F32_MIN);
-    nk_size_t position_idx = 0;
-    for (; position_idx + 16 <= panel_length; position_idx += 16)
-        max_f32x16 = _mm512_max_ps(max_f32x16, _mm512_loadu_ps(scores + position_idx));
+    nk_size_t position_index = 0;
+    for (; position_index + 16 <= panel_length; position_index += 16)
+        max_f32x16 = _mm512_max_ps(max_f32x16, _mm512_loadu_ps(scores + position_index));
     nk_f32_t panel_max2 = nk_reduce_max_f32x16_skylake_(max_f32x16) * scale2;
-    for (; position_idx < panel_length; position_idx++) {
-        nk_f32_t const scaled2 = scores[position_idx] * scale2;
+    for (; position_index < panel_length; position_index++) {
+        nk_f32_t const scaled2 = scores[position_index] * scale2;
         if (scaled2 > panel_max2) panel_max2 = scaled2;
     }
     nk_f32_t const new_max2 = *running_max2 > panel_max2 ? *running_max2 : panel_max2;
@@ -90,19 +90,19 @@ NK_INTERNAL nk_f32_t nk_attention_softmax_panel_skylake_(nk_f32_t *scores, nk_si
     __m512 const max2_f32x16 = _mm512_set1_ps(new_max2);
     __m512 sum_f32x16 = _mm512_setzero_ps();
     nk_size_t const panel_full = panel_length & ~(nk_size_t)15;
-    __mmask16 const panel_tail_mask = (__mmask16)((1u << (panel_length - panel_full)) - 1);
-    for (position_idx = 0; position_idx < panel_full; position_idx += 16) {
+    __mmask16 const panel_tail_m16 = (__mmask16)((1u << (panel_length - panel_full)) - 1);
+    for (position_index = 0; position_index < panel_full; position_index += 16) {
         __m512 weights_f32x16 = nk_attention_exp2_f32x16_skylake_(
-            _mm512_fmsub_ps(_mm512_loadu_ps(scores + position_idx), scale2_f32x16, max2_f32x16));
+            _mm512_fmsub_ps(_mm512_loadu_ps(scores + position_index), scale2_f32x16, max2_f32x16));
         sum_f32x16 = _mm512_add_ps(sum_f32x16, weights_f32x16);
-        _mm512_storeu_ps(scores + position_idx, weights_f32x16);
+        _mm512_storeu_ps(scores + position_index, weights_f32x16);
     }
-    if (position_idx < panel_length) {
+    if (position_index < panel_length) {
         __m512 weights_f32x16 = _mm512_maskz_mov_ps(
-            panel_tail_mask, nk_attention_exp2_f32x16_skylake_(
-                                 _mm512_fmsub_ps(_mm512_loadu_ps(scores + position_idx), scale2_f32x16, max2_f32x16)));
+            panel_tail_m16, nk_attention_exp2_f32x16_skylake_(
+                                _mm512_fmsub_ps(_mm512_loadu_ps(scores + position_index), scale2_f32x16, max2_f32x16)));
         sum_f32x16 = _mm512_add_ps(sum_f32x16, weights_f32x16);
-        _mm512_storeu_ps(scores + position_idx, weights_f32x16);
+        _mm512_storeu_ps(scores + position_index, weights_f32x16);
     }
     *running_sum = *running_sum * correction + nk_reduce_add_f32x16_skylake_(sum_f32x16);
     return correction;
@@ -129,36 +129,36 @@ typedef void (*nk_attention_narrow_skylake_t_)(void const *source, void *destina
 
 NK_INTERNAL void nk_attention_narrow_bf16_skylake_(void const *source, void *destination, nk_size_t count,
                                                    nk_size_t padded) {
-    nk_size_t channel_idx = 0; // BF16 stays BF16 at rest, like the dots family
-    for (; channel_idx + 16 <= count; channel_idx += 16)
-        _mm256_storeu_si256((__m256i *)((nk_bf16_t *)destination + channel_idx),
-                            _mm256_loadu_si256((__m256i const *)((nk_bf16_t const *)source + channel_idx)));
-    if (channel_idx < count) {
-        __mmask16 const tail_mask = (__mmask16)((1u << (count - channel_idx)) - 1);
-        _mm256_storeu_si256((__m256i *)((nk_bf16_t *)destination + channel_idx),
-                            _mm256_maskz_loadu_epi16(tail_mask, (nk_bf16_t const *)source + channel_idx));
-        channel_idx += 16;
+    nk_size_t channel_index = 0; // BF16 stays BF16 at rest, like the dots family
+    for (; channel_index + 16 <= count; channel_index += 16)
+        _mm256_storeu_si256((__m256i *)((nk_bf16_t *)destination + channel_index),
+                            _mm256_loadu_si256((__m256i const *)((nk_bf16_t const *)source + channel_index)));
+    if (channel_index < count) {
+        __mmask16 const tail_m16 = (__mmask16)((1u << (count - channel_index)) - 1);
+        _mm256_storeu_si256((__m256i *)((nk_bf16_t *)destination + channel_index),
+                            _mm256_maskz_loadu_epi16(tail_m16, (nk_bf16_t const *)source + channel_index));
+        channel_index += 16;
     }
-    for (; channel_idx < padded; channel_idx += 16)
-        _mm256_storeu_si256((__m256i *)((nk_bf16_t *)destination + channel_idx), _mm256_setzero_si256());
+    for (; channel_index < padded; channel_index += 16)
+        _mm256_storeu_si256((__m256i *)((nk_bf16_t *)destination + channel_index), _mm256_setzero_si256());
 }
 
 NK_INTERNAL void nk_attention_narrow_e4m3_skylake_(void const *source, void *destination, nk_size_t count,
                                                    nk_size_t padded) {
-    nk_size_t channel_idx = 0; // E4M3 converts once to F16, so the hot loops widen with one VCVTPH2PS
+    nk_size_t channel_index = 0; // E4M3 converts once to F16, so the hot loops widen with one VCVTPH2PS
     nk_b256_vec_t converted;
-    for (; channel_idx + 16 <= count; channel_idx += 16) {
-        nk_load_e4m3x16_to_f16x16_skylake_((nk_e4m3_t const *)source + channel_idx, &converted);
-        _mm256_storeu_si256((__m256i *)((nk_f16_t *)destination + channel_idx), converted.ymm);
+    for (; channel_index + 16 <= count; channel_index += 16) {
+        nk_load_e4m3x16_to_f16x16_skylake_((nk_e4m3_t const *)source + channel_index, &converted);
+        _mm256_storeu_si256((__m256i *)((nk_f16_t *)destination + channel_index), converted.ymm);
     }
-    if (channel_idx < count) {
-        nk_partial_load_e4m3x16_to_f16x16_skylake_((nk_e4m3_t const *)source + channel_idx, &converted,
-                                                   count - channel_idx);
-        _mm256_storeu_si256((__m256i *)((nk_f16_t *)destination + channel_idx), converted.ymm);
-        channel_idx += 16;
+    if (channel_index < count) {
+        nk_partial_load_e4m3x16_to_f16x16_skylake_((nk_e4m3_t const *)source + channel_index, &converted,
+                                                   count - channel_index);
+        _mm256_storeu_si256((__m256i *)((nk_f16_t *)destination + channel_index), converted.ymm);
+        channel_index += 16;
     }
-    for (; channel_idx < padded; channel_idx += 16)
-        _mm256_storeu_si256((__m256i *)((nk_f16_t *)destination + channel_idx), _mm256_setzero_si256());
+    for (; channel_index < padded; channel_index += 16)
+        _mm256_storeu_si256((__m256i *)((nk_f16_t *)destination + channel_index), _mm256_setzero_si256());
 }
 
 /** @brief Widens `count` raw query elements to F32 into `destination`, zero-filling to `padded`. */
@@ -167,44 +167,46 @@ typedef void (*nk_attention_widen_skylake_t_)(void const *source, nk_f32_t *dest
 
 NK_INTERNAL void nk_attention_widen_bf16_skylake_(void const *source, nk_f32_t *destination, nk_size_t count,
                                                   nk_size_t padded) {
-    nk_size_t channel_idx = 0;
+    nk_size_t channel_index = 0;
     nk_b512_vec_t widened;
-    for (; channel_idx + 16 <= count; channel_idx += 16) {
-        nk_load_bf16x16_to_f32x16_skylake_((nk_bf16_t const *)source + channel_idx, &widened);
-        _mm512_storeu_ps(destination + channel_idx, widened.zmm_ps);
+    for (; channel_index + 16 <= count; channel_index += 16) {
+        nk_load_bf16x16_to_f32x16_skylake_((nk_bf16_t const *)source + channel_index, &widened);
+        _mm512_storeu_ps(destination + channel_index, widened.zmm_ps);
     }
-    if (channel_idx < count) {
-        nk_partial_load_bf16x16_to_f32x16_skylake_((nk_bf16_t const *)source + channel_idx, &widened,
-                                                   count - channel_idx);
-        _mm512_storeu_ps(destination + channel_idx, widened.zmm_ps);
-        channel_idx += 16;
+    if (channel_index < count) {
+        nk_partial_load_bf16x16_to_f32x16_skylake_((nk_bf16_t const *)source + channel_index, &widened,
+                                                   count - channel_index);
+        _mm512_storeu_ps(destination + channel_index, widened.zmm_ps);
+        channel_index += 16;
     }
-    for (; channel_idx < padded; channel_idx += 16) _mm512_storeu_ps(destination + channel_idx, _mm512_setzero_ps());
+    for (; channel_index < padded; channel_index += 16)
+        _mm512_storeu_ps(destination + channel_index, _mm512_setzero_ps());
 }
 
 NK_INTERNAL void nk_attention_widen_e4m3_skylake_(void const *source, nk_f32_t *destination, nk_size_t count,
                                                   nk_size_t padded) {
-    nk_size_t channel_idx = 0;
+    nk_size_t channel_index = 0;
     nk_b512_vec_t widened;
-    for (; channel_idx + 16 <= count; channel_idx += 16) {
-        nk_load_e4m3x16_to_f32x16_skylake_((nk_e4m3_t const *)source + channel_idx, &widened);
-        _mm512_storeu_ps(destination + channel_idx, widened.zmm_ps);
+    for (; channel_index + 16 <= count; channel_index += 16) {
+        nk_load_e4m3x16_to_f32x16_skylake_((nk_e4m3_t const *)source + channel_index, &widened);
+        _mm512_storeu_ps(destination + channel_index, widened.zmm_ps);
     }
-    if (channel_idx < count) {
-        nk_partial_load_e4m3x16_to_f32x16_skylake_((nk_e4m3_t const *)source + channel_idx, &widened,
-                                                   count - channel_idx);
-        _mm512_storeu_ps(destination + channel_idx, widened.zmm_ps);
-        channel_idx += 16;
+    if (channel_index < count) {
+        nk_partial_load_e4m3x16_to_f32x16_skylake_((nk_e4m3_t const *)source + channel_index, &widened,
+                                                   count - channel_index);
+        _mm512_storeu_ps(destination + channel_index, widened.zmm_ps);
+        channel_index += 16;
     }
-    for (; channel_idx < padded; channel_idx += 16) _mm512_storeu_ps(destination + channel_idx, _mm512_setzero_ps());
+    for (; channel_index < padded; channel_index += 16)
+        _mm512_storeu_ps(destination + channel_index, _mm512_setzero_ps());
 }
 
 NK_INTERNAL nk_size_t nk_attention_packed_size_skylake_(nk_size_t key_value_head_count, nk_size_t depth,
                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
     nk_size_t payload_bytes = 0; // planes hold 16-bit scalars for both dtypes (BF16 or F16)
-    for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
-        payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_idx] * depth_padded *
+    for (nk_size_t segment_index = 0; segment_index < segment_count; segment_index++)
+        payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_index] * depth_padded *
                          sizeof(nk_bf16_t);
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
@@ -242,22 +244,22 @@ NK_INTERNAL void nk_attention_pack_skylake_(                                    
     if (first_task >= total_tasks) return;
     if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
-        nk_size_t const segment_idx = task_idx / key_value_head_count,
-                        key_value_head_idx = task_idx % key_value_head_count;
-        nk_size_t const position_count = segment_lengths[segment_idx];
+    for (nk_size_t task_index = first_task; task_index < first_task + task_count; task_index++) {
+        nk_size_t const segment_index = task_index / key_value_head_count,
+                        key_value_head_index = task_index % key_value_head_count;
+        nk_size_t const position_count = segment_lengths[segment_index];
         if (position_count == 0) continue;
-        nk_size_t const position_first = segment_offsets[segment_idx];
+        nk_size_t const position_first = segment_offsets[segment_index];
         nk_size_t const plane_bytes = position_count * depth_padded * sizeof(nk_bf16_t);
-        char *keys_plane = payload_base + payload_offsets_ro[segment_idx] + key_value_head_idx * plane_bytes;
+        char *keys_plane = payload_base + payload_offsets_ro[segment_index] + key_value_head_index * plane_bytes;
         char *values_plane = keys_plane + key_value_head_count * plane_bytes;
-        for (nk_size_t position_idx = 0; position_idx < position_count; position_idx++) {
-            narrow((char const *)keys + (position_first + position_idx) * key_stride_bytes +
-                       key_value_head_idx * depth * element_bytes,
-                   keys_plane + position_idx * depth_padded * sizeof(nk_bf16_t), depth, depth_padded);
-            narrow((char const *)values + (position_first + position_idx) * value_stride_bytes +
-                       key_value_head_idx * depth * element_bytes,
-                   values_plane + position_idx * depth_padded * sizeof(nk_bf16_t), depth, depth_padded);
+        for (nk_size_t position_index = 0; position_index < position_count; position_index++) {
+            narrow((char const *)keys + (position_first + position_index) * key_stride_bytes +
+                       key_value_head_index * depth * element_bytes,
+                   keys_plane + position_index * depth_padded * sizeof(nk_bf16_t), depth, depth_padded);
+            narrow((char const *)values + (position_first + position_index) * value_stride_bytes +
+                       key_value_head_index * depth * element_bytes,
+                   values_plane + position_index * depth_padded * sizeof(nk_bf16_t), depth, depth_padded);
         }
     }
 }
@@ -328,24 +330,24 @@ NK_INTERNAL void nk_attention_packed_skylake_(                                  
     NK_ALIGN64 nk_f32_t output_row[nk_attention_max_depth_skylake_k_];
     NK_ALIGN64 nk_f32_t scores[nk_attention_panel_skylake_k_];
     nk_size_t const depth_full = depth & ~(nk_size_t)15;
-    __mmask16 const depth_tail_mask = (__mmask16)((1u << (depth - depth_full)) - 1);
+    __mmask16 const depth_tail_m16 = (__mmask16)((1u << (depth - depth_full)) - 1);
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
-        nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
-        nk_size_t const position_count = segment_lengths[segment_idx];
-        nk_size_t const row_count = query_offsets[segment_idx + 1] - query_offsets[segment_idx];
+    for (nk_size_t task_index = first_task; task_index < first_task + task_count; task_index++) {
+        nk_size_t const segment_index = task_index / head_count, head_index = task_index % head_count;
+        nk_size_t const position_count = segment_lengths[segment_index];
+        nk_size_t const row_count = query_offsets[segment_index + 1] - query_offsets[segment_index];
         if (position_count == 0 || row_count == 0) continue;
         nk_size_t const plane_bytes = position_count * plane_row_bytes;
-        char const *keys_plane = payload_base + payload_offsets[segment_idx] +
-                                 (head_idx / head_group_size) * plane_bytes;
+        char const *keys_plane = payload_base + payload_offsets[segment_index] +
+                                 (head_index / head_group_size) * plane_bytes;
         char const *values_plane = keys_plane + key_value_head_count * plane_bytes;
 
-        for (nk_size_t row_idx = 0; row_idx < row_count; row_idx++) {
-            widen((char const *)queries + (query_offsets[segment_idx] + row_idx) * query_stride_bytes +
-                      head_idx * depth * element_bytes,
+        for (nk_size_t row_index = 0; row_index < row_count; row_index++) {
+            widen((char const *)queries + (query_offsets[segment_index] + row_index) * query_stride_bytes +
+                      head_index * depth * element_bytes,
                   query_row, depth, depth_padded);
-            for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16)
-                _mm512_store_ps(output_row + channel_idx, _mm512_setzero_ps());
+            for (nk_size_t channel_index = 0; channel_index < depth_padded; channel_index += 16)
+                _mm512_store_ps(output_row + channel_index, _mm512_setzero_ps());
             nk_f32_t running_max2 = NK_F32_MIN, running_sum = 0;
 
             for (nk_size_t panel_start = 0; panel_start < position_count; panel_start += panel_width) {
@@ -354,34 +356,36 @@ NK_INTERNAL void nk_attention_packed_skylake_(                                  
                                                    : (position_count - panel_start);
                 // Scores: four KV rows in flight, plane scalars widened in-loop.
 
-                nk_size_t position_idx = 0;
-                for (; position_idx + 4 <= panel_length; position_idx += 4) {
-                    char const *keys_row = keys_plane + (panel_start + position_idx) * plane_row_bytes;
-                    __m512 acc0_f32x16 = _mm512_setzero_ps(), acc1_f32x16 = _mm512_setzero_ps();
-                    __m512 acc2_f32x16 = _mm512_setzero_ps(), acc3_f32x16 = _mm512_setzero_ps();
-                    for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16) {
-                        __m512 const query_f32x16 = _mm512_load_ps(query_row + channel_idx);
-                        nk_size_t const chunk_bytes = channel_idx * sizeof(nk_bf16_t);
-                        acc0_f32x16 = _mm512_fmadd_ps(query_f32x16, load(keys_row + chunk_bytes), acc0_f32x16);
-                        acc1_f32x16 = _mm512_fmadd_ps(query_f32x16, load(keys_row + plane_row_bytes + chunk_bytes),
-                                                      acc1_f32x16);
-                        acc2_f32x16 = _mm512_fmadd_ps(query_f32x16, load(keys_row + 2 * plane_row_bytes + chunk_bytes),
-                                                      acc2_f32x16);
-                        acc3_f32x16 = _mm512_fmadd_ps(query_f32x16, load(keys_row + 3 * plane_row_bytes + chunk_bytes),
-                                                      acc3_f32x16);
+                nk_size_t position_index = 0;
+                for (; position_index + 4 <= panel_length; position_index += 4) {
+                    char const *keys_row = keys_plane + (panel_start + position_index) * plane_row_bytes;
+                    __m512 accumulator0_f32x16 = _mm512_setzero_ps(), accumulator1_f32x16 = _mm512_setzero_ps();
+                    __m512 accumulator2_f32x16 = _mm512_setzero_ps(), accumulator3_f32x16 = _mm512_setzero_ps();
+                    for (nk_size_t channel_index = 0; channel_index < depth_padded; channel_index += 16) {
+                        __m512 const query_f32x16 = _mm512_load_ps(query_row + channel_index);
+                        nk_size_t const chunk_bytes = channel_index * sizeof(nk_bf16_t);
+                        accumulator0_f32x16 = _mm512_fmadd_ps(query_f32x16, load(keys_row + chunk_bytes),
+                                                              accumulator0_f32x16);
+                        accumulator1_f32x16 = _mm512_fmadd_ps(
+                            query_f32x16, load(keys_row + plane_row_bytes + chunk_bytes), accumulator1_f32x16);
+                        accumulator2_f32x16 = _mm512_fmadd_ps(
+                            query_f32x16, load(keys_row + 2 * plane_row_bytes + chunk_bytes), accumulator2_f32x16);
+                        accumulator3_f32x16 = _mm512_fmadd_ps(
+                            query_f32x16, load(keys_row + 3 * plane_row_bytes + chunk_bytes), accumulator3_f32x16);
                     }
-                    scores[position_idx + 0] = nk_reduce_add_f32x16_skylake_(acc0_f32x16);
-                    scores[position_idx + 1] = nk_reduce_add_f32x16_skylake_(acc1_f32x16);
-                    scores[position_idx + 2] = nk_reduce_add_f32x16_skylake_(acc2_f32x16);
-                    scores[position_idx + 3] = nk_reduce_add_f32x16_skylake_(acc3_f32x16);
+                    scores[position_index + 0] = nk_reduce_add_f32x16_skylake_(accumulator0_f32x16);
+                    scores[position_index + 1] = nk_reduce_add_f32x16_skylake_(accumulator1_f32x16);
+                    scores[position_index + 2] = nk_reduce_add_f32x16_skylake_(accumulator2_f32x16);
+                    scores[position_index + 3] = nk_reduce_add_f32x16_skylake_(accumulator3_f32x16);
                 }
-                for (; position_idx < panel_length; position_idx++) {
-                    char const *keys_row = keys_plane + (panel_start + position_idx) * plane_row_bytes;
-                    __m512 acc_f32x16 = _mm512_setzero_ps();
-                    for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16)
-                        acc_f32x16 = _mm512_fmadd_ps(_mm512_load_ps(query_row + channel_idx),
-                                                     load(keys_row + channel_idx * sizeof(nk_bf16_t)), acc_f32x16);
-                    scores[position_idx] = nk_reduce_add_f32x16_skylake_(acc_f32x16);
+                for (; position_index < panel_length; position_index++) {
+                    char const *keys_row = keys_plane + (panel_start + position_index) * plane_row_bytes;
+                    __m512 accumulator_f32x16 = _mm512_setzero_ps();
+                    for (nk_size_t channel_index = 0; channel_index < depth_padded; channel_index += 16)
+                        accumulator_f32x16 = _mm512_fmadd_ps(_mm512_load_ps(query_row + channel_index),
+                                                             load(keys_row + channel_index * sizeof(nk_bf16_t)),
+                                                             accumulator_f32x16);
+                    scores[position_index] = nk_reduce_add_f32x16_skylake_(accumulator_f32x16);
                 }
 
                 nk_f32_t const correction = nk_attention_softmax_panel_skylake_(scores, panel_length, scale2,
@@ -390,30 +394,30 @@ NK_INTERNAL void nk_attention_packed_skylake_(                                  
                 // O = O · correction + Σ weight · widened V-row over the panel.
 
                 __m512 const correction_f32x16 = _mm512_set1_ps(correction);
-                for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16)
-                    _mm512_store_ps(output_row + channel_idx,
-                                    _mm512_mul_ps(_mm512_load_ps(output_row + channel_idx), correction_f32x16));
-                for (position_idx = 0; position_idx < panel_length; position_idx++) {
-                    __m512 const weight_f32x16 = _mm512_set1_ps(scores[position_idx]);
-                    char const *values_row = values_plane + (panel_start + position_idx) * plane_row_bytes;
-                    for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16)
+                for (nk_size_t channel_index = 0; channel_index < depth_padded; channel_index += 16)
+                    _mm512_store_ps(output_row + channel_index,
+                                    _mm512_mul_ps(_mm512_load_ps(output_row + channel_index), correction_f32x16));
+                for (position_index = 0; position_index < panel_length; position_index++) {
+                    __m512 const weight_f32x16 = _mm512_set1_ps(scores[position_index]);
+                    char const *values_row = values_plane + (panel_start + position_index) * plane_row_bytes;
+                    for (nk_size_t channel_index = 0; channel_index < depth_padded; channel_index += 16)
                         _mm512_store_ps(
-                            output_row + channel_idx,
-                            _mm512_fmadd_ps(weight_f32x16, load(values_row + channel_idx * sizeof(nk_bf16_t)),
-                                            _mm512_load_ps(output_row + channel_idx)));
+                            output_row + channel_index,
+                            _mm512_fmadd_ps(weight_f32x16, load(values_row + channel_index * sizeof(nk_bf16_t)),
+                                            _mm512_load_ps(output_row + channel_index)));
                 }
             }
 
             __m512 const inverse_sum_f32x16 = _mm512_set1_ps(1.0f / running_sum);
-            nk_f32_t *destination = output + (query_offsets[segment_idx] + row_idx) * output_stride_floats +
-                                    head_idx * depth;
-            nk_size_t channel_idx = 0;
-            for (; channel_idx < depth_full; channel_idx += 16)
-                _mm512_storeu_ps(destination + channel_idx,
-                                 _mm512_mul_ps(_mm512_load_ps(output_row + channel_idx), inverse_sum_f32x16));
-            if (channel_idx < depth)
-                _mm512_mask_storeu_ps(destination + channel_idx, depth_tail_mask,
-                                      _mm512_mul_ps(_mm512_load_ps(output_row + channel_idx), inverse_sum_f32x16));
+            nk_f32_t *destination = output + (query_offsets[segment_index] + row_index) * output_stride_floats +
+                                    head_index * depth;
+            nk_size_t channel_index = 0;
+            for (; channel_index < depth_full; channel_index += 16)
+                _mm512_storeu_ps(destination + channel_index,
+                                 _mm512_mul_ps(_mm512_load_ps(output_row + channel_index), inverse_sum_f32x16));
+            if (channel_index < depth)
+                _mm512_mask_storeu_ps(destination + channel_index, depth_tail_m16,
+                                      _mm512_mul_ps(_mm512_load_ps(output_row + channel_index), inverse_sum_f32x16));
         }
     }
 }

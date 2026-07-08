@@ -161,19 +161,19 @@ NK_INTERNAL void nk_maxsim_coarse_argmax_alder_(          //
                     accumulator_tiles_i32x8[query_tile_index][document_tile_index] = _mm256_setzero_si256();
 
             for (nk_size_t depth_index = 0; depth_index < depth_i8_padded; depth_index += 32) {
-                __m256i query_biased_u8x32_0 = _mm256_xor_si256(
+                __m256i query0_biased_u8x32 = _mm256_xor_si256(
                     _mm256_loadu_si256(
                         (__m256i const *)(query_i8 + (query_block_start_index + 0) * depth_i8_padded + depth_index)),
                     xor_mask_u8x32);
-                __m256i query_biased_u8x32_1 = _mm256_xor_si256(
+                __m256i query1_biased_u8x32 = _mm256_xor_si256(
                     _mm256_loadu_si256(
                         (__m256i const *)(query_i8 + (query_block_start_index + 1) * depth_i8_padded + depth_index)),
                     xor_mask_u8x32);
-                __m256i query_biased_u8x32_2 = _mm256_xor_si256(
+                __m256i query2_biased_u8x32 = _mm256_xor_si256(
                     _mm256_loadu_si256(
                         (__m256i const *)(query_i8 + (query_block_start_index + 2) * depth_i8_padded + depth_index)),
                     xor_mask_u8x32);
-                __m256i query_biased_u8x32_3 = _mm256_xor_si256(
+                __m256i query3_biased_u8x32 = _mm256_xor_si256(
                     _mm256_loadu_si256(
                         (__m256i const *)(query_i8 + (query_block_start_index + 3) * depth_i8_padded + depth_index)),
                     xor_mask_u8x32);
@@ -184,49 +184,49 @@ NK_INTERNAL void nk_maxsim_coarse_argmax_alder_(          //
                 document_i8x32 = _mm256_loadu_si256(
                     (__m256i const *)(document_i8 + (document_block_start_index + 0) * depth_i8_padded + depth_index));
                 accumulator_tiles_i32x8[0][0] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[0][0],
-                                                                        query_biased_u8x32_0, document_i8x32);
+                                                                        query0_biased_u8x32, document_i8x32);
                 accumulator_tiles_i32x8[1][0] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[1][0],
-                                                                        query_biased_u8x32_1, document_i8x32);
+                                                                        query1_biased_u8x32, document_i8x32);
                 accumulator_tiles_i32x8[2][0] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[2][0],
-                                                                        query_biased_u8x32_2, document_i8x32);
+                                                                        query2_biased_u8x32, document_i8x32);
                 accumulator_tiles_i32x8[3][0] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[3][0],
-                                                                        query_biased_u8x32_3, document_i8x32);
+                                                                        query3_biased_u8x32, document_i8x32);
 
                 // Document 1
                 document_i8x32 = _mm256_loadu_si256(
                     (__m256i const *)(document_i8 + (document_block_start_index + 1) * depth_i8_padded + depth_index));
                 accumulator_tiles_i32x8[0][1] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[0][1],
-                                                                        query_biased_u8x32_0, document_i8x32);
+                                                                        query0_biased_u8x32, document_i8x32);
                 accumulator_tiles_i32x8[1][1] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[1][1],
-                                                                        query_biased_u8x32_1, document_i8x32);
+                                                                        query1_biased_u8x32, document_i8x32);
                 accumulator_tiles_i32x8[2][1] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[2][1],
-                                                                        query_biased_u8x32_2, document_i8x32);
+                                                                        query2_biased_u8x32, document_i8x32);
                 accumulator_tiles_i32x8[3][1] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[3][1],
-                                                                        query_biased_u8x32_3, document_i8x32);
+                                                                        query3_biased_u8x32, document_i8x32);
 
                 // Document 2
                 document_i8x32 = _mm256_loadu_si256(
                     (__m256i const *)(document_i8 + (document_block_start_index + 2) * depth_i8_padded + depth_index));
                 accumulator_tiles_i32x8[0][2] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[0][2],
-                                                                        query_biased_u8x32_0, document_i8x32);
+                                                                        query0_biased_u8x32, document_i8x32);
                 accumulator_tiles_i32x8[1][2] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[1][2],
-                                                                        query_biased_u8x32_1, document_i8x32);
+                                                                        query1_biased_u8x32, document_i8x32);
                 accumulator_tiles_i32x8[2][2] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[2][2],
-                                                                        query_biased_u8x32_2, document_i8x32);
+                                                                        query2_biased_u8x32, document_i8x32);
                 accumulator_tiles_i32x8[3][2] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[3][2],
-                                                                        query_biased_u8x32_3, document_i8x32);
+                                                                        query3_biased_u8x32, document_i8x32);
 
                 // Document 3
                 document_i8x32 = _mm256_loadu_si256(
                     (__m256i const *)(document_i8 + (document_block_start_index + 3) * depth_i8_padded + depth_index));
                 accumulator_tiles_i32x8[0][3] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[0][3],
-                                                                        query_biased_u8x32_0, document_i8x32);
+                                                                        query0_biased_u8x32, document_i8x32);
                 accumulator_tiles_i32x8[1][3] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[1][3],
-                                                                        query_biased_u8x32_1, document_i8x32);
+                                                                        query1_biased_u8x32, document_i8x32);
                 accumulator_tiles_i32x8[2][3] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[2][3],
-                                                                        query_biased_u8x32_2, document_i8x32);
+                                                                        query2_biased_u8x32, document_i8x32);
                 accumulator_tiles_i32x8[3][3] = _mm256_dpbusd_avx_epi32(accumulator_tiles_i32x8[3][3],
-                                                                        query_biased_u8x32_3, document_i8x32);
+                                                                        query3_biased_u8x32, document_i8x32);
             }
 
             // Reduce each query's 4 doc accumulators -> __m128i
@@ -300,40 +300,40 @@ NK_INTERNAL void nk_maxsim_coarse_argmax_alder_(          //
         for (nk_size_t document_index = document_block_start_index; document_index < document_count; document_index++) {
             nk_i8_t const *document_i8_row = document_i8 + document_index * depth_i8_padded;
 
-            __m256i accumulator_i32x8_0 = _mm256_setzero_si256();
-            __m256i accumulator_i32x8_1 = _mm256_setzero_si256();
-            __m256i accumulator_i32x8_2 = _mm256_setzero_si256();
-            __m256i accumulator_i32x8_3 = _mm256_setzero_si256();
+            __m256i accumulator0_i32x8 = _mm256_setzero_si256();
+            __m256i accumulator1_i32x8 = _mm256_setzero_si256();
+            __m256i accumulator2_i32x8 = _mm256_setzero_si256();
+            __m256i accumulator3_i32x8 = _mm256_setzero_si256();
 
             for (nk_size_t depth_index = 0; depth_index < depth_i8_padded; depth_index += 32) {
                 __m256i document_i8x32 = _mm256_loadu_si256((__m256i const *)(document_i8_row + depth_index));
 
-                accumulator_i32x8_0 = _mm256_dpbusd_avx_epi32(
-                    accumulator_i32x8_0,
+                accumulator0_i32x8 = _mm256_dpbusd_avx_epi32(
+                    accumulator0_i32x8,
                     _mm256_xor_si256(
                         _mm256_loadu_si256((
                             __m256i const *)(query_i8 + (query_block_start_index + 0) * depth_i8_padded + depth_index)),
                         xor_mask_u8x32),
                     document_i8x32);
 
-                accumulator_i32x8_1 = _mm256_dpbusd_avx_epi32(
-                    accumulator_i32x8_1,
+                accumulator1_i32x8 = _mm256_dpbusd_avx_epi32(
+                    accumulator1_i32x8,
                     _mm256_xor_si256(
                         _mm256_loadu_si256((
                             __m256i const *)(query_i8 + (query_block_start_index + 1) * depth_i8_padded + depth_index)),
                         xor_mask_u8x32),
                     document_i8x32);
 
-                accumulator_i32x8_2 = _mm256_dpbusd_avx_epi32(
-                    accumulator_i32x8_2,
+                accumulator2_i32x8 = _mm256_dpbusd_avx_epi32(
+                    accumulator2_i32x8,
                     _mm256_xor_si256(
                         _mm256_loadu_si256((
                             __m256i const *)(query_i8 + (query_block_start_index + 2) * depth_i8_padded + depth_index)),
                         xor_mask_u8x32),
                     document_i8x32);
 
-                accumulator_i32x8_3 = _mm256_dpbusd_avx_epi32(
-                    accumulator_i32x8_3,
+                accumulator3_i32x8 = _mm256_dpbusd_avx_epi32(
+                    accumulator3_i32x8,
                     _mm256_xor_si256(
                         _mm256_loadu_si256((
                             __m256i const *)(query_i8 + (query_block_start_index + 3) * depth_i8_padded + depth_index)),
@@ -341,8 +341,8 @@ NK_INTERNAL void nk_maxsim_coarse_argmax_alder_(          //
                     document_i8x32);
             }
 
-            __m128i reduced_i32x4 = nk_maxsim_reduce_i32x8x4_haswell_(accumulator_i32x8_0, accumulator_i32x8_1,
-                                                                      accumulator_i32x8_2, accumulator_i32x8_3);
+            __m128i reduced_i32x4 = nk_maxsim_reduce_i32x8x4_haswell_(accumulator0_i32x8, accumulator1_i32x8,
+                                                                      accumulator2_i32x8, accumulator3_i32x8);
             nk_i32_t bias_correction_i32 = 128 * document_metadata[document_index].sum_i8_i32;
             __m128i coarse_dots_i32x4 = _mm_sub_epi32(reduced_i32x4, _mm_set1_epi32(bias_correction_i32));
 

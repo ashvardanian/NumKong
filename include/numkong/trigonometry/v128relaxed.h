@@ -68,14 +68,14 @@ NK_INTERNAL v128_t nk_f32x4_sin_v128relaxed_(v128_t const angles_radians) {
     // Reduce the angle: angle - rounded_quotients_f32x4 * pi_f32x4
     // vfmsq_f32(acc, a, b) = acc - a*b -> wasm_f32x4_relaxed_nmadd(a, b, acc)
     v128_t const angles_f32x4 = wasm_f32x4_relaxed_nmadd(rounded_quotients_f32x4, pi_f32x4, angles_radians);
-    v128_t const angles_squared_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_f32x4);
-    v128_t const angles_cubed_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_squared_f32x4);
+    v128_t const angles_sq_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_f32x4);
+    v128_t const angles_cubed_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_sq_f32x4);
 
     // Compute the polynomial approximation
     // vfmaq_f32(acc, a, b) = acc + a*b -> wasm_f32x4_relaxed_madd(a, b, acc)
     v128_t polynomials_f32x4 = coeff_5_f32x4;
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_squared_f32x4, coeff_3_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_squared_f32x4, coeff_1_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_3_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_1_f32x4);
     v128_t results_f32x4 = wasm_f32x4_relaxed_madd(angles_cubed_f32x4, polynomials_f32x4, angles_f32x4);
 
     // If multiples_of_pi_f32x4 is odd, flip the sign
@@ -108,13 +108,13 @@ NK_INTERNAL v128_t nk_f32x4_cos_v128relaxed_(v128_t const angles_radians) {
     // Reduce the angle: (angle - pi_f32x4/2) - rounded_quotients_f32x4 * pi_f32x4
     v128_t shifted_f32x4 = wasm_f32x4_sub(angles_radians, pi_half_f32x4);
     v128_t const angles_f32x4 = wasm_f32x4_relaxed_nmadd(rounded_quotients_f32x4, pi_f32x4, shifted_f32x4);
-    v128_t const angles_squared_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_f32x4);
-    v128_t const angles_cubed_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_squared_f32x4);
+    v128_t const angles_sq_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_f32x4);
+    v128_t const angles_cubed_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_sq_f32x4);
 
     // Compute the polynomial approximation
     v128_t polynomials_f32x4 = coeff_5_f32x4;
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_squared_f32x4, coeff_3_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_squared_f32x4, coeff_1_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_3_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_1_f32x4);
     v128_t results_f32x4 = wasm_f32x4_relaxed_madd(angles_cubed_f32x4, polynomials_f32x4, angles_f32x4);
 
     // If multiples_of_pi_f32x4 is even, flip the sign
@@ -148,24 +148,24 @@ NK_INTERNAL v128_t nk_f32x4_atan_v128relaxed_(v128_t const inputs) {
     v128_t reciprocal_mask_f32x4 = wasm_f32x4_gt(values_f32x4, wasm_f32x4_splat(1.0f));
 
     // No fast reciprocal in WASM — use division
-    v128_t recip_f32x4 = wasm_f32x4_div(wasm_f32x4_splat(1.0f), values_f32x4);
+    v128_t reciprocal_f32x4 = wasm_f32x4_div(wasm_f32x4_splat(1.0f), values_f32x4);
     // relaxed_laneselect: 1 instruction (vblendvps) vs 3 (vpand+vpandn+vpor) on x86.
     // Safe because mask is from comparison (all-ones or all-zeros_f32x4 per lane).
-    values_f32x4 = wasm_i32x4_relaxed_laneselect(recip_f32x4, values_f32x4, reciprocal_mask_f32x4);
+    values_f32x4 = wasm_i32x4_relaxed_laneselect(reciprocal_f32x4, values_f32x4, reciprocal_mask_f32x4);
 
     // Compute powers
-    v128_t const values_squared_f32x4 = wasm_f32x4_mul(values_f32x4, values_f32x4);
-    v128_t const values_cubed_f32x4 = wasm_f32x4_mul(values_f32x4, values_squared_f32x4);
+    v128_t const values_sq_f32x4 = wasm_f32x4_mul(values_f32x4, values_f32x4);
+    v128_t const values_cubed_f32x4 = wasm_f32x4_mul(values_f32x4, values_sq_f32x4);
 
     // Polynomial evaluation using Horner's method
     v128_t polynomials_f32x4 = coeff_1_f32x4;
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_squared_f32x4, coeff_2_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_squared_f32x4, coeff_3_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_squared_f32x4, coeff_4_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_squared_f32x4, coeff_5_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_squared_f32x4, coeff_6_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_squared_f32x4, coeff_7_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_squared_f32x4, coeff_8_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_sq_f32x4, coeff_2_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_sq_f32x4, coeff_3_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_sq_f32x4, coeff_4_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_sq_f32x4, coeff_5_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_sq_f32x4, coeff_6_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_sq_f32x4, coeff_7_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, values_sq_f32x4, coeff_8_f32x4);
 
     // Compute result_f32x4: atan(x) ~ x + x^3 * P(x^2)
     v128_t result_f32x4 = wasm_f32x4_relaxed_madd(values_cubed_f32x4, polynomials_f32x4, values_f32x4);
@@ -213,18 +213,18 @@ NK_INTERNAL v128_t nk_f32x4_atan2_v128relaxed_(v128_t const ys_inputs, v128_t co
 
     // Division for ratio_f32x4: ratio_f32x4 = ys_f32x4 / xs_f32x4
     v128_t const ratio_f32x4 = wasm_f32x4_div(ys_f32x4, xs_f32x4);
-    v128_t const ratio_squared_f32x4 = wasm_f32x4_mul(ratio_f32x4, ratio_f32x4);
-    v128_t const ratio_cubed_f32x4 = wasm_f32x4_mul(ratio_f32x4, ratio_squared_f32x4);
+    v128_t const ratio_sq_f32x4 = wasm_f32x4_mul(ratio_f32x4, ratio_f32x4);
+    v128_t const ratio_cubed_f32x4 = wasm_f32x4_mul(ratio_f32x4, ratio_sq_f32x4);
 
     // Polynomial evaluation using Horner's method
     v128_t polynomials_f32x4 = coeff_1_f32x4;
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_squared_f32x4, coeff_2_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_squared_f32x4, coeff_3_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_squared_f32x4, coeff_4_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_squared_f32x4, coeff_5_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_squared_f32x4, coeff_6_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_squared_f32x4, coeff_7_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_squared_f32x4, coeff_8_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_sq_f32x4, coeff_2_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_sq_f32x4, coeff_3_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_sq_f32x4, coeff_4_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_sq_f32x4, coeff_5_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_sq_f32x4, coeff_6_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_sq_f32x4, coeff_7_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, ratio_sq_f32x4, coeff_8_f32x4);
 
     // Compute the result
     v128_t results_f32x4 = wasm_f32x4_relaxed_madd(ratio_cubed_f32x4, polynomials_f32x4, ratio_f32x4);
@@ -292,23 +292,23 @@ NK_INTERNAL v128_t nk_f64x2_sin_v128relaxed_(v128_t const angles_radians) {
     // Safe because mask is lane-granular at i64 width (all-ones or all-zeros per 64-bit lane).
     angles_f64x2 = wasm_i64x2_relaxed_laneselect(negated_angles_f64x2, angles_f64x2, odd_mask_i32x4);
 
-    v128_t const angles_squared_f64x2 = wasm_f64x2_mul(angles_f64x2, angles_f64x2);
-    v128_t const angles_cubed_f64x2 = wasm_f64x2_mul(angles_f64x2, angles_squared_f64x2);
-    v128_t const angles_quadratic_f64x2 = wasm_f64x2_mul(angles_squared_f64x2, angles_squared_f64x2);
+    v128_t const angles_sq_f64x2 = wasm_f64x2_mul(angles_f64x2, angles_f64x2);
+    v128_t const angles_cubed_f64x2 = wasm_f64x2_mul(angles_f64x2, angles_sq_f64x2);
+    v128_t const angles_quadratic_f64x2 = wasm_f64x2_mul(angles_sq_f64x2, angles_sq_f64x2);
     v128_t const angles_octic_f64x2 = wasm_f64x2_mul(angles_quadratic_f64x2, angles_quadratic_f64x2);
 
     // Compute polynomial terms using Estrin's scheme for better ILP
-    v128_t const poly_67_f64x2 = wasm_f64x2_relaxed_madd(angles_squared_f64x2, coeff_7_f64x2, coeff_6_f64x2);
-    v128_t const poly_45_f64x2 = wasm_f64x2_relaxed_madd(angles_squared_f64x2, coeff_5_f64x2, coeff_4_f64x2);
+    v128_t const poly_67_f64x2 = wasm_f64x2_relaxed_madd(angles_sq_f64x2, coeff_7_f64x2, coeff_6_f64x2);
+    v128_t const poly_45_f64x2 = wasm_f64x2_relaxed_madd(angles_sq_f64x2, coeff_5_f64x2, coeff_4_f64x2);
     v128_t const poly_4567_f64x2 = wasm_f64x2_relaxed_madd(angles_quadratic_f64x2, poly_67_f64x2, poly_45_f64x2);
 
-    v128_t const poly_23_f64x2 = wasm_f64x2_relaxed_madd(angles_squared_f64x2, coeff_3_f64x2, coeff_2_f64x2);
-    v128_t const poly_01_f64x2 = wasm_f64x2_relaxed_madd(angles_squared_f64x2, coeff_1_f64x2, coeff_0_f64x2);
+    v128_t const poly_23_f64x2 = wasm_f64x2_relaxed_madd(angles_sq_f64x2, coeff_3_f64x2, coeff_2_f64x2);
+    v128_t const poly_01_f64x2 = wasm_f64x2_relaxed_madd(angles_sq_f64x2, coeff_1_f64x2, coeff_0_f64x2);
     v128_t const poly_0123_f64x2 = wasm_f64x2_relaxed_madd(angles_quadratic_f64x2, poly_23_f64x2, poly_01_f64x2);
 
     // Combine polynomial terms
     v128_t results_f64x2 = wasm_f64x2_relaxed_madd(angles_octic_f64x2, poly_4567_f64x2, poly_0123_f64x2);
-    results_f64x2 = wasm_f64x2_relaxed_madd(results_f64x2, angles_squared_f64x2, coeff_8_f64x2);
+    results_f64x2 = wasm_f64x2_relaxed_madd(results_f64x2, angles_sq_f64x2, coeff_8_f64x2);
     results_f64x2 = wasm_f64x2_relaxed_madd(results_f64x2, angles_cubed_f64x2, angles_f64x2);
 
     // Handle zero input (preserve sign of zero)
@@ -360,23 +360,23 @@ NK_INTERNAL v128_t nk_f64x2_cos_v128relaxed_(v128_t const angles_radians) {
     // Safe because mask is lane-granular at i64 width (all-ones or all-zeros per 64-bit lane).
     angles_f64x2 = wasm_i64x2_relaxed_laneselect(negated_angles_f64x2, angles_f64x2, flip_mask_i32x4);
 
-    v128_t const angles_squared_f64x2 = wasm_f64x2_mul(angles_f64x2, angles_f64x2);
-    v128_t const angles_cubed_f64x2 = wasm_f64x2_mul(angles_f64x2, angles_squared_f64x2);
-    v128_t const angles_quadratic_f64x2 = wasm_f64x2_mul(angles_squared_f64x2, angles_squared_f64x2);
+    v128_t const angles_sq_f64x2 = wasm_f64x2_mul(angles_f64x2, angles_f64x2);
+    v128_t const angles_cubed_f64x2 = wasm_f64x2_mul(angles_f64x2, angles_sq_f64x2);
+    v128_t const angles_quadratic_f64x2 = wasm_f64x2_mul(angles_sq_f64x2, angles_sq_f64x2);
     v128_t const angles_octic_f64x2 = wasm_f64x2_mul(angles_quadratic_f64x2, angles_quadratic_f64x2);
 
     // Compute polynomial terms using Estrin's scheme
-    v128_t const poly_67_f64x2 = wasm_f64x2_relaxed_madd(angles_squared_f64x2, coeff_7_f64x2, coeff_6_f64x2);
-    v128_t const poly_45_f64x2 = wasm_f64x2_relaxed_madd(angles_squared_f64x2, coeff_5_f64x2, coeff_4_f64x2);
+    v128_t const poly_67_f64x2 = wasm_f64x2_relaxed_madd(angles_sq_f64x2, coeff_7_f64x2, coeff_6_f64x2);
+    v128_t const poly_45_f64x2 = wasm_f64x2_relaxed_madd(angles_sq_f64x2, coeff_5_f64x2, coeff_4_f64x2);
     v128_t const poly_4567_f64x2 = wasm_f64x2_relaxed_madd(angles_quadratic_f64x2, poly_67_f64x2, poly_45_f64x2);
 
-    v128_t const poly_23_f64x2 = wasm_f64x2_relaxed_madd(angles_squared_f64x2, coeff_3_f64x2, coeff_2_f64x2);
-    v128_t const poly_01_f64x2 = wasm_f64x2_relaxed_madd(angles_squared_f64x2, coeff_1_f64x2, coeff_0_f64x2);
+    v128_t const poly_23_f64x2 = wasm_f64x2_relaxed_madd(angles_sq_f64x2, coeff_3_f64x2, coeff_2_f64x2);
+    v128_t const poly_01_f64x2 = wasm_f64x2_relaxed_madd(angles_sq_f64x2, coeff_1_f64x2, coeff_0_f64x2);
     v128_t const poly_0123_f64x2 = wasm_f64x2_relaxed_madd(angles_quadratic_f64x2, poly_23_f64x2, poly_01_f64x2);
 
     // Combine polynomial terms
     v128_t results_f64x2 = wasm_f64x2_relaxed_madd(angles_octic_f64x2, poly_4567_f64x2, poly_0123_f64x2);
-    results_f64x2 = wasm_f64x2_relaxed_madd(results_f64x2, angles_squared_f64x2, coeff_8_f64x2);
+    results_f64x2 = wasm_f64x2_relaxed_madd(results_f64x2, angles_sq_f64x2, coeff_8_f64x2);
     results_f64x2 = wasm_f64x2_relaxed_madd(results_f64x2, angles_cubed_f64x2, angles_f64x2);
     return results_f64x2;
 }
@@ -417,29 +417,29 @@ NK_INTERNAL v128_t nk_f64x2_atan_v128relaxed_(v128_t const inputs) {
     values_f64x2 = wasm_i64x2_relaxed_laneselect(reciprocal_values_f64x2, values_f64x2, reciprocal_mask_f64x2);
 
     // Compute powers
-    v128_t const values_squared_f64x2 = wasm_f64x2_mul(values_f64x2, values_f64x2);
-    v128_t const values_cubed_f64x2 = wasm_f64x2_mul(values_f64x2, values_squared_f64x2);
+    v128_t const values_sq_f64x2 = wasm_f64x2_mul(values_f64x2, values_f64x2);
+    v128_t const values_cubed_f64x2 = wasm_f64x2_mul(values_f64x2, values_sq_f64x2);
 
     // Polynomial evaluation using Horner's method
     v128_t polynomials_f64x2 = coeff_19_f64x2;
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_18_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_17_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_16_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_15_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_14_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_13_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_12_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_11_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_10_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_9_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_8_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_7_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_6_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_5_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_4_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_3_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_2_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_squared_f64x2, coeff_1_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_18_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_17_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_16_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_15_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_14_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_13_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_12_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_11_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_10_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_9_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_8_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_7_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_6_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_5_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_4_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_3_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_2_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, values_sq_f64x2, coeff_1_f64x2);
 
     // Compute result_f64x2
     v128_t result_f64x2 = wasm_f64x2_relaxed_madd(values_cubed_f64x2, polynomials_f64x2, values_f64x2);
@@ -498,29 +498,29 @@ NK_INTERNAL v128_t nk_f64x2_atan2_v128relaxed_(v128_t const ys_inputs, v128_t co
 
     // Division for f64 precision
     v128_t const ratio_f64x2 = wasm_f64x2_div(ys_f64x2, xs_f64x2);
-    v128_t const ratio_squared_f64x2 = wasm_f64x2_mul(ratio_f64x2, ratio_f64x2);
-    v128_t const ratio_cubed_f64x2 = wasm_f64x2_mul(ratio_f64x2, ratio_squared_f64x2);
+    v128_t const ratio_sq_f64x2 = wasm_f64x2_mul(ratio_f64x2, ratio_f64x2);
+    v128_t const ratio_cubed_f64x2 = wasm_f64x2_mul(ratio_f64x2, ratio_sq_f64x2);
 
     // Polynomial evaluation using Horner's method
     v128_t polynomials_f64x2 = coeff_19_f64x2;
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_18_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_17_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_16_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_15_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_14_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_13_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_12_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_11_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_10_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_9_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_8_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_7_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_6_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_5_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_4_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_3_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_2_f64x2);
-    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_squared_f64x2, coeff_1_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_18_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_17_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_16_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_15_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_14_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_13_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_12_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_11_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_10_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_9_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_8_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_7_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_6_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_5_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_4_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_3_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_2_f64x2);
+    polynomials_f64x2 = wasm_f64x2_relaxed_madd(polynomials_f64x2, ratio_sq_f64x2, coeff_1_f64x2);
 
     // Compute the result
     v128_t results_f64x2 = wasm_f64x2_relaxed_madd(ratio_cubed_f64x2, polynomials_f64x2, ratio_f64x2);

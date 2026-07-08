@@ -365,28 +365,28 @@ NK_INTERNAL __m256i nk_u64_sadd_epi64_haswell_(__m256i a_u64x4, __m256i b_u64x4)
     return _mm256_or_si256(result_u64x4, overflow_u64x4); // overflow lanes -> all-ones = U64_MAX
 }
 
-NK_INTERNAL __m256i nk_i64_smul_sq_epi64_haswell_(__m256i val_i64x4) {
+NK_INTERNAL __m256i nk_i64_smul_sq_epi64_haswell_(__m256i value_i64x4) {
     // abs(val) — AVX2 lacks _mm256_abs_epi64, emulate:
-    __m256i sign_i64x4 = _mm256_cmpgt_epi64(_mm256_setzero_si256(), val_i64x4);
-    __m256i abs_val_u64x4 = _mm256_sub_epi64(_mm256_xor_si256(val_i64x4, sign_i64x4), sign_i64x4);
+    __m256i sign_i64x4 = _mm256_cmpgt_epi64(_mm256_setzero_si256(), value_i64x4);
+    __m256i abs_value_u64x4 = _mm256_sub_epi64(_mm256_xor_si256(value_i64x4, sign_i64x4), sign_i64x4);
     // Extract low 32 bits and square: _mm256_mul_epu32 multiplies even 32-bit lanes -> 64-bit
-    __m256i low_halves_u32x4 = _mm256_and_si256(abs_val_u64x4, _mm256_set1_epi64x(0xFFFFFFFF));
-    __m256i low_squared_u64x4 = _mm256_mul_epu32(low_halves_u32x4, low_halves_u32x4);
+    __m256i low_halves_u32x4 = _mm256_and_si256(abs_value_u64x4, _mm256_set1_epi64x(0xFFFFFFFF));
+    __m256i low_sq_u64x4 = _mm256_mul_epu32(low_halves_u32x4, low_halves_u32x4);
     // Check if high 32 bits are zero (value fits in 32 bits)
-    __m256i high_bits_u64x4 = _mm256_srli_epi64(abs_val_u64x4, 32);
-    __m256i is_small_u64x4 = _mm256_cmpeq_epi64(high_bits_u64x4, _mm256_setzero_si256());
+    __m256i high_u64x4 = _mm256_srli_epi64(abs_value_u64x4, 32);
+    __m256i is_small_u64x4 = _mm256_cmpeq_epi64(high_u64x4, _mm256_setzero_si256());
     // Saturate: I64_MAX when overflow (since result is always positive)
     __m256i saturated_u64x4 = _mm256_set1_epi64x(NK_I64_MAX);
-    return _mm256_blendv_epi8(saturated_u64x4, low_squared_u64x4, is_small_u64x4);
+    return _mm256_blendv_epi8(saturated_u64x4, low_sq_u64x4, is_small_u64x4);
 }
 
-NK_INTERNAL __m256i nk_u64_smul_sq_epi64_haswell_(__m256i val_u64x4) {
-    __m256i low_halves_u32x4 = _mm256_and_si256(val_u64x4, _mm256_set1_epi64x(0xFFFFFFFF));
-    __m256i low_squared_u64x4 = _mm256_mul_epu32(low_halves_u32x4, low_halves_u32x4);
-    __m256i high_bits_u64x4 = _mm256_srli_epi64(val_u64x4, 32);
-    __m256i is_small_u64x4 = _mm256_cmpeq_epi64(high_bits_u64x4, _mm256_setzero_si256());
+NK_INTERNAL __m256i nk_u64_smul_sq_epi64_haswell_(__m256i value_u64x4) {
+    __m256i low_halves_u32x4 = _mm256_and_si256(value_u64x4, _mm256_set1_epi64x(0xFFFFFFFF));
+    __m256i low_sq_u64x4 = _mm256_mul_epu32(low_halves_u32x4, low_halves_u32x4);
+    __m256i high_u64x4 = _mm256_srli_epi64(value_u64x4, 32);
+    __m256i is_small_u64x4 = _mm256_cmpeq_epi64(high_u64x4, _mm256_setzero_si256());
     __m256i saturated_u64x4 = _mm256_set1_epi64x((nk_i64_t)-1);
-    return _mm256_blendv_epi8(saturated_u64x4, low_squared_u64x4, is_small_u64x4);
+    return _mm256_blendv_epi8(saturated_u64x4, low_sq_u64x4, is_small_u64x4);
 }
 
 NK_INTERNAL nk_u64_t nk_reduce_sadd_u64x4_haswell_(__m256i v_u64x4) {
@@ -717,14 +717,14 @@ NK_INTERNAL void nk_reduce_moments_f64_haswell_contiguous_( //
     __m256d sumsq_comp_f64x4 = _mm256_setzero_pd();
     nk_size_t idx = 0;
     for (; idx + 4 <= count; idx += 4) {
-        __m256d val_f64x4 = _mm256_loadu_pd(data_ptr + idx);
-        __m256d tentative_f64x4 = _mm256_add_pd(sum_f64x4, val_f64x4);
+        __m256d value_f64x4 = _mm256_loadu_pd(data_ptr + idx);
+        __m256d tentative_f64x4 = _mm256_add_pd(sum_f64x4, value_f64x4);
         __m256d round_f64x4 = _mm256_sub_pd(tentative_f64x4, sum_f64x4);
         __m256d corr_f64x4 = _mm256_add_pd(_mm256_sub_pd(sum_f64x4, _mm256_sub_pd(tentative_f64x4, round_f64x4)),
-                                           _mm256_sub_pd(val_f64x4, round_f64x4));
+                                           _mm256_sub_pd(value_f64x4, round_f64x4));
         sum_comp_f64x4 = _mm256_add_pd(sum_comp_f64x4, corr_f64x4);
         sum_f64x4 = tentative_f64x4;
-        __m256d sq_f64x4 = _mm256_mul_pd(val_f64x4, val_f64x4);
+        __m256d sq_f64x4 = _mm256_mul_pd(value_f64x4, value_f64x4);
         __m256d tentative_sq_f64x4 = _mm256_add_pd(sumsq_f64x4, sq_f64x4);
         __m256d round_sq_f64x4 = _mm256_sub_pd(tentative_sq_f64x4, sumsq_f64x4);
         __m256d corr_sq_f64x4 = _mm256_add_pd(
@@ -737,14 +737,14 @@ NK_INTERNAL void nk_reduce_moments_f64_haswell_contiguous_( //
     if (remaining > 0) {
         nk_b256_vec_t tail_vec;
         nk_partial_load_b64x4_serial_(data_ptr + idx, &tail_vec, remaining);
-        __m256d val_f64x4 = tail_vec.ymm_pd;
-        __m256d tentative_f64x4 = _mm256_add_pd(sum_f64x4, val_f64x4);
+        __m256d value_f64x4 = tail_vec.ymm_pd;
+        __m256d tentative_f64x4 = _mm256_add_pd(sum_f64x4, value_f64x4);
         __m256d round_f64x4 = _mm256_sub_pd(tentative_f64x4, sum_f64x4);
         __m256d corr_f64x4 = _mm256_add_pd(_mm256_sub_pd(sum_f64x4, _mm256_sub_pd(tentative_f64x4, round_f64x4)),
-                                           _mm256_sub_pd(val_f64x4, round_f64x4));
+                                           _mm256_sub_pd(value_f64x4, round_f64x4));
         sum_comp_f64x4 = _mm256_add_pd(sum_comp_f64x4, corr_f64x4);
         sum_f64x4 = tentative_f64x4;
-        __m256d sq_f64x4 = _mm256_mul_pd(val_f64x4, val_f64x4);
+        __m256d sq_f64x4 = _mm256_mul_pd(value_f64x4, value_f64x4);
         __m256d tentative_sq_f64x4 = _mm256_add_pd(sumsq_f64x4, sq_f64x4);
         __m256d round_sq_f64x4 = _mm256_sub_pd(tentative_sq_f64x4, sumsq_f64x4);
         __m256d corr_sq_f64x4 = _mm256_add_pd(
@@ -771,14 +771,14 @@ NK_INTERNAL void nk_reduce_moments_f64_haswell_strided_(                  //
     nk_size_t idx = 0, total = count * stride_elements;
     nk_size_t step = nk_size_round_up_to_multiple_(4, stride_elements);
     for (; idx + stride_elements + 3 <= total; idx += step) {
-        __m256d val_f64x4 = _mm256_blendv_pd(zero_f64x4, _mm256_loadu_pd(data_ptr + idx), blend_f64x4);
-        __m256d tentative_f64x4 = _mm256_add_pd(sum_f64x4, val_f64x4);
+        __m256d value_f64x4 = _mm256_blendv_pd(zero_f64x4, _mm256_loadu_pd(data_ptr + idx), blend_f64x4);
+        __m256d tentative_f64x4 = _mm256_add_pd(sum_f64x4, value_f64x4);
         __m256d round_f64x4 = _mm256_sub_pd(tentative_f64x4, sum_f64x4);
         __m256d corr_f64x4 = _mm256_add_pd(_mm256_sub_pd(sum_f64x4, _mm256_sub_pd(tentative_f64x4, round_f64x4)),
-                                           _mm256_sub_pd(val_f64x4, round_f64x4));
+                                           _mm256_sub_pd(value_f64x4, round_f64x4));
         sum_comp_f64x4 = _mm256_add_pd(sum_comp_f64x4, corr_f64x4);
         sum_f64x4 = tentative_f64x4;
-        __m256d sq_f64x4 = _mm256_mul_pd(val_f64x4, val_f64x4);
+        __m256d sq_f64x4 = _mm256_mul_pd(value_f64x4, value_f64x4);
         __m256d tentative_sq_f64x4 = _mm256_add_pd(sumsq_f64x4, sq_f64x4);
         __m256d round_sq_f64x4 = _mm256_sub_pd(tentative_sq_f64x4, sumsq_f64x4);
         __m256d corr_sq_f64x4 = _mm256_add_pd(
@@ -2132,9 +2132,9 @@ NK_INTERNAL void nk_reduce_moments_i64_haswell_contiguous_( //
     nk_size_t idx = 0;
     for (; idx + 4 <= count; idx += 4) {
         __m256i data_i64x4 = _mm256_loadu_si256((__m256i const *)(data_ptr + idx));
-        __m256i squared_u64x4 = nk_i64_smul_sq_epi64_haswell_(data_i64x4);
+        __m256i sq_u64x4 = nk_i64_smul_sq_epi64_haswell_(data_i64x4);
         __m256i sumsq_before_u64x4 = sumsq_u64x4;
-        sumsq_u64x4 = _mm256_add_epi64(sumsq_u64x4, squared_u64x4);
+        sumsq_u64x4 = _mm256_add_epi64(sumsq_u64x4, sq_u64x4);
         __m256i sq_result_biased_u64x4 = _mm256_xor_si256(sumsq_u64x4, sign_bit_i64x4);
         __m256i sq_before_biased_u64x4 = _mm256_xor_si256(sumsq_before_u64x4, sign_bit_i64x4);
         sumsq_overflow_mask |= _mm256_movemask_pd(

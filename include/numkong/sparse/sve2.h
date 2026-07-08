@@ -476,9 +476,9 @@ NK_PUBLIC void nk_sparse_dot_u16bf16_sve2(                  //
             //! The `svsel_bf16` intrinsic is broken in many compilers, not returning the correct type.
             //! So we reinterprete floats as integers and apply `svsel_s16`, but the `svreinterpret_s16_bs16`
             //! and `svreinterpret_bf16_s16` are not always properly defined!
-            svint16_t b_equal_weights_s16x = svsel_s16(equal_mask_b16x, svreinterpret_s16_bf16(b_weights_bf16x),
+            svint16_t b_equal_weights_i16x = svsel_s16(equal_mask_b16x, svreinterpret_s16_bf16(b_weights_bf16x),
                                                        svdup_n_s16(0));
-            product_f32x = svbfdot_f32(product_f32x, a_weights_bf16x, svreinterpret_bf16_s16(b_equal_weights_s16x));
+            product_f32x = svbfdot_f32(product_f32x, a_weights_bf16x, svreinterpret_bf16_s16(b_equal_weights_i16x));
             b_u16x = svext_u16(b_u16x, b_u16x, 8);
         }
 

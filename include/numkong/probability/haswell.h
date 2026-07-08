@@ -65,9 +65,10 @@ NK_INTERNAL __m256d nk_log2_f64x4_haswell_(__m256d x) {
     __m256d exponent_f64x4 = _mm256_set_pd(exp3, exp2, exp1, exp0);
 
     // Extract mantissa: clear exponent bits, set exponent to 1023 (= 1.0 bias)
-    __m256i mantissa_mask = _mm256_set1_epi64x(0x000FFFFFFFFFFFFFLL);
-    __m256i bias = _mm256_set1_epi64x(0x3FF0000000000000LL);
-    __m256d mantissa_f64x4 = _mm256_castsi256_pd(_mm256_or_si256(_mm256_and_si256(bits_i64x4, mantissa_mask), bias));
+    __m256i mantissa_mask_i64x4 = _mm256_set1_epi64x(0x000FFFFFFFFFFFFFLL);
+    __m256i bias_i64x4 = _mm256_set1_epi64x(0x3FF0000000000000LL);
+    __m256d mantissa_f64x4 = _mm256_castsi256_pd(
+        _mm256_or_si256(_mm256_and_si256(bits_i64x4, mantissa_mask_i64x4), bias_i64x4));
 
     // s-series: s = (m-1)/(m+1), log2(m) = 2*s*P(s²) * log2(e)
     __m256d one_f64x4 = _mm256_set1_pd(1.0);

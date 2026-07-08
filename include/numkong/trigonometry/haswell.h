@@ -234,12 +234,12 @@ NK_INTERNAL __m256 nk_atan2_f32x8_haswell_(__m256 const ys_inputs, __m256 const 
     results_f32x8 = _mm256_fmadd_ps(quadrant_f32x8, pi_half_f32x8, results_f32x8);
 
     // Transfer sign from x (XOR with sign bit of x_input)
-    __m256 xs_sign_bits_f32x8 = _mm256_and_ps(xs_inputs, sign_mask_f32x8);
-    results_f32x8 = _mm256_xor_ps(results_f32x8, xs_sign_bits_f32x8);
+    __m256 xs_sign_f32x8 = _mm256_and_ps(xs_inputs, sign_mask_f32x8);
+    results_f32x8 = _mm256_xor_ps(results_f32x8, xs_sign_f32x8);
 
     // Transfer sign from y (XOR with sign bit of y_input)
-    __m256 ys_sign_bits_f32x8 = _mm256_and_ps(ys_inputs, sign_mask_f32x8);
-    results_f32x8 = _mm256_xor_ps(results_f32x8, ys_sign_bits_f32x8);
+    __m256 ys_sign_f32x8 = _mm256_and_ps(ys_inputs, sign_mask_f32x8);
+    results_f32x8 = _mm256_xor_ps(results_f32x8, ys_sign_f32x8);
 
     return results_f32x8;
 }
@@ -526,12 +526,12 @@ NK_INTERNAL __m256d nk_atan2_f64x4_haswell_(__m256d const ys_inputs, __m256d con
     results_f64x4 = _mm256_fmadd_pd(quadrant_f64x4, pi_half_f64x4, results_f64x4);
 
     // Transfer sign from x (XOR with sign bit of x_input)
-    __m256d xs_sign_bits_f64x4 = _mm256_and_pd(xs_inputs, sign_mask_f64x4);
-    results_f64x4 = _mm256_xor_pd(results_f64x4, xs_sign_bits_f64x4);
+    __m256d xs_sign_f64x4 = _mm256_and_pd(xs_inputs, sign_mask_f64x4);
+    results_f64x4 = _mm256_xor_pd(results_f64x4, xs_sign_f64x4);
 
     // Transfer sign from y (XOR with sign bit of y_input)
-    __m256d ys_sign_bits_f64x4 = _mm256_and_pd(ys_inputs, sign_mask_f64x4);
-    results_f64x4 = _mm256_xor_pd(results_f64x4, ys_sign_bits_f64x4);
+    __m256d ys_sign_f64x4 = _mm256_and_pd(ys_inputs, sign_mask_f64x4);
+    results_f64x4 = _mm256_xor_pd(results_f64x4, ys_sign_f64x4);
 
     return results_f64x4;
 }

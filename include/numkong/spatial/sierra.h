@@ -215,9 +215,9 @@ nk_angular_e2m3_sierra_cycle:
     __m256i a_unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, a_shuffle_index_u8x32),
                                                   _mm256_shuffle_epi8(lut_high_u8x32, a_shuffle_index_u8x32),
                                                   a_high_select_u8x32);
-    __m256i a_negate = _mm256_cmpeq_epi8(_mm256_and_si256(a_e2m3_u8x32, sign_mask_u8x32), sign_mask_u8x32);
-    __m256i a_signed_i8x32 = _mm256_blendv_epi8(a_unsigned_u8x32,
-                                                _mm256_sub_epi8(_mm256_setzero_si256(), a_unsigned_u8x32), a_negate);
+    __m256i a_negate_b8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(a_e2m3_u8x32, sign_mask_u8x32), sign_mask_u8x32);
+    __m256i a_signed_i8x32 = _mm256_blendv_epi8(
+        a_unsigned_u8x32, _mm256_sub_epi8(_mm256_setzero_si256(), a_unsigned_u8x32), a_negate_b8x32);
 
     // Decode b: same LUT decode + sign
     __m256i b_magnitude_u8x32 = _mm256_and_si256(b_e2m3_u8x32, magnitude_mask_u8x32);
@@ -227,9 +227,9 @@ nk_angular_e2m3_sierra_cycle:
     __m256i b_unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, b_shuffle_index_u8x32),
                                                   _mm256_shuffle_epi8(lut_high_u8x32, b_shuffle_index_u8x32),
                                                   b_high_select_u8x32);
-    __m256i b_negate = _mm256_cmpeq_epi8(_mm256_and_si256(b_e2m3_u8x32, sign_mask_u8x32), sign_mask_u8x32);
-    __m256i b_signed_i8x32 = _mm256_blendv_epi8(b_unsigned_u8x32,
-                                                _mm256_sub_epi8(_mm256_setzero_si256(), b_unsigned_u8x32), b_negate);
+    __m256i b_negate_b8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(b_e2m3_u8x32, sign_mask_u8x32), sign_mask_u8x32);
+    __m256i b_signed_i8x32 = _mm256_blendv_epi8(
+        b_unsigned_u8x32, _mm256_sub_epi8(_mm256_setzero_si256(), b_unsigned_u8x32), b_negate_b8x32);
 
     // VPDPBSSD: signed × signed → i32
     ab_i32x8 = _mm256_dpbssd_epi32(ab_i32x8, a_signed_i8x32, b_signed_i8x32);
@@ -285,9 +285,9 @@ nk_sqeuclidean_e2m3_sierra_cycle:
     __m256i a_unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, a_shuffle_index_u8x32),
                                                   _mm256_shuffle_epi8(lut_high_u8x32, a_shuffle_index_u8x32),
                                                   a_high_select_u8x32);
-    __m256i a_negate = _mm256_cmpeq_epi8(_mm256_and_si256(a_e2m3_u8x32, sign_mask_u8x32), sign_mask_u8x32);
-    __m256i a_signed_i8x32 = _mm256_blendv_epi8(a_unsigned_u8x32,
-                                                _mm256_sub_epi8(_mm256_setzero_si256(), a_unsigned_u8x32), a_negate);
+    __m256i a_negate_b8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(a_e2m3_u8x32, sign_mask_u8x32), sign_mask_u8x32);
+    __m256i a_signed_i8x32 = _mm256_blendv_epi8(
+        a_unsigned_u8x32, _mm256_sub_epi8(_mm256_setzero_si256(), a_unsigned_u8x32), a_negate_b8x32);
 
     // Decode b
     __m256i b_magnitude_u8x32 = _mm256_and_si256(b_e2m3_u8x32, magnitude_mask_u8x32);
@@ -297,9 +297,9 @@ nk_sqeuclidean_e2m3_sierra_cycle:
     __m256i b_unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, b_shuffle_index_u8x32),
                                                   _mm256_shuffle_epi8(lut_high_u8x32, b_shuffle_index_u8x32),
                                                   b_high_select_u8x32);
-    __m256i b_negate = _mm256_cmpeq_epi8(_mm256_and_si256(b_e2m3_u8x32, sign_mask_u8x32), sign_mask_u8x32);
-    __m256i b_signed_i8x32 = _mm256_blendv_epi8(b_unsigned_u8x32,
-                                                _mm256_sub_epi8(_mm256_setzero_si256(), b_unsigned_u8x32), b_negate);
+    __m256i b_negate_b8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(b_e2m3_u8x32, sign_mask_u8x32), sign_mask_u8x32);
+    __m256i b_signed_i8x32 = _mm256_blendv_epi8(
+        b_unsigned_u8x32, _mm256_sub_epi8(_mm256_setzero_si256(), b_unsigned_u8x32), b_negate_b8x32);
 
     ab_i32x8 = _mm256_dpbssd_epi32(ab_i32x8, a_signed_i8x32, b_signed_i8x32);
     a_norm_i32x8 = _mm256_dpbssd_epi32(a_norm_i32x8, a_signed_i8x32, a_signed_i8x32);

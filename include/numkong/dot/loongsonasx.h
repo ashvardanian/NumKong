@@ -112,10 +112,10 @@ NK_PUBLIC void nk_dot_f32_loongsonasx(nk_f32_t const *a_scalars, nk_f32_t const 
     // LASX is 256-bit = 8 × f32. Load 8 f32, split into low/high 4, widen each to f64, FMA in f64.
     __m256d sum_low_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);  // 4 f64 accumulators (from low 4 f32)
     __m256d sum_high_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0); // 4 f64 accumulators (from high 4 f32)
-    nk_size_t idx_scalars = 0;
-    for (; idx_scalars + 8 <= count_scalars; idx_scalars += 8) {
-        __m256i a_f32x8 = __lasx_xvld(a_scalars + idx_scalars, 0);
-        __m256i b_f32x8 = __lasx_xvld(b_scalars + idx_scalars, 0);
+    nk_size_t index_scalars = 0;
+    for (; index_scalars + 8 <= count_scalars; index_scalars += 8) {
+        __m256i a_f32x8 = __lasx_xvld(a_scalars + index_scalars, 0);
+        __m256i b_f32x8 = __lasx_xvld(b_scalars + index_scalars, 0);
         // Widen low 4 f32 → f64
         __m256d a_low_f64x4 = __lasx_xvfcvtl_d_s((__m256)a_f32x8);
         __m256d b_low_f64x4 = __lasx_xvfcvtl_d_s((__m256)b_f32x8);
@@ -128,7 +128,8 @@ NK_PUBLIC void nk_dot_f32_loongsonasx(nk_f32_t const *a_scalars, nk_f32_t const 
     }
     __m256d combined_f64x4 = __lasx_xvfadd_d(sum_low_f64x4, sum_high_f64x4);
     nk_f64_t sum = nk_reduce_add_f64x4_loongsonasx_(combined_f64x4);
-    for (; idx_scalars < count_scalars; ++idx_scalars) sum += (nk_f64_t)a_scalars[idx_scalars] * b_scalars[idx_scalars];
+    for (; index_scalars < count_scalars; ++index_scalars)
+        sum += (nk_f64_t)a_scalars[index_scalars] * b_scalars[index_scalars];
     *result = sum;
 }
 
@@ -137,10 +138,10 @@ NK_PUBLIC void nk_dot_f64_loongsonasx(nk_f64_t const *a_scalars, nk_f64_t const 
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
     __m256d sum_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
     __m256d compensation_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
-    nk_size_t idx_scalars = 0;
-    for (; idx_scalars + 4 <= count_scalars; idx_scalars += 4) {
-        __m256d a_f64x4 = (__m256d)__lasx_xvld(a_scalars + idx_scalars, 0);
-        __m256d b_f64x4 = (__m256d)__lasx_xvld(b_scalars + idx_scalars, 0);
+    nk_size_t index_scalars = 0;
+    for (; index_scalars + 4 <= count_scalars; index_scalars += 4) {
+        __m256d a_f64x4 = (__m256d)__lasx_xvld(a_scalars + index_scalars, 0);
+        __m256d b_f64x4 = (__m256d)__lasx_xvld(b_scalars + index_scalars, 0);
 
         // TwoProd: h = a * b, r = fma(a, b, -h) captures the rounding error
         __m256d product_f64x4 = __lasx_xvfmul_d(a_f64x4, b_f64x4);
@@ -159,47 +160,50 @@ NK_PUBLIC void nk_dot_f64_loongsonasx(nk_f64_t const *a_scalars, nk_f64_t const 
     }
     // Scalar tail
     nk_f64_t sum = nk_dot_stable_sum_f64x4_loongsonasx_(sum_f64x4, compensation_f64x4);
-    for (; idx_scalars < count_scalars; ++idx_scalars) sum += (nk_f64_t)a_scalars[idx_scalars] * b_scalars[idx_scalars];
+    for (; index_scalars < count_scalars; ++index_scalars)
+        sum += (nk_f64_t)a_scalars[index_scalars] * b_scalars[index_scalars];
     *result = sum;
 }
 
 NK_PUBLIC void nk_dot_i8_loongsonasx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
                                      nk_i32_t *result) {
     __m256i sum_i32x8 = __lasx_xvreplgr2vr_w(0);
-    nk_size_t idx_scalars = 0;
-    for (; idx_scalars + 32 <= count_scalars; idx_scalars += 32) {
-        __m256i a_i8x32 = __lasx_xvld(a_scalars + idx_scalars, 0);
-        __m256i b_i8x32 = __lasx_xvld(b_scalars + idx_scalars, 0);
+    nk_size_t index_scalars = 0;
+    for (; index_scalars + 32 <= count_scalars; index_scalars += 32) {
+        __m256i a_i8x32 = __lasx_xvld(a_scalars + index_scalars, 0);
+        __m256i b_i8x32 = __lasx_xvld(b_scalars + index_scalars, 0);
         // Widening multiply i8 × i8 → i16 (even and odd elements separately)
-        __m256i acc_i16x16 = __lasx_xvreplgr2vr_h(0);
-        acc_i16x16 = __lasx_xvmaddwev_h_b(acc_i16x16, a_i8x32, b_i8x32);
-        acc_i16x16 = __lasx_xvmaddwod_h_b(acc_i16x16, a_i8x32, b_i8x32);
+        __m256i accumulator_i16x16 = __lasx_xvreplgr2vr_h(0);
+        accumulator_i16x16 = __lasx_xvmaddwev_h_b(accumulator_i16x16, a_i8x32, b_i8x32);
+        accumulator_i16x16 = __lasx_xvmaddwod_h_b(accumulator_i16x16, a_i8x32, b_i8x32);
         // Horizontal pairwise i16 → i32, then accumulate
-        __m256i widened_i32x8 = __lasx_xvhaddw_w_h(acc_i16x16, acc_i16x16);
+        __m256i widened_i32x8 = __lasx_xvhaddw_w_h(accumulator_i16x16, accumulator_i16x16);
         sum_i32x8 = __lasx_xvadd_w(sum_i32x8, widened_i32x8);
     }
     nk_i32_t sum = nk_reduce_add_i32x8_loongsonasx_(sum_i32x8);
-    for (; idx_scalars < count_scalars; ++idx_scalars) sum += (nk_i32_t)a_scalars[idx_scalars] * b_scalars[idx_scalars];
+    for (; index_scalars < count_scalars; ++index_scalars)
+        sum += (nk_i32_t)a_scalars[index_scalars] * b_scalars[index_scalars];
     *result = sum;
 }
 
 NK_PUBLIC void nk_dot_u8_loongsonasx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
                                      nk_u32_t *result) {
     __m256i sum_i32x8 = __lasx_xvreplgr2vr_w(0);
-    nk_size_t idx_scalars = 0;
-    for (; idx_scalars + 32 <= count_scalars; idx_scalars += 32) {
-        __m256i a_u8x32 = __lasx_xvld(a_scalars + idx_scalars, 0);
-        __m256i b_u8x32 = __lasx_xvld(b_scalars + idx_scalars, 0);
+    nk_size_t index_scalars = 0;
+    for (; index_scalars + 32 <= count_scalars; index_scalars += 32) {
+        __m256i a_u8x32 = __lasx_xvld(a_scalars + index_scalars, 0);
+        __m256i b_u8x32 = __lasx_xvld(b_scalars + index_scalars, 0);
         // Unsigned widening multiply u8 × u8 → u16 (even and odd elements separately)
-        __m256i acc_u16x16 = __lasx_xvreplgr2vr_h(0);
-        acc_u16x16 = __lasx_xvmaddwev_h_bu(acc_u16x16, a_u8x32, b_u8x32);
-        acc_u16x16 = __lasx_xvmaddwod_h_bu(acc_u16x16, a_u8x32, b_u8x32);
+        __m256i accumulator_u16x16 = __lasx_xvreplgr2vr_h(0);
+        accumulator_u16x16 = __lasx_xvmaddwev_h_bu(accumulator_u16x16, a_u8x32, b_u8x32);
+        accumulator_u16x16 = __lasx_xvmaddwod_h_bu(accumulator_u16x16, a_u8x32, b_u8x32);
         // Unsigned horizontal pairwise u16 → u32, then accumulate
-        __m256i widened_u32x8 = __lasx_xvhaddw_wu_hu(acc_u16x16, acc_u16x16);
+        __m256i widened_u32x8 = __lasx_xvhaddw_wu_hu(accumulator_u16x16, accumulator_u16x16);
         sum_i32x8 = __lasx_xvadd_w(sum_i32x8, widened_u32x8);
     }
     nk_u32_t sum = (nk_u32_t)nk_reduce_add_i32x8_loongsonasx_(sum_i32x8);
-    for (; idx_scalars < count_scalars; ++idx_scalars) sum += (nk_u32_t)a_scalars[idx_scalars] * b_scalars[idx_scalars];
+    for (; index_scalars < count_scalars; ++index_scalars)
+        sum += (nk_u32_t)a_scalars[index_scalars] * b_scalars[index_scalars];
     *result = sum;
 }
 
@@ -207,10 +211,10 @@ NK_PUBLIC void nk_dot_bf16_loongsonasx(nk_bf16_t const *a_scalars, nk_bf16_t con
                                        nk_f32_t *result) {
     __m256 sum_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     __m256i mask_high_u32x8 = __lasx_xvreplgr2vr_w((int)0xFFFF0000);
-    nk_size_t idx_scalars = 0;
-    for (; idx_scalars + 16 <= count_scalars; idx_scalars += 16) {
-        __m256i a_bf16x16 = __lasx_xvld(a_scalars + idx_scalars, 0);
-        __m256i b_bf16x16 = __lasx_xvld(b_scalars + idx_scalars, 0);
+    nk_size_t index_scalars = 0;
+    for (; index_scalars + 16 <= count_scalars; index_scalars += 16) {
+        __m256i a_bf16x16 = __lasx_xvld(a_scalars + index_scalars, 0);
+        __m256i b_bf16x16 = __lasx_xvld(b_scalars + index_scalars, 0);
         __m256 a_even_f32x8 = (__m256)__lasx_xvslli_w(a_bf16x16, 16);
         __m256 b_even_f32x8 = (__m256)__lasx_xvslli_w(b_bf16x16, 16);
         sum_f32x8 = __lasx_xvfmadd_s(a_even_f32x8, b_even_f32x8, sum_f32x8);
@@ -228,11 +232,11 @@ NK_PUBLIC void nk_dot_bf16_loongsonasx(nk_bf16_t const *a_scalars, nk_bf16_t con
     nk_fui32_t c;
     c.u = (nk_u32_t)__lasx_xvpickve2gr_w((__m256i)reduced_f32x2, 0);
     nk_f32_t sum = c.f;
-    for (; idx_scalars < count_scalars; ++idx_scalars) {
-        nk_f32_t a_val, b_val;
-        nk_bf16_to_f32_serial(&a_scalars[idx_scalars], &a_val);
-        nk_bf16_to_f32_serial(&b_scalars[idx_scalars], &b_val);
-        sum += a_val * b_val;
+    for (; index_scalars < count_scalars; ++index_scalars) {
+        nk_f32_t a_value, b_value;
+        nk_bf16_to_f32_serial(&a_scalars[index_scalars], &a_value);
+        nk_bf16_to_f32_serial(&b_scalars[index_scalars], &b_value);
+        sum += a_value * b_value;
     }
     *result = sum;
 }
@@ -410,10 +414,10 @@ NK_INTERNAL void nk_dot_i8x32_update_loongsonasx(nk_dot_i8x32_state_loongsonasx_
                                                  nk_b256_vec_t b, nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    __m256i acc_i16x16 = __lasx_xvreplgr2vr_h(0);
-    acc_i16x16 = __lasx_xvmaddwev_h_b(acc_i16x16, a.ymm, b.ymm);
-    acc_i16x16 = __lasx_xvmaddwod_h_b(acc_i16x16, a.ymm, b.ymm);
-    __m256i widened_i32x8 = __lasx_xvhaddw_w_h(acc_i16x16, acc_i16x16);
+    __m256i accumulator_i16x16 = __lasx_xvreplgr2vr_h(0);
+    accumulator_i16x16 = __lasx_xvmaddwev_h_b(accumulator_i16x16, a.ymm, b.ymm);
+    accumulator_i16x16 = __lasx_xvmaddwod_h_b(accumulator_i16x16, a.ymm, b.ymm);
+    __m256i widened_i32x8 = __lasx_xvhaddw_w_h(accumulator_i16x16, accumulator_i16x16);
     state->sum_i32x8 = __lasx_xvadd_w(state->sum_i32x8, widened_i32x8);
 }
 
@@ -438,10 +442,10 @@ NK_INTERNAL void nk_dot_u8x32_update_loongsonasx(nk_dot_u8x32_state_loongsonasx_
                                                  nk_b256_vec_t b, nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    __m256i acc_u16x16 = __lasx_xvreplgr2vr_h(0);
-    acc_u16x16 = __lasx_xvmaddwev_h_bu(acc_u16x16, a.ymm, b.ymm);
-    acc_u16x16 = __lasx_xvmaddwod_h_bu(acc_u16x16, a.ymm, b.ymm);
-    __m256i widened_u32x8 = __lasx_xvhaddw_wu_hu(acc_u16x16, acc_u16x16);
+    __m256i accumulator_u16x16 = __lasx_xvreplgr2vr_h(0);
+    accumulator_u16x16 = __lasx_xvmaddwev_h_bu(accumulator_u16x16, a.ymm, b.ymm);
+    accumulator_u16x16 = __lasx_xvmaddwod_h_bu(accumulator_u16x16, a.ymm, b.ymm);
+    __m256i widened_u32x8 = __lasx_xvhaddw_wu_hu(accumulator_u16x16, accumulator_u16x16);
     state->sum_i32x8 = __lasx_xvadd_w(state->sum_i32x8, widened_u32x8);
 }
 
@@ -555,10 +559,10 @@ NK_INTERNAL void nk_dot_bf16x16_finalize_loongsonasx(                           
 NK_PUBLIC void nk_dot_f16_loongsonasx(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
                                       nk_f32_t *result) {
     __m256 sum_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
-    nk_size_t idx_scalars = 0;
-    for (; idx_scalars + 8 <= count_scalars; idx_scalars += 8) {
-        __m128i a_f16x8 = __lsx_vld(a_scalars + idx_scalars, 0);
-        __m128i b_f16x8 = __lsx_vld(b_scalars + idx_scalars, 0);
+    nk_size_t index_scalars = 0;
+    for (; index_scalars + 8 <= count_scalars; index_scalars += 8) {
+        __m128i a_f16x8 = __lsx_vld(a_scalars + index_scalars, 0);
+        __m128i b_f16x8 = __lsx_vld(b_scalars + index_scalars, 0);
         __m256 a_f32x8 = (__m256)nk_f16x8_to_f32x8_loongsonasx_(a_f16x8);
         __m256 b_f32x8 = (__m256)nk_f16x8_to_f32x8_loongsonasx_(b_f16x8);
         sum_f32x8 = __lasx_xvfmadd_s(a_f32x8, b_f32x8, sum_f32x8);
@@ -572,11 +576,11 @@ NK_PUBLIC void nk_dot_f16_loongsonasx(nk_f16_t const *a_scalars, nk_f16_t const 
     nk_fui32_t c;
     c.u = (nk_u32_t)__lasx_xvpickve2gr_w((__m256i)reduced_f32x2, 0);
     nk_f32_t sum = c.f;
-    for (; idx_scalars < count_scalars; ++idx_scalars) {
-        nk_f32_t a_val, b_val;
-        nk_f16_to_f32_serial(&a_scalars[idx_scalars], &a_val);
-        nk_f16_to_f32_serial(&b_scalars[idx_scalars], &b_val);
-        sum += a_val * b_val;
+    for (; index_scalars < count_scalars; ++index_scalars) {
+        nk_f32_t a_value, b_value;
+        nk_f16_to_f32_serial(&a_scalars[index_scalars], &a_value);
+        nk_f16_to_f32_serial(&b_scalars[index_scalars], &b_value);
+        sum += a_value * b_value;
     }
     *result = sum;
 }

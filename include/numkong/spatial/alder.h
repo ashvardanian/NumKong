@@ -297,23 +297,27 @@ nk_angular_e2m3_alder_cycle:
 
     // Decode a: extract magnitude, dual-VPSHUFB LUT
     __m256i a_magnitude_u8x32 = _mm256_and_si256(a_e2m3_u8x32, magnitude_mask_u8x32);
-    __m256i a_shuffle_idx = _mm256_and_si256(a_magnitude_u8x32, nibble_mask_u8x32);
-    __m256i a_high_sel = _mm256_cmpeq_epi8(_mm256_and_si256(a_magnitude_u8x32, half_select_u8x32), half_select_u8x32);
-    __m256i a_unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, a_shuffle_idx),
-                                                  _mm256_shuffle_epi8(lut_high_u8x32, a_shuffle_idx), a_high_sel);
+    __m256i a_shuffle_idx_u8x32 = _mm256_and_si256(a_magnitude_u8x32, nibble_mask_u8x32);
+    __m256i a_high_sel_b8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(a_magnitude_u8x32, half_select_u8x32),
+                                                 half_select_u8x32);
+    __m256i a_unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, a_shuffle_idx_u8x32),
+                                                  _mm256_shuffle_epi8(lut_high_u8x32, a_shuffle_idx_u8x32),
+                                                  a_high_sel_b8x32);
 
     // Decode b: same LUT decode
     __m256i b_magnitude_u8x32 = _mm256_and_si256(b_e2m3_u8x32, magnitude_mask_u8x32);
-    __m256i b_shuffle_idx = _mm256_and_si256(b_magnitude_u8x32, nibble_mask_u8x32);
-    __m256i b_high_sel = _mm256_cmpeq_epi8(_mm256_and_si256(b_magnitude_u8x32, half_select_u8x32), half_select_u8x32);
-    __m256i b_unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, b_shuffle_idx),
-                                                  _mm256_shuffle_epi8(lut_high_u8x32, b_shuffle_idx), b_high_sel);
+    __m256i b_shuffle_idx_u8x32 = _mm256_and_si256(b_magnitude_u8x32, nibble_mask_u8x32);
+    __m256i b_high_sel_b8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(b_magnitude_u8x32, half_select_u8x32),
+                                                 half_select_u8x32);
+    __m256i b_unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, b_shuffle_idx_u8x32),
+                                                  _mm256_shuffle_epi8(lut_high_u8x32, b_shuffle_idx_u8x32),
+                                                  b_high_sel_b8x32);
 
     // Dot product with sign: combined sign from (a XOR b) & 0x20
-    __m256i sign_combined = _mm256_and_si256(_mm256_xor_si256(a_e2m3_u8x32, b_e2m3_u8x32), sign_mask_u8x32);
-    __m256i negate_mask = _mm256_cmpeq_epi8(sign_combined, sign_mask_u8x32);
-    __m256i b_negated = _mm256_sub_epi8(_mm256_setzero_si256(), b_unsigned_u8x32);
-    __m256i b_dot_i8x32 = _mm256_blendv_epi8(b_unsigned_u8x32, b_negated, negate_mask);
+    __m256i sign_combined_u8x32 = _mm256_and_si256(_mm256_xor_si256(a_e2m3_u8x32, b_e2m3_u8x32), sign_mask_u8x32);
+    __m256i negate_mask_b8x32 = _mm256_cmpeq_epi8(sign_combined_u8x32, sign_mask_u8x32);
+    __m256i b_negated_i8x32 = _mm256_sub_epi8(_mm256_setzero_si256(), b_unsigned_u8x32);
+    __m256i b_dot_i8x32 = _mm256_blendv_epi8(b_unsigned_u8x32, b_negated_i8x32, negate_mask_b8x32);
 
     // DPBUSD: a_unsigned[u8] × b_signed[i8] → i32 for dot product
     dot_i32x8 = _mm256_dpbusd_avx_epi32(dot_i32x8, a_unsigned_u8x32, b_dot_i8x32);
@@ -366,22 +370,26 @@ nk_sqeuclidean_e2m3_alder_cycle:
 
     // Decode a and b magnitudes via LUT
     __m256i a_magnitude_u8x32 = _mm256_and_si256(a_e2m3_u8x32, magnitude_mask_u8x32);
-    __m256i a_shuffle_idx = _mm256_and_si256(a_magnitude_u8x32, nibble_mask_u8x32);
-    __m256i a_high_sel = _mm256_cmpeq_epi8(_mm256_and_si256(a_magnitude_u8x32, half_select_u8x32), half_select_u8x32);
-    __m256i a_unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, a_shuffle_idx),
-                                                  _mm256_shuffle_epi8(lut_high_u8x32, a_shuffle_idx), a_high_sel);
+    __m256i a_shuffle_idx_u8x32 = _mm256_and_si256(a_magnitude_u8x32, nibble_mask_u8x32);
+    __m256i a_high_sel_b8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(a_magnitude_u8x32, half_select_u8x32),
+                                                 half_select_u8x32);
+    __m256i a_unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, a_shuffle_idx_u8x32),
+                                                  _mm256_shuffle_epi8(lut_high_u8x32, a_shuffle_idx_u8x32),
+                                                  a_high_sel_b8x32);
 
     __m256i b_magnitude_u8x32 = _mm256_and_si256(b_e2m3_u8x32, magnitude_mask_u8x32);
-    __m256i b_shuffle_idx = _mm256_and_si256(b_magnitude_u8x32, nibble_mask_u8x32);
-    __m256i b_high_sel = _mm256_cmpeq_epi8(_mm256_and_si256(b_magnitude_u8x32, half_select_u8x32), half_select_u8x32);
-    __m256i b_unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, b_shuffle_idx),
-                                                  _mm256_shuffle_epi8(lut_high_u8x32, b_shuffle_idx), b_high_sel);
+    __m256i b_shuffle_idx_u8x32 = _mm256_and_si256(b_magnitude_u8x32, nibble_mask_u8x32);
+    __m256i b_high_sel_b8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(b_magnitude_u8x32, half_select_u8x32),
+                                                 half_select_u8x32);
+    __m256i b_unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, b_shuffle_idx_u8x32),
+                                                  _mm256_shuffle_epi8(lut_high_u8x32, b_shuffle_idx_u8x32),
+                                                  b_high_sel_b8x32);
 
     // Signed dot product: combined sign from (a XOR b) & 0x20
-    __m256i sign_combined = _mm256_and_si256(_mm256_xor_si256(a_e2m3_u8x32, b_e2m3_u8x32), sign_mask_u8x32);
-    __m256i negate_mask = _mm256_cmpeq_epi8(sign_combined, sign_mask_u8x32);
-    __m256i b_negated = _mm256_sub_epi8(_mm256_setzero_si256(), b_unsigned_u8x32);
-    __m256i b_dot_i8x32 = _mm256_blendv_epi8(b_unsigned_u8x32, b_negated, negate_mask);
+    __m256i sign_combined_u8x32 = _mm256_and_si256(_mm256_xor_si256(a_e2m3_u8x32, b_e2m3_u8x32), sign_mask_u8x32);
+    __m256i negate_mask_b8x32 = _mm256_cmpeq_epi8(sign_combined_u8x32, sign_mask_u8x32);
+    __m256i b_negated_i8x32 = _mm256_sub_epi8(_mm256_setzero_si256(), b_unsigned_u8x32);
+    __m256i b_dot_i8x32 = _mm256_blendv_epi8(b_unsigned_u8x32, b_negated_i8x32, negate_mask_b8x32);
 
     dot_i32x8 = _mm256_dpbusd_avx_epi32(dot_i32x8, a_unsigned_u8x32, b_dot_i8x32);
     a_norm_i32x8 = _mm256_dpbusd_avx_epi32(a_norm_i32x8, a_unsigned_u8x32, a_unsigned_u8x32);

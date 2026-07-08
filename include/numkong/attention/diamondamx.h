@@ -199,9 +199,9 @@ NK_INTERNAL void nk_attention_pack_bf16_core_diamondamx_( //
     if (first_task >= total_tasks) return;
     if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
 
-    __m256i const interleave_idx_u16x16 = _mm256_setr_epi16( //
+    __m256i const interleave_index_u16x16 = _mm256_setr_epi16( //
         0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23);
-    __m256i const interleave_idx_hi_u16x16 = _mm256_setr_epi16( //
+    __m256i const interleave_index_high_u16x16 = _mm256_setr_epi16( //
         8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31);
 
     for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
@@ -261,10 +261,11 @@ NK_INTERNAL void nk_attention_pack_bf16_core_diamondamx_( //
                                                                : _mm256_setzero_si256();
                     __m256i b_bf16x16 = row_b < position_count ? _mm256_maskz_loadu_epi16(columns_mask, row_b_ptr)
                                                                : _mm256_setzero_si256();
-                    __m256i lo_bf16x16 = _mm256_permutex2var_epi16(a_bf16x16, interleave_idx_u16x16, b_bf16x16);
-                    __m256i hi_bf16x16 = _mm256_permutex2var_epi16(a_bf16x16, interleave_idx_hi_u16x16, b_bf16x16);
-                    _mm256_storeu_si256((__m256i *)(tile_output + pair_idx * 32), lo_bf16x16);
-                    _mm256_storeu_si256((__m256i *)(tile_output + pair_idx * 32 + 16), hi_bf16x16);
+                    __m256i low_bf16x16 = _mm256_permutex2var_epi16(a_bf16x16, interleave_index_u16x16, b_bf16x16);
+                    __m256i high_bf16x16 = _mm256_permutex2var_epi16(a_bf16x16, interleave_index_high_u16x16,
+                                                                     b_bf16x16);
+                    _mm256_storeu_si256((__m256i *)(tile_output + pair_idx * 32), low_bf16x16);
+                    _mm256_storeu_si256((__m256i *)(tile_output + pair_idx * 32 + 16), high_bf16x16);
                 }
             }
         }
@@ -294,10 +295,10 @@ NK_INTERNAL void nk_attention_pack_quad_diamondamx_(                            
     if (first_task >= total_tasks) return;
     if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
 
-    __m512i const quad_interleave_idx_u8x64 = _mm512_setr_epi32( //
-        0x30201000, 0x31211101, 0x32221202, 0x33231303,          //
-        0x34241404, 0x35251505, 0x36261606, 0x37271707,          //
-        0x38281808, 0x39291909, 0x3A2A1A0A, 0x3B2B1B0B,          //
+    __m512i const quad_interleave_index_u8x64 = _mm512_setr_epi32( //
+        0x30201000, 0x31211101, 0x32221202, 0x33231303,            //
+        0x34241404, 0x35251505, 0x36261606, 0x37271707,            //
+        0x38281808, 0x39291909, 0x3A2A1A0A, 0x3B2B1B0B,            //
         0x3C2C1C0C, 0x3D2D1D0D, 0x3E2E1E0E, 0x3F2F1F0F);
 
     for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
@@ -363,7 +364,7 @@ NK_INTERNAL void nk_attention_pack_quad_diamondamx_(                            
                         }
                     }
                     _mm512_storeu_si512(tile_output + quad_idx * 64,
-                                        _mm512_permutexvar_epi8(quad_interleave_idx_u8x64, quad_i8x64));
+                                        _mm512_permutexvar_epi8(quad_interleave_index_u8x64, quad_i8x64));
                 }
             }
         }
@@ -851,17 +852,18 @@ NK_INTERNAL void nk_attention_task_bf16_diamondamx_(
                 _mm512_store_ps(row_sums, row_sum_f32x16[row_block_idx][row_tile_idx]);
                 for (nk_size_t row_idx = 0; row_idx < valid_rows; row_idx++) {
                     __m512 const inv_sum_f32x16 = _mm512_set1_ps(1.0f / row_sums[row_idx]);
-                    nk_f32_t const *acc_row =
+                    nk_f32_t const *accumulator_row =
                         &scratch->o_acc[row_block_idx][(row_tile_idx * 16 + row_idx) * output_stride_floats];
                     nk_f32_t *output_row = output + (query_first + row_start + row_idx) * output_stride_out +
                                            head_idx * depth;
                     nk_size_t channel_idx = 0;
                     for (; channel_idx < depth_full; channel_idx += 16)
                         _mm512_storeu_ps(output_row + channel_idx,
-                                         _mm512_mul_ps(_mm512_load_ps(acc_row + channel_idx), inv_sum_f32x16));
+                                         _mm512_mul_ps(_mm512_load_ps(accumulator_row + channel_idx), inv_sum_f32x16));
                     if (channel_idx < depth)
-                        _mm512_mask_storeu_ps(output_row + channel_idx, depth_tail_mask,
-                                              _mm512_mul_ps(_mm512_load_ps(acc_row + channel_idx), inv_sum_f32x16));
+                        _mm512_mask_storeu_ps(
+                            output_row + channel_idx, depth_tail_mask,
+                            _mm512_mul_ps(_mm512_load_ps(accumulator_row + channel_idx), inv_sum_f32x16));
                 }
                 for (nk_size_t row_idx = 0; row_idx < 16; row_idx++)
                     for (nk_size_t channel_idx = 0; channel_idx < output_stride_floats; channel_idx += 16)
@@ -965,17 +967,18 @@ NK_INTERNAL void nk_attention_task_e4m3_diamondamx_(nk_e4m3_t const *queries, nk
                 _mm512_store_ps(row_sums, row_sum_f32x16[row_block_idx][row_tile_idx]);
                 for (nk_size_t row_idx = 0; row_idx < valid_rows; row_idx++) {
                     __m512 const inv_sum_f32x16 = _mm512_set1_ps(1.0f / row_sums[row_idx]);
-                    nk_f32_t const *acc_row =
+                    nk_f32_t const *accumulator_row =
                         &scratch->o_acc[row_block_idx][(row_tile_idx * 16 + row_idx) * output_stride_floats];
                     nk_f32_t *output_row = output + (query_first + row_start + row_idx) * output_stride_out +
                                            head_idx * depth;
                     nk_size_t channel_idx = 0;
                     for (; channel_idx < depth_full; channel_idx += 16)
                         _mm512_storeu_ps(output_row + channel_idx,
-                                         _mm512_mul_ps(_mm512_load_ps(acc_row + channel_idx), inv_sum_f32x16));
+                                         _mm512_mul_ps(_mm512_load_ps(accumulator_row + channel_idx), inv_sum_f32x16));
                     if (channel_idx < depth)
-                        _mm512_mask_storeu_ps(output_row + channel_idx, depth_tail_mask,
-                                              _mm512_mul_ps(_mm512_load_ps(acc_row + channel_idx), inv_sum_f32x16));
+                        _mm512_mask_storeu_ps(
+                            output_row + channel_idx, depth_tail_mask,
+                            _mm512_mul_ps(_mm512_load_ps(accumulator_row + channel_idx), inv_sum_f32x16));
                 }
                 for (nk_size_t row_idx = 0; row_idx < 16; row_idx++)
                     for (nk_size_t channel_idx = 0; channel_idx < output_stride_floats; channel_idx += 16)
@@ -1079,17 +1082,18 @@ NK_INTERNAL void nk_attention_task_i8_diamondamx_(nk_i8_t const *queries, nk_f32
                 _mm512_store_ps(row_sums, row_sum_f32x16[row_block_idx][row_tile_idx]);
                 for (nk_size_t row_idx = 0; row_idx < valid_rows; row_idx++) {
                     __m512 const inv_sum_f32x16 = _mm512_set1_ps(1.0f / row_sums[row_idx]);
-                    nk_f32_t const *acc_row =
+                    nk_f32_t const *accumulator_row =
                         &scratch->o_acc[row_block_idx][(row_tile_idx * 16 + row_idx) * output_stride_floats];
                     nk_f32_t *output_row = output + (query_first + row_start + row_idx) * output_stride_out +
                                            head_idx * depth;
                     nk_size_t channel_idx = 0;
                     for (; channel_idx < depth_full; channel_idx += 16)
                         _mm512_storeu_ps(output_row + channel_idx,
-                                         _mm512_mul_ps(_mm512_load_ps(acc_row + channel_idx), inv_sum_f32x16));
+                                         _mm512_mul_ps(_mm512_load_ps(accumulator_row + channel_idx), inv_sum_f32x16));
                     if (channel_idx < depth)
-                        _mm512_mask_storeu_ps(output_row + channel_idx, depth_tail_mask,
-                                              _mm512_mul_ps(_mm512_load_ps(acc_row + channel_idx), inv_sum_f32x16));
+                        _mm512_mask_storeu_ps(
+                            output_row + channel_idx, depth_tail_mask,
+                            _mm512_mul_ps(_mm512_load_ps(accumulator_row + channel_idx), inv_sum_f32x16));
                 }
                 for (nk_size_t row_idx = 0; row_idx < 16; row_idx++)
                     for (nk_size_t channel_idx = 0; channel_idx < output_stride_floats; channel_idx += 16)

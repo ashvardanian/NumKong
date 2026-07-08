@@ -65,9 +65,9 @@ NK_PUBLIC void nk_sqeuclidean_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, 
 
 nk_sqeuclidean_f32_skylake_cycle:
     if (n < 8) {
-        __mmask8 mask = (__mmask8)_bzhi_u32(0xFFFFFFFF, n);
-        a_f32x8 = _mm256_maskz_loadu_ps(mask, a);
-        b_f32x8 = _mm256_maskz_loadu_ps(mask, b);
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFFFFFFFF, n);
+        a_f32x8 = _mm256_maskz_loadu_ps(mask_m8, a);
+        b_f32x8 = _mm256_maskz_loadu_ps(mask_m8, b);
         n = 0;
     }
     else {
@@ -125,9 +125,9 @@ NK_PUBLIC void nk_angular_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_s
 
 nk_angular_f32_skylake_cycle:
     if (n < 8) {
-        __mmask8 mask = (__mmask8)_bzhi_u32(0xFFFFFFFF, n);
-        a_f32x8 = _mm256_maskz_loadu_ps(mask, a);
-        b_f32x8 = _mm256_maskz_loadu_ps(mask, b);
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFFFFFFFF, n);
+        a_f32x8 = _mm256_maskz_loadu_ps(mask_m8, a);
+        b_f32x8 = _mm256_maskz_loadu_ps(mask_m8, b);
         n = 0;
     }
     else {
@@ -154,9 +154,9 @@ NK_PUBLIC void nk_sqeuclidean_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, 
 
 nk_sqeuclidean_f64_skylake_cycle:
     if (n < 8) {
-        __mmask8 mask = (__mmask8)_bzhi_u32(0xFFFFFFFF, n);
-        a_f64x8 = _mm512_maskz_loadu_pd(mask, a);
-        b_f64x8 = _mm512_maskz_loadu_pd(mask, b);
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFFFFFFFF, n);
+        a_f64x8 = _mm512_maskz_loadu_pd(mask_m8, a);
+        b_f64x8 = _mm512_maskz_loadu_pd(mask_m8, b);
         n = 0;
     }
     else {
@@ -187,9 +187,9 @@ NK_PUBLIC void nk_angular_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
 
 nk_angular_f64_skylake_cycle:
     if (n < 8) {
-        __mmask8 mask = (__mmask8)_bzhi_u32(0xFFFFFFFF, n);
-        a_f64x8 = _mm512_maskz_loadu_pd(mask, a);
-        b_f64x8 = _mm512_maskz_loadu_pd(mask, b);
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFFFFFFFF, n);
+        a_f64x8 = _mm512_maskz_loadu_pd(mask_m8, a);
+        b_f64x8 = _mm512_maskz_loadu_pd(mask_m8, b);
         n = 0;
     }
     else {
@@ -204,12 +204,12 @@ nk_angular_f64_skylake_cycle:
     __m512d tentative_sum_f64x8 = _mm512_add_pd(dot_sum_f64x8, x_f64x8);
     __m512d abs_sum_f64x8 = _mm512_abs_pd(dot_sum_f64x8);
     __m512d abs_x_f64x8 = _mm512_abs_pd(x_f64x8);
-    __mmask8 sum_ge_x = _mm512_cmp_pd_mask(abs_sum_f64x8, abs_x_f64x8, _CMP_GE_OQ);
+    __mmask8 sum_ge_x_m8 = _mm512_cmp_pd_mask(abs_sum_f64x8, abs_x_f64x8, _CMP_GE_OQ);
     // z = t - larger, error = smaller - z
     __m512d virtual_addend_f64x8 = _mm512_sub_pd(tentative_sum_f64x8, x_f64x8);
-    virtual_addend_f64x8 = _mm512_mask_sub_pd(virtual_addend_f64x8, sum_ge_x, tentative_sum_f64x8, dot_sum_f64x8);
+    virtual_addend_f64x8 = _mm512_mask_sub_pd(virtual_addend_f64x8, sum_ge_x_m8, tentative_sum_f64x8, dot_sum_f64x8);
     __m512d sum_error_f64x8 = _mm512_sub_pd(dot_sum_f64x8, virtual_addend_f64x8);
-    sum_error_f64x8 = _mm512_mask_sub_pd(sum_error_f64x8, sum_ge_x, x_f64x8, virtual_addend_f64x8);
+    sum_error_f64x8 = _mm512_mask_sub_pd(sum_error_f64x8, sum_ge_x_m8, x_f64x8, virtual_addend_f64x8);
     dot_sum_f64x8 = tentative_sum_f64x8;
     dot_compensation_f64x8 = _mm512_add_pd(dot_compensation_f64x8, _mm512_add_pd(sum_error_f64x8, product_error_f64x8));
     // Simple FMA for self-products (no cancellation possible)
@@ -293,9 +293,9 @@ NK_PUBLIC void nk_sqeuclidean_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, 
 
 nk_sqeuclidean_f16_skylake_cycle:
     if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_f16x16 = _mm256_maskz_loadu_epi16(mask, a);
-        b_f16x16 = _mm256_maskz_loadu_epi16(mask, b);
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n);
+        a_f16x16 = _mm256_maskz_loadu_epi16(mask_m16, a);
+        b_f16x16 = _mm256_maskz_loadu_epi16(mask_m16, b);
         n = 0;
     }
     else {
@@ -325,9 +325,9 @@ NK_PUBLIC void nk_angular_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_s
 
 nk_angular_f16_skylake_cycle:
     if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_f16x16 = _mm256_maskz_loadu_epi16(mask, a);
-        b_f16x16 = _mm256_maskz_loadu_epi16(mask, b);
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n);
+        a_f16x16 = _mm256_maskz_loadu_epi16(mask_m16, a);
+        b_f16x16 = _mm256_maskz_loadu_epi16(mask_m16, b);
         n = 0;
     }
     else {
@@ -358,9 +358,9 @@ NK_PUBLIC void nk_sqeuclidean_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *
 
 nk_sqeuclidean_e4m3_skylake_cycle:
     if (n < 32) {
-        __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
-        a_u8x32 = _mm256_maskz_loadu_epi8(mask, a);
-        b_u8x32 = _mm256_maskz_loadu_epi8(mask, b);
+        __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
+        a_u8x32 = _mm256_maskz_loadu_epi8(mask_m32, a);
+        b_u8x32 = _mm256_maskz_loadu_epi8(mask_m32, b);
         n = 0;
     }
     else {
@@ -394,9 +394,9 @@ NK_PUBLIC void nk_angular_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, n
 
 nk_angular_e4m3_skylake_cycle:
     if (n < 32) {
-        __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
-        a_u8x32 = _mm256_maskz_loadu_epi8(mask, a);
-        b_u8x32 = _mm256_maskz_loadu_epi8(mask, b);
+        __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
+        a_u8x32 = _mm256_maskz_loadu_epi8(mask_m32, a);
+        b_u8x32 = _mm256_maskz_loadu_epi8(mask_m32, b);
         n = 0;
     }
     else {
@@ -435,9 +435,9 @@ NK_PUBLIC void nk_sqeuclidean_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *
 
 nk_sqeuclidean_e5m2_skylake_cycle:
     if (n < 64) {
-        __mmask64 mask = _bzhi_u64(0xFFFFFFFFFFFFFFFFULL, (unsigned int)n);
-        a_u8x64 = _mm512_maskz_loadu_epi8(mask, a);
-        b_u8x64 = _mm512_maskz_loadu_epi8(mask, b);
+        __mmask64 mask_m64 = _bzhi_u64(0xFFFFFFFFFFFFFFFFULL, (unsigned int)n);
+        a_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, a);
+        b_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, b);
         n = 0;
     }
     else {
@@ -486,9 +486,9 @@ NK_PUBLIC void nk_angular_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, n
 
 nk_angular_e5m2_skylake_cycle:
     if (n < 64) {
-        __mmask64 mask = _bzhi_u64(0xFFFFFFFFFFFFFFFFULL, (unsigned int)n);
-        a_u8x64 = _mm512_maskz_loadu_epi8(mask, a);
-        b_u8x64 = _mm512_maskz_loadu_epi8(mask, b);
+        __mmask64 mask_m64 = _bzhi_u64(0xFFFFFFFFFFFFFFFFULL, (unsigned int)n);
+        a_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, a);
+        b_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, b);
         n = 0;
     }
     else {
@@ -536,9 +536,9 @@ NK_PUBLIC void nk_sqeuclidean_e2m3_skylake(nk_e2m3_t const *a, nk_e2m3_t const *
 
 nk_sqeuclidean_e2m3_skylake_cycle:
     if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_e2m3_u8x16 = _mm_maskz_loadu_epi8(mask, a);
-        b_e2m3_u8x16 = _mm_maskz_loadu_epi8(mask, b);
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n);
+        a_e2m3_u8x16 = _mm_maskz_loadu_epi8(mask_m16, a);
+        b_e2m3_u8x16 = _mm_maskz_loadu_epi8(mask_m16, b);
         n = 0;
     }
     else {
@@ -568,9 +568,9 @@ NK_PUBLIC void nk_angular_e2m3_skylake(nk_e2m3_t const *a, nk_e2m3_t const *b, n
 
 nk_angular_e2m3_skylake_cycle:
     if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_e2m3_u8x16 = _mm_maskz_loadu_epi8(mask, a);
-        b_e2m3_u8x16 = _mm_maskz_loadu_epi8(mask, b);
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n);
+        a_e2m3_u8x16 = _mm_maskz_loadu_epi8(mask_m16, a);
+        b_e2m3_u8x16 = _mm_maskz_loadu_epi8(mask_m16, b);
         n = 0;
     }
     else {
@@ -597,9 +597,9 @@ NK_PUBLIC void nk_sqeuclidean_e3m2_skylake(nk_e3m2_t const *a, nk_e3m2_t const *
 
 nk_sqeuclidean_e3m2_skylake_cycle:
     if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_e3m2_u8x16 = _mm_maskz_loadu_epi8(mask, a);
-        b_e3m2_u8x16 = _mm_maskz_loadu_epi8(mask, b);
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n);
+        a_e3m2_u8x16 = _mm_maskz_loadu_epi8(mask_m16, a);
+        b_e3m2_u8x16 = _mm_maskz_loadu_epi8(mask_m16, b);
         n = 0;
     }
     else {
@@ -629,9 +629,9 @@ NK_PUBLIC void nk_angular_e3m2_skylake(nk_e3m2_t const *a, nk_e3m2_t const *b, n
 
 nk_angular_e3m2_skylake_cycle:
     if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_e3m2_u8x16 = _mm_maskz_loadu_epi8(mask, a);
-        b_e3m2_u8x16 = _mm_maskz_loadu_epi8(mask, b);
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n);
+        a_e3m2_u8x16 = _mm_maskz_loadu_epi8(mask_m16, a);
+        b_e3m2_u8x16 = _mm_maskz_loadu_epi8(mask_m16, b);
         n = 0;
     }
     else {

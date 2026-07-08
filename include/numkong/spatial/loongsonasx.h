@@ -202,8 +202,8 @@ NK_PUBLIC void nk_angular_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_
 #pragma region F32 and F64 Floats
 
 NK_PUBLIC void nk_sqeuclidean_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
-    __m256d sum_f64x4_low = (__m256d)__lasx_xvreplgr2vr_d(0);
-    __m256d sum_f64x4_high = (__m256d)__lasx_xvreplgr2vr_d(0);
+    __m256d sum_low_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
+    __m256d sum_high_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m256i a_f32x8 = __lasx_xvld(a + i, 0);
@@ -214,10 +214,10 @@ NK_PUBLIC void nk_sqeuclidean_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const 
         __m256d b_high_f64x4 = __lasx_xvfcvth_d_s((__m256)b_f32x8);
         __m256d diff_low_f64x4 = __lasx_xvfsub_d(a_low_f64x4, b_low_f64x4);
         __m256d diff_high_f64x4 = __lasx_xvfsub_d(a_high_f64x4, b_high_f64x4);
-        sum_f64x4_low = __lasx_xvfmadd_d(diff_low_f64x4, diff_low_f64x4, sum_f64x4_low);
-        sum_f64x4_high = __lasx_xvfmadd_d(diff_high_f64x4, diff_high_f64x4, sum_f64x4_high);
+        sum_low_f64x4 = __lasx_xvfmadd_d(diff_low_f64x4, diff_low_f64x4, sum_low_f64x4);
+        sum_high_f64x4 = __lasx_xvfmadd_d(diff_high_f64x4, diff_high_f64x4, sum_high_f64x4);
     }
-    __m256d combined_f64x4 = __lasx_xvfadd_d(sum_f64x4_low, sum_f64x4_high);
+    __m256d combined_f64x4 = __lasx_xvfadd_d(sum_low_f64x4, sum_high_f64x4);
     nk_f64_t sum = nk_reduce_add_f64x4_loongsonasx_(combined_f64x4);
     for (; i < n; ++i) {
         nk_f64_t diff = (nk_f64_t)a[i] - b[i];
@@ -232,12 +232,12 @@ NK_PUBLIC void nk_euclidean_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b
 }
 
 NK_PUBLIC void nk_angular_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
-    __m256d dot_f64x4_low = (__m256d)__lasx_xvreplgr2vr_d(0);
-    __m256d dot_f64x4_high = (__m256d)__lasx_xvreplgr2vr_d(0);
-    __m256d a_sq_f64x4_low = (__m256d)__lasx_xvreplgr2vr_d(0);
-    __m256d a_sq_f64x4_high = (__m256d)__lasx_xvreplgr2vr_d(0);
-    __m256d b_sq_f64x4_low = (__m256d)__lasx_xvreplgr2vr_d(0);
-    __m256d b_sq_f64x4_high = (__m256d)__lasx_xvreplgr2vr_d(0);
+    __m256d dot_low_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
+    __m256d dot_high_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
+    __m256d a_sq_low_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
+    __m256d a_sq_high_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
+    __m256d b_sq_low_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
+    __m256d b_sq_high_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m256i a_f32x8 = __lasx_xvld(a + i, 0);
@@ -246,16 +246,16 @@ NK_PUBLIC void nk_angular_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b, 
         __m256d b_low_f64x4 = __lasx_xvfcvtl_d_s((__m256)b_f32x8);
         __m256d a_high_f64x4 = __lasx_xvfcvth_d_s((__m256)a_f32x8);
         __m256d b_high_f64x4 = __lasx_xvfcvth_d_s((__m256)b_f32x8);
-        dot_f64x4_low = __lasx_xvfmadd_d(a_low_f64x4, b_low_f64x4, dot_f64x4_low);
-        dot_f64x4_high = __lasx_xvfmadd_d(a_high_f64x4, b_high_f64x4, dot_f64x4_high);
-        a_sq_f64x4_low = __lasx_xvfmadd_d(a_low_f64x4, a_low_f64x4, a_sq_f64x4_low);
-        a_sq_f64x4_high = __lasx_xvfmadd_d(a_high_f64x4, a_high_f64x4, a_sq_f64x4_high);
-        b_sq_f64x4_low = __lasx_xvfmadd_d(b_low_f64x4, b_low_f64x4, b_sq_f64x4_low);
-        b_sq_f64x4_high = __lasx_xvfmadd_d(b_high_f64x4, b_high_f64x4, b_sq_f64x4_high);
+        dot_low_f64x4 = __lasx_xvfmadd_d(a_low_f64x4, b_low_f64x4, dot_low_f64x4);
+        dot_high_f64x4 = __lasx_xvfmadd_d(a_high_f64x4, b_high_f64x4, dot_high_f64x4);
+        a_sq_low_f64x4 = __lasx_xvfmadd_d(a_low_f64x4, a_low_f64x4, a_sq_low_f64x4);
+        a_sq_high_f64x4 = __lasx_xvfmadd_d(a_high_f64x4, a_high_f64x4, a_sq_high_f64x4);
+        b_sq_low_f64x4 = __lasx_xvfmadd_d(b_low_f64x4, b_low_f64x4, b_sq_low_f64x4);
+        b_sq_high_f64x4 = __lasx_xvfmadd_d(b_high_f64x4, b_high_f64x4, b_sq_high_f64x4);
     }
-    nk_f64_t dot = nk_reduce_add_f64x4_loongsonasx_(__lasx_xvfadd_d(dot_f64x4_low, dot_f64x4_high));
-    nk_f64_t a_sq = nk_reduce_add_f64x4_loongsonasx_(__lasx_xvfadd_d(a_sq_f64x4_low, a_sq_f64x4_high));
-    nk_f64_t b_sq = nk_reduce_add_f64x4_loongsonasx_(__lasx_xvfadd_d(b_sq_f64x4_low, b_sq_f64x4_high));
+    nk_f64_t dot = nk_reduce_add_f64x4_loongsonasx_(__lasx_xvfadd_d(dot_low_f64x4, dot_high_f64x4));
+    nk_f64_t a_sq = nk_reduce_add_f64x4_loongsonasx_(__lasx_xvfadd_d(a_sq_low_f64x4, a_sq_high_f64x4));
+    nk_f64_t b_sq = nk_reduce_add_f64x4_loongsonasx_(__lasx_xvfadd_d(b_sq_low_f64x4, b_sq_high_f64x4));
     for (; i < n; ++i) {
         nk_f64_t a_val = a[i], b_val = b[i];
         dot += a_val * b_val;

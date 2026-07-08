@@ -142,9 +142,10 @@ done < <(git diff --cached --name-only --diff-filter=ACM)
 
 # ISA kernels — every SIMD register variable must encode its element type and width. The naming grammar
 # is per-ISA: `<role>_<dtype>x<lanes>` for fixed-width lanes (x86 / NEON / WASM / Loongson / Power),
-# `<role>_<dtype>x` for scalable SVE/SME, `<role>_<dtype>m<lmul>` for RISC-V RVV; masks/predicates are
-# `mask`/`<role>_mask` or `<role>_b<n>x<lanes>` (x86), `<role>_b<n>x` (SVE), `<role>_b<n>` (RVV). Scoped to
-# ISA-specific files only
+# `<role>_<dtype>x` for scalable SVE/SME, `<role>_<dtype>m<lmul>` for RISC-V RVV. Masks/predicates take the
+# short mask-register type: `<role>_m<n>` for an x86 `__mmask<n>` k-register and `<role>_b<n>x<lanes>` for a
+# comparison mask held in a vector register (x86), `<role>_b<n>x` (SVE `svbool_t`), `<role>_b<n>` (RVV
+# `vbool<n>_t`). Scoped to ISA-specific files only
 # — never serial.h, the umbrella <family>.h, or any .hpp. Added lines only; a line carrying an inline
 # `// nk-nolint: naming` comment is grandfathered. Tile-typed locals (`*_tile`/`state`) and `*_vec`/`*_tail`
 # reinterpret-staging unions are exempt. Function signatures are skipped (the name is followed by `(`).
@@ -162,22 +163,32 @@ while IFS= read -r file; do
     */numkong/*/"$base") ;;
     *) continue ;;
     esac
-    bad_names=$(git diff --cached --unified=0 -- "$file" | grep '^+' | grep -v '^+++' |
-        grep -v 'nk-nolint: naming' |
-        awk -v isa="$isa" '
+    # Comment-aware, added-lines-only. Scan the STAGED file with every `/* */` block blanked to spaces
+    # (line-preserving, so multi-line Doxygen doc blocks vanish too) and `//` tails stripped, then report
+    # only violations on the lines this commit adds. A vector/mask type named inside a comment or doc block
+    # is thus never tokenized as a variable — no `// nk-nolint: naming` needed for comment text (that escape
+    # hatch stays for the rare genuinely width-agnostic register).
+    added_nums=$(git diff --cached --unified=0 -- "$file" |
+        awk '/^@@/ { for (i = 1; i <= NF; i++) if ($i ~ /^\+[0-9]/) { split(substr($i, 2), p, ","); s = p[1]; c = (p[2] == "" ? 1 : p[2]); for (k = 0; k < c; k++) print s + k; break } }')
+    bad_names=$(git show ":$file" 2> /dev/null |
+        perl -0777 -pe 's{(/\*.*?\*/)}{($c=$1)=~s/[^\n]/ /g; $c}ges' |
+        grep -nv 'nk-nolint: naming' |
+        awk -F: -v isa="$isa" -v added="$added_nums" '
+        BEGIN { na = split(added, ar, "\n"); for (i = 1; i <= na; i++) if (ar[i] != "") ADDED[ar[i]] = 1 }
         function ok_vec(name) {
-            if (isa == "fixed") return name ~ /_(f16|f32|f64|bf16|e2m3|e3m2|e4m3|e5m2|i8|i16|i32|i64|u8|u16|u32|u64)x[0-9]+(x[234])?$/ || name ~ /_b(8|16|32|64)x[0-9]+$/
-            if (isa == "sve")   return name ~ /_(f16|f32|f64|bf16|i8|i16|i32|i64|u8|u16|u32|u64)x$/
-            if (isa == "rvv")   return name ~ /_(f16|f32|f64|bf16|i8|i16|i32|i64|u8|u16|u32|u64)m[1248](x[234])?$/
+            if (isa == "fixed") return name ~ /_(f16|f32|f64|bf16|e2m3|e3m2|e4m3|e5m2|i4|i8|i16|i32|i64|u1|u4|u8|u16|u32|u64)x[0-9]+(x[234])?$/ || name ~ /_b(8|16|32|64)x[0-9]+$/
+            if (isa == "sve")   return name ~ /_(f16|f32|f64|bf16|i4|i8|i16|i32|i64|u1|u4|u8|u16|u32|u64)x$/
+            if (isa == "rvv")   return name ~ /_(f16|f32|f64|bf16|i4|i8|i16|i32|i64|u1|u4|u8|u16|u32|u64)m[1248](x[234])?$/
         }
         function ok_mask(name) {
-            if (isa == "fixed") return name == "mask" || name ~ /_mask$/ || name ~ /_b(8|16|32|64)x[0-9]+$/
+            if (isa == "fixed") return name ~ /_m(8|16|32|64)$/
             if (isa == "sve")   return name ~ /_b(8|16|32|64)x$/
             if (isa == "rvv")   return name ~ /_b(1|2|4|8|16|32|64)$/
         }
         function exempt(name) { return name ~ /(_vec|_tail|_tile)$/ || name == "state" }
         {
-            line = $0; sub(/^\+/, "", line); sub(/\/\/.*/, "", line)
+            lineno = $1; if (!(lineno in ADDED)) next
+            line = $0; sub(/^[0-9]+:/, "", line); sub(/\/\/.*/, "", line)
             n = split(line, tok, /[[:space:]]+/)
             for (i = 1; i <= n; i++) {
                 t = tok[i]

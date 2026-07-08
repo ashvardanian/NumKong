@@ -56,8 +56,8 @@ NK_INTERNAL void nk_reduce_moments_bf16_genoa_contiguous_( //
     // Tail: masked load for remaining elements (< 32)
     nk_size_t remaining = count - idx;
     if (remaining > 0) {
-        __mmask32 tail_mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)remaining);
-        __m512bh data_bf16x32 = nk_m512bh_from_m512i_(_mm512_maskz_loadu_epi16(tail_mask, data_ptr + idx));
+        __mmask32 tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)remaining);
+        __m512bh data_bf16x32 = nk_m512bh_from_m512i_(_mm512_maskz_loadu_epi16(tail_m32, data_ptr + idx));
         sum_f32x16 = _mm512_dpbf16_ps(sum_f32x16, data_bf16x32, ones_bf16x32);
         sumsq_f32x16 = _mm512_dpbf16_ps(sumsq_f32x16, data_bf16x32, data_bf16x32);
     }
@@ -105,8 +105,8 @@ NK_INTERNAL void nk_reduce_moments_e4m3_genoa_contiguous_( //
     // Tail: masked load for remaining elements (< 32)
     nk_size_t remaining = count - idx;
     if (remaining > 0) {
-        __mmask32 tail_mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)remaining);
-        __m256i raw_u8x32 = _mm256_maskz_loadu_epi8(tail_mask, data_ptr + idx);
+        __mmask32 tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)remaining);
+        __m256i raw_u8x32 = _mm256_maskz_loadu_epi8(tail_m32, data_ptr + idx);
         __m512bh data_bf16x32 = nk_m512bh_from_m512i_(nk_e4m3x32_to_bf16x32_icelake_(raw_u8x32));
         sum_f32x16 = _mm512_dpbf16_ps(sum_f32x16, data_bf16x32, ones_bf16x32);
         sumsq_f32x16 = _mm512_dpbf16_ps(sumsq_f32x16, data_bf16x32, data_bf16x32);
@@ -155,8 +155,8 @@ NK_INTERNAL void nk_reduce_moments_e5m2_genoa_contiguous_( //
     // Tail: masked load for remaining elements (< 32)
     nk_size_t remaining = count - idx;
     if (remaining > 0) {
-        __mmask32 tail_mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)remaining);
-        __m256i raw_u8x32 = _mm256_maskz_loadu_epi8(tail_mask, data_ptr + idx);
+        __mmask32 tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)remaining);
+        __m256i raw_u8x32 = _mm256_maskz_loadu_epi8(tail_m32, data_ptr + idx);
         __m512bh data_bf16x32 = nk_m512bh_from_m512i_(nk_e5m2x32_to_bf16x32_icelake_(raw_u8x32));
         sum_f32x16 = _mm512_dpbf16_ps(sum_f32x16, data_bf16x32, ones_bf16x32);
         sumsq_f32x16 = _mm512_dpbf16_ps(sumsq_f32x16, data_bf16x32, data_bf16x32);

@@ -104,9 +104,9 @@ NK_PUBLIC void nk_dot_bf16_genoa(nk_bf16_t const *a_scalars, nk_bf16_t const *b_
 
 nk_dot_bf16_genoa_cycle:
     if (count_scalars < 32) {
-        __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, count_scalars);
-        a_bf16x32 = _mm512_maskz_loadu_epi16(mask, a_scalars);
-        b_bf16x32 = _mm512_maskz_loadu_epi16(mask, b_scalars);
+        __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, count_scalars);
+        a_bf16x32 = _mm512_maskz_loadu_epi16(mask_m32, a_scalars);
+        b_bf16x32 = _mm512_maskz_loadu_epi16(mask_m32, b_scalars);
         count_scalars = 0;
     }
     else {
@@ -141,9 +141,9 @@ NK_PUBLIC void nk_dot_bf16c_genoa(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b
 
 nk_dot_bf16c_genoa_cycle:
     if (count_pairs < 16) {
-        __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, count_pairs * 2);
-        a_bf16x32 = _mm512_maskz_loadu_epi16(mask, (nk_i16_t const *)a_pairs);
-        b_bf16x32 = _mm512_maskz_loadu_epi16(mask, (nk_i16_t const *)b_pairs);
+        __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, count_pairs * 2);
+        a_bf16x32 = _mm512_maskz_loadu_epi16(mask_m32, (nk_i16_t const *)a_pairs);
+        b_bf16x32 = _mm512_maskz_loadu_epi16(mask_m32, (nk_i16_t const *)b_pairs);
         count_pairs = 0;
     }
     else {
@@ -185,9 +185,9 @@ NK_PUBLIC void nk_vdot_bf16c_genoa(nk_bf16c_t const *a_pairs, nk_bf16c_t const *
 
 nk_vdot_bf16c_genoa_cycle:
     if (count_pairs < 16) {
-        __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, count_pairs * 2);
-        a_bf16x32 = _mm512_maskz_loadu_epi16(mask, (nk_i16_t const *)a_pairs);
-        b_bf16x32 = _mm512_maskz_loadu_epi16(mask, (nk_i16_t const *)b_pairs);
+        __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, count_pairs * 2);
+        a_bf16x32 = _mm512_maskz_loadu_epi16(mask_m32, (nk_i16_t const *)a_pairs);
+        b_bf16x32 = _mm512_maskz_loadu_epi16(mask_m32, (nk_i16_t const *)b_pairs);
         count_pairs = 0;
     }
     else {
@@ -215,9 +215,9 @@ NK_PUBLIC void nk_dot_e5m2_genoa(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_
 
 nk_dot_e5m2_genoa_cycle:
     if (count_scalars < 32) {
-        __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, count_scalars);
-        a_e5m2x32 = _mm256_maskz_loadu_epi8(mask, a_scalars);
-        b_e5m2x32 = _mm256_maskz_loadu_epi8(mask, b_scalars);
+        __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, count_scalars);
+        a_e5m2x32 = _mm256_maskz_loadu_epi8(mask_m32, a_scalars);
+        b_e5m2x32 = _mm256_maskz_loadu_epi8(mask_m32, b_scalars);
         count_scalars = 0;
     }
     else {

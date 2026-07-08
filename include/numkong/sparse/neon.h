@@ -26,37 +26,39 @@ extern "C" {
 #endif
 
 NK_INTERNAL uint32x4_t nk_intersect_u32x4_neon_(uint32x4_t a, uint32x4_t b) {
-    uint32x4_t b_rot1 = vextq_u32(b, b, 1);
-    uint32x4_t b_rot2 = vextq_u32(b, b, 2);
-    uint32x4_t b_rot3 = vextq_u32(b, b, 3);
-    uint32x4_t matches_rot0 = vceqq_u32(a, b);
-    uint32x4_t matches_rot1 = vceqq_u32(a, b_rot1);
-    uint32x4_t matches_rot2 = vceqq_u32(a, b_rot2);
-    uint32x4_t matches_rot3 = vceqq_u32(a, b_rot3);
-    uint32x4_t matches = vorrq_u32(vorrq_u32(matches_rot0, matches_rot1), vorrq_u32(matches_rot2, matches_rot3));
-    return matches;
+    uint32x4_t b_rot1_u32x4 = vextq_u32(b, b, 1);
+    uint32x4_t b_rot2_u32x4 = vextq_u32(b, b, 2);
+    uint32x4_t b_rot3_u32x4 = vextq_u32(b, b, 3);
+    uint32x4_t matches_rot0_u32x4 = vceqq_u32(a, b);
+    uint32x4_t matches_rot1_u32x4 = vceqq_u32(a, b_rot1_u32x4);
+    uint32x4_t matches_rot2_u32x4 = vceqq_u32(a, b_rot2_u32x4);
+    uint32x4_t matches_rot3_u32x4 = vceqq_u32(a, b_rot3_u32x4);
+    uint32x4_t matches_u32x4 = vorrq_u32(vorrq_u32(matches_rot0_u32x4, matches_rot1_u32x4),
+                                         vorrq_u32(matches_rot2_u32x4, matches_rot3_u32x4));
+    return matches_u32x4;
 }
 
 NK_INTERNAL uint16x8_t nk_intersect_u16x8_neon_(uint16x8_t a, uint16x8_t b) {
-    uint16x8_t b_rot1 = vextq_u16(b, b, 1);
-    uint16x8_t b_rot2 = vextq_u16(b, b, 2);
-    uint16x8_t b_rot3 = vextq_u16(b, b, 3);
-    uint16x8_t b_rot4 = vextq_u16(b, b, 4);
-    uint16x8_t b_rot5 = vextq_u16(b, b, 5);
-    uint16x8_t b_rot6 = vextq_u16(b, b, 6);
-    uint16x8_t b_rot7 = vextq_u16(b, b, 7);
-    uint16x8_t matches_rot0 = vceqq_u16(a, b);
-    uint16x8_t matches_rot1 = vceqq_u16(a, b_rot1);
-    uint16x8_t matches_rot2 = vceqq_u16(a, b_rot2);
-    uint16x8_t matches_rot3 = vceqq_u16(a, b_rot3);
-    uint16x8_t matches_rot4 = vceqq_u16(a, b_rot4);
-    uint16x8_t matches_rot5 = vceqq_u16(a, b_rot5);
-    uint16x8_t matches_rot6 = vceqq_u16(a, b_rot6);
-    uint16x8_t matches_rot7 = vceqq_u16(a, b_rot7);
-    uint16x8_t matches = vorrq_u16(
-        vorrq_u16(vorrq_u16(matches_rot0, matches_rot1), vorrq_u16(matches_rot2, matches_rot3)),
-        vorrq_u16(vorrq_u16(matches_rot4, matches_rot5), vorrq_u16(matches_rot6, matches_rot7)));
-    return matches;
+    uint16x8_t b_rot1_u16x8 = vextq_u16(b, b, 1);
+    uint16x8_t b_rot2_u16x8 = vextq_u16(b, b, 2);
+    uint16x8_t b_rot3_u16x8 = vextq_u16(b, b, 3);
+    uint16x8_t b_rot4_u16x8 = vextq_u16(b, b, 4);
+    uint16x8_t b_rot5_u16x8 = vextq_u16(b, b, 5);
+    uint16x8_t b_rot6_u16x8 = vextq_u16(b, b, 6);
+    uint16x8_t b_rot7_u16x8 = vextq_u16(b, b, 7);
+    uint16x8_t matches_rot0_u16x8 = vceqq_u16(a, b);
+    uint16x8_t matches_rot1_u16x8 = vceqq_u16(a, b_rot1_u16x8);
+    uint16x8_t matches_rot2_u16x8 = vceqq_u16(a, b_rot2_u16x8);
+    uint16x8_t matches_rot3_u16x8 = vceqq_u16(a, b_rot3_u16x8);
+    uint16x8_t matches_rot4_u16x8 = vceqq_u16(a, b_rot4_u16x8);
+    uint16x8_t matches_rot5_u16x8 = vceqq_u16(a, b_rot5_u16x8);
+    uint16x8_t matches_rot6_u16x8 = vceqq_u16(a, b_rot6_u16x8);
+    uint16x8_t matches_rot7_u16x8 = vceqq_u16(a, b_rot7_u16x8);
+    uint16x8_t matches_u16x8 = vorrq_u16(
+        vorrq_u16(vorrq_u16(matches_rot0_u16x8, matches_rot1_u16x8), vorrq_u16(matches_rot2_u16x8, matches_rot3_u16x8)),
+        vorrq_u16(vorrq_u16(matches_rot4_u16x8, matches_rot5_u16x8),
+                  vorrq_u16(matches_rot6_u16x8, matches_rot7_u16x8)));
+    return matches_u16x8;
 }
 
 NK_PUBLIC void nk_sparse_intersect_u16_neon( //
@@ -110,8 +112,8 @@ NK_PUBLIC void nk_sparse_intersect_u16_neon( //
 
         // Transform match-masks into "ones", accumulate them between the cycles,
         // and merge all together in the end.
-        uint16x8_t a_matches = nk_intersect_u16x8_neon_(a_vec.u16x8, b_vec.u16x8);
-        c_counts_u16x8 = vaddq_u16(c_counts_u16x8, vandq_u16(a_matches, vdupq_n_u16(1)));
+        uint16x8_t a_matches_u16x8 = nk_intersect_u16x8_neon_(a_vec.u16x8, b_vec.u16x8);
+        c_counts_u16x8 = vaddq_u16(c_counts_u16x8, vandq_u16(a_matches_u16x8, vdupq_n_u16(1)));
 
         // Use `vclz_u32` to compute leading zeros for both `a_step` and `b_step` in parallel.
         // Narrow comparison masks from 128→64→32 bits, pack both into a `uint32x2_t`.
@@ -181,8 +183,8 @@ NK_PUBLIC void nk_sparse_intersect_u32_neon( //
 
         // Transform match-masks into "ones", accumulate them between the cycles,
         // and merge all together in the end.
-        uint32x4_t a_matches = nk_intersect_u32x4_neon_(a_vec.u32x4, b_vec.u32x4);
-        c_counts_u32x4 = vaddq_u32(c_counts_u32x4, vandq_u32(a_matches, vdupq_n_u32(1)));
+        uint32x4_t a_matches_u32x4 = nk_intersect_u32x4_neon_(a_vec.u32x4, b_vec.u32x4);
+        c_counts_u32x4 = vaddq_u32(c_counts_u32x4, vandq_u32(a_matches_u32x4, vdupq_n_u32(1)));
 
         uint32x4_t a_inrange_u32x4 = vcleq_u32(a_vec.u32x4, vdupq_n_u32(b_max));
         uint32x4_t b_inrange_u32x4 = vcleq_u32(b_vec.u32x4, vdupq_n_u32(a_max));
@@ -198,11 +200,11 @@ NK_PUBLIC void nk_sparse_intersect_u32_neon( //
 }
 
 NK_INTERNAL uint64x2_t nk_intersect_u64x2_neon_(uint64x2_t a, uint64x2_t b) {
-    uint64x2_t b_rot1 = vextq_u64(b, b, 1);
-    uint64x2_t matches_rot0 = vceqq_u64(a, b);
-    uint64x2_t matches_rot1 = vceqq_u64(a, b_rot1);
-    uint64x2_t matches = vorrq_u64(matches_rot0, matches_rot1);
-    return matches;
+    uint64x2_t b_rot1_u64x2 = vextq_u64(b, b, 1);
+    uint64x2_t matches_rot0_u64x2 = vceqq_u64(a, b);
+    uint64x2_t matches_rot1_u64x2 = vceqq_u64(a, b_rot1_u64x2);
+    uint64x2_t matches_u64x2 = vorrq_u64(matches_rot0_u64x2, matches_rot1_u64x2);
+    return matches_u64x2;
 }
 
 NK_PUBLIC void nk_sparse_intersect_u64_neon( //
@@ -257,8 +259,8 @@ NK_PUBLIC void nk_sparse_intersect_u64_neon( //
         // Now we are likely to have some overlap, so we can intersect the registers
         // Transform match-masks into "ones", accumulate them between the cycles,
         // and merge all together in the end.
-        uint64x2_t a_matches = nk_intersect_u64x2_neon_(a_vec.u64x2, b_vec.u64x2);
-        c_counts_u64x2 = vaddq_u64(c_counts_u64x2, vandq_u64(a_matches, vdupq_n_u64(1)));
+        uint64x2_t a_matches_u64x2 = nk_intersect_u64x2_neon_(a_vec.u64x2, b_vec.u64x2);
+        c_counts_u64x2 = vaddq_u64(c_counts_u64x2, vandq_u64(a_matches_u64x2, vdupq_n_u64(1)));
 
         uint64x2_t a_inrange_u64x2 = vcleq_u64(a_vec.u64x2, vdupq_n_u64(b_max));
         uint64x2_t b_inrange_u64x2 = vcleq_u64(b_vec.u64x2, vdupq_n_u64(a_max));

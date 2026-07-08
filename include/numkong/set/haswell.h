@@ -266,10 +266,10 @@ NK_INTERNAL void nk_jaccard_u1x64_finalize_haswell( //
     __m128 union_f32x4 = _mm_sub_ps(_mm_add_ps(query_f32x4, targets_f32x4), intersection_f32x4);
 
     // Handle zero-union edge case
-    __m128 zero_union_mask = _mm_cmpeq_ps(union_f32x4, _mm_setzero_ps());
+    __m128 zero_union_b32x4 = _mm_cmpeq_ps(union_f32x4, _mm_setzero_ps());
     __m128 one_f32x4 = _mm_set1_ps(1.0f);
     __m128 two_f32x4 = _mm_set1_ps(2.0f);
-    __m128 safe_union_f32x4 = _mm_blendv_ps(union_f32x4, one_f32x4, zero_union_mask);
+    __m128 safe_union_f32x4 = _mm_blendv_ps(union_f32x4, one_f32x4, zero_union_b32x4);
 
     // Fast reciprocal with Newton-Raphson refinement:
     // - `_mm_rcp_ps`: ~12-bit precision, 5cy latency, 1cy throughput
@@ -277,12 +277,13 @@ NK_INTERNAL void nk_jaccard_u1x64_finalize_haswell( //
     //      rcp' = rcp × (2 - x × rcp), doubles precision to ~22-24 bits
     // Total: ~10cy vs `_mm_div_ps` 13cy latency, but NR has better throughput
     __m128 union_reciprocal_f32x4 = _mm_rcp_ps(safe_union_f32x4);
-    __m128 newton_raphson_correction = _mm_sub_ps(two_f32x4, _mm_mul_ps(safe_union_f32x4, union_reciprocal_f32x4));
-    union_reciprocal_f32x4 = _mm_mul_ps(union_reciprocal_f32x4, newton_raphson_correction);
+    __m128 newton_raphson_correction_f32x4 = _mm_sub_ps(two_f32x4,
+                                                        _mm_mul_ps(safe_union_f32x4, union_reciprocal_f32x4));
+    union_reciprocal_f32x4 = _mm_mul_ps(union_reciprocal_f32x4, newton_raphson_correction_f32x4);
 
     __m128 ratio_f32x4 = _mm_mul_ps(intersection_f32x4, union_reciprocal_f32x4);
     __m128 jaccard_f32x4 = _mm_sub_ps(one_f32x4, ratio_f32x4);
-    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_mask);
+    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_b32x4);
 }
 
 /** @brief Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (Haswell). */
@@ -302,18 +303,18 @@ NK_INTERNAL void nk_jaccard_f32x4_from_dot_haswell_(nk_b128_vec_t const *dots_ve
     __m128 target_f32x4 = _mm_cvtepi32_ps(target_pops_vec->xmm);
     __m128 union_f32x4 = _mm_sub_ps(_mm_add_ps(query_f32x4, target_f32x4), dot_f32x4);
 
-    __m128 zero_union_mask = _mm_cmpeq_ps(union_f32x4, _mm_setzero_ps());
+    __m128 zero_union_b32x4 = _mm_cmpeq_ps(union_f32x4, _mm_setzero_ps());
     __m128 one_f32x4 = _mm_set1_ps(1.0f);
     __m128 two_f32x4 = _mm_set1_ps(2.0f);
-    __m128 safe_union_f32x4 = _mm_blendv_ps(union_f32x4, one_f32x4, zero_union_mask);
+    __m128 safe_union_f32x4 = _mm_blendv_ps(union_f32x4, one_f32x4, zero_union_b32x4);
 
     __m128 union_reciprocal_f32x4 = _mm_rcp_ps(safe_union_f32x4);
-    __m128 nr_correction = _mm_sub_ps(two_f32x4, _mm_mul_ps(safe_union_f32x4, union_reciprocal_f32x4));
-    union_reciprocal_f32x4 = _mm_mul_ps(union_reciprocal_f32x4, nr_correction);
+    __m128 nr_correction_f32x4 = _mm_sub_ps(two_f32x4, _mm_mul_ps(safe_union_f32x4, union_reciprocal_f32x4));
+    union_reciprocal_f32x4 = _mm_mul_ps(union_reciprocal_f32x4, nr_correction_f32x4);
 
     __m128 ratio_f32x4 = _mm_mul_ps(dot_f32x4, union_reciprocal_f32x4);
     __m128 jaccard_f32x4 = _mm_sub_ps(one_f32x4, ratio_f32x4);
-    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_mask);
+    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_b32x4);
 }
 
 #pragma endregion Stateful Streaming

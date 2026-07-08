@@ -57,9 +57,9 @@ NK_PUBLIC void nk_kld_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_
 
 nk_kld_f32_skylake_cycle:
     if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_f32x16 = _mm512_maskz_loadu_ps(mask, a);
-        b_f32x16 = _mm512_maskz_loadu_ps(mask, b);
+        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0xFFFF, n);
+        a_f32x16 = _mm512_maskz_loadu_ps(tail_m16, a);
+        b_f32x16 = _mm512_maskz_loadu_ps(tail_m16, b);
         n = 0;
     }
     else {
@@ -89,9 +89,9 @@ NK_PUBLIC void nk_jsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_
 
 nk_jsd_f32_skylake_cycle:
     if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_f32x16 = _mm512_maskz_loadu_ps(mask, a);
-        b_f32x16 = _mm512_maskz_loadu_ps(mask, b);
+        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0xFFFF, n);
+        a_f32x16 = _mm512_maskz_loadu_ps(tail_m16, a);
+        b_f32x16 = _mm512_maskz_loadu_ps(tail_m16, b);
         n = 0;
     }
     else {
@@ -100,16 +100,16 @@ nk_jsd_f32_skylake_cycle:
         a += 16, b += 16, n -= 16;
     }
     __m512 mean_f32x16 = _mm512_mul_ps(_mm512_add_ps(a_f32x16, b_f32x16), _mm512_set1_ps(0.5f));
-    __mmask16 nonzero_mask_a = _mm512_cmp_ps_mask(a_f32x16, epsilon_f32x16, _CMP_GE_OQ);
-    __mmask16 nonzero_mask_b = _mm512_cmp_ps_mask(b_f32x16, epsilon_f32x16, _CMP_GE_OQ);
-    __mmask16 nonzero_mask = nonzero_mask_a & nonzero_mask_b;
+    __mmask16 nonzero_a_m16 = _mm512_cmp_ps_mask(a_f32x16, epsilon_f32x16, _CMP_GE_OQ);
+    __mmask16 nonzero_b_m16 = _mm512_cmp_ps_mask(b_f32x16, epsilon_f32x16, _CMP_GE_OQ);
+    __mmask16 nonzero_m16 = nonzero_a_m16 & nonzero_b_m16;
     __m512 mean_with_epsilon_f32x16 = _mm512_add_ps(mean_f32x16, epsilon_f32x16);
     __m512 ratio_a_f32x16 = _mm512_div_ps(_mm512_add_ps(a_f32x16, epsilon_f32x16), mean_with_epsilon_f32x16);
     __m512 ratio_b_f32x16 = _mm512_div_ps(_mm512_add_ps(b_f32x16, epsilon_f32x16), mean_with_epsilon_f32x16);
     __m512 log_ratio_a_f32x16 = nk_log2_f32x16_skylake_(ratio_a_f32x16);
     __m512 log_ratio_b_f32x16 = nk_log2_f32x16_skylake_(ratio_b_f32x16);
-    __m512 contribution_a_f32x16 = _mm512_maskz_mul_ps(nonzero_mask, a_f32x16, log_ratio_a_f32x16);
-    __m512 contribution_b_f32x16 = _mm512_maskz_mul_ps(nonzero_mask, b_f32x16, log_ratio_b_f32x16);
+    __m512 contribution_a_f32x16 = _mm512_maskz_mul_ps(nonzero_m16, a_f32x16, log_ratio_a_f32x16);
+    __m512 contribution_b_f32x16 = _mm512_maskz_mul_ps(nonzero_m16, b_f32x16, log_ratio_b_f32x16);
     sum_f32x16 = _mm512_add_ps(sum_f32x16, _mm512_add_ps(contribution_a_f32x16, contribution_b_f32x16));
     if (n) goto nk_jsd_f32_skylake_cycle;
 
@@ -171,9 +171,9 @@ NK_PUBLIC void nk_kld_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_
 
 nk_kld_f64_skylake_cycle:
     if (n < 8) {
-        __mmask8 mask = (__mmask8)_bzhi_u32(0xFF, n);
-        a_f64x8 = _mm512_maskz_loadu_pd(mask, a);
-        b_f64x8 = _mm512_maskz_loadu_pd(mask, b);
+        __mmask8 tail_m8 = (__mmask8)_bzhi_u32(0xFF, n);
+        a_f64x8 = _mm512_maskz_loadu_pd(tail_m8, a);
+        b_f64x8 = _mm512_maskz_loadu_pd(tail_m8, b);
         n = 0;
     }
     else {
@@ -204,9 +204,9 @@ NK_PUBLIC void nk_jsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_
 
 nk_jsd_f64_skylake_cycle:
     if (n < 8) {
-        __mmask8 mask = (__mmask8)_bzhi_u32(0xFF, n);
-        a_f64x8 = _mm512_maskz_loadu_pd(mask, a);
-        b_f64x8 = _mm512_maskz_loadu_pd(mask, b);
+        __mmask8 tail_m8 = (__mmask8)_bzhi_u32(0xFF, n);
+        a_f64x8 = _mm512_maskz_loadu_pd(tail_m8, a);
+        b_f64x8 = _mm512_maskz_loadu_pd(tail_m8, b);
         n = 0;
     }
     else {
@@ -215,16 +215,16 @@ nk_jsd_f64_skylake_cycle:
         a += 8, b += 8, n -= 8;
     }
     __m512d mean_f64x8 = _mm512_mul_pd(_mm512_add_pd(a_f64x8, b_f64x8), _mm512_set1_pd(0.5));
-    __mmask8 nonzero_mask_a = _mm512_cmp_pd_mask(a_f64x8, epsilon_f64x8, _CMP_GE_OQ);
-    __mmask8 nonzero_mask_b = _mm512_cmp_pd_mask(b_f64x8, epsilon_f64x8, _CMP_GE_OQ);
-    __mmask8 nonzero_mask = nonzero_mask_a & nonzero_mask_b;
+    __mmask8 nonzero_a_m8 = _mm512_cmp_pd_mask(a_f64x8, epsilon_f64x8, _CMP_GE_OQ);
+    __mmask8 nonzero_b_m8 = _mm512_cmp_pd_mask(b_f64x8, epsilon_f64x8, _CMP_GE_OQ);
+    __mmask8 nonzero_m8 = nonzero_a_m8 & nonzero_b_m8;
     __m512d mean_with_epsilon_f64x8 = _mm512_add_pd(mean_f64x8, epsilon_f64x8);
     __m512d ratio_a_f64x8 = _mm512_div_pd(_mm512_add_pd(a_f64x8, epsilon_f64x8), mean_with_epsilon_f64x8);
     __m512d ratio_b_f64x8 = _mm512_div_pd(_mm512_add_pd(b_f64x8, epsilon_f64x8), mean_with_epsilon_f64x8);
     __m512d log_ratio_a_f64x8 = nk_log2_f64x8_skylake_(ratio_a_f64x8);
     __m512d log_ratio_b_f64x8 = nk_log2_f64x8_skylake_(ratio_b_f64x8);
-    __m512d contribution_a_f64x8 = _mm512_maskz_mul_pd(nonzero_mask, a_f64x8, log_ratio_a_f64x8);
-    __m512d contribution_b_f64x8 = _mm512_maskz_mul_pd(nonzero_mask, b_f64x8, log_ratio_b_f64x8);
+    __m512d contribution_a_f64x8 = _mm512_maskz_mul_pd(nonzero_m8, a_f64x8, log_ratio_a_f64x8);
+    __m512d contribution_b_f64x8 = _mm512_maskz_mul_pd(nonzero_m8, b_f64x8, log_ratio_b_f64x8);
     // Kahan compensated summation for contribution a
     __m512d compensated_a_f64x8 = _mm512_sub_pd(contribution_a_f64x8, compensation_f64x8);
     __m512d tentative_a_f64x8 = _mm512_add_pd(sum_f64x8, compensated_a_f64x8);
@@ -250,9 +250,9 @@ NK_PUBLIC void nk_kld_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_
 
 nk_kld_f16_skylake_cycle:
     if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_f32x16 = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask, a));
-        b_f32x16 = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask, b));
+        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0xFFFF, n);
+        a_f32x16 = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(tail_m16, a));
+        b_f32x16 = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(tail_m16, b));
         n = 0;
     }
     else {
@@ -280,9 +280,9 @@ NK_PUBLIC void nk_jsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_
 
 nk_jsd_f16_skylake_cycle:
     if (n < 16) {
-        __mmask16 mask = (__mmask16)_bzhi_u32(0xFFFF, n);
-        a_f32x16 = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask, a));
-        b_f32x16 = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask, b));
+        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0xFFFF, n);
+        a_f32x16 = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(tail_m16, a));
+        b_f32x16 = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(tail_m16, b));
         n = 0;
     }
     else {
@@ -291,16 +291,16 @@ nk_jsd_f16_skylake_cycle:
         a += 16, b += 16, n -= 16;
     }
     __m512 mean_f32x16 = _mm512_mul_ps(_mm512_add_ps(a_f32x16, b_f32x16), half_f32x16);
-    __mmask16 nonzero_mask_a = _mm512_cmp_ps_mask(a_f32x16, epsilon_f32x16, _CMP_GE_OQ);
-    __mmask16 nonzero_mask_b = _mm512_cmp_ps_mask(b_f32x16, epsilon_f32x16, _CMP_GE_OQ);
-    __mmask16 nonzero_mask = nonzero_mask_a & nonzero_mask_b;
+    __mmask16 nonzero_a_m16 = _mm512_cmp_ps_mask(a_f32x16, epsilon_f32x16, _CMP_GE_OQ);
+    __mmask16 nonzero_b_m16 = _mm512_cmp_ps_mask(b_f32x16, epsilon_f32x16, _CMP_GE_OQ);
+    __mmask16 nonzero_m16 = nonzero_a_m16 & nonzero_b_m16;
     __m512 mean_with_epsilon_f32x16 = _mm512_add_ps(mean_f32x16, epsilon_f32x16);
     __m512 ratio_a_f32x16 = _mm512_div_ps(_mm512_add_ps(a_f32x16, epsilon_f32x16), mean_with_epsilon_f32x16);
     __m512 ratio_b_f32x16 = _mm512_div_ps(_mm512_add_ps(b_f32x16, epsilon_f32x16), mean_with_epsilon_f32x16);
     __m512 log_ratio_a_f32x16 = nk_log2_f32x16_skylake_(ratio_a_f32x16);
     __m512 log_ratio_b_f32x16 = nk_log2_f32x16_skylake_(ratio_b_f32x16);
-    sum_a_f32x16 = _mm512_mask3_fmadd_ps(a_f32x16, log_ratio_a_f32x16, sum_a_f32x16, nonzero_mask);
-    sum_b_f32x16 = _mm512_mask3_fmadd_ps(b_f32x16, log_ratio_b_f32x16, sum_b_f32x16, nonzero_mask);
+    sum_a_f32x16 = _mm512_mask3_fmadd_ps(a_f32x16, log_ratio_a_f32x16, sum_a_f32x16, nonzero_m16);
+    sum_b_f32x16 = _mm512_mask3_fmadd_ps(b_f32x16, log_ratio_b_f32x16, sum_b_f32x16, nonzero_m16);
     if (n) goto nk_jsd_f16_skylake_cycle;
 
     nk_f32_t log2_normalizer = NK_F32_LN2_;

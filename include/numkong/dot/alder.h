@@ -208,13 +208,14 @@ NK_INTERNAL void nk_dot_i8x32_finalize_alder(                                   
                                         _mm256_extracti128_si256(state_d->biased_product_sum_i32x8, 1));
 
     // 4-way transpose reduce
-    __m128i t_ab_low = _mm_unpacklo_epi32(sum_a_i32x4, sum_b_i32x4);
-    __m128i t_cd_low = _mm_unpacklo_epi32(sum_c_i32x4, sum_d_i32x4);
-    __m128i t_ab_high = _mm_unpackhi_epi32(sum_a_i32x4, sum_b_i32x4);
-    __m128i t_cd_high = _mm_unpackhi_epi32(sum_c_i32x4, sum_d_i32x4);
-    __m128i biased_i32x4 = _mm_add_epi32(
-        _mm_add_epi32(_mm_unpacklo_epi64(t_ab_low, t_cd_low), _mm_unpackhi_epi64(t_ab_low, t_cd_low)),
-        _mm_add_epi32(_mm_unpacklo_epi64(t_ab_high, t_cd_high), _mm_unpackhi_epi64(t_ab_high, t_cd_high)));
+    __m128i t_ab_low_i32x4 = _mm_unpacklo_epi32(sum_a_i32x4, sum_b_i32x4);
+    __m128i t_cd_low_i32x4 = _mm_unpacklo_epi32(sum_c_i32x4, sum_d_i32x4);
+    __m128i t_ab_high_i32x4 = _mm_unpackhi_epi32(sum_a_i32x4, sum_b_i32x4);
+    __m128i t_cd_high_i32x4 = _mm_unpackhi_epi32(sum_c_i32x4, sum_d_i32x4);
+    __m128i biased_i32x4 = _mm_add_epi32(_mm_add_epi32(_mm_unpacklo_epi64(t_ab_low_i32x4, t_cd_low_i32x4),
+                                                       _mm_unpackhi_epi64(t_ab_low_i32x4, t_cd_low_i32x4)),
+                                         _mm_add_epi32(_mm_unpacklo_epi64(t_ab_high_i32x4, t_cd_high_i32x4),
+                                                       _mm_unpackhi_epi64(t_ab_high_i32x4, t_cd_high_i32x4)));
 
     // Apply compensation: result = biased − 128 × Σb
     __m128i correction_i32x4 = _mm_slli_epi32(b_sums_vec->xmm, 7); // × 128
@@ -281,9 +282,9 @@ nk_dot_u8_alder_cycle:
     __m128i sum_a_low_i64x2 = _mm256_castsi256_si128(sum_a_i64x4);
     __m128i sum_a_high_i64x2 = _mm256_extracti128_si256(sum_a_i64x4, 1);
     __m128i sum_a_i64x2 = _mm_add_epi64(sum_a_low_i64x2, sum_a_high_i64x2);
-    __m128i sum_a_shuffled = _mm_shuffle_epi32(sum_a_i64x2, _MM_SHUFFLE(1, 0, 3, 2));
-    __m128i sum_a_final = _mm_add_epi64(sum_a_i64x2, sum_a_shuffled);
-    nk_i64_t sum_a = _mm_cvtsi128_si64(sum_a_final);
+    __m128i sum_a_shuffled_i64x2 = _mm_shuffle_epi32(sum_a_i64x2, _MM_SHUFFLE(1, 0, 3, 2));
+    __m128i sum_a_final_i64x2 = _mm_add_epi64(sum_a_i64x2, sum_a_shuffled_i64x2);
+    nk_i64_t sum_a = _mm_cvtsi128_si64(sum_a_final_i64x2);
 
     nk_i64_t correction = 128LL * sum_a;
 
@@ -328,13 +329,14 @@ NK_INTERNAL void nk_dot_u8x32_finalize_alder(                                   
                                         _mm256_extracti128_si256(state_d->biased_product_sum_i32x8, 1));
 
     // 4-way transpose reduce
-    __m128i t_ab_low = _mm_unpacklo_epi32(sum_a_i32x4, sum_b_i32x4);
-    __m128i t_cd_low = _mm_unpacklo_epi32(sum_c_i32x4, sum_d_i32x4);
-    __m128i t_ab_high = _mm_unpackhi_epi32(sum_a_i32x4, sum_b_i32x4);
-    __m128i t_cd_high = _mm_unpackhi_epi32(sum_c_i32x4, sum_d_i32x4);
-    __m128i biased_i32x4 = _mm_add_epi32(
-        _mm_add_epi32(_mm_unpacklo_epi64(t_ab_low, t_cd_low), _mm_unpackhi_epi64(t_ab_low, t_cd_low)),
-        _mm_add_epi32(_mm_unpacklo_epi64(t_ab_high, t_cd_high), _mm_unpackhi_epi64(t_ab_high, t_cd_high)));
+    __m128i t_ab_low_i32x4 = _mm_unpacklo_epi32(sum_a_i32x4, sum_b_i32x4);
+    __m128i t_cd_low_i32x4 = _mm_unpacklo_epi32(sum_c_i32x4, sum_d_i32x4);
+    __m128i t_ab_high_i32x4 = _mm_unpackhi_epi32(sum_a_i32x4, sum_b_i32x4);
+    __m128i t_cd_high_i32x4 = _mm_unpackhi_epi32(sum_c_i32x4, sum_d_i32x4);
+    __m128i biased_i32x4 = _mm_add_epi32(_mm_add_epi32(_mm_unpacklo_epi64(t_ab_low_i32x4, t_cd_low_i32x4),
+                                                       _mm_unpackhi_epi64(t_ab_low_i32x4, t_cd_low_i32x4)),
+                                         _mm_add_epi32(_mm_unpacklo_epi64(t_ab_high_i32x4, t_cd_high_i32x4),
+                                                       _mm_unpackhi_epi64(t_ab_high_i32x4, t_cd_high_i32x4)));
 
     // Apply compensation: result = biased + 128 × Σb
     __m128i correction_i32x4 = _mm_slli_epi32(b_sums_vec->xmm, 7); // × 128

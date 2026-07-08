@@ -185,30 +185,31 @@ NK_INTERNAL float32x4_t nk_e5m2x4_to_f32x4_neon_(nk_b32_vec_t src) {
 NK_INTERNAL float16x8_t nk_e4m3x8_to_f16x8_neon_(uint8x8_t e4m3_u8x8) {
     uint16x8_t e4m3_u16x8 = vmovl_u8(e4m3_u8x8);
     uint16x8_t sign_u16x8 = vshlq_n_u16(vandq_u16(e4m3_u16x8, vdupq_n_u16(0x80)), 8); // sign << 15
-    uint16x8_t exp_u16x8 = vandq_u16(vshrq_n_u16(e4m3_u16x8, 3), vdupq_n_u16(0x0F));
-    uint16x8_t mant_u16x8 = vandq_u16(e4m3_u16x8, vdupq_n_u16(0x07));
+    uint16x8_t exponent_u16x8 = vandq_u16(vshrq_n_u16(e4m3_u16x8, 3), vdupq_n_u16(0x0F));
+    uint16x8_t mantissa_u16x8 = vandq_u16(e4m3_u16x8, vdupq_n_u16(0x07));
 
     // Normal path: F16_exp = E4M3_exp + 8, F16_mant = E4M3_mant << 7
-    uint16x8_t f16_exp_u16x8 = vshlq_n_u16(vaddq_u16(exp_u16x8, vdupq_n_u16(8)), 10);
-    uint16x8_t f16_mant_u16x8 = vshlq_n_u16(mant_u16x8, 7);
-    uint16x8_t normal_u16x8 = vorrq_u16(sign_u16x8, vorrq_u16(f16_exp_u16x8, f16_mant_u16x8));
+    uint16x8_t f16_exponent_u16x8 = vshlq_n_u16(vaddq_u16(exponent_u16x8, vdupq_n_u16(8)), 10);
+    uint16x8_t f16_mantissa_u16x8 = vshlq_n_u16(mantissa_u16x8, 7);
+    uint16x8_t normal_u16x8 = vorrq_u16(sign_u16x8, vorrq_u16(f16_exponent_u16x8, f16_mantissa_u16x8));
 
     // Subnormal path (exp=0, mant ≠ 0): E4M3 subnormal value = mant × 2⁻⁹ = mant ÷ 512
     // Compute arithmetically: mant → f32 → multiply → f16
-    float32x4_t subnormal_low_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_u16(vget_low_u16(mant_u16x8))), 1.0f / 512.0f);
-    float32x4_t subnormal_high_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_high_u16(mant_u16x8)), 1.0f / 512.0f);
+    float32x4_t subnormal_low_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_u16(vget_low_u16(mantissa_u16x8))),
+                                                  1.0f / 512.0f);
+    float32x4_t subnormal_high_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_high_u16(mantissa_u16x8)), 1.0f / 512.0f);
     uint16x8_t subnormal_abs_u16x8 = vreinterpretq_u16_f16(
         vcombine_f16(vcvt_f16_f32(subnormal_low_f32x4), vcvt_f16_f32(subnormal_high_f32x4)));
     uint16x8_t subnormal_u16x8 = vorrq_u16(subnormal_abs_u16x8, sign_u16x8);
 
     // NaN path: E4M3FN only has NaN when exp=15 AND mant=7 (0x7F or 0xFF)
     uint16x8_t nan_u16x8 = vorrq_u16(sign_u16x8, vdupq_n_u16(0x7E00)); // F16 quiet NaN
-    uint16x8_t is_nan_mask_u16x8 = vandq_u16(vceqq_u16(exp_u16x8, vdupq_n_u16(15)),
-                                             vceqq_u16(mant_u16x8, vdupq_n_u16(7)));
+    uint16x8_t is_nan_mask_u16x8 = vandq_u16(vceqq_u16(exponent_u16x8, vdupq_n_u16(15)),
+                                             vceqq_u16(mantissa_u16x8, vdupq_n_u16(7)));
 
     // Blend paths: subnormal when exp=0, NaN when exp=15 && mant=7, else normal
-    uint16x8_t exp_zero_mask_u16x8 = vceqq_u16(exp_u16x8, vdupq_n_u16(0));
-    uint16x8_t result_u16x8 = vbslq_u16(exp_zero_mask_u16x8, subnormal_u16x8, normal_u16x8);
+    uint16x8_t exponent_zero_mask_u16x8 = vceqq_u16(exponent_u16x8, vdupq_n_u16(0));
+    uint16x8_t result_u16x8 = vbslq_u16(exponent_zero_mask_u16x8, subnormal_u16x8, normal_u16x8);
     result_u16x8 = vbslq_u16(is_nan_mask_u16x8, nan_u16x8, result_u16x8);
     return vreinterpretq_f16_u16(result_u16x8);
 }
@@ -255,12 +256,12 @@ NK_INTERNAL void nk_e4m3x16_to_f16x8x2_neon_(uint8x16_t input_u8x16, float16x8_t
 
     // Low byte: (lsb << 7), masked to 0 for subnormals (exp=0) and NaN (exp=15, mant=7)
     uint8x16_t lsb_shifted_u8x16 = vshlq_n_u8(input_u8x16, 7);
-    uint8x16_t exponent_bits_u8x16 = vandq_u8(input_u8x16, vdupq_n_u8(0x78));
-    uint8x16_t has_exp_u8x16 = vcgtq_u8(exponent_bits_u8x16, vdupq_n_u8(0));
+    uint8x16_t exponent_u8x16 = vandq_u8(input_u8x16, vdupq_n_u8(0x78));
+    uint8x16_t has_exponent_u8x16 = vcgtq_u8(exponent_u8x16, vdupq_n_u8(0));
     // Exclude NaN: |input| == 0x7F means exp=15, mant=7
     uint8x16_t abs_input_u8x16 = vandq_u8(input_u8x16, vdupq_n_u8(0x7F));
     uint8x16_t not_nan_u8x16 = vmvnq_u8(vceqq_u8(abs_input_u8x16, vdupq_n_u8(0x7F)));
-    uint8x16_t low_bytes_u8x16 = vandq_u8(lsb_shifted_u8x16, vandq_u8(has_exp_u8x16, not_nan_u8x16));
+    uint8x16_t low_bytes_u8x16 = vandq_u8(lsb_shifted_u8x16, vandq_u8(has_exponent_u8x16, not_nan_u8x16));
 
     // ZIP to interleave: [l0,l1..l15] + [h0,h1..h15] → [l0,h0,l1,h1..] (little-endian f16)
     uint8x16x2_t interleaved_u8x16x2 = vzipq_u8(low_bytes_u8x16, high_bytes_u8x16);
@@ -285,26 +286,26 @@ NK_INTERNAL float16x8_t nk_e2m3x8_to_f16x8_neon_(uint8x8_t e2m3_u8x8) {
 
     // Extract fields: format is 0b00SEEMMM (6 bits used)
     uint16x8_t sign_u16x8 = vshlq_n_u16(vandq_u16(e2m3_u16x8, vdupq_n_u16(0x20)), 10); // sign << 15
-    uint16x8_t exp_u16x8 = vandq_u16(vshrq_n_u16(e2m3_u16x8, 3), vdupq_n_u16(0x03));   // 2-bit exp
-    uint16x8_t mant_u16x8 = vandq_u16(e2m3_u16x8, vdupq_n_u16(0x07));                  // 3-bit mant
+    uint16x8_t exponent_u16x8 = vandq_u16(vshrq_n_u16(e2m3_u16x8, 3), vdupq_n_u16(0x03)); // 2-bit exp
+    uint16x8_t mantissa_u16x8 = vandq_u16(e2m3_u16x8, vdupq_n_u16(0x07));                 // 3-bit mant
 
     // Normal path: F16_exp = E2M3_exp + 14, F16_mant = E2M3_mant << 7
-    uint16x8_t exp_rebiased_u16x8 = vaddq_u16(exp_u16x8, vdupq_n_u16(14));
-    uint16x8_t exp_positioned_u16x8 = vshlq_n_u16(exp_rebiased_u16x8, 10);
-    uint16x8_t mant_positioned_u16x8 = vshlq_n_u16(mant_u16x8, 7);
-    uint16x8_t normal_u16x8 = vorrq_u16(sign_u16x8, vorrq_u16(exp_positioned_u16x8, mant_positioned_u16x8));
+    uint16x8_t exponent_rebiased_u16x8 = vaddq_u16(exponent_u16x8, vdupq_n_u16(14));
+    uint16x8_t exponent_positioned_u16x8 = vshlq_n_u16(exponent_rebiased_u16x8, 10);
+    uint16x8_t mantissa_positioned_u16x8 = vshlq_n_u16(mantissa_u16x8, 7);
+    uint16x8_t normal_u16x8 = vorrq_u16(sign_u16x8, vorrq_u16(exponent_positioned_u16x8, mantissa_positioned_u16x8));
 
     // Subnormal path (exp=0): E2M3 subnormal = mant / 8
     // Compute via f32: mant → f32 → multiply → f16
-    float32x4_t subnormal_low_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_u16(vget_low_u16(mant_u16x8))), 1.0f / 8.0f);
-    float32x4_t subnormal_high_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_high_u16(mant_u16x8)), 1.0f / 8.0f);
+    float32x4_t subnormal_low_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_u16(vget_low_u16(mantissa_u16x8))), 1.0f / 8.0f);
+    float32x4_t subnormal_high_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_high_u16(mantissa_u16x8)), 1.0f / 8.0f);
     uint16x8_t subnormal_abs_u16x8 = vreinterpretq_u16_f16(
         vcombine_f16(vcvt_f16_f32(subnormal_low_f32x4), vcvt_f16_f32(subnormal_high_f32x4)));
     uint16x8_t subnormal_u16x8 = vorrq_u16(subnormal_abs_u16x8, sign_u16x8);
 
     // Blend: use subnormal result when exp=0, else normal
-    uint16x8_t exp_zero_mask_u16x8 = vceqq_u16(exp_u16x8, vdupq_n_u16(0));
-    uint16x8_t result_u16x8 = vbslq_u16(exp_zero_mask_u16x8, subnormal_u16x8, normal_u16x8);
+    uint16x8_t exponent_zero_mask_u16x8 = vceqq_u16(exponent_u16x8, vdupq_n_u16(0));
+    uint16x8_t result_u16x8 = vbslq_u16(exponent_zero_mask_u16x8, subnormal_u16x8, normal_u16x8);
 
     return vreinterpretq_f16_u16(result_u16x8);
 }
@@ -318,26 +319,26 @@ NK_INTERNAL float16x8_t nk_e3m2x8_to_f16x8_neon_(uint8x8_t e3m2_u8x8) {
 
     // Extract fields: format is 0b00SEEEMM (6 bits used)
     uint16x8_t sign_u16x8 = vshlq_n_u16(vandq_u16(e3m2_u16x8, vdupq_n_u16(0x20)), 10); // sign << 15
-    uint16x8_t exp_u16x8 = vandq_u16(vshrq_n_u16(e3m2_u16x8, 2), vdupq_n_u16(0x07));   // 3-bit exp
-    uint16x8_t mant_u16x8 = vandq_u16(e3m2_u16x8, vdupq_n_u16(0x03));                  // 2-bit mant
+    uint16x8_t exponent_u16x8 = vandq_u16(vshrq_n_u16(e3m2_u16x8, 2), vdupq_n_u16(0x07)); // 3-bit exp
+    uint16x8_t mantissa_u16x8 = vandq_u16(e3m2_u16x8, vdupq_n_u16(0x03));                 // 2-bit mant
 
     // Normal path: F16_exp = E3M2_exp + 12, F16_mant = E3M2_mant << 8
-    uint16x8_t exp_rebiased_u16x8 = vaddq_u16(exp_u16x8, vdupq_n_u16(12));
-    uint16x8_t exp_positioned_u16x8 = vshlq_n_u16(exp_rebiased_u16x8, 10);
-    uint16x8_t mant_positioned_u16x8 = vshlq_n_u16(mant_u16x8, 8);
-    uint16x8_t normal_u16x8 = vorrq_u16(sign_u16x8, vorrq_u16(exp_positioned_u16x8, mant_positioned_u16x8));
+    uint16x8_t exponent_rebiased_u16x8 = vaddq_u16(exponent_u16x8, vdupq_n_u16(12));
+    uint16x8_t exponent_positioned_u16x8 = vshlq_n_u16(exponent_rebiased_u16x8, 10);
+    uint16x8_t mantissa_positioned_u16x8 = vshlq_n_u16(mantissa_u16x8, 8);
+    uint16x8_t normal_u16x8 = vorrq_u16(sign_u16x8, vorrq_u16(exponent_positioned_u16x8, mantissa_positioned_u16x8));
 
     // Subnormal path (exp=0): E3M2 subnormal = mant × 2^(-2) × (1/4) = mant / 16
     // Compute via f32: mant → f32 → multiply → f16
-    float32x4_t subnormal_low_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_u16(vget_low_u16(mant_u16x8))), 1.0f / 16.0f);
-    float32x4_t subnormal_high_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_high_u16(mant_u16x8)), 1.0f / 16.0f);
+    float32x4_t subnormal_low_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_u16(vget_low_u16(mantissa_u16x8))), 1.0f / 16.0f);
+    float32x4_t subnormal_high_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_high_u16(mantissa_u16x8)), 1.0f / 16.0f);
     uint16x8_t subnormal_abs_u16x8 = vreinterpretq_u16_f16(
         vcombine_f16(vcvt_f16_f32(subnormal_low_f32x4), vcvt_f16_f32(subnormal_high_f32x4)));
     uint16x8_t subnormal_u16x8 = vorrq_u16(subnormal_abs_u16x8, sign_u16x8);
 
     // Blend: use subnormal result when exp=0, else normal
-    uint16x8_t exp_zero_mask_u16x8 = vceqq_u16(exp_u16x8, vdupq_n_u16(0));
-    uint16x8_t result_u16x8 = vbslq_u16(exp_zero_mask_u16x8, subnormal_u16x8, normal_u16x8);
+    uint16x8_t exponent_zero_mask_u16x8 = vceqq_u16(exponent_u16x8, vdupq_n_u16(0));
+    uint16x8_t result_u16x8 = vbslq_u16(exponent_zero_mask_u16x8, subnormal_u16x8, normal_u16x8);
 
     return vreinterpretq_f16_u16(result_u16x8);
 }
@@ -380,8 +381,8 @@ NK_INTERNAL void nk_e2m3x16_to_f16x8x2_neon_(uint8x16_t input_u8x16, float16x8_t
     // Low bytes via arithmetic: (exp != 0) ? (bit0 << 7) : 0
     // This uses shift/logic ports instead of permute port, and frees 4 registers
     uint8x16_t shifted_u8x16 = vshlq_n_u8(input_u8x16, 7);                 // bit 0 → bit 7
-    uint8x16_t exp_bits_u8x16 = vandq_u8(input_u8x16, vdupq_n_u8(0x18));   // isolate exp (bits 4-3)
-    uint8x16_t is_normal_u8x16 = vcgtq_u8(exp_bits_u8x16, vdupq_n_u8(0));  // 0xFF if exp≠0
+    uint8x16_t exponent_u8x16 = vandq_u8(input_u8x16, vdupq_n_u8(0x18));   // isolate exp (bits 4-3)
+    uint8x16_t is_normal_u8x16 = vcgtq_u8(exponent_u8x16, vdupq_n_u8(0));  // 0xFF if exp≠0
     uint8x16_t low_bytes_u8x16 = vandq_u8(shifted_u8x16, is_normal_u8x16); // mask off subnormals
 
     // ZIP to interleave bytes into uint16 values: [l0,l1...l15] + [h0,h1...h15] → [l0,h0,l1,h1...]
@@ -445,42 +446,43 @@ NK_INTERNAL void nk_e3m2x16_to_f16x8x2_neon_(uint8x16_t input_u8x16, float16x8_t
 NK_INTERNAL uint8x8_t nk_f16x8_to_e4m3x8_neon_(float16x8_t f16x8) {
     uint16x8_t bits_u16x8 = vreinterpretq_u16_f16(f16x8);
     uint16x8_t sign_byte_u16x8 = vshrq_n_u16(vandq_u16(bits_u16x8, vdupq_n_u16(0x8000)), 8);
-    uint16x8_t f16_exp_u16x8 = vandq_u16(vshrq_n_u16(bits_u16x8, 10), vdupq_n_u16(0x1F));
-    uint16x8_t f16_mant_u16x8 = vandq_u16(bits_u16x8, vdupq_n_u16(0x03FF));
+    uint16x8_t f16_exponent_u16x8 = vandq_u16(vshrq_n_u16(bits_u16x8, 10), vdupq_n_u16(0x1F));
+    uint16x8_t f16_mantissa_u16x8 = vandq_u16(bits_u16x8, vdupq_n_u16(0x03FF));
 
     // Rebias exponent: F16 bias=15 → E4M3 bias=7, subtract 8
-    int16x8_t e4m3_exp_i16x8 = vsubq_s16(vreinterpretq_s16_u16(f16_exp_u16x8), vdupq_n_s16(8));
+    int16x8_t e4m3_exponent_i16x8 = vsubq_s16(vreinterpretq_s16_u16(f16_exponent_u16x8), vdupq_n_s16(8));
 
     // Detect special cases
     uint16x8_t is_f16_zero_u16x8 = vceqq_u16(vandq_u16(bits_u16x8, vdupq_n_u16(0x7FFF)), vdupq_n_u16(0));
-    uint16x8_t is_f16_special_u16x8 = vceqq_u16(f16_exp_u16x8, vdupq_n_u16(31)); // inf or nan
-    uint16x8_t is_f16_nan_u16x8 = vandq_u16(is_f16_special_u16x8, vcgtq_u16(f16_mant_u16x8, vdupq_n_u16(0)));
-    uint16x8_t is_underflow_u16x8 = vcltq_s16(e4m3_exp_i16x8, vdupq_n_s16(1)); // exp < 1 → subnormal/zero
-    uint16x8_t is_overflow_u16x8 = vcgtq_s16(e4m3_exp_i16x8, vdupq_n_s16(15)); // exp > 15 → overflow
+    uint16x8_t is_f16_special_u16x8 = vceqq_u16(f16_exponent_u16x8, vdupq_n_u16(31)); // inf or nan
+    uint16x8_t is_f16_nan_u16x8 = vandq_u16(is_f16_special_u16x8, vcgtq_u16(f16_mantissa_u16x8, vdupq_n_u16(0)));
+    uint16x8_t is_underflow_u16x8 = vcltq_s16(e4m3_exponent_i16x8, vdupq_n_s16(1)); // exp < 1 → subnormal/zero
+    uint16x8_t is_overflow_u16x8 = vcgtq_s16(e4m3_exponent_i16x8, vdupq_n_s16(15)); // exp > 15 → overflow
 
     // Normal path with RNE rounding: round mantissa from 10 to 3 bits
     // RNE: add (0x3F + lsb) where lsb = bit 7 of mantissa
-    uint16x8_t lsb_u16x8 = vandq_u16(vshrq_n_u16(f16_mant_u16x8, 7), vdupq_n_u16(1));
-    uint16x8_t rounded_mant_u16x8 = vaddq_u16(f16_mant_u16x8, vaddq_u16(vdupq_n_u16(0x3F), lsb_u16x8));
-    uint16x8_t carry_u16x8 = vshrq_n_u16(rounded_mant_u16x8, 10); // Mantissa overflow → carry to exponent
-    e4m3_exp_i16x8 = vaddq_s16(e4m3_exp_i16x8, vreinterpretq_s16_u16(carry_u16x8));
-    uint16x8_t e4m3_mant_u16x8 = vandq_u16(vshrq_n_u16(rounded_mant_u16x8, 7), vdupq_n_u16(0x07));
-    e4m3_mant_u16x8 = vbicq_u16(e4m3_mant_u16x8, vceqq_u16(carry_u16x8, vdupq_n_u16(1))); // Clear mant if carry
+    uint16x8_t lsb_u16x8 = vandq_u16(vshrq_n_u16(f16_mantissa_u16x8, 7), vdupq_n_u16(1));
+    uint16x8_t rounded_mantissa_u16x8 = vaddq_u16(f16_mantissa_u16x8, vaddq_u16(vdupq_n_u16(0x3F), lsb_u16x8));
+    uint16x8_t carry_u16x8 = vshrq_n_u16(rounded_mantissa_u16x8, 10); // Mantissa overflow → carry to exponent
+    e4m3_exponent_i16x8 = vaddq_s16(e4m3_exponent_i16x8, vreinterpretq_s16_u16(carry_u16x8));
+    uint16x8_t e4m3_mantissa_u16x8 = vandq_u16(vshrq_n_u16(rounded_mantissa_u16x8, 7), vdupq_n_u16(0x07));
+    e4m3_mantissa_u16x8 = vbicq_u16(e4m3_mantissa_u16x8, vceqq_u16(carry_u16x8, vdupq_n_u16(1))); // Clear mant if carry
 
     // Recheck overflow after rounding (carry might have pushed us over)
-    is_overflow_u16x8 = vorrq_u16(is_overflow_u16x8, vcgtq_s16(e4m3_exp_i16x8, vdupq_n_s16(15)));
+    is_overflow_u16x8 = vorrq_u16(is_overflow_u16x8, vcgtq_s16(e4m3_exponent_i16x8, vdupq_n_s16(15)));
 
     // Clamp exponent to [1, 15] for normal values
-    int16x8_t clamped_exp_i16x8 = vmaxq_s16(e4m3_exp_i16x8, vdupq_n_s16(1));
-    clamped_exp_i16x8 = vminq_s16(clamped_exp_i16x8, vdupq_n_s16(15));
+    int16x8_t clamped_exponent_i16x8 = vmaxq_s16(e4m3_exponent_i16x8, vdupq_n_s16(1));
+    clamped_exponent_i16x8 = vminq_s16(clamped_exponent_i16x8, vdupq_n_s16(15));
 
     // E4M3FN quirk: exp=15, mant=7 is NaN, so clamp mantissa to 6 when exp=15
-    uint16x8_t is_max_exp_u16x8 = vceqq_s16(clamped_exp_i16x8, vdupq_n_s16(15));
-    e4m3_mant_u16x8 = vbslq_u16(is_max_exp_u16x8, vminq_u16(e4m3_mant_u16x8, vdupq_n_u16(6)), e4m3_mant_u16x8);
+    uint16x8_t is_max_exponent_u16x8 = vceqq_s16(clamped_exponent_i16x8, vdupq_n_s16(15));
+    e4m3_mantissa_u16x8 = vbslq_u16(is_max_exponent_u16x8, vminq_u16(e4m3_mantissa_u16x8, vdupq_n_u16(6)),
+                                    e4m3_mantissa_u16x8);
 
     // Assemble normal result
     uint16x8_t normal_result_u16x8 = vorrq_u16(
-        sign_byte_u16x8, vorrq_u16(vshlq_n_u16(vreinterpretq_u16_s16(clamped_exp_i16x8), 3), e4m3_mant_u16x8));
+        sign_byte_u16x8, vorrq_u16(vshlq_n_u16(vreinterpretq_u16_s16(clamped_exponent_i16x8), 3), e4m3_mantissa_u16x8));
 
     // Subnormal path: E4M3 subnormal = mant × 2⁻⁹
     // Use float conversion for correctness: abs(f16) × 512, round to int, clamp to [0,7]
@@ -494,9 +496,9 @@ NK_INTERNAL uint8x8_t nk_f16x8_to_e4m3x8_neon_(float16x8_t f16x8) {
     subnormal_mantissa_high_i32x4 = vmaxq_s32(vminq_s32(subnormal_mantissa_high_i32x4, vdupq_n_s32(7)), vdupq_n_s32(0));
     int16x4_t subnormal_mantissa_low_i16x4 = vmovn_s32(subnormal_mantissa_low_i32x4);
     int16x4_t subnormal_mantissa_high_i16x4 = vmovn_s32(subnormal_mantissa_high_i32x4);
-    uint16x8_t subnormal_mant_u16x8 = vreinterpretq_u16_s16(
+    uint16x8_t subnormal_mantissa_u16x8 = vreinterpretq_u16_s16(
         vcombine_s16(subnormal_mantissa_low_i16x4, subnormal_mantissa_high_i16x4));
-    uint16x8_t subnormal_result_u16x8 = vorrq_u16(sign_byte_u16x8, subnormal_mant_u16x8);
+    uint16x8_t subnormal_result_u16x8 = vorrq_u16(sign_byte_u16x8, subnormal_mantissa_u16x8);
 
     // Special values: E4M3FN has no ∞, max normal = 0x7E (exp=15, mant=6 = 448)
     uint16x8_t e4m3_max_u16x8 = vorrq_u16(sign_byte_u16x8, vdupq_n_u16(0x7E)); // ±448 (exp=15, mant=6)
@@ -522,20 +524,20 @@ NK_INTERNAL uint8x8_t nk_f16x8_to_e5m2x8_neon_(float16x8_t f16x8) {
     uint16x8_t bits_u16x8 = vreinterpretq_u16_f16(f16x8);
 
     // Detect inf/nan (exp=31) - these should not be rounded, just truncated
-    uint16x8_t exp_u16x8 = vandq_u16(vshrq_n_u16(bits_u16x8, 10), vdupq_n_u16(0x1F));
-    uint16x8_t is_special_mask_u16x8 = vceqq_u16(exp_u16x8, vdupq_n_u16(31));
+    uint16x8_t exponent_u16x8 = vandq_u16(vshrq_n_u16(bits_u16x8, 10), vdupq_n_u16(0x1F));
+    uint16x8_t is_special_mask_u16x8 = vceqq_u16(exponent_u16x8, vdupq_n_u16(31));
 
     // RNE rounding: add (0x7F + lsb) where lsb = bit 8 of F16
     // This rounds the lower 8 bits correctly and may carry into exponent
     uint16x8_t lsb_u16x8 = vandq_u16(vshrq_n_u16(bits_u16x8, 8), vdupq_n_u16(1));
     uint16x8_t rounding_bias_u16x8 = vaddq_u16(vdupq_n_u16(0x7F), lsb_u16x8);
-    uint16x8_t rounded_bits_u16x8 = vaddq_u16(bits_u16x8, rounding_bias_u16x8);
+    uint16x8_t rounded_u16x8 = vaddq_u16(bits_u16x8, rounding_bias_u16x8);
 
     // For special values (inf/nan), use original bits without rounding
-    uint16x8_t final_bits_u16x8 = vbslq_u16(is_special_mask_u16x8, bits_u16x8, rounded_bits_u16x8);
+    uint16x8_t final_u16x8 = vbslq_u16(is_special_mask_u16x8, bits_u16x8, rounded_u16x8);
 
     // Shift right by 8 to get E5M2 format
-    uint16x8_t e5m2_u16x8 = vshrq_n_u16(final_bits_u16x8, 8);
+    uint16x8_t e5m2_u16x8 = vshrq_n_u16(final_u16x8, 8);
     return vmovn_u16(e5m2_u16x8);
 }
 
@@ -563,30 +565,31 @@ NK_INTERNAL uint16x4_t nk_f32x4_to_bf16x4_neon_(float32x4_t f32x4) {
 NK_INTERNAL uint16x8_t nk_e4m3x8_to_bf16x8_neon_(uint8x8_t e4m3_u8x8) {
     uint16x8_t e4m3_u16x8 = vmovl_u8(e4m3_u8x8);
     uint16x8_t sign_u16x8 = vshlq_n_u16(vandq_u16(e4m3_u16x8, vdupq_n_u16(0x80)), 8); // sign << 15
-    uint16x8_t exp_u16x8 = vandq_u16(vshrq_n_u16(e4m3_u16x8, 3), vdupq_n_u16(0x0F));
-    uint16x8_t mant_u16x8 = vandq_u16(e4m3_u16x8, vdupq_n_u16(0x07));
+    uint16x8_t exponent_u16x8 = vandq_u16(vshrq_n_u16(e4m3_u16x8, 3), vdupq_n_u16(0x0F));
+    uint16x8_t mantissa_u16x8 = vandq_u16(e4m3_u16x8, vdupq_n_u16(0x07));
 
     // Normal path: BF16_exp = E4M3_exp + 120, BF16_mant = E4M3_mant << 4
-    uint16x8_t bf16_exp_u16x8 = vshlq_n_u16(vaddq_u16(exp_u16x8, vdupq_n_u16(120)), 7);
-    uint16x8_t bf16_mant_u16x8 = vshlq_n_u16(mant_u16x8, 4);
-    uint16x8_t normal_u16x8 = vorrq_u16(sign_u16x8, vorrq_u16(bf16_exp_u16x8, bf16_mant_u16x8));
+    uint16x8_t bf16_exponent_u16x8 = vshlq_n_u16(vaddq_u16(exponent_u16x8, vdupq_n_u16(120)), 7);
+    uint16x8_t bf16_mantissa_u16x8 = vshlq_n_u16(mantissa_u16x8, 4);
+    uint16x8_t normal_u16x8 = vorrq_u16(sign_u16x8, vorrq_u16(bf16_exponent_u16x8, bf16_mantissa_u16x8));
 
     // Subnormal path (exp=0): E4M3 subnormal = mant × 2⁻⁹ = mant ÷ 512 → BF16
     // Compute via f32: mant → f32 → multiply → truncate to bf16
-    float32x4_t subnormal_low_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_u16(vget_low_u16(mant_u16x8))), 1.0f / 512.0f);
-    float32x4_t subnormal_high_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_high_u16(mant_u16x8)), 1.0f / 512.0f);
+    float32x4_t subnormal_low_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_u16(vget_low_u16(mantissa_u16x8))),
+                                                  1.0f / 512.0f);
+    float32x4_t subnormal_high_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_high_u16(mantissa_u16x8)), 1.0f / 512.0f);
     uint16x8_t subnormal_abs_u16x8 = vcombine_u16(nk_f32x4_to_bf16x4_neon_(subnormal_low_f32x4),
                                                   nk_f32x4_to_bf16x4_neon_(subnormal_high_f32x4));
     uint16x8_t subnormal_u16x8 = vorrq_u16(subnormal_abs_u16x8, sign_u16x8);
 
     // NaN path: E4M3FN only has NaN when exp=15 AND mant=7 (0x7F or 0xFF)
     uint16x8_t nan_u16x8 = vorrq_u16(sign_u16x8, vdupq_n_u16(0x7FC0)); // BF16 quiet NaN
-    uint16x8_t is_nan_mask_u16x8 = vandq_u16(vceqq_u16(exp_u16x8, vdupq_n_u16(15)),
-                                             vceqq_u16(mant_u16x8, vdupq_n_u16(7)));
+    uint16x8_t is_nan_mask_u16x8 = vandq_u16(vceqq_u16(exponent_u16x8, vdupq_n_u16(15)),
+                                             vceqq_u16(mantissa_u16x8, vdupq_n_u16(7)));
 
     // Blend paths: subnormal when exp=0, NaN when exp=15 && mant=7, else normal
-    uint16x8_t exp_zero_mask_u16x8 = vceqq_u16(exp_u16x8, vdupq_n_u16(0));
-    uint16x8_t result_u16x8 = vbslq_u16(exp_zero_mask_u16x8, subnormal_u16x8, normal_u16x8);
+    uint16x8_t exponent_zero_mask_u16x8 = vceqq_u16(exponent_u16x8, vdupq_n_u16(0));
+    uint16x8_t result_u16x8 = vbslq_u16(exponent_zero_mask_u16x8, subnormal_u16x8, normal_u16x8);
     result_u16x8 = vbslq_u16(is_nan_mask_u16x8, nan_u16x8, result_u16x8);
     return result_u16x8;
 }
@@ -597,18 +600,19 @@ NK_INTERNAL uint16x8_t nk_e4m3x8_to_bf16x8_neon_(uint8x8_t e4m3_u8x8) {
 NK_INTERNAL uint16x8_t nk_e5m2x8_to_bf16x8_neon_(uint8x8_t e5m2_u8x8) {
     uint16x8_t e5m2_u16x8 = vmovl_u8(e5m2_u8x8);
     uint16x8_t sign_u16x8 = vshlq_n_u16(vandq_u16(e5m2_u16x8, vdupq_n_u16(0x80)), 8); // sign << 15
-    uint16x8_t exp_u16x8 = vandq_u16(vshrq_n_u16(e5m2_u16x8, 2), vdupq_n_u16(0x1F));
-    uint16x8_t mant_u16x8 = vandq_u16(e5m2_u16x8, vdupq_n_u16(0x03));
+    uint16x8_t exponent_u16x8 = vandq_u16(vshrq_n_u16(e5m2_u16x8, 2), vdupq_n_u16(0x1F));
+    uint16x8_t mantissa_u16x8 = vandq_u16(e5m2_u16x8, vdupq_n_u16(0x03));
 
     // Normal path: BF16_exp = E5M2_exp + 112, BF16_mant = E5M2_mant << 5
-    uint16x8_t bf16_exp_u16x8 = vshlq_n_u16(vaddq_u16(exp_u16x8, vdupq_n_u16(112)), 7);
-    uint16x8_t bf16_mant_u16x8 = vshlq_n_u16(mant_u16x8, 5);
-    uint16x8_t normal_u16x8 = vorrq_u16(sign_u16x8, vorrq_u16(bf16_exp_u16x8, bf16_mant_u16x8));
+    uint16x8_t bf16_exponent_u16x8 = vshlq_n_u16(vaddq_u16(exponent_u16x8, vdupq_n_u16(112)), 7);
+    uint16x8_t bf16_mantissa_u16x8 = vshlq_n_u16(mantissa_u16x8, 5);
+    uint16x8_t normal_u16x8 = vorrq_u16(sign_u16x8, vorrq_u16(bf16_exponent_u16x8, bf16_mantissa_u16x8));
 
     // Subnormal path (exp=0): E5M2 subnormal = mant × 2⁻¹⁶ = mant ÷ 65536 → BF16
     // Compute via f32: mant → f32 → multiply → truncate to bf16
-    float32x4_t subnormal_low_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_u16(vget_low_u16(mant_u16x8))), 1.0f / 65536.0f);
-    float32x4_t subnormal_high_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_high_u16(mant_u16x8)), 1.0f / 65536.0f);
+    float32x4_t subnormal_low_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_u16(vget_low_u16(mantissa_u16x8))),
+                                                  1.0f / 65536.0f);
+    float32x4_t subnormal_high_f32x4 = vmulq_n_f32(vcvtq_f32_u32(vmovl_high_u16(mantissa_u16x8)), 1.0f / 65536.0f);
     uint16x8_t subnormal_abs_u16x8 = vcombine_u16(nk_f32x4_to_bf16x4_neon_(subnormal_low_f32x4),
                                                   nk_f32x4_to_bf16x4_neon_(subnormal_high_f32x4));
     uint16x8_t subnormal_u16x8 = vorrq_u16(subnormal_abs_u16x8, sign_u16x8);
@@ -616,14 +620,14 @@ NK_INTERNAL uint16x8_t nk_e5m2x8_to_bf16x8_neon_(uint8x8_t e5m2_u8x8) {
     // Special path (exp=31): inf (mant=0) or nan (mant≠0)
     uint16x8_t infinity_u16x8 = vorrq_u16(sign_u16x8, vdupq_n_u16(0x7F80));
     uint16x8_t nan_u16x8 = vorrq_u16(sign_u16x8, vdupq_n_u16(0x7FC0));
-    uint16x8_t mant_zero_mask_u16x8 = vceqq_u16(mant_u16x8, vdupq_n_u16(0));
-    uint16x8_t special_u16x8 = vbslq_u16(mant_zero_mask_u16x8, infinity_u16x8, nan_u16x8);
+    uint16x8_t mantissa_zero_mask_u16x8 = vceqq_u16(mantissa_u16x8, vdupq_n_u16(0));
+    uint16x8_t special_u16x8 = vbslq_u16(mantissa_zero_mask_u16x8, infinity_u16x8, nan_u16x8);
 
     // Blend paths based on exponent value
-    uint16x8_t exp_zero_mask_u16x8 = vceqq_u16(exp_u16x8, vdupq_n_u16(0));
-    uint16x8_t exp_max_mask_u16x8 = vceqq_u16(exp_u16x8, vdupq_n_u16(31));
-    uint16x8_t result_u16x8 = vbslq_u16(exp_zero_mask_u16x8, subnormal_u16x8, normal_u16x8);
-    result_u16x8 = vbslq_u16(exp_max_mask_u16x8, special_u16x8, result_u16x8);
+    uint16x8_t exponent_zero_mask_u16x8 = vceqq_u16(exponent_u16x8, vdupq_n_u16(0));
+    uint16x8_t exponent_max_mask_u16x8 = vceqq_u16(exponent_u16x8, vdupq_n_u16(31));
+    uint16x8_t result_u16x8 = vbslq_u16(exponent_zero_mask_u16x8, subnormal_u16x8, normal_u16x8);
+    result_u16x8 = vbslq_u16(exponent_max_mask_u16x8, special_u16x8, result_u16x8);
     return result_u16x8;
 }
 
@@ -635,47 +639,47 @@ NK_INTERNAL float32x4_t nk_u16x4_to_f32x4_neon_(uint16x4_t u16x4) { return vcvtq
 
 /** @brief Convert 4x i8 → f32x4 (NEON). Loads exactly 4 bytes via nk_b32_vec_t to avoid overread. */
 NK_INTERNAL float32x4_t nk_i8x4_to_f32x4_neon_(nk_b32_vec_t in_vec) {
-    int8x8_t i8x8 = vcreate_s8((nk_u64_t)in_vec.u32);
-    int16x8_t i16x8 = vmovl_s8(i8x8);
-    return vcvtq_f32_s32(vmovl_s16(vget_low_s16(i16x8)));
+    int8x8_t in_i8x8 = vcreate_s8((nk_u64_t)in_vec.u32);
+    int16x8_t wide_i16x8 = vmovl_s8(in_i8x8);
+    return vcvtq_f32_s32(vmovl_s16(vget_low_s16(wide_i16x8)));
 }
 
 /** @brief Convert 4x u8 → f32x4 (NEON). Loads exactly 4 bytes via nk_b32_vec_t to avoid overread. */
 NK_INTERNAL float32x4_t nk_u8x4_to_f32x4_neon_(nk_b32_vec_t in_vec) {
-    uint8x8_t u8x8 = vcreate_u8((nk_u64_t)in_vec.u32);
-    uint16x8_t u16x8 = vmovl_u8(u8x8);
-    return vcvtq_f32_u32(vmovl_u16(vget_low_u16(u16x8)));
+    uint8x8_t in_u8x8 = vcreate_u8((nk_u64_t)in_vec.u32);
+    uint16x8_t wide_u16x8 = vmovl_u8(in_u8x8);
+    return vcvtq_f32_u32(vmovl_u16(vget_low_u16(wide_u16x8)));
 }
 
 /** @brief Convert f32x4 → 4x i16 with saturation (NEON). Convert to i32, narrow. */
 NK_INTERNAL int16x4_t nk_f32x4_to_i16x4_neon_(float32x4_t f32x4) {
-    int32x4_t i32x4 = vcvtnq_s32_f32(f32x4);
-    return vqmovn_s32(i32x4);
+    int32x4_t wide_i32x4 = vcvtnq_s32_f32(f32x4);
+    return vqmovn_s32(wide_i32x4);
 }
 
 /** @brief Convert f32x4 → 4x u16 with saturation (NEON). Convert to u32, narrow. */
 NK_INTERNAL uint16x4_t nk_f32x4_to_u16x4_neon_(float32x4_t f32x4) {
-    uint32x4_t u32x4 = vcvtnq_u32_f32(f32x4);
-    return vqmovn_u32(u32x4);
+    uint32x4_t wide_u32x4 = vcvtnq_u32_f32(f32x4);
+    return vqmovn_u32(wide_u32x4);
 }
 
 /** @brief Convert f32x4 → 4x i8 with saturation (NEON). Convert to i32, narrow twice. */
 NK_INTERNAL nk_b32_vec_t nk_f32x4_to_i8x4_neon_(float32x4_t f32x4) {
-    int32x4_t i32x4 = vcvtnq_s32_f32(f32x4);
-    int16x4_t i16x4 = vqmovn_s32(i32x4);
-    int8x8_t i8x8 = vqmovn_s16(vcombine_s16(i16x4, i16x4));
+    int32x4_t wide_i32x4 = vcvtnq_s32_f32(f32x4);
+    int16x4_t narrow_i16x4 = vqmovn_s32(wide_i32x4);
+    int8x8_t packed_i8x8 = vqmovn_s16(vcombine_s16(narrow_i16x4, narrow_i16x4));
     nk_b32_vec_t result_vec;
-    result_vec.u32 = vget_lane_u32(vreinterpret_u32_s8(i8x8), 0);
+    result_vec.u32 = vget_lane_u32(vreinterpret_u32_s8(packed_i8x8), 0);
     return result_vec;
 }
 
 /** @brief Convert f32x4 → 4x u8 with saturation (NEON). Convert to u32, narrow twice. */
 NK_INTERNAL nk_b32_vec_t nk_f32x4_to_u8x4_neon_(float32x4_t f32x4) {
-    uint32x4_t u32x4 = vcvtnq_u32_f32(f32x4);
-    uint16x4_t u16x4 = vqmovn_u32(u32x4);
-    uint8x8_t u8x8 = vqmovn_u16(vcombine_u16(u16x4, u16x4));
+    uint32x4_t wide_u32x4 = vcvtnq_u32_f32(f32x4);
+    uint16x4_t narrow_u16x4 = vqmovn_u32(wide_u32x4);
+    uint8x8_t packed_u8x8 = vqmovn_u16(vcombine_u16(narrow_u16x4, narrow_u16x4));
     nk_b32_vec_t result_vec;
-    result_vec.u32 = vget_lane_u32(vreinterpret_u32_u8(u8x8), 0);
+    result_vec.u32 = vget_lane_u32(vreinterpret_u32_u8(packed_u8x8), 0);
     return result_vec;
 }
 
@@ -685,7 +689,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_u8x4_neon_(float32x4_t f32x4) {
 NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e4m3x4_neon_(float32x4_t f32x4) {
     uint32x4_t bits_u32x4 = vreinterpretq_u32_f32(f32x4);
     uint32x4_t sign_u32x4 = vshrq_n_u32(bits_u32x4, 31);
-    uint32x4_t f32_exp_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 23), vdupq_n_u32(0xFF));
+    uint32x4_t f32_exponent_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 23), vdupq_n_u32(0xFF));
 
     // Round mantissa from 23 to 3 bits using RNE (round to nearest, ties to even)
     // RNE trick: add (half - 1 + lsb) where lsb is the bit that will become the new lsb after shift
@@ -701,24 +705,24 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e4m3x4_neon_(float32x4_t f32x4) {
     f32_mantissa_u32x4 = vbicq_u32(f32_mantissa_u32x4, carry_mask_u32x4);
 
     // Rebias exponent: f32 bias 127 → e4m3 bias 7 (subtract 120)
-    int32x4_t e4m3_exp_i32x4 = vsubq_s32(
-        vaddq_s32(vreinterpretq_s32_u32(f32_exp_u32x4), vreinterpretq_s32_u32(carry_u32x4)), vdupq_n_s32(120));
+    int32x4_t e4m3_exponent_i32x4 = vsubq_s32(
+        vaddq_s32(vreinterpretq_s32_u32(f32_exponent_u32x4), vreinterpretq_s32_u32(carry_u32x4)), vdupq_n_s32(120));
 
     // Detect underflow (exp <= 0, maps to subnormal/zero) and overflow (exp > 15)
-    uint32x4_t is_subnormal_u32x4 = vcltq_s32(e4m3_exp_i32x4, vdupq_n_s32(1));
-    uint32x4_t overflow_u32x4 = vcgtq_s32(e4m3_exp_i32x4, vdupq_n_s32(15));
+    uint32x4_t is_subnormal_u32x4 = vcltq_s32(e4m3_exponent_i32x4, vdupq_n_s32(1));
+    uint32x4_t overflow_u32x4 = vcgtq_s32(e4m3_exponent_i32x4, vdupq_n_s32(15));
 
     // Normal path: clamp exp to [1,15], extract mantissa bits
     // e4m3FN quirk: exp=15 with mantissa=7 is NaN (0x7F), so clamp mantissa to 6 when exp=15.
-    int32x4_t clamped_exp_i32x4 = vmaxq_s32(e4m3_exp_i32x4, vdupq_n_s32(1));
-    clamped_exp_i32x4 = vminq_s32(clamped_exp_i32x4, vdupq_n_s32(15));
-    uint32x4_t is_max_exp_u32x4 = vceqq_s32(clamped_exp_i32x4, vdupq_n_s32(15));
-    uint32x4_t max_mantissa_u32x4 = vbslq_u32(is_max_exp_u32x4, vdupq_n_u32(6), vdupq_n_u32(7));
+    int32x4_t clamped_exponent_i32x4 = vmaxq_s32(e4m3_exponent_i32x4, vdupq_n_s32(1));
+    clamped_exponent_i32x4 = vminq_s32(clamped_exponent_i32x4, vdupq_n_s32(15));
+    uint32x4_t is_max_exponent_u32x4 = vceqq_s32(clamped_exponent_i32x4, vdupq_n_s32(15));
+    uint32x4_t max_mantissa_u32x4 = vbslq_u32(is_max_exponent_u32x4, vdupq_n_u32(6), vdupq_n_u32(7));
     uint32x4_t normal_mantissa_u32x4 = vminq_u32(f32_mantissa_u32x4, max_mantissa_u32x4);
     normal_mantissa_u32x4 = vbslq_u32(overflow_u32x4, vdupq_n_u32(0x06), normal_mantissa_u32x4);
     uint32x4_t normal_e4m3_u32x4 = vorrq_u32(
         vshlq_n_u32(sign_u32x4, 7),
-        vorrq_u32(vshlq_n_u32(vreinterpretq_u32_s32(clamped_exp_i32x4), 3), normal_mantissa_u32x4));
+        vorrq_u32(vshlq_n_u32(vreinterpretq_u32_s32(clamped_exponent_i32x4), 3), normal_mantissa_u32x4));
 
     // Subnormal path: mantissa = round(abs_f32 * 512)
     // If mantissa rounds to 8 or higher, promote to first normal (exp_field=1, mantissa=0) = 0x08
@@ -751,7 +755,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e4m3x4_neon_(float32x4_t f32x4) {
 NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e5m2x4_neon_(float32x4_t f32x4) {
     uint32x4_t bits_u32x4 = vreinterpretq_u32_f32(f32x4);
     uint32x4_t sign_u32x4 = vshrq_n_u32(bits_u32x4, 31);
-    uint32x4_t f32_exp_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 23), vdupq_n_u32(0xFF));
+    uint32x4_t f32_exponent_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 23), vdupq_n_u32(0xFF));
 
     // Round mantissa from 23 to 2 bits using RNE (round to nearest, ties to even)
     // RNE trick: add (half - 1 + lsb) where lsb is the bit that will become the new lsb after shift
@@ -767,20 +771,20 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e5m2x4_neon_(float32x4_t f32x4) {
     f32_mantissa_u32x4 = vbicq_u32(f32_mantissa_u32x4, carry_mask_u32x4);
 
     // Rebias exponent: f32 bias 127 → e5m2 bias 15 (subtract 112)
-    int32x4_t e5m2_exp_i32x4 = vsubq_s32(
-        vaddq_s32(vreinterpretq_s32_u32(f32_exp_u32x4), vreinterpretq_s32_u32(carry_u32x4)), vdupq_n_s32(112));
+    int32x4_t e5m2_exponent_i32x4 = vsubq_s32(
+        vaddq_s32(vreinterpretq_s32_u32(f32_exponent_u32x4), vreinterpretq_s32_u32(carry_u32x4)), vdupq_n_s32(112));
 
     // Detect subnormal (exp <= 0) and overflow (exp > 31)
-    uint32x4_t is_subnormal_u32x4 = vcltq_s32(e5m2_exp_i32x4, vdupq_n_s32(1));
-    uint32x4_t overflow_u32x4 = vcgtq_s32(e5m2_exp_i32x4, vdupq_n_s32(31));
+    uint32x4_t is_subnormal_u32x4 = vcltq_s32(e5m2_exponent_i32x4, vdupq_n_s32(1));
+    uint32x4_t overflow_u32x4 = vcgtq_s32(e5m2_exponent_i32x4, vdupq_n_s32(31));
 
     // Normal path: clamp exp to [1,31], on overflow return infinity (exp=31, mantissa=0 = 0x7C)
-    int32x4_t clamped_exp_i32x4 = vmaxq_s32(e5m2_exp_i32x4, vdupq_n_s32(1));
-    clamped_exp_i32x4 = vminq_s32(clamped_exp_i32x4, vdupq_n_s32(31));
+    int32x4_t clamped_exponent_i32x4 = vmaxq_s32(e5m2_exponent_i32x4, vdupq_n_s32(1));
+    clamped_exponent_i32x4 = vminq_s32(clamped_exponent_i32x4, vdupq_n_s32(31));
     uint32x4_t normal_mantissa_u32x4 = vbslq_u32(overflow_u32x4, vdupq_n_u32(0), f32_mantissa_u32x4);
     uint32x4_t normal_e5m2_u32x4 = vorrq_u32(
         vshlq_n_u32(sign_u32x4, 7),
-        vorrq_u32(vshlq_n_u32(vreinterpretq_u32_s32(clamped_exp_i32x4), 2), normal_mantissa_u32x4));
+        vorrq_u32(vshlq_n_u32(vreinterpretq_u32_s32(clamped_exponent_i32x4), 2), normal_mantissa_u32x4));
 
     // Subnormal path: mantissa = round(abs_f32 * 65536)
     // If mantissa rounds to 4 or higher, promote to first normal (exp_field=1, mantissa=0) = 0x04
@@ -817,21 +821,21 @@ NK_INTERNAL float32x4_t nk_e2m3x4_to_f32x4_neon_(nk_b32_vec_t src) {
 
     // Extract sign: bit 5 → bit 31
     uint32x4_t sign_u32x4 = vshlq_n_u32(vandq_u32(e2m3_u32x4, vdupq_n_u32(0x20)), 26);
-    uint32x4_t exp_u32x4 = vandq_u32(vshrq_n_u32(e2m3_u32x4, 3), vdupq_n_u32(0x03));
-    uint32x4_t mant_u32x4 = vandq_u32(e2m3_u32x4, vdupq_n_u32(0x07));
+    uint32x4_t exponent_u32x4 = vandq_u32(vshrq_n_u32(e2m3_u32x4, 3), vdupq_n_u32(0x03));
+    uint32x4_t mantissa_u32x4 = vandq_u32(e2m3_u32x4, vdupq_n_u32(0x07));
 
     // Normal path: f32 = sign | ((exp+126)<<23) | (mant<<20)
-    uint32x4_t f32_exp_u32x4 = vshlq_n_u32(vaddq_u32(exp_u32x4, vdupq_n_u32(126)), 23);
-    uint32x4_t f32_mant_u32x4 = vshlq_n_u32(mant_u32x4, 20);
-    uint32x4_t normal_u32x4 = vorrq_u32(sign_u32x4, vorrq_u32(f32_exp_u32x4, f32_mant_u32x4));
+    uint32x4_t f32_exponent_u32x4 = vshlq_n_u32(vaddq_u32(exponent_u32x4, vdupq_n_u32(126)), 23);
+    uint32x4_t f32_mantissa_u32x4 = vshlq_n_u32(mantissa_u32x4, 20);
+    uint32x4_t normal_u32x4 = vorrq_u32(sign_u32x4, vorrq_u32(f32_exponent_u32x4, f32_mantissa_u32x4));
 
     // Subnormal path (exp=0, mant ≠ 0): value = ±mantissa × 2⁻³
-    float32x4_t subnormal_f32x4 = vmulq_n_f32(vcvtq_f32_u32(mant_u32x4), 1.0f / 8.0f);
+    float32x4_t subnormal_f32x4 = vmulq_n_f32(vcvtq_f32_u32(mantissa_u32x4), 1.0f / 8.0f);
     uint32x4_t subnormal_u32x4 = vorrq_u32(vreinterpretq_u32_f32(subnormal_f32x4), sign_u32x4);
 
     // Blend paths: subnormal when exp=0, else normal
-    uint32x4_t exp_zero_mask_u32x4 = vceqq_u32(exp_u32x4, vdupq_n_u32(0));
-    uint32x4_t result_u32x4 = vbslq_u32(exp_zero_mask_u32x4, subnormal_u32x4, normal_u32x4);
+    uint32x4_t exponent_zero_mask_u32x4 = vceqq_u32(exponent_u32x4, vdupq_n_u32(0));
+    uint32x4_t result_u32x4 = vbslq_u32(exponent_zero_mask_u32x4, subnormal_u32x4, normal_u32x4);
     return vreinterpretq_f32_u32(result_u32x4);
 }
 
@@ -845,21 +849,21 @@ NK_INTERNAL float32x4_t nk_e3m2x4_to_f32x4_neon_(nk_b32_vec_t src) {
 
     // Extract sign: bit 5 → bit 31
     uint32x4_t sign_u32x4 = vshlq_n_u32(vandq_u32(e3m2_u32x4, vdupq_n_u32(0x20)), 26);
-    uint32x4_t exp_u32x4 = vandq_u32(vshrq_n_u32(e3m2_u32x4, 2), vdupq_n_u32(0x07));
-    uint32x4_t mant_u32x4 = vandq_u32(e3m2_u32x4, vdupq_n_u32(0x03));
+    uint32x4_t exponent_u32x4 = vandq_u32(vshrq_n_u32(e3m2_u32x4, 2), vdupq_n_u32(0x07));
+    uint32x4_t mantissa_u32x4 = vandq_u32(e3m2_u32x4, vdupq_n_u32(0x03));
 
     // Normal path: f32 = sign | ((exp+124)<<23) | (mant<<21)
-    uint32x4_t f32_exp_u32x4 = vshlq_n_u32(vaddq_u32(exp_u32x4, vdupq_n_u32(124)), 23);
-    uint32x4_t f32_mant_u32x4 = vshlq_n_u32(mant_u32x4, 21);
-    uint32x4_t normal_u32x4 = vorrq_u32(sign_u32x4, vorrq_u32(f32_exp_u32x4, f32_mant_u32x4));
+    uint32x4_t f32_exponent_u32x4 = vshlq_n_u32(vaddq_u32(exponent_u32x4, vdupq_n_u32(124)), 23);
+    uint32x4_t f32_mantissa_u32x4 = vshlq_n_u32(mantissa_u32x4, 21);
+    uint32x4_t normal_u32x4 = vorrq_u32(sign_u32x4, vorrq_u32(f32_exponent_u32x4, f32_mantissa_u32x4));
 
     // Subnormal path (exp=0, mant ≠ 0): value = ±mantissa × 2⁻⁴
-    float32x4_t subnormal_f32x4 = vmulq_n_f32(vcvtq_f32_u32(mant_u32x4), 1.0f / 16.0f);
+    float32x4_t subnormal_f32x4 = vmulq_n_f32(vcvtq_f32_u32(mantissa_u32x4), 1.0f / 16.0f);
     uint32x4_t subnormal_u32x4 = vorrq_u32(vreinterpretq_u32_f32(subnormal_f32x4), sign_u32x4);
 
     // Blend paths: subnormal when exp=0, else normal
-    uint32x4_t exp_zero_mask_u32x4 = vceqq_u32(exp_u32x4, vdupq_n_u32(0));
-    uint32x4_t result_u32x4 = vbslq_u32(exp_zero_mask_u32x4, subnormal_u32x4, normal_u32x4);
+    uint32x4_t exponent_zero_mask_u32x4 = vceqq_u32(exponent_u32x4, vdupq_n_u32(0));
+    uint32x4_t result_u32x4 = vbslq_u32(exponent_zero_mask_u32x4, subnormal_u32x4, normal_u32x4);
     return vreinterpretq_f32_u32(result_u32x4);
 }
 
@@ -869,7 +873,7 @@ NK_INTERNAL float32x4_t nk_e3m2x4_to_f32x4_neon_(nk_b32_vec_t src) {
 NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e2m3x4_neon_(float32x4_t f32x4) {
     uint32x4_t bits_u32x4 = vreinterpretq_u32_f32(f32x4);
     uint32x4_t sign_u32x4 = vshrq_n_u32(bits_u32x4, 31);
-    uint32x4_t f32_exp_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 23), vdupq_n_u32(0xFF));
+    uint32x4_t f32_exponent_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 23), vdupq_n_u32(0xFF));
 
     // Round mantissa from 23 to 3 bits using RNE (round to nearest, ties to even)
     uint32x4_t significand_u32x4 = vorrq_u32(vandq_u32(bits_u32x4, vdupq_n_u32(0x007FFFFF)),
@@ -884,20 +888,20 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e2m3x4_neon_(float32x4_t f32x4) {
     f32_mantissa_u32x4 = vbicq_u32(f32_mantissa_u32x4, carry_mask_u32x4);
 
     // Rebias exponent: f32 bias 127 → e2m3 bias 1 (subtract 126)
-    int32x4_t e2m3_exp_i32x4 = vsubq_s32(
-        vaddq_s32(vreinterpretq_s32_u32(f32_exp_u32x4), vreinterpretq_s32_u32(carry_u32x4)), vdupq_n_s32(126));
+    int32x4_t e2m3_exponent_i32x4 = vsubq_s32(
+        vaddq_s32(vreinterpretq_s32_u32(f32_exponent_u32x4), vreinterpretq_s32_u32(carry_u32x4)), vdupq_n_s32(126));
 
     // Detect underflow (exp <= 0, maps to subnormal/zero) and overflow (exp > 3)
-    uint32x4_t is_subnormal_u32x4 = vcltq_s32(e2m3_exp_i32x4, vdupq_n_s32(1));
-    uint32x4_t overflow_u32x4 = vcgtq_s32(e2m3_exp_i32x4, vdupq_n_s32(3));
+    uint32x4_t is_subnormal_u32x4 = vcltq_s32(e2m3_exponent_i32x4, vdupq_n_s32(1));
+    uint32x4_t overflow_u32x4 = vcgtq_s32(e2m3_exponent_i32x4, vdupq_n_s32(3));
 
     // Normal path: clamp exp to [1,3], extract mantissa bits
-    int32x4_t clamped_exp_i32x4 = vmaxq_s32(e2m3_exp_i32x4, vdupq_n_s32(1));
-    clamped_exp_i32x4 = vminq_s32(clamped_exp_i32x4, vdupq_n_s32(3));
+    int32x4_t clamped_exponent_i32x4 = vmaxq_s32(e2m3_exponent_i32x4, vdupq_n_s32(1));
+    clamped_exponent_i32x4 = vminq_s32(clamped_exponent_i32x4, vdupq_n_s32(3));
     uint32x4_t normal_mantissa_u32x4 = vbslq_u32(overflow_u32x4, vdupq_n_u32(0x07), f32_mantissa_u32x4);
     uint32x4_t normal_e2m3_u32x4 = vorrq_u32(
         vshlq_n_u32(sign_u32x4, 5),
-        vorrq_u32(vshlq_n_u32(vreinterpretq_u32_s32(clamped_exp_i32x4), 3), normal_mantissa_u32x4));
+        vorrq_u32(vshlq_n_u32(vreinterpretq_u32_s32(clamped_exponent_i32x4), 3), normal_mantissa_u32x4));
 
     // Subnormal path: mantissa = round(abs_f32 * 8)
     // If mantissa rounds to 8 or higher, promote to first normal (exp_field=1, mantissa=0) = 0x08
@@ -930,7 +934,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e2m3x4_neon_(float32x4_t f32x4) {
 NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e3m2x4_neon_(float32x4_t f32x4) {
     uint32x4_t bits_u32x4 = vreinterpretq_u32_f32(f32x4);
     uint32x4_t sign_u32x4 = vshrq_n_u32(bits_u32x4, 31);
-    uint32x4_t f32_exp_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 23), vdupq_n_u32(0xFF));
+    uint32x4_t f32_exponent_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 23), vdupq_n_u32(0xFF));
 
     // Round mantissa from 23 to 2 bits using RNE (round to nearest, ties to even)
     uint32x4_t significand_u32x4 = vorrq_u32(vandq_u32(bits_u32x4, vdupq_n_u32(0x007FFFFF)),
@@ -945,20 +949,20 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e3m2x4_neon_(float32x4_t f32x4) {
     f32_mantissa_u32x4 = vbicq_u32(f32_mantissa_u32x4, carry_mask_u32x4);
 
     // Rebias exponent: f32 bias 127 → e3m2 bias 3 (subtract 124)
-    int32x4_t e3m2_exp_i32x4 = vsubq_s32(
-        vaddq_s32(vreinterpretq_s32_u32(f32_exp_u32x4), vreinterpretq_s32_u32(carry_u32x4)), vdupq_n_s32(124));
+    int32x4_t e3m2_exponent_i32x4 = vsubq_s32(
+        vaddq_s32(vreinterpretq_s32_u32(f32_exponent_u32x4), vreinterpretq_s32_u32(carry_u32x4)), vdupq_n_s32(124));
 
     // Detect underflow (exp <= 0, maps to subnormal/zero) and overflow (exp > 7)
-    uint32x4_t is_subnormal_u32x4 = vcltq_s32(e3m2_exp_i32x4, vdupq_n_s32(1));
-    uint32x4_t overflow_u32x4 = vcgtq_s32(e3m2_exp_i32x4, vdupq_n_s32(7));
+    uint32x4_t is_subnormal_u32x4 = vcltq_s32(e3m2_exponent_i32x4, vdupq_n_s32(1));
+    uint32x4_t overflow_u32x4 = vcgtq_s32(e3m2_exponent_i32x4, vdupq_n_s32(7));
 
     // Normal path: clamp exp to [1,7], extract mantissa bits
-    int32x4_t clamped_exp_i32x4 = vmaxq_s32(e3m2_exp_i32x4, vdupq_n_s32(1));
-    clamped_exp_i32x4 = vminq_s32(clamped_exp_i32x4, vdupq_n_s32(7));
+    int32x4_t clamped_exponent_i32x4 = vmaxq_s32(e3m2_exponent_i32x4, vdupq_n_s32(1));
+    clamped_exponent_i32x4 = vminq_s32(clamped_exponent_i32x4, vdupq_n_s32(7));
     uint32x4_t normal_mantissa_u32x4 = vbslq_u32(overflow_u32x4, vdupq_n_u32(0x03), f32_mantissa_u32x4);
     uint32x4_t normal_e3m2_u32x4 = vorrq_u32(
         vshlq_n_u32(sign_u32x4, 5),
-        vorrq_u32(vshlq_n_u32(vreinterpretq_u32_s32(clamped_exp_i32x4), 2), normal_mantissa_u32x4));
+        vorrq_u32(vshlq_n_u32(vreinterpretq_u32_s32(clamped_exponent_i32x4), 2), normal_mantissa_u32x4));
 
     // Subnormal path: mantissa = round(abs_f32 * 16)
     // If mantissa rounds to 4 or higher, promote to first normal (exp_field=1, mantissa=0) = 0x04

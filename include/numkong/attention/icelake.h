@@ -92,38 +92,38 @@ enum {
  *         group `{0,1,2,3,8,9,10,11,4,5,6,7,12,13,14,15}[i]`; the caller restores natural order at store.
  */
 NK_INTERNAL void nk_attention_transpose_i32x16x16_icelake_(__m512i const rows_i32x16[16], __m512i groups_i32x16[16]) {
-    __m512i t01_lo_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[0], rows_i32x16[1]),
-            t01_hi_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[0], rows_i32x16[1]);
-    __m512i t23_lo_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[2], rows_i32x16[3]),
-            t23_hi_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[2], rows_i32x16[3]);
-    __m512i t45_lo_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[4], rows_i32x16[5]),
-            t45_hi_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[4], rows_i32x16[5]);
-    __m512i t67_lo_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[6], rows_i32x16[7]),
-            t67_hi_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[6], rows_i32x16[7]);
-    __m512i t89_lo_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[8], rows_i32x16[9]),
-            t89_hi_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[8], rows_i32x16[9]);
-    __m512i tab_lo_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[10], rows_i32x16[11]),
-            tab_hi_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[10], rows_i32x16[11]);
-    __m512i tcd_lo_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[12], rows_i32x16[13]),
-            tcd_hi_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[12], rows_i32x16[13]);
-    __m512i tef_lo_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[14], rows_i32x16[15]),
-            tef_hi_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[14], rows_i32x16[15]);
-    __m512i u0123_ll_i32x16 = _mm512_unpacklo_epi64(t01_lo_i32x16, t23_lo_i32x16),
-            u0123_lh_i32x16 = _mm512_unpackhi_epi64(t01_lo_i32x16, t23_lo_i32x16);
-    __m512i u0123_hl_i32x16 = _mm512_unpacklo_epi64(t01_hi_i32x16, t23_hi_i32x16),
-            u0123_hh_i32x16 = _mm512_unpackhi_epi64(t01_hi_i32x16, t23_hi_i32x16);
-    __m512i u4567_ll_i32x16 = _mm512_unpacklo_epi64(t45_lo_i32x16, t67_lo_i32x16),
-            u4567_lh_i32x16 = _mm512_unpackhi_epi64(t45_lo_i32x16, t67_lo_i32x16);
-    __m512i u4567_hl_i32x16 = _mm512_unpacklo_epi64(t45_hi_i32x16, t67_hi_i32x16),
-            u4567_hh_i32x16 = _mm512_unpackhi_epi64(t45_hi_i32x16, t67_hi_i32x16);
-    __m512i u89ab_ll_i32x16 = _mm512_unpacklo_epi64(t89_lo_i32x16, tab_lo_i32x16),
-            u89ab_lh_i32x16 = _mm512_unpackhi_epi64(t89_lo_i32x16, tab_lo_i32x16);
-    __m512i u89ab_hl_i32x16 = _mm512_unpacklo_epi64(t89_hi_i32x16, tab_hi_i32x16),
-            u89ab_hh_i32x16 = _mm512_unpackhi_epi64(t89_hi_i32x16, tab_hi_i32x16);
-    __m512i ucdef_ll_i32x16 = _mm512_unpacklo_epi64(tcd_lo_i32x16, tef_lo_i32x16),
-            ucdef_lh_i32x16 = _mm512_unpackhi_epi64(tcd_lo_i32x16, tef_lo_i32x16);
-    __m512i ucdef_hl_i32x16 = _mm512_unpacklo_epi64(tcd_hi_i32x16, tef_hi_i32x16),
-            ucdef_hh_i32x16 = _mm512_unpackhi_epi64(tcd_hi_i32x16, tef_hi_i32x16);
+    __m512i t01_low_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[0], rows_i32x16[1]),
+            t01_high_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[0], rows_i32x16[1]);
+    __m512i t23_low_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[2], rows_i32x16[3]),
+            t23_high_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[2], rows_i32x16[3]);
+    __m512i t45_low_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[4], rows_i32x16[5]),
+            t45_high_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[4], rows_i32x16[5]);
+    __m512i t67_low_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[6], rows_i32x16[7]),
+            t67_high_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[6], rows_i32x16[7]);
+    __m512i t89_low_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[8], rows_i32x16[9]),
+            t89_high_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[8], rows_i32x16[9]);
+    __m512i tab_low_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[10], rows_i32x16[11]),
+            tab_high_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[10], rows_i32x16[11]);
+    __m512i tcd_low_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[12], rows_i32x16[13]),
+            tcd_high_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[12], rows_i32x16[13]);
+    __m512i tef_low_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[14], rows_i32x16[15]),
+            tef_high_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[14], rows_i32x16[15]);
+    __m512i u0123_ll_i32x16 = _mm512_unpacklo_epi64(t01_low_i32x16, t23_low_i32x16),
+            u0123_lh_i32x16 = _mm512_unpackhi_epi64(t01_low_i32x16, t23_low_i32x16);
+    __m512i u0123_hl_i32x16 = _mm512_unpacklo_epi64(t01_high_i32x16, t23_high_i32x16),
+            u0123_hh_i32x16 = _mm512_unpackhi_epi64(t01_high_i32x16, t23_high_i32x16);
+    __m512i u4567_ll_i32x16 = _mm512_unpacklo_epi64(t45_low_i32x16, t67_low_i32x16),
+            u4567_lh_i32x16 = _mm512_unpackhi_epi64(t45_low_i32x16, t67_low_i32x16);
+    __m512i u4567_hl_i32x16 = _mm512_unpacklo_epi64(t45_high_i32x16, t67_high_i32x16),
+            u4567_hh_i32x16 = _mm512_unpackhi_epi64(t45_high_i32x16, t67_high_i32x16);
+    __m512i u89ab_ll_i32x16 = _mm512_unpacklo_epi64(t89_low_i32x16, tab_low_i32x16),
+            u89ab_lh_i32x16 = _mm512_unpackhi_epi64(t89_low_i32x16, tab_low_i32x16);
+    __m512i u89ab_hl_i32x16 = _mm512_unpacklo_epi64(t89_high_i32x16, tab_high_i32x16),
+            u89ab_hh_i32x16 = _mm512_unpackhi_epi64(t89_high_i32x16, tab_high_i32x16);
+    __m512i ucdef_ll_i32x16 = _mm512_unpacklo_epi64(tcd_low_i32x16, tef_low_i32x16),
+            ucdef_lh_i32x16 = _mm512_unpackhi_epi64(tcd_low_i32x16, tef_low_i32x16);
+    __m512i ucdef_hl_i32x16 = _mm512_unpacklo_epi64(tcd_high_i32x16, tef_high_i32x16),
+            ucdef_hh_i32x16 = _mm512_unpackhi_epi64(tcd_high_i32x16, tef_high_i32x16);
     __m512i v0_a_i32x16 = _mm512_shuffle_i32x4(u0123_ll_i32x16, u4567_ll_i32x16, 0x88),
             v0_b_i32x16 = _mm512_shuffle_i32x4(u0123_ll_i32x16, u4567_ll_i32x16, 0xDD);
     __m512i v1_a_i32x16 = _mm512_shuffle_i32x4(u0123_lh_i32x16, u4567_lh_i32x16, 0x88),
@@ -224,7 +224,7 @@ NK_PUBLIC void nk_attention_pack_i8_icelake(                                    
         // positions accumulates batched from the transposed groups, one store per tile.
         for (nk_size_t tile_idx = 0; tile_idx * 16 < position_count_padded; tile_idx++) {
             nk_i8_t *keys_tile = keys_plane + tile_idx * depth_groups * 64;
-            __m512i ksum_acc_i32x16 = _mm512_setzero_si512();
+            __m512i ksum_accumulator_i32x16 = _mm512_setzero_si512();
             for (nk_size_t block_idx = 0; block_idx < depth_blocks; block_idx++) {
                 __m512i rows_i8x64[16];
                 for (nk_size_t lane_idx = 0; lane_idx < 16; lane_idx++) {
@@ -234,10 +234,10 @@ NK_PUBLIC void nk_attention_pack_i8_icelake(                                    
                             (nk_i8_t const *)((char const *)keys + (position_first + position_idx) * key_stride_bytes) +
                             key_value_head_idx * depth + block_idx * 64;
                         nk_size_t const channels_remaining = depth - block_idx * 64;
-                        __mmask64 const mask = channels_remaining >= 64
-                                                   ? ~(__mmask64)0
-                                                   : (__mmask64)_bzhi_u64(~(nk_u64_t)0, channels_remaining);
-                        rows_i8x64[lane_idx] = _mm512_maskz_loadu_epi8(mask, keys_row);
+                        __mmask64 const load_m64 = channels_remaining >= 64
+                                                       ? ~(__mmask64)0
+                                                       : (__mmask64)_bzhi_u64(~(nk_u64_t)0, channels_remaining);
+                        rows_i8x64[lane_idx] = _mm512_maskz_loadu_epi8(load_m64, keys_row);
                     }
                     else { rows_i8x64[lane_idx] = _mm512_setzero_si512(); }
                 }
@@ -246,10 +246,11 @@ NK_PUBLIC void nk_attention_pack_i8_icelake(                                    
                 for (nk_size_t group_idx = 0; group_idx < 16; group_idx++) {
                     _mm512_storeu_si512(keys_tile + (block_idx * 16 + group_slot[group_idx]) * 64,
                                         groups_i8x64[group_idx]);
-                    ksum_acc_i32x16 = _mm512_dpbusd_epi32(ksum_acc_i32x16, ones_u8x64, groups_i8x64[group_idx]);
+                    ksum_accumulator_i32x16 = _mm512_dpbusd_epi32(ksum_accumulator_i32x16, ones_u8x64,
+                                                                  groups_i8x64[group_idx]);
                 }
             }
-            _mm512_storeu_si512((__m512i *)(key_sums_plane + tile_idx * 16), ksum_acc_i32x16);
+            _mm512_storeu_si512((__m512i *)(key_sums_plane + tile_idx * 16), ksum_accumulator_i32x16);
         }
 
         // V is position-quad-interleaved: byte `[group][channel][pos%4]` = `v[4·group+pos%4][channel]`.
@@ -270,20 +271,22 @@ NK_PUBLIC void nk_attention_pack_i8_icelake(                                    
                 __m128i rows_i8x16[4];
                 for (nk_size_t lane_idx = 0; lane_idx < 4; lane_idx++) {
                     nk_size_t const channels_remaining = channel_idx < depth ? depth - channel_idx : 0;
-                    __mmask16 const mask = channels_remaining >= 16 ? (__mmask16)0xFFFF
-                                                                    : (__mmask16)_bzhi_u32(0xFFFFu, channels_remaining);
-                    rows_i8x16[lane_idx] = v_rows[lane_idx] ? _mm_maskz_loadu_epi8(mask, v_rows[lane_idx] + channel_idx)
-                                                            : _mm_setzero_si128();
+                    __mmask16 const load_m16 = channels_remaining >= 16
+                                                   ? (__mmask16)0xFFFF
+                                                   : (__mmask16)_bzhi_u32(0xFFFFu, channels_remaining);
+                    rows_i8x16[lane_idx] = v_rows[lane_idx]
+                                               ? _mm_maskz_loadu_epi8(load_m16, v_rows[lane_idx] + channel_idx)
+                                               : _mm_setzero_si128();
                 }
-                __m128i const pair01_lo_i8x16 = _mm_unpacklo_epi8(rows_i8x16[0], rows_i8x16[1]);
-                __m128i const pair01_hi_i8x16 = _mm_unpackhi_epi8(rows_i8x16[0], rows_i8x16[1]);
-                __m128i const pair23_lo_i8x16 = _mm_unpacklo_epi8(rows_i8x16[2], rows_i8x16[3]);
-                __m128i const pair23_hi_i8x16 = _mm_unpackhi_epi8(rows_i8x16[2], rows_i8x16[3]);
+                __m128i const pair01_low_i8x16 = _mm_unpacklo_epi8(rows_i8x16[0], rows_i8x16[1]);
+                __m128i const pair01_high_i8x16 = _mm_unpackhi_epi8(rows_i8x16[0], rows_i8x16[1]);
+                __m128i const pair23_low_i8x16 = _mm_unpacklo_epi8(rows_i8x16[2], rows_i8x16[3]);
+                __m128i const pair23_high_i8x16 = _mm_unpackhi_epi8(rows_i8x16[2], rows_i8x16[3]);
                 nk_i8_t *quad_out = group_destination + channel_idx * 4;
-                _mm_storeu_si128((__m128i *)(quad_out + 0), _mm_unpacklo_epi16(pair01_lo_i8x16, pair23_lo_i8x16));
-                _mm_storeu_si128((__m128i *)(quad_out + 16), _mm_unpackhi_epi16(pair01_lo_i8x16, pair23_lo_i8x16));
-                _mm_storeu_si128((__m128i *)(quad_out + 32), _mm_unpacklo_epi16(pair01_hi_i8x16, pair23_hi_i8x16));
-                _mm_storeu_si128((__m128i *)(quad_out + 48), _mm_unpackhi_epi16(pair01_hi_i8x16, pair23_hi_i8x16));
+                _mm_storeu_si128((__m128i *)(quad_out + 0), _mm_unpacklo_epi16(pair01_low_i8x16, pair23_low_i8x16));
+                _mm_storeu_si128((__m128i *)(quad_out + 16), _mm_unpackhi_epi16(pair01_low_i8x16, pair23_low_i8x16));
+                _mm_storeu_si128((__m128i *)(quad_out + 32), _mm_unpacklo_epi16(pair01_high_i8x16, pair23_high_i8x16));
+                _mm_storeu_si128((__m128i *)(quad_out + 48), _mm_unpackhi_epi16(pair01_high_i8x16, pair23_high_i8x16));
             }
         }
     }
@@ -304,22 +307,24 @@ NK_INTERNAL void nk_attention_score_block_icelake_(nk_u8_t const *queries_biased
     nk_size_t const tile_first = panel_start / 16;
     nk_size_t const tile_count = (panel_len + 15) / 16;
     for (nk_size_t tile_idx = 0; tile_idx < tile_count; tile_idx++) {
-        __m512i acc_i32x16[16];
-        for (nk_size_t query_idx = 0; query_idx < 16; query_idx++) acc_i32x16[query_idx] = _mm512_setzero_si512();
+        __m512i accumulator_i32x16[16];
+        for (nk_size_t query_idx = 0; query_idx < 16; query_idx++)
+            accumulator_i32x16[query_idx] = _mm512_setzero_si512();
         nk_i8_t const *keys_tile = keys_plane + (tile_first + tile_idx) * depth_groups * 64;
         for (nk_size_t group_idx = 0; group_idx < depth_groups; group_idx++) {
             __m512i const k_i8x64 = _mm512_loadu_si512(keys_tile + group_idx * 64); // 16 positions × 4 channels
             for (nk_size_t query_idx = 0; query_idx < 16; query_idx++) {
                 __m512i const query_quad_u8x64 = _mm512_broadcastd_epi32(
                     _mm_loadu_si32(queries_biased + query_idx * nk_attention_max_depth_icelake_k_ + group_idx * 4));
-                acc_i32x16[query_idx] = _mm512_dpbusd_epi32(acc_i32x16[query_idx], query_quad_u8x64, k_i8x64);
+                accumulator_i32x16[query_idx] = _mm512_dpbusd_epi32(accumulator_i32x16[query_idx], query_quad_u8x64,
+                                                                    k_i8x64);
             }
         }
         __m512i const correction_i32x16 = _mm512_slli_epi32(
             _mm512_loadu_si512(key_sums_plane + panel_start + tile_idx * 16), 7); // × 128
         for (nk_size_t query_idx = 0; query_idx < 16; query_idx++)
             _mm512_storeu_si512(scores + query_idx * nk_attention_panel_icelake_k_ + tile_idx * 16,
-                                _mm512_sub_epi32(acc_i32x16[query_idx], correction_i32x16));
+                                _mm512_sub_epi32(accumulator_i32x16[query_idx], correction_i32x16));
     }
 }
 
@@ -334,7 +339,7 @@ NK_INTERNAL nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores,
                                                          nk_f32_t *running_sum) {
     __m512 const scale2_f32x16 = _mm512_set1_ps(scale2);
     nk_size_t const full = panel_len & ~(nk_size_t)15;
-    __mmask16 const tail_mask = (__mmask16)((1u << (panel_len - full)) - 1);
+    __mmask16 const tail_m16 = (__mmask16)((1u << (panel_len - full)) - 1);
 
     __m512 max_f32x16 = _mm512_set1_ps(NK_F32_MIN);
     nk_size_t position_idx = 0;
@@ -344,7 +349,7 @@ NK_INTERNAL nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores,
     if (position_idx < panel_len)
         max_f32x16 = _mm512_max_ps(
             max_f32x16,
-            _mm512_mask_mul_ps(_mm512_set1_ps(NK_F32_MIN), tail_mask,
+            _mm512_mask_mul_ps(_mm512_set1_ps(NK_F32_MIN), tail_m16,
                                _mm512_cvtepi32_ps(_mm512_load_si512(scores + position_idx)), scale2_f32x16));
     nk_f32_t const panel_max2 = nk_reduce_max_f32x16_skylake_(max_f32x16);
     nk_f32_t const new_max2 = *running_max2 > panel_max2 ? *running_max2 : panel_max2;
@@ -366,10 +371,10 @@ NK_INTERNAL nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores,
     }
     if (position_idx < panel_len) {
         __m512 const exp_f32x16 = _mm512_maskz_mov_ps(
-            tail_mask, nk_attention_exp2_f32x16_skylake_(_mm512_fmsub_ps(
-                           _mm512_cvtepi32_ps(_mm512_load_si512(scores + position_idx)), scale2_f32x16, max2_f32x16)));
+            tail_m16, nk_attention_exp2_f32x16_skylake_(_mm512_fmsub_ps(
+                          _mm512_cvtepi32_ps(_mm512_load_si512(scores + position_idx)), scale2_f32x16, max2_f32x16)));
         __m512i const weight_u32x16 = _mm512_maskz_cvttps_epu32(
-            tail_mask, _mm512_add_ps(_mm512_mul_ps(exp_f32x16, amplitude_f32x16), half_f32x16));
+            tail_m16, _mm512_add_ps(_mm512_mul_ps(exp_f32x16, amplitude_f32x16), half_f32x16));
         sum_f32x16 = _mm512_add_ps(sum_f32x16, _mm512_cvtepu32_ps(weight_u32x16));
         _mm_storeu_si128((__m128i *)(weights + position_idx), _mm512_cvtusepi32_epi8(weight_u32x16));
         position_idx += 16;
@@ -393,15 +398,15 @@ NK_INTERNAL void nk_attention_weighted_sum_panel_icelake_(nk_u8_t const *weights
     nk_size_t const quad_start = panel_start / 4;
     __m512 const correction_f32x16 = _mm512_set1_ps(correction);
     for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16) {
-        __m512i acc_i32x16 = _mm512_setzero_si512();
+        __m512i accumulator_i32x16 = _mm512_setzero_si512();
         for (nk_size_t quad_idx = 0; quad_idx < quad_count; quad_idx++) {
             __m512i const weights_u8x64 = _mm512_broadcastd_epi32(_mm_loadu_si32(weights + quad_idx * 4));
             __m512i const v_quad_i8x64 = _mm512_loadu_si512(values_plane + (quad_start + quad_idx) * depth_padded * 4 +
                                                             channel_idx * 4);
-            acc_i32x16 = _mm512_dpbusd_epi32(acc_i32x16, weights_u8x64, v_quad_i8x64);
+            accumulator_i32x16 = _mm512_dpbusd_epi32(accumulator_i32x16, weights_u8x64, v_quad_i8x64);
         }
         __m512 const scaled_f32x16 = _mm512_mul_ps(_mm512_load_ps(output_row + channel_idx), correction_f32x16);
-        _mm512_store_ps(output_row + channel_idx, _mm512_add_ps(scaled_f32x16, _mm512_cvtepi32_ps(acc_i32x16)));
+        _mm512_store_ps(output_row + channel_idx, _mm512_add_ps(scaled_f32x16, _mm512_cvtepi32_ps(accumulator_i32x16)));
     }
 }
 
@@ -442,7 +447,7 @@ NK_PUBLIC void nk_attention_packed_i8_icelake(                                  
     nk_f32_t running_max2[16], running_sum[16];
     __m512i const xor_mask_u8x64 = _mm512_set1_epi8((char)0x80);
     nk_size_t const depth_full = depth & ~(nk_size_t)15;
-    __mmask16 const dim_tail_mask = (__mmask16)((1u << (depth - depth_full)) - 1);
+    __mmask16 const dim_tail_m16 = (__mmask16)((1u << (depth - depth_full)) - 1);
 
     for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
         nk_size_t const segment = task_idx / head_count, head = task_idx % head_count;
@@ -469,13 +474,13 @@ NK_PUBLIC void nk_attention_packed_i8_icelake(                                  
                                            head * depth;
                 nk_u8_t *query_biased = queries_biased + block_row * nk_attention_max_depth_icelake_k_;
                 for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 64) {
-                    __mmask64 const mask = (channel_idx + 64 <= depth) ? ~(__mmask64)0
-                                           : (channel_idx < depth)
-                                               ? (__mmask64)_bzhi_u64(~(nk_u64_t)0, depth - channel_idx)
-                                               : (__mmask64)0;
+                    __mmask64 const load_m64 = (channel_idx + 64 <= depth) ? ~(__mmask64)0
+                                               : (channel_idx < depth)
+                                                   ? (__mmask64)_bzhi_u64(~(nk_u64_t)0, depth - channel_idx)
+                                                   : (__mmask64)0;
                     _mm512_store_si512(
                         query_biased + channel_idx,
-                        _mm512_xor_si512(_mm512_maskz_loadu_epi8(mask, query_row + channel_idx), xor_mask_u8x64));
+                        _mm512_xor_si512(_mm512_maskz_loadu_epi8(load_m64, query_row + channel_idx), xor_mask_u8x64));
                 }
                 for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16)
                     _mm512_store_ps(output_rows + block_row * nk_attention_max_depth_icelake_k_ + channel_idx,
@@ -516,7 +521,7 @@ NK_PUBLIC void nk_attention_packed_i8_icelake(                                  
                     _mm512_storeu_ps(destination + channel_idx,
                                      _mm512_mul_ps(_mm512_load_ps(output_row + channel_idx), inverse_sum_f32x16));
                 if (channel_idx < depth)
-                    _mm512_mask_storeu_ps(destination + channel_idx, dim_tail_mask,
+                    _mm512_mask_storeu_ps(destination + channel_idx, dim_tail_m16,
                                           _mm512_mul_ps(_mm512_load_ps(output_row + channel_idx), inverse_sum_f32x16));
             }
         }
