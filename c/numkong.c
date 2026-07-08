@@ -867,13 +867,13 @@ nk_dispatch_maxsim_packed_(bf16, f32)
 nk_dispatch_maxsim_packed_(f16, f32)
 
 // Attention packed KV sizes
-nk_dispatch_attention_packed_size_(bf16) nk_dispatch_attention_packed_size_(e4m3)
+nk_dispatch_attention_packed_size_(bf16) nk_dispatch_attention_packed_size_(e4m3) nk_dispatch_attention_packed_size_(i8)
 
     // Attention KV packing
-    nk_dispatch_attention_pack_(bf16) nk_dispatch_attention_pack_(e4m3)
+    nk_dispatch_attention_pack_(bf16) nk_dispatch_attention_pack_(e4m3) nk_dispatch_attention_pack_(i8)
 
     // Attention computation
-    nk_dispatch_attention_packed_(bf16) nk_dispatch_attention_packed_(e4m3)
+    nk_dispatch_attention_packed_(bf16) nk_dispatch_attention_packed_(e4m3) nk_dispatch_attention_packed_(i8)
 
         NK_DYNAMIC int nk_uses_dynamic_dispatch(void) {
     return 1;
