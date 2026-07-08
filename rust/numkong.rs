@@ -277,6 +277,45 @@ mod tests {
         }
     }
 
+    #[test]
+    fn attention_kv_cache_reuse() {
+        capabilities::configure_thread();
+        let (kv_heads, head_dim) = (2usize, 32usize);
+        let small = Tensor::<bf16>::try_full(&[10, kv_heads * head_dim], bf16::from_f32(0.25)).unwrap();
+        let big = Tensor::<bf16>::try_full(&[24, kv_heads * head_dim], bf16::from_f32(0.25)).unwrap();
+        let small_off = [0u32, 4, 10];
+        let big_off = [0u32, 10, 24];
+
+        let mut kv =
+            AttentionKeyValueCache::try_pack(&small.view(), &small.view(), head_dim, &small_off, None).unwrap();
+        let cap0 = kv.capacity();
+        assert!(cap0 > 0);
+
+        // Same geometry repacked in place -> allocation reused, capacity unchanged.
+        kv.try_pack_into(&small.view(), &small.view(), head_dim, &small_off, None)
+            .unwrap();
+        assert_eq!(kv.capacity(), cap0, "same-size repack must reuse the buffer");
+        assert_eq!(kv.tokens(), 10);
+
+        // Larger geometry -> capacity grows (never shrinks).
+        kv.try_pack_into(&big.view(), &big.view(), head_dim, &big_off, None)
+            .unwrap();
+        assert!(kv.capacity() >= cap0, "grow must not shrink capacity");
+        assert_eq!(kv.tokens(), 24);
+        assert_eq!(kv.segments(), 2);
+
+        // clear() keeps the allocation for the next reuse.
+        let cap_big = kv.capacity();
+        kv.clear();
+        assert_eq!(kv.tokens(), 0);
+        assert_eq!(kv.capacity(), cap_big, "clear keeps the allocation");
+
+        kv.try_pack_into(&small.view(), &small.view(), head_dim, &small_off, None)
+            .unwrap();
+        let outputs = kv.try_attention(&small.view(), &small_off, None).unwrap();
+        assert_eq!(outputs.shape(), [10, kv_heads * head_dim]);
+    }
+
     #[cfg(feature = "parallel")]
     #[test]
     fn attention_parallel_matches_serial() {

@@ -446,7 +446,10 @@ impl Attention for i8 {
 /// segment count, KV head count, head width, and total token count.
 pub struct AttentionKeyValueCache<Scalar: Attention, Alloc: Allocator = Global> {
     data: NonNull<u8>,
+    /// Bytes of live packed content.
     size: usize,
+    /// Bytes actually allocated (>= size); lets `try_pack_into` reuse the buffer across steps.
+    capacity: usize,
     key_value_head_count: usize,
     depth: usize,
     segment_count: usize,
@@ -461,9 +464,9 @@ unsafe impl<Scalar: Attention + Sync, Alloc: Allocator + Sync> Sync for Attentio
 
 impl<Scalar: Attention, Alloc: Allocator> Drop for AttentionKeyValueCache<Scalar, Alloc> {
     fn drop(&mut self) {
-        if self.size > 0 {
+        if self.capacity > 0 {
             unsafe {
-                let layout = core::alloc::Layout::from_size_align_unchecked(self.size, SIMD_ALIGNMENT);
+                let layout = core::alloc::Layout::from_size_align_unchecked(self.capacity, SIMD_ALIGNMENT);
                 self.alloc.deallocate(self.data, layout);
             }
         }
@@ -485,6 +488,7 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionKeyValueCache<Scalar,
         Ok(Self {
             data,
             size: self.size,
+            capacity: self.size,
             key_value_head_count: self.key_value_head_count,
             depth: self.depth,
             segment_count: self.segment_count,
@@ -570,6 +574,22 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
     /// interior slices of a fused QKV buffer). `segment_offsets` holds cumulative token
     /// offsets (`segments + 1` entries); `segment_lengths` defaults to the adjacent
     /// offset differences — the self-attention geometry.
+    /// An empty cache owning no allocation; fill it with [`try_pack_into`](Self::try_pack_into).
+    pub fn empty_in(alloc: Alloc) -> Self {
+        Self {
+            data: NonNull::dangling(),
+            size: 0,
+            capacity: 0,
+            key_value_head_count: 0,
+            depth: 0,
+            segment_count: 0,
+            total_tokens: 0,
+            alloc,
+            _marker: PhantomData,
+        }
+    }
+
+    /// Pack `keys`/`values` into a freshly allocated cache (via the given allocator).
     pub fn try_pack_in<KIn, VIn, const MAX_RANK: usize>(
         keys: &KIn,
         values: &VIn,
@@ -578,6 +598,28 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
         segment_lengths: Option<&[u32]>,
         alloc: Alloc,
     ) -> Result<Self, TensorError>
+    where
+        KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        let mut cache = Self::empty_in(alloc);
+        cache.try_pack_into(keys, values, depth, segment_offsets, segment_lengths)?;
+        Ok(cache)
+    }
+
+    /// Repack `keys`/`values` into this cache's existing blob, reusing the allocation when the
+    /// packed size fits `capacity` and reallocating (via the stored allocator) only when it must
+    /// grow. The decode-loop path: allocate the cache once at layer-init, then refresh it every
+    /// forward step with no further allocation. Packing overwrites, so a grow discards the old
+    /// contents rather than copying them.
+    pub fn try_pack_into<KIn, VIn, const MAX_RANK: usize>(
+        &mut self,
+        keys: &KIn,
+        values: &VIn,
+        depth: usize,
+        segment_offsets: &[u32],
+        segment_lengths: Option<&[u32]>,
+    ) -> Result<(), TensorError>
     where
         KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
         VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
@@ -623,14 +665,9 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
         };
 
         let size = Scalar::attention_packed_size(key_value_head_count, depth, segment_lengths, segment_count);
-        let data = if size == 0 {
-            NonNull::dangling()
-        } else {
-            let layout = core::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT)
-                .map_err(|_| TensorError::AllocationFailed)?;
-            alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?
-        };
-
+        if size > self.capacity {
+            self.grow_to(size)?;
+        }
         if size > 0 {
             unsafe {
                 Scalar::attention_pack(
@@ -643,23 +680,40 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
                     segment_count,
                     key_stride_bytes,
                     value_stride_bytes,
-                    data.as_ptr(),
+                    self.data.as_ptr(),
                     0,
                     0,
                 );
             }
         }
 
-        Ok(Self {
-            data,
-            size,
-            key_value_head_count,
-            depth,
-            segment_count,
-            total_tokens: *segment_offsets.last().unwrap() as usize,
-            alloc,
-            _marker: PhantomData,
-        })
+        self.size = size;
+        self.key_value_head_count = key_value_head_count;
+        self.depth = depth;
+        self.segment_count = segment_count;
+        self.total_tokens = *segment_offsets.last().unwrap() as usize;
+        Ok(())
+    }
+
+    /// Grow the backing allocation to at least `needed` bytes. Frees the old buffer without copying
+    /// (the caller repacks, overwriting the contents).
+    fn grow_to(&mut self, needed: usize) -> Result<(), TensorError> {
+        let new_data = if needed == 0 {
+            NonNull::dangling()
+        } else {
+            let layout = core::alloc::Layout::from_size_align(needed, SIMD_ALIGNMENT)
+                .map_err(|_| TensorError::AllocationFailed)?;
+            self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?
+        };
+        if self.capacity > 0 {
+            unsafe {
+                let old = core::alloc::Layout::from_size_align_unchecked(self.capacity, SIMD_ALIGNMENT);
+                self.alloc.deallocate(self.data, old);
+            }
+        }
+        self.data = new_data;
+        self.capacity = needed;
+        Ok(())
     }
 
     /// Ragged attention into a caller-provided `f32` output tensor of the same
@@ -727,6 +781,16 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
 
     /// Returns the total KV token count across segments.
     pub fn tokens(&self) -> usize { self.total_tokens }
+
+    /// Bytes currently allocated for the packed blob (>= the live packed size).
+    pub fn capacity(&self) -> usize { self.capacity }
+
+    /// Reset to logically empty, keeping the allocation so the next `try_pack_into` reuses it.
+    pub fn clear(&mut self) {
+        self.size = 0;
+        self.segment_count = 0;
+        self.total_tokens = 0;
+    }
 
     /// Returns a reference to the allocator.
     pub fn allocator(&self) -> &Alloc { &self.alloc }
