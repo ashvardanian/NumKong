@@ -118,17 +118,17 @@ Cells marked `⋯` await measurement on the corresponding platform.
 
 #### Native
 
-| Kernel                               | 1024² | 4096² | 16384² |
-| :----------------------------------- | ----: | ----: | -----: |
-| __bf16__                             | ░░░░░ | ░░░░░ | ░░░░░░ |
-| `nk_attention_packed_bf16_serial`    |     ⋯ |     ⋯ |      ⋯ |
-| `nk_attention_packed_bf16_neonbfdot` |     ⋯ |     ⋯ |      ⋯ |
-| `nk_attention_packed_bf16_sme`       |     ⋯ |     ⋯ |      ⋯ |
-| __e4m3__                             | ░░░░░ | ░░░░░ | ░░░░░░ |
-| `nk_attention_packed_e4m3_serial`    |     ⋯ |     ⋯ |      ⋯ |
-| `nk_attention_packed_e4m3_neonfhm`   |     ⋯ |     ⋯ |      ⋯ |
-| `nk_attention_packed_e4m3_sme`       |     ⋯ |     ⋯ |      ⋯ |
-| __i8__                               | ░░░░░ | ░░░░░ | ░░░░░░ |
-| `nk_attention_packed_i8_serial`      |     ⋯ |     ⋯ |      ⋯ |
-| `nk_attention_packed_i8_neonsdot`    |     ⋯ |     ⋯ |      ⋯ |
-| `nk_attention_packed_i8_sme`         |     ⋯ |     ⋯ |      ⋯ |
+| Kernel                               |        1024² |        4096² |       16384² |
+| :----------------------------------- | -----------: | -----------: | -----------: |
+| __bf16__                             | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_attention_packed_bf16_serial`    |  2.8 gflop/s |            ⋯ |            ⋯ |
+| `nk_attention_packed_bf16_neonbfdot` |   46 gflop/s |   47 gflop/s |   46 gflop/s |
+| `nk_attention_packed_bf16_sme`       |  789 gflop/s |  800 gflop/s |  802 gflop/s |
+| __e4m3__                             | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_attention_packed_e4m3_serial`    |  1.5 gflop/s |            ⋯ |            ⋯ |
+| `nk_attention_packed_e4m3_neonfhm`   |   51 gflop/s |   51 gflop/s |   50 gflop/s |
+| `nk_attention_packed_e4m3_sme`       |  722 gflop/s |  777 gflop/s |  797 gflop/s |
+| __i8__                               | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_attention_packed_i8_serial`      |  133 gflop/s |            ⋯ |            ⋯ |
+| `nk_attention_packed_i8_neonsdot`    |  310 gflop/s |  305 gflop/s |  285 gflop/s |
+| `nk_attention_packed_i8_sme`         |  815 gflop/s |  825 gflop/s |  827 gflop/s |
