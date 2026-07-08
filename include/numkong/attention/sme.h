@@ -116,6 +116,23 @@ NK_INTERNAL svuint16_t nk_attention_e4m3_to_bf16_sme_(svbool_t predicate_b16x, s
     return nk_attention_bf16_pair_sme_(even_f32x, odd_f32x);
 }
 
+/**
+ *  @brief Degree-3 evaluation of `2^r` over the reduced fraction `r ∈ [-0.5, 0.5]`, 32 lanes
+ *         at a time: the family coefficients with the degree-4 term dropped, which falls
+ *         below the F16 resolution of the probability quantization this feeds. Callers keep
+ *         the range reduction and the power-of-two application in F32, so the F16 rounding
+ *         touches only the bounded fraction and the weight error stays near 1e-3 regardless
+ *         of the argument magnitude.
+ */
+NK_INTERNAL svfloat16_t nk_attention_exp2_fraction_f16x_sme_(svfloat16_t reduced_f16x) NK_STREAMING_ {
+    svbool_t const predicate_all_b16x = svptrue_b16();
+    svfloat16_t poly_f16x = svdup_f16((__fp16)5.55041087e-2f);
+    poly_f16x = svmad_f16_x(predicate_all_b16x, poly_f16x, reduced_f16x, svdup_f16((__fp16)2.40226507e-1f));
+    poly_f16x = svmad_f16_x(predicate_all_b16x, poly_f16x, reduced_f16x, svdup_f16((__fp16)6.93147181e-1f));
+    poly_f16x = svmad_f16_x(predicate_all_b16x, poly_f16x, reduced_f16x, svdup_f16((__fp16)1.0f));
+    return poly_f16x;
+}
+
 NK_INTERNAL nk_size_t nk_attention_packed_size_b16_sme_(nk_size_t key_value_head_count, nk_size_t depth,
                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t const tile_dimension = nk_sme_cntw_();
@@ -363,6 +380,7 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
     // Scratch sized for SVL ≤ 512 (tile dimension ≤ 16) and depth ≤ 256; the entry points
     // route larger shapes to serial. Queries live in lanes throughout, so the output
     // accumulator is channel-major: `o_acc[channel][query lane]`.
+
     NK_ALIGN64 nk_u16_t queries_packed[2][(nk_attention_max_depth_sme_k_ / 2) * 2 * nk_attention_max_tile_sme_k_];
     NK_ALIGN64 nk_f32_t scores_panel[nk_attention_panel_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
     NK_ALIGN64 nk_u16_t weights_panel[nk_attention_panel_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
@@ -441,13 +459,18 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
                 svst1_f32(predicate_all_b32x, (float32_t *)(o_acc + element_idx), svdup_f32(0.0f));
 
             for (nk_size_t panel_start = 0; panel_start < position_count; panel_start += panel_width) {
-                nk_size_t const panel_positions = (position_count - panel_start < panel_width)
-                                                      ? position_count - panel_start
-                                                      : panel_width;
-                nk_size_t const panel_pairs = (panel_positions + 1) / 2;
+                nk_size_t const panel_length = (position_count - panel_start < panel_width)
+                                                   ? position_count - panel_start
+                                                   : panel_width;
+                nk_size_t const panel_pairs = (panel_length + 1) / 2;
 
-                // Stage 2: 2×2 widening BFMOPA scores, drained position-major with vertical stores.
-                for (nk_size_t chunk_start = 0; chunk_start < panel_positions; chunk_start += block_rows_capacity) {
+                svfloat32_t panel_max_low_f32x = svdup_f32(NK_F32_MIN);
+                svfloat32_t panel_max_high_f32x = svdup_f32(NK_F32_MIN);
+                // Stage 2: 2×2 widening BFMOPA scores, drained position-major with the running
+                // maximum folded into the drain so the score panel is read once. Padded positions
+                // contribute exact zeros, which may only raise the maximum — always numerically
+                // safe, and it cancels in normalization like the x86 tiers.
+                for (nk_size_t chunk_start = 0; chunk_start < panel_length; chunk_start += block_rows_capacity) {
                     nk_size_t const position_tile_first = (panel_start + chunk_start) / tile_dimension;
                     nk_u16_t const *keys_tile0 = keys_plane + position_tile_first * depth_pairs * vector_elements;
                     nk_u16_t const *keys_tile1 = keys_tile0 + depth_pairs * vector_elements;
@@ -472,33 +495,35 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
                     }
                     nk_f32_t *chunk_scores = scores_panel + chunk_start * block_rows_capacity;
                     for (nk_size_t slice_idx = 0; slice_idx < tile_dimension; slice_idx++) {
-                        svst1_ver_za32(0, (uint32_t)slice_idx, predicate_all_b32x,
-                                       chunk_scores + slice_idx * block_rows_capacity);
-                        svst1_ver_za32(2, (uint32_t)slice_idx, predicate_all_b32x,
-                                       chunk_scores + slice_idx * block_rows_capacity + tile_dimension);
-                        svst1_ver_za32(1, (uint32_t)slice_idx, predicate_all_b32x,
-                                       chunk_scores + (tile_dimension + slice_idx) * block_rows_capacity);
-                        svst1_ver_za32(
-                            3, (uint32_t)slice_idx, predicate_all_b32x,
-                            chunk_scores + (tile_dimension + slice_idx) * block_rows_capacity + tile_dimension);
+                        svfloat32_t const column0_low_f32x = svread_ver_za32_f32_m(svdup_f32(0.0f), predicate_all_b32x,
+                                                                                   0, (uint32_t)slice_idx);
+                        svfloat32_t const column0_high_f32x = svread_ver_za32_f32_m(svdup_f32(0.0f), predicate_all_b32x,
+                                                                                    2, (uint32_t)slice_idx);
+                        svfloat32_t const column1_low_f32x = svread_ver_za32_f32_m(svdup_f32(0.0f), predicate_all_b32x,
+                                                                                   1, (uint32_t)slice_idx);
+                        svfloat32_t const column1_high_f32x = svread_ver_za32_f32_m(svdup_f32(0.0f), predicate_all_b32x,
+                                                                                    3, (uint32_t)slice_idx);
+                        panel_max_low_f32x = svmax_f32_x(predicate_all_b32x, panel_max_low_f32x, column0_low_f32x);
+                        panel_max_high_f32x = svmax_f32_x(predicate_all_b32x, panel_max_high_f32x, column0_high_f32x);
+                        panel_max_low_f32x = svmax_f32_x(predicate_all_b32x, panel_max_low_f32x, column1_low_f32x);
+                        panel_max_high_f32x = svmax_f32_x(predicate_all_b32x, panel_max_high_f32x, column1_high_f32x);
+                        svst1_f32(predicate_all_b32x, (float32_t *)(chunk_scores + slice_idx * block_rows_capacity),
+                                  column0_low_f32x);
+                        svst1_f32(predicate_all_b32x,
+                                  (float32_t *)(chunk_scores + slice_idx * block_rows_capacity + tile_dimension),
+                                  column0_high_f32x);
+                        svst1_f32(predicate_all_b32x,
+                                  (float32_t *)(chunk_scores + (tile_dimension + slice_idx) * block_rows_capacity),
+                                  column1_low_f32x);
+                        svst1_f32(predicate_all_b32x,
+                                  (float32_t *)(chunk_scores + (tile_dimension + slice_idx) * block_rows_capacity +
+                                                tile_dimension),
+                                  column1_high_f32x);
                     }
                 }
 
-                svfloat32_t panel_max_low_f32x = svdup_f32(NK_F32_MIN);
-                svfloat32_t panel_max_high_f32x = svdup_f32(NK_F32_MIN);
                 // Stage 3: lane-parallel softmax — every query owns one lane, so the maxima,
                 // corrections, and sums are plain vector ops with no horizontal reductions.
-                for (nk_size_t position_idx = 0; position_idx < panel_positions; position_idx++) {
-                    panel_max_low_f32x = svmax_f32_x(
-                        predicate_all_b32x, panel_max_low_f32x,
-                        svld1_f32(predicate_all_b32x,
-                                  (float32_t const *)(scores_panel + position_idx * block_rows_capacity)));
-                    panel_max_high_f32x = svmax_f32_x(
-                        predicate_all_b32x, panel_max_high_f32x,
-                        svld1_f32(
-                            predicate_all_b32x,
-                            (float32_t const *)(scores_panel + position_idx * block_rows_capacity + tile_dimension)));
-                }
                 svfloat32_t const new_max2_low_f32x = svmax_f32_x(
                     predicate_all_b32x, running_max2_low_f32x,
                     svmul_f32_x(predicate_all_b32x, panel_max_low_f32x, scale2_f32x));
@@ -525,7 +550,7 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
                                                            (float32_t const *)(even_scores + tile_dimension));
                     svfloat32_t odd_low_f32x = svdup_f32(NK_F32_MIN); // padded positions decay to zero weight
                     svfloat32_t odd_high_f32x = svdup_f32(NK_F32_MIN);
-                    if (position_odd < panel_positions) {
+                    if (position_odd < panel_length) {
                         odd_low_f32x = svld1_f32(predicate_all_b32x, (float32_t const *)odd_scores);
                         odd_high_f32x = svld1_f32(predicate_all_b32x, (float32_t const *)(odd_scores + tile_dimension));
                         odd_low_f32x = svmla_f32_x(predicate_all_b32x, negated_max2_low_f32x, odd_low_f32x,
@@ -536,10 +561,33 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
                     even_low_f32x = svmla_f32_x(predicate_all_b32x, negated_max2_low_f32x, even_low_f32x, scale2_f32x);
                     even_high_f32x = svmla_f32_x(predicate_all_b32x, negated_max2_high_f32x, even_high_f32x,
                                                  scale2_f32x);
-                    svfloat32_t const weight_even_low_f32x = nk_attention_exp2_f32x_sme_(even_low_f32x);
-                    svfloat32_t const weight_even_high_f32x = nk_attention_exp2_f32x_sme_(even_high_f32x);
-                    svfloat32_t const weight_odd_low_f32x = nk_attention_exp2_f32x_sme_(odd_low_f32x);
-                    svfloat32_t const weight_odd_high_f32x = nk_attention_exp2_f32x_sme_(odd_high_f32x);
+                    svfloat32_t const whole_even_low_f32x = svrintn_f32_x(predicate_all_b32x, even_low_f32x);
+                    svfloat32_t const whole_even_high_f32x = svrintn_f32_x(predicate_all_b32x, even_high_f32x);
+                    svfloat32_t const whole_odd_low_f32x = svrintn_f32_x(predicate_all_b32x, odd_low_f32x);
+                    svfloat32_t const whole_odd_high_f32x = svrintn_f32_x(predicate_all_b32x, odd_high_f32x);
+                    svfloat16_t const fraction_even_f16x = svcvtnt_f16_f32_m( // split-precision: F16 only here
+
+                        svcvt_f16_f32_x(predicate_all_b32x,
+                                        svsub_f32_x(predicate_all_b32x, even_low_f32x, whole_even_low_f32x)),
+                        predicate_all_b32x, svsub_f32_x(predicate_all_b32x, even_high_f32x, whole_even_high_f32x));
+                    svfloat16_t const fraction_odd_f16x = svcvtnt_f16_f32_m(
+                        svcvt_f16_f32_x(predicate_all_b32x,
+                                        svsub_f32_x(predicate_all_b32x, odd_low_f32x, whole_odd_low_f32x)),
+                        predicate_all_b32x, svsub_f32_x(predicate_all_b32x, odd_high_f32x, whole_odd_high_f32x));
+                    svfloat16_t const poly_even_f16x = nk_attention_exp2_fraction_f16x_sme_(fraction_even_f16x);
+                    svfloat16_t const poly_odd_f16x = nk_attention_exp2_fraction_f16x_sme_(fraction_odd_f16x);
+                    svfloat32_t const weight_even_low_f32x = svscale_f32_x(
+                        predicate_all_b32x, svcvt_f32_f16_x(predicate_all_b32x, poly_even_f16x),
+                        svcvt_s32_f32_x(predicate_all_b32x, whole_even_low_f32x));
+                    svfloat32_t const weight_even_high_f32x = svscale_f32_x(
+                        predicate_all_b32x, svcvtlt_f32_f16_x(predicate_all_b32x, poly_even_f16x),
+                        svcvt_s32_f32_x(predicate_all_b32x, whole_even_high_f32x));
+                    svfloat32_t const weight_odd_low_f32x = svscale_f32_x(
+                        predicate_all_b32x, svcvt_f32_f16_x(predicate_all_b32x, poly_odd_f16x),
+                        svcvt_s32_f32_x(predicate_all_b32x, whole_odd_low_f32x));
+                    svfloat32_t const weight_odd_high_f32x = svscale_f32_x(
+                        predicate_all_b32x, svcvtlt_f32_f16_x(predicate_all_b32x, poly_odd_f16x),
+                        svcvt_s32_f32_x(predicate_all_b32x, whole_odd_high_f32x));
                     panel_sum_low_f32x = svadd_f32_x(
                         predicate_all_b32x, panel_sum_low_f32x,
                         svadd_f32_x(predicate_all_b32x, weight_even_low_f32x, weight_odd_low_f32x));
@@ -586,35 +634,37 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
                         }
                     }
                     for (nk_size_t slice_idx = 0; slice_idx < tile_dimension; slice_idx++) {
-                        nk_size_t const channel_low = channel_tile_idx * tile_dimension + slice_idx;
-                        nk_f32_t *accumulator_low = o_acc + channel_low * block_rows_capacity;
-                        svfloat32_t o_low_f32x = svld1_f32(predicate_all_b32x, (float32_t const *)accumulator_low);
-                        svfloat32_t o_high_f32x = svld1_f32(predicate_all_b32x,
-                                                            (float32_t const *)(accumulator_low + tile_dimension));
-                        o_low_f32x = svmad_f32_x(
-                            predicate_all_b32x, o_low_f32x, correction_low_f32x,
+                        nk_size_t const channel_tile0 = channel_tile_idx * tile_dimension + slice_idx;
+                        nk_f32_t *accumulator_tile0 = o_acc + channel_tile0 * block_rows_capacity;
+                        svfloat32_t o_tile0_low_f32x = svld1_f32(predicate_all_b32x,
+                                                                 (float32_t const *)accumulator_tile0);
+                        svfloat32_t o_tile0_high_f32x = svld1_f32(
+                            predicate_all_b32x, (float32_t const *)(accumulator_tile0 + tile_dimension));
+                        o_tile0_low_f32x = svmad_f32_x(
+                            predicate_all_b32x, o_tile0_low_f32x, correction_low_f32x,
                             svread_ver_za32_f32_m(svdup_f32(0.0f), predicate_all_b32x, 0, (uint32_t)slice_idx));
-                        o_high_f32x = svmad_f32_x(
-                            predicate_all_b32x, o_high_f32x, correction_high_f32x,
+                        o_tile0_high_f32x = svmad_f32_x(
+                            predicate_all_b32x, o_tile0_high_f32x, correction_high_f32x,
                             svread_ver_za32_f32_m(svdup_f32(0.0f), predicate_all_b32x, 2, (uint32_t)slice_idx));
-                        svst1_f32(predicate_all_b32x, (float32_t *)accumulator_low, o_low_f32x);
-                        svst1_f32(predicate_all_b32x, (float32_t *)(accumulator_low + tile_dimension), o_high_f32x);
+                        svst1_f32(predicate_all_b32x, (float32_t *)accumulator_tile0, o_tile0_low_f32x);
+                        svst1_f32(predicate_all_b32x, (float32_t *)(accumulator_tile0 + tile_dimension),
+                                  o_tile0_high_f32x);
                         if (has_second_tile) {
-                            nk_size_t const channel_high = (channel_tile_idx + 1) * tile_dimension + slice_idx;
-                            nk_f32_t *accumulator_high = o_acc + channel_high * block_rows_capacity;
-                            svfloat32_t o2_low_f32x = svld1_f32(predicate_all_b32x,
-                                                                (float32_t const *)accumulator_high);
-                            svfloat32_t o2_high_f32x = svld1_f32(
-                                predicate_all_b32x, (float32_t const *)(accumulator_high + tile_dimension));
-                            o2_low_f32x = svmad_f32_x(
-                                predicate_all_b32x, o2_low_f32x, correction_low_f32x,
+                            nk_size_t const channel_tile1 = (channel_tile_idx + 1) * tile_dimension + slice_idx;
+                            nk_f32_t *accumulator_tile1 = o_acc + channel_tile1 * block_rows_capacity;
+                            svfloat32_t o_tile1_low_f32x = svld1_f32(predicate_all_b32x,
+                                                                     (float32_t const *)accumulator_tile1);
+                            svfloat32_t o_tile1_high_f32x = svld1_f32(
+                                predicate_all_b32x, (float32_t const *)(accumulator_tile1 + tile_dimension));
+                            o_tile1_low_f32x = svmad_f32_x(
+                                predicate_all_b32x, o_tile1_low_f32x, correction_low_f32x,
                                 svread_ver_za32_f32_m(svdup_f32(0.0f), predicate_all_b32x, 1, (uint32_t)slice_idx));
-                            o2_high_f32x = svmad_f32_x(
-                                predicate_all_b32x, o2_high_f32x, correction_high_f32x,
+                            o_tile1_high_f32x = svmad_f32_x(
+                                predicate_all_b32x, o_tile1_high_f32x, correction_high_f32x,
                                 svread_ver_za32_f32_m(svdup_f32(0.0f), predicate_all_b32x, 3, (uint32_t)slice_idx));
-                            svst1_f32(predicate_all_b32x, (float32_t *)accumulator_high, o2_low_f32x);
-                            svst1_f32(predicate_all_b32x, (float32_t *)(accumulator_high + tile_dimension),
-                                      o2_high_f32x);
+                            svst1_f32(predicate_all_b32x, (float32_t *)accumulator_tile1, o_tile1_low_f32x);
+                            svst1_f32(predicate_all_b32x, (float32_t *)(accumulator_tile1 + tile_dimension),
+                                      o_tile1_high_f32x);
                         }
                     }
                 }
@@ -967,14 +1017,14 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                 svst1_f32(predicate_all_b32x, (float32_t *)(o_acc + element_idx), svdup_f32(0.0f));
 
             for (nk_size_t panel_start = 0; panel_start < position_count; panel_start += panel_width) {
-                nk_size_t const panel_positions = (position_count - panel_start < panel_width)
-                                                      ? position_count - panel_start
-                                                      : panel_width;
-                nk_size_t const panel_quads = (panel_positions + 3) / 4;
+                nk_size_t const panel_length = (position_count - panel_start < panel_width)
+                                                   ? position_count - panel_start
+                                                   : panel_width;
+                nk_size_t const panel_quads = (panel_length + 3) / 4;
 
                 // Stage 2: 2×2 SMOPA scores over depth quads, exact in I32, drained
                 // position-major as F32 with one query per lane.
-                for (nk_size_t chunk_start = 0; chunk_start < panel_positions; chunk_start += block_rows_capacity) {
+                for (nk_size_t chunk_start = 0; chunk_start < panel_length; chunk_start += block_rows_capacity) {
                     nk_size_t const position_tile_first = (panel_start + chunk_start) / tile_dimension;
                     nk_u8_t const *keys_tile0 = keys_plane + position_tile_first * depth_quads * vector_bytes;
                     nk_u8_t const *keys_tile1 = keys_tile0 + depth_quads * vector_bytes;
@@ -1022,7 +1072,7 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                 svfloat32_t panel_max_high_f32x = svdup_f32(NK_F32_MIN);
                 // Stage 3: lane-parallel softmax with U8 weight quantization; the maximum
                 // position lands on exactly 255, so the weight sum can never be zero.
-                for (nk_size_t position_idx = 0; position_idx < panel_positions; position_idx++) {
+                for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
                     panel_max_low_f32x = svmax_f32_x(
                         predicate_all_b32x, panel_max_low_f32x,
                         svld1_f32(predicate_all_b32x,
@@ -1048,15 +1098,15 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                 svfloat32_t const negated_max2_low_f32x = svneg_f32_x(predicate_all_b32x, new_max2_low_f32x);
                 svfloat32_t const negated_max2_high_f32x = svneg_f32_x(predicate_all_b32x, new_max2_high_f32x);
 
-                svfloat32_t panel_sum_low_f32x = svdup_f32(0.0f);
-                svfloat32_t panel_sum_high_f32x = svdup_f32(0.0f);
+                svuint32_t panel_sum_low_u32x = svdup_u32(0); // weights are u8 over <= 512 positions
+                svuint32_t panel_sum_high_u32x = svdup_u32(0);
                 for (nk_size_t quad_idx = 0; quad_idx < panel_quads; quad_idx++) {
                     svuint32_t quantized_low_u32x = svdup_u32(0), quantized_high_u32x = svdup_u32(0);
                     for (nk_size_t position_in_quad = 0; position_in_quad < 4; position_in_quad++) {
                         nk_size_t const position_idx = quad_idx * 4 + position_in_quad;
                         svfloat32_t argument_low_f32x = svdup_f32(NK_F32_MIN); // padded positions quantize to zero
                         svfloat32_t argument_high_f32x = svdup_f32(NK_F32_MIN);
-                        if (position_idx < panel_positions) {
+                        if (position_idx < panel_length) {
                             nk_f32_t const *position_scores = scores_panel + position_idx * block_rows_capacity;
                             argument_low_f32x = svmla_f32_x(
                                 predicate_all_b32x, negated_max2_low_f32x,
@@ -1066,23 +1116,30 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                                 svld1_f32(predicate_all_b32x, (float32_t const *)(position_scores + tile_dimension)),
                                 scale2_f32x);
                         }
-                        svuint32_t const weight_low_u32x = svcvt_u32_f32_x( // mul then add matches serial rounding
+                        svfloat32_t const whole_low_f32x = svrintn_f32_x(predicate_all_b32x, argument_low_f32x);
+                        svfloat32_t const whole_high_f32x = svrintn_f32_x(predicate_all_b32x, argument_high_f32x);
+                        svfloat16_t const fraction_f16x = svcvtnt_f16_f32_m( // split-precision: F16 only here
 
+                            svcvt_f16_f32_x(predicate_all_b32x,
+                                            svsub_f32_x(predicate_all_b32x, argument_low_f32x, whole_low_f32x)),
+                            predicate_all_b32x, svsub_f32_x(predicate_all_b32x, argument_high_f32x, whole_high_f32x));
+                        svfloat16_t const poly_f16x = nk_attention_exp2_fraction_f16x_sme_(fraction_f16x);
+                        svfloat32_t const exponent_low_f32x = svscale_f32_x(
+                            predicate_all_b32x, svcvt_f32_f16_x(predicate_all_b32x, poly_f16x),
+                            svcvt_s32_f32_x(predicate_all_b32x, whole_low_f32x));
+                        svfloat32_t const exponent_high_f32x = svscale_f32_x(
+                            predicate_all_b32x, svcvtlt_f32_f16_x(predicate_all_b32x, poly_f16x),
+                            svcvt_s32_f32_x(predicate_all_b32x, whole_high_f32x));
+                        svuint32_t const weight_low_u32x = svcvt_u32_f32_x( // mul then add matches serial rounding
                             predicate_all_b32x,
                             svadd_n_f32_x(predicate_all_b32x,
-                                          svmul_n_f32_x(predicate_all_b32x,
-                                                        nk_attention_exp2_f32x_sme_(argument_low_f32x), 255.0f),
-                                          0.5f));
+                                          svmul_n_f32_x(predicate_all_b32x, exponent_low_f32x, 255.0f), 0.5f));
                         svuint32_t const weight_high_u32x = svcvt_u32_f32_x(
                             predicate_all_b32x,
                             svadd_n_f32_x(predicate_all_b32x,
-                                          svmul_n_f32_x(predicate_all_b32x,
-                                                        nk_attention_exp2_f32x_sme_(argument_high_f32x), 255.0f),
-                                          0.5f));
-                        panel_sum_low_f32x = svadd_f32_x(predicate_all_b32x, panel_sum_low_f32x,
-                                                         svcvt_f32_u32_x(predicate_all_b32x, weight_low_u32x));
-                        panel_sum_high_f32x = svadd_f32_x(predicate_all_b32x, panel_sum_high_f32x,
-                                                          svcvt_f32_u32_x(predicate_all_b32x, weight_high_u32x));
+                                          svmul_n_f32_x(predicate_all_b32x, exponent_high_f32x, 255.0f), 0.5f));
+                        panel_sum_low_u32x = svadd_u32_x(predicate_all_b32x, panel_sum_low_u32x, weight_low_u32x);
+                        panel_sum_high_u32x = svadd_u32_x(predicate_all_b32x, panel_sum_high_u32x, weight_high_u32x);
                         quantized_low_u32x = svorr_u32_x(
                             predicate_all_b32x, quantized_low_u32x,
                             svlsl_n_u32_x(predicate_all_b32x, weight_low_u32x, (uint64_t)(position_in_quad * 8)));
@@ -1096,9 +1153,9 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                               quantized_high_u32x);
                 }
                 running_sum_low_f32x = svmad_f32_x(predicate_all_b32x, running_sum_low_f32x, correction_low_f32x,
-                                                   panel_sum_low_f32x);
+                                                   svcvt_f32_u32_x(predicate_all_b32x, panel_sum_low_u32x));
                 running_sum_high_f32x = svmad_f32_x(predicate_all_b32x, running_sum_high_f32x, correction_high_f32x,
-                                                    panel_sum_high_f32x);
+                                                    svcvt_f32_u32_x(predicate_all_b32x, panel_sum_high_u32x));
 
                 nk_size_t const panel_quad_first = panel_start / 4;
                 // Stage 4: P×V as USMOPA outer products over position quads; drains convert
@@ -1128,41 +1185,43 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                         }
                     }
                     for (nk_size_t slice_idx = 0; slice_idx < tile_dimension; slice_idx++) {
-                        nk_size_t const channel_low = channel_tile_idx * tile_dimension + slice_idx;
-                        nk_f32_t *accumulator_low = o_acc + channel_low * block_rows_capacity;
-                        svfloat32_t o_low_f32x = svld1_f32(predicate_all_b32x, (float32_t const *)accumulator_low);
-                        svfloat32_t o_high_f32x = svld1_f32(predicate_all_b32x,
-                                                            (float32_t const *)(accumulator_low + tile_dimension));
-                        o_low_f32x = svmad_f32_x(
-                            predicate_all_b32x, o_low_f32x, correction_low_f32x,
+                        nk_size_t const channel_tile0 = channel_tile_idx * tile_dimension + slice_idx;
+                        nk_f32_t *accumulator_tile0 = o_acc + channel_tile0 * block_rows_capacity;
+                        svfloat32_t o_tile0_low_f32x = svld1_f32(predicate_all_b32x,
+                                                                 (float32_t const *)accumulator_tile0);
+                        svfloat32_t o_tile0_high_f32x = svld1_f32(
+                            predicate_all_b32x, (float32_t const *)(accumulator_tile0 + tile_dimension));
+                        o_tile0_low_f32x = svmad_f32_x(
+                            predicate_all_b32x, o_tile0_low_f32x, correction_low_f32x,
                             svcvt_f32_s32_x(predicate_all_b32x, svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x,
                                                                                       0, (uint32_t)slice_idx)));
-                        o_high_f32x = svmad_f32_x(
-                            predicate_all_b32x, o_high_f32x, correction_high_f32x,
+                        o_tile0_high_f32x = svmad_f32_x(
+                            predicate_all_b32x, o_tile0_high_f32x, correction_high_f32x,
                             svcvt_f32_s32_x(predicate_all_b32x, svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x,
                                                                                       2, (uint32_t)slice_idx)));
-                        svst1_f32(predicate_all_b32x, (float32_t *)accumulator_low, o_low_f32x);
-                        svst1_f32(predicate_all_b32x, (float32_t *)(accumulator_low + tile_dimension), o_high_f32x);
+                        svst1_f32(predicate_all_b32x, (float32_t *)accumulator_tile0, o_tile0_low_f32x);
+                        svst1_f32(predicate_all_b32x, (float32_t *)(accumulator_tile0 + tile_dimension),
+                                  o_tile0_high_f32x);
                         if (has_second_tile) {
-                            nk_size_t const channel_high = (channel_tile_idx + 1) * tile_dimension + slice_idx;
-                            nk_f32_t *accumulator_high = o_acc + channel_high * block_rows_capacity;
-                            svfloat32_t o2_low_f32x = svld1_f32(predicate_all_b32x,
-                                                                (float32_t const *)accumulator_high);
-                            svfloat32_t o2_high_f32x = svld1_f32(
-                                predicate_all_b32x, (float32_t const *)(accumulator_high + tile_dimension));
-                            o2_low_f32x = svmad_f32_x(
-                                predicate_all_b32x, o2_low_f32x, correction_low_f32x,
+                            nk_size_t const channel_tile1 = (channel_tile_idx + 1) * tile_dimension + slice_idx;
+                            nk_f32_t *accumulator_tile1 = o_acc + channel_tile1 * block_rows_capacity;
+                            svfloat32_t o_tile1_low_f32x = svld1_f32(predicate_all_b32x,
+                                                                     (float32_t const *)accumulator_tile1);
+                            svfloat32_t o_tile1_high_f32x = svld1_f32(
+                                predicate_all_b32x, (float32_t const *)(accumulator_tile1 + tile_dimension));
+                            o_tile1_low_f32x = svmad_f32_x(
+                                predicate_all_b32x, o_tile1_low_f32x, correction_low_f32x,
                                 svcvt_f32_s32_x(
                                     predicate_all_b32x,
                                     svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x, 1, (uint32_t)slice_idx)));
-                            o2_high_f32x = svmad_f32_x(
-                                predicate_all_b32x, o2_high_f32x, correction_high_f32x,
+                            o_tile1_high_f32x = svmad_f32_x(
+                                predicate_all_b32x, o_tile1_high_f32x, correction_high_f32x,
                                 svcvt_f32_s32_x(
                                     predicate_all_b32x,
                                     svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x, 3, (uint32_t)slice_idx)));
-                            svst1_f32(predicate_all_b32x, (float32_t *)accumulator_high, o2_low_f32x);
-                            svst1_f32(predicate_all_b32x, (float32_t *)(accumulator_high + tile_dimension),
-                                      o2_high_f32x);
+                            svst1_f32(predicate_all_b32x, (float32_t *)accumulator_tile1, o_tile1_low_f32x);
+                            svst1_f32(predicate_all_b32x, (float32_t *)(accumulator_tile1 + tile_dimension),
+                                      o_tile1_high_f32x);
                         }
                     }
                 }
