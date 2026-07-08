@@ -444,6 +444,7 @@ impl Attention for i8 {
 /// Pre-packed ragged KV-cache for scaled-dot-product attention.
 /// Owns the backend-opaque blob plus the geometry needed to validate query batches:
 /// segment count, KV head count, head width, and total token count.
+#[derive(Debug)]
 pub struct AttentionKeyValueCache<Scalar: Attention, Alloc: Allocator = Global> {
     data: NonNull<u8>,
     /// Bytes of live packed content.

@@ -6350,7 +6350,7 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
 }
 
 /// A borrowed, read-only view into a [`ScaledTensor`] — composed [`TensorView`]s plus the scale.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ScaledTensorView<'a, F: BlockScaledFormat> {
     elements: TensorView<'a, F::Element>,
     block_scales: TensorView<'a, F::Scale>,
@@ -6415,6 +6415,9 @@ impl<'a, F: BlockScaledFormat> ScaledTensorSpan<'a, F> {
 
     /// The per-tensor multiplier (`Some` for NVFP4, `None` for the MX family).
     pub fn tensor_scale(&self) -> Option<f32> { self.tensor_scale }
+
+    /// Logical shape of the packed elements.
+    pub fn shape(&self) -> &[usize] { self.elements.shape() }
 
     /// Reborrow as a read-only [`ScaledTensorView`].
     pub fn as_view(&self) -> ScaledTensorView<'_, F> {
