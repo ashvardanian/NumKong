@@ -109,7 +109,7 @@ before-all = [
     cmake -S . -B build \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_OSX_DEPLOYMENT_TARGET="${TARGET}" \
-        -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+        -DCMAKE_OSX_ARCHITECTURES="${CIBW_ARCHS:-$(uname -m)}" \
         -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
         -DCMAKE_INSTALL_NAME_DIR="${PREFIX}/lib" \
         -DLIBOMP_INSTALL_ALIASES=OFF \

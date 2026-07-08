@@ -172,6 +172,19 @@ if (MSVC)
     endif ()
 endif ()
 
+# On macOS, CMAKE_SYSTEM_PROCESSOR reflects the host, not CMAKE_OSX_ARCHITECTURES (the target slice
+# Apple Clang compiles via `-arch`). Patch it here so the detection below matches the target. We do
+# not build universal2, so CMAKE_OSX_ARCHITECTURES is always single-valued when set.
+if (APPLE AND CMAKE_OSX_ARCHITECTURES)
+    list(LENGTH CMAKE_OSX_ARCHITECTURES nk_osx_archs_len_)
+    if (nk_osx_archs_len_ EQUAL 1)
+        set(CMAKE_SYSTEM_PROCESSOR "${CMAKE_OSX_ARCHITECTURES}")
+    else ()
+        message(FATAL_ERROR "Multi-arch CMAKE_OSX_ARCHITECTURES='${CMAKE_OSX_ARCHITECTURES}' not supported; build per-arch")
+    endif ()
+    unset(nk_osx_archs_len_)
+endif ()
+
 # Detect target architecture from CMAKE_SYSTEM_PROCESSOR (safe for cross-compilation)
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|X86_64|AMD64|amd64")
     set(NK_IS_64BIT_X86_ TRUE)
