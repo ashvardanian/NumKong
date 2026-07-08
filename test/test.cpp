@@ -229,6 +229,7 @@ int main(int argc, char **argv) {
                 "  NK_TEST_ASSERT=1           Same as --assert\n"                                          //
                 "  NK_TEST_VERBOSE=1          Same as --verbose\n"                                         //
                 "  NK_ULP_THRESHOLD_F32=N     ULP tolerance for f32\n"                                     //
+                "  NK_SCALE_THRESHOLD=X       Max abs error over reference scale (attention)\n"            //
                 "  NK_ULP_THRESHOLD_F16=N     ULP tolerance for f16\n"                                     //
                 "  NK_ULP_THRESHOLD_BF16=N    ULP tolerance for bf16\n"                                    //
                 "  NK_RANDOM_DISTRIBUTION=X   uniform_k, cauchy_k, lognormal_k\n"                          //
@@ -250,6 +251,7 @@ int main(int argc, char **argv) {
     if (char const *env = std::getenv("NK_ULP_THRESHOLD_F32")) global_config.ulp_threshold_f32 = std::atoll(env);
     if (char const *env = std::getenv("NK_ULP_THRESHOLD_F16")) global_config.ulp_threshold_f16 = std::atoll(env);
     if (char const *env = std::getenv("NK_ULP_THRESHOLD_BF16")) global_config.ulp_threshold_bf16 = std::atoll(env);
+    if (char const *env = std::getenv("NK_SCALE_THRESHOLD")) global_config.scale_threshold = std::atof(env);
     if (char const *env = std::getenv("NK_SEED")) global_config.seed = std::atoll(env);
     if (!global_config.filter) global_config.filter = std::getenv("NK_FILTER"); // e.g., "dot", "angular", "kld"
 

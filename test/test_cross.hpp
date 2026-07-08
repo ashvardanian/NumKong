@@ -123,7 +123,7 @@ error_stats_t test_attention_packed(typename scalar_type_::attention_packed_size
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::attention_result_t;
 
-    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    error_stats_t stats(comparison_family_t::normalized_reduction_k);
     std::mt19937 generator(global_config.seed);
 
     std::vector<nk_u32_t> const lengths = {60, 130, 0, 33};

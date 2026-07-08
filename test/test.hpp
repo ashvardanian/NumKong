@@ -165,11 +165,12 @@ enum class comparison_family_t {
     exact_k,
     narrow_arithmetic_k,
     mixed_precision_reduction_k,
+    normalized_reduction_k,
     probability_k,
     geospatial_k,
     external_baseline_k,
 };
-enum class comparison_failure_mode_t { exact_distance_k, ulp_threshold_k };
+enum class comparison_failure_mode_t { exact_distance_k, ulp_threshold_k, scale_threshold_k };
 
 struct comparison_family_spec_t {
     comparison_failure_mode_t failure_mode;
@@ -188,6 +189,11 @@ inline constexpr comparison_family_spec_t comparison_family_spec(comparison_fami
     case comparison_family_t::mixed_precision_reduction_k:
     case comparison_family_t::external_baseline_k:
         return {comparison_failure_mode_t::ulp_threshold_k, {"max_abs", "max_rel", "mean_ulp", "max_ulp", "exact"}};
+    case comparison_family_t::normalized_reduction_k:
+        // Normalized weighted reductions (attention outputs) legitimately pass through zero,
+        // where ULP distance explodes on quantization-level noise; the meaningful bound is
+        // the absolute error relative to the largest reference magnitude.
+        return {comparison_failure_mode_t::scale_threshold_k, {"max_abs", "max_rel", "mean_ulp", "max_ulp", "exact"}};
     }
     return {comparison_failure_mode_t::ulp_threshold_k, {"max_abs", "max_rel", "mean_ulp", "max_ulp", "exact"}};
 }
@@ -205,6 +211,9 @@ struct test_config_t {
     std::uint64_t ulp_threshold_f16 = 32;
     /** Max allowed ULP for bf16. Override: `NK_ULP_THRESHOLD_BF16`. */
     std::uint64_t ulp_threshold_bf16 = 256;
+    /** Max absolute error as a fraction of the largest reference magnitude, for the
+     *  normalized-reduction family. Override: `NK_SCALE_THRESHOLD`. */
+    nk_f64_t scale_threshold = 0.02;
     /** Time budget per kernel in milliseconds. Override: `NK_BUDGET_SECS`. */
     std::size_t time_budget_ms = 1000;
     /** Random seed for reproducible tests. Override: `NK_SEED`. */
@@ -384,6 +393,7 @@ struct error_stats_t {
 
     nk_f64_t min_abs_err = std::numeric_limits<nk_f64_t>::max();
     nk_f64_t max_abs_err = 0;
+    nk_f64_t max_reference = 0;
     nk_f64_t sum_abs_err = 0;
 
     nk_f64_t min_rel_err = std::numeric_limits<nk_f64_t>::max();
@@ -436,6 +446,7 @@ struct error_stats_t {
 
             min_abs_err = std::min(min_abs_err, abs_err);
             max_abs_err = std::max(max_abs_err, abs_err);
+            max_reference = std::max(max_reference, std::fabs(exp_f64));
             sum_abs_err += abs_err;
             min_rel_err = std::min(min_rel_err, rel_err);
             max_rel_err = std::max(max_rel_err, rel_err);
@@ -470,6 +481,7 @@ struct error_stats_t {
         else assert(family == other.family && "Can't merge stats from different comparison families");
         min_abs_err = std::min(min_abs_err, other.min_abs_err);
         max_abs_err = std::max(max_abs_err, other.max_abs_err);
+        max_reference = std::max(max_reference, other.max_reference);
         sum_abs_err += other.sum_abs_err;
         min_rel_err = std::min(min_rel_err, other.min_rel_err);
         max_rel_err = std::max(max_rel_err, other.max_rel_err);
@@ -495,6 +507,8 @@ inline bool should_fail(char const *kernel_name, error_stats_t const &stats) noe
         return stats.max_ulp > global_config.ulp_threshold_for(kernel_name);
     case comparison_failure_mode_t::ulp_threshold_k:
         return stats.max_ulp > global_config.ulp_threshold_for(kernel_name);
+    case comparison_failure_mode_t::scale_threshold_k:
+        return stats.max_abs_err > global_config.scale_threshold * stats.max_reference;
     }
     return false;
 }
@@ -516,6 +530,7 @@ inline void print_stats_row(char const *kernel_name, error_stats_t const &stats)
         break;
     case comparison_family_t::narrow_arithmetic_k:
     case comparison_family_t::mixed_precision_reduction_k:
+    case comparison_family_t::normalized_reduction_k:
     case comparison_family_t::external_baseline_k:
         std::printf("%-40s %12.2e %10.2e %12.2e %12llu %10zu\n", kernel_name, stats.max_abs_err, stats.max_rel_err,
                     stats.mean_ulp(), static_cast<unsigned long long>(stats.max_ulp), stats.exact_matches);
