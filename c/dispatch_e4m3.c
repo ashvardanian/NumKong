@@ -38,6 +38,15 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_euclideans_symmetric_k:
             *m = (m_t)&nk_euclideans_symmetric_e4m3_v128relaxed, *c = nk_cap_v128relaxed_k;
             return;
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_e4m3_v128relaxed, *c = nk_cap_v128relaxed_k;
+            return;
+        case nk_kernel_attention_pack_k:
+            *m = (m_t)&nk_attention_pack_e4m3_v128relaxed, *c = nk_cap_v128relaxed_k;
+            return;
+        case nk_kernel_attention_packed_k:
+            *m = (m_t)&nk_attention_packed_e4m3_v128relaxed, *c = nk_cap_v128relaxed_k;
+            return;
         default: break;
         }
 #endif
@@ -118,6 +127,21 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_e4m3_neon, *c = nk_cap_neon_k; return;
         case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_e4m3_neon, *c = nk_cap_neon_k; return;
         case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_e4m3_neon, *c = nk_cap_neon_k; return;
+        default: break;
+        }
+#endif
+#if NK_TARGET_DIAMONDAMX
+    // Diamond Rapids AMX-FP8 (`_tile_dphf8ps`) runs E4M3 attention natively — preferred over the
+    // Sapphire AMX path below, which widens FP8→BF16. Its I8/BF16 variants are Sapphire clones, so
+    // only E4M3 is provided here.
+    if (v & nk_cap_diamondamx_k) switch (k) {
+        case nk_kernel_attention_packed_size_k:
+            *m = (m_t)&nk_attention_packed_size_e4m3_diamondamx, *c = nk_cap_diamondamx_k;
+            return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_e4m3_diamondamx, *c = nk_cap_diamondamx_k; return;
+        case nk_kernel_attention_packed_k:
+            *m = (m_t)&nk_attention_packed_e4m3_diamondamx, *c = nk_cap_diamondamx_k;
+            return;
         default: break;
         }
 #endif

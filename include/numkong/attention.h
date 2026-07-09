@@ -457,6 +457,28 @@ NK_PUBLIC void nk_attention_packed_i8_sapphireamx(nk_i8_t const *queries, void c
                                                   nk_size_t task_count);
 #endif // NK_TARGET_SAPPHIREAMX
 
+#if NK_TARGET_DIAMONDAMX
+/* Diamond Rapids AMX provides only the E4M3 attention variant: its native FP8 tiles (`_tile_dphf8ps`)
+ * are its differentiator, while its I8/BF16 paths would merely clone the Sapphire AMX backend. */
+/** @copydoc nk_attention_packed_size_bf16 */
+NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_diamondamx(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count);
+/** @copydoc nk_attention_pack_bf16 */
+NK_PUBLIC void nk_attention_pack_e4m3_diamondamx(nk_e4m3_t const *keys, nk_e4m3_t const *values,
+                                                 nk_size_t key_value_head_count, nk_size_t depth,
+                                                 nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                 nk_size_t segment_count, nk_size_t key_stride_bytes,
+                                                 nk_size_t value_stride_bytes, void *key_value_packed,
+                                                 nk_size_t first_task, nk_size_t task_count);
+/** @copydoc nk_attention_packed_bf16 */
+NK_PUBLIC void nk_attention_packed_e4m3_diamondamx(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                   nk_f32_t *output, nk_size_t head_count,
+                                                   nk_size_t key_value_head_count, nk_size_t depth,
+                                                   nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+                                                   nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t first_task,
+                                                   nk_size_t task_count);
+#endif // NK_TARGET_DIAMONDAMX
+
 #if NK_TARGET_SME
 /** @copydoc nk_attention_packed_size_bf16 */
 NK_PUBLIC nk_size_t nk_attention_packed_size_bf16_sme(nk_size_t key_value_head_count, nk_size_t depth,
@@ -728,7 +750,9 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_bf16(nk_size_t key_value_head_count
 
 NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3(nk_size_t key_value_head_count, nk_size_t depth,
                                                   nk_u32_t const *segment_lengths, nk_size_t segment_count) {
-#if NK_TARGET_SAPPHIREAMX
+#if NK_TARGET_DIAMONDAMX
+    return nk_attention_packed_size_e4m3_diamondamx(key_value_head_count, depth, segment_lengths, segment_count);
+#elif NK_TARGET_SAPPHIREAMX
     return nk_attention_packed_size_e4m3_sapphireamx(key_value_head_count, depth, segment_lengths, segment_count);
 #elif NK_TARGET_GENOA
     return nk_attention_packed_size_e4m3_genoa(key_value_head_count, depth, segment_lengths, segment_count);
@@ -796,7 +820,11 @@ NK_PUBLIC void nk_attention_pack_e4m3(nk_e4m3_t const *keys, nk_e4m3_t const *va
                                       nk_size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
                                       nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes,
                                       void *key_value_packed, nk_size_t first_task, nk_size_t task_count) {
-#if NK_TARGET_SAPPHIREAMX
+#if NK_TARGET_DIAMONDAMX
+    nk_attention_pack_e4m3_diamondamx(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
+                                      task_count);
+#elif NK_TARGET_SAPPHIREAMX
     nk_attention_pack_e4m3_sapphireamx(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                        segment_count, key_stride_bytes, value_stride_bytes, key_value_packed,
                                        first_task, task_count);
@@ -882,7 +910,11 @@ NK_PUBLIC void nk_attention_packed_e4m3(nk_e4m3_t const *queries, void const *ke
                                         nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
                                         nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t first_task,
                                         nk_size_t task_count) {
-#if NK_TARGET_SAPPHIREAMX
+#if NK_TARGET_DIAMONDAMX
+    nk_attention_packed_e4m3_diamondamx(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
+                                        task_count);
+#elif NK_TARGET_SAPPHIREAMX
     nk_attention_packed_e4m3_sapphireamx(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                          query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
                                          task_count);
