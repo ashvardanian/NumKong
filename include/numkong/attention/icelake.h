@@ -329,60 +329,99 @@ NK_INTERNAL void nk_attention_score_block_icelake_(nk_u8_t const *queries_biased
 }
 
 /**
- *  @brief Streaming base-2 softmax over one panel: row max over live columns only, U8 weight
- *         quantization `round(255 · 2^(s₂ − m₂))` — separate multiply and add to match the
- *         serial reference's rounding exactly — and the online-correction bookkeeping.
- *         Returns `2^(m_old − m_new)` for the caller to apply to its output accumulators.
+ *  @brief I-BERT-style integer exponential for the I8 weight path: takes the base-2 argument as
+ *         a Q15 fixed-point value in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8 weight
+ *         in the low byte of each I32 lane. A degree-3 fixed-point polynomial covers the fraction
+ *         and a lane-variable shift applies the integer part, so no floating-point instruction
+ *         touches the weights — the AVX-512 mirror of `nk_attention_iexp2_weight_i32x_sme_`.
+ */
+NK_INTERNAL __m512i nk_attention_iexp2_weight_i32x16_icelake_(__m512i t_q15_i32x16) {
+    __m512i const whole_i32x16 = _mm512_srai_epi32(t_q15_i32x16, 15); // floor, in [-10, 0]
+    __m512i const fraction_i32x16 = _mm512_and_si512(t_q15_i32x16, _mm512_set1_epi32(0x7FFF));
+    __m512i poly_i32x16 = _mm512_set1_epi32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
+    poly_i32x16 = _mm512_add_epi32(_mm512_srai_epi32(_mm512_mullo_epi32(fraction_i32x16, poly_i32x16), 15),
+                                   _mm512_set1_epi32(3678));
+    poly_i32x16 = _mm512_add_epi32(_mm512_srai_epi32(_mm512_mullo_epi32(fraction_i32x16, poly_i32x16), 15),
+                                   _mm512_set1_epi32(11410));
+    poly_i32x16 = _mm512_add_epi32(_mm512_srai_epi32(_mm512_mullo_epi32(fraction_i32x16, poly_i32x16), 15),
+                                   _mm512_set1_epi32(16382));
+    __m512i const scaled_i32x16 = _mm512_sub_epi32(_mm512_slli_epi32(poly_i32x16, 8), poly_i32x16); // 255 = (x<<8)-x
+    __m512i const shift_i32x16 = _mm512_sub_epi32(_mm512_set1_epi32(14), whole_i32x16);
+    __m512i const bias_i32x16 = _mm512_sllv_epi32(_mm512_set1_epi32(1),
+                                                  _mm512_sub_epi32(_mm512_set1_epi32(13), whole_i32x16));
+    return _mm512_srav_epi32(_mm512_add_epi32(scaled_i32x16, bias_i32x16), shift_i32x16);
+}
+
+/**
+ *  @brief Streaming base-2 softmax over one panel, entirely in integer arithmetic: the row max is
+ *         an exact `_mm512_max_epi32` over live columns only, weights come from the integer i-exp
+ *         over `(score − max)·scale₂` in Q15, and the weight sum accumulates in I32. Only the
+ *         per-panel online correction `2^((m_old − m_new)·scale₂)` stays in F32, where it scales
+ *         the F32 output accumulators anyway. Returns that correction.
  */
 NK_INTERNAL nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores, nk_u8_t *weights, nk_size_t panel_len,
-                                                         nk_f32_t scale2, nk_f32_t *running_max2,
-                                                         nk_f32_t *running_sum) {
-    __m512 const scale2_f32x16 = _mm512_set1_ps(scale2);
+                                                         nk_f32_t scale2, nk_i32_t scale_fixed, nk_i32_t delta_floor,
+                                                         nk_i32_t *running_max, nk_f32_t *running_sum) {
     nk_size_t const full = panel_len & ~(nk_size_t)15;
     __mmask16 const tail_m16 = (__mmask16)((1u << (panel_len - full)) - 1);
 
-    __m512 max_f32x16 = _mm512_set1_ps(NK_F32_MIN);
+    __m512i max_i32x16 = _mm512_set1_epi32(NK_I32_MIN);
     nk_size_t position_idx = 0;
     for (; position_idx < full; position_idx += 16)
-        max_f32x16 = _mm512_max_ps(
-            max_f32x16, _mm512_mul_ps(_mm512_cvtepi32_ps(_mm512_load_si512(scores + position_idx)), scale2_f32x16));
+        max_i32x16 = _mm512_max_epi32(max_i32x16, _mm512_load_si512(scores + position_idx));
     if (position_idx < panel_len)
-        max_f32x16 = _mm512_max_ps(
-            max_f32x16,
-            _mm512_mask_mul_ps(_mm512_set1_ps(NK_F32_MIN), tail_m16,
-                               _mm512_cvtepi32_ps(_mm512_load_si512(scores + position_idx)), scale2_f32x16));
-    nk_f32_t const panel_max2 = nk_reduce_max_f32x16_skylake_(max_f32x16);
-    nk_f32_t const new_max2 = *running_max2 > panel_max2 ? *running_max2 : panel_max2;
+        max_i32x16 = _mm512_mask_max_epi32(max_i32x16, tail_m16, max_i32x16, _mm512_load_si512(scores + position_idx));
+    nk_i32_t const panel_max = _mm512_reduce_max_epi32(max_i32x16);
+    nk_i32_t const new_max = *running_max > panel_max ? *running_max : panel_max;
     nk_f32_t const correction = _mm512_cvtss_f32(
-        nk_attention_exp2_f32x16_skylake_(_mm512_set1_ps(*running_max2 - new_max2)));
-    *running_max2 = new_max2;
+        nk_attention_exp2_f32x16_skylake_(_mm512_set1_ps(((nk_f32_t)*running_max - (nk_f32_t)new_max) * scale2)));
+    *running_max = new_max;
 
-    __m512 const max2_f32x16 = _mm512_set1_ps(new_max2);
-    __m512 const amplitude_f32x16 = _mm512_set1_ps(255.0f);
-    __m512 const half_f32x16 = _mm512_set1_ps(0.5f);
-    __m512 sum_f32x16 = _mm512_setzero_ps();
-    for (position_idx = 0; position_idx < full; position_idx += 16) {
-        __m512 const exp_f32x16 = nk_attention_exp2_f32x16_skylake_(
-            _mm512_fmsub_ps(_mm512_cvtepi32_ps(_mm512_load_si512(scores + position_idx)), scale2_f32x16, max2_f32x16));
-        __m512i const weight_u32x16 = _mm512_cvttps_epu32(
-            _mm512_add_ps(_mm512_mul_ps(exp_f32x16, amplitude_f32x16), half_f32x16));
-        sum_f32x16 = _mm512_add_ps(sum_f32x16, _mm512_cvtepu32_ps(weight_u32x16));
-        _mm_storeu_si128((__m128i *)(weights + position_idx), _mm512_cvtusepi32_epi8(weight_u32x16));
+    __m512i const new_max_i32x16 = _mm512_set1_epi32(new_max);
+    __m512i const scale_fixed_i32x16 = _mm512_set1_epi32(scale_fixed);
+    __m512i const delta_floor_i32x16 = _mm512_set1_epi32(delta_floor);
+    __m512i sum_a_i32x16 = _mm512_setzero_si512();
+    __m512i sum_b_i32x16 = _mm512_setzero_si512();
+    nk_size_t const full2 = full & ~(nk_size_t)31;
+    // Two independent 16-lane groups per iteration: group B's i-exp fills the port-0 vpmulld latency left
+    // by group A's dependency chain; the separate sum accumulators recombine after the loop, and each
+    // group's delta/iexp2/store is byte-identical to the scalar path.
+    for (position_idx = 0; position_idx < full2; position_idx += 32) {
+        __m512i const delta_a_i32x16 = _mm512_max_epi32(
+            _mm512_sub_epi32(_mm512_load_si512(scores + position_idx), new_max_i32x16), delta_floor_i32x16);
+        __m512i const weight_a_i32x16 = nk_attention_iexp2_weight_i32x16_icelake_(
+            _mm512_mullo_epi32(delta_a_i32x16, scale_fixed_i32x16));
+        __m512i const delta_b_i32x16 = _mm512_max_epi32(
+            _mm512_sub_epi32(_mm512_load_si512(scores + position_idx + 16), new_max_i32x16), delta_floor_i32x16);
+        __m512i const weight_b_i32x16 = nk_attention_iexp2_weight_i32x16_icelake_(
+            _mm512_mullo_epi32(delta_b_i32x16, scale_fixed_i32x16));
+        sum_a_i32x16 = _mm512_add_epi32(sum_a_i32x16, weight_a_i32x16);
+        sum_b_i32x16 = _mm512_add_epi32(sum_b_i32x16, weight_b_i32x16);
+        _mm_storeu_si128((__m128i *)(weights + position_idx), _mm512_cvtusepi32_epi8(weight_a_i32x16));
+        _mm_storeu_si128((__m128i *)(weights + position_idx + 16), _mm512_cvtusepi32_epi8(weight_b_i32x16));
+    }
+    __m512i sum_i32x16 = _mm512_add_epi32(sum_a_i32x16, sum_b_i32x16);
+    for (; position_idx < full; position_idx += 16) { // trailing odd 16-group, if any
+        __m512i const delta_i32x16 = _mm512_max_epi32(
+            _mm512_sub_epi32(_mm512_load_si512(scores + position_idx), new_max_i32x16), delta_floor_i32x16);
+        __m512i const weight_i32x16 = nk_attention_iexp2_weight_i32x16_icelake_(
+            _mm512_mullo_epi32(delta_i32x16, scale_fixed_i32x16));
+        sum_i32x16 = _mm512_add_epi32(sum_i32x16, weight_i32x16);
+        _mm_storeu_si128((__m128i *)(weights + position_idx), _mm512_cvtusepi32_epi8(weight_i32x16));
     }
     if (position_idx < panel_len) {
-        __m512 const exp_f32x16 = _mm512_maskz_mov_ps(
-            tail_m16, nk_attention_exp2_f32x16_skylake_(_mm512_fmsub_ps(
-                          _mm512_cvtepi32_ps(_mm512_load_si512(scores + position_idx)), scale2_f32x16, max2_f32x16)));
-        __m512i const weight_u32x16 = _mm512_maskz_cvttps_epu32(
-            tail_m16, _mm512_add_ps(_mm512_mul_ps(exp_f32x16, amplitude_f32x16), half_f32x16));
-        sum_f32x16 = _mm512_add_ps(sum_f32x16, _mm512_cvtepu32_ps(weight_u32x16));
-        _mm_storeu_si128((__m128i *)(weights + position_idx), _mm512_cvtusepi32_epi8(weight_u32x16));
+        __m512i const delta_i32x16 = _mm512_max_epi32(
+            _mm512_sub_epi32(_mm512_load_si512(scores + position_idx), new_max_i32x16), delta_floor_i32x16);
+        __m512i const weight_i32x16 = _mm512_maskz_mov_epi32(
+            tail_m16, nk_attention_iexp2_weight_i32x16_icelake_(_mm512_mullo_epi32(delta_i32x16, scale_fixed_i32x16)));
+        sum_i32x16 = _mm512_add_epi32(sum_i32x16, weight_i32x16);
+        _mm_storeu_si128((__m128i *)(weights + position_idx), _mm512_cvtusepi32_epi8(weight_i32x16));
         position_idx += 16;
     }
     // Zero any leftover bytes up to the next quad boundary so padded V positions get zero weight.
     for (position_idx = panel_len; position_idx < nk_size_round_up_to_multiple_(panel_len, 4); position_idx++)
         weights[position_idx] = 0;
-    *running_sum = *running_sum * correction + nk_reduce_add_f32x16_skylake_(sum_f32x16);
+    *running_sum = *running_sum * correction + (nk_f32_t)_mm512_reduce_add_epi32(sum_i32x16);
     return correction;
 }
 
@@ -432,7 +471,10 @@ NK_PUBLIC void nk_attention_packed_i8_icelake(                                  
     nk_size_t const output_stride_floats = output_stride_bytes / sizeof(nk_f32_t);
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_;                     // softmax(x) = softmax₂(x·log₂e)
+    nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
+    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t·255 + 0.5 < 1)
+        scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
     nk_size_t const panel_width = nk_attention_panel_icelake_k_;
 
     nk_size_t const total_tasks = segment_count * head_count;
@@ -444,7 +486,8 @@ NK_PUBLIC void nk_attention_packed_i8_icelake(                                  
     NK_ALIGN64 nk_f32_t output_rows[16 * nk_attention_max_depth_icelake_k_];
     NK_ALIGN64 nk_i32_t scores[16 * nk_attention_panel_icelake_k_];
     NK_ALIGN64 nk_u8_t weights[nk_attention_panel_icelake_k_];
-    nk_f32_t running_max2[16], running_sum[16];
+    nk_i32_t running_max[16];
+    nk_f32_t running_sum[16];
     __m512i const xor_mask_u8x64 = _mm512_set1_epi8((char)0x80);
     nk_size_t const depth_full = depth & ~(nk_size_t)15;
     __mmask16 const dim_tail_m16 = (__mmask16)((1u << (depth - depth_full)) - 1);
@@ -485,7 +528,7 @@ NK_PUBLIC void nk_attention_packed_i8_icelake(                                  
                 for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16)
                     _mm512_store_ps(output_rows + block_row * nk_attention_max_depth_icelake_k_ + channel_idx,
                                     _mm512_setzero_ps());
-                running_max2[block_row] = NK_F32_MIN;
+                running_max[block_row] = NK_I32_MIN;
                 running_sum[block_row] = 0;
             }
             // Zero the unused query slots so the fixed-16 score kernel reads defined biased bytes.
@@ -502,8 +545,8 @@ NK_PUBLIC void nk_attention_packed_i8_icelake(                                  
                                                   depth_padded, scores);
                 for (nk_size_t block_row = 0; block_row < block_rows; block_row++) {
                     nk_f32_t const correction = nk_attention_softmax_panel_icelake_(
-                        scores + block_row * nk_attention_panel_icelake_k_, weights, panel_len, scale2,
-                        &running_max2[block_row], &running_sum[block_row]);
+                        scores + block_row * nk_attention_panel_icelake_k_, weights, panel_len, scale2, scale_fixed,
+                        delta_floor, &running_max[block_row], &running_sum[block_row]);
                     nk_attention_weighted_sum_panel_icelake_(
                         weights, values_plane, panel_start, panel_len, depth_padded, correction,
                         output_rows + block_row * nk_attention_max_depth_icelake_k_);

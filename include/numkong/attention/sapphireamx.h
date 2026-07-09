@@ -889,7 +889,7 @@ NK_INTERNAL void nk_attention_score_panel_i8_sapphireamx_(      //
     nk_i8_t const *keys_head_tiles, nk_size_t panel_first_tile, // K tiles, [kv_tile][depth_tile]
     nk_size_t panel_pairs, nk_size_t depth_tiles,               // panel width / 32, channels / 64
     nk_i32_t *scores_panel, nk_size_t panel_width,              // [32][panel_width]
-    nk_size_t valid_channels, nk_f32_t (*panel_max)[16]) {      // live columns, [2][16] raw maxima out
+    nk_size_t valid_channels, nk_i32_t (*panel_max)[16]) {      // live columns, [2][16] raw maxima out
 
     int const panel_stride_bytes = (int)(panel_width * sizeof(nk_i32_t));
     nk_size_t const k_tile_stride = depth_tiles * 1024;
@@ -920,65 +920,83 @@ NK_INTERNAL void nk_attention_score_panel_i8_sapphireamx_(      //
     for (nk_size_t row_tile_idx = 0; row_tile_idx < 2; row_tile_idx++)
         for (nk_size_t row = 0; row < 16; row++) {
             nk_i32_t const *scores_row = scores_panel + (row_tile_idx * 16 + row) * panel_width;
-            __m512 max_f32x16 = _mm512_set1_ps(NK_F32_MIN);
+            __m512i max_i32x16 = _mm512_set1_epi32(NK_I32_MIN);
             nk_size_t channel_idx = 0;
             for (; channel_idx < full_cols; channel_idx += 16)
-                max_f32x16 = _mm512_max_ps(max_f32x16, _mm512_cvtepi32_ps(_mm512_load_si512(scores_row + channel_idx)));
+                max_i32x16 = _mm512_max_epi32(max_i32x16, _mm512_load_si512(scores_row + channel_idx));
             if (channel_idx < valid_channels)
-                max_f32x16 = _mm512_max_ps(
-                    max_f32x16, _mm512_mask_mov_ps(_mm512_set1_ps(NK_F32_MIN), tail_m16,
-                                                   _mm512_cvtepi32_ps(_mm512_load_si512(scores_row + channel_idx))));
-            panel_max[row_tile_idx][row] = nk_reduce_max_f32x16_skylake_(max_f32x16);
+                max_i32x16 = _mm512_mask_max_epi32(max_i32x16, tail_m16, max_i32x16,
+                                                   _mm512_load_si512(scores_row + channel_idx));
+            panel_max[row_tile_idx][row] = _mm512_reduce_max_epi32(max_i32x16);
         }
 }
 
 /**
- *  @brief Stage 2: streaming base-2 softmax with U8 weight quantization over one panel.
- *
- *  Row-major single pass: `w̃ = (u8)(2^(score·scale₂ − m₂_row) · 255 + 0.5)` — separate
- *  multiply and add to match the serial reference's rounding exactly — with the running
- *  sum of the @b quantized weights in a register. The max-scoring position lands on 255,
- *  so the sum can never be zero. Columns past `valid_cols` get zero weights (U8 zero is
- *  an exact zero weight) and no sum contribution.
+ *  @brief I-BERT-style integer exponential for the I8 weight path: takes the base-2 argument as a
+ *         Q15 fixed-point value in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8 weight in
+ *         the low byte of each I32 lane. A degree-3 fixed-point polynomial covers the fraction and a
+ *         lane-variable shift applies the integer part — the AVX-512 mirror of the SME/Ice Lake helper.
+ */
+NK_INTERNAL __m512i nk_attention_iexp2_weight_i32x16_sapphireamx_(__m512i t_q15_i32x16) {
+    __m512i const whole_i32x16 = _mm512_srai_epi32(t_q15_i32x16, 15); // floor, in [-10, 0]
+    __m512i const fraction_i32x16 = _mm512_and_si512(t_q15_i32x16, _mm512_set1_epi32(0x7FFF));
+    __m512i poly_i32x16 = _mm512_set1_epi32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
+    poly_i32x16 = _mm512_add_epi32(_mm512_srai_epi32(_mm512_mullo_epi32(fraction_i32x16, poly_i32x16), 15),
+                                   _mm512_set1_epi32(3678));
+    poly_i32x16 = _mm512_add_epi32(_mm512_srai_epi32(_mm512_mullo_epi32(fraction_i32x16, poly_i32x16), 15),
+                                   _mm512_set1_epi32(11410));
+    poly_i32x16 = _mm512_add_epi32(_mm512_srai_epi32(_mm512_mullo_epi32(fraction_i32x16, poly_i32x16), 15),
+                                   _mm512_set1_epi32(16382));
+    __m512i const scaled_i32x16 = _mm512_sub_epi32(_mm512_slli_epi32(poly_i32x16, 8), poly_i32x16); // 255 = (x<<8)-x
+    __m512i const shift_i32x16 = _mm512_sub_epi32(_mm512_set1_epi32(14), whole_i32x16);
+    __m512i const bias_i32x16 = _mm512_sllv_epi32(_mm512_set1_epi32(1),
+                                                  _mm512_sub_epi32(_mm512_set1_epi32(13), whole_i32x16));
+    return _mm512_srav_epi32(_mm512_add_epi32(scaled_i32x16, bias_i32x16), shift_i32x16);
+}
+
+/**
+ *  @brief Stage 2: streaming base-2 softmax with U8 weight quantization over one panel, entirely in
+ *         integer arithmetic: `w̃ = iexp2((score − m_row)·scale₂)` in Q15, with the running sum of
+ *         the quantized weights accumulated in I32 and converted to F32 for the online correction.
+ *         The max-scoring position lands on 255, so the sum can never be zero. Columns past
+ *         `valid_channels` get zero weights (U8 zero is an exact zero weight) and no sum contribution.
  */
 NK_INTERNAL void nk_attention_exp_panel_i8_sapphireamx_(                   //
     nk_i32_t const *scores_panel, nk_u8_t *weights_panel,                  // [32][panel] each
     nk_size_t panel_cols, nk_size_t valid_channels, nk_size_t panel_width, //
-    nk_f32_t scale2, nk_f32_t const (*new_max)[16], nk_f32_t (*panel_sums)[16]) {
+    nk_i32_t scale_fixed, nk_i32_t delta_floor, nk_i32_t const (*new_max)[16], nk_f32_t (*panel_sums)[16]) {
 
-    __m512 const scale_f32x16 = _mm512_set1_ps(scale2);
-    __m512 const half_f32x16 = _mm512_set1_ps(0.5f);
-    __m512 const amplitude_f32x16 = _mm512_set1_ps(255.0f);
+    __m512i const scale_fixed_i32x16 = _mm512_set1_epi32(scale_fixed);
+    __m512i const delta_floor_i32x16 = _mm512_set1_epi32(delta_floor);
     nk_size_t const full_cols = valid_channels & ~(nk_size_t)15;
     __mmask16 const tail_m16 = (__mmask16)((1u << (valid_channels - full_cols)) - 1);
     for (nk_size_t row = 0; row < 32; row++) {
         nk_i32_t const *scores_row = scores_panel + row * panel_width;
         nk_u8_t *weights_row = weights_panel + row * panel_width;
-        __m512 const max_f32x16 = _mm512_set1_ps(new_max[row / 16][row % 16]);
-        __m512 sum_f32x16 = _mm512_setzero_ps();
+        __m512i const new_max_i32x16 = _mm512_set1_epi32(new_max[row / 16][row % 16]);
+        __m512i sum_i32x16 = _mm512_setzero_si512();
         nk_size_t channel_idx = 0;
         for (; channel_idx < full_cols; channel_idx += 16) {
-            __m512 const exp_f32x16 = nk_attention_exp2_f32x16_skylake_(_mm512_fmsub_ps(
-                _mm512_cvtepi32_ps(_mm512_load_si512(scores_row + channel_idx)), scale_f32x16, max_f32x16));
-            __m512i const weight_u32x16 = _mm512_cvttps_epu32(
-                _mm512_add_ps(_mm512_mul_ps(exp_f32x16, amplitude_f32x16), half_f32x16));
-            sum_f32x16 = _mm512_add_ps(sum_f32x16, _mm512_cvtepu32_ps(weight_u32x16));
-            _mm_store_si128((__m128i *)(weights_row + channel_idx), _mm512_cvtusepi32_epi8(weight_u32x16));
+            __m512i const delta_i32x16 = _mm512_max_epi32(
+                _mm512_sub_epi32(_mm512_load_si512(scores_row + channel_idx), new_max_i32x16), delta_floor_i32x16);
+            __m512i const weight_i32x16 = nk_attention_iexp2_weight_i32x16_sapphireamx_(
+                _mm512_mullo_epi32(delta_i32x16, scale_fixed_i32x16));
+            sum_i32x16 = _mm512_add_epi32(sum_i32x16, weight_i32x16);
+            _mm_store_si128((__m128i *)(weights_row + channel_idx), _mm512_cvtusepi32_epi8(weight_i32x16));
         }
         if (channel_idx < valid_channels) {
-            __m512 const exp_f32x16 = _mm512_maskz_mov_ps(
+            __m512i const delta_i32x16 = _mm512_max_epi32(
+                _mm512_sub_epi32(_mm512_load_si512(scores_row + channel_idx), new_max_i32x16), delta_floor_i32x16);
+            __m512i const weight_i32x16 = _mm512_maskz_mov_epi32(
                 tail_m16,
-                nk_attention_exp2_f32x16_skylake_(_mm512_fmsub_ps(
-                    _mm512_cvtepi32_ps(_mm512_load_si512(scores_row + channel_idx)), scale_f32x16, max_f32x16)));
-            __m512i const weight_u32x16 = _mm512_cvttps_epu32(
-                _mm512_add_ps(_mm512_mul_ps(exp_f32x16, amplitude_f32x16), half_f32x16));
-            sum_f32x16 = _mm512_add_ps(sum_f32x16, _mm512_cvtepu32_ps(weight_u32x16));
-            _mm_store_si128((__m128i *)(weights_row + channel_idx), _mm512_cvtusepi32_epi8(weight_u32x16));
+                nk_attention_iexp2_weight_i32x16_sapphireamx_(_mm512_mullo_epi32(delta_i32x16, scale_fixed_i32x16)));
+            sum_i32x16 = _mm512_add_epi32(sum_i32x16, weight_i32x16);
+            _mm_store_si128((__m128i *)(weights_row + channel_idx), _mm512_cvtusepi32_epi8(weight_i32x16));
             channel_idx += 16;
         }
         for (; channel_idx < panel_cols; channel_idx += 16) // zero weights for the padded remainder
             _mm_store_si128((__m128i *)(weights_row + channel_idx), _mm_setzero_si128());
-        panel_sums[row / 16][row % 16] = nk_reduce_add_f32x16_skylake_(sum_f32x16);
+        panel_sums[row / 16][row % 16] = (nk_f32_t)_mm512_reduce_add_epi32(sum_i32x16);
     }
 }
 
@@ -1062,14 +1080,16 @@ NK_INTERNAL void nk_attention_task_i8_sapphireamx_(                             
     nk_size_t const output_stride_floats = depth_padded;
     nk_size_t const o_stride_out = output_stride_bytes / sizeof(nk_f32_t);
 
-    NK_ALIGN64 nk_f32_t panel_max[2][16];
+    NK_ALIGN64 nk_i32_t panel_max[2][16];
     NK_ALIGN64 nk_f32_t corrections[2][16];
-    NK_ALIGN64 nk_f32_t new_max_arr[2][16];
+    NK_ALIGN64 nk_i32_t new_max_arr[2][16];
     NK_ALIGN64 nk_f32_t panel_sums[2][16];
-    __m512 row_max2_f32x16[nk_attention_chunk_sapphireamx_k_][2]; // base-2-scaled running maxima
+    __m512i row_max_i32x16[nk_attention_chunk_sapphireamx_k_][2]; // raw integer running maxima
     __m512 row_sum_f32x16[nk_attention_chunk_sapphireamx_k_][2];
     __m512 const zero_f32x16 = _mm512_setzero_ps();
-    __m512 const scale2_f32x16 = _mm512_set1_ps(scale2);
+    nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
+    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t·255 + 0.5 < 1)
+        scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
     nk_size_t const depth_full = depth & ~(nk_size_t)15;
     __mmask16 const dim_tail_m16 = (__mmask16)((1u << (depth - depth_full)) - 1);
 
@@ -1092,7 +1112,7 @@ NK_INTERNAL void nk_attention_task_i8_sapphireamx_(                             
                             head * depth + channel_start,
                         query_stride_bytes, valid_positions, valid_columns);
                 }
-                row_max2_f32x16[row_block_idx][row_tile_idx] = _mm512_set1_ps(NK_F32_MIN);
+                row_max_i32x16[row_block_idx][row_tile_idx] = _mm512_set1_epi32(NK_I32_MIN);
                 row_sum_f32x16[row_block_idx][row_tile_idx] = _mm512_setzero_ps();
             }
 
@@ -1111,18 +1131,19 @@ NK_INTERNAL void nk_attention_task_i8_sapphireamx_(                             
                     panel_start / 16, panel_cols / 32, depth_tiles, scratch->scores_panel, panel_width, valid_channels,
                     panel_max);
                 for (nk_size_t row_tile_idx = 0; row_tile_idx < 2; row_tile_idx++) {
-                    __m512 const old_max_f32x16 = row_max2_f32x16[row_block_idx][row_tile_idx];
-                    __m512 const new_max_f32x16 = _mm512_max_ps(
-                        old_max_f32x16, _mm512_mul_ps(_mm512_load_ps(panel_max[row_tile_idx]), scale2_f32x16));
-                    __m512 const corrections_f32x16 = nk_attention_exp2_f32x16_skylake_(
-                        _mm512_sub_ps(old_max_f32x16, new_max_f32x16));
-                    row_max2_f32x16[row_block_idx][row_tile_idx] = new_max_f32x16;
+                    __m512i const old_max_i32x16 = row_max_i32x16[row_block_idx][row_tile_idx];
+                    __m512i const new_max_i32x16 = _mm512_max_epi32(old_max_i32x16,
+                                                                    _mm512_load_si512(panel_max[row_tile_idx]));
+                    __m512 const corrections_f32x16 = nk_attention_exp2_f32x16_skylake_(_mm512_mul_ps(
+                        _mm512_sub_ps(_mm512_cvtepi32_ps(old_max_i32x16), _mm512_cvtepi32_ps(new_max_i32x16)),
+                        _mm512_set1_ps(scale2)));
+                    row_max_i32x16[row_block_idx][row_tile_idx] = new_max_i32x16;
                     _mm512_store_ps(corrections[row_tile_idx], corrections_f32x16);
-                    _mm512_store_ps(new_max_arr[row_tile_idx], new_max_f32x16);
+                    _mm512_store_si512(new_max_arr[row_tile_idx], new_max_i32x16);
                 }
                 nk_attention_exp_panel_i8_sapphireamx_(scratch->scores_panel, scratch->weights_panel, panel_cols,
-                                                       valid_channels, panel_width, scale2,
-                                                       (nk_f32_t const(*)[16])new_max_arr, panel_sums);
+                                                       valid_channels, panel_width, scale_fixed, delta_floor,
+                                                       (nk_i32_t const(*)[16])new_max_arr, panel_sums);
                 for (nk_size_t row_tile_idx = 0; row_tile_idx < 2; row_tile_idx++)
                     row_sum_f32x16[row_block_idx][row_tile_idx] = _mm512_fmadd_ps(
                         row_sum_f32x16[row_block_idx][row_tile_idx], _mm512_load_ps(corrections[row_tile_idx]),
@@ -1137,8 +1158,10 @@ NK_INTERNAL void nk_attention_task_i8_sapphireamx_(                             
         for (nk_size_t row_block_idx = 0; row_block_idx < blocks; row_block_idx++)
             for (nk_size_t row_tile_idx = 0; row_tile_idx < 2; row_tile_idx++) {
                 nk_size_t const position_start = row_block_start + row_block_idx * 32 + row_tile_idx * 16;
-                if (position_start >= row_count) break;
-                nk_size_t const valid_positions = (row_count - position_start >= 16) ? 16 : row_count - position_start;
+                nk_size_t const valid_positions = position_start >= row_count          ? 0
+                                                  : (row_count - position_start >= 16) ? 16
+                                                                                       : row_count - position_start;
+                if (!valid_positions) continue; // flat bound replaces the mid-nest `break`
                 NK_ALIGN64 nk_f32_t row_sums[16];
                 _mm512_store_ps(row_sums, row_sum_f32x16[row_block_idx][row_tile_idx]);
                 for (nk_size_t row = 0; row < valid_positions; row++) {

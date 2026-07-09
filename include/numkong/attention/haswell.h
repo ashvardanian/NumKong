@@ -481,68 +481,115 @@ NK_INTERNAL void nk_attention_score_block_i8_haswell_(nk_i16_t const *queries_i1
 }
 
 /**
- *  @brief Streaming base-2 softmax over one panel for a single query row: row max over live columns,
- *         U8 weight quantization `round(255 · 2^(s₂ − m₂))` — separate multiply and add to match the
- *         serial reference's rounding — and the online-correction bookkeeping. Returns `2^(m_old − m_new)`.
+ *  @brief I-BERT-style integer exponential for the I8 weight path: takes the base-2 argument as a
+ *         Q15 fixed-point value in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8 weight in
+ *         the low byte of each I32 lane. A degree-3 fixed-point polynomial covers the fraction and a
+ *         lane-variable shift applies the integer part — the AVX2 mirror of the SME/Ice Lake helper.
+ */
+NK_INTERNAL __m256i nk_attention_iexp2_weight_i32x8_haswell_(__m256i t_q15_i32x8) {
+    __m256i const whole_i32x8 = _mm256_srai_epi32(t_q15_i32x8, 15); // floor, in [-10, 0]
+    __m256i const fraction_i32x8 = _mm256_and_si256(t_q15_i32x8, _mm256_set1_epi32(0x7FFF));
+    __m256i poly_i32x8 = _mm256_set1_epi32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
+    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
+                                  _mm256_set1_epi32(3678));
+    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
+                                  _mm256_set1_epi32(11410));
+    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
+                                  _mm256_set1_epi32(16382));
+    __m256i const scaled_i32x8 = _mm256_sub_epi32(_mm256_slli_epi32(poly_i32x8, 8), poly_i32x8); // 255 = (x<<8)-x
+    __m256i const shift_i32x8 = _mm256_sub_epi32(_mm256_set1_epi32(14), whole_i32x8);
+    __m256i const bias_i32x8 = _mm256_sllv_epi32(_mm256_set1_epi32(1),
+                                                 _mm256_sub_epi32(_mm256_set1_epi32(13), whole_i32x8));
+    return _mm256_srav_epi32(_mm256_add_epi32(scaled_i32x8, bias_i32x8), shift_i32x8);
+}
+
+/**
+ *  @brief Streaming base-2 softmax over one panel for a single query row, entirely in integer
+ *         arithmetic: the row max is an exact `_mm256_max_epi32` over live columns, weights come from
+ *         the integer i-exp over `(score − max)·scale₂` in Q15, and the weight sum accumulates in I32.
+ *         Only the online correction `2^((m_old − m_new)·scale₂)` stays in F32. Returns that correction.
  */
 NK_INTERNAL nk_f32_t nk_attention_softmax_panel_i8_haswell_(nk_i32_t const *scores, nk_size_t panel_length,
-                                                            nk_f32_t scale2, nk_f32_t *running_max2,
-                                                            nk_f32_t *running_sum, nk_u8_t *weights) {
-    __m256 const scale2_f32x8 = _mm256_set1_ps(scale2);
-    __m256 max_f32x8 = _mm256_set1_ps(NK_F32_MIN);
+                                                            nk_f32_t scale2, nk_i32_t scale_fixed, nk_i32_t delta_floor,
+                                                            nk_i32_t *running_max, nk_f32_t *running_sum,
+                                                            nk_u8_t *weights) {
+    __m256i max_i32x8 = _mm256_set1_epi32(NK_I32_MIN);
     nk_size_t position_idx = 0;
     for (; position_idx + 8 <= panel_length; position_idx += 8)
-        max_f32x8 = _mm256_max_ps(
-            max_f32x8, _mm256_mul_ps(_mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i const *)(scores + position_idx))),
-                                     scale2_f32x8));
-    nk_f32_t panel_max2 = nk_reduce_max_f32x8_haswell_(max_f32x8);
-    for (; position_idx < panel_length; position_idx++) {
-        nk_f32_t const scaled2 = (nk_f32_t)scores[position_idx] * scale2;
-        if (scaled2 > panel_max2) panel_max2 = scaled2;
-    }
-    nk_f32_t const new_max2 = *running_max2 > panel_max2 ? *running_max2 : panel_max2;
+        max_i32x8 = _mm256_max_epi32(max_i32x8, _mm256_loadu_si256((__m256i const *)(scores + position_idx)));
+    nk_i32_t panel_max = nk_reduce_max_i32x8_haswell_(max_i32x8);
+    for (; position_idx < panel_length; position_idx++)
+        if (scores[position_idx] > panel_max) panel_max = scores[position_idx];
+    nk_i32_t const new_max = *running_max > panel_max ? *running_max : panel_max;
     nk_f32_t const correction = _mm256_cvtss_f32(
-        nk_attention_exp2_f32x8_haswell_(_mm256_set1_ps(*running_max2 - new_max2)));
-    *running_max2 = new_max2;
+        nk_attention_exp2_f32x8_haswell_(_mm256_set1_ps(((nk_f32_t)*running_max - (nk_f32_t)new_max) * scale2)));
+    *running_max = new_max;
 
-    __m256 const max2_f32x8 = _mm256_set1_ps(new_max2);
-    __m256 const amplitude_f32x8 = _mm256_set1_ps(255.0f);
-    __m256 const half_f32x8 = _mm256_set1_ps(0.5f);
+    __m256i const new_max_i32x8 = _mm256_set1_epi32(new_max);
+    __m256i const scale_fixed_i32x8 = _mm256_set1_epi32(scale_fixed);
+    __m256i const delta_floor_i32x8 = _mm256_set1_epi32(delta_floor);
     __m128i const zero_u8x16 = _mm_setzero_si128();
-    __m256 sum_f32x8 = _mm256_setzero_ps();
-    for (position_idx = 0; position_idx + 8 <= panel_length; position_idx += 8) {
-        __m256 const exp_f32x8 = nk_attention_exp2_f32x8_haswell_(
-            _mm256_fmsub_ps(_mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i const *)(scores + position_idx))),
-                            scale2_f32x8, max2_f32x8));
-        __m256i const weight_i32x8 = _mm256_cvttps_epi32(
-            _mm256_add_ps(_mm256_mul_ps(exp_f32x8, amplitude_f32x8), half_f32x8));
-        sum_f32x8 = _mm256_add_ps(sum_f32x8, _mm256_cvtepi32_ps(weight_i32x8));
+    __m256i sum_i32x8 = _mm256_setzero_si256();
+    __m256i sum2_i32x8 = _mm256_setzero_si256();
+    position_idx = 0;
+    // Two independent 8-lane groups per iteration keep the vpmulld-heavy i-exp chains off each other's
+    // critical path (port-0 latency hiding); a trailing single group + masked tail follow unchanged.
+    for (; position_idx + 16 <= panel_length; position_idx += 16) {
+        __m256i const delta0_i32x8 = _mm256_max_epi32(
+            _mm256_sub_epi32(_mm256_loadu_si256((__m256i const *)(scores + position_idx)), new_max_i32x8),
+            delta_floor_i32x8);
+        __m256i const delta1_i32x8 = _mm256_max_epi32(
+            _mm256_sub_epi32(_mm256_loadu_si256((__m256i const *)(scores + position_idx + 8)), new_max_i32x8),
+            delta_floor_i32x8);
+        __m256i const weight0_i32x8 = nk_attention_iexp2_weight_i32x8_haswell_(
+            _mm256_mullo_epi32(delta0_i32x8, scale_fixed_i32x8));
+        __m256i const weight1_i32x8 = nk_attention_iexp2_weight_i32x8_haswell_(
+            _mm256_mullo_epi32(delta1_i32x8, scale_fixed_i32x8));
+        sum_i32x8 = _mm256_add_epi32(sum_i32x8, weight0_i32x8);
+        sum2_i32x8 = _mm256_add_epi32(sum2_i32x8, weight1_i32x8);
+        __m128i const weight0_i16x8 = _mm_packus_epi32(_mm256_castsi256_si128(weight0_i32x8),
+                                                       _mm256_extracti128_si256(weight0_i32x8, 1));
+        _mm_storel_epi64((__m128i *)(weights + position_idx), _mm_packus_epi16(weight0_i16x8, zero_u8x16));
+        __m128i const weight1_i16x8 = _mm_packus_epi32(_mm256_castsi256_si128(weight1_i32x8),
+                                                       _mm256_extracti128_si256(weight1_i32x8, 1));
+        _mm_storel_epi64((__m128i *)(weights + position_idx + 8), _mm_packus_epi16(weight1_i16x8, zero_u8x16));
+    }
+    sum_i32x8 = _mm256_add_epi32(sum_i32x8, sum2_i32x8);
+    for (; position_idx + 8 <= panel_length; position_idx += 8) {
+        __m256i const delta_i32x8 = _mm256_max_epi32(
+            _mm256_sub_epi32(_mm256_loadu_si256((__m256i const *)(scores + position_idx)), new_max_i32x8),
+            delta_floor_i32x8);
+        __m256i const weight_i32x8 = nk_attention_iexp2_weight_i32x8_haswell_(
+            _mm256_mullo_epi32(delta_i32x8, scale_fixed_i32x8));
+        sum_i32x8 = _mm256_add_epi32(sum_i32x8, weight_i32x8);
         __m128i const weight_i16x8 = _mm_packus_epi32(_mm256_castsi256_si128(weight_i32x8),
                                                       _mm256_extracti128_si256(weight_i32x8, 1));
         _mm_storel_epi64((__m128i *)(weights + position_idx), _mm_packus_epi16(weight_i16x8, zero_u8x16));
     }
-    if (position_idx < panel_length) { // masked tail keeps the vector rounding mode end-to-end
+    if (position_idx < panel_length) { // masked tail: padded lanes forced to a zero weight
         __m256i const lane_index_i32x8 = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
         __m256i const tail_mask_i32x8 = _mm256_cmpgt_epi32(_mm256_set1_epi32((int)(panel_length - position_idx)),
                                                            lane_index_i32x8);
-        __m256 exp_f32x8 = nk_attention_exp2_f32x8_haswell_(_mm256_fmsub_ps(
-            _mm256_cvtepi32_ps(_mm256_maskload_epi32((int const *)(scores + position_idx), tail_mask_i32x8)),
-            scale2_f32x8, max2_f32x8));
-        exp_f32x8 = _mm256_and_ps(exp_f32x8, _mm256_castsi256_ps(tail_mask_i32x8));
-        __m256i const weight_i32x8 = _mm256_cvttps_epi32(
-            _mm256_add_ps(_mm256_mul_ps(exp_f32x8, amplitude_f32x8), half_f32x8));
-        sum_f32x8 = _mm256_add_ps(sum_f32x8, _mm256_cvtepi32_ps(weight_i32x8));
+        __m256i const scores_i32x8 = _mm256_maskload_epi32((int const *)(scores + position_idx), tail_mask_i32x8);
+        __m256i const delta_i32x8 = _mm256_max_epi32(_mm256_sub_epi32(scores_i32x8, new_max_i32x8), delta_floor_i32x8);
+        __m256i weight_i32x8 = nk_attention_iexp2_weight_i32x8_haswell_(
+            _mm256_mullo_epi32(delta_i32x8, scale_fixed_i32x8));
+        weight_i32x8 = _mm256_and_si256(weight_i32x8, tail_mask_i32x8);
+        sum_i32x8 = _mm256_add_epi32(sum_i32x8, weight_i32x8);
         __m128i const weight_i16x8 = _mm_packus_epi32(_mm256_castsi256_si128(weight_i32x8),
                                                       _mm256_extracti128_si256(weight_i32x8, 1));
         _mm_storel_epi64((__m128i *)(weights + position_idx), _mm_packus_epi16(weight_i16x8, zero_u8x16));
     }
-    *running_sum = *running_sum * correction + nk_reduce_add_f32x8_haswell_(sum_f32x8);
+    *running_sum = *running_sum * correction + (nk_f32_t)nk_reduce_add_i32x8_haswell_(sum_i32x8);
     return correction;
 }
 
 /**
  *  @brief `O = O · correction + Σ w̃ · widened V-row` for one query row over one panel; V stays
  *         token-major and widens on the fly, exact-zero weights skipped like the serial reference.
+ *         The skip is load-bearing here: this P×V is a scalar-broadcast FP FMA per position, and
+ *         U8 softmax weights are sparse (most positions quantize to zero), so dropping it runs the
+ *         full dense sweep and regresses ~3×.
  */
 NK_INTERNAL void nk_attention_weighted_sum_panel_i8_haswell_(nk_u8_t const *weights, char const *values_plane,
                                                              nk_size_t panel_start, nk_size_t panel_length,
@@ -554,7 +601,7 @@ NK_INTERNAL void nk_attention_weighted_sum_panel_i8_haswell_(nk_u8_t const *weig
                         _mm256_mul_ps(_mm256_load_ps(output_row + channel_idx), correction_f32x8));
     for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
         nk_u8_t const weight_u8 = weights[position_idx];
-        if (weight_u8 == 0) continue;
+        if (weight_u8 == 0) continue; // sparse U8 weights: skipping dead positions is the kernel's main lever
         __m256 const weight_f32x8 = _mm256_set1_ps((nk_f32_t)weight_u8);
         char const *values_row = values_plane + (panel_start + position_idx) * depth_padded;
         for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 8)
@@ -689,7 +736,10 @@ NK_PUBLIC void nk_attention_packed_i8_haswell(                                  
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const depth_padded16 = nk_size_round_up_to_multiple_(depth_padded, 16);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_;                     // softmax(x) = softmax₂(x·log₂e)
+    nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
+    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t·255 + 0.5 < 1)
+        scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
     nk_size_t const panel_width = nk_attention_panel_haswell_k_;
 
     nk_size_t const total_tasks = segment_count * head_count;
@@ -732,9 +782,10 @@ NK_PUBLIC void nk_attention_packed_i8_haswell(                                  
                 for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 8)
                     _mm256_store_ps(output_rows + block_row * nk_attention_max_depth_haswell_k_ + channel_idx,
                                     _mm256_setzero_ps());
-            nk_f32_t running_max2[8], running_sum[8];
+            nk_i32_t running_max[8];
+            nk_f32_t running_sum[8];
             for (nk_size_t block_row = 0; block_row < block_rows; block_row++) {
-                running_max2[block_row] = NK_F32_MIN;
+                running_max[block_row] = NK_I32_MIN;
                 running_sum[block_row] = 0;
             }
 
@@ -746,8 +797,8 @@ NK_PUBLIC void nk_attention_packed_i8_haswell(                                  
                                                      depth_padded, scores);
                 for (nk_size_t block_row = 0; block_row < block_rows; block_row++) {
                     nk_f32_t const correction = nk_attention_softmax_panel_i8_haswell_(
-                        scores + block_row * panel_width, panel_length, scale2, &running_max2[block_row],
-                        &running_sum[block_row], weights);
+                        scores + block_row * panel_width, panel_length, scale2, scale_fixed, delta_floor,
+                        &running_max[block_row], &running_sum[block_row], weights);
                     nk_attention_weighted_sum_panel_i8_haswell_(
                         weights, values_plane, panel_start, panel_length, depth_padded, correction,
                         output_rows + block_row * nk_attention_max_depth_haswell_k_);

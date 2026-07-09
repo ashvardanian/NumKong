@@ -82,11 +82,7 @@ void bench_cross_amx() {
 #endif
 
 #if NK_TARGET_DIAMONDAMX
-    run_attention<bf16_k>("attention_packed_bf16_diamondamx", nk_attention_packed_size_bf16_diamondamx,
-                          nk_attention_pack_bf16_diamondamx, nk_attention_packed_bf16_diamondamx);
     run_attention<e4m3_k>("attention_packed_e4m3_diamondamx", nk_attention_packed_size_e4m3_diamondamx,
                           nk_attention_pack_e4m3_diamondamx, nk_attention_packed_e4m3_diamondamx);
-    run_attention<i8_k>("attention_packed_i8_diamondamx", nk_attention_packed_size_i8_diamondamx,
-                        nk_attention_pack_i8_diamondamx, nk_attention_packed_i8_diamondamx);
 #endif
 }

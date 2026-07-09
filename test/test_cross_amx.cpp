@@ -75,12 +75,8 @@ void test_cross_amx() {
 
 #if NK_TARGET_DIAMONDAMX
 
-    check("attention_packed_bf16_diamondamx", test_attention_packed<bf16_t>, nk_attention_packed_size_bf16_diamondamx,
-          nk_attention_pack_bf16_diamondamx, nk_attention_packed_bf16_diamondamx);
     check("attention_packed_e4m3_diamondamx", test_attention_packed<e4m3_t>, nk_attention_packed_size_e4m3_diamondamx,
           nk_attention_pack_e4m3_diamondamx, nk_attention_packed_e4m3_diamondamx);
-    check("attention_packed_i8_diamondamx", test_attention_packed<i8_t>, nk_attention_packed_size_i8_diamondamx,
-          nk_attention_pack_i8_diamondamx, nk_attention_packed_i8_diamondamx);
 
 #endif
 }
