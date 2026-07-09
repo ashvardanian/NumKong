@@ -98,6 +98,22 @@ Cells marked `⋯` await measurement on the corresponding platform.
 | `nk_attention_packed_i8_icelake`       |           185 gflop/s |           186 gflop/s |           171 gflop/s |
 | `nk_attention_packed_i8_sapphireamx`   |           941 gflop/s |           950 gflop/s |           931 gflop/s |
 
+#### WASM
+
+Measured with Wasmtime v24 (Cranelift backend).
+
+| Kernel                                 |                 1024² |                 4096² |                16384² |
+| :------------------------------------- | --------------------: | --------------------: | --------------------: |
+| __bf16__                               | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_attention_packed_bf16_serial`      |          0.60 gflop/s |                     ⋯ |                     ⋯ |
+| `nk_attention_packed_bf16_v128relaxed` |            10 gflop/s |           9.9 gflop/s |            11 gflop/s |
+| __e4m3__                               | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_attention_packed_e4m3_serial`      |          0.53 gflop/s |                     ⋯ |                     ⋯ |
+| `nk_attention_packed_e4m3_v128relaxed` |           3.3 gflop/s |           3.0 gflop/s |           3.7 gflop/s |
+| __i8__                                 | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_attention_packed_i8_serial`        |           5.1 gflop/s |                     ⋯ |                     ⋯ |
+| `nk_attention_packed_i8_v128relaxed`   |          24.6 gflop/s |          24.1 gflop/s |          29.2 gflop/s |
+
 ### AWS Graviton 4
 
 #### Native
