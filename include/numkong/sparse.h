@@ -20,7 +20,7 @@
  *  For hardware architectures:
  *
  *  - Arm: NEON, SVE2
- *  - x86: Ice Lake, Turin
+ *  - x86: Haswell, Ice Lake, Turin
  *
  *  @section intersection_algorithm Intersection by Merge
  *
@@ -236,6 +236,13 @@ NK_PUBLIC void nk_sparse_dot_u32f32_icelake(nk_u32_t const *a, nk_u32_t const *b
                                             nk_f64_t *product);
 #endif // NK_TARGET_ICELAKE
 
+#if NK_TARGET_HASWELL
+/** @copydoc nk_sparse_dot_u32f32 */
+NK_PUBLIC void nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
+                                            nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                            nk_f64_t *product);
+#endif // NK_TARGET_HASWELL
+
 #if NK_TARGET_TURIN
 /** @copydoc nk_sparse_intersect_u16 */
 NK_PUBLIC void nk_sparse_intersect_u16_turin(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
@@ -274,6 +281,7 @@ NK_INTERNAL nk_dtype_t nk_sparse_dot_output_dtype(nk_dtype_t dtype) {
 #include "numkong/sparse/serial.h"
 #include "numkong/sparse/neon.h"
 #include "numkong/sparse/sve2.h"
+#include "numkong/sparse/haswell.h"
 #include "numkong/sparse/icelake.h"
 #include "numkong/sparse/turin.h"
 
@@ -349,6 +357,8 @@ NK_PUBLIC void nk_sparse_dot_u32f32(nk_u32_t const *a, nk_u32_t const *b, nk_f32
     nk_sparse_dot_u32f32_turin(a, b, a_weights, b_weights, a_length, b_length, product);
 #elif NK_TARGET_ICELAKE
     nk_sparse_dot_u32f32_icelake(a, b, a_weights, b_weights, a_length, b_length, product);
+#elif NK_TARGET_HASWELL
+    nk_sparse_dot_u32f32_haswell(a, b, a_weights, b_weights, a_length, b_length, product);
 #else
     nk_sparse_dot_u32f32_serial(a, b, a_weights, b_weights, a_length, b_length, product);
 #endif

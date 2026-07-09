@@ -252,6 +252,7 @@ void nk_dispatch_f32_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
             return;
         case nk_kernel_maxsim_pack_k: *m = (m_t)&nk_maxsim_pack_f32_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_maxsim_packed_k: *m = (m_t)&nk_maxsim_packed_f32_haswell, *c = nk_cap_haswell_k; return;
+        case nk_kernel_sparse_dot_k: *m = (m_t)&nk_sparse_dot_u32f32_haswell, *c = nk_cap_haswell_k; return;
         default: break;
         }
 #endif
