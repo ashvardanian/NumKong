@@ -61,6 +61,26 @@ NK_INTERNAL float32x4_t nk_attention_exp2_f32x4_neonsdot_(float32x4_t x_f32x4) {
     return vmulq_f32(poly_f32x4, power_f32x4);
 }
 
+/**
+ *  @brief I-BERT-style integer exponential for the I8 weight path: takes the base-2 argument as a
+ *         Q15 fixed-point value in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8 weight in
+ *         the low byte of each I32 lane — the NEON mirror of the SME/x86 helper, bit-identical math.
+ *         A degree-3 fixed-point polynomial covers the fraction; a lane-variable shift (`vshlq_s32`
+ *         with a negated count = arithmetic right shift) applies the integer part. No floating point.
+ */
+NK_INTERNAL int32x4_t nk_attention_iexp2_weight_i32x4_neonsdot_(int32x4_t t_q15_i32x4) {
+    int32x4_t const whole_i32x4 = vshrq_n_s32(t_q15_i32x4, 15); // floor, in [-10, 0]
+    int32x4_t const fraction_i32x4 = vandq_s32(t_q15_i32x4, vdupq_n_s32(0x7FFF));
+    int32x4_t poly_i32x4 = vdupq_n_s32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
+    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(3678));
+    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(11410));
+    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(16382));
+    int32x4_t const scaled_i32x4 = vsubq_s32(vshlq_n_s32(poly_i32x4, 8), poly_i32x4); // (poly<<8)−poly = poly·255
+    int32x4_t const shift_i32x4 = vsubq_s32(vdupq_n_s32(14), whole_i32x4);            // in [14, 24]
+    int32x4_t const bias_i32x4 = vshlq_s32(vdupq_n_s32(1), vsubq_s32(vdupq_n_s32(13), whole_i32x4)); // 1 << (13−whole)
+    return vshlq_s32(vaddq_s32(scaled_i32x4, bias_i32x4), vnegq_s32(shift_i32x4)); // round-half-up, then ≫ shift
+}
+
 NK_PUBLIC nk_size_t nk_attention_packed_size_i8_neonsdot(nk_size_t key_value_head_count, nk_size_t depth,
                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_neonsdot_k_)
@@ -186,7 +206,10 @@ NK_PUBLIC void nk_attention_packed_i8_neonsdot(                                 
     nk_size_t const output_stride_floats = output_stride_bytes / sizeof(nk_f32_t);
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_;                     // softmax(x) = softmax₂(x·log₂e)
+    nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
+    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t·255 + 0.5 < 1)
+        scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
     nk_size_t const panel_width = nk_attention_panel_neonsdot_k_;
 
     nk_size_t const total_tasks = segment_count * head_count;
@@ -196,7 +219,7 @@ NK_PUBLIC void nk_attention_packed_i8_neonsdot(                                 
     NK_ALIGN64 nk_i8_t query_row[nk_attention_max_depth_neonsdot_k_];
     NK_ALIGN64 nk_f32_t output_row[nk_attention_max_depth_neonsdot_k_];
     NK_ALIGN64 nk_u32_t output_totals[nk_attention_max_depth_neonsdot_k_];
-    NK_ALIGN64 nk_f32_t scores[nk_attention_panel_neonsdot_k_];
+    NK_ALIGN64 nk_i32_t scores[nk_attention_panel_neonsdot_k_]; // raw I32 QK dots; softmax stays integer
     NK_ALIGN64 nk_u8_t weights[nk_attention_panel_neonsdot_k_];
 
     for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
@@ -218,7 +241,8 @@ NK_PUBLIC void nk_attention_packed_i8_neonsdot(                                 
             for (; channel_idx < depth_padded; channel_idx++) query_row[channel_idx] = 0;
             for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 4)
                 vst1q_f32(output_row + channel_idx, vdupq_n_f32(0.0f));
-            nk_f32_t running_max2 = NK_F32_MIN, running_sum = 0;
+            nk_i32_t running_max = NK_I32_MIN;
+            nk_f32_t running_sum = 0;
 
             for (nk_size_t panel_start = 0; panel_start < position_count; panel_start += panel_width) {
                 nk_size_t const panel_length = (panel_start + panel_width <= position_count)
@@ -226,8 +250,7 @@ NK_PUBLIC void nk_attention_packed_i8_neonsdot(                                 
                                                    : (position_count - panel_start);
 
                 nk_size_t position_idx = 0;
-                float32x4_t const scale2_f32x4 = vdupq_n_f32(scale2); // folded into the score store
-                float32x4_t max_f32x4 = vdupq_n_f32(NK_F32_MIN);
+                int32x4_t max_i32x4 = vdupq_n_s32(NK_I32_MIN); // exact integer row max over raw I32 scores
                 // Score sweep: exact I32 dots, four KV rows in flight per query-vector load.
                 for (; position_idx + 4 <= panel_length; position_idx += 4) {
                     char const *keys_row0 = keys_plane + (panel_start + position_idx + 0) * depth_padded;
@@ -249,46 +272,58 @@ NK_PUBLIC void nk_attention_packed_i8_neonsdot(                                 
                     }
                     int32x4_t const sums_i32x4 = vpaddq_s32(vpaddq_s32(sum0_i32x4, sum1_i32x4),
                                                             vpaddq_s32(sum2_i32x4, sum3_i32x4));
-                    float32x4_t const scores2_f32x4 = vmulq_f32(vcvtq_f32_s32(sums_i32x4), scale2_f32x4);
-                    max_f32x4 = vmaxq_f32(max_f32x4, scores2_f32x4);
-                    vst1q_f32(scores + position_idx, scores2_f32x4);
+                    max_i32x4 = vmaxq_s32(max_i32x4, sums_i32x4);
+                    vst1q_s32(scores + position_idx, sums_i32x4);
                 }
-                nk_f32_t panel_max2 = vmaxvq_f32(max_f32x4);
+                nk_i32_t panel_max = vmaxvq_s32(max_i32x4);
                 for (; position_idx < panel_length; position_idx++) {
                     char const *keys_row = keys_plane + (panel_start + position_idx) * depth_padded;
                     int32x4_t sum_i32x4 = vdupq_n_s32(0);
                     for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 16)
                         sum_i32x4 = vdotq_s32(sum_i32x4, vld1q_s8((int8_t const *)(query_row + channel_idx)),
                                               vld1q_s8((int8_t const *)(keys_row + channel_idx)));
-                    scores[position_idx] = (nk_f32_t)vaddvq_s32(sum_i32x4) * scale2;
-                    if (scores[position_idx] > panel_max2) panel_max2 = scores[position_idx];
+                    nk_i32_t const score = vaddvq_s32(sum_i32x4);
+                    scores[position_idx] = score;
+                    if (score > panel_max) panel_max = score;
                 }
 
-                nk_f32_t const new_max2 = running_max2 > panel_max2 ? running_max2 : panel_max2;
-                nk_f32_t const correction = vgetq_lane_f32(
-                    nk_attention_exp2_f32x4_neonsdot_(vdupq_n_f32(running_max2 - new_max2)), 0);
-                running_max2 = new_max2;
+                nk_i32_t const new_max = running_max > panel_max ? running_max : panel_max;
+                nk_f32_t const correction = vgetq_lane_f32(nk_attention_exp2_f32x4_neonsdot_(vdupq_n_f32(
+                                                               ((nk_f32_t)running_max - (nk_f32_t)new_max) * scale2)),
+                                                           0);
+                running_max = new_max;
 
-                float32x4_t const new_max2_f32x4 = vdupq_n_f32(new_max2);
+                int32x4_t const new_max_i32x4 = vdupq_n_s32(new_max);
+                int32x4_t const scale_fixed_i32x4 = vdupq_n_s32(scale_fixed);
+                int32x4_t const delta_floor_i32x4 = vdupq_n_s32(delta_floor);
                 nk_f32_t panel_sum = 0;
                 uint32x4_t panel_sum_u32x4 = vdupq_n_u32(0); // weights are U8 over <= 512 positions
                 for (position_idx = 0; position_idx + 4 <= panel_length; position_idx += 4) {
-                    float32x4_t const exponent_f32x4 = nk_attention_exp2_f32x4_neonsdot_(
-                        vsubq_f32(vld1q_f32(scores + position_idx), new_max2_f32x4));
-                    uint32x4_t const weight_u32x4 = vcvtq_u32_f32( // mul then add matches the serial rounding
-                        vaddq_f32(vmulq_f32(exponent_f32x4, vdupq_n_f32(255.0f)), vdupq_n_f32(0.5f)));
+                    int32x4_t const delta_i32x4 = vmaxq_s32(vsubq_s32(vld1q_s32(scores + position_idx), new_max_i32x4),
+                                                            delta_floor_i32x4);
+                    uint32x4_t const weight_u32x4 = vreinterpretq_u32_s32(
+                        nk_attention_iexp2_weight_i32x4_neonsdot_(vmulq_s32(delta_i32x4, scale_fixed_i32x4)));
                     panel_sum_u32x4 = vaddq_u32(panel_sum_u32x4, weight_u32x4);
                     uint8x8_t const weight_u8x8 = vmovn_u16(vcombine_u16(vmovn_u32(weight_u32x4), vdup_n_u16(0)));
                     vst1_lane_u32((nk_u32_t *)(weights + position_idx), vreinterpret_u32_u8(weight_u8x8), 0);
                 }
-                nk_u32_t panel_sum_u32 = vaddvq_u32(panel_sum_u32x4);
-                for (; position_idx < panel_length; position_idx++) { // scalar tail keeps the family exp2 end-to-end
-                    nk_u32_t const weight = (nk_u32_t)(nk_f32_exp2_serial_(scores[position_idx] - new_max2) * 255.0f +
-                                                       0.5f);
-                    weights[position_idx] = (nk_u8_t)weight;
-                    panel_sum_u32 += weight;
+                if (position_idx < panel_length) { // masked vector tail — no scalar exp2, padded lanes forced to 0
+                    uint32x4_t const lane_index_u32x4 = {0, 1, 2, 3};
+                    uint32x4_t const tail_mask_u32x4 = vcltq_u32(lane_index_u32x4,
+                                                                 vdupq_n_u32((nk_u32_t)(panel_length - position_idx)));
+                    int32x4_t const delta_i32x4 = vmaxq_s32(vsubq_s32(vld1q_s32(scores + position_idx), new_max_i32x4),
+                                                            delta_floor_i32x4);
+                    uint32x4_t const weight_u32x4 = vandq_u32(
+                        vreinterpretq_u32_s32(
+                            nk_attention_iexp2_weight_i32x4_neonsdot_(vmulq_s32(delta_i32x4, scale_fixed_i32x4))),
+                        tail_mask_u32x4);
+                    panel_sum_u32x4 = vaddq_u32(panel_sum_u32x4, weight_u32x4);
+                    uint8x8_t const weight_u8x8 = vmovn_u16(vcombine_u16(vmovn_u32(weight_u32x4), vdup_n_u16(0)));
+                    vst1_lane_u32((nk_u32_t *)(weights + position_idx), vreinterpret_u32_u8(weight_u8x8), 0);
+                    position_idx += 4;
                 }
-                for (; position_idx % 4; position_idx++) weights[position_idx] = 0; // zero the last quad's padding
+                nk_u32_t panel_sum_u32 = vaddvq_u32(panel_sum_u32x4);
+                for (; position_idx % 4; position_idx++) weights[position_idx] = 0; // zero any last-quad padding
                 panel_sum = (nk_f32_t)panel_sum_u32;
                 running_sum = running_sum * correction + panel_sum;
 
