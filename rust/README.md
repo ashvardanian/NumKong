@@ -632,11 +632,12 @@ The `parallel` feature adds host-side orchestration helpers via [ForkUnion](http
 
 ```rust
 use numkong::{PackedMatrix, Tensor};
-use fork_union::ThreadPool;
+use forkunion::{ThreadPool, Topology};
 
 let a = Tensor::<f32>::try_full(&[4096, 768], 1.0).unwrap();
 let b = Tensor::<f32>::try_full(&[8192, 768], 1.0).unwrap();
-let mut pool = ThreadPool::try_spawn(4).unwrap();
+let topology = Topology::new().unwrap();
+let mut pool = ThreadPool::try_spawn(&topology, 4).unwrap();
 
 // GEMM-like: rows of A partitioned across threads, one shared packed B
 let b_packed = PackedMatrix::try_pack(&b).unwrap();

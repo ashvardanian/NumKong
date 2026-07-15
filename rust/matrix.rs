@@ -42,6 +42,9 @@ use core::ptr::NonNull;
 use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorMut, TensorRef, TensorView, SIMD_ALIGNMENT};
 use crate::types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2, StorageElement};
 
+#[cfg(feature = "parallel")]
+use forkunion as fu;
+
 #[link(name = "numkong")]
 extern "C" {
 
@@ -3326,9 +3329,10 @@ where
     /// # Example
     /// ```ignore
     /// use numkong::{Tensor, PackedMatrix};
-    /// use fork_union::ThreadPool;
+    /// use forkunion::ThreadPool;
     ///
-    /// let mut pool = ThreadPool::try_spawn(4).unwrap();
+    /// let topology = forkunion::Topology::new().unwrap();
+    /// let mut pool = ThreadPool::try_spawn(&topology, 4).unwrap();
     /// let a = Tensor::<f32>::try_full(&[1024, 512], 1.0).unwrap();
     /// let b = Tensor::<f32>::try_full(&[256, 512], 1.0).unwrap();
     /// let b_packed = PackedMatrix::try_pack(&b).unwrap();
@@ -3345,7 +3349,7 @@ where
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
         c: &mut OutputTensor,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         PackedAlloc: Allocator,
@@ -3354,19 +3358,19 @@ where
         let (height, width, depth) = validate_packed_input(self, packed_b)?;
         validate_matrix_output::<Scalar::Accumulator, _, OUTPUT_MAX_RANK>(c, height, width)?;
 
-        let a_ptr = fork_union::SyncConstPtr::new(self.as_ptr());
-        let c_ptr = fork_union::SyncMutPtr::new(c.as_mut_ptr());
-        let packed_ptr = fork_union::SyncConstPtr::new(packed_b.as_ptr());
+        let a_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let c_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
+        let packed_ptr = fu::SyncConstPtr::new(packed_b.as_ptr());
         let a_stride = self.stride_bytes(0) as usize;
         let c_stride = c.stride_bytes(0) as usize;
 
         // Get actual thread count from pool
-        let num_threads = pool.threads().max(1);
+        let num_threads = pool.threads_count().max(1);
         let rows_per_thread = height.div_ceil(num_threads);
 
-        // Distribute rows across threads using fork_union
+        // Distribute rows across threads using the ForkUnion pool
         // Safety: Each thread writes to disjoint rows of C, so no data races.
-        pool.for_threads(move |thread_index, _colocation_index| {
+        pool.broadcast(move |thread_index, _colocation_index| {
             // Configure each worker thread for optimal SIMD (including AMX)
             // This is idempotent and safe to call multiple times
             crate::capabilities::configure_thread();
@@ -3391,8 +3395,7 @@ where
                     );
                 }
             }
-        })
-        .join();
+        });
 
         Ok(())
     }
@@ -3404,7 +3407,7 @@ where
     fn try_dots_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
         let (width, _) = packed_b.dims();
@@ -3420,7 +3423,7 @@ where
     fn dots_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Tensor<Scalar::Accumulator, Global, MAX_RANK> {
         self.try_dots_packed_parallel(packed_b, pool)
             .expect("parallel dots_packed failed")
@@ -3496,16 +3499,17 @@ where
     /// # Example
     /// ```ignore
     /// use numkong::Tensor;
-    /// use fork_union::ThreadPool;
+    /// use forkunion::ThreadPool;
     ///
-    /// let mut pool = ThreadPool::try_spawn(4).unwrap();
+    /// let topology = forkunion::Topology::new().unwrap();
+    /// let mut pool = ThreadPool::try_spawn(&topology, 4).unwrap();
     /// let vectors = Tensor::<f32>::try_full(&[100, 768], 1.0).unwrap();
     /// let gram = vectors.try_dots_symmetric_parallel(&mut pool).unwrap();
     /// assert_eq!(gram.shape(), &[100, 100]);
     /// ```
     pub fn try_dots_symmetric_parallel(
         &self,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
         let (n_vectors, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::Accumulator, Global, MAX_RANK>::try_full(
@@ -3522,7 +3526,7 @@ where
     pub fn try_dots_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         c: &mut OutputTensor,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         OutputTensor: TensorMut<Scalar::Accumulator, OUTPUT_MAX_RANK>,
@@ -3530,13 +3534,13 @@ where
         let (n_vectors, depth) = validate_symmetric_input(self)?;
         validate_matrix_output::<Scalar::Accumulator, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
 
-        let num_threads = pool.threads().max(1);
-        let vectors_ptr = fork_union::SyncConstPtr::new(self.as_ptr());
-        let result_ptr = fork_union::SyncMutPtr::new(c.as_mut_ptr());
+        let num_threads = pool.threads_count().max(1);
+        let vectors_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let result_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
         let stride = self.stride_bytes(0) as usize;
         let result_stride = c.stride_bytes(0) as usize;
 
-        pool.for_threads(move |thread_index, _colocation_index| {
+        pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
             let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, n_vectors);
             unsafe {
@@ -3551,8 +3555,7 @@ where
                     row_count,
                 );
             }
-        })
-        .join();
+        });
         Ok(())
     }
 
@@ -3560,10 +3563,7 @@ where
     ///
     /// # Panics
     /// Panics if the operation fails (e.g., wrong tensor rank).
-    pub fn dots_symmetric_parallel(
-        &self,
-        pool: &mut fork_union::ThreadPool,
-    ) -> Tensor<Scalar::Accumulator, Global, MAX_RANK> {
+    pub fn dots_symmetric_parallel(&self, pool: &mut fu::ThreadPool) -> Tensor<Scalar::Accumulator, Global, MAX_RANK> {
         self.try_dots_symmetric_parallel(pool)
             .expect("parallel dots_symmetric failed")
     }
@@ -3750,7 +3750,7 @@ where
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
         c: &mut OutputTensor,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         PackedAlloc: Allocator,
@@ -3759,15 +3759,15 @@ where
         let (height, width, depth) = validate_packed_input(self, packed_b)?;
         validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, height, width)?;
 
-        let a_ptr = fork_union::SyncConstPtr::new(self.as_ptr());
-        let c_ptr = fork_union::SyncMutPtr::new(c.as_mut_ptr());
-        let packed_ptr = fork_union::SyncConstPtr::new(packed_b.as_ptr());
+        let a_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let c_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
+        let packed_ptr = fu::SyncConstPtr::new(packed_b.as_ptr());
         let a_stride = self.stride_bytes(0) as usize;
         let c_stride = c.stride_bytes(0) as usize;
-        let num_threads = pool.threads().max(1);
+        let num_threads = pool.threads_count().max(1);
         let rows_per_thread = height.div_ceil(num_threads);
 
-        pool.for_threads(move |thread_index, _colocation_index| {
+        pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
             let row_start = thread_index * rows_per_thread;
             let row_end = (row_start + rows_per_thread).min(height);
@@ -3787,8 +3787,7 @@ where
                     );
                 }
             }
-        })
-        .join();
+        });
         Ok(())
     }
 
@@ -3796,7 +3795,7 @@ where
     pub fn try_angulars_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
         let (width, _) = packed_b.dims();
@@ -3812,7 +3811,7 @@ where
     pub fn angulars_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
         self.try_angulars_packed_parallel(packed_b, pool)
             .expect("parallel angulars_packed failed")
@@ -3821,7 +3820,7 @@ where
     /// Parallel symmetric angular distance matrix.
     pub fn try_angulars_symmetric_parallel(
         &self,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let (n_vectors, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
@@ -3837,20 +3836,20 @@ where
     pub fn try_angulars_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         c: &mut OutputTensor,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
         let (n_vectors, depth) = validate_symmetric_input(self)?;
         validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
-        let num_threads = pool.threads().max(1);
-        let vectors_ptr = fork_union::SyncConstPtr::new(self.as_ptr());
-        let result_ptr = fork_union::SyncMutPtr::new(c.as_mut_ptr());
+        let num_threads = pool.threads_count().max(1);
+        let vectors_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let result_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
         let stride = self.stride_bytes(0) as usize;
         let result_stride = c.stride_bytes(0) as usize;
 
-        pool.for_threads(move |thread_index, _colocation_index| {
+        pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
             let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, n_vectors);
             unsafe {
@@ -3865,15 +3864,14 @@ where
                     row_count,
                 );
             }
-        })
-        .join();
+        });
         Ok(())
     }
 
     /// Convenience method that panics on error.
     pub fn angulars_symmetric_parallel(
         &self,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
         self.try_angulars_symmetric_parallel(pool)
             .expect("parallel angulars_symmetric failed")
@@ -3894,7 +3892,7 @@ where
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
         c: &mut OutputTensor,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         PackedAlloc: Allocator,
@@ -3903,15 +3901,15 @@ where
         let (height, width, depth) = validate_packed_input(self, packed_b)?;
         validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, height, width)?;
 
-        let a_ptr = fork_union::SyncConstPtr::new(self.as_ptr());
-        let c_ptr = fork_union::SyncMutPtr::new(c.as_mut_ptr());
-        let packed_ptr = fork_union::SyncConstPtr::new(packed_b.as_ptr());
+        let a_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let c_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
+        let packed_ptr = fu::SyncConstPtr::new(packed_b.as_ptr());
         let a_stride = self.stride_bytes(0) as usize;
         let c_stride = c.stride_bytes(0) as usize;
-        let num_threads = pool.threads().max(1);
+        let num_threads = pool.threads_count().max(1);
         let rows_per_thread = height.div_ceil(num_threads);
 
-        pool.for_threads(move |thread_index, _colocation_index| {
+        pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
             let row_start = thread_index * rows_per_thread;
             let row_end = (row_start + rows_per_thread).min(height);
@@ -3931,8 +3929,7 @@ where
                     );
                 }
             }
-        })
-        .join();
+        });
         Ok(())
     }
 
@@ -3940,7 +3937,7 @@ where
     pub fn try_euclideans_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
         let (width, _) = packed_b.dims();
@@ -3956,7 +3953,7 @@ where
     pub fn euclideans_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
         self.try_euclideans_packed_parallel(packed_b, pool)
             .expect("parallel euclideans_packed failed")
@@ -3965,7 +3962,7 @@ where
     /// Parallel symmetric euclidean distance matrix.
     pub fn try_euclideans_symmetric_parallel(
         &self,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let (n_vectors, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
@@ -3981,20 +3978,20 @@ where
     pub fn try_euclideans_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         c: &mut OutputTensor,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
         let (n_vectors, depth) = validate_symmetric_input(self)?;
         validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
-        let num_threads = pool.threads().max(1);
-        let vectors_ptr = fork_union::SyncConstPtr::new(self.as_ptr());
-        let result_ptr = fork_union::SyncMutPtr::new(c.as_mut_ptr());
+        let num_threads = pool.threads_count().max(1);
+        let vectors_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let result_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
         let stride = self.stride_bytes(0) as usize;
         let result_stride = c.stride_bytes(0) as usize;
 
-        pool.for_threads(move |thread_index, _colocation_index| {
+        pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
             let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, n_vectors);
             unsafe {
@@ -4009,15 +4006,14 @@ where
                     row_count,
                 );
             }
-        })
-        .join();
+        });
         Ok(())
     }
 
     /// Convenience method that panics on error.
     pub fn euclideans_symmetric_parallel(
         &self,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
         self.try_euclideans_symmetric_parallel(pool)
             .expect("parallel euclideans_symmetric failed")
@@ -4206,7 +4202,7 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
         c: &mut OutputTensor,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         PackedAlloc: Allocator,
@@ -4215,15 +4211,15 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
         let (height, width, depth) = validate_packed_input(self, packed_b)?;
         validate_matrix_output::<u32, _, OUTPUT_MAX_RANK>(c, height, width)?;
 
-        let a_ptr = fork_union::SyncConstPtr::new(self.as_ptr());
-        let c_ptr = fork_union::SyncMutPtr::new(c.as_mut_ptr());
-        let packed_ptr = fork_union::SyncConstPtr::new(packed_b.as_ptr());
+        let a_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let c_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
+        let packed_ptr = fu::SyncConstPtr::new(packed_b.as_ptr());
         let a_stride = self.stride_bytes(0) as usize;
         let c_stride = c.stride_bytes(0) as usize;
-        let num_threads = pool.threads().max(1);
+        let num_threads = pool.threads_count().max(1);
         let rows_per_thread = height.div_ceil(num_threads);
 
-        pool.for_threads(move |thread_index, _colocation_index| {
+        pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
             let row_start = thread_index * rows_per_thread;
             let row_end = (row_start + rows_per_thread).min(height);
@@ -4243,8 +4239,7 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
                     );
                 }
             }
-        })
-        .join();
+        });
         Ok(())
     }
 
@@ -4252,7 +4247,7 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
     pub fn try_hammings_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<u32, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
         let (width, _) = packed_b.dims();
@@ -4265,7 +4260,7 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
     pub fn hammings_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Tensor<u32, Global, MAX_RANK> {
         self.try_hammings_packed_parallel(packed_b, pool)
             .expect("parallel hammings_packed failed")
@@ -4276,7 +4271,7 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
     /// Only the upper triangle of the result is guaranteed to be initialized.
     pub fn try_hammings_symmetric_parallel(
         &self,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<u32, Global, MAX_RANK>, TensorError> {
         let (n_vectors, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<u32, Global, MAX_RANK>::try_full(&[n_vectors, n_vectors], 0u32)?;
@@ -4289,20 +4284,20 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
     pub fn try_hammings_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         c: &mut OutputTensor,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         OutputTensor: TensorMut<u32, OUTPUT_MAX_RANK>,
     {
         let (n_vectors, depth) = validate_symmetric_input(self)?;
         validate_matrix_output::<u32, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
-        let num_threads = pool.threads().max(1);
-        let vectors_ptr = fork_union::SyncConstPtr::new(self.as_ptr());
-        let result_ptr = fork_union::SyncMutPtr::new(c.as_mut_ptr());
+        let num_threads = pool.threads_count().max(1);
+        let vectors_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let result_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
         let stride = self.stride_bytes(0) as usize;
         let result_stride = c.stride_bytes(0) as usize;
 
-        pool.for_threads(move |thread_index, _colocation_index| {
+        pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
             let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, n_vectors);
             unsafe {
@@ -4317,13 +4312,12 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
                     row_count,
                 );
             }
-        })
-        .join();
+        });
         Ok(())
     }
 
     /// Convenience method that panics on error.
-    pub fn hammings_symmetric_parallel(&self, pool: &mut fork_union::ThreadPool) -> Tensor<u32, Global, MAX_RANK> {
+    pub fn hammings_symmetric_parallel(&self, pool: &mut fu::ThreadPool) -> Tensor<u32, Global, MAX_RANK> {
         self.try_hammings_symmetric_parallel(pool)
             .expect("parallel hammings_symmetric failed")
     }
@@ -4343,7 +4337,7 @@ where
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
         c: &mut OutputTensor,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         PackedAlloc: Allocator,
@@ -4352,15 +4346,15 @@ where
         let (height, width, depth) = validate_packed_input(self, packed_b)?;
         validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(c, height, width)?;
 
-        let a_ptr = fork_union::SyncConstPtr::new(self.as_ptr());
-        let c_ptr = fork_union::SyncMutPtr::new(c.as_mut_ptr());
-        let packed_ptr = fork_union::SyncConstPtr::new(packed_b.as_ptr());
+        let a_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let c_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
+        let packed_ptr = fu::SyncConstPtr::new(packed_b.as_ptr());
         let a_stride = self.stride_bytes(0) as usize;
         let c_stride = c.stride_bytes(0) as usize;
-        let num_threads = pool.threads().max(1);
+        let num_threads = pool.threads_count().max(1);
         let rows_per_thread = height.div_ceil(num_threads);
 
-        pool.for_threads(move |thread_index, _colocation_index| {
+        pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
             let row_start = thread_index * rows_per_thread;
             let row_end = (row_start + rows_per_thread).min(height);
@@ -4380,8 +4374,7 @@ where
                     );
                 }
             }
-        })
-        .join();
+        });
         Ok(())
     }
 
@@ -4389,7 +4382,7 @@ where
     pub fn try_jaccards_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::JaccardResult, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
         let (width, _) = packed_b.dims();
@@ -4405,7 +4398,7 @@ where
     pub fn jaccards_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_b: &PackedMatrix<Scalar, PackedAlloc>,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Tensor<Scalar::JaccardResult, Global, MAX_RANK> {
         self.try_jaccards_packed_parallel(packed_b, pool)
             .expect("parallel jaccards_packed failed")
@@ -4416,7 +4409,7 @@ where
     /// Only the upper triangle of the result is guaranteed to be initialized.
     pub fn try_jaccards_symmetric_parallel(
         &self,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::JaccardResult, Global, MAX_RANK>, TensorError> {
         let (n_vectors, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::JaccardResult, Global, MAX_RANK>::try_full(
@@ -4432,20 +4425,20 @@ where
     pub fn try_jaccards_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         c: &mut OutputTensor,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         OutputTensor: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
     {
         let (n_vectors, depth) = validate_symmetric_input(self)?;
         validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
-        let num_threads = pool.threads().max(1);
-        let vectors_ptr = fork_union::SyncConstPtr::new(self.as_ptr());
-        let result_ptr = fork_union::SyncMutPtr::new(c.as_mut_ptr());
+        let num_threads = pool.threads_count().max(1);
+        let vectors_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let result_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
         let stride = self.stride_bytes(0) as usize;
         let result_stride = c.stride_bytes(0) as usize;
 
-        pool.for_threads(move |thread_index, _colocation_index| {
+        pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
             let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, n_vectors);
             unsafe {
@@ -4460,15 +4453,14 @@ where
                     row_count,
                 );
             }
-        })
-        .join();
+        });
         Ok(())
     }
 
     /// Convenience method that panics on error.
     pub fn jaccards_symmetric_parallel(
         &self,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Tensor<Scalar::JaccardResult, Global, MAX_RANK> {
         self.try_jaccards_symmetric_parallel(pool)
             .expect("parallel jaccards_symmetric failed")
@@ -5026,7 +5018,8 @@ mod tests {
         Scalar::Accumulator: PartialEq + core::fmt::Debug + Send + Sync,
     {
         init_thread();
-        let mut pool = fork_union::ThreadPool::try_spawn(4).unwrap();
+        let topology = fu::Topology::new().unwrap();
+        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         for &(height, width, depth) in DIMS {
             let a = Tensor::<Scalar>::try_full(&[height, depth], Scalar::one()).unwrap();
             let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
@@ -5048,7 +5041,8 @@ mod tests {
         Scalar::SpatialResult: PartialEq + core::fmt::Debug + Send + Sync,
     {
         init_thread();
-        let mut pool = fork_union::ThreadPool::try_spawn(4).unwrap();
+        let topology = fu::Topology::new().unwrap();
+        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         for &(height, width, depth) in DIMS {
             let a = Tensor::<Scalar>::try_full(&[height, depth], Scalar::one()).unwrap();
             let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
@@ -5070,7 +5064,8 @@ mod tests {
         Scalar::SpatialResult: PartialEq + core::fmt::Debug + Send + Sync,
     {
         init_thread();
-        let mut pool = fork_union::ThreadPool::try_spawn(4).unwrap();
+        let topology = fu::Topology::new().unwrap();
+        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         for &(height, width, depth) in DIMS {
             let a = Tensor::<Scalar>::try_full(&[height, depth], Scalar::one()).unwrap();
             let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
@@ -5095,7 +5090,8 @@ mod tests {
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     fn check_hammings_packed_parallel_u1() {
         init_thread();
-        let mut pool = fork_union::ThreadPool::try_spawn(4).unwrap();
+        let topology = fu::Topology::new().unwrap();
+        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         for &(height, width, depth) in DIMS {
             let depth = align_depth::<u1x8>(depth); // logical bit-count, multiple of 8
             let a = Tensor::<u1x8>::try_full(&[height, depth], u1x8(0xFF)).unwrap();
@@ -5140,7 +5136,8 @@ mod tests {
         <Scalar as Euclideans>::SpatialResult: Clone + Default + Copy + PartialEq + core::fmt::Debug + Send + Sync,
     {
         init_thread();
-        let mut pool = fork_union::ThreadPool::try_spawn(4).unwrap();
+        let topology = fu::Topology::new().unwrap();
+        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         for &(num_vectors, _, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
             let vectors = Tensor::<Scalar>::try_full(&[num_vectors, depth], Scalar::one()).unwrap();
@@ -5221,7 +5218,8 @@ mod tests {
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     fn check_symmetric_parallel_u1() {
         init_thread();
-        let mut pool = fork_union::ThreadPool::try_spawn(4).unwrap();
+        let topology = fu::Topology::new().unwrap();
+        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         for &(num_vectors, _, depth) in DIMS {
             let depth = align_depth::<u1x8>(depth); // logical bit-count, multiple of 8
             let vectors = Tensor::<u1x8>::try_full(&[num_vectors, depth], u1x8(0xFF)).unwrap();

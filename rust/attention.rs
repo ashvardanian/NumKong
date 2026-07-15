@@ -43,6 +43,9 @@ use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorMut, TensorRef
 use crate::types::Roots;
 use crate::types::{bf16, e4m3, StorageElement};
 
+#[cfg(feature = "parallel")]
+use forkunion as fu;
+
 // region: FFI
 
 #[link(name = "numkong")]
@@ -841,14 +844,14 @@ impl<Scalar: Attention> AttentionKeyValueCache<Scalar, Global> {
 #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> {
     /// Ragged attention parallelized over the `(segment, head)` task grid with a
-    /// `fork_union` thread pool; each worker computes a contiguous task window.
+    /// ForkUnion thread pool; each worker computes a contiguous task window.
     pub fn try_attention_parallel_into<QIn, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
         &self,
         queries: &QIn,
         query_offsets: &[u32],
         scale: Option<f32>,
         output: &mut OutTensor,
-        pool: &mut fork_union::ThreadPool,
+        pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
@@ -878,10 +881,10 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
         let scale = scale.unwrap_or_else(|| (self.depth as f32).rsqrt());
         let output_stride_bytes = output.stride_bytes(0) as usize;
 
-        let q_ptr = fork_union::SyncConstPtr::new(queries.as_ptr());
-        let kv_ptr = fork_union::SyncConstPtr::new(self.data.as_ptr());
-        let out_ptr = fork_union::SyncMutPtr::new(output.as_mut_ptr());
-        let offsets_ptr = fork_union::SyncConstPtr::new(query_offsets.as_ptr());
+        let q_ptr = fu::SyncConstPtr::new(queries.as_ptr());
+        let kv_ptr = fu::SyncConstPtr::new(self.data.as_ptr());
+        let out_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
+        let offsets_ptr = fu::SyncConstPtr::new(query_offsets.as_ptr());
         let (key_value_head_count, depth) = (self.key_value_head_count, self.depth);
 
         // Self-attention task cost is `q_len × kv_len × depth` — quadratic in segment

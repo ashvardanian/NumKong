@@ -1,25 +1,25 @@
 [package]
-authors = ["Ash Vardanian <1983160+ashvardanian@users.noreply.github.com>"] 
+authors = ["Ash Vardanian <1983160+ashvardanian@users.noreply.github.com>"]
 categories = [
   "mathematics",
   "hardware-support",
   "no-std",
   "wasm",
   "external-ffi-bindings",
-] 
+]
 description = "Portable mixed-precision math, linear-algebra, & retrieval library with 2000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly"
-documentation = "https://docs.rs/numkong" 
-edition = "2021" 
-homepage = "https://ashvardanian.com/posts/numkong-faster-scipy" 
+documentation = "https://docs.rs/numkong"
+edition = "2021"
+homepage = "https://ashvardanian.com/posts/numkong-faster-scipy"
 include = ["rust/*.rs", "c/*.c", "c/*.h", "include/**/*.h", "probes/*.c", "build.rs"]
-keywords = ["simd", "search", "linear-algebra", "vector"] 
-license = "Apache-2.0" 
+keywords = ["simd", "search", "linear-algebra", "vector"]
+license = "Apache-2.0"
 links = "numkong"
 name = "numkong"
 readme = "rust/README.md"
-repository = "https://github.com/ashvardanian/NumKong" 
+repository = "https://github.com/ashvardanian/NumKong"
 rust-version = "1.73" # `usize::div_ceil` (used for sub-byte / block-scaled size math)
-version = "7.7.0" 
+version = "7.7.0"
 
 [lib]
 name = "numkong"
@@ -41,12 +41,12 @@ rpath = false # On some systems, setting this to false can help with optimizatio
 [features]
 default = ["alloc"]
 alloc = []
-parallel = ["dep:fork_union", "std"]
+parallel = ["dep:forkunion", "std"]
 std = ["alloc"]
 wasm-runtime = []
 
 [dependencies]
-fork_union = {version = "2.3", optional = true}
+forkunion = {version = "3.0", optional = true}
 
 [dev-dependencies]
 half = {version = "2.6.0"}

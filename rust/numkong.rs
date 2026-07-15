@@ -224,6 +224,9 @@ pub mod prelude {
 mod tests {
     use super::*;
 
+    #[cfg(feature = "parallel")]
+    use forkunion as fu;
+
     #[test]
     fn dot_smoke() {
         let first = [1.0_f32, 2.0, 3.0];
@@ -340,7 +343,8 @@ mod tests {
         let kv = AttentionKeyValueCache::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
 
         let sequential = kv.try_attention(&keys.view(), &offsets, None).unwrap();
-        let mut pool = fork_union::ThreadPool::try_spawn(4).unwrap();
+        let topology = fu::Topology::new().unwrap();
+        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         let mut parallel = Tensor::<f32>::try_full(&[tokens, kv_heads * head_dim], 0.0).unwrap();
         kv.try_attention_parallel_into(&keys.view(), &offsets, None, &mut parallel, &mut pool)
             .unwrap();
