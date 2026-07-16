@@ -11,10 +11,10 @@ That matters for fp16, bf16, fp8, packed bits, and strided reductions.
 ## Quickstart
 
 ```rust
-use numkong::{configure_thread, Dot};
+use numkong::{capabilities, Dot};
 
 fn main() {
-    configure_thread();
+    capabilities::configure_thread();
     let a = [1.0_f32, 2.0, 3.0];
     let b = [4.0_f32, 5.0, 6.0];
     let dot = f32::dot(&a, &b).unwrap();
