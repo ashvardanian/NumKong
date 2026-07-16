@@ -41,23 +41,23 @@ extern "C" {
  *  Suitable for upcasted types where the wider accumulator provides sufficient
  *  precision headroom (f32→f64, f16→f32, bf16→f32).
  */
-#define nk_define_bilinear_(input_type, accumulator_type, output_type, load_and_convert)                         \
-    NK_PUBLIC void nk_bilinear_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
-                                                     nk_##input_type##_t const *c, nk_size_t n,                  \
-                                                     nk_##output_type##_t *result) {                             \
-        nk_##accumulator_type##_t outer_sum = 0;                                                                 \
-        nk_##accumulator_type##_t vector_a_value, vector_b_value, tensor_value;                                  \
-        for (nk_size_t row = 0; row != n; ++row) {                                                               \
-            nk_##accumulator_type##_t inner_sum = 0;                                                             \
-            load_and_convert(a + row, &vector_a_value);                                                          \
-            for (nk_size_t column = 0; column != n; ++column) {                                                  \
-                load_and_convert(b + column, &vector_b_value);                                                   \
-                load_and_convert(c + row * n + column, &tensor_value);                                           \
-                inner_sum += tensor_value * vector_b_value;                                                      \
-            }                                                                                                    \
-            outer_sum += vector_a_value * inner_sum;                                                             \
-        }                                                                                                        \
-        *result = (nk_##output_type##_t)(outer_sum);                                                             \
+#define nk_define_bilinear_(input_type, accumulator_type, output_type, load_and_convert)                               \
+    NK_API_COMPTIME void nk_bilinear_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
+                                                           nk_##input_type##_t const *c, nk_size_t n,                  \
+                                                           nk_##output_type##_t *result) {                             \
+        nk_##accumulator_type##_t outer_sum = 0;                                                                       \
+        nk_##accumulator_type##_t vector_a_value, vector_b_value, tensor_value;                                        \
+        for (nk_size_t row = 0; row != n; ++row) {                                                                     \
+            nk_##accumulator_type##_t inner_sum = 0;                                                                   \
+            load_and_convert(a + row, &vector_a_value);                                                                \
+            for (nk_size_t column = 0; column != n; ++column) {                                                        \
+                load_and_convert(b + column, &vector_b_value);                                                         \
+                load_and_convert(c + row * n + column, &tensor_value);                                                 \
+                inner_sum += tensor_value * vector_b_value;                                                            \
+            }                                                                                                          \
+            outer_sum += vector_a_value * inner_sum;                                                                   \
+        }                                                                                                              \
+        *result = (nk_##output_type##_t)(outer_sum);                                                                   \
     }
 
 /**
@@ -67,7 +67,7 @@ extern "C" {
  *  sufficient precision headroom.
  */
 #define nk_define_bilinear_complex_(input_type, accumulator_type, output_type, load_and_convert)                    \
-    NK_PUBLIC void nk_bilinear_##input_type##_serial(                                                               \
+    NK_API_COMPTIME void nk_bilinear_##input_type##_serial(                                                         \
         nk_##input_type##_t const *a_pairs, nk_##input_type##_t const *b_pairs, nk_##input_type##_t const *c_pairs, \
         nk_size_t n, nk_##output_type##c_t *results) {                                                              \
         nk_##accumulator_type##_t outer_sum_real = 0, outer_sum_imag = 0;                                           \
@@ -98,28 +98,28 @@ extern "C" {
  *  Suitable for upcasted types where the wider accumulator provides sufficient
  *  precision headroom. Differences are computed in the accumulator precision.
  */
-#define nk_define_mahalanobis_(input_type, accumulator_type, output_type, load_and_convert)                         \
-    NK_PUBLIC void nk_mahalanobis_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
-                                                        nk_##input_type##_t const *c, nk_size_t n,                  \
-                                                        nk_##output_type##_t *result) {                             \
-        nk_##accumulator_type##_t outer_sum = 0;                                                                    \
-        nk_##accumulator_type##_t a_row_value, b_row_value, a_column_value, b_column_value, tensor_value;           \
-        for (nk_size_t row = 0; row != n; ++row) {                                                                  \
-            nk_##accumulator_type##_t inner_sum = 0;                                                                \
-            load_and_convert(a + row, &a_row_value);                                                                \
-            load_and_convert(b + row, &b_row_value);                                                                \
-            nk_##accumulator_type##_t difference_row = a_row_value - b_row_value;                                   \
-            for (nk_size_t column = 0; column != n; ++column) {                                                     \
-                load_and_convert(a + column, &a_column_value);                                                      \
-                load_and_convert(b + column, &b_column_value);                                                      \
-                load_and_convert(c + row * n + column, &tensor_value);                                              \
-                nk_##accumulator_type##_t difference_column = a_column_value - b_column_value;                      \
-                inner_sum += tensor_value * difference_column;                                                      \
-            }                                                                                                       \
-            outer_sum += difference_row * inner_sum;                                                                \
-        }                                                                                                           \
-        nk_##accumulator_type##_t quadratic = outer_sum;                                                            \
-        *result = nk_##accumulator_type##_sqrt_serial(quadratic > 0 ? quadratic : 0);                               \
+#define nk_define_mahalanobis_(input_type, accumulator_type, output_type, load_and_convert)                    \
+    NK_API_COMPTIME void nk_mahalanobis_##input_type##_serial(                                                 \
+        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##input_type##_t const *c, nk_size_t n, \
+        nk_##output_type##_t *result) {                                                                        \
+        nk_##accumulator_type##_t outer_sum = 0;                                                               \
+        nk_##accumulator_type##_t a_row_value, b_row_value, a_column_value, b_column_value, tensor_value;      \
+        for (nk_size_t row = 0; row != n; ++row) {                                                             \
+            nk_##accumulator_type##_t inner_sum = 0;                                                           \
+            load_and_convert(a + row, &a_row_value);                                                           \
+            load_and_convert(b + row, &b_row_value);                                                           \
+            nk_##accumulator_type##_t difference_row = a_row_value - b_row_value;                              \
+            for (nk_size_t column = 0; column != n; ++column) {                                                \
+                load_and_convert(a + column, &a_column_value);                                                 \
+                load_and_convert(b + column, &b_column_value);                                                 \
+                load_and_convert(c + row * n + column, &tensor_value);                                         \
+                nk_##accumulator_type##_t difference_column = a_column_value - b_column_value;                 \
+                inner_sum += tensor_value * difference_column;                                                 \
+            }                                                                                                  \
+            outer_sum += difference_row * inner_sum;                                                           \
+        }                                                                                                      \
+        nk_##accumulator_type##_t quadratic = outer_sum;                                                       \
+        *result = nk_##accumulator_type##_sqrt_serial(quadratic > 0 ? quadratic : 0);                          \
     }
 
 // f32 → f64 accumulator → f64 output
@@ -141,8 +141,8 @@ nk_define_mahalanobis_(bf16, f32, f32, nk_bf16_to_f32_serial)       // nk_mahala
 #undef nk_define_bilinear_complex_
 #undef nk_define_mahalanobis_
 
-NK_PUBLIC void nk_bilinear_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                      nk_f64_t *result) {
+NK_API_COMPTIME void nk_bilinear_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
+                                            nk_f64_t *result) {
     nk_f64_t outer_sum = 0, outer_comp = 0;
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f64_t inner_sum = 0, inner_comp = 0;
@@ -153,8 +153,8 @@ NK_PUBLIC void nk_bilinear_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f
     *result = outer_sum + outer_comp;
 }
 
-NK_PUBLIC void nk_bilinear_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_f64c_t const *c_pairs,
-                                       nk_size_t n, nk_f64c_t *results) {
+NK_API_COMPTIME void nk_bilinear_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
+                                             nk_f64c_t const *c_pairs, nk_size_t n, nk_f64c_t *results) {
     nk_f64_t outer_sum_real = 0, outer_comp_real = 0;
     nk_f64_t outer_sum_imag = 0, outer_comp_imag = 0;
     for (nk_size_t row = 0; row != n; ++row) {
@@ -185,8 +185,8 @@ NK_PUBLIC void nk_bilinear_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const
     results->imag = outer_sum_imag + outer_comp_imag;
 }
 
-NK_PUBLIC void nk_mahalanobis_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                         nk_f64_t *result) {
+NK_API_COMPTIME void nk_mahalanobis_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
+                                               nk_f64_t *result) {
     nk_f64_t outer_sum = 0, outer_comp = 0;
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f64_t diff_row = a[row] - b[row];

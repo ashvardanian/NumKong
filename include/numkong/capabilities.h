@@ -104,8 +104,8 @@
  *          that runs the program, rather than the most advanced backend supported by the CPU
  *          used to compile the library or the downstream application.
  */
-#if !defined(NK_DYNAMIC_DISPATCH)
-#define NK_DYNAMIC_DISPATCH (0) // true or false
+#if !defined(NK_RUNTIME_DISPATCH)
+#define NK_RUNTIME_DISPATCH (0) // true or false
 #endif
 
 // On Apple Silicon, `mrs` is not allowed in user-space, so we need to use the `sysctl` API.
@@ -429,7 +429,7 @@ typedef void (*nk_kernel_punned_t)(void *);
 
 #if NK_TARGET_X8664_
 
-NK_PUBLIC int nk_configure_thread_x86_(nk_capability_t capabilities) {
+NK_HELPER_AUTO int nk_configure_thread_x86_(nk_capability_t capabilities) {
 #if NK_TARGET_SAPPHIREAMX
     if (capabilities & nk_cap_sapphireamx_k) {
 #if defined(NK_DEFINED_LINUX_)
@@ -448,7 +448,7 @@ NK_PUBLIC int nk_configure_thread_x86_(nk_capability_t capabilities) {
     return 1;
 }
 
-NK_PUBLIC nk_capability_t nk_capabilities_x8664_(void) {
+NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_x8664_(void) {
     union four_registers_t {
         int array[4];
         struct separate_t {
@@ -565,7 +565,7 @@ static void nk_mrs_arm64_sigill_handler_(int sig) {
 }
 #endif
 
-NK_PUBLIC int nk_configure_thread_arm64_(nk_capability_t capabilities) {
+NK_HELPER_AUTO int nk_configure_thread_arm64_(nk_capability_t capabilities) {
 #if defined(_MSC_VER)
     nk_unused_(capabilities);
     return 1;
@@ -596,7 +596,7 @@ NK_PUBLIC int nk_configure_thread_arm64_(nk_capability_t capabilities) {
 
 #elif defined(NK_DEFINED_LINUX_) || defined(NK_DEFINED_FREEBSD_)
     // Read ID registers via MRS. Only safe if MRS is known to work — indicated by
-    // capabilities beyond basic NEON (nk_capabilities_arm64_ validated MRS via sigaction probe).
+    // capabilities beyond basic NEON (nk_capabilities_detected_arm64_ validated MRS via sigaction probe).
     if (capabilities & ~(nk_cap_neon_k | nk_cap_serial_k)) {
         // FEAT_EBF16: ID_AA64ISAR1_EL1.BF16 bits [47:44] >= 0b0010
         register unsigned long isar1_val __asm__("x0");
@@ -620,7 +620,7 @@ NK_PUBLIC int nk_configure_thread_arm64_(nk_capability_t capabilities) {
 #endif // _MSC_VER
 }
 
-NK_PUBLIC nk_capability_t nk_capabilities_arm64_(void) {
+NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_arm64_(void) {
 #if defined(NK_DEFINED_APPLE_)
     size_t size = sizeof(unsigned);
     unsigned supports_neon = 0, supports_fp16 = 0, supports_fhm = 0, supports_bf16 = 0, supports_i8mm = 0;
@@ -771,7 +771,7 @@ NK_PUBLIC nk_capability_t nk_capabilities_arm64_(void) {
 
 #if NK_TARGET_RISCV64_
 
-NK_PUBLIC nk_capability_t nk_capabilities_riscv64_(void) {
+NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_riscv64_(void) {
 #if defined(NK_DEFINED_LINUX_)
     unsigned long hwcap = getauxval(AT_HWCAP);
     nk_capability_t caps = nk_cap_serial_k;
@@ -807,7 +807,7 @@ NK_PUBLIC nk_capability_t nk_capabilities_riscv64_(void) {
 
 #if NK_TARGET_LOONGARCH64_
 
-NK_PUBLIC nk_capability_t nk_capabilities_loongarch64_(void) {
+NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_loongarch64_(void) {
 #if defined(NK_DEFINED_LINUX_)
     unsigned long hwcap = getauxval(AT_HWCAP);
     nk_capability_t caps = nk_cap_serial_k;
@@ -823,7 +823,7 @@ NK_PUBLIC nk_capability_t nk_capabilities_loongarch64_(void) {
 
 #if NK_TARGET_POWER64_
 
-NK_PUBLIC nk_capability_t nk_capabilities_power64_(void) {
+NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_power64_(void) {
 #if defined(NK_DEFINED_LINUX_)
     unsigned long hwcap = getauxval(AT_HWCAP);
     unsigned long hwcap2 = getauxval(AT_HWCAP2);
@@ -841,8 +841,8 @@ NK_PUBLIC nk_capability_t nk_capabilities_power64_(void) {
 
 #if NK_TARGET_WASM_
 
-#if defined(__EMSCRIPTEN__) && NK_DYNAMIC_DISPATCH && !defined(NK_PYODIDE_SIDE_MODULE)
-// Standalone Emscripten dynamic dispatch: EM_JS probes defined in c/numkong.c.
+#if defined(__EMSCRIPTEN__) && NK_RUNTIME_DISPATCH && !defined(NK_PYODIDE_SIDE_MODULE)
+// Standalone Emscripten runtime dispatch: EM_JS probes defined in c/numkong.c.
 extern int nk_has_v128(void);
 extern int nk_has_relaxed(void);
 #elif defined(__wasi__) && NK_DEFINED_WASI_
@@ -851,8 +851,8 @@ __attribute__((__import_module__("env"), __import_name__("nk_has_v128"))) extern
 __attribute__((__import_module__("env"), __import_name__("nk_has_relaxed"))) extern int nk_has_relaxed(void);
 #endif
 
-NK_PUBLIC nk_capability_t nk_capabilities_v128relaxed_(void) {
-#if ((defined(__EMSCRIPTEN__) && NK_DYNAMIC_DISPATCH) || (defined(__wasi__) && NK_DEFINED_WASI_)) && \
+NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_v128relaxed_(void) {
+#if ((defined(__EMSCRIPTEN__) && NK_RUNTIME_DISPATCH) || (defined(__wasi__) && NK_DEFINED_WASI_)) && \
     !defined(NK_PYODIDE_SIDE_MODULE)
     // Hosted environment (Emscripten or WASI with NK_WASI_HOSTED): the host provides
     // runtime probes.  Compile-time flags only mean the *compiler* emitted relaxed-SIMD
@@ -870,7 +870,7 @@ NK_PUBLIC nk_capability_t nk_capabilities_v128relaxed_(void) {
 
 #endif // NK_TARGET_WASM_
 
-NK_PUBLIC int nk_configure_thread_(nk_capability_t capabilities) {
+NK_HELPER_AUTO int nk_configure_thread_(nk_capability_t capabilities) {
 #if NK_TARGET_X8664_
     return nk_configure_thread_x86_(capabilities);
 #endif
@@ -881,29 +881,30 @@ NK_PUBLIC int nk_configure_thread_(nk_capability_t capabilities) {
     return 1; // success — no platform-specific thread configuration needed
 }
 
-NK_PUBLIC nk_capability_t nk_capabilities_(void) {
+NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_(void) {
 #if NK_TARGET_X8664_
-    return nk_capabilities_x8664_();
+    return nk_capabilities_detected_x8664_();
 #elif NK_TARGET_ARM64_
-    return nk_capabilities_arm64_();
+    return nk_capabilities_detected_arm64_();
 #elif NK_TARGET_RISCV64_
-    return nk_capabilities_riscv64_();
+    return nk_capabilities_detected_riscv64_();
 #elif NK_TARGET_LOONGARCH64_
-    return nk_capabilities_loongarch64_();
+    return nk_capabilities_detected_loongarch64_();
 #elif NK_TARGET_POWER64_
-    return nk_capabilities_power64_();
+    return nk_capabilities_detected_power64_();
 #elif NK_TARGET_WASM_
-    return nk_capabilities_v128relaxed_();
+    return nk_capabilities_detected_v128relaxed_();
 #else
     return nk_cap_serial_k;
 #endif
 }
 
 /**
- *  @brief  Returns a bitmask of all capabilities the library was compiled with,
- *          regardless of whether the current CPU supports them at runtime.
+ *  @brief  Returns the capabilities whose kernels were compiled into this binary,
+ *          as decided by the `NK_TARGET_*` macros the ISA probes set at build time.
+ *          Says nothing about the current CPU — see @b nk_capabilities_detected_().
  */
-NK_PUBLIC nk_capability_t nk_capabilities_compiled_(void) {
+NK_HELPER_AUTO nk_capability_t nk_capabilities_compiled_(void) {
     nk_capability_t caps = nk_cap_serial_k;
 #if NK_TARGET_X8664_
     caps |= nk_cap_haswell_k * NK_TARGET_HASWELL;
@@ -960,25 +961,59 @@ NK_PUBLIC nk_capability_t nk_capabilities_compiled_(void) {
     return caps;
 }
 
-#if NK_DYNAMIC_DISPATCH
+/**
+ *  @brief  SIMD capabilities, reported along two independent axes and the sets derived from them.
+ *
+ *  - @b nk_capabilities_detected() — what this CPU can execute, from CPUID or HWCAP.
+ *  - @b nk_capabilities_compiled() — what this binary contains, from the `NK_TARGET_*` macros
+ *    the ISA probes set at build time.
+ *  - @b nk_capabilities_available() — the intersection, i.e. what can actually run here.
+ *  - @b nk_capabilities_enabled() — the subset dispatch is restricted to. Always a subset of
+ *    @b available, and always retains @b nk_cap_serial_k.
+ *
+ *  The two axes are independent, and conflating them is a silent performance cliff rather than a
+ *  build error: a binary whose ISA probes failed still reports this machine's full @b detected
+ *  mask while containing no SIMD kernels at all. Ask for @b available() unless you specifically
+ *  mean one of the raw axes.
+ */
 
-NK_DYNAMIC nk_capability_t nk_capabilities(void);
-NK_DYNAMIC nk_capability_t nk_capabilities_available(void);
-NK_DYNAMIC nk_capability_t nk_capabilities_compiled(void);
-NK_DYNAMIC int nk_configure_thread(nk_capability_t);
-NK_DYNAMIC int nk_uses_dynamic_dispatch(void);
-NK_DYNAMIC void nk_dispatch_table_update(nk_capability_t);
-NK_DYNAMIC void nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t viable,
-                                      nk_kernel_punned_t *kernel_output, nk_capability_t *capability_output);
+#if NK_RUNTIME_DISPATCH
+
+NK_API_RUNTIME nk_capability_t nk_capabilities_detected(void);
+NK_API_RUNTIME nk_capability_t nk_capabilities_compiled(void);
+NK_API_RUNTIME nk_capability_t nk_capabilities_available(void);
+NK_API_RUNTIME nk_capability_t nk_capabilities_enabled(void);
+NK_API_RUNTIME void nk_capabilities_restrict(nk_capability_t);
+NK_API_RUNTIME void nk_capabilities_enable(nk_capability_t);
+NK_API_RUNTIME void nk_capabilities_disable(nk_capability_t);
+NK_API_RUNTIME int nk_configure_thread(nk_capability_t);
+NK_API_RUNTIME int nk_uses_runtime_dispatch(void);
+NK_API_RUNTIME void nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_kernel_punned_t *kernel_output,
+                                          nk_capability_t *capability_output);
 
 #else
 
-NK_PUBLIC int nk_uses_dynamic_dispatch(void) { return 0; }
-NK_PUBLIC int nk_configure_thread(nk_capability_t c) { return nk_configure_thread_(c); }
-NK_PUBLIC nk_capability_t nk_capabilities(void) { return nk_capabilities_(); }
-NK_PUBLIC nk_capability_t nk_capabilities_available(void) { return nk_capabilities_() & nk_capabilities_compiled_(); }
-NK_PUBLIC nk_capability_t nk_capabilities_compiled(void) { return nk_capabilities_compiled_(); }
-NK_PUBLIC void nk_dispatch_table_update(nk_capability_t caps) { nk_unused_(caps); }
+NK_API_COMPTIME int nk_uses_runtime_dispatch(void) { return 0; }
+NK_API_COMPTIME int nk_configure_thread(nk_capability_t c) { return nk_configure_thread_(c); }
+NK_API_COMPTIME nk_capability_t nk_capabilities_detected(void) { return nk_capabilities_detected_(); }
+NK_API_COMPTIME nk_capability_t nk_capabilities_compiled(void) { return nk_capabilities_compiled_(); }
+NK_API_COMPTIME nk_capability_t nk_capabilities_available(void) {
+    return nk_capabilities_detected_() & nk_capabilities_compiled_();
+}
+/**
+ *  @brief  Without a dispatch table there is nothing to narrow: the ISA was fixed at compile
+ *          time, so the enabled set is always the available one and the mutators are no-ops.
+ */
+NK_API_COMPTIME nk_capability_t nk_capabilities_enabled(void) { return nk_capabilities_available(); }
+
+/** @copydoc nk_capabilities_enabled */
+NK_API_COMPTIME void nk_capabilities_restrict(nk_capability_t caps) { nk_unused_(caps); }
+
+/** @copydoc nk_capabilities_enabled */
+NK_API_COMPTIME void nk_capabilities_enable(nk_capability_t caps) { nk_unused_(caps); }
+
+/** @copydoc nk_capabilities_enabled */
+NK_API_COMPTIME void nk_capabilities_disable(nk_capability_t caps) { nk_unused_(caps); }
 
 #endif
 

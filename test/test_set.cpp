@@ -73,12 +73,10 @@ error_stats_t test_jaccard(typename scalar_type_::jaccard_kernel_t kernel) {
 void test_set() {
     error_stats_section_t check("Binary Distances");
 
-#if NK_DYNAMIC_DISPATCH
-    // Dynamic dispatch - only test the dispatcher itself
+#if NK_RUNTIME_DISPATCH
     check("hamming_u1", test_hamming<u1x8_t>, nk_hamming_u1);
     check("jaccard_u1", test_jaccard<u1x8_t>, nk_jaccard_u1);
 #else
-    // Static compilation - test all available ISA variants
 
 #if NK_TARGET_NEON
     check("hamming_u1_neon", test_hamming<u1x8_t>, nk_hamming_u1_neon);
@@ -147,5 +145,5 @@ void test_set() {
     check("jaccard_u16_serial", test_jaccard<u16_t>, nk_jaccard_u16_serial);
     check("jaccard_u32_serial", test_jaccard<u32_t>, nk_jaccard_u32_serial);
 
-#endif // NK_DYNAMIC_DISPATCH
+#endif // NK_RUNTIME_DISPATCH
 }

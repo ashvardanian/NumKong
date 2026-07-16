@@ -120,7 +120,7 @@ enum {
  */
 #pragma region F16 Floats
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_f16_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_f16_sme(nk_size_t columns, nk_size_t depth) {
     nk_size_t const expansion = 2;                    // FMOPA f16 → f32: 2 f16 pairs per f32 output
     nk_size_t const tile_dimension = nk_sme_cntw_();  // ZA32 tile dim: 16
     nk_size_t const vector_elements = nk_sme_cnth_(); // f16 elements per SVE vector: 32
@@ -133,7 +133,7 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_f16_sme(nk_size_t columns, nk_size_t dep
     return size;
 }
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_bf16_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_bf16_sme(nk_size_t columns, nk_size_t depth) {
     return nk_dots_packed_size_f16_sme(columns, depth);
 }
 
@@ -245,7 +245,7 @@ __arm_new("za") static void nk_dots_pack_b8_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_pack_f16_sme(                       //
+NK_API_COMPTIME void nk_dots_pack_f16_sme(                 //
     nk_f16_t const *b, nk_size_t columns, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed) {
 
@@ -279,7 +279,7 @@ NK_PUBLIC void nk_dots_pack_f16_sme(                       //
     }
 }
 
-NK_PUBLIC void nk_dots_pack_bf16_sme(                       //
+NK_API_COMPTIME void nk_dots_pack_bf16_sme(                 //
     nk_bf16_t const *b, nk_size_t columns, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed) {
 
@@ -607,7 +607,7 @@ __arm_new("za") static void nk_dots_packed_bf16_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_packed_f16_sme(                    //
+NK_API_COMPTIME void nk_dots_packed_f16_sme(              //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,   //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
@@ -620,7 +620,7 @@ NK_PUBLIC void nk_dots_packed_f16_sme(                    //
     nk_sme_stop_streaming_();
 }
 
-NK_PUBLIC void nk_dots_packed_bf16_sme(                    //
+NK_API_COMPTIME void nk_dots_packed_bf16_sme(              //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
@@ -832,7 +832,7 @@ __arm_new("za") static void nk_dots_symmetric_f16_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_symmetric_f16_sme( //
+NK_API_COMPTIME void nk_dots_symmetric_f16_sme( //
     nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -1027,7 +1027,7 @@ __arm_new("za") static void nk_dots_symmetric_bf16_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_symmetric_bf16_sme( //
+NK_API_COMPTIME void nk_dots_symmetric_bf16_sme( //
     nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -1057,7 +1057,7 @@ NK_PUBLIC void nk_dots_symmetric_bf16_sme( //
 
 #pragma region I8 Integers
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_i8_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_i8_sme(nk_size_t columns, nk_size_t depth) {
     nk_size_t const expansion = 4;                    // SMOPA i8→i32: 4 i8 pairs per i32 output
     nk_size_t const tile_dimension = nk_sme_cntw_();  // ZA32 tile dim: 16
     nk_size_t const vector_elements = nk_sme_cntb_(); // i8 elements per SVE vector: 64
@@ -1070,7 +1070,7 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_i8_sme(nk_size_t columns, nk_size_t dept
     return size;
 }
 
-NK_PUBLIC void nk_dots_pack_i8_sme( //
+NK_API_COMPTIME void nk_dots_pack_i8_sme( //
     nk_i8_t const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_in_bytes, void *b_packed) {
 
     nk_size_t const expansion = 4;
@@ -1245,7 +1245,7 @@ __arm_new("za") static void nk_dots_packed_i8_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_packed_i8_sme(                    //
+NK_API_COMPTIME void nk_dots_packed_i8_sme(              //
     nk_i8_t const *a, void const *b_packed, nk_i32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,  //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
@@ -1427,7 +1427,7 @@ __arm_new("za") static void nk_dots_symmetric_i8_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_symmetric_i8_sme( //
+NK_API_COMPTIME void nk_dots_symmetric_i8_sme( //
     nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_i32_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -1474,7 +1474,7 @@ NK_PUBLIC void nk_dots_symmetric_i8_sme( //
  *  @param bytes_u8x Pre-loaded e4m3 bytes from `svld1_u8`
  *  @return `svfloat16_t` with converted values (zero for inactive lanes)
  */
-NK_PUBLIC svfloat16_t nk_e4m3x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NK_STREAMING_ {
+NK_HELPER_AUTO svfloat16_t nk_e4m3x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NK_STREAMING_ {
     svuint16_t vals_u16x = svunpklo_u16(bytes_u8x); // 1: UUNPKLO
     svuint16_t sign_u16x = svlsl_n_u16_z(predicate_b16x, svand_n_u16_z(predicate_b16x, vals_u16x, 0x80),
                                          8);                              // 2-3: AND+LSL
@@ -1520,7 +1520,7 @@ NK_PUBLIC svfloat16_t nk_e4m3x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t 
  *  @param bytes_u8x Pre-loaded 64 bytes (svuint8_t from svld1_u8)
  *  @return 32 F16 values as svfloat16_t (from lower 32 bytes)
  */
-NK_PUBLIC svfloat16_t nk_e5m2x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NK_STREAMING_ {
+NK_HELPER_AUTO svfloat16_t nk_e5m2x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NK_STREAMING_ {
     // E5M2 and F16 share the same exponent bias (15), sign position, exponent width,
     // and mantissa field alignment. The conversion f16 = byte << 8 is exact for ALL
     // 256 values including subnormals, infinity, and NaN.
@@ -1672,7 +1672,7 @@ __arm_new("za") static void nk_dots_packed_e4m3_sme_streaming_( //
     }
 }
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_e4m3_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_e4m3_sme(nk_size_t columns, nk_size_t depth) {
     // Uses `f16` format for packed data
     return nk_dots_packed_size_f16_sme(columns, depth);
 }
@@ -1767,7 +1767,7 @@ __arm_new("za") static void nk_dots_pack_e5m2_to_b16_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_pack_e4m3_sme(                       //
+NK_API_COMPTIME void nk_dots_pack_e4m3_sme(                 //
     nk_e4m3_t const *b, nk_size_t columns, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed) {
 
@@ -1801,7 +1801,7 @@ NK_PUBLIC void nk_dots_pack_e4m3_sme(                       //
     }
 }
 
-NK_PUBLIC void nk_dots_packed_e4m3_sme(                    //
+NK_API_COMPTIME void nk_dots_packed_e4m3_sme(              //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
@@ -2020,7 +2020,7 @@ __arm_new("za") static void nk_dots_symmetric_e4m3_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_symmetric_e4m3_sme( //
+NK_API_COMPTIME void nk_dots_symmetric_e4m3_sme( //
     nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -2188,12 +2188,12 @@ __arm_new("za") static void nk_dots_packed_e5m2_sme_streaming_( //
     }
 }
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_e5m2_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_e5m2_sme(nk_size_t columns, nk_size_t depth) {
     return nk_dots_packed_size_f16_sme(columns, depth);
 }
 
-NK_PUBLIC void nk_dots_pack_e5m2_sme(nk_e5m2_t const *b, nk_size_t columns, nk_size_t depth,
-                                     nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_e5m2_sme(nk_e5m2_t const *b, nk_size_t columns, nk_size_t depth,
+                                           nk_size_t b_stride_in_bytes, void *b_packed) {
 
     nk_size_t const expansion = 2;
     nk_size_t const tile_dimension = nk_sme_cntw_();
@@ -2228,7 +2228,7 @@ NK_PUBLIC void nk_dots_pack_e5m2_sme(nk_e5m2_t const *b, nk_size_t columns, nk_s
 /*  `e5m2` × `e5m2` → `f32` GEMM: public interface.
  *  Predicate-based edge handling eliminates scalar fallbacks.
  */
-NK_PUBLIC void nk_dots_packed_e5m2_sme( //
+NK_API_COMPTIME void nk_dots_packed_e5m2_sme( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 
@@ -2444,7 +2444,7 @@ __arm_new("za") static void nk_dots_symmetric_e5m2_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_symmetric_e5m2_sme( //
+NK_API_COMPTIME void nk_dots_symmetric_e5m2_sme( //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -2488,7 +2488,7 @@ NK_PUBLIC void nk_dots_symmetric_e5m2_sme( //
  *  @param raw_bytes_u8x Pre-loaded e2m3 bytes as `svuint8_t`
  *  @return              Signed `i8` values as `svint8_t`
  */
-NK_PUBLIC svint8_t nk_e2m3x_to_i8x_ssve_(svbool_t predicate_b8x, svuint8_t raw_bytes_u8x) NK_STREAMING_ {
+NK_HELPER_AUTO svint8_t nk_e2m3x_to_i8x_ssve_(svbool_t predicate_b8x, svuint8_t raw_bytes_u8x) NK_STREAMING_ {
     // 32-entry magnitude LUT, replicated for SVE TBL (handles SVL > 256 bits)
     static NK_ALIGN64 nk_u8_t const lut_data[64] = {
         0,  2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26,  28,  30,  //
@@ -2662,7 +2662,7 @@ __arm_new("za") static void nk_dots_packed_e2m3_sme_streaming_( //
     }
 }
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_e2m3_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_e2m3_sme(nk_size_t columns, nk_size_t depth) {
     // Uses `i8` format for packed data (same tile geometry as i8)
     return nk_dots_packed_size_i8_sme(columns, depth);
 }
@@ -2712,7 +2712,7 @@ __arm_new("za") static void nk_dots_pack_e2m3_to_b8_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_pack_e2m3_sme( //
+NK_API_COMPTIME void nk_dots_pack_e2m3_sme( //
     nk_e2m3_t const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_in_bytes, void *b_packed) {
 
     nk_size_t const expansion = 4;
@@ -2745,7 +2745,7 @@ NK_PUBLIC void nk_dots_pack_e2m3_sme( //
     }
 }
 
-NK_PUBLIC void nk_dots_packed_e2m3_sme( //
+NK_API_COMPTIME void nk_dots_packed_e2m3_sme( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 
@@ -2968,7 +2968,7 @@ __arm_new("za") static void nk_dots_symmetric_e2m3_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_symmetric_e2m3_sme( //
+NK_API_COMPTIME void nk_dots_symmetric_e2m3_sme( //
     nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -3012,7 +3012,7 @@ NK_PUBLIC void nk_dots_symmetric_e2m3_sme( //
  *  @param bytes_u8x      Pre-loaded bytes (svuint8_t from svld1_u8)
  *  @return               F16 values as svfloat16_t (from lower half of bytes via unpack)
  */
-NK_PUBLIC svfloat16_t nk_e3m2x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NK_STREAMING_ {
+NK_HELPER_AUTO svfloat16_t nk_e3m2x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NK_STREAMING_ {
     static NK_ALIGN64 nk_u8_t const magnitude_high_lut[64] = {
         0x00, 0x2C, 0x30, 0x32, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
         0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F,
@@ -3175,7 +3175,7 @@ __arm_new("za") static void nk_dots_packed_e3m2_sme_streaming_( //
     }
 }
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_e3m2_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_e3m2_sme(nk_size_t columns, nk_size_t depth) {
     return nk_dots_packed_size_f16_sme(columns, depth);
 }
 
@@ -3224,7 +3224,7 @@ __arm_new("za") static void nk_dots_pack_e3m2_to_b16_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_pack_e3m2_sme( //
+NK_API_COMPTIME void nk_dots_pack_e3m2_sme( //
     nk_e3m2_t const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_in_bytes, void *b_packed) {
 
     nk_size_t const expansion = 2;
@@ -3260,7 +3260,7 @@ NK_PUBLIC void nk_dots_pack_e3m2_sme( //
 /*  `e3m2` × `e3m2` → `f32` GEMM: public interface.
  *  Predicate-based edge handling eliminates scalar fallbacks.
  */
-NK_PUBLIC void nk_dots_packed_e3m2_sme( //
+NK_API_COMPTIME void nk_dots_packed_e3m2_sme( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 
@@ -3476,7 +3476,7 @@ __arm_new("za") static void nk_dots_symmetric_e3m2_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_symmetric_e3m2_sme( //
+NK_API_COMPTIME void nk_dots_symmetric_e3m2_sme( //
     nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -3504,11 +3504,11 @@ NK_PUBLIC void nk_dots_symmetric_e3m2_sme( //
 
 #pragma region U8 Integers
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_u8_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_u8_sme(nk_size_t columns, nk_size_t depth) {
     return nk_dots_packed_size_i8_sme(columns, depth);
 }
 
-NK_PUBLIC void nk_dots_pack_u8_sme( //
+NK_API_COMPTIME void nk_dots_pack_u8_sme( //
     nk_u8_t const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_in_bytes, void *b_packed) {
 
     nk_size_t const expansion = 4;
@@ -3678,7 +3678,7 @@ __arm_new("za") static void nk_dots_packed_u8_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_packed_u8_sme( //
+NK_API_COMPTIME void nk_dots_packed_u8_sme( //
     nk_u8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 
@@ -3860,7 +3860,7 @@ __arm_new("za") static void nk_dots_symmetric_u8_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_symmetric_u8_sme( //
+NK_API_COMPTIME void nk_dots_symmetric_u8_sme( //
     nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_u32_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -3892,7 +3892,7 @@ NK_PUBLIC void nk_dots_symmetric_u8_sme( //
 
 #pragma region U4 Integers
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_u4_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_u4_sme(nk_size_t columns, nk_size_t depth) {
     nk_size_t const tile_dimension = nk_sme_cntw_();
     nk_size_t const vector_elements = nk_sme_cntb_();
     nk_size_t const packed_depth = nk_size_divide_round_up_(depth, 2);
@@ -3905,7 +3905,7 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_u4_sme(nk_size_t columns, nk_size_t dept
     return size;
 }
 
-NK_PUBLIC void nk_dots_pack_u4_sme( //
+NK_API_COMPTIME void nk_dots_pack_u4_sme( //
     nk_u4x2_t const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_in_bytes, void *b_packed) {
 
     nk_size_t const tile_dimension = nk_sme_cntw_();
@@ -4150,7 +4150,7 @@ __arm_new("za") static void nk_dots_packed_u4_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_packed_u4_sme( //
+NK_API_COMPTIME void nk_dots_packed_u4_sme( //
     nk_u4x2_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 
@@ -4165,7 +4165,7 @@ NK_PUBLIC void nk_dots_packed_u4_sme( //
 
 #pragma region I4 Integers
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_i4_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_i4_sme(nk_size_t columns, nk_size_t depth) {
     nk_size_t const tile_dimension = nk_sme_cntw_();
     nk_size_t const vector_elements = nk_sme_cntb_();
     nk_size_t const packed_depth = nk_size_divide_round_up_(depth, 2);
@@ -4178,7 +4178,7 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_i4_sme(nk_size_t columns, nk_size_t dept
     return size;
 }
 
-NK_PUBLIC void nk_dots_pack_i4_sme(                         //
+NK_API_COMPTIME void nk_dots_pack_i4_sme(                   //
     nk_i4x2_t const *b, nk_size_t columns, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed) {
 
@@ -4433,7 +4433,7 @@ __arm_new("za") static void nk_dots_packed_i4_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_packed_i4_sme( //
+NK_API_COMPTIME void nk_dots_packed_i4_sme( //
     nk_i4x2_t const *a, void const *b_packed, nk_i32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 
@@ -4723,7 +4723,7 @@ __arm_new("za") static void nk_dots_symmetric_u4_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_symmetric_u4_sme( //
+NK_API_COMPTIME void nk_dots_symmetric_u4_sme( //
     nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_u32_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -5013,7 +5013,7 @@ __arm_new("za") static void nk_dots_symmetric_i4_sme_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_symmetric_i4_sme( //
+NK_API_COMPTIME void nk_dots_symmetric_i4_sme( //
     nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_i32_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 

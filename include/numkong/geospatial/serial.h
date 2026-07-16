@@ -26,7 +26,7 @@ extern "C" {
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NK_PUBLIC void nk_haversine_f64_serial(             //
+NK_API_COMPTIME void nk_haversine_f64_serial(       //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -65,7 +65,7 @@ NK_PUBLIC void nk_haversine_f64_serial(             //
     }
 }
 
-NK_PUBLIC void nk_haversine_f32_serial(             //
+NK_API_COMPTIME void nk_haversine_f32_serial(       //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -106,7 +106,7 @@ NK_PUBLIC void nk_haversine_f32_serial(             //
     }
 }
 
-NK_PUBLIC void nk_vincenty_f64_serial(              //
+NK_API_COMPTIME void nk_vincenty_f64_serial(        //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -205,7 +205,7 @@ NK_PUBLIC void nk_vincenty_f64_serial(              //
     }
 }
 
-NK_PUBLIC void nk_vincenty_f32_serial(              //
+NK_API_COMPTIME void nk_vincenty_f32_serial(        //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {

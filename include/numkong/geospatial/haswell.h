@@ -41,7 +41,7 @@ extern "C" {
  *  These require AVX2 trigonometric kernels from trigonometry.h.
  */
 
-NK_INTERNAL __m256d nk_haversine_f64x4_haswell_(                   //
+NK_HELPER_INLINE __m256d nk_haversine_f64x4_haswell_(              //
     __m256d first_latitudes_f64x4, __m256d first_longitudes_f64x4, //
     __m256d second_latitudes_f64x4, __m256d second_longitudes_f64x4) {
 
@@ -84,7 +84,7 @@ NK_INTERNAL __m256d nk_haversine_f64x4_haswell_(                   //
     return _mm256_mul_pd(earth_radius_f64x4, central_angle_f64x4);
 }
 
-NK_PUBLIC void nk_haversine_f64_haswell(            //
+NK_API_COMPTIME void nk_haversine_f64_haswell(      //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -116,7 +116,7 @@ NK_PUBLIC void nk_haversine_f64_haswell(            //
     }
 }
 
-NK_INTERNAL __m256 nk_haversine_f32x8_haswell_(                  //
+NK_HELPER_INLINE __m256 nk_haversine_f32x8_haswell_(             //
     __m256 first_latitudes_f32x8, __m256 first_longitudes_f32x8, //
     __m256 second_latitudes_f32x8, __m256 second_longitudes_f32x8) {
 
@@ -160,7 +160,7 @@ NK_INTERNAL __m256 nk_haversine_f32x8_haswell_(                  //
     return _mm256_mul_ps(earth_radius_f32x8, central_angle_f32x8);
 }
 
-NK_PUBLIC void nk_haversine_f32_haswell(            //
+NK_API_COMPTIME void nk_haversine_f32_haswell(      //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -196,7 +196,7 @@ NK_PUBLIC void nk_haversine_f32_haswell(            //
  *  @brief  AVX2 helper for Vincenty's geodesic distance on 4 f64 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NK_INTERNAL __m256d nk_vincenty_f64x4_haswell_(                    //
+NK_HELPER_INLINE __m256d nk_vincenty_f64x4_haswell_(               //
     __m256d first_latitudes_f64x4, __m256d first_longitudes_f64x4, //
     __m256d second_latitudes_f64x4, __m256d second_longitudes_f64x4) {
 
@@ -370,7 +370,7 @@ NK_INTERNAL __m256d nk_vincenty_f64x4_haswell_(                    //
     return distances_f64x4;
 }
 
-NK_PUBLIC void nk_vincenty_f64_haswell(             //
+NK_API_COMPTIME void nk_vincenty_f64_haswell(       //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -406,7 +406,7 @@ NK_PUBLIC void nk_vincenty_f64_haswell(             //
  *  @brief  AVX2 helper for Vincenty's geodesic distance on 8 f32 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NK_INTERNAL __m256 nk_vincenty_f32x8_haswell_(                   //
+NK_HELPER_INLINE __m256 nk_vincenty_f32x8_haswell_(              //
     __m256 first_latitudes_f32x8, __m256 first_longitudes_f32x8, //
     __m256 second_latitudes_f32x8, __m256 second_longitudes_f32x8) {
 
@@ -580,7 +580,7 @@ NK_INTERNAL __m256 nk_vincenty_f32x8_haswell_(                   //
     return distances_f32x8;
 }
 
-NK_PUBLIC void nk_vincenty_f32_haswell(             //
+NK_API_COMPTIME void nk_vincenty_f32_haswell(       //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {

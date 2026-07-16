@@ -174,7 +174,6 @@ pub use cast::{
 
 // Re-export capabilities
 pub use capabilities::cap;
-pub use capabilities::{available, configure_thread, uses_dynamic_dispatch};
 
 // Re-export tensor types
 pub use tensor::{

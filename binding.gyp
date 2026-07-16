@@ -39,7 +39,7 @@
             "defines": [
                 "NK_NATIVE_F16=0",
                 "NK_NATIVE_BF16=0",
-                "NK_DYNAMIC_DISPATCH=1",
+                "NK_RUNTIME_DISPATCH=1",
                 "NK_USE_OPENMP=1"
             ],
             "cflags": [

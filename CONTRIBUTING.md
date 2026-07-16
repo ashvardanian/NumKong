@@ -252,7 +252,7 @@ pip install numpy scipy ml_dtypes tabulate          # optional reference librari
 pytest test/ -s -x -Wd                              # to run tests
 
 # to check supported SIMD instructions:
-python -c "import numkong; print(numkong.get_capabilities())"
+python -c "import numkong; print(numkong.get_capabilities_available())"
 ```
 
 Alternatively, use `uv` to create the virtual environment.
@@ -411,8 +411,8 @@ To add a new operation family, for example `foo`:
 
 For primary kernels, every backend implementation should be wired in five places beyond the backend header itself:
 
-1. __Forward declaration__: add the `NK_PUBLIC` declaration with the matching `@copydoc` in the first half of `include/numkong/<family>.h`.
-2. __Compile-time dispatch__: add the `#if !NK_DYNAMIC_DISPATCH` branch in the second half of `include/numkong/<family>.h`.
+1. __Forward declaration__: add the `NK_API_COMPTIME` declaration with the matching `@copydoc` in the first half of `include/numkong/<family>.h`.
+2. __Compile-time dispatch__: add the `#if !NK_RUNTIME_DISPATCH` branch in the second half of `include/numkong/<family>.h`.
 3. __Run-time dispatch__: add the dtype-specific entry to the relevant `c/dispatch_*.c` table.
 4. __Precision tests__: register the kernel in `nk_test`, usually in the existing `test/test_<family>.cpp` suite.
 5. __Benchmarks__: register the kernel in `nk_bench`, usually in the existing `bench/bench_<family>.cpp` suite.
@@ -487,10 +487,10 @@ For scalar variables, similar preferences for cleaner and longer variable names 
 Prefer explicit named intrinsics over implicit syntax or manual bit manipulation.
 Power VSX uses `vec_xl()`, `vec_xst()` — never implicit Altivec vector operators.
 x86 AVX-512 uses `_mm512_mask_*` K-mask intrinsics — never manual bitwise ops on `__mmask16`.
-When hardware has no intrinsic, wrap raw assembly in an `NK_INTERNAL` helper and document the instruction mnemonic:
+When hardware has no intrinsic, wrap raw assembly in an `NK_HELPER_INLINE` helper and document the instruction mnemonic:
 
 ```c
-NK_INTERNAL void nk_sme_start_streaming_(void) {
+NK_HELPER_INLINE void nk_sme_start_streaming_(void) {
     __asm__ __volatile__("smstart sm" ::: "memory");
 }
 ```

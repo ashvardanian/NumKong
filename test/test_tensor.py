@@ -122,44 +122,6 @@ def test_pointers_availability():
     assert nk.pointer_to_inner("uint8") != 0
 
 
-def test_capabilities_list():
-    """Tests the visibility of hardware capabilities."""
-    caps = nk.get_capabilities()
-    avx2_caps = ["haswell", "alder", "sierra"]
-    avx512_caps = ["skylake", "icelake", "genoa", "sapphire", "turin", "diamond"]
-    amx_caps = ["sapphireamx", "graniteamx"]
-    neon_caps = ["neon", "neonhalf", "neonfhm", "neonbfdot", "neonsdot", "neonfp8"]
-    sve_caps = ["sve", "svehalf", "svebfdot", "svesdot", "sve2", "sve2p1"]
-    sme_caps = ["sme", "sme2", "sme2p1", "smef64", "smehalf", "smebf16", "smebi32", "smelut2", "smefa64"]
-    rvv_caps = ["rvv", "rvvhalf", "rvvbf16", "rvvbb"]
-    power_caps = ["powervsx"]
-    loongarch_caps = ["loongsonasx"]
-    wasm_caps = ["v128relaxed"]
-
-    expected_capabilities = [
-        "serial",
-        *avx2_caps,
-        *avx512_caps,
-        *amx_caps,
-        *neon_caps,
-        *sve_caps,
-        *sme_caps,
-        *rvv_caps,
-        *power_caps,
-        *loongarch_caps,
-        *wasm_caps,
-    ]
-    for cap in expected_capabilities:
-        assert cap in caps, f"Capability '{cap}' missing from get_capabilities()"
-    assert caps.get("serial") == 1
-
-    previous_value = nk.get_capabilities().get("neon")
-    nk.enable_capability("neon")
-    assert nk.get_capabilities().get("neon") == 1
-    if not previous_value:
-        nk.disable_capability("neon")
-
-
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize(
     "function, expected_error, args, kwargs",

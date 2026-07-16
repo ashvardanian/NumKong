@@ -24,7 +24,8 @@ import { initWasm } from './numkong-wasm.js';
 export {
     dot, inner, euclidean, sqeuclidean, angular,
     hamming, jaccard, kullbackleibler, jensenshannon,
-    getCapabilities, hasCapability,
+    getCapabilitiesDetected, getCapabilitiesCompiled, getCapabilitiesAvailable, getCapabilitiesEnabled,
+    hasCapability,
     dotsPack, dotsPackedSize,
     dotsPacked, angularsPacked, euclideansPacked,
     dotsSymmetric, angularsSymmetric, euclideansSymmetric,

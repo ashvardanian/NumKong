@@ -210,19 +210,24 @@ test(`[${runtime}] Euclidean distance`, () => {
 });
 
 test(`[${runtime}] Capability detection`, () => {
-  // Test that getCapabilities returns a bigint
-  if (typeof numkong.getCapabilities === "function") {
-    const caps = numkong.getCapabilities();
-    assert(typeof caps === "bigint", "getCapabilities should return bigint");
-    console.log(`  Runtime capabilities: 0x${caps.toString(16)}`);
+  // Test that each capability axis returns a bigint
+  if (typeof numkong.getCapabilitiesAvailable === "function") {
+    const caps = numkong.getCapabilitiesAvailable();
+    assert(typeof caps === "bigint", "getCapabilitiesAvailable should return bigint");
+    console.log(`  Available capabilities: 0x${caps.toString(16)}`);
 
-    // Test hasCapability helper
+    // `available` is the intersection, so it can never exceed either axis it derives from.
+    const detected = numkong.getCapabilitiesDetected();
+    const compiled = numkong.getCapabilitiesCompiled();
+    assert(caps === (detected & compiled), "available must equal detected & compiled");
+
+    // Test the hasCapability helper
     if (typeof numkong.hasCapability === "function") {
       // Serial fallback should always be present
       assert(numkong.hasCapability(1n << 0n), "SERIAL capability should be present");
     }
   } else {
-    console.log(`  getCapabilities not available in ${runtime} mode`);
+    console.log(`  Capability accessors not available in ${runtime} mode`);
   }
 });
 

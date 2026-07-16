@@ -58,7 +58,7 @@ enum {
 };
 
 /** @brief Fast vectorized 2^x at e32m4: exact range reduction + the family's shared degree-4 polynomial. */
-NK_INTERNAL vfloat32m4_t nk_attention_exp2_f32m4_rvv_(vfloat32m4_t x_f32m4, nk_size_t vector_length) {
+NK_HELPER_INLINE vfloat32m4_t nk_attention_exp2_f32m4_rvv_(vfloat32m4_t x_f32m4, nk_size_t vector_length) {
     // Clamp to [-125, 127] like `nk_f32_exp2_serial_`: the lower bound keeps the smallest
     // result a normal float, so downstream multiplies never hit denormal assists.
     x_f32m4 = __riscv_vfmin_vf_f32m4(x_f32m4, 127.0f, vector_length);
@@ -83,11 +83,11 @@ NK_INTERNAL vfloat32m4_t nk_attention_exp2_f32m4_rvv_(vfloat32m4_t x_f32m4, nk_s
 /** @brief Widens `vector_length` raw scalars (BF16 or E4M3) to an F32 (m2) register group. */
 typedef vfloat32m2_t (*nk_attention_load_f32m2_rvv_t_)(void const *source, nk_size_t vector_length);
 
-NK_INTERNAL vfloat32m2_t nk_attention_load_bf16_f32m2_rvv_(void const *source, nk_size_t vector_length) {
+NK_HELPER_INLINE vfloat32m2_t nk_attention_load_bf16_f32m2_rvv_(void const *source, nk_size_t vector_length) {
     return nk_bf16m1_to_f32m2_rvv_(__riscv_vle16_v_u16m1((nk_u16_t const *)source, vector_length), vector_length);
 }
 
-NK_INTERNAL vfloat32m2_t nk_attention_load_e4m3_f32m2_rvv_(void const *source, nk_size_t vector_length) {
+NK_HELPER_INLINE vfloat32m2_t nk_attention_load_e4m3_f32m2_rvv_(void const *source, nk_size_t vector_length) {
     // Sign-symmetric magnitude LUT, `cast/rvv.h`-style: 128 F32 bit patterns for bits 6:0,
     // the sign bit re-attached separately. Entry 0x7F is the E4M3FN NaN.
     static nk_u32_t const nk_e4m3_mag_to_f32_lut_[128] = {
@@ -122,7 +122,7 @@ NK_INTERNAL vfloat32m2_t nk_attention_load_e4m3_f32m2_rvv_(void const *source, n
 /** @brief Repacks one row of `count` input scalars into the packed-plane representation. */
 typedef void (*nk_attention_pack_row_rvv_t_)(void const *source, void *destination, nk_size_t count);
 
-NK_INTERNAL void nk_attention_pack_row_bf16_rvv_(void const *source, void *destination, nk_size_t count) {
+NK_HELPER_INLINE void nk_attention_pack_row_bf16_rvv_(void const *source, void *destination, nk_size_t count) {
     nk_u16_t const *source_u16 = (nk_u16_t const *)source;
     nk_u16_t *destination_u16 = (nk_u16_t *)destination;
     for (nk_size_t channel_idx = 0, remaining = count, vector_length = 0; remaining > 0;
@@ -133,7 +133,7 @@ NK_INTERNAL void nk_attention_pack_row_bf16_rvv_(void const *source, void *desti
     }
 }
 
-NK_INTERNAL void nk_attention_pack_row_e4m3_rvv_(void const *source, void *destination, nk_size_t count) {
+NK_HELPER_INLINE void nk_attention_pack_row_e4m3_rvv_(void const *source, void *destination, nk_size_t count) {
     // E4M3 → BF16 is lossless (3 mantissa bits into 7), so the RNE narrowing is an identity;
     // paying one LUT gather per value here keeps every hot-loop K/V load a two-op shift.
     nk_e4m3_t const *source_e4m3 = (nk_e4m3_t const *)source;
@@ -147,7 +147,7 @@ NK_INTERNAL void nk_attention_pack_row_e4m3_rvv_(void const *source, void *desti
     }
 }
 
-NK_INTERNAL void nk_attention_pack_row_i8_rvv_(void const *source, void *destination, nk_size_t count) {
+NK_HELPER_INLINE void nk_attention_pack_row_i8_rvv_(void const *source, void *destination, nk_size_t count) {
     nk_i8_t const *source_i8 = (nk_i8_t const *)source;
     nk_i8_t *destination_i8 = (nk_i8_t *)destination;
     for (nk_size_t channel_idx = 0, remaining = count, vector_length = 0; remaining > 0;
@@ -158,9 +158,9 @@ NK_INTERNAL void nk_attention_pack_row_i8_rvv_(void const *source, void *destina
     }
 }
 
-NK_INTERNAL nk_size_t nk_attention_packed_size_rvv_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                    nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                                                    nk_size_t packed_element_bytes) {
+NK_HELPER_INLINE nk_size_t nk_attention_packed_size_rvv_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_size_t packed_element_bytes) {
     nk_size_t payload_bytes = 0; // raw unpadded planes: VLA strip-mining needs no channel padding
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
         payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_idx] * depth *
@@ -168,24 +168,24 @@ NK_INTERNAL nk_size_t nk_attention_packed_size_rvv_(nk_size_t key_value_head_cou
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_bf16_rvv(nk_size_t key_value_head_count, nk_size_t depth,
-                                                      nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_rvv(nk_size_t key_value_head_count, nk_size_t depth,
+                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_rvv_k_)
         return nk_attention_packed_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_packed_size_rvv_(key_value_head_count, depth, segment_lengths, segment_count,
                                          sizeof(nk_bf16_t));
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_rvv(nk_size_t key_value_head_count, nk_size_t depth,
-                                                      nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_rvv(nk_size_t key_value_head_count, nk_size_t depth,
+                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_rvv_k_)
         return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_packed_size_rvv_(key_value_head_count, depth, segment_lengths, segment_count,
                                          sizeof(nk_bf16_t)); // E4M3 K/V packs as BF16
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_i8_rvv(nk_size_t key_value_head_count, nk_size_t depth,
-                                                    nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_i8_rvv(nk_size_t key_value_head_count, nk_size_t depth,
+                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_rvv_k_)
         return nk_attention_packed_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_packed_size_rvv_(key_value_head_count, depth, segment_lengths, segment_count, sizeof(nk_i8_t));
@@ -197,7 +197,7 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_i8_rvv(nk_size_t key_value_head_cou
  *  The header and directory are deterministic functions of the arguments, so concurrent
  *  packing tasks may rewrite them with identical bytes.
  */
-NK_INTERNAL void nk_attention_pack_rvv_(                                                                       //
+NK_HELPER_INLINE void nk_attention_pack_rvv_(                                                                  //
     void const *keys, void const *values, nk_size_t element_bytes,                                             //
     nk_size_t packed_element_bytes, nk_attention_pack_row_rvv_t_ pack_row,                                     //
     nk_size_t key_value_head_count, nk_size_t depth,                                                           //
@@ -235,7 +235,7 @@ NK_INTERNAL void nk_attention_pack_rvv_(                                        
     }
 }
 
-NK_PUBLIC void nk_attention_pack_bf16_rvv(                                                           //
+NK_API_COMPTIME void nk_attention_pack_bf16_rvv(                                                     //
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
@@ -251,7 +251,7 @@ NK_PUBLIC void nk_attention_pack_bf16_rvv(                                      
                            key_stride_bytes, value_stride_bytes, key_value_packed, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_pack_e4m3_rvv(                                                           //
+NK_API_COMPTIME void nk_attention_pack_e4m3_rvv(                                                     //
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
@@ -267,7 +267,7 @@ NK_PUBLIC void nk_attention_pack_e4m3_rvv(                                      
                            key_stride_bytes, value_stride_bytes, key_value_packed, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_pack_i8_rvv(                                                         //
+NK_API_COMPTIME void nk_attention_pack_i8_rvv(                                                   //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
@@ -288,7 +288,7 @@ NK_PUBLIC void nk_attention_pack_i8_rvv(                                        
  *         online correction; queries widen once per row through `query_load`, K/V widen
  *         in-loop through `key_value_load`, softmax elementwise passes run at e32m4.
  */
-NK_INTERNAL void nk_attention_packed_float_rvv_(                                                                //
+NK_HELPER_INLINE void nk_attention_packed_float_rvv_(                                                           //
     void const *queries, nk_size_t query_element_bytes, nk_attention_load_f32m2_rvv_t_ query_load,              //
     nk_size_t key_value_element_bytes, nk_attention_load_f32m2_rvv_t_ key_value_load,                           //
     void const *key_value_packed, nk_f32_t *output,                                                             //
@@ -437,7 +437,7 @@ NK_INTERNAL void nk_attention_packed_float_rvv_(                                
     }
 }
 
-NK_PUBLIC void nk_attention_packed_bf16_rvv(                                     //
+NK_API_COMPTIME void nk_attention_packed_bf16_rvv(                               //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -455,7 +455,7 @@ NK_PUBLIC void nk_attention_packed_bf16_rvv(                                    
                                    scale, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_packed_e4m3_rvv(                                     //
+NK_API_COMPTIME void nk_attention_packed_e4m3_rvv(                               //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -474,7 +474,7 @@ NK_PUBLIC void nk_attention_packed_e4m3_rvv(                                    
                                    scale, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_packed_i8_rvv(                                       //
+NK_API_COMPTIME void nk_attention_packed_i8_rvv(                                 //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,      //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //

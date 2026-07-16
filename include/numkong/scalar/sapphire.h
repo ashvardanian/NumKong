@@ -28,28 +28,28 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512fp16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_PUBLIC int nk_f16_order_sapphire(nk_f16_t a, nk_f16_t b) {
+NK_API_COMPTIME int nk_f16_order_sapphire(nk_f16_t a, nk_f16_t b) {
     nk_fui16_t a_fui, b_fui;
     a_fui.f = a, b_fui.f = b;
     __m128h a_f16x8 = _mm_castsi128_ph(_mm_cvtsi32_si128(a_fui.u));
     __m128h b_f16x8 = _mm_castsi128_ph(_mm_cvtsi32_si128(b_fui.u));
     return _mm_comigt_sh(a_f16x8, b_f16x8) - _mm_comilt_sh(a_f16x8, b_f16x8);
 }
-NK_PUBLIC nk_f16_t nk_f16_sqrt_sapphire(nk_f16_t x) {
+NK_API_COMPTIME nk_f16_t nk_f16_sqrt_sapphire(nk_f16_t x) {
     nk_fui16_t x_fui, out_fui;
     x_fui.f = x;
     __m128h x_f16x8 = _mm_castsi128_ph(_mm_cvtsi32_si128(x_fui.u));
     out_fui.u = (nk_u16_t)_mm_cvtsi128_si32(_mm_castph_si128(_mm_sqrt_sh(x_f16x8, x_f16x8)));
     return out_fui.f;
 }
-NK_PUBLIC nk_f16_t nk_f16_rsqrt_sapphire(nk_f16_t x) {
+NK_API_COMPTIME nk_f16_t nk_f16_rsqrt_sapphire(nk_f16_t x) {
     nk_fui16_t x_fui, out_fui;
     x_fui.f = x;
     __m128h x_f16x8 = _mm_castsi128_ph(_mm_cvtsi32_si128(x_fui.u));
     out_fui.u = (nk_u16_t)_mm_cvtsi128_si32(_mm_castph_si128(_mm_rsqrt_sh(x_f16x8, x_f16x8)));
     return out_fui.f;
 }
-NK_PUBLIC nk_f16_t nk_f16_fma_sapphire(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
+NK_API_COMPTIME nk_f16_t nk_f16_fma_sapphire(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
     nk_fui16_t a_fui, b_fui, c_fui, out_fui;
     a_fui.f = a, b_fui.f = b, c_fui.f = c;
     __m128h a_f16x8 = _mm_castsi128_ph(_mm_cvtsi32_si128(a_fui.u));

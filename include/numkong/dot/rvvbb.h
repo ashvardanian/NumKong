@@ -32,7 +32,7 @@
 extern "C" {
 #endif
 
-NK_PUBLIC void nk_dot_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
+NK_API_COMPTIME void nk_dot_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
     nk_size_t count_bytes = nk_size_divide_round_up_(n_bits, NK_BITS_PER_BYTE);
 
     vuint32m1_t sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);

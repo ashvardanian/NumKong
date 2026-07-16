@@ -33,8 +33,8 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2", "avxvnni")
 #endif
 
-NK_INTERNAL void nk_reduce_moments_u8_alder_contiguous_( //
-    nk_u8_t const *data, nk_size_t count,                //
+NK_HELPER_INLINE void nk_reduce_moments_u8_alder_contiguous_( //
+    nk_u8_t const *data, nk_size_t count,                     //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     __m256i zero_u8x32 = _mm256_setzero_si256();
     __m256i sum_u64x4 = _mm256_setzero_si256();
@@ -70,7 +70,7 @@ NK_INTERNAL void nk_reduce_moments_u8_alder_contiguous_( //
     *sumsq_ptr = (nk_u64_t)nk_reduce_add_i64x4_haswell_(sumsq_u64x4);
 }
 
-NK_INTERNAL void nk_reduce_moments_u8_alder_strided_(                //
+NK_HELPER_INLINE void nk_reduce_moments_u8_alder_strided_(           //
     nk_u8_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     __m256i stride_mask_u8x32 = nk_stride_blend_u1x32_(stride_elements);
@@ -107,7 +107,7 @@ NK_INTERNAL void nk_reduce_moments_u8_alder_strided_(                //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_PUBLIC void nk_reduce_moments_u8_alder(                        //
+NK_API_COMPTIME void nk_reduce_moments_u8_alder(                  //
     nk_u8_t const *data, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u8_t);
@@ -130,8 +130,8 @@ NK_PUBLIC void nk_reduce_moments_u8_alder(                        //
     else nk_reduce_moments_u8_serial(data, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_i16_alder_contiguous_( //
-    nk_i16_t const *data, nk_size_t count,                //
+NK_HELPER_INLINE void nk_reduce_moments_i16_alder_contiguous_( //
+    nk_i16_t const *data, nk_size_t count,                     //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     __m256i ones_i16x16 = _mm256_set1_epi16(1);
     __m256i sum_i64x4 = _mm256_setzero_si256();
@@ -162,7 +162,7 @@ NK_INTERNAL void nk_reduce_moments_i16_alder_contiguous_( //
     *sumsq_ptr = (nk_u64_t)nk_reduce_add_i64x4_haswell_(sumsq_i64x4);
 }
 
-NK_INTERNAL void nk_reduce_moments_i16_alder_strided_(                //
+NK_HELPER_INLINE void nk_reduce_moments_i16_alder_strided_(           //
     nk_i16_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     __m256i stride_mask_i16x16 = nk_stride_blend_b16x16_(stride_elements);
@@ -193,7 +193,7 @@ NK_INTERNAL void nk_reduce_moments_i16_alder_strided_(                //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_PUBLIC void nk_reduce_moments_i16_alder(                        //
+NK_API_COMPTIME void nk_reduce_moments_i16_alder(                  //
     nk_i16_t const *data, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i16_t);
@@ -217,8 +217,8 @@ NK_PUBLIC void nk_reduce_moments_i16_alder(                        //
     else nk_reduce_moments_i16_serial(data, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_u16_alder_contiguous_( //
-    nk_u16_t const *data, nk_size_t count,                //
+NK_HELPER_INLINE void nk_reduce_moments_u16_alder_contiguous_( //
+    nk_u16_t const *data, nk_size_t count,                     //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     __m256i sum_u32x8 = _mm256_setzero_si256();
     __m256i sumsq_u64x4 = _mm256_setzero_si256();
@@ -250,7 +250,7 @@ NK_INTERNAL void nk_reduce_moments_u16_alder_contiguous_( //
     *sumsq_ptr = (nk_u64_t)nk_reduce_add_i64x4_haswell_(sumsq_u64x4);
 }
 
-NK_INTERNAL void nk_reduce_moments_u16_alder_strided_(                //
+NK_HELPER_INLINE void nk_reduce_moments_u16_alder_strided_(           //
     nk_u16_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     __m256i stride_mask_i16x16 = nk_stride_blend_b16x16_(stride_elements);
@@ -290,7 +290,7 @@ NK_INTERNAL void nk_reduce_moments_u16_alder_strided_(                //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_PUBLIC void nk_reduce_moments_u16_alder(                        //
+NK_API_COMPTIME void nk_reduce_moments_u16_alder(                  //
     nk_u16_t const *data, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u16_t);
@@ -322,8 +322,8 @@ NK_PUBLIC void nk_reduce_moments_u16_alder(                        //
  *  and accumulate with `_mm256_dpwssd_epi32` (signed i16 × signed i16 → i32).
  *  Final: sum = i32_sum / 16, sumsq = i32_sumsq / 256.
  */
-NK_INTERNAL void nk_reduce_moments_e3m2_alder_contiguous_( //
-    nk_e3m2_t const *data, nk_size_t count,                //
+NK_HELPER_INLINE void nk_reduce_moments_e3m2_alder_contiguous_( //
+    nk_e3m2_t const *data, nk_size_t count,                     //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     __m256i const lut_low_byte_first_u8x32 = _mm256_set_epi8(                                                      //
         28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0,                                                     //
@@ -405,7 +405,7 @@ NK_INTERNAL void nk_reduce_moments_e3m2_alder_contiguous_( //
     *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
 }
 
-NK_INTERNAL void nk_reduce_moments_e3m2_alder_strided_(                //
+NK_HELPER_INLINE void nk_reduce_moments_e3m2_alder_strided_(           //
     nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     __m256i stride_mask_u8x32 = nk_stride_blend_u1x32_(stride_elements);
@@ -468,7 +468,7 @@ NK_INTERNAL void nk_reduce_moments_e3m2_alder_strided_(                //
     *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
 }
 
-NK_PUBLIC void nk_reduce_moments_e3m2_alder(                        //
+NK_API_COMPTIME void nk_reduce_moments_e3m2_alder(                  //
     nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum, nk_f32_t *sumsq) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e3m2_t);
@@ -497,8 +497,8 @@ NK_PUBLIC void nk_reduce_moments_e3m2_alder(                        //
  *  For sumsq, magnitude ≤ 120 < 128 so it's safe as both u8 and i8.
  *  Final: sum = i32_sum / 16, sumsq = i32_sumsq / 256.
  */
-NK_INTERNAL void nk_reduce_moments_e2m3_alder_contiguous_( //
-    nk_e2m3_t const *data, nk_size_t count,                //
+NK_HELPER_INLINE void nk_reduce_moments_e2m3_alder_contiguous_( //
+    nk_e2m3_t const *data, nk_size_t count,                     //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     __m256i const lut_low_u8x32 = _mm256_set_epi8(30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0, //
                                                   30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0);
@@ -555,7 +555,7 @@ NK_INTERNAL void nk_reduce_moments_e2m3_alder_contiguous_( //
     *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
 }
 
-NK_INTERNAL void nk_reduce_moments_e2m3_alder_strided_(                //
+NK_HELPER_INLINE void nk_reduce_moments_e2m3_alder_strided_(           //
     nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     __m256i stride_mask_u8x32 = nk_stride_blend_u1x32_(stride_elements);
@@ -604,7 +604,7 @@ NK_INTERNAL void nk_reduce_moments_e2m3_alder_strided_(                //
     *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
 }
 
-NK_PUBLIC void nk_reduce_moments_e2m3_alder(                        //
+NK_API_COMPTIME void nk_reduce_moments_e2m3_alder(                  //
     nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum, nk_f32_t *sumsq) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e2m3_t);

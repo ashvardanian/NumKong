@@ -43,7 +43,7 @@ enum {
 };
 
 /** @brief Fast vectorized 2^x: exact range reduction + the family's shared degree-4 polynomial. */
-NK_INTERNAL float32x4_t nk_attention_exp2_f32x4_neonbfdot_(float32x4_t x_f32x4) {
+NK_HELPER_INLINE float32x4_t nk_attention_exp2_f32x4_neonbfdot_(float32x4_t x_f32x4) {
     x_f32x4 = vmaxq_f32(vminq_f32(x_f32x4, vdupq_n_f32(127.0f)), vdupq_n_f32(-125.0f));
     float32x4_t const whole_f32x4 = vrndnq_f32(x_f32x4);
     float32x4_t const reduced_f32x4 = vsubq_f32(x_f32x4, whole_f32x4);
@@ -57,8 +57,9 @@ NK_INTERNAL float32x4_t nk_attention_exp2_f32x4_neonbfdot_(float32x4_t x_f32x4) 
     return vmulq_f32(poly_f32x4, power_f32x4);
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_bf16_neonbfdot(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_neonbfdot(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                  nk_u32_t const *segment_lengths,
+                                                                  nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_neonbfdot_k_)
         return nk_attention_packed_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
@@ -69,7 +70,7 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_bf16_neonbfdot(nk_size_t key_value_
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_PUBLIC void nk_attention_pack_bf16_neonbfdot(                                       //
+NK_API_COMPTIME void nk_attention_pack_bf16_neonbfdot(                                 //
     nk_bf16_t const *keys, nk_bf16_t const *values,                                    //
     nk_size_t key_value_head_count, nk_size_t depth,                                   //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
@@ -125,7 +126,7 @@ NK_PUBLIC void nk_attention_pack_bf16_neonbfdot(                                
     }
 }
 
-NK_PUBLIC void nk_attention_packed_bf16_neonbfdot(                               //
+NK_API_COMPTIME void nk_attention_packed_bf16_neonbfdot(                         //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //

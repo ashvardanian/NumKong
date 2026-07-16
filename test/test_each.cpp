@@ -6,8 +6,8 @@
  */
 
 #include "test.hpp"
-#include "numkong/each.hpp"          // `nk::sum`, `nk::scale`, `nk::blend`, `nk::fma`
-#include "numkong/trigonometry.hpp"  // `nk::try_sin`, `nk::try_cos`, `nk::try_atan` wrappers
+#include "numkong/each.hpp"         // `nk::sum`, `nk::scale`, `nk::blend`, `nk::fma`
+#include "numkong/trigonometry.hpp" // `nk::try_sin`, `nk::try_cos`, `nk::try_atan` wrappers
 
 template <typename scalar_type_, typename generator_type_>
 typename scalar_type_::scale_t random_coef(generator_type_ &gen) {
@@ -181,9 +181,7 @@ void test_each() {
     test_tensor_trig_for_type<nk::bf16_t>();
     std::printf("  trig (4 types):               OK\n");
 
-
-#if NK_DYNAMIC_DISPATCH
-    // Dynamic dispatch - only test the dispatcher itself
+#if NK_RUNTIME_DISPATCH
     check("each_scale_f32", test_scale<f32_t>, nk_each_scale_f32);
     check("each_sum_f32", test_sum<f32_t>, nk_each_sum_f32);
     check("each_blend_f32", test_blend<f32_t>, nk_each_blend_f32);
@@ -205,7 +203,6 @@ void test_each() {
     check("each_fma_f32c", test_fma<f32c_t>, nk_each_fma_f32c);
     check("each_fma_f64c", test_fma<f64c_t>, nk_each_fma_f64c);
 #else
-    // Static compilation - test all available ISA variants
 
 #if NK_TARGET_NEON
     // f64
@@ -462,5 +459,5 @@ void test_each() {
     check("each_sum_f16_serial", test_sum<f16_t>, nk_each_sum_f16_serial);
     check("each_scale_f16_serial", test_scale<f16_t>, nk_each_scale_f16_serial);
 
-#endif // NK_DYNAMIC_DISPATCH
+#endif // NK_RUNTIME_DISPATCH
 }

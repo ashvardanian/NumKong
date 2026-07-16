@@ -9,8 +9,8 @@
 
 void test_cross_serial() {
     [[maybe_unused]] error_stats_section_t check;
-    // Dynamic-dispatch tests (auto-selected best ISA)
-#if NK_DYNAMIC_DISPATCH
+
+#if NK_RUNTIME_DISPATCH
     check("dots_packed_f64", test_dots_packed<f64_t>, nk_dots_packed_size_f64, nk_dots_pack_f64, nk_dots_packed_f64);
     check("dots_packed_f32", test_dots_packed<f32_t>, nk_dots_packed_size_f32, nk_dots_pack_f32, nk_dots_packed_f32);
     check("dots_packed_f16", test_dots_packed<f16_t>, nk_dots_packed_size_f16, nk_dots_pack_f16, nk_dots_packed_f16);

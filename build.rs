@@ -339,7 +339,7 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
         .include("include")
         .define("NK_NATIVE_F16", "0")
         .define("NK_NATIVE_BF16", "0")
-        .define("NK_DYNAMIC_DISPATCH", "1")
+        .define("NK_RUNTIME_DISPATCH", "1")
         .opt_level(3)
         .flag_if_supported("-pedantic") // Strict compliance when supported
         .flag_if_supported("-Wno-psabi") // Suppress GCC ABI note for 32-byte aligned params

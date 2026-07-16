@@ -16,7 +16,7 @@ int main(void) {
     nk_f32_t a[] = {1, 2, 3};
     nk_f32_t b[] = {4, 5, 6};
     nk_f64_t dot = 0;
-    nk_configure_thread(nk_capabilities());
+    nk_configure_thread(nk_capabilities_available());
     nk_dot_f32(a, b, 3, &dot); // widened f32 → f64 output
     printf("dot=%f\n", dot);
     return 0;
@@ -79,7 +79,7 @@ target_link_libraries(my_target PRIVATE numkong)
 ```
 
 Header-only C++ usage also works for direct template wrappers.
-Most applications should still build the library once and keep `NK_DYNAMIC_DISPATCH=1`.
+Most applications should still build the library once and keep `NK_RUNTIME_DISPATCH=1`.
 
 ## The C ABI
 
@@ -103,8 +103,7 @@ If you want runtime-selected kernels without naming a specific ISA, use the punn
 ```c
 nk_metric_dense_punned_t angular = 0;
 nk_capability_t used = nk_cap_serial_k;
-nk_find_kernel_punned(nk_kernel_angular_k, nk_f32_k,
-    nk_capabilities(), (nk_kernel_punned_t *)&angular, &used);
+nk_find_kernel_punned(nk_kernel_angular_k, nk_f32_k, (nk_kernel_punned_t *)&angular, &used);
 
 nk_f32_t a[768], b[768], result = 0;
 angular(a, b, 768, &result);
@@ -527,15 +526,30 @@ Its footprint is exposed through `size_bytes()`.
 
 ## Runtime Dispatch and Capabilities
 
-Dynamic dispatch is the default recommendation for shipping one binary across many CPU generations.
+Runtime dispatch is the default recommendation for shipping one binary across many CPU generations.
 `nk_configure_thread` enables CPU-specific acceleration features such as Intel AMX.
 It must be called once per thread before using AMX operations and returns 1 on success, 0 on failure.
 
+Capabilities are reported along two independent axes, plus the sets derived from them:
+
+| Accessor | Meaning |
+| :--- | :--- |
+| `nk_capabilities_detected()` | what this CPU can execute, from CPUID or HWCAP |
+| `nk_capabilities_compiled()` | what this binary contains, from the ISA probes at build time |
+| `nk_capabilities_available()` | the intersection, i.e. what can actually run here |
+| `nk_capabilities_enabled()` | the subset dispatch is restricted to, always within `available` |
+
+Ask for `available` unless you specifically mean one of the raw axes.
+The two are independent, and conflating them fails quietly rather than loudly: a binary whose ISA probes failed still reports this machine's full `detected` mask while containing no SIMD kernels at all.
+
 ```c
-nk_capability_t caps = nk_capabilities();
+nk_capability_t caps = nk_capabilities_available();
 nk_configure_thread(caps);
-if (caps & nk_cap_sapphireamx_k) { /* AMX available */ }
+if (caps & nk_cap_sapphireamx_k) { /* AMX both detected and compiled in */ }
 ```
+
+Narrow what dispatch may select with `nk_capabilities_enable`, `nk_capabilities_disable`, or `nk_capabilities_restrict`.
+All three clamp to `available` and always retain `nk_cap_serial_k`, so dispatch can never be pointed at a kernel that is absent or unsupported.
 
 For exact register-level details, see `capabilities.h`.
 The C++ wrappers can also call directly into named backends if you want to pin a path for testing or benchmarking.
@@ -591,14 +605,14 @@ The main user-facing CMake options are:
 
 - `NK_BUILD_SHARED` builds a shared library, ON by default for standalone builds and OFF when included as a subdirectory.
 - `NK_BUILD_TEST` and `NK_BUILD_BENCH` enable precision tests and benchmarks respectively, both OFF by default.
-- `NK_DYNAMIC_DISPATCH=1` compiles all backends into one binary and selects at runtime via `nk_capabilities()`, recommended for shipping one binary across CPU generations.
+- `NK_RUNTIME_DISPATCH=1` compiles all backends into one binary and selects at runtime via `nk_capabilities_available()`, recommended for shipping one binary across CPU generations.
 - `NK_COMPARE_TO_BLAS` and `NK_COMPARE_TO_MKL` link benchmarks against a system BLAS or Intel MKL, each accepting `AUTO`, `ON`, or `OFF` with `AUTO` as the default.
 
 The build enforces C99 for the C layer and C++23 for the C++ layer.
 
 ```sh
 cmake -B build -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_TEST=ON
-cmake -B build -D NK_DYNAMIC_DISPATCH=1 -D NK_BUILD_BENCH=ON -D NK_COMPARE_TO_MKL=ON
+cmake -B build -D NK_RUNTIME_DISPATCH=1 -D NK_BUILD_BENCH=ON -D NK_COMPARE_TO_MKL=ON
 ```
 
 ## Cross-Compilation

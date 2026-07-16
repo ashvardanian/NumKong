@@ -116,7 +116,7 @@ void test_reduce() {
     test_vector_reductions_correctness();
     std::printf("  vector reductions correct:    OK\n");
 
-#if NK_DYNAMIC_DISPATCH
+#if NK_RUNTIME_DISPATCH
     check("reduce_moments_f32", test_reduce_moments<f32_t>, nk_reduce_moments_f32, nk_reduce_moments_f32_serial);
     check("reduce_moments_f64", test_reduce_moments<f64_t>, nk_reduce_moments_f64, nk_reduce_moments_f64_serial);
     check("reduce_moments_i8", test_reduce_moments<i8_t>, nk_reduce_moments_i8, nk_reduce_moments_i8_serial);

@@ -7,7 +7,7 @@
 #ifndef NK_DISPATCH_H
 #define NK_DISPATCH_H
 
-#define NK_DYNAMIC_DISPATCH 1
+#define NK_RUNTIME_DISPATCH 1
 #define NK_NATIVE_F16       0
 #define NK_NATIVE_BF16      0
 
@@ -473,9 +473,19 @@ typedef struct {
     int (*e4m3_order)(nk_e4m3_t, nk_e4m3_t);
     int (*e3m2_order)(nk_e3m2_t, nk_e3m2_t);
     int (*e2m3_order)(nk_e2m3_t, nk_e2m3_t);
+
+    /**
+     *  @brief  The capabilities this table was built from, and the set `nk_find_kernel_punned`
+     *          searches. Lives inside the table so the two cannot drift.
+     *
+     *  Zero until the table is built. A built table always retains @b nk_cap_serial_k, so zero
+     *  doubles as the "not initialized yet" marker on the zero-initialized global below. Kept
+     *  last to leave the function-pointer block 64-byte aligned.
+     */
+    nk_capability_t enabled;
 } nk_implementations_t;
 
-// Global dispatch table - defined in numkong.c
+/** @brief Global dispatch table, defined in numkong.c. */
 extern nk_implementations_t nk_dispatch_table;
 
 // Error handlers - defined in numkong.c

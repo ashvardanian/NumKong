@@ -40,7 +40,7 @@ extern "C" {
                    "bmi", "bmi2")
 #endif
 
-NK_PUBLIC void nk_sqeuclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
     // Optimized i8 L2-squared using saturating subtract + DPWSSD
     //
     // Old approach (Haswell/Skylake):
@@ -105,13 +105,13 @@ nk_sqeuclidean_i8_icelake_cycle:
     *result = _mm512_reduce_add_epi32(_mm512_add_epi32(distance_sq_low_i32x16, distance_sq_high_i32x16));
 }
 
-NK_PUBLIC void nk_euclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t d2;
     nk_sqeuclidean_i8_icelake(a, b, n, &d2);
     *result = nk_f32_sqrt_haswell((nk_f32_t)d2);
 }
 
-NK_PUBLIC void nk_angular_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
 
     __m512i dot_product_i32x16 = _mm512_setzero_si512();
     __m512i a_norm_sq_i32x16 = _mm512_setzero_si512();
@@ -177,7 +177,7 @@ nk_angular_i8_icelake_cycle:
     *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_product_i32, (nk_f32_t)a_norm_sq_i32,
                                                 (nk_f32_t)b_norm_sq_i32);
 }
-NK_PUBLIC void nk_sqeuclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     __m512i distance_sq_low_i32x16 = _mm512_setzero_si512();
     __m512i distance_sq_high_i32x16 = _mm512_setzero_si512();
     __m512i const zeros_i8x64 = _mm512_setzero_si512();
@@ -209,13 +209,13 @@ nk_sqeuclidean_u8_icelake_cycle:
 
     *result = _mm512_reduce_add_epi32(_mm512_add_epi32(distance_sq_low_i32x16, distance_sq_high_i32x16));
 }
-NK_PUBLIC void nk_euclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t d2;
     nk_sqeuclidean_u8_icelake(a, b, n, &d2);
     *result = nk_f32_sqrt_haswell((nk_f32_t)d2);
 }
 
-NK_PUBLIC void nk_angular_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
 
     __m512i dot_product_low_i32x16 = _mm512_setzero_si512();
     __m512i dot_product_high_i32x16 = _mm512_setzero_si512();
@@ -264,7 +264,7 @@ nk_angular_u8_icelake_cycle:
                                                 (nk_f32_t)b_norm_sq_i32);
 }
 
-NK_PUBLIC void nk_sqeuclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     n = nk_size_round_up_to_multiple_(n, 2);
@@ -333,12 +333,12 @@ nk_sqeuclidean_i4_icelake_cycle:
 
     *result = (nk_u32_t)_mm512_reduce_add_epi32(d2_i32x16);
 }
-NK_PUBLIC void nk_euclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t d2;
     nk_sqeuclidean_i4_icelake(a, b, n, &d2);
     *result = nk_f32_sqrt_haswell((nk_f32_t)d2);
 }
-NK_PUBLIC void nk_angular_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     n = nk_size_round_up_to_multiple_(n, 2);
@@ -447,7 +447,7 @@ nk_angular_i4_icelake_cycle:
     *result = nk_angular_normalize_f32_haswell_((nk_f32_t)ab, (nk_f32_t)a2, (nk_f32_t)b2);
 }
 
-NK_PUBLIC void nk_sqeuclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     n = nk_size_round_up_to_multiple_(n, 2);
@@ -498,13 +498,13 @@ nk_sqeuclidean_u4_icelake_cycle:
 
     *result = (nk_u32_t)_mm512_reduce_add_epi32(d2_i32x16);
 }
-NK_PUBLIC void nk_euclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t d2;
     nk_sqeuclidean_u4_icelake(a, b, n, &d2);
     *result = nk_f32_sqrt_haswell((nk_f32_t)d2);
 }
 
-NK_PUBLIC void nk_angular_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     n = nk_size_round_up_to_multiple_(n, 2);
@@ -575,7 +575,8 @@ nk_angular_u4_icelake_cycle:
     *result = nk_angular_normalize_f32_haswell_((nk_f32_t)ab, (nk_f32_t)a2, (nk_f32_t)b2);
 }
 
-NK_PUBLIC void nk_sqeuclidean_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                 nk_f32_t *result) {
     // E4M3 squared Euclidean distance via octave VNNI.
 
     __m512i const lut_normal_u8x64 = _mm512_set_epi8(                      //
@@ -709,12 +710,12 @@ nk_sqeuclidean_e4m3_icelake_cycle:
     *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16));
 }
 
-NK_PUBLIC void nk_euclidean_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_sqeuclidean_e4m3_icelake(a, b, n, result);
     *result = nk_f32_sqrt_haswell(*result);
 }
 
-NK_PUBLIC void nk_angular_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
     // E4M3 angular distance via octave VNNI.
 
     __m512i const lut_normal_u8x64 = _mm512_set_epi8(                      //
@@ -848,7 +849,8 @@ nk_angular_e4m3_icelake_cycle:
     *result = nk_angular_normalize_f32_haswell_(ab_f32, a_norm_sq_f32, b_norm_sq_f32);
 }
 
-NK_PUBLIC void nk_sqeuclidean_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                 nk_f32_t *result) {
     // E2M3 squared Euclidean distance via VPDPBUSD integer MAC.
     __m512i const lut_magnitude_u8x64 = _mm512_set_epi8(120, 112, 104, 96, 88, 80, 72, 64, 60, 56, 52, 48, 44, 40, 36,
                                                         32, 30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0,
@@ -898,12 +900,12 @@ nk_sqeuclidean_e2m3_icelake_cycle:
     *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16)) / 256.0f;
 }
 
-NK_PUBLIC void nk_euclidean_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_sqeuclidean_e2m3_icelake(a, b, n, result);
     *result = nk_f32_sqrt_haswell(*result);
 }
 
-NK_PUBLIC void nk_angular_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
     // E2M3 angular distance via VPDPBUSD integer MAC.
     __m512i const lut_magnitude_u8x64 = _mm512_set_epi8(120, 112, 104, 96, 88, 80, 72, 64, 60, 56, 52, 48, 44, 40, 36,
                                                         32, 30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0,
@@ -951,7 +953,8 @@ nk_angular_e2m3_icelake_cycle:
     *result = nk_angular_normalize_f32_haswell_(ab_f32, a_norm_sq_f32, b_norm_sq_f32);
 }
 
-NK_PUBLIC void nk_sqeuclidean_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                 nk_f32_t *result) {
     // E3M2 squared Euclidean distance via direct difference squaring.
     __m512i const lut_magnitude_i16x32 = _mm512_set_epi16(                       //
         448, 384, 320, 256, 224, 192, 160, 128, 112, 96, 80, 64, 56, 48, 40, 32, //
@@ -997,12 +1000,12 @@ nk_sqeuclidean_e3m2_icelake_cycle:
     *result = (nk_f32_t)_mm512_reduce_add_epi32(sum_i32x16) / 256.0f;
 }
 
-NK_PUBLIC void nk_euclidean_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_sqeuclidean_e3m2_icelake(a, b, n, result);
     *result = nk_f32_sqrt_haswell(*result);
 }
 
-NK_PUBLIC void nk_angular_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
     // E3M2 angular distance via VPMADDWD integer MAC.
     __m512i const lut_magnitude_i16x32 = _mm512_set_epi16(                       //
         448, 384, 320, 256, 224, 192, 160, 128, 112, 96, 80, 64, 56, 48, 40, 32, //

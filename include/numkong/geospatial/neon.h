@@ -38,7 +38,7 @@ extern "C" {
  *  These require NEON trigonometric kernels from trigonometry/neon.h.
  */
 
-NK_INTERNAL float64x2_t nk_haversine_f64x2_neon_(                          //
+NK_HELPER_INLINE float64x2_t nk_haversine_f64x2_neon_(                     //
     float64x2_t first_latitudes_f64x2, float64x2_t first_longitudes_f64x2, //
     float64x2_t second_latitudes_f64x2, float64x2_t second_longitudes_f64x2) {
 
@@ -81,7 +81,7 @@ NK_INTERNAL float64x2_t nk_haversine_f64x2_neon_(                          //
     return vmulq_f64(earth_radius_f64x2, central_angle_f64x2);
 }
 
-NK_PUBLIC void nk_haversine_f64_neon(               //
+NK_API_COMPTIME void nk_haversine_f64_neon(         //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -113,7 +113,7 @@ NK_PUBLIC void nk_haversine_f64_neon(               //
     }
 }
 
-NK_INTERNAL float32x4_t nk_haversine_f32x4_neon_(                          //
+NK_HELPER_INLINE float32x4_t nk_haversine_f32x4_neon_(                     //
     float32x4_t first_latitudes_f32x4, float32x4_t first_longitudes_f32x4, //
     float32x4_t second_latitudes_f32x4, float32x4_t second_longitudes_f32x4) {
 
@@ -157,7 +157,7 @@ NK_INTERNAL float32x4_t nk_haversine_f32x4_neon_(                          //
     return vmulq_f32(earth_radius_f32x4, central_angle_f32x4);
 }
 
-NK_PUBLIC void nk_haversine_f32_neon(               //
+NK_API_COMPTIME void nk_haversine_f32_neon(         //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -193,7 +193,7 @@ NK_PUBLIC void nk_haversine_f32_neon(               //
  *  @brief  NEON helper for Vincenty's geodesic distance on 2 f64 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NK_INTERNAL float64x2_t nk_vincenty_f64x2_neon_(                           //
+NK_HELPER_INLINE float64x2_t nk_vincenty_f64x2_neon_(                      //
     float64x2_t first_latitudes_f64x2, float64x2_t first_longitudes_f64x2, //
     float64x2_t second_latitudes_f64x2, float64x2_t second_longitudes_f64x2) {
 
@@ -363,7 +363,7 @@ NK_INTERNAL float64x2_t nk_vincenty_f64x2_neon_(                           //
     return distances_f64x2;
 }
 
-NK_PUBLIC void nk_vincenty_f64_neon(                //
+NK_API_COMPTIME void nk_vincenty_f64_neon(          //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -399,7 +399,7 @@ NK_PUBLIC void nk_vincenty_f64_neon(                //
  *  @brief  NEON helper for Vincenty's geodesic distance on 4 f32 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NK_INTERNAL float32x4_t nk_vincenty_f32x4_neon_(                           //
+NK_HELPER_INLINE float32x4_t nk_vincenty_f32x4_neon_(                      //
     float32x4_t first_latitudes_f32x4, float32x4_t first_longitudes_f32x4, //
     float32x4_t second_latitudes_f32x4, float32x4_t second_longitudes_f32x4) {
 
@@ -562,7 +562,7 @@ NK_INTERNAL float32x4_t nk_vincenty_f32x4_neon_(                           //
     return distances_f32x4;
 }
 
-NK_PUBLIC void nk_vincenty_f32_neon(                //
+NK_API_COMPTIME void nk_vincenty_f32_neon(          //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {

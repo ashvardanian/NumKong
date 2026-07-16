@@ -34,7 +34,7 @@ extern "C" {
 
 #pragma region F32 Floats
 
-NK_PUBLIC void nk_each_sum_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_each_sum_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         v128_t a_f32x4 = wasm_v128_load(a + i);
@@ -44,8 +44,8 @@ NK_PUBLIC void nk_each_sum_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b,
     for (; i < n; ++i) result[i] = a[i] + b[i];
 }
 
-NK_PUBLIC void nk_each_scale_f32_v128relaxed(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                             nk_f32_t const *beta, nk_f32_t *result) {
+NK_API_COMPTIME void nk_each_scale_f32_v128relaxed(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                   nk_f32_t const *beta, nk_f32_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     v128_t alpha_f32x4 = wasm_f32x4_splat(alpha_val);
@@ -58,8 +58,8 @@ NK_PUBLIC void nk_each_scale_f32_v128relaxed(nk_f32_t const *a, nk_size_t n, nk_
     for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val;
 }
 
-NK_PUBLIC void nk_each_blend_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t const *alpha,
-                                             nk_f32_t const *beta, nk_f32_t *result) {
+NK_API_COMPTIME void nk_each_blend_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                   nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     if (alpha_val == 1 && beta_val == 1) {
@@ -84,7 +84,7 @@ NK_PUBLIC void nk_each_blend_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *
     for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val * b[i];
 }
 
-NK_PUBLIC void nk_each_fma_f32_v128relaxed(                  //
+NK_API_COMPTIME void nk_each_fma_f32_v128relaxed(            //
     nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, //
     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -106,7 +106,7 @@ NK_PUBLIC void nk_each_fma_f32_v128relaxed(                  //
 #pragma endregion F32 Floats
 #pragma region F16 Floats
 
-NK_PUBLIC void nk_each_sum_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result) {
+NK_API_COMPTIME void nk_each_sum_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         nk_b64_vec_t a_f16_vec, b_f16_vec;
@@ -128,8 +128,8 @@ NK_PUBLIC void nk_each_sum_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b,
     }
 }
 
-NK_PUBLIC void nk_each_scale_f16_v128relaxed(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                             nk_f32_t const *beta, nk_f16_t *result) {
+NK_API_COMPTIME void nk_each_scale_f16_v128relaxed(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                   nk_f32_t const *beta, nk_f16_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     v128_t alpha_f32x4 = wasm_f32x4_splat(alpha_val);
@@ -152,8 +152,8 @@ NK_PUBLIC void nk_each_scale_f16_v128relaxed(nk_f16_t const *a, nk_size_t n, nk_
     }
 }
 
-NK_PUBLIC void nk_each_blend_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t const *alpha,
-                                             nk_f32_t const *beta, nk_f16_t *result) {
+NK_API_COMPTIME void nk_each_blend_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                   nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     if (alpha_val == 1 && beta_val == 1) {
@@ -190,7 +190,7 @@ NK_PUBLIC void nk_each_blend_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *
     }
 }
 
-NK_PUBLIC void nk_each_fma_f16_v128relaxed(                  //
+NK_API_COMPTIME void nk_each_fma_f16_v128relaxed(            //
     nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, //
     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -226,7 +226,8 @@ NK_PUBLIC void nk_each_fma_f16_v128relaxed(                  //
 #pragma endregion F16 Floats
 #pragma region BF16 Floats
 
-NK_PUBLIC void nk_each_sum_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result) {
+NK_API_COMPTIME void nk_each_sum_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                  nk_bf16_t *result) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         nk_b64_vec_t a_bf16_vec, b_bf16_vec;
@@ -248,8 +249,8 @@ NK_PUBLIC void nk_each_sum_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const 
     }
 }
 
-NK_PUBLIC void nk_each_scale_bf16_v128relaxed(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                              nk_f32_t const *beta, nk_bf16_t *result) {
+NK_API_COMPTIME void nk_each_scale_bf16_v128relaxed(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                    nk_f32_t const *beta, nk_bf16_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     v128_t alpha_f32x4 = wasm_f32x4_splat(alpha_val);
@@ -272,8 +273,8 @@ NK_PUBLIC void nk_each_scale_bf16_v128relaxed(nk_bf16_t const *a, nk_size_t n, n
     }
 }
 
-NK_PUBLIC void nk_each_blend_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result) {
+NK_API_COMPTIME void nk_each_blend_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                    nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     if (alpha_val == 1 && beta_val == 1) {
@@ -310,7 +311,7 @@ NK_PUBLIC void nk_each_blend_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t cons
     }
 }
 
-NK_PUBLIC void nk_each_fma_bf16_v128relaxed(                    //
+NK_API_COMPTIME void nk_each_fma_bf16_v128relaxed(              //
     nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, //
     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -346,7 +347,7 @@ NK_PUBLIC void nk_each_fma_bf16_v128relaxed(                    //
 #pragma endregion BF16 Floats
 #pragma region I8 Integers
 
-NK_PUBLIC void nk_each_sum_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result) {
+NK_API_COMPTIME void nk_each_sum_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result) {
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         v128_t a_i8x16 = wasm_v128_load(a + i);
@@ -359,8 +360,8 @@ NK_PUBLIC void nk_each_sum_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk
     }
 }
 
-NK_PUBLIC void nk_each_scale_i8_v128relaxed(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
-                                            nk_i8_t *result) {
+NK_API_COMPTIME void nk_each_scale_i8_v128relaxed(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                  nk_f32_t const *beta, nk_i8_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     v128_t alpha_f32x4 = wasm_f32x4_splat(alpha_val);
@@ -381,8 +382,8 @@ NK_PUBLIC void nk_each_scale_i8_v128relaxed(nk_i8_t const *a, nk_size_t n, nk_f3
     }
 }
 
-NK_PUBLIC void nk_each_blend_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t const *alpha,
-                                            nk_f32_t const *beta, nk_i8_t *result) {
+NK_API_COMPTIME void nk_each_blend_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                  nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     if (alpha_val == 1 && beta_val == 1) {
@@ -416,7 +417,7 @@ NK_PUBLIC void nk_each_blend_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, 
     }
 }
 
-NK_PUBLIC void nk_each_fma_i8_v128relaxed(                //
+NK_API_COMPTIME void nk_each_fma_i8_v128relaxed(          //
     nk_i8_t const *a, nk_i8_t const *b, nk_i8_t const *c, //
     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -448,7 +449,7 @@ NK_PUBLIC void nk_each_fma_i8_v128relaxed(                //
 #pragma endregion I8 Integers
 #pragma region U8 Integers
 
-NK_PUBLIC void nk_each_sum_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result) {
+NK_API_COMPTIME void nk_each_sum_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result) {
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         v128_t a_u8x16 = wasm_v128_load(a + i);
@@ -461,8 +462,8 @@ NK_PUBLIC void nk_each_sum_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk
     }
 }
 
-NK_PUBLIC void nk_each_scale_u8_v128relaxed(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
-                                            nk_u8_t *result) {
+NK_API_COMPTIME void nk_each_scale_u8_v128relaxed(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                  nk_f32_t const *beta, nk_u8_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     v128_t alpha_f32x4 = wasm_f32x4_splat(alpha_val);
@@ -483,8 +484,8 @@ NK_PUBLIC void nk_each_scale_u8_v128relaxed(nk_u8_t const *a, nk_size_t n, nk_f3
     }
 }
 
-NK_PUBLIC void nk_each_blend_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t const *alpha,
-                                            nk_f32_t const *beta, nk_u8_t *result) {
+NK_API_COMPTIME void nk_each_blend_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                  nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     if (alpha_val == 1 && beta_val == 1) {
@@ -518,7 +519,7 @@ NK_PUBLIC void nk_each_blend_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, 
     }
 }
 
-NK_PUBLIC void nk_each_fma_u8_v128relaxed(                //
+NK_API_COMPTIME void nk_each_fma_u8_v128relaxed(          //
     nk_u8_t const *a, nk_u8_t const *b, nk_u8_t const *c, //
     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result) {
     nk_f32_t alpha_val = *alpha;

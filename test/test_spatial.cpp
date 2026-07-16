@@ -107,8 +107,7 @@ error_stats_t test_euclidean(typename scalar_type_::euclidean_kernel_t kernel) {
 void test_spatial() {
     error_stats_section_t check("Spatial Distances");
 
-#if NK_DYNAMIC_DISPATCH
-    // Dynamic dispatch - only test the dispatcher itself
+#if NK_RUNTIME_DISPATCH
     check("sqeuclidean_f32", test_sqeuclidean<f32_t>, nk_sqeuclidean_f32);
     check("sqeuclidean_f64", test_sqeuclidean<f64_t>, nk_sqeuclidean_f64);
     check("sqeuclidean_f16", test_sqeuclidean<f16_t>, nk_sqeuclidean_f16);
@@ -132,7 +131,6 @@ void test_spatial() {
     check("angular_i4", test_angular<i4x2_t>, nk_angular_i4);
     check("angular_u4", test_angular<u4x2_t>, nk_angular_u4);
 #else
-    // Static compilation - test all available ISA variants
 
 #if NK_TARGET_NEON
     check("sqeuclidean_f64_neon", test_sqeuclidean<f64_t>, nk_sqeuclidean_f64_neon);
@@ -511,5 +509,5 @@ void test_spatial() {
     check("sqeuclidean_u8_serial", test_sqeuclidean<u8_t>, nk_sqeuclidean_u8_serial);
     check("euclidean_u8_serial", test_euclidean<u8_t>, nk_euclidean_u8_serial);
 
-#endif // NK_DYNAMIC_DISPATCH
+#endif // NK_RUNTIME_DISPATCH
 }

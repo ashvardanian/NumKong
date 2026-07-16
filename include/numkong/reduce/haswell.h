@@ -46,7 +46,7 @@ extern "C" {
 #endif
 
 /** @brief Horizontal sum of 4 doubles in a YMM register. */
-NK_INTERNAL nk_f64_t nk_reduce_add_f64x4_haswell_(__m256d sum_f64x4) {
+NK_HELPER_INLINE nk_f64_t nk_reduce_add_f64x4_haswell_(__m256d sum_f64x4) {
     __m128d low_f64x2 = _mm256_castpd256_pd128(sum_f64x4);
     __m128d high_f64x2 = _mm256_extractf128_pd(sum_f64x4, 1);
     __m128d sum_f64x2 = _mm_add_pd(low_f64x2, high_f64x2);
@@ -55,7 +55,7 @@ NK_INTERNAL nk_f64_t nk_reduce_add_f64x4_haswell_(__m256d sum_f64x4) {
 }
 
 /** @brief Horizontal sum of 8 floats in a YMM register (native f32 precision). */
-NK_INTERNAL nk_f32_t nk_reduce_add_f32x8_haswell_(__m256 sum_f32x8) {
+NK_HELPER_INLINE nk_f32_t nk_reduce_add_f32x8_haswell_(__m256 sum_f32x8) {
     __m128 low_f32x4 = _mm256_castps256_ps128(sum_f32x8);
     __m128 high_f32x4 = _mm256_extractf128_ps(sum_f32x8, 1);
     __m128 sum_f32x4 = _mm_add_ps(low_f32x4, high_f32x4);
@@ -65,7 +65,7 @@ NK_INTERNAL nk_f32_t nk_reduce_add_f32x8_haswell_(__m256 sum_f32x8) {
 }
 
 /** @brief Horizontal sum of 8 i32s in a YMM register. */
-NK_INTERNAL nk_i32_t nk_reduce_add_i32x8_haswell_(__m256i sum_i32x8) {
+NK_HELPER_INLINE nk_i32_t nk_reduce_add_i32x8_haswell_(__m256i sum_i32x8) {
     __m128i low_i32x4 = _mm256_castsi256_si128(sum_i32x8);
     __m128i high_i32x4 = _mm256_extracti128_si256(sum_i32x8, 1);
     __m128i sum_i32x4 = _mm_add_epi32(low_i32x4, high_i32x4);
@@ -75,7 +75,7 @@ NK_INTERNAL nk_i32_t nk_reduce_add_i32x8_haswell_(__m256i sum_i32x8) {
 }
 
 /** @brief Horizontal sum of 4 i64s in a YMM register. */
-NK_INTERNAL nk_i64_t nk_reduce_add_i64x4_haswell_(__m256i sum_i64x4) {
+NK_HELPER_INLINE nk_i64_t nk_reduce_add_i64x4_haswell_(__m256i sum_i64x4) {
     __m128i low_i64x2 = _mm256_castsi256_si128(sum_i64x4);
     __m128i high_i64x2 = _mm256_extracti128_si256(sum_i64x4, 1);
     __m128i sum_i64x2 = _mm_add_epi64(low_i64x2, high_i64x2);
@@ -85,7 +85,7 @@ NK_INTERNAL nk_i64_t nk_reduce_add_i64x4_haswell_(__m256i sum_i64x4) {
 }
 
 /** @brief Horizontal min of 8 signed i8s in a YMM register. */
-NK_INTERNAL nk_i8_t nk_reduce_min_i8x32_haswell_(__m256i min_i8x32) {
+NK_HELPER_INLINE nk_i8_t nk_reduce_min_i8x32_haswell_(__m256i min_i8x32) {
     __m128i low_i8x16 = _mm256_castsi256_si128(min_i8x32);
     __m128i high_i8x16 = _mm256_extracti128_si256(min_i8x32, 1);
     __m128i min_i8x16 = _mm_min_epi8(low_i8x16, high_i8x16);
@@ -97,7 +97,7 @@ NK_INTERNAL nk_i8_t nk_reduce_min_i8x32_haswell_(__m256i min_i8x32) {
 }
 
 /** @brief Horizontal max of 8 signed i8s in a YMM register. */
-NK_INTERNAL nk_i8_t nk_reduce_max_i8x32_haswell_(__m256i max_i8x32) {
+NK_HELPER_INLINE nk_i8_t nk_reduce_max_i8x32_haswell_(__m256i max_i8x32) {
     __m128i low_i8x16 = _mm256_castsi256_si128(max_i8x32);
     __m128i high_i8x16 = _mm256_extracti128_si256(max_i8x32, 1);
     __m128i max_i8x16 = _mm_max_epi8(low_i8x16, high_i8x16);
@@ -109,7 +109,7 @@ NK_INTERNAL nk_i8_t nk_reduce_max_i8x32_haswell_(__m256i max_i8x32) {
 }
 
 /** @brief Horizontal min of 8 unsigned u8s in a YMM register. */
-NK_INTERNAL nk_u8_t nk_reduce_min_u8x32_haswell_(__m256i min_u8x32) {
+NK_HELPER_INLINE nk_u8_t nk_reduce_min_u8x32_haswell_(__m256i min_u8x32) {
     __m128i low_u8x16 = _mm256_castsi256_si128(min_u8x32);
     __m128i high_u8x16 = _mm256_extracti128_si256(min_u8x32, 1);
     __m128i min_u8x16 = _mm_min_epu8(low_u8x16, high_u8x16);
@@ -121,7 +121,7 @@ NK_INTERNAL nk_u8_t nk_reduce_min_u8x32_haswell_(__m256i min_u8x32) {
 }
 
 /** @brief Horizontal max of 8 unsigned u8s in a YMM register. */
-NK_INTERNAL nk_u8_t nk_reduce_max_u8x32_haswell_(__m256i max_u8x32) {
+NK_HELPER_INLINE nk_u8_t nk_reduce_max_u8x32_haswell_(__m256i max_u8x32) {
     __m128i low_u8x16 = _mm256_castsi256_si128(max_u8x32);
     __m128i high_u8x16 = _mm256_extracti128_si256(max_u8x32, 1);
     __m128i max_u8x16 = _mm_max_epu8(low_u8x16, high_u8x16);
@@ -133,7 +133,7 @@ NK_INTERNAL nk_u8_t nk_reduce_max_u8x32_haswell_(__m256i max_u8x32) {
 }
 
 /** @brief Horizontal min of 16 signed i16s in a YMM register. */
-NK_INTERNAL nk_i16_t nk_reduce_min_i16x16_haswell_(__m256i min_i16x16) {
+NK_HELPER_INLINE nk_i16_t nk_reduce_min_i16x16_haswell_(__m256i min_i16x16) {
     __m128i low_i16x8 = _mm256_castsi256_si128(min_i16x16);
     __m128i high_i16x8 = _mm256_extracti128_si256(min_i16x16, 1);
     __m128i min_i16x8 = _mm_min_epi16(low_i16x8, high_i16x8);
@@ -144,7 +144,7 @@ NK_INTERNAL nk_i16_t nk_reduce_min_i16x16_haswell_(__m256i min_i16x16) {
 }
 
 /** @brief Horizontal max of 16 signed i16s in a YMM register. */
-NK_INTERNAL nk_i16_t nk_reduce_max_i16x16_haswell_(__m256i max_i16x16) {
+NK_HELPER_INLINE nk_i16_t nk_reduce_max_i16x16_haswell_(__m256i max_i16x16) {
     __m128i low_i16x8 = _mm256_castsi256_si128(max_i16x16);
     __m128i high_i16x8 = _mm256_extracti128_si256(max_i16x16, 1);
     __m128i max_i16x8 = _mm_max_epi16(low_i16x8, high_i16x8);
@@ -155,7 +155,7 @@ NK_INTERNAL nk_i16_t nk_reduce_max_i16x16_haswell_(__m256i max_i16x16) {
 }
 
 /** @brief Horizontal min of 16 unsigned u16s in a YMM register. */
-NK_INTERNAL nk_u16_t nk_reduce_min_u16x16_haswell_(__m256i min_u16x16) {
+NK_HELPER_INLINE nk_u16_t nk_reduce_min_u16x16_haswell_(__m256i min_u16x16) {
     __m128i low_u16x8 = _mm256_castsi256_si128(min_u16x16);
     __m128i high_u16x8 = _mm256_extracti128_si256(min_u16x16, 1);
     __m128i min_u16x8 = _mm_min_epu16(low_u16x8, high_u16x8);
@@ -166,7 +166,7 @@ NK_INTERNAL nk_u16_t nk_reduce_min_u16x16_haswell_(__m256i min_u16x16) {
 }
 
 /** @brief Horizontal max of 16 unsigned u16s in a YMM register. */
-NK_INTERNAL nk_u16_t nk_reduce_max_u16x16_haswell_(__m256i max_u16x16) {
+NK_HELPER_INLINE nk_u16_t nk_reduce_max_u16x16_haswell_(__m256i max_u16x16) {
     __m128i low_u16x8 = _mm256_castsi256_si128(max_u16x16);
     __m128i high_u16x8 = _mm256_extracti128_si256(max_u16x16, 1);
     __m128i max_u16x8 = _mm_max_epu16(low_u16x8, high_u16x8);
@@ -177,7 +177,7 @@ NK_INTERNAL nk_u16_t nk_reduce_max_u16x16_haswell_(__m256i max_u16x16) {
 }
 
 /** @brief Horizontal min of 8 signed i32s in a YMM register. */
-NK_INTERNAL nk_i32_t nk_reduce_min_i32x8_haswell_(__m256i min_i32x8) {
+NK_HELPER_INLINE nk_i32_t nk_reduce_min_i32x8_haswell_(__m256i min_i32x8) {
     __m128i low_i32x4 = _mm256_castsi256_si128(min_i32x8);
     __m128i high_i32x4 = _mm256_extracti128_si256(min_i32x8, 1);
     __m128i min_i32x4 = _mm_min_epi32(low_i32x4, high_i32x4);
@@ -187,7 +187,7 @@ NK_INTERNAL nk_i32_t nk_reduce_min_i32x8_haswell_(__m256i min_i32x8) {
 }
 
 /** @brief Horizontal max of 8 signed i32s in a YMM register. */
-NK_INTERNAL nk_i32_t nk_reduce_max_i32x8_haswell_(__m256i max_i32x8) {
+NK_HELPER_INLINE nk_i32_t nk_reduce_max_i32x8_haswell_(__m256i max_i32x8) {
     __m128i low_i32x4 = _mm256_castsi256_si128(max_i32x8);
     __m128i high_i32x4 = _mm256_extracti128_si256(max_i32x8, 1);
     __m128i max_i32x4 = _mm_max_epi32(low_i32x4, high_i32x4);
@@ -197,7 +197,7 @@ NK_INTERNAL nk_i32_t nk_reduce_max_i32x8_haswell_(__m256i max_i32x8) {
 }
 
 /** @brief Horizontal min of 8 unsigned u32s in a YMM register. */
-NK_INTERNAL nk_u32_t nk_reduce_min_u32x8_haswell_(__m256i min_u32x8) {
+NK_HELPER_INLINE nk_u32_t nk_reduce_min_u32x8_haswell_(__m256i min_u32x8) {
     __m128i low_u32x4 = _mm256_castsi256_si128(min_u32x8);
     __m128i high_u32x4 = _mm256_extracti128_si256(min_u32x8, 1);
     __m128i min_u32x4 = _mm_min_epu32(low_u32x4, high_u32x4);
@@ -207,7 +207,7 @@ NK_INTERNAL nk_u32_t nk_reduce_min_u32x8_haswell_(__m256i min_u32x8) {
 }
 
 /** @brief Horizontal max of 8 unsigned u32s in a YMM register. */
-NK_INTERNAL nk_u32_t nk_reduce_max_u32x8_haswell_(__m256i max_u32x8) {
+NK_HELPER_INLINE nk_u32_t nk_reduce_max_u32x8_haswell_(__m256i max_u32x8) {
     __m128i low_u32x4 = _mm256_castsi256_si128(max_u32x8);
     __m128i high_u32x4 = _mm256_extracti128_si256(max_u32x8, 1);
     __m128i max_u32x4 = _mm_max_epu32(low_u32x4, high_u32x4);
@@ -217,7 +217,7 @@ NK_INTERNAL nk_u32_t nk_reduce_max_u32x8_haswell_(__m256i max_u32x8) {
 }
 
 /** @brief Horizontal min of 4 signed i64s in a YMM register using comparison+blend. */
-NK_INTERNAL nk_i64_t nk_reduce_min_i64x4_haswell_(__m256i min_i64x4) {
+NK_HELPER_INLINE nk_i64_t nk_reduce_min_i64x4_haswell_(__m256i min_i64x4) {
     __m128i low_i64x2 = _mm256_castsi256_si128(min_i64x4);
     __m128i high_i64x2 = _mm256_extracti128_si256(min_i64x4, 1);
     __m128i cmp_i64x2 = _mm_cmpgt_epi64(low_i64x2, high_i64x2);
@@ -229,7 +229,7 @@ NK_INTERNAL nk_i64_t nk_reduce_min_i64x4_haswell_(__m256i min_i64x4) {
 }
 
 /** @brief Horizontal max of 4 signed i64s in a YMM register using comparison+blend. */
-NK_INTERNAL nk_i64_t nk_reduce_max_i64x4_haswell_(__m256i max_i64x4) {
+NK_HELPER_INLINE nk_i64_t nk_reduce_max_i64x4_haswell_(__m256i max_i64x4) {
     __m128i low_i64x2 = _mm256_castsi256_si128(max_i64x4);
     __m128i high_i64x2 = _mm256_extracti128_si256(max_i64x4, 1);
     __m128i cmp_i64x2 = _mm_cmpgt_epi64(low_i64x2, high_i64x2);
@@ -241,7 +241,7 @@ NK_INTERNAL nk_i64_t nk_reduce_max_i64x4_haswell_(__m256i max_i64x4) {
 }
 
 /** @brief Horizontal min of 4 unsigned u64s in a YMM register using XOR trick for unsigned comparison. */
-NK_INTERNAL nk_u64_t nk_reduce_min_u64x4_haswell_(__m256i min_u64x4) {
+NK_HELPER_INLINE nk_u64_t nk_reduce_min_u64x4_haswell_(__m256i min_u64x4) {
     __m128i sign_bit_i64x2 = _mm_set1_epi64x((nk_i64_t)0x8000000000000000ull);
     __m128i low_u64x2 = _mm256_castsi256_si128(min_u64x4);
     __m128i high_u64x2 = _mm256_extracti128_si256(min_u64x4, 1);
@@ -256,7 +256,7 @@ NK_INTERNAL nk_u64_t nk_reduce_min_u64x4_haswell_(__m256i min_u64x4) {
 }
 
 /** @brief Horizontal max of 4 unsigned u64s in a YMM register using XOR trick for unsigned comparison. */
-NK_INTERNAL nk_u64_t nk_reduce_max_u64x4_haswell_(__m256i max_u64x4) {
+NK_HELPER_INLINE nk_u64_t nk_reduce_max_u64x4_haswell_(__m256i max_u64x4) {
     __m128i sign_bit_i64x2 = _mm_set1_epi64x((nk_i64_t)0x8000000000000000ull);
     __m128i low_u64x2 = _mm256_castsi256_si128(max_u64x4);
     __m128i high_u64x2 = _mm256_extracti128_si256(max_u64x4, 1);
@@ -271,7 +271,7 @@ NK_INTERNAL nk_u64_t nk_reduce_max_u64x4_haswell_(__m256i max_u64x4) {
 }
 
 /** @brief Horizontal min of 8 floats in a YMM register. */
-NK_INTERNAL nk_f32_t nk_reduce_min_f32x8_haswell_(__m256 min_f32x8) {
+NK_HELPER_INLINE nk_f32_t nk_reduce_min_f32x8_haswell_(__m256 min_f32x8) {
     __m128 low_f32x4 = _mm256_castps256_ps128(min_f32x8);
     __m128 high_f32x4 = _mm256_extractf128_ps(min_f32x8, 1);
     __m128 min_f32x4 = _mm_min_ps(low_f32x4, high_f32x4);
@@ -281,7 +281,7 @@ NK_INTERNAL nk_f32_t nk_reduce_min_f32x8_haswell_(__m256 min_f32x8) {
 }
 
 /** @brief Horizontal max of 8 floats in a YMM register. */
-NK_INTERNAL nk_f32_t nk_reduce_max_f32x8_haswell_(__m256 max_f32x8) {
+NK_HELPER_INLINE nk_f32_t nk_reduce_max_f32x8_haswell_(__m256 max_f32x8) {
     __m128 low_f32x4 = _mm256_castps256_ps128(max_f32x8);
     __m128 high_f32x4 = _mm256_extractf128_ps(max_f32x8, 1);
     __m128 max_f32x4 = _mm_max_ps(low_f32x4, high_f32x4);
@@ -291,7 +291,7 @@ NK_INTERNAL nk_f32_t nk_reduce_max_f32x8_haswell_(__m256 max_f32x8) {
 }
 
 /** @brief Horizontal min of 4 doubles in a YMM register. */
-NK_INTERNAL nk_f64_t nk_reduce_min_f64x4_haswell_(__m256d min_f64x4) {
+NK_HELPER_INLINE nk_f64_t nk_reduce_min_f64x4_haswell_(__m256d min_f64x4) {
     __m128d low_f64x2 = _mm256_castpd256_pd128(min_f64x4);
     __m128d high_f64x2 = _mm256_extractf128_pd(min_f64x4, 1);
     __m128d min_f64x2 = _mm_min_pd(low_f64x2, high_f64x2);
@@ -300,7 +300,7 @@ NK_INTERNAL nk_f64_t nk_reduce_min_f64x4_haswell_(__m256d min_f64x4) {
 }
 
 /** @brief Horizontal max of 4 doubles in a YMM register. */
-NK_INTERNAL nk_f64_t nk_reduce_max_f64x4_haswell_(__m256d max_f64x4) {
+NK_HELPER_INLINE nk_f64_t nk_reduce_max_f64x4_haswell_(__m256d max_f64x4) {
     __m128d low_f64x2 = _mm256_castpd256_pd128(max_f64x4);
     __m128d high_f64x2 = _mm256_extractf128_pd(max_f64x4, 1);
     __m128d max_f64x2 = _mm_max_pd(low_f64x2, high_f64x2);
@@ -308,7 +308,7 @@ NK_INTERNAL nk_f64_t nk_reduce_max_f64x4_haswell_(__m256d max_f64x4) {
     return _mm_cvtsd_f64(max_f64x2);
 }
 
-NK_INTERNAL __m256i nk_fp8x32_to_u8x32_comparable_haswell_(__m256i raw_i8x32) {
+NK_HELPER_INLINE __m256i nk_fp8x32_to_u8x32_comparable_haswell_(__m256i raw_i8x32) {
     // In AVX2, use signed comparison: 0 > x means x < 0 (negative)
     __m256i neg_i8x32 = _mm256_cmpgt_epi8(_mm256_setzero_si256(), raw_i8x32);
     __m256i pos_xor_i8x32 = _mm256_set1_epi8((char)0x80);
@@ -317,7 +317,7 @@ NK_INTERNAL __m256i nk_fp8x32_to_u8x32_comparable_haswell_(__m256i raw_i8x32) {
     return _mm256_xor_si256(raw_i8x32, xor_i8x32);
 }
 
-NK_INTERNAL __m256i nk_u8x32_comparable_to_fp8x32_haswell_(__m256i cmp_i8x32) {
+NK_HELPER_INLINE __m256i nk_u8x32_comparable_to_fp8x32_haswell_(__m256i cmp_i8x32) {
     // Values < 0x80 were negative FP8 (sign bit clear in comparable form), values >= 0x80 were positive
     __m256i sign_bit_i8x32 = _mm256_set1_epi8((char)0x80);
     __m256i was_neg_i8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(cmp_i8x32, sign_bit_i8x32), _mm256_setzero_si256());
@@ -328,7 +328,7 @@ NK_INTERNAL __m256i nk_u8x32_comparable_to_fp8x32_haswell_(__m256i cmp_i8x32) {
 }
 
 /** @brief Horizontal argmin: returns index of first minimum unsigned byte in YMM register. */
-NK_INTERNAL nk_size_t nk_argmin_u8x32_haswell_(__m256i data_u8x32) {
+NK_HELPER_INLINE nk_size_t nk_argmin_u8x32_haswell_(__m256i data_u8x32) {
     nk_u8_t min_val = nk_reduce_min_u8x32_haswell_(data_u8x32);
     __m256i eq_i8x32 = _mm256_cmpeq_epi8(data_u8x32, _mm256_set1_epi8((char)min_val));
     int eq_bits = _mm256_movemask_epi8(eq_i8x32);
@@ -336,26 +336,26 @@ NK_INTERNAL nk_size_t nk_argmin_u8x32_haswell_(__m256i data_u8x32) {
 }
 
 /** @brief Horizontal argmax: returns index of first maximum unsigned byte in YMM register. */
-NK_INTERNAL nk_size_t nk_argmax_u8x32_haswell_(__m256i data_u8x32) {
+NK_HELPER_INLINE nk_size_t nk_argmax_u8x32_haswell_(__m256i data_u8x32) {
     nk_u8_t max_val = nk_reduce_max_u8x32_haswell_(data_u8x32);
     __m256i eq_i8x32 = _mm256_cmpeq_epi8(data_u8x32, _mm256_set1_epi8((char)max_val));
     int eq_bits = _mm256_movemask_epi8(eq_i8x32);
     return (nk_size_t)_tzcnt_u32((unsigned int)eq_bits);
 }
 
-NK_INTERNAL __m256i nk_bf16x16_to_comparable_i16x16_haswell_(__m256i raw_u16x16) {
+NK_HELPER_INLINE __m256i nk_bf16x16_to_comparable_i16x16_haswell_(__m256i raw_u16x16) {
     __m256i sign_i16x16 = _mm256_srai_epi16(raw_u16x16, 15);
     __m256i flip_i16x16 = _mm256_srli_epi16(sign_i16x16, 1);
     return _mm256_xor_si256(raw_u16x16, flip_i16x16);
 }
 
-NK_INTERNAL __m256i nk_f16x16_to_comparable_i16x16_haswell_(__m256i raw_u16x16) {
+NK_HELPER_INLINE __m256i nk_f16x16_to_comparable_i16x16_haswell_(__m256i raw_u16x16) {
     __m256i sign_i16x16 = _mm256_srai_epi16(raw_u16x16, 15);
     __m256i flip_i16x16 = _mm256_srli_epi16(sign_i16x16, 1);
     return _mm256_xor_si256(raw_u16x16, flip_i16x16);
 }
 
-NK_INTERNAL __m256i nk_u64_sadd_epi64_haswell_(__m256i a_u64x4, __m256i b_u64x4) {
+NK_HELPER_INLINE __m256i nk_u64_sadd_epi64_haswell_(__m256i a_u64x4, __m256i b_u64x4) {
     __m256i result_u64x4 = _mm256_add_epi64(a_u64x4, b_u64x4);
     // Unsigned overflow: result < a. AVX2 only has signed cmpgt, so flip sign bits.
     __m256i sign_bit_i64x4 = _mm256_set1_epi64x((nk_i64_t)0x8000000000000000ULL);
@@ -365,7 +365,7 @@ NK_INTERNAL __m256i nk_u64_sadd_epi64_haswell_(__m256i a_u64x4, __m256i b_u64x4)
     return _mm256_or_si256(result_u64x4, overflow_u64x4); // overflow lanes -> all-ones = U64_MAX
 }
 
-NK_INTERNAL __m256i nk_i64_smul_sq_epi64_haswell_(__m256i value_i64x4) {
+NK_HELPER_INLINE __m256i nk_i64_smul_sq_epi64_haswell_(__m256i value_i64x4) {
     // abs(val) — AVX2 lacks _mm256_abs_epi64, emulate:
     __m256i sign_i64x4 = _mm256_cmpgt_epi64(_mm256_setzero_si256(), value_i64x4);
     __m256i abs_value_u64x4 = _mm256_sub_epi64(_mm256_xor_si256(value_i64x4, sign_i64x4), sign_i64x4);
@@ -380,7 +380,7 @@ NK_INTERNAL __m256i nk_i64_smul_sq_epi64_haswell_(__m256i value_i64x4) {
     return _mm256_blendv_epi8(saturated_u64x4, low_sq_u64x4, is_small_u64x4);
 }
 
-NK_INTERNAL __m256i nk_u64_smul_sq_epi64_haswell_(__m256i value_u64x4) {
+NK_HELPER_INLINE __m256i nk_u64_smul_sq_epi64_haswell_(__m256i value_u64x4) {
     __m256i low_halves_u32x4 = _mm256_and_si256(value_u64x4, _mm256_set1_epi64x(0xFFFFFFFF));
     __m256i low_sq_u64x4 = _mm256_mul_epu32(low_halves_u32x4, low_halves_u32x4);
     __m256i high_u64x4 = _mm256_srli_epi64(value_u64x4, 32);
@@ -389,7 +389,7 @@ NK_INTERNAL __m256i nk_u64_smul_sq_epi64_haswell_(__m256i value_u64x4) {
     return _mm256_blendv_epi8(saturated_u64x4, low_sq_u64x4, is_small_u64x4);
 }
 
-NK_INTERNAL nk_u64_t nk_reduce_sadd_u64x4_haswell_(__m256i v_u64x4) {
+NK_HELPER_INLINE nk_u64_t nk_reduce_sadd_u64x4_haswell_(__m256i v_u64x4) {
     // 4->2: fold high 128 into low 128
     __m128i high_u64x2 = _mm256_extracti128_si256(v_u64x4, 1);
     __m128i low_u64x2 = _mm256_castsi256_si128(v_u64x4);
@@ -409,7 +409,7 @@ NK_INTERNAL nk_u64_t nk_reduce_sadd_u64x4_haswell_(__m256i v_u64x4) {
     return (nk_u64_t)_mm_cvtsi128_si64(final_u64x2);
 }
 
-NK_INTERNAL __m256i nk_stride_blend_u1x32_(nk_size_t stride) {
+NK_HELPER_INLINE __m256i nk_stride_blend_u1x32_(nk_size_t stride) {
     switch (stride) {
     case 2:
         return _mm256_setr_epi8(-1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1,
@@ -436,7 +436,7 @@ NK_INTERNAL __m256i nk_stride_blend_u1x32_(nk_size_t stride) {
     }
 }
 
-NK_INTERNAL __m256i nk_stride_blend_b16x16_(nk_size_t stride) {
+NK_HELPER_INLINE __m256i nk_stride_blend_b16x16_(nk_size_t stride) {
     switch (stride) {
     case 2: return _mm256_setr_epi16(-1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0);
     case 3: return _mm256_setr_epi16(-1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1);
@@ -449,7 +449,7 @@ NK_INTERNAL __m256i nk_stride_blend_b16x16_(nk_size_t stride) {
     }
 }
 
-NK_INTERNAL __m256i nk_stride_blend_b32x8_(nk_size_t stride) {
+NK_HELPER_INLINE __m256i nk_stride_blend_b32x8_(nk_size_t stride) {
     switch (stride) {
     case 2: return _mm256_setr_epi32(-1, 0, -1, 0, -1, 0, -1, 0); // 4 elems
     case 3: return _mm256_setr_epi32(-1, 0, 0, -1, 0, 0, -1, 0);  // 3 elems
@@ -462,7 +462,7 @@ NK_INTERNAL __m256i nk_stride_blend_b32x8_(nk_size_t stride) {
     }
 }
 
-NK_INTERNAL __m256i nk_stride_blend_b64x4_(nk_size_t stride) {
+NK_HELPER_INLINE __m256i nk_stride_blend_b64x4_(nk_size_t stride) {
     switch (stride) {
     case 2: return _mm256_setr_epi64x(-1, 0, -1, 0); // 2 elems
     case 3: return _mm256_setr_epi64x(-1, 0, 0, -1); // 2 elems (wraps)
@@ -471,7 +471,7 @@ NK_INTERNAL __m256i nk_stride_blend_b64x4_(nk_size_t stride) {
     }
 }
 
-NK_INTERNAL nk_size_t nk_stride_elems_b32x8_(nk_size_t stride) {
+NK_HELPER_INLINE nk_size_t nk_stride_elems_b32x8_(nk_size_t stride) {
     switch (stride) {
     case 2: return 4;
     case 3: return 3;
@@ -484,7 +484,7 @@ NK_INTERNAL nk_size_t nk_stride_elems_b32x8_(nk_size_t stride) {
     }
 }
 
-NK_INTERNAL nk_size_t nk_stride_elems_b64x4_(nk_size_t stride) {
+NK_HELPER_INLINE nk_size_t nk_stride_elems_b64x4_(nk_size_t stride) {
     switch (stride) {
     case 2: return 2;
     case 3: return 2;
@@ -493,8 +493,8 @@ NK_INTERNAL nk_size_t nk_stride_elems_b64x4_(nk_size_t stride) {
     }
 }
 
-NK_INTERNAL void nk_reduce_moments_f32_haswell_contiguous_( //
-    nk_f32_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_f32_haswell_contiguous_( //
+    nk_f32_t const *data_ptr, nk_size_t count,                   //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
 
     __m256d sum_low_f64x4 = _mm256_setzero_pd(), sum_high_f64x4 = _mm256_setzero_pd();
@@ -519,7 +519,7 @@ NK_INTERNAL void nk_reduce_moments_f32_haswell_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_INTERNAL void nk_reduce_moments_f32_haswell_strided_(                  //
+NK_HELPER_INLINE void nk_reduce_moments_f32_haswell_strided_(             //
     nk_f32_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
 
@@ -554,7 +554,7 @@ NK_INTERNAL void nk_reduce_moments_f32_haswell_strided_(                  //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_INTERNAL void nk_reduce_moments_f32_haswell_gather_(                //
+NK_HELPER_INLINE void nk_reduce_moments_f32_haswell_gather_(           //
     nk_f32_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
 
@@ -583,7 +583,7 @@ NK_INTERNAL void nk_reduce_moments_f32_haswell_gather_(                //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_PUBLIC void nk_reduce_moments_f32_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_f32_haswell(                    //
     nk_f32_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
 
@@ -606,9 +606,9 @@ NK_PUBLIC void nk_reduce_moments_f32_haswell(                          //
     else nk_reduce_moments_f32_haswell_gather_(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_f32_haswell_contiguous_( //
-    nk_f32_t const *data_ptr, nk_size_t count,             //
-    nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_f32_haswell_contiguous_( //
+    nk_f32_t const *data_ptr, nk_size_t count,                  //
+    nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_f32_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     __m256 min_f32x8 = _mm256_set1_ps(NK_F32_MAX);
@@ -673,7 +673,7 @@ NK_INTERNAL void nk_reduce_minmax_f32_haswell_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = max_idx;
 }
 
-NK_PUBLIC void nk_reduce_minmax_f32_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_f32_haswell(                     //
     nk_f32_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_f32_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -707,8 +707,8 @@ NK_PUBLIC void nk_reduce_minmax_f32_haswell(                           //
                                     max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_f64_haswell_contiguous_( //
-    nk_f64_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_f64_haswell_contiguous_( //
+    nk_f64_t const *data_ptr, nk_size_t count,                   //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
 
     __m256d sum_f64x4 = _mm256_setzero_pd();
@@ -757,7 +757,7 @@ NK_INTERNAL void nk_reduce_moments_f64_haswell_contiguous_( //
     *sumsq_ptr = nk_reduce_add_f64x4_haswell_(_mm256_add_pd(sumsq_f64x4, sumsq_comp_f64x4));
 }
 
-NK_INTERNAL void nk_reduce_moments_f64_haswell_strided_(                  //
+NK_HELPER_INLINE void nk_reduce_moments_f64_haswell_strided_(             //
     nk_f64_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
 
@@ -798,7 +798,7 @@ NK_INTERNAL void nk_reduce_moments_f64_haswell_strided_(                  //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_PUBLIC void nk_reduce_moments_f64_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_f64_haswell(                    //
     nk_f64_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
 
@@ -821,9 +821,9 @@ NK_PUBLIC void nk_reduce_moments_f64_haswell(                          //
     else nk_reduce_moments_f64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_f64_haswell_contiguous_( //
-    nk_f64_t const *data_ptr, nk_size_t count,             //
-    nk_f64_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_f64_haswell_contiguous_( //
+    nk_f64_t const *data_ptr, nk_size_t count,                  //
+    nk_f64_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_f64_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     __m256d min_f64x4 = _mm256_set1_pd(NK_F64_MAX);
@@ -902,7 +902,7 @@ NK_INTERNAL void nk_reduce_minmax_f64_haswell_contiguous_( //
     }
 }
 
-NK_PUBLIC void nk_reduce_minmax_f64_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_f64_haswell(                     //
     nk_f64_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f64_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_f64_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -923,8 +923,8 @@ NK_PUBLIC void nk_reduce_minmax_f64_haswell(                           //
                                     max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_i8_haswell_contiguous_( //
-    nk_i8_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_i8_haswell_contiguous_( //
+    nk_i8_t const *data_ptr, nk_size_t count,                   //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
     __m256i bias_i8x32 = _mm256_set1_epi8((char)0x80);
@@ -968,7 +968,7 @@ NK_INTERNAL void nk_reduce_moments_i8_haswell_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_INTERNAL void nk_reduce_moments_i8_haswell_strided_(                  //
+NK_HELPER_INLINE void nk_reduce_moments_i8_haswell_strided_(             //
     nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -1009,7 +1009,7 @@ NK_INTERNAL void nk_reduce_moments_i8_haswell_strided_(                  //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_PUBLIC void nk_reduce_moments_i8_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_i8_haswell(                    //
     nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -1034,9 +1034,9 @@ NK_PUBLIC void nk_reduce_moments_i8_haswell(                          //
     else nk_reduce_moments_i8_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_i8_haswell_contiguous_( //
-    nk_i8_t const *data_ptr, nk_size_t count,             //
-    nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_i8_haswell_contiguous_( //
+    nk_i8_t const *data_ptr, nk_size_t count,                  //
+    nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     __m256i min_i8x32 = _mm256_set1_epi8((char)NK_I8_MAX);
@@ -1103,7 +1103,7 @@ NK_INTERNAL void nk_reduce_minmax_i8_haswell_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = (nk_size_t)loop_cycle_vec.u8s[max_lane] * 32 + max_lane;
 }
 
-NK_PUBLIC void nk_reduce_minmax_i8_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_i8_haswell(                     //
     nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1137,8 +1137,8 @@ NK_PUBLIC void nk_reduce_minmax_i8_haswell(                           //
                                    max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_u8_haswell_contiguous_( //
-    nk_u8_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_u8_haswell_contiguous_( //
+    nk_u8_t const *data_ptr, nk_size_t count,                   //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
     __m256i zero_u8x32 = _mm256_setzero_si256();
@@ -1172,7 +1172,7 @@ NK_INTERNAL void nk_reduce_moments_u8_haswell_contiguous_( //
     *sumsq_ptr = (nk_u64_t)nk_reduce_add_i64x4_haswell_(sumsq_u64x4);
 }
 
-NK_INTERNAL void nk_reduce_moments_u8_haswell_strided_(                  //
+NK_HELPER_INLINE void nk_reduce_moments_u8_haswell_strided_(             //
     nk_u8_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -1207,7 +1207,7 @@ NK_INTERNAL void nk_reduce_moments_u8_haswell_strided_(                  //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_PUBLIC void nk_reduce_moments_u8_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_u8_haswell(                    //
     nk_u8_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -1231,9 +1231,9 @@ NK_PUBLIC void nk_reduce_moments_u8_haswell(                          //
     else nk_reduce_moments_u8_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_u8_haswell_contiguous_( //
-    nk_u8_t const *data_ptr, nk_size_t count,             //
-    nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_u8_haswell_contiguous_( //
+    nk_u8_t const *data_ptr, nk_size_t count,                  //
+    nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     // XOR-bias to signed domain for _mm256_cmpgt_epi8
@@ -1305,7 +1305,7 @@ NK_INTERNAL void nk_reduce_minmax_u8_haswell_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = (nk_size_t)loop_cycle_vec.u8s[max_lane] * 32 + max_lane;
 }
 
-NK_PUBLIC void nk_reduce_minmax_u8_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_u8_haswell(                     //
     nk_u8_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1338,8 +1338,8 @@ NK_PUBLIC void nk_reduce_minmax_u8_haswell(                           //
                                    max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_i16_haswell_contiguous_( //
-    nk_i16_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_i16_haswell_contiguous_( //
+    nk_i16_t const *data_ptr, nk_size_t count,                   //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
     __m256i ones_i16x16 = _mm256_set1_epi16(1);
@@ -1370,7 +1370,7 @@ NK_INTERNAL void nk_reduce_moments_i16_haswell_contiguous_( //
     *sumsq_ptr = (nk_u64_t)nk_reduce_add_i64x4_haswell_(sumsq_i64x4);
 }
 
-NK_INTERNAL void nk_reduce_moments_i16_haswell_strided_(                  //
+NK_HELPER_INLINE void nk_reduce_moments_i16_haswell_strided_(             //
     nk_i16_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -1403,7 +1403,7 @@ NK_INTERNAL void nk_reduce_moments_i16_haswell_strided_(                  //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_PUBLIC void nk_reduce_moments_i16_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_i16_haswell(                    //
     nk_i16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -1428,9 +1428,9 @@ NK_PUBLIC void nk_reduce_moments_i16_haswell(                          //
     else nk_reduce_moments_i16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_i16_haswell_contiguous_( //
-    nk_i16_t const *data_ptr, nk_size_t count,             //
-    nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_i16_haswell_contiguous_( //
+    nk_i16_t const *data_ptr, nk_size_t count,                  //
+    nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     __m256i min_i16x16 = _mm256_set1_epi16((short)NK_I16_MAX);
@@ -1497,7 +1497,7 @@ NK_INTERNAL void nk_reduce_minmax_i16_haswell_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = (nk_size_t)loop_cycle_vec.u16s[max_lane] * 16 + max_lane;
 }
 
-NK_PUBLIC void nk_reduce_minmax_i16_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_i16_haswell(                     //
     nk_i16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1531,8 +1531,8 @@ NK_PUBLIC void nk_reduce_minmax_i16_haswell(                           //
                                     max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_u16_haswell_contiguous_( //
-    nk_u16_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_u16_haswell_contiguous_( //
+    nk_u16_t const *data_ptr, nk_size_t count,                   //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
     // Widen u16→u32, square in u32, widen to u64.
@@ -1563,7 +1563,7 @@ NK_INTERNAL void nk_reduce_moments_u16_haswell_contiguous_( //
     *sumsq_ptr = (nk_u64_t)nk_reduce_add_i64x4_haswell_(sumsq_u64x4);
 }
 
-NK_INTERNAL void nk_reduce_moments_u16_haswell_strided_(                  //
+NK_HELPER_INLINE void nk_reduce_moments_u16_haswell_strided_(             //
     nk_u16_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -1601,7 +1601,7 @@ NK_INTERNAL void nk_reduce_moments_u16_haswell_strided_(                  //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_PUBLIC void nk_reduce_moments_u16_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_u16_haswell(                    //
     nk_u16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -1625,9 +1625,9 @@ NK_PUBLIC void nk_reduce_moments_u16_haswell(                          //
     else nk_reduce_moments_u16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_u16_haswell_contiguous_( //
-    nk_u16_t const *data_ptr, nk_size_t count,             //
-    nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_u16_haswell_contiguous_( //
+    nk_u16_t const *data_ptr, nk_size_t count,                  //
+    nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_u16_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     // XOR-bias to signed domain for _mm256_cmpgt_epi16
@@ -1701,7 +1701,7 @@ NK_INTERNAL void nk_reduce_minmax_u16_haswell_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = (nk_size_t)loop_cycle_vec.u16s[max_lane] * 16 + max_lane;
 }
 
-NK_PUBLIC void nk_reduce_minmax_u16_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_u16_haswell(                     //
     nk_u16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_u16_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1734,8 +1734,8 @@ NK_PUBLIC void nk_reduce_minmax_u16_haswell(                           //
                                     max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_i32_haswell_contiguous_( //
-    nk_i32_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_i32_haswell_contiguous_( //
+    nk_i32_t const *data_ptr, nk_size_t count,                   //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
     __m256i sum_low_i64x4 = _mm256_setzero_si256();
@@ -1845,7 +1845,7 @@ NK_INTERNAL void nk_reduce_moments_i32_haswell_contiguous_( //
     else *sum_ptr = NK_I64_MIN;
 }
 
-NK_PUBLIC void nk_reduce_moments_i32_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_i32_haswell(                    //
     nk_i32_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -1858,9 +1858,9 @@ NK_PUBLIC void nk_reduce_moments_i32_haswell(                          //
     else nk_reduce_moments_i32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_i32_haswell_contiguous_( //
-    nk_i32_t const *data_ptr, nk_size_t count,             //
-    nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_i32_haswell_contiguous_( //
+    nk_i32_t const *data_ptr, nk_size_t count,                  //
+    nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_i32_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     __m256i min_i32x8 = _mm256_set1_epi32(NK_I32_MAX);
@@ -1924,7 +1924,7 @@ NK_INTERNAL void nk_reduce_minmax_i32_haswell_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = (nk_size_t)loop_cycle_vec.u32s[max_lane] * 8 + max_lane;
 }
 
-NK_PUBLIC void nk_reduce_minmax_i32_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_i32_haswell(                     //
     nk_i32_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_i32_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1958,8 +1958,8 @@ NK_PUBLIC void nk_reduce_minmax_i32_haswell(                           //
                                     max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_u32_haswell_contiguous_( //
-    nk_u32_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_u32_haswell_contiguous_( //
+    nk_u32_t const *data_ptr, nk_size_t count,                   //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
     __m256i sum_u64x4 = _mm256_setzero_si256();
@@ -1992,7 +1992,7 @@ NK_INTERNAL void nk_reduce_moments_u32_haswell_contiguous_( //
     *sumsq_ptr = nk_reduce_sadd_u64x4_haswell_(sumsq_u64x4);
 }
 
-NK_PUBLIC void nk_reduce_moments_u32_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_u32_haswell(                    //
     nk_u32_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -2014,9 +2014,9 @@ NK_PUBLIC void nk_reduce_moments_u32_haswell(                          //
     else nk_reduce_moments_u32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_u32_haswell_contiguous_( //
-    nk_u32_t const *data_ptr, nk_size_t count,             //
-    nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_u32_haswell_contiguous_( //
+    nk_u32_t const *data_ptr, nk_size_t count,                  //
+    nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_u32_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     // XOR-bias to signed domain for _mm256_cmpgt_epi32
@@ -2087,7 +2087,7 @@ NK_INTERNAL void nk_reduce_minmax_u32_haswell_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = (nk_size_t)loop_cycle_vec.u32s[max_lane] * 8 + max_lane;
 }
 
-NK_PUBLIC void nk_reduce_minmax_u32_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_u32_haswell(                     //
     nk_u32_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_u32_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2120,8 +2120,8 @@ NK_PUBLIC void nk_reduce_minmax_u32_haswell(                           //
                                     max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_i64_haswell_contiguous_( //
-    nk_i64_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_i64_haswell_contiguous_( //
+    nk_i64_t const *data_ptr, nk_size_t count,                   //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
     __m256i sum_low_u64x4 = _mm256_setzero_si256();
@@ -2181,7 +2181,7 @@ NK_INTERNAL void nk_reduce_moments_i64_haswell_contiguous_( //
     else *sum_ptr = NK_I64_MIN;
 }
 
-NK_PUBLIC void nk_reduce_moments_i64_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_i64_haswell(                    //
     nk_i64_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -2194,9 +2194,9 @@ NK_PUBLIC void nk_reduce_moments_i64_haswell(                          //
     else nk_reduce_moments_i64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_i64_haswell_contiguous_( //
-    nk_i64_t const *data_ptr, nk_size_t count,             //
-    nk_i64_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_i64_haswell_contiguous_( //
+    nk_i64_t const *data_ptr, nk_size_t count,                  //
+    nk_i64_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_i64_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     __m256i min_i64x4 = _mm256_set1_epi64x(NK_I64_MAX);
@@ -2262,7 +2262,7 @@ NK_INTERNAL void nk_reduce_minmax_i64_haswell_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = (nk_size_t)loop_cycle_vec.u64s[max_lane] * 4 + max_lane;
 }
 
-NK_PUBLIC void nk_reduce_minmax_i64_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_i64_haswell(                     //
     nk_i64_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_i64_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2283,8 +2283,8 @@ NK_PUBLIC void nk_reduce_minmax_i64_haswell(                           //
                                     max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_u64_haswell_contiguous_( //
-    nk_u64_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_u64_haswell_contiguous_( //
+    nk_u64_t const *data_ptr, nk_size_t count,                   //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
     __m256i sum_u64x4 = _mm256_setzero_si256();
@@ -2306,7 +2306,7 @@ NK_INTERNAL void nk_reduce_moments_u64_haswell_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_PUBLIC void nk_reduce_moments_u64_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_u64_haswell(                    //
     nk_u64_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -2319,9 +2319,9 @@ NK_PUBLIC void nk_reduce_moments_u64_haswell(                          //
     else nk_reduce_moments_u64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_u64_haswell_contiguous_( //
-    nk_u64_t const *data_ptr, nk_size_t count,             //
-    nk_u64_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_u64_haswell_contiguous_( //
+    nk_u64_t const *data_ptr, nk_size_t count,                  //
+    nk_u64_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_u64_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     // XOR-bias to signed domain for _mm256_cmpgt_epi64
@@ -2393,7 +2393,7 @@ NK_INTERNAL void nk_reduce_minmax_u64_haswell_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = (nk_size_t)loop_cycle_vec.u64s[max_lane] * 4 + max_lane;
 }
 
-NK_PUBLIC void nk_reduce_minmax_u64_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_u64_haswell(                     //
     nk_u64_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_u64_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2413,8 +2413,8 @@ NK_PUBLIC void nk_reduce_minmax_u64_haswell(                           //
                                     max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_e4m3_haswell_contiguous_( //
-    nk_e4m3_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_e4m3_haswell_contiguous_( //
+    nk_e4m3_t const *data_ptr, nk_size_t count,                   //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
     __m256 sum_f32x8 = _mm256_setzero_ps();
@@ -2435,7 +2435,7 @@ NK_INTERNAL void nk_reduce_moments_e4m3_haswell_contiguous_( //
     *sum_ptr = nk_reduce_add_f32x8_haswell_(sum_f32x8), *sumsq_ptr = nk_reduce_add_f32x8_haswell_(sumsq_f32x8);
 }
 
-NK_INTERNAL void nk_reduce_moments_e4m3_haswell_strided_(                  //
+NK_HELPER_INLINE void nk_reduce_moments_e4m3_haswell_strided_(             //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -2466,7 +2466,7 @@ NK_INTERNAL void nk_reduce_moments_e4m3_haswell_strided_(                  //
     *sum_ptr = nk_reduce_add_f32x8_haswell_(sum_f32x8), *sumsq_ptr = nk_reduce_add_f32x8_haswell_(sumsq_f32x8);
 }
 
-NK_PUBLIC void nk_reduce_moments_e4m3_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_e4m3_haswell(                    //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -2489,9 +2489,9 @@ NK_PUBLIC void nk_reduce_moments_e4m3_haswell(                          //
     else nk_reduce_moments_e4m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_e4m3_haswell_contiguous_( //
-    nk_e4m3_t const *data_ptr, nk_size_t count,             //
-    nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_e4m3_haswell_contiguous_( //
+    nk_e4m3_t const *data_ptr, nk_size_t count,                  //
+    nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_e4m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     // E4M3 NaN: comparable 0x00 (neg NaN 0xFF) and 0xFF (pos NaN 0x7F).
@@ -2599,7 +2599,7 @@ NK_INTERNAL void nk_reduce_minmax_e4m3_haswell_contiguous_( //
     }
 }
 
-NK_PUBLIC void nk_reduce_minmax_e4m3_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_e4m3_haswell(                     //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_e4m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2638,8 +2638,8 @@ NK_PUBLIC void nk_reduce_minmax_e4m3_haswell(                           //
                                      max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_e5m2_haswell_contiguous_( //
-    nk_e5m2_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_e5m2_haswell_contiguous_( //
+    nk_e5m2_t const *data_ptr, nk_size_t count,                   //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
     __m256 sum_f32x8 = _mm256_setzero_ps();
@@ -2660,7 +2660,7 @@ NK_INTERNAL void nk_reduce_moments_e5m2_haswell_contiguous_( //
     *sum_ptr = nk_reduce_add_f32x8_haswell_(sum_f32x8), *sumsq_ptr = nk_reduce_add_f32x8_haswell_(sumsq_f32x8);
 }
 
-NK_INTERNAL void nk_reduce_moments_e5m2_haswell_strided_(                  //
+NK_HELPER_INLINE void nk_reduce_moments_e5m2_haswell_strided_(             //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -2691,7 +2691,7 @@ NK_INTERNAL void nk_reduce_moments_e5m2_haswell_strided_(                  //
     *sum_ptr = nk_reduce_add_f32x8_haswell_(sum_f32x8), *sumsq_ptr = nk_reduce_add_f32x8_haswell_(sumsq_f32x8);
 }
 
-NK_PUBLIC void nk_reduce_moments_e5m2_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_e5m2_haswell(                    //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -2714,9 +2714,9 @@ NK_PUBLIC void nk_reduce_moments_e5m2_haswell(                          //
     else nk_reduce_moments_e5m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_e5m2_haswell_contiguous_( //
-    nk_e5m2_t const *data_ptr, nk_size_t count,             //
-    nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_e5m2_haswell_contiguous_( //
+    nk_e5m2_t const *data_ptr, nk_size_t count,                  //
+    nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_e5m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     // E5M2 NaN in comparable form: 0x00-0x02 (neg NaN) and 0xFD-0xFF (pos NaN).
@@ -2825,7 +2825,7 @@ NK_INTERNAL void nk_reduce_minmax_e5m2_haswell_contiguous_( //
     }
 }
 
-NK_PUBLIC void nk_reduce_minmax_e5m2_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_e5m2_haswell(                     //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_e5m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2863,8 +2863,8 @@ NK_PUBLIC void nk_reduce_minmax_e5m2_haswell(                           //
                                      max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_e2m3_haswell_contiguous_( //
-    nk_e2m3_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_e2m3_haswell_contiguous_( //
+    nk_e2m3_t const *data_ptr, nk_size_t count,                   //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
     __m256 sum_f32x8 = _mm256_setzero_ps();
@@ -2885,7 +2885,7 @@ NK_INTERNAL void nk_reduce_moments_e2m3_haswell_contiguous_( //
     *sum_ptr = nk_reduce_add_f32x8_haswell_(sum_f32x8), *sumsq_ptr = nk_reduce_add_f32x8_haswell_(sumsq_f32x8);
 }
 
-NK_INTERNAL void nk_reduce_moments_e2m3_haswell_strided_(                  //
+NK_HELPER_INLINE void nk_reduce_moments_e2m3_haswell_strided_(             //
     nk_e2m3_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -2915,7 +2915,7 @@ NK_INTERNAL void nk_reduce_moments_e2m3_haswell_strided_(                  //
     *sum_ptr = nk_reduce_add_f32x8_haswell_(sum_f32x8), *sumsq_ptr = nk_reduce_add_f32x8_haswell_(sumsq_f32x8);
 }
 
-NK_PUBLIC void nk_reduce_moments_e2m3_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_e2m3_haswell(                    //
     nk_e2m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -2938,7 +2938,7 @@ NK_PUBLIC void nk_reduce_moments_e2m3_haswell(                          //
     else nk_reduce_moments_e2m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL __m256i nk_fp6x32_to_u8x32_comparable_haswell_(__m256i raw_i8x32) {
+NK_HELPER_INLINE __m256i nk_fp6x32_to_u8x32_comparable_haswell_(__m256i raw_i8x32) {
     raw_i8x32 = _mm256_and_si256(raw_i8x32, _mm256_set1_epi8(0x3F)); // mask to 6 valid bits
     __m256i sign_mask_i8x32 = _mm256_set1_epi8(0x20);
     __m256i neg_i8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(raw_i8x32, sign_mask_i8x32), sign_mask_i8x32);
@@ -2948,7 +2948,7 @@ NK_INTERNAL __m256i nk_fp6x32_to_u8x32_comparable_haswell_(__m256i raw_i8x32) {
     return _mm256_xor_si256(raw_i8x32, xor_i8x32);
 }
 
-NK_INTERNAL __m256i nk_u8x32_comparable_to_fp6x32_haswell_(__m256i cmp_i8x32) {
+NK_HELPER_INLINE __m256i nk_u8x32_comparable_to_fp6x32_haswell_(__m256i cmp_i8x32) {
     __m256i sign_mask_i8x32 = _mm256_set1_epi8(0x20);
     __m256i was_neg_i8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(cmp_i8x32, sign_mask_i8x32), _mm256_setzero_si256());
     __m256i neg_xor_i8x32 = _mm256_set1_epi8(0x3F);
@@ -2957,9 +2957,9 @@ NK_INTERNAL __m256i nk_u8x32_comparable_to_fp6x32_haswell_(__m256i cmp_i8x32) {
     return _mm256_xor_si256(cmp_i8x32, xor_i8x32);
 }
 
-NK_INTERNAL void nk_reduce_minmax_e2m3_haswell_contiguous_( //
-    nk_e2m3_t const *data_ptr, nk_size_t count,             //
-    nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_e2m3_haswell_contiguous_( //
+    nk_e2m3_t const *data_ptr, nk_size_t count,                  //
+    nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_e2m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     // FP6 has no NaN — use simple unsigned min/max on comparable form
@@ -3041,7 +3041,7 @@ NK_INTERNAL void nk_reduce_minmax_e2m3_haswell_contiguous_( //
     *max_value_ptr = max_vec.e2m3s[max_lane];
 }
 
-NK_PUBLIC void nk_reduce_minmax_e2m3_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_e2m3_haswell(                     //
     nk_e2m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_e2m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -3073,8 +3073,8 @@ NK_PUBLIC void nk_reduce_minmax_e2m3_haswell(                           //
                                      max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_e3m2_haswell_contiguous_( //
-    nk_e3m2_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_e3m2_haswell_contiguous_( //
+    nk_e3m2_t const *data_ptr, nk_size_t count,                   //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
     __m256 sum_f32x8 = _mm256_setzero_ps();
@@ -3095,7 +3095,7 @@ NK_INTERNAL void nk_reduce_moments_e3m2_haswell_contiguous_( //
     *sum_ptr = nk_reduce_add_f32x8_haswell_(sum_f32x8), *sumsq_ptr = nk_reduce_add_f32x8_haswell_(sumsq_f32x8);
 }
 
-NK_INTERNAL void nk_reduce_moments_e3m2_haswell_strided_(                  //
+NK_HELPER_INLINE void nk_reduce_moments_e3m2_haswell_strided_(             //
     nk_e3m2_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -3125,7 +3125,7 @@ NK_INTERNAL void nk_reduce_moments_e3m2_haswell_strided_(                  //
     *sum_ptr = nk_reduce_add_f32x8_haswell_(sum_f32x8), *sumsq_ptr = nk_reduce_add_f32x8_haswell_(sumsq_f32x8);
 }
 
-NK_PUBLIC void nk_reduce_moments_e3m2_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_e3m2_haswell(                    //
     nk_e3m2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -3148,9 +3148,9 @@ NK_PUBLIC void nk_reduce_moments_e3m2_haswell(                          //
     else nk_reduce_moments_e3m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_e3m2_haswell_contiguous_( //
-    nk_e3m2_t const *data_ptr, nk_size_t count,             //
-    nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_e3m2_haswell_contiguous_( //
+    nk_e3m2_t const *data_ptr, nk_size_t count,                  //
+    nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_e3m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     nk_b256_vec_t min_vec, max_vec;
@@ -3230,7 +3230,7 @@ NK_INTERNAL void nk_reduce_minmax_e3m2_haswell_contiguous_( //
     *max_value_ptr = max_vec.e3m2s[max_lane];
 }
 
-NK_PUBLIC void nk_reduce_minmax_e3m2_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_e3m2_haswell(                     //
     nk_e3m2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_e3m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -3262,8 +3262,8 @@ NK_PUBLIC void nk_reduce_minmax_e3m2_haswell(                           //
                                      max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_bf16_haswell_contiguous_( //
-    nk_bf16_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_bf16_haswell_contiguous_( //
+    nk_bf16_t const *data_ptr, nk_size_t count,                   //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
     __m256 sum_f32x8 = _mm256_setzero_ps();
@@ -3299,7 +3299,7 @@ NK_INTERNAL void nk_reduce_moments_bf16_haswell_contiguous_( //
     *sum_ptr = nk_reduce_add_f32x8_haswell_(sum_f32x8), *sumsq_ptr = nk_reduce_add_f32x8_haswell_(sumsq_f32x8);
 }
 
-NK_PUBLIC void nk_reduce_moments_bf16_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_bf16_haswell(                    //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -3321,9 +3321,9 @@ NK_PUBLIC void nk_reduce_moments_bf16_haswell(                          //
     else nk_reduce_moments_bf16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_bf16_haswell_contiguous_( //
-    nk_bf16_t const *data_ptr, nk_size_t count,             //
-    nk_bf16_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_bf16_haswell_contiguous_( //
+    nk_bf16_t const *data_ptr, nk_size_t count,                  //
+    nk_bf16_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_bf16_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     __m256i abs_mask_u16x16 = _mm256_set1_epi16(0x7FFF);
@@ -3416,7 +3416,7 @@ NK_INTERNAL void nk_reduce_minmax_bf16_haswell_contiguous_( //
     *max_value_ptr = (nk_bf16_t)((nk_u16_t)max_value_comparable ^ ((nk_u16_t)max_sign >> 1));
 }
 
-NK_PUBLIC void nk_reduce_minmax_bf16_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_bf16_haswell(                     //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_bf16_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_bf16_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -3452,8 +3452,8 @@ NK_PUBLIC void nk_reduce_minmax_bf16_haswell(                           //
                                      max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_f16_haswell_contiguous_( //
-    nk_f16_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_f16_haswell_contiguous_( //
+    nk_f16_t const *data_ptr, nk_size_t count,                   //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
     __m256 sum_f32x8 = _mm256_setzero_ps();
@@ -3483,7 +3483,7 @@ NK_INTERNAL void nk_reduce_moments_f16_haswell_contiguous_( //
     *sum_ptr = nk_reduce_add_f32x8_haswell_(sum_f32x8), *sumsq_ptr = nk_reduce_add_f32x8_haswell_(sumsq_f32x8);
 }
 
-NK_PUBLIC void nk_reduce_moments_f16_haswell(                          //
+NK_API_COMPTIME void nk_reduce_moments_f16_haswell(                    //
     nk_f16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -3505,9 +3505,9 @@ NK_PUBLIC void nk_reduce_moments_f16_haswell(                          //
     else nk_reduce_moments_f16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_minmax_f16_haswell_contiguous_( //
-    nk_f16_t const *data_ptr, nk_size_t count,             //
-    nk_f16_t *min_value_ptr, nk_size_t *min_index_ptr,     //
+NK_HELPER_INLINE void nk_reduce_minmax_f16_haswell_contiguous_( //
+    nk_f16_t const *data_ptr, nk_size_t count,                  //
+    nk_f16_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_f16_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     __m256i abs_mask_u16x16 = _mm256_set1_epi16(0x7FFF);
@@ -3600,7 +3600,7 @@ NK_INTERNAL void nk_reduce_minmax_f16_haswell_contiguous_( //
     *max_value_ptr = (nk_f16_t)((nk_u16_t)max_value_comparable ^ ((nk_u16_t)max_sign >> 1));
 }
 
-NK_PUBLIC void nk_reduce_minmax_f16_haswell(                           //
+NK_API_COMPTIME void nk_reduce_minmax_f16_haswell(                     //
     nk_f16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f16_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_f16_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -3636,8 +3636,8 @@ NK_PUBLIC void nk_reduce_minmax_f16_haswell(                           //
                                     max_index_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_i4_haswell_contiguous_( //
-    nk_i4x2_t const *data_ptr, nk_size_t count,            //
+NK_HELPER_INLINE void nk_reduce_moments_i4_haswell_contiguous_( //
+    nk_i4x2_t const *data_ptr, nk_size_t count,                 //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
     __m256i mask_0f_i8x32 = _mm256_set1_epi8(0x0F);
@@ -3684,7 +3684,7 @@ NK_INTERNAL void nk_reduce_moments_i4_haswell_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_PUBLIC void nk_reduce_moments_i4_haswell(                            //
+NK_API_COMPTIME void nk_reduce_moments_i4_haswell(                      //
     nk_i4x2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -3694,8 +3694,8 @@ NK_PUBLIC void nk_reduce_moments_i4_haswell(                            //
     else nk_reduce_moments_i4_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_u4_haswell_contiguous_( //
-    nk_u4x2_t const *data_ptr, nk_size_t count,            //
+NK_HELPER_INLINE void nk_reduce_moments_u4_haswell_contiguous_( //
+    nk_u4x2_t const *data_ptr, nk_size_t count,                 //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
     __m256i mask_0f_i8x32 = _mm256_set1_epi8(0x0F);
@@ -3734,7 +3734,7 @@ NK_INTERNAL void nk_reduce_moments_u4_haswell_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_PUBLIC void nk_reduce_moments_u4_haswell(                            //
+NK_API_COMPTIME void nk_reduce_moments_u4_haswell(                      //
     nk_u4x2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -3744,8 +3744,8 @@ NK_PUBLIC void nk_reduce_moments_u4_haswell(                            //
     else nk_reduce_moments_u4_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_u1_haswell_contiguous_( //
-    nk_u1x8_t const *data_ptr, nk_size_t count,            //
+NK_HELPER_INLINE void nk_reduce_moments_u1_haswell_contiguous_( //
+    nk_u1x8_t const *data_ptr, nk_size_t count,                 //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
     __m256i lut_i8x32 = _mm256_setr_epi8( //
@@ -3776,7 +3776,7 @@ NK_INTERNAL void nk_reduce_moments_u1_haswell_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sum;
 }
 
-NK_PUBLIC void nk_reduce_moments_u1_haswell(                            //
+NK_API_COMPTIME void nk_reduce_moments_u1_haswell(                      //
     nk_u1x8_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
 
@@ -3786,9 +3786,10 @@ NK_PUBLIC void nk_reduce_moments_u1_haswell(                            //
     else nk_reduce_moments_u1_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_PUBLIC void nk_reduce_rmsnorm_f32_haswell(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y, nk_size_t rows,
-                                             nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
-                                             nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale) {
+NK_API_COMPTIME void nk_reduce_rmsnorm_f32_haswell(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y,
+                                                   nk_size_t rows, nk_size_t groups, nk_size_t cols,
+                                                   nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
+                                                   nk_f32_t input_scale) {
     nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_row_stride);
@@ -3814,9 +3815,10 @@ NK_PUBLIC void nk_reduce_rmsnorm_f32_haswell(nk_f32_t const *x, nk_f32_t const *
     }
 }
 
-NK_PUBLIC void nk_reduce_rmsnorm_bf16_haswell(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y, nk_size_t rows,
-                                              nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
-                                              nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale) {
+NK_API_COMPTIME void nk_reduce_rmsnorm_bf16_haswell(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
+                                                    nk_size_t rows, nk_size_t groups, nk_size_t cols,
+                                                    nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
+                                                    nk_f32_t input_scale) {
     nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_bf16_t const *x_row = (nk_bf16_t const *)((unsigned char const *)x + r * x_row_stride);
@@ -3849,9 +3851,10 @@ NK_PUBLIC void nk_reduce_rmsnorm_bf16_haswell(nk_bf16_t const *x, nk_f32_t const
     }
 }
 
-NK_PUBLIC void nk_reduce_rmsnorm_e4m3_haswell(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y, nk_size_t rows,
-                                              nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
-                                              nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale) {
+NK_API_COMPTIME void nk_reduce_rmsnorm_e4m3_haswell(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
+                                                    nk_size_t rows, nk_size_t groups, nk_size_t cols,
+                                                    nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
+                                                    nk_f32_t input_scale) {
     nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_e4m3_t const *x_row = (nk_e4m3_t const *)((unsigned char const *)x + r * x_row_stride);

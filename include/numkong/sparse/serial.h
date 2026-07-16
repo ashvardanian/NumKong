@@ -17,7 +17,7 @@ extern "C" {
 #endif
 
 #define nk_define_sparse_intersect_(input_type)                                                                      \
-    NK_INTERNAL nk_size_t nk_sparse_intersect_##input_type##_galloping_search_(                                      \
+    NK_HELPER_INLINE nk_size_t nk_sparse_intersect_##input_type##_galloping_search_(                                 \
         nk_##input_type##_t const *array, nk_size_t start, nk_size_t length, nk_##input_type##_t val) {              \
         nk_size_t low = start;                                                                                       \
         nk_size_t high = start + 1;                                                                                  \
@@ -32,7 +32,7 @@ extern "C" {
         }                                                                                                            \
         return low;                                                                                                  \
     }                                                                                                                \
-    NK_INTERNAL nk_size_t nk_sparse_intersect_##input_type##_linear_scan_(                                           \
+    NK_HELPER_INLINE nk_size_t nk_sparse_intersect_##input_type##_linear_scan_(                                      \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t a_length, nk_size_t b_length,          \
         nk_##input_type##_t *result) {                                                                               \
         nk_size_t intersection_size = 0;                                                                             \
@@ -49,7 +49,7 @@ extern "C" {
         }                                                                                                            \
         return intersection_size;                                                                                    \
     }                                                                                                                \
-    NK_PUBLIC void nk_sparse_intersect_##input_type##_serial(                                                        \
+    NK_API_COMPTIME void nk_sparse_intersect_##input_type##_serial(                                                  \
         nk_##input_type##_t const *shorter, nk_##input_type##_t const *longer, nk_size_t shorter_length,             \
         nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count) {                                    \
         /* Swap arrays if necessary, as we want "longer" to be larger than "shorter" */                              \
@@ -84,7 +84,7 @@ extern "C" {
     }
 
 #define nk_define_sparse_dot_(input_type, weight_type, accumulator_type, load_and_convert)                 \
-    NK_PUBLIC void nk_sparse_dot_##input_type##weight_type##_serial(                                       \
+    NK_API_COMPTIME void nk_sparse_dot_##input_type##weight_type##_serial(                                 \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##weight_type##_t const *a_weights, \
         nk_##weight_type##_t const *b_weights, nk_size_t a_length, nk_size_t b_length,                     \
         nk_##accumulator_type##_t *product) {                                                              \

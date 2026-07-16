@@ -588,7 +588,7 @@ char *ensure_contiguous_buffer(char const *src_data, nk_dtype_t src_dtype, nk_dt
 static PyObject *tensor_elementwise_scalar(Tensor *a, double alpha_value, double beta_value) {
     nk_each_scale_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_each_scale_k, a->dtype, static_capabilities, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_find_kernel_punned(nk_kernel_each_scale_k, a->dtype, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) {
         PyErr_Format(PyExc_NotImplementedError, "scale not supported for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(a->dtype));
@@ -642,7 +642,7 @@ static PyObject *Tensor_add(PyObject *self, PyObject *other) {
 
         nk_each_sum_punned_t kernel = NULL;
         nk_capability_t cap = nk_cap_serial_k;
-        nk_find_kernel_punned(nk_kernel_each_sum_k, a->dtype, static_capabilities, (nk_kernel_punned_t *)&kernel, &cap);
+        nk_find_kernel_punned(nk_kernel_each_sum_k, a->dtype, (nk_kernel_punned_t *)&kernel, &cap);
         if (!kernel || !cap) {
             PyErr_Format(PyExc_NotImplementedError, "add not supported for dtype '%s'",
                          nk_dtype_to_pybuffer_typestr(a->dtype));
@@ -703,8 +703,7 @@ static PyObject *Tensor_subtract(PyObject *self, PyObject *other) {
         // Single-pass subtract via blend: result = 1·a + (−1)·b
         nk_each_blend_punned_t kernel = NULL;
         nk_capability_t cap = nk_cap_serial_k;
-        nk_find_kernel_punned(nk_kernel_each_blend_k, a->dtype, static_capabilities, (nk_kernel_punned_t *)&kernel,
-                              &cap);
+        nk_find_kernel_punned(nk_kernel_each_blend_k, a->dtype, (nk_kernel_punned_t *)&kernel, &cap);
         if (!kernel || !cap) {
             PyErr_Format(PyExc_NotImplementedError, "subtract not supported for dtype '%s'",
                          nk_dtype_to_pybuffer_typestr(a->dtype));
@@ -769,7 +768,7 @@ static PyObject *Tensor_multiply(PyObject *self, PyObject *other) {
 
         nk_each_fma_punned_t kernel = NULL;
         nk_capability_t cap = nk_cap_serial_k;
-        nk_find_kernel_punned(nk_kernel_each_fma_k, a->dtype, static_capabilities, (nk_kernel_punned_t *)&kernel, &cap);
+        nk_find_kernel_punned(nk_kernel_each_fma_k, a->dtype, (nk_kernel_punned_t *)&kernel, &cap);
         if (!kernel || !cap) {
             PyErr_Format(PyExc_NotImplementedError, "multiply not supported for dtype '%s'",
                          nk_dtype_to_pybuffer_typestr(a->dtype));
@@ -1614,8 +1613,7 @@ static int impl_reduce_moments(TensorView const *view, nk_scalar_buffer_t *sum_o
 
     nk_reduce_moments_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_reduce_moments_k, view->dtype, static_capabilities, (nk_kernel_punned_t *)&kernel,
-                          &cap);
+    nk_find_kernel_punned(nk_kernel_reduce_moments_k, view->dtype, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) return -1;
 
     nk_dtype_t sum_dtype = nk_reduce_moments_sum_dtype(view->dtype);
@@ -1752,8 +1750,7 @@ static int impl_reduce_minmax(TensorView const *view, nk_scalar_buffer_t *min_ou
 
     nk_reduce_minmax_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_reduce_minmax_k, view->dtype, static_capabilities, (nk_kernel_punned_t *)&kernel,
-                          &cap);
+    nk_find_kernel_punned(nk_kernel_reduce_minmax_k, view->dtype, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) return -1;
 
     nk_dtype_t value_dtype = nk_reduce_minmax_value_dtype(view->dtype);

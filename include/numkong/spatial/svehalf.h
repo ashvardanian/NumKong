@@ -46,8 +46,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+fp16")
 #endif
 
-NK_PUBLIC void nk_sqeuclidean_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const *b_enum, nk_size_t n,
-                                          nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const *b_enum, nk_size_t n,
+                                                nk_f32_t *result) {
     nk_size_t i = 0;
     svfloat32_t d2_f32x = svdup_n_f32(0.0f);
     nk_f16_for_arm_simd_t const *a = (nk_f16_for_arm_simd_t const *)(a_enum);
@@ -78,12 +78,13 @@ NK_PUBLIC void nk_sqeuclidean_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const
     *result = nk_svaddv_f32_(svptrue_b32(), d2_f32x);
 }
 
-NK_PUBLIC void nk_euclidean_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_sqeuclidean_f16_svehalf(a, b, n, result);
     *result = nk_f32_sqrt_neon(*result);
 }
 
-NK_PUBLIC void nk_angular_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const *b_enum, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const *b_enum, nk_size_t n,
+                                            nk_f32_t *result) {
     nk_size_t i = 0;
     svfloat32_t ab_f32x = svdup_n_f32(0.0f);
     svfloat32_t a2_f32x = svdup_n_f32(0.0f);

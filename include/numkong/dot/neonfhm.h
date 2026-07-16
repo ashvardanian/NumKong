@@ -29,7 +29,7 @@
  *  @section dot_neonfhm_stateful Stateful Streaming Logic
  *
  *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_INTERNAL` functions:
+ *  `NK_HELPER_INLINE` functions:
  *
  *  - nk_dot_f16x8 state with native FMLAL f16 dot-products.
  *
@@ -77,8 +77,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd+fp16+fp16fml")
 #endif
 
-NK_PUBLIC void nk_dot_f16_neonfhm(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
-                                  nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_f16_neonfhm(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
+                                        nk_f32_t *result) {
     float16x8_t a_f16x8, b_f16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_dot_f16_neonfhm_cycle:
@@ -107,10 +107,12 @@ typedef struct nk_dot_f16x8_state_neonfhm_t {
     float32x4_t sum_f32x4;
 } nk_dot_f16x8_state_neonfhm_t;
 
-NK_INTERNAL void nk_dot_f16x8_init_neonfhm(nk_dot_f16x8_state_neonfhm_t *state) { state->sum_f32x4 = vdupq_n_f32(0); }
+NK_HELPER_INLINE void nk_dot_f16x8_init_neonfhm(nk_dot_f16x8_state_neonfhm_t *state) {
+    state->sum_f32x4 = vdupq_n_f32(0);
+}
 
-NK_INTERNAL void nk_dot_f16x8_update_neonfhm(nk_dot_f16x8_state_neonfhm_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                             nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_f16x8_update_neonfhm(nk_dot_f16x8_state_neonfhm_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
+                                                  nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     float16x8_t a_f16x8 = vreinterpretq_f16_u16(a.u16x8);
@@ -120,7 +122,7 @@ NK_INTERNAL void nk_dot_f16x8_update_neonfhm(nk_dot_f16x8_state_neonfhm_t *state
     state->sum_f32x4 = vfmlalq_high_f16(state->sum_f32x4, a_f16x8, b_f16x8);
 }
 
-NK_INTERNAL void nk_dot_f16x8_finalize_neonfhm(                                               //
+NK_HELPER_INLINE void nk_dot_f16x8_finalize_neonfhm(                                          //
     nk_dot_f16x8_state_neonfhm_t const *state_a, nk_dot_f16x8_state_neonfhm_t const *state_b, //
     nk_dot_f16x8_state_neonfhm_t const *state_c, nk_dot_f16x8_state_neonfhm_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -130,8 +132,8 @@ NK_INTERNAL void nk_dot_f16x8_finalize_neonfhm(                                 
     result->f32x4 = vpaddq_f32(ab_f32x4, cd_f32x4);
 }
 
-NK_PUBLIC void nk_dot_f16c_neonfhm(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
-                                   nk_f32c_t *result) {
+NK_API_COMPTIME void nk_dot_f16c_neonfhm(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
+                                         nk_f32c_t *result) {
     // Accumulate into 4 float32x2_t vectors (low/high for real/imag)
     float32x2_t sum_real_low_f32x2 = vdup_n_f32(0);
     float32x2_t sum_real_high_f32x2 = vdup_n_f32(0);
@@ -174,8 +176,8 @@ NK_PUBLIC void nk_dot_f16c_neonfhm(nk_f16c_t const *a_pairs, nk_f16c_t const *b_
     result->imag = vaddvq_f32(sum_imag_f32x4) + tail_result.imag;
 }
 
-NK_PUBLIC void nk_vdot_f16c_neonfhm(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
-                                    nk_f32c_t *result) {
+NK_API_COMPTIME void nk_vdot_f16c_neonfhm(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
+                                          nk_f32c_t *result) {
     // Accumulate into 4 float32x2_t vectors (low/high for real/imag)
     float32x2_t sum_real_low_f32x2 = vdup_n_f32(0);
     float32x2_t sum_real_high_f32x2 = vdup_n_f32(0);
@@ -218,8 +220,8 @@ NK_PUBLIC void nk_vdot_f16c_neonfhm(nk_f16c_t const *a_pairs, nk_f16c_t const *b
     result->imag = vaddvq_f32(sum_imag_f32x4) + tail_result.imag;
 }
 
-NK_PUBLIC void nk_dot_e4m3_neonfhm(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars, nk_size_t count_scalars,
-                                   nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e4m3_neonfhm(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                         nk_size_t count_scalars, nk_f32_t *result) {
     float16x8_t a_low_f16x8, a_high_f16x8, b_low_f16x8, b_high_f16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_dot_e4m3_neonfhm_cycle:
@@ -244,8 +246,8 @@ nk_dot_e4m3_neonfhm_cycle:
     *result = vaddvq_f32(sum_f32x4);
 }
 
-NK_PUBLIC void nk_dot_e5m2_neonfhm(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars, nk_size_t count_scalars,
-                                   nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e5m2_neonfhm(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                         nk_size_t count_scalars, nk_f32_t *result) {
     float16x8_t a_low_f16x8, a_high_f16x8, b_low_f16x8, b_high_f16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_dot_e5m2_neonfhm_cycle:
@@ -280,12 +282,13 @@ typedef struct nk_dot_e4m3x16_state_neonfhm_t {
     float32x4_t sum_f32x4;
 } nk_dot_e4m3x16_state_neonfhm_t;
 
-NK_INTERNAL void nk_dot_e4m3x16_init_neonfhm(nk_dot_e4m3x16_state_neonfhm_t *state) {
+NK_HELPER_INLINE void nk_dot_e4m3x16_init_neonfhm(nk_dot_e4m3x16_state_neonfhm_t *state) {
     state->sum_f32x4 = vdupq_n_f32(0);
 }
 
-NK_INTERNAL void nk_dot_e4m3x16_update_neonfhm(nk_dot_e4m3x16_state_neonfhm_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                               nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_e4m3x16_update_neonfhm(nk_dot_e4m3x16_state_neonfhm_t *state, nk_b128_vec_t a,
+                                                    nk_b128_vec_t b, nk_size_t depth_offset,
+                                                    nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Convert e4m3 → f16 using 16-element LUT path (4× VQTBL4)
@@ -299,7 +302,7 @@ NK_INTERNAL void nk_dot_e4m3x16_update_neonfhm(nk_dot_e4m3x16_state_neonfhm_t *s
     state->sum_f32x4 = vfmlalq_high_f16(state->sum_f32x4, a_high_f16x8, b_high_f16x8);
 }
 
-NK_INTERNAL void nk_dot_e4m3x16_finalize_neonfhm(                                                 //
+NK_HELPER_INLINE void nk_dot_e4m3x16_finalize_neonfhm(                                            //
     nk_dot_e4m3x16_state_neonfhm_t const *state_a, nk_dot_e4m3x16_state_neonfhm_t const *state_b, //
     nk_dot_e4m3x16_state_neonfhm_t const *state_c, nk_dot_e4m3x16_state_neonfhm_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -313,12 +316,13 @@ typedef struct nk_dot_e5m2x16_state_neonfhm_t {
     float32x4_t sum_f32x4;
 } nk_dot_e5m2x16_state_neonfhm_t;
 
-NK_INTERNAL void nk_dot_e5m2x16_init_neonfhm(nk_dot_e5m2x16_state_neonfhm_t *state) {
+NK_HELPER_INLINE void nk_dot_e5m2x16_init_neonfhm(nk_dot_e5m2x16_state_neonfhm_t *state) {
     state->sum_f32x4 = vdupq_n_f32(0);
 }
 
-NK_INTERNAL void nk_dot_e5m2x16_update_neonfhm(nk_dot_e5m2x16_state_neonfhm_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                               nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_e5m2x16_update_neonfhm(nk_dot_e5m2x16_state_neonfhm_t *state, nk_b128_vec_t a,
+                                                    nk_b128_vec_t b, nk_size_t depth_offset,
+                                                    nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Convert e5m2 → f16 via SHLL: widen u8→u16 and shift left 8 in one instruction
@@ -333,7 +337,7 @@ NK_INTERNAL void nk_dot_e5m2x16_update_neonfhm(nk_dot_e5m2x16_state_neonfhm_t *s
     state->sum_f32x4 = vfmlalq_high_f16(state->sum_f32x4, a_high_f16x8, b_high_f16x8);
 }
 
-NK_INTERNAL void nk_dot_e5m2x16_finalize_neonfhm(                                                 //
+NK_HELPER_INLINE void nk_dot_e5m2x16_finalize_neonfhm(                                            //
     nk_dot_e5m2x16_state_neonfhm_t const *state_a, nk_dot_e5m2x16_state_neonfhm_t const *state_b, //
     nk_dot_e5m2x16_state_neonfhm_t const *state_c, nk_dot_e5m2x16_state_neonfhm_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {

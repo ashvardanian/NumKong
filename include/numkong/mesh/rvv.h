@@ -57,8 +57,8 @@
 extern "C" {
 #endif
 
-NK_INTERNAL void nk_accumulate_sum_f64m1_rvv_(vfloat64m1_t *sum_f64m1, vfloat64m1_t *compensation_f64m1,
-                                              vfloat64m1_t addend_f64m1, nk_size_t vector_length) {
+NK_HELPER_INLINE void nk_accumulate_sum_f64m1_rvv_(vfloat64m1_t *sum_f64m1, vfloat64m1_t *compensation_f64m1,
+                                                   vfloat64m1_t addend_f64m1, nk_size_t vector_length) {
     vfloat64m1_t tentative_sum_f64m1 = __riscv_vfadd_vv_f64m1(*sum_f64m1, addend_f64m1, vector_length);
     vfloat64m1_t virtual_addend_f64m1 = __riscv_vfsub_vv_f64m1(tentative_sum_f64m1, *sum_f64m1, vector_length);
     vfloat64m1_t sum_error_f64m1 = __riscv_vfadd_vv_f64m1(
@@ -71,9 +71,9 @@ NK_INTERNAL void nk_accumulate_sum_f64m1_rvv_(vfloat64m1_t *sum_f64m1, vfloat64m
                                                     vector_length);
 }
 
-NK_INTERNAL void nk_accumulate_product_f64m1_rvv_(vfloat64m1_t *sum_f64m1, vfloat64m1_t *compensation_f64m1,
-                                                  vfloat64m1_t left_f64m1, vfloat64m1_t right_f64m1,
-                                                  nk_size_t vector_length) {
+NK_HELPER_INLINE void nk_accumulate_product_f64m1_rvv_(vfloat64m1_t *sum_f64m1, vfloat64m1_t *compensation_f64m1,
+                                                       vfloat64m1_t left_f64m1, vfloat64m1_t right_f64m1,
+                                                       nk_size_t vector_length) {
     vfloat64m1_t product_f64m1 = __riscv_vfmul_vv_f64m1(left_f64m1, right_f64m1, vector_length);
     vfloat64m1_t product_error_f64m1 = __riscv_vfmsac_vv_f64m1(product_f64m1, left_f64m1, right_f64m1, vector_length);
     vfloat64m1_t tentative_sum_f64m1 = __riscv_vfadd_vv_f64m1(*sum_f64m1, product_f64m1, vector_length);
@@ -100,7 +100,7 @@ NK_INTERNAL void nk_accumulate_product_f64m1_rvv_(vfloat64m1_t *sum_f64m1, vfloa
  *  Cross-products use per-lane `vfwmacc_vv` accumulation (vfloat64m2_t) with
  *  deferred `vfredusum` after the loop — eliminates 9 reductions per iteration.
  */
-NK_INTERNAL void nk_centroid_and_cross_covariance_f32_rvv_(                 //
+NK_HELPER_INLINE void nk_centroid_and_cross_covariance_f32_rvv_(            //
     nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,           //
     nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z, //
     nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z, //
@@ -236,7 +236,7 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_f32_rvv_(                 //
  *  Per-lane `vfadd_vv`/`vfmacc_vv` accumulation with deferred `vfredusum` after the loop
  *  — eliminates 15 horizontal reductions per iteration.
  */
-NK_INTERNAL void nk_centroid_and_cross_covariance_f64_rvv_(                 //
+NK_HELPER_INLINE void nk_centroid_and_cross_covariance_f64_rvv_(            //
     nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count,           //
     nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z, //
     nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z, //
@@ -376,10 +376,10 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_f64_rvv_(                 //
  *  Cross-products use per-lane `vfwmacc_vv` accumulation (vfloat64m2_t) with
  *  deferred `vfredusum` after the loop — eliminates 9 reductions per iteration.
  */
-NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f32_rvv_(    //
-    nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,           //
-    nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z, //
-    nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z, //
+NK_HELPER_INLINE void nk_centroid_and_cross_covariance_and_variance_f32_rvv_( //
+    nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,             //
+    nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z,   //
+    nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z,   //
     nk_f64_t cross_covariance[9], nk_f64_t *centered_norm_squared_a, nk_f64_t *centered_norm_squared_b) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
     vfloat64m2_t sum_a_x_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length),
@@ -511,10 +511,10 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f32_rvv_(    //
  *  Per-lane `vfadd_vv`/`vfmacc_vv` accumulation with deferred `vfredusum` after the loop
  *  — eliminates 16 horizontal reductions per iteration.
  */
-NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f64_rvv_(    //
-    nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count,           //
-    nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z, //
-    nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z, //
+NK_HELPER_INLINE void nk_centroid_and_cross_covariance_and_variance_f64_rvv_( //
+    nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count,             //
+    nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z,   //
+    nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z,   //
     nk_f64_t cross_covariance[9], nk_f64_t *centered_norm_squared_a, nk_f64_t *centered_norm_squared_b) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
     vfloat64m1_t sum_a_x_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length),
@@ -639,7 +639,7 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f64_rvv_(    //
 }
 
 /** @brief Compute R = V * Uᵀ from SVD factors (f32), vectorized with `vfmul_vf`/`vfmacc_vf`. */
-NK_INTERNAL void nk_rotation_from_svd_f32_rvv_( //
+NK_HELPER_INLINE void nk_rotation_from_svd_f32_rvv_( //
     nk_f32_t *svd_left, nk_f32_t *svd_right, nk_f32_t optimal_rotation[9]) {
     nk_size_t vl3 = __riscv_vsetvl_e32m1(3);
     vfloat32m1_t u_row0_f32m1 = __riscv_vle32_v_f32m1(svd_left + 0, vl3);
@@ -662,8 +662,8 @@ NK_INTERNAL void nk_rotation_from_svd_f32_rvv_( //
     __riscv_vse32_v_f32m1(optimal_rotation + 6, rotation_row_f32m1, vl3);
 }
 
-NK_PUBLIC void nk_rmsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,
-                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_rmsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,
+                                     nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
@@ -711,8 +711,8 @@ NK_PUBLIC void nk_rmsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t p
     *result = nk_f64_sqrt_rvv(sum_squared / (nk_f64_t)points_count);
 }
 
-NK_PUBLIC void nk_rmsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count, nk_f64_t *a_centroid,
-                               nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_rmsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count, nk_f64_t *a_centroid,
+                                     nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
@@ -754,8 +754,9 @@ NK_PUBLIC void nk_rmsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t p
     *result = nk_f64_sqrt_rvv(sum_squared / (nk_f64_t)points_count);
 }
 
-NK_PUBLIC void nk_kabsch_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,
-                                 nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_kabsch_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,
+                                       nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                       nk_f64_t *result) {
     if (points_count == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -821,8 +822,9 @@ NK_PUBLIC void nk_kabsch_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t
     *result = nk_f64_sqrt_rvv(sum_squared / (nk_f64_t)points_count);
 }
 
-NK_PUBLIC void nk_kabsch_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count, nk_f64_t *a_centroid,
-                                 nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_kabsch_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count,
+                                       nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
+                                       nk_f64_t *result) {
     if (points_count == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -884,8 +886,9 @@ NK_PUBLIC void nk_kabsch_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t
     *result = nk_f64_sqrt_rvv(sum_squared / (nk_f64_t)points_count);
 }
 
-NK_PUBLIC void nk_umeyama_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,
-                                  nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_umeyama_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,
+                                        nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                        nk_f64_t *result) {
     if (points_count == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -959,8 +962,9 @@ NK_PUBLIC void nk_umeyama_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_
     *result = nk_f64_sqrt_rvv(sum_squared / (nk_f64_t)points_count);
 }
 
-NK_PUBLIC void nk_umeyama_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count, nk_f64_t *a_centroid,
-                                  nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_umeyama_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count,
+                                        nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
+                                        nk_f64_t *result) {
     if (points_count == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -1030,33 +1034,38 @@ NK_PUBLIC void nk_umeyama_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_
     *result = nk_f64_sqrt_rvv(sum_squared / (nk_f64_t)points_count);
 }
 
-NK_PUBLIC void nk_rmsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,
-                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NK_API_COMPTIME void nk_rmsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,
+                                     nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
     nk_rmsd_f16_serial(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
 }
 
-NK_PUBLIC void nk_kabsch_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,
-                                 nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NK_API_COMPTIME void nk_kabsch_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t points_count,
+                                       nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                       nk_f32_t *result) {
     nk_kabsch_f16_serial(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
 }
 
-NK_PUBLIC void nk_umeyama_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,
-                                  nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NK_API_COMPTIME void nk_umeyama_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t points_count,
+                                        nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                        nk_f32_t *result) {
     nk_umeyama_f16_serial(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
 }
 
-NK_PUBLIC void nk_rmsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,
-                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NK_API_COMPTIME void nk_rmsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t points_count,
+                                      nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                      nk_f32_t *result) {
     nk_rmsd_bf16_serial(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
 }
 
-NK_PUBLIC void nk_kabsch_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,
-                                  nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NK_API_COMPTIME void nk_kabsch_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t points_count,
+                                        nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                        nk_f32_t *result) {
     nk_kabsch_bf16_serial(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
 }
 
-NK_PUBLIC void nk_umeyama_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t points_count, nk_f32_t *a_centroid,
-                                   nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NK_API_COMPTIME void nk_umeyama_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t points_count,
+                                         nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                         nk_f32_t *scale, nk_f32_t *result) {
     nk_umeyama_bf16_serial(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
 }
 

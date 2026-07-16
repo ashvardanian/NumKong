@@ -47,7 +47,7 @@ extern "C" {
 #pragma region Reduction Helpers
 
 /** @brief Horizontal sum of 4 u64 lanes in a 256-bit LASX register. */
-NK_INTERNAL nk_u64_t nk_reduce_add_u64x4_loongsonasx_(__m256i sum_u64x4) {
+NK_HELPER_INLINE nk_u64_t nk_reduce_add_u64x4_loongsonasx_(__m256i sum_u64x4) {
     __m256i high_u64x4 = __lasx_xvpermi_q(sum_u64x4, sum_u64x4, 0x11);
     __m256i sum_u64x2 = __lasx_xvadd_d(sum_u64x4, high_u64x4);
     __m256i swapped_u64x2 = __lasx_xvshuf4i_d(sum_u64x2, sum_u64x2, 0b0001);
@@ -59,7 +59,7 @@ NK_INTERNAL nk_u64_t nk_reduce_add_u64x4_loongsonasx_(__m256i sum_u64x4) {
  *
  *  Chains pairwise widening additions: u8→u16→u32→u64, then reduces 4 u64 lanes.
  */
-NK_INTERNAL nk_u64_t nk_reduce_add_u8x32_loongsonasx_(__m256i v_u8x32) {
+NK_HELPER_INLINE nk_u64_t nk_reduce_add_u8x32_loongsonasx_(__m256i v_u8x32) {
     __m256i sum_u16x16 = __lasx_xvhaddw_hu_bu(v_u8x32, v_u8x32);
     __m256i sum_u32x8 = __lasx_xvhaddw_wu_hu(sum_u16x16, sum_u16x16);
     __m256i sum_u64x4 = __lasx_xvhaddw_du_wu(sum_u32x8, sum_u32x8);
@@ -70,7 +70,7 @@ NK_INTERNAL nk_u64_t nk_reduce_add_u8x32_loongsonasx_(__m256i v_u8x32) {
 
 #pragma region Binary Sets
 
-NK_PUBLIC void nk_hamming_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
     __m256i count_u64x4 = __lasx_xvreplgr2vr_d(0);
     nk_size_t i = 0;
@@ -88,7 +88,7 @@ NK_PUBLIC void nk_hamming_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b,
     *result = (nk_u32_t)count;
 }
 
-NK_PUBLIC void nk_jaccard_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
     __m256i xor_count_u64x4 = __lasx_xvreplgr2vr_d(0);
     __m256i or_count_u64x4 = __lasx_xvreplgr2vr_d(0);
@@ -117,7 +117,7 @@ NK_PUBLIC void nk_jaccard_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b,
 
 #pragma region Integer Sets
 
-NK_PUBLIC void nk_hamming_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     __m256i count_u64x4 = __lasx_xvreplgr2vr_d(0);
     __m256i ones_u8x32 = __lasx_xvreplgr2vr_b(1);
     nk_size_t i = 0;
@@ -144,9 +144,9 @@ NK_PUBLIC void nk_hamming_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_
 #pragma region Batched Finalizers
 
 /** @brief Hamming from_dot: computes pop_a + pop_b − 2 × dot for 4 pairs (LSX). */
-NK_INTERNAL void nk_hamming_u32x4_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                        nk_b128_vec_t const *target_pops_vec,
-                                                        nk_b128_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                             nk_b128_vec_t const *target_pops_vec,
+                                                             nk_b128_vec_t *result_vec) {
     __m128i dots_u32x4 = dots_vec->xmm;
     __m128i query_u32x4 = __lsx_vreplgr2vr_w((int)query_pop);
     __m128i target_u32x4 = target_pops_vec->xmm;
@@ -154,9 +154,9 @@ NK_INTERNAL void nk_hamming_u32x4_from_dot_loongsonasx_(nk_b128_vec_t const *dot
 }
 
 /** @brief Jaccard from_dot: computes 1 − dot / (pop_a + pop_b − dot) for 4 pairs (LSX). */
-NK_INTERNAL void nk_jaccard_f32x4_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                        nk_b128_vec_t const *target_pops_vec,
-                                                        nk_b128_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                             nk_b128_vec_t const *target_pops_vec,
+                                                             nk_b128_vec_t *result_vec) {
     __m128 dot_f32x4 = __lsx_vffint_s_wu(dots_vec->xmm);
     __m128 query_f32x4 = nk_xvreplgr2vr_s_128_((nk_f32_t)query_pop);
     __m128 target_f32x4 = __lsx_vffint_s_wu(target_pops_vec->xmm);

@@ -111,69 +111,69 @@ typedef struct {
  *  Each computes the norm (sum-of-squares or popcount) of a contiguous row.
  *  Used by `nk_define_cross_pack_` to append per-column norms to packed buffers.
  */
-NK_INTERNAL nk_f64_t nk_dots_reduce_sumsq_f64_(nk_f64_t const *data, nk_size_t count) {
+NK_HELPER_INLINE nk_f64_t nk_dots_reduce_sumsq_f64_(nk_f64_t const *data, nk_size_t count) {
     nk_f64_t sum, sumsq;
     nk_reduce_moments_f64(data, count, sizeof(nk_f64_t), &sum, &sumsq);
     return sumsq;
 }
-NK_INTERNAL nk_f64_t nk_dots_reduce_sumsq_f32_(nk_f32_t const *data, nk_size_t count) {
+NK_HELPER_INLINE nk_f64_t nk_dots_reduce_sumsq_f32_(nk_f32_t const *data, nk_size_t count) {
     nk_f64_t sum, sumsq;
     nk_reduce_moments_f32(data, count, sizeof(nk_f32_t), &sum, &sumsq);
     return sumsq;
 }
-NK_INTERNAL nk_f32_t nk_dots_reduce_sumsq_f16_(nk_f16_t const *data, nk_size_t count) {
+NK_HELPER_INLINE nk_f32_t nk_dots_reduce_sumsq_f16_(nk_f16_t const *data, nk_size_t count) {
     nk_f32_t sum, sumsq;
     nk_reduce_moments_f16(data, count, sizeof(nk_f16_t), &sum, &sumsq);
     return sumsq;
 }
-NK_INTERNAL nk_f32_t nk_dots_reduce_sumsq_bf16_(nk_bf16_t const *data, nk_size_t count) {
+NK_HELPER_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_(nk_bf16_t const *data, nk_size_t count) {
     nk_f32_t sum, sumsq;
     nk_reduce_moments_bf16(data, count, sizeof(nk_bf16_t), &sum, &sumsq);
     return sumsq;
 }
-NK_INTERNAL nk_f32_t nk_dots_reduce_sumsq_e4m3_(nk_e4m3_t const *data, nk_size_t count) {
+NK_HELPER_INLINE nk_f32_t nk_dots_reduce_sumsq_e4m3_(nk_e4m3_t const *data, nk_size_t count) {
     nk_f32_t sum, sumsq;
     nk_reduce_moments_e4m3(data, count, sizeof(nk_e4m3_t), &sum, &sumsq);
     return sumsq;
 }
-NK_INTERNAL nk_f32_t nk_dots_reduce_sumsq_e5m2_(nk_e5m2_t const *data, nk_size_t count) {
+NK_HELPER_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_(nk_e5m2_t const *data, nk_size_t count) {
     nk_f32_t sum, sumsq;
     nk_reduce_moments_e5m2(data, count, sizeof(nk_e5m2_t), &sum, &sumsq);
     return sumsq;
 }
-NK_INTERNAL nk_f32_t nk_dots_reduce_sumsq_e2m3_(nk_e2m3_t const *data, nk_size_t count) {
+NK_HELPER_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_(nk_e2m3_t const *data, nk_size_t count) {
     nk_f32_t sum, sumsq;
     nk_reduce_moments_e2m3(data, count, sizeof(nk_e2m3_t), &sum, &sumsq);
     return sumsq;
 }
-NK_INTERNAL nk_f32_t nk_dots_reduce_sumsq_e3m2_(nk_e3m2_t const *data, nk_size_t count) {
+NK_HELPER_INLINE nk_f32_t nk_dots_reduce_sumsq_e3m2_(nk_e3m2_t const *data, nk_size_t count) {
     nk_f32_t sum, sumsq;
     nk_reduce_moments_e3m2(data, count, sizeof(nk_e3m2_t), &sum, &sumsq);
     return sumsq;
 }
-NK_INTERNAL nk_u32_t nk_dots_reduce_sumsq_i8_(nk_i8_t const *data, nk_size_t count) {
+NK_HELPER_INLINE nk_u32_t nk_dots_reduce_sumsq_i8_(nk_i8_t const *data, nk_size_t count) {
     nk_i64_t sum;
     nk_u64_t sumsq;
     nk_reduce_moments_i8(data, count, sizeof(nk_i8_t), &sum, &sumsq);
     return (nk_u32_t)sumsq;
 }
-NK_INTERNAL nk_u32_t nk_dots_reduce_sumsq_u8_(nk_u8_t const *data, nk_size_t count) {
+NK_HELPER_INLINE nk_u32_t nk_dots_reduce_sumsq_u8_(nk_u8_t const *data, nk_size_t count) {
     nk_u64_t sum, sumsq;
     nk_reduce_moments_u8(data, count, sizeof(nk_u8_t), &sum, &sumsq);
     return (nk_u32_t)sumsq;
 }
-NK_INTERNAL nk_u32_t nk_dots_reduce_sumsq_i4_(nk_i4x2_t const *data, nk_size_t count) {
+NK_HELPER_INLINE nk_u32_t nk_dots_reduce_sumsq_i4_(nk_i4x2_t const *data, nk_size_t count) {
     nk_i64_t sum;
     nk_u64_t sumsq;
     nk_reduce_moments_i4(data, count, sizeof(nk_i4x2_t), &sum, &sumsq);
     return (nk_u32_t)sumsq;
 }
-NK_INTERNAL nk_u32_t nk_dots_reduce_sumsq_u4_(nk_u4x2_t const *data, nk_size_t count) {
+NK_HELPER_INLINE nk_u32_t nk_dots_reduce_sumsq_u4_(nk_u4x2_t const *data, nk_size_t count) {
     nk_u64_t sum, sumsq;
     nk_reduce_moments_u4(data, count, sizeof(nk_u4x2_t), &sum, &sumsq);
     return (nk_u32_t)sumsq;
 }
-NK_INTERNAL nk_u32_t nk_dots_reduce_sum_u1_(nk_u1x8_t const *data, nk_size_t count_bits) {
+NK_HELPER_INLINE nk_u32_t nk_dots_reduce_sum_u1_(nk_u1x8_t const *data, nk_size_t count_bits) {
     nk_u64_t sum, sumsq;
     nk_reduce_moments_u1(data, count_bits, sizeof(nk_u1x8_t), &sum, &sumsq);
     return (nk_u32_t)sum;
@@ -183,20 +183,21 @@ NK_INTERNAL nk_u32_t nk_dots_reduce_sum_u1_(nk_u1x8_t const *data, nk_size_t cou
  *  Each computes BOTH sum and norm (sum-of-squares) in a single nk_reduce_moments call.
  *  Used by nk_define_cross_compensated_pack_ to store both in the packed buffer.
  */
-NK_INTERNAL void nk_dots_reduce_moments_i8_(nk_i8_t const *data, nk_size_t count, nk_i32_t *sum, nk_u32_t *norm) {
+NK_HELPER_INLINE void nk_dots_reduce_moments_i8_(nk_i8_t const *data, nk_size_t count, nk_i32_t *sum, nk_u32_t *norm) {
     nk_i64_t s;
     nk_u64_t sq;
     nk_reduce_moments_i8(data, count, sizeof(nk_i8_t), &s, &sq);
     *sum = (nk_i32_t)s;
     *norm = (nk_u32_t)sq;
 }
-NK_INTERNAL void nk_dots_reduce_moments_u8_(nk_u8_t const *data, nk_size_t count, nk_u32_t *sum, nk_u32_t *norm) {
+NK_HELPER_INLINE void nk_dots_reduce_moments_u8_(nk_u8_t const *data, nk_size_t count, nk_u32_t *sum, nk_u32_t *norm) {
     nk_u64_t s, sq;
     nk_reduce_moments_u8(data, count, sizeof(nk_u8_t), &s, &sq);
     *sum = (nk_u32_t)s;
     *norm = (nk_u32_t)sq;
 }
-NK_INTERNAL void nk_dots_reduce_moments_i4_(nk_i4x2_t const *data, nk_size_t count, nk_i32_t *sum, nk_u32_t *norm) {
+NK_HELPER_INLINE void nk_dots_reduce_moments_i4_(nk_i4x2_t const *data, nk_size_t count, nk_i32_t *sum,
+                                                 nk_u32_t *norm) {
     nk_i64_t s;
     nk_u64_t sq;
     nk_reduce_moments_i4(data, count, sizeof(nk_i4x2_t), &s, &sq);
@@ -208,17 +209,17 @@ NK_INTERNAL void nk_dots_reduce_moments_i4_(nk_i4x2_t const *data, nk_size_t cou
  *  i8/u8: no A-side correction needed, stubs return 0.
  *  i4: needs A-side sum for correction term.
  */
-NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i8_stub_(nk_i8_t const *d, nk_size_t c) {
+NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i8_stub_(nk_i8_t const *d, nk_size_t c) {
     nk_unused_(d);
     nk_unused_(c);
     return 0;
 }
-NK_INTERNAL nk_i32_t nk_dots_reduce_sum_u8_stub_(nk_u8_t const *d, nk_size_t c) {
+NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_u8_stub_(nk_u8_t const *d, nk_size_t c) {
     nk_unused_(d);
     nk_unused_(c);
     return 0;
 }
-NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t count) {
+NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t count) {
     nk_i64_t sum;
     nk_u64_t sumsq;
     nk_reduce_moments_i4(data, count, sizeof(nk_i4x2_t), &sum, &sumsq);
@@ -242,32 +243,32 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
  *  @param depth_simd_dimensions SIMD vector width in values for this platform/type combination
  *  @param dimensions_per_value Number of logical dimensions in a single value of input_type_name.
  */
-#define nk_define_cross_pack_size_(api_name, input_type_name, isa_suffix, input_value_type, packed_value_type,   \
-                                   norm_value_type, depth_simd_dimensions, dimensions_per_value)                 \
-    NK_PUBLIC nk_size_t nk_##api_name##_packed_size_##input_type_name##_##isa_suffix(nk_size_t column_count,     \
-                                                                                     nk_size_t depth) {          \
-        /* depth is always in logical dimensions (nibbles for i4, bytes for i8, etc.) */                         \
-        /* depth_simd_dimensions is also in logical dimensions */                                                \
-                                                                                                                 \
-        /* Pad depth in dimensions */                                                                            \
-        nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);         \
-                                                                                                                 \
-        /* Convert dimensions to storage values */                                                               \
-        nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value); \
-                                                                                                                 \
-        /* Calculate stride in bytes for power-of-2 check */                                                     \
-        nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                 \
-                                                                                                                 \
-        /* Break power-of-2 strides for cache associativity */                                                   \
-        if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0) {                                      \
-            /* Add one SIMD step worth of storage values */                                                      \
-            depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);        \
-        }                                                                                                        \
-                                                                                                                 \
-        /* Return total buffer size (packed data + per-column norms) */                                          \
-        return sizeof(nk_cross_packed_buffer_header_t) +                                                         \
-               column_count * depth_values_padded * sizeof(nk_##packed_value_type##_t) +                         \
-               column_count * sizeof(nk_##norm_value_type##_t);                                                  \
+#define nk_define_cross_pack_size_(api_name, input_type_name, isa_suffix, input_value_type, packed_value_type,     \
+                                   norm_value_type, depth_simd_dimensions, dimensions_per_value)                   \
+    NK_API_COMPTIME nk_size_t nk_##api_name##_packed_size_##input_type_name##_##isa_suffix(nk_size_t column_count, \
+                                                                                           nk_size_t depth) {      \
+        /* depth is always in logical dimensions (nibbles for i4, bytes for i8, etc.) */                           \
+        /* depth_simd_dimensions is also in logical dimensions */                                                  \
+                                                                                                                   \
+        /* Pad depth in dimensions */                                                                              \
+        nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);           \
+                                                                                                                   \
+        /* Convert dimensions to storage values */                                                                 \
+        nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value);   \
+                                                                                                                   \
+        /* Calculate stride in bytes for power-of-2 check */                                                       \
+        nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                   \
+                                                                                                                   \
+        /* Break power-of-2 strides for cache associativity */                                                     \
+        if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0) {                                        \
+            /* Add one SIMD step worth of storage values */                                                        \
+            depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);          \
+        }                                                                                                          \
+                                                                                                                   \
+        /* Return total buffer size (packed data + per-column norms) */                                            \
+        return sizeof(nk_cross_packed_buffer_header_t) +                                                           \
+               column_count * depth_values_padded * sizeof(nk_##packed_value_type##_t) +                           \
+               column_count * sizeof(nk_##norm_value_type##_t);                                                    \
     }
 
 /**
@@ -286,7 +287,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
 #define nk_define_cross_pack_(api_name, input_type_name, isa_suffix, input_value_type, packed_value_type, vec_type,   \
                               load_fn, partial_load_fn, store_fn, partial_store_fn, simd_width, norm_value_type,      \
                               compute_norm_fn, depth_simd_dimensions, dimensions_per_value)                           \
-    NK_PUBLIC void nk_##api_name##_pack_##input_type_name##_##isa_suffix(                                             \
+    NK_API_COMPTIME void nk_##api_name##_pack_##input_type_name##_##isa_suffix(                                       \
         nk_##input_value_type##_t const *b, nk_size_t column_count, nk_size_t depth, nk_size_t b_stride_in_bytes,     \
         void *b_packed) {                                                                                             \
         nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);              \
@@ -339,20 +340,20 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
  *  Layout: [ Header 64B ] [ Packed data ] [ Norms (norm_type) ] [ Column sums (sum_type) ]
  *  Norms first → existing nk_define_cross_normalized_packed_ reads norms at the same offset.
  */
-#define nk_define_cross_compensated_pack_size_(api_name, input_type_name, isa_suffix, input_value_type,          \
-                                               packed_value_type, sum_value_type, norm_value_type,               \
-                                               depth_simd_dimensions, dimensions_per_value)                      \
-    NK_PUBLIC nk_size_t nk_##api_name##_packed_size_##input_type_name##_##isa_suffix(nk_size_t column_count,     \
-                                                                                     nk_size_t depth) {          \
-        nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);         \
-        nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value); \
-        nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                 \
-        if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0) {                                      \
-            depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);        \
-        }                                                                                                        \
-        return sizeof(nk_cross_packed_buffer_header_t) +                                                         \
-               column_count * depth_values_padded * sizeof(nk_##packed_value_type##_t) +                         \
-               column_count * sizeof(nk_##norm_value_type##_t) + column_count * sizeof(nk_##sum_value_type##_t); \
+#define nk_define_cross_compensated_pack_size_(api_name, input_type_name, isa_suffix, input_value_type,            \
+                                               packed_value_type, sum_value_type, norm_value_type,                 \
+                                               depth_simd_dimensions, dimensions_per_value)                        \
+    NK_API_COMPTIME nk_size_t nk_##api_name##_packed_size_##input_type_name##_##isa_suffix(nk_size_t column_count, \
+                                                                                           nk_size_t depth) {      \
+        nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);           \
+        nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value);   \
+        nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                   \
+        if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0) {                                        \
+            depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);          \
+        }                                                                                                          \
+        return sizeof(nk_cross_packed_buffer_header_t) +                                                           \
+               column_count * depth_values_padded * sizeof(nk_##packed_value_type##_t) +                           \
+               column_count * sizeof(nk_##norm_value_type##_t) + column_count * sizeof(nk_##sum_value_type##_t);   \
     }
 
 /**
@@ -363,7 +364,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
                                           vec_type, load_fn, partial_load_fn, store_fn, partial_store_fn, simd_width, \
                                           sum_value_type, norm_value_type, compute_moments_fn, depth_simd_dimensions, \
                                           dimensions_per_value)                                                       \
-    NK_PUBLIC void nk_##api_name##_pack_##input_type_name##_##isa_suffix(                                             \
+    NK_API_COMPTIME void nk_##api_name##_pack_##input_type_name##_##isa_suffix(                                       \
         nk_##input_value_type##_t const *b, nk_size_t column_count, nk_size_t depth, nk_size_t b_stride_in_bytes,     \
         void *b_packed) {                                                                                             \
         nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);              \
@@ -522,7 +523,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
                                 load_a_vec_fn, partial_load_a_vec_fn, load_b_vec_fn, partial_load_b_vec_fn,            \
                                 inner_product_fn, reduce_accumulators_fn, store_fn, partial_store_fn,                  \
                                 depth_simd_dimensions, dimensions_per_value)                                           \
-    NK_INTERNAL void nk_##api_name##_packed_##input_type_name##_##isa_suffix##_aligned_(                               \
+    NK_HELPER_INLINE void nk_##api_name##_packed_##input_type_name##_##isa_suffix##_aligned_(                          \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
         nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
         nk_size_t c_stride_in_bytes) {                                                                                 \
@@ -698,7 +699,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
-    NK_INTERNAL void nk_##api_name##_packed_##input_type_name##_##isa_suffix##_1x8_aligned_(                           \
+    NK_HELPER_INLINE void nk_##api_name##_packed_##input_type_name##_##isa_suffix##_1x8_aligned_(                      \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
         nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
         nk_size_t c_stride_in_bytes) {                                                                                 \
@@ -836,7 +837,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
-    NK_PUBLIC void nk_##api_name##_packed_##input_type_name##_##isa_suffix(                                            \
+    NK_API_COMPTIME void nk_##api_name##_packed_##input_type_name##_##isa_suffix(                                      \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
         nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
         nk_size_t c_stride_in_bytes) {                                                                                 \
@@ -1090,7 +1091,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
     norm_value_type, vec_type, state_type, result_vec_type, init_accumulator_fn, load_a_vec_fn, partial_load_a_vec_fn, \
     load_b_vec_fn, partial_load_b_vec_fn, inner_product_fn, compensated_finalize_fn, store_fn, partial_store_fn,       \
     load_sum_fn, partial_load_sum_fn, compute_a_sum_fn, depth_simd_dimensions, dimensions_per_value)                   \
-    NK_INTERNAL void nk_##api_name##_packed_##input_type_name##_##isa_suffix##_aligned_(                               \
+    NK_HELPER_INLINE void nk_##api_name##_packed_##input_type_name##_##isa_suffix##_aligned_(                          \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
         nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
         nk_size_t c_stride_in_bytes) {                                                                                 \
@@ -1200,7 +1201,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
-    NK_INTERNAL void nk_##api_name##_packed_##input_type_name##_##isa_suffix##_1x8_aligned_(                           \
+    NK_HELPER_INLINE void nk_##api_name##_packed_##input_type_name##_##isa_suffix##_1x8_aligned_(                      \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
         nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
         nk_size_t c_stride_in_bytes) {                                                                                 \
@@ -1279,7 +1280,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
-    NK_PUBLIC void nk_##api_name##_packed_##input_type_name##_##isa_suffix(                                            \
+    NK_API_COMPTIME void nk_##api_name##_packed_##input_type_name##_##isa_suffix(                                      \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
         nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
         nk_size_t c_stride_in_bytes) {                                                                                 \
@@ -1472,7 +1473,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
     vec_type, state_type, result_vec_type, init_accumulator_fn, load_vec_fn, partial_load_vec_fn, inner_product_fn,    \
     compensated_finalize_fn, store_fn, partial_store_fn, load_sum_fn, partial_load_sum_fn, sum_state_type,             \
     init_sum_fn, update_sum_fn, finalize_sum_fn, depth_simd_dimensions, dimensions_per_value)                          \
-    NK_INTERNAL void nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_(                           \
+    NK_HELPER_INLINE void nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_(                      \
         nk_##input_value_type##_t const **vector_base_ptrs, nk_size_t i_macro, nk_size_t macro_size,                   \
         nk_size_t aligned_depth, nk_size_t remainder_depth, nk_size_t remainder_dimensions,                            \
         nk_size_t depth_step_values, nk_size_t dimensions_per_value_runtime, nk_##result_value_type##_t *result,       \
@@ -1726,7 +1727,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
         }                                                                                                              \
     }                                                                                                                  \
     /* Off-diagonal helper: 4×4 tiling with inline sum accumulation (16 FMAs + up to 8 SADs per depth step) */         \
-    NK_INTERNAL void nk_##api_name##_symmetric_offdiagonal_##input_type_name##_##isa_suffix##_(                        \
+    NK_HELPER_INLINE void nk_##api_name##_symmetric_offdiagonal_##input_type_name##_##isa_suffix##_(                   \
         nk_##input_value_type##_t const **row_ptrs_macro, nk_##input_value_type##_t const **col_ptrs_macro,            \
         nk_size_t i_macro, nk_size_t j_macro, nk_size_t macro_i_size, nk_size_t macro_j_size, nk_size_t aligned_depth, \
         nk_size_t remainder_depth, nk_size_t remainder_dimensions, nk_size_t depth_step_values,                        \
@@ -1885,7 +1886,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
-    NK_PUBLIC void nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                                         \
+    NK_API_COMPTIME void nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                                   \
         nk_##input_value_type##_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, \
         nk_##result_value_type##_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start,                     \
         nk_size_t row_count) {                                                                                         \
@@ -2009,9 +2010,9 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
  *  @par Generated Functions
  *
  *  This macro generates THREE functions:
- *  1. nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_ (NK_INTERNAL)
- *  2. nk_##api_name##_symmetric_offdiagonal_##input_type_name##_##isa_suffix##_ (NK_INTERNAL)
- *  3. nk_##api_name##_symmetric_##input_type_name##_##isa_suffix (NK_PUBLIC wrapper)
+ *  1. nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_ (NK_HELPER_INLINE)
+ *  2. nk_##api_name##_symmetric_offdiagonal_##input_type_name##_##isa_suffix##_ (NK_HELPER_INLINE)
+ *  3. nk_##api_name##_symmetric_##input_type_name##_##isa_suffix (NK_API_COMPTIME wrapper)
  *
  *  @param api_name Operation family (dots, hammings, jaccards) for codegen namespace
  *  @param input_type_name Type identifier for codegen (f32, bf16, i8, u1, etc.)
@@ -2040,7 +2041,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
                                    vec_type, state_type, result_vec_type, init_accumulator_fn, load_vec_fn,            \
                                    partial_load_vec_fn, inner_product_fn, reduce_accumulators_fn, store_fn,            \
                                    partial_store_fn, depth_simd_dimensions, dimensions_per_value)                      \
-    NK_INTERNAL void nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_(                           \
+    NK_HELPER_INLINE void nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_(                      \
         nk_##input_value_type##_t const **vector_base_ptrs, nk_size_t i_macro, nk_size_t macro_size,                   \
         nk_size_t aligned_depth, nk_size_t remainder_depth, nk_size_t remainder_dimensions,                            \
         nk_size_t depth_step_values, nk_size_t dimensions_per_value_runtime, nk_##result_value_type##_t *result,       \
@@ -2221,7 +2222,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
-    NK_INTERNAL void nk_##api_name##_symmetric_##input_type_name##_##isa_suffix##_offdiagonal_(                        \
+    NK_HELPER_INLINE void nk_##api_name##_symmetric_##input_type_name##_##isa_suffix##_offdiagonal_(                   \
         nk_##input_value_type##_t const **vector_base_ptrs_i, nk_##input_value_type##_t const **vector_base_ptrs_j,    \
         nk_size_t i_macro, nk_size_t j_macro, nk_size_t macro_i_size, nk_size_t macro_j_size, nk_size_t aligned_depth, \
         nk_size_t remainder_depth, nk_size_t remainder_dimensions, nk_size_t depth_step_values,                        \
@@ -2358,7 +2359,7 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
-    NK_PUBLIC void nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                                         \
+    NK_API_COMPTIME void nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                                   \
         nk_##input_value_type##_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, \
         nk_##result_value_type##_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start,                     \
         nk_size_t row_count) {                                                                                         \
@@ -2707,8 +2708,8 @@ nk_define_cross_packed_(dots, u1, serial, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot
 /*  BF16 compact: truncate F32 → BF16 in-place.
  *  Reads F32 matrix with c_stride_in_bytes, writes BF16 tightly packed (stride_in_bytes = column_count × sizeof(bf16)).
  */
-NK_PUBLIC void nk_dots_compact_bf16_serial(void *c, nk_size_t row_count, nk_size_t column_count,
-                                           nk_size_t c_stride_in_bytes) {
+NK_API_COMPTIME void nk_dots_compact_bf16_serial(void *c, nk_size_t row_count, nk_size_t column_count,
+                                                 nk_size_t c_stride_in_bytes) {
     nk_size_t const c_stride_in_values = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_f32_t const *c_f32 = (nk_f32_t const *)c;
     nk_bf16_t *c_bf16 = (nk_bf16_t *)c;
@@ -2726,9 +2727,9 @@ NK_PUBLIC void nk_dots_compact_bf16_serial(void *c, nk_size_t row_count, nk_size
  *  Formula: c_i8[i][j] = c_i32[i][j] × 127 / sqrt(a_norm[i] × b_norm[j])
  *  Output is tightly packed (stride_in_bytes = column_count × sizeof(i8)).
  */
-NK_PUBLIC void nk_dots_compact_i8_serial(void *c, nk_size_t row_count, nk_size_t column_count,
-                                         nk_size_t c_stride_in_bytes, nk_i32_t const *a_squared_norms,
-                                         nk_i32_t const *b_squared_norms) {
+NK_API_COMPTIME void nk_dots_compact_i8_serial(void *c, nk_size_t row_count, nk_size_t column_count,
+                                               nk_size_t c_stride_in_bytes, nk_i32_t const *a_squared_norms,
+                                               nk_i32_t const *b_squared_norms) {
     nk_size_t const c_stride_in_values = c_stride_in_bytes / sizeof(nk_i32_t);
     nk_i32_t const *c_i32 = (nk_i32_t const *)c;
     nk_i8_t *c_i8 = (nk_i8_t *)c;
@@ -2757,7 +2758,7 @@ NK_PUBLIC void nk_dots_compact_i8_serial(void *c, nk_size_t row_count, nk_size_t
                                            packed_value_type, dot_result_type, norm_value_type, final_result_type,    \
                                            vec_type, dots_packed_fn, from_dot_fn, compute_norm_fn, load_fn,           \
                                            partial_load_fn, store_fn, partial_store_fn, dimensions_per_value)         \
-    NK_PUBLIC void nk_##metric_name##s_packed_##input_type_name##_##isa_suffix(                                       \
+    NK_API_COMPTIME void nk_##metric_name##s_packed_##input_type_name##_##isa_suffix(                                 \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##final_result_type##_t *c_matrix, \
         nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                    \
         nk_size_t c_stride_in_bytes) {                                                                                \
@@ -2803,7 +2804,7 @@ NK_PUBLIC void nk_dots_compact_i8_serial(void *c, nk_size_t row_count, nk_size_t
                                               dot_result_type, norm_value_type, final_result_type, vec_type,           \
                                               dots_symmetric_fn, from_dot_fn, compute_norm_fn, load_fn,                \
                                               partial_load_fn, store_fn, partial_store_fn, dimensions_per_value)       \
-    NK_PUBLIC void nk_##metric_name##s_symmetric_##input_type_name##_##isa_suffix(                                     \
+    NK_API_COMPTIME void nk_##metric_name##s_symmetric_##input_type_name##_##isa_suffix(                               \
         nk_##input_value_type##_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, \
         nk_##final_result_type##_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start,                     \
         nk_size_t row_count) {                                                                                         \

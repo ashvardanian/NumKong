@@ -28,7 +28,7 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_INTERNAL __m256 nk_log2_f32x8_haswell_(__m256 x) {
+NK_HELPER_INLINE __m256 nk_log2_f32x8_haswell_(__m256 x) {
     // Extracting the exponent
     __m256i bits_i32x8 = _mm256_castps_si256(x);
     __m256i exponent_i32x8 = _mm256_srli_epi32(_mm256_and_si256(bits_i32x8, _mm256_set1_epi32(0x7F800000)), 23);
@@ -53,7 +53,7 @@ NK_INTERNAL __m256 nk_log2_f32x8_haswell_(__m256 x) {
     return _mm256_add_ps(log2m_f32x8, exponent_f32x8);
 }
 
-NK_INTERNAL __m256d nk_log2_f64x4_haswell_(__m256d x) {
+NK_HELPER_INLINE __m256d nk_log2_f64x4_haswell_(__m256d x) {
     // Extract exponent via integer shift: (bits >> 52) - 1023
     __m256i bits_i64x4 = _mm256_castpd_si256(x);
     __m256i exponent_i64x4 = _mm256_srli_epi64(bits_i64x4, 52);
@@ -99,7 +99,7 @@ NK_INTERNAL __m256d nk_log2_f64x4_haswell_(__m256d x) {
     return _mm256_add_pd(exponent_f64x4, log2_m_f64x4);
 }
 
-NK_PUBLIC void nk_kld_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_kld_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     __m256 sum_f32x8 = _mm256_setzero_ps();
     nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
     __m256 epsilon_f32x8 = _mm256_set1_ps(epsilon);
@@ -131,7 +131,7 @@ nk_kld_f16_haswell_cycle:
     *result = sum;
 }
 
-NK_PUBLIC void nk_jsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
     __m256 epsilon_f32x8 = _mm256_set1_ps(epsilon);
     __m256 sum_f32x8 = _mm256_setzero_ps();
@@ -170,7 +170,7 @@ nk_jsd_f16_haswell_cycle:
     *result = sum > 0 ? nk_f32_sqrt_haswell(sum) : 0;
 }
 
-NK_PUBLIC void nk_kld_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_kld_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_f64_t epsilon = NK_F64_DIVISION_EPSILON;
     __m256d epsilon_f64x4 = _mm256_set1_pd(epsilon);
     __m256d sum_f64x4 = _mm256_setzero_pd();
@@ -205,7 +205,7 @@ nk_kld_f64_haswell_cycle:
     *result = nk_reduce_add_f64x4_haswell_(sum_f64x4) * log2_normalizer;
 }
 
-NK_PUBLIC void nk_jsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_jsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_f64_t epsilon = NK_F64_DIVISION_EPSILON;
     __m256d epsilon_f64x4 = _mm256_set1_pd(epsilon);
     __m256d sum_f64x4 = _mm256_setzero_pd();

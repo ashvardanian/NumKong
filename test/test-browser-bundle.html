@@ -137,7 +137,7 @@
     });
 
     test("capability detection", () => {
-      const caps = numkong.getCapabilities();
+      const caps = numkong.getCapabilitiesAvailable();
       if (typeof caps !== "bigint") throw new Error("should return bigint");
       if (!numkong.hasCapability(1n << 0n))
         throw new Error("SERIAL should be present");

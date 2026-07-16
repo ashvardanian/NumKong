@@ -46,11 +46,11 @@ extern "C" {
 
 #pragma region F32 Floats
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f32_icelake(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f32_icelake(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f32_t), 64);
 }
 
-NK_PUBLIC void nk_maxsim_pack_f32_icelake( //
+NK_API_COMPTIME void nk_maxsim_pack_f32_icelake( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f32_t);
@@ -79,11 +79,11 @@ NK_PUBLIC void nk_maxsim_pack_f32_icelake( //
 
 #pragma region F16 Floats
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f16_icelake(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f16_icelake(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f16_t), 64);
 }
 
-NK_PUBLIC void nk_maxsim_pack_f16_icelake( //
+NK_API_COMPTIME void nk_maxsim_pack_f16_icelake( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f16_t);
@@ -114,7 +114,7 @@ NK_PUBLIC void nk_maxsim_pack_f16_icelake( //
 #pragma region Coarse Argmax
 
 /** @brief Reduces 4 ZMM i32x16 accumulators to a single __m128i with 4 horizontal sums. */
-NK_INTERNAL __m128i nk_maxsim_reduce_i32x16x4_icelake_(         //
+NK_HELPER_INLINE __m128i nk_maxsim_reduce_i32x16x4_icelake_(    //
     __m512i accumulator_a_i32x16, __m512i accumulator_b_i32x16, //
     __m512i accumulator_c_i32x16, __m512i accumulator_d_i32x16) {
     // 16 → 8 (extract high 256-bit half and add to low half)
@@ -148,7 +148,7 @@ NK_INTERNAL __m128i nk_maxsim_reduce_i32x16x4_icelake_(         //
  *  @brief Factored coarse i8 argmax kernel for Ice Lake / Genoa.
  *  Uses AVX-512 VNNI VPDPBUSD with XOR-0x80 bias and 128*sum_quantized correction.
  */
-NK_INTERNAL void nk_maxsim_coarse_argmax_icelake_(        //
+NK_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_(   //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8,  //
     nk_maxsim_vector_metadata_t const *document_metadata, //
     nk_size_t query_count, nk_size_t document_count,      //
@@ -394,7 +394,7 @@ NK_INTERNAL void nk_maxsim_coarse_argmax_icelake_(        //
 
 #pragma region Compute Functions
 
-NK_PUBLIC void nk_maxsim_packed_f32_icelake( //
+NK_API_COMPTIME void nk_maxsim_packed_f32_icelake( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
@@ -429,7 +429,7 @@ NK_PUBLIC void nk_maxsim_packed_f32_icelake( //
     *result = total_angular_distance;
 }
 
-NK_PUBLIC void nk_maxsim_packed_f16_icelake( //
+NK_API_COMPTIME void nk_maxsim_packed_f16_icelake( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 

@@ -17,35 +17,35 @@
 extern "C" {
 #endif
 
-#define nk_define_kld_(input_type, unpacked_type, accumulator_type, output_type, load_and_convert, epsilon, \
-                       compute_log)                                                                         \
-    NK_PUBLIC void nk_kld_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
-                                                nk_size_t n, output_type *result) {                         \
-        nk_##accumulator_type##_t sum = 0;                                                                  \
-        nk_##unpacked_type##_t a_value, b_value;                                                            \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                \
-            load_and_convert(a + i, &a_value);                                                              \
-            load_and_convert(b + i, &b_value);                                                              \
-            sum += a_value * compute_log((a_value + epsilon) / (b_value + epsilon));                        \
-        }                                                                                                   \
-        *result = (output_type)sum;                                                                         \
+#define nk_define_kld_(input_type, unpacked_type, accumulator_type, output_type, load_and_convert, epsilon,       \
+                       compute_log)                                                                               \
+    NK_API_COMPTIME void nk_kld_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
+                                                      nk_size_t n, output_type *result) {                         \
+        nk_##accumulator_type##_t sum = 0;                                                                        \
+        nk_##unpacked_type##_t a_value, b_value;                                                                  \
+        for (nk_size_t i = 0; i != n; ++i) {                                                                      \
+            load_and_convert(a + i, &a_value);                                                                    \
+            load_and_convert(b + i, &b_value);                                                                    \
+            sum += a_value * compute_log((a_value + epsilon) / (b_value + epsilon));                              \
+        }                                                                                                         \
+        *result = (output_type)sum;                                                                               \
     }
 
-#define nk_define_jsd_(input_type, unpacked_type, accumulator_type, output_type, load_and_convert, epsilon, \
-                       compute_log, compute_sqrt)                                                           \
-    NK_PUBLIC void nk_jsd_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
-                                                nk_size_t n, output_type *result) {                         \
-        nk_##accumulator_type##_t sum = 0;                                                                  \
-        nk_##unpacked_type##_t a_value, b_value;                                                            \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                \
-            load_and_convert(a + i, &a_value);                                                              \
-            load_and_convert(b + i, &b_value);                                                              \
-            nk_##unpacked_type##_t midpoint_value = (a_value + b_value) / 2;                                \
-            sum += a_value * compute_log((a_value + epsilon) / (midpoint_value + epsilon));                 \
-            sum += b_value * compute_log((b_value + epsilon) / (midpoint_value + epsilon));                 \
-        }                                                                                                   \
-        output_type sum_half = ((output_type)sum / 2);                                                      \
-        *result = sum_half > 0 ? compute_sqrt(sum_half) : 0;                                                \
+#define nk_define_jsd_(input_type, unpacked_type, accumulator_type, output_type, load_and_convert, epsilon,       \
+                       compute_log, compute_sqrt)                                                                 \
+    NK_API_COMPTIME void nk_jsd_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
+                                                      nk_size_t n, output_type *result) {                         \
+        nk_##accumulator_type##_t sum = 0;                                                                        \
+        nk_##unpacked_type##_t a_value, b_value;                                                                  \
+        for (nk_size_t i = 0; i != n; ++i) {                                                                      \
+            load_and_convert(a + i, &a_value);                                                                    \
+            load_and_convert(b + i, &b_value);                                                                    \
+            nk_##unpacked_type##_t midpoint_value = (a_value + b_value) / 2;                                      \
+            sum += a_value * compute_log((a_value + epsilon) / (midpoint_value + epsilon));                       \
+            sum += b_value * compute_log((b_value + epsilon) / (midpoint_value + epsilon));                       \
+        }                                                                                                         \
+        output_type sum_half = ((output_type)sum / 2);                                                            \
+        *result = sum_half > 0 ? compute_sqrt(sum_half) : 0;                                                      \
     }
 
 /**
@@ -64,7 +64,7 @@ extern "C" {
  *
  *  https://en.wikipedia.org/wiki/Logarithm#Power_series
  */
-NK_INTERNAL nk_f32_t nk_f32_log_serial_(nk_f32_t x) {
+NK_HELPER_INLINE nk_f32_t nk_f32_log_serial_(nk_f32_t x) {
     nk_fui32_t conv;
     conv.f = x;
     int exp = ((conv.u >> 23) & 0xFF) - 127;
@@ -95,7 +95,7 @@ NK_INTERNAL nk_f32_t nk_f32_log_serial_(nk_f32_t x) {
  *
  *  https://en.wikipedia.org/wiki/Logarithm#Power_series
  */
-NK_INTERNAL nk_f64_t nk_f64_log_serial_(nk_f64_t x) {
+NK_HELPER_INLINE nk_f64_t nk_f64_log_serial_(nk_f64_t x) {
     nk_fui64_t conv;
     conv.f = x;
     int exp = ((conv.u >> 52) & 0x7FF) - 1023;
@@ -136,7 +136,7 @@ nk_define_kld_(bf16, f32, f32, nk_f32_t, nk_bf16_to_f32_serial, NK_F32_DIVISION_
 nk_define_jsd_(bf16, f32, f32, nk_f32_t, nk_bf16_to_f32_serial, NK_F32_DIVISION_EPSILON, nk_f32_log_serial_,
                nk_f32_sqrt_serial)
 
-NK_PUBLIC void nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     // Use Kahan summation for higher numerical stability in long distributions
     nk_f64_t sum = 0, compensation = 0;
     for (nk_size_t i = 0; i != n; ++i) {
@@ -151,7 +151,7 @@ NK_PUBLIC void nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t
     *result = sum + compensation;
 }
 
-NK_PUBLIC void nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     // Use Kahan summation for higher numerical stability in long distributions
     nk_f64_t sum = 0, compensation = 0;
     for (nk_size_t i = 0; i != n; ++i) {

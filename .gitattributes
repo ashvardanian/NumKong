@@ -1,0 +1,8 @@
+# Normalize every text file to LF in the repository, and check it out as LF on every platform.
+#
+# Without this, line endings fall back to each developer's `core.autocrlf`: a Windows checkout
+# gets a CRLF worktree, while clang-format, cmake-format, rustfmt and ruff all write LF. Every
+# formatter run then rewrites whole files, and the `--check` gates in .githooks/pre-commit can
+# never pass on Windows. `eol=lf` is the operative part — `text=auto` alone still yields CRLF
+# worktrees there.
+* text=auto eol=lf

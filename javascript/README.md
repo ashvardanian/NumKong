@@ -230,14 +230,24 @@ Owned `Vector` and `Matrix` are fixed-capacity resizable.
 Capability detection is explicit:
 
 ```ts
-import { Capability, getCapabilities, hasCapability } from "numkong";
+import { Capability, getCapabilitiesAvailable, hasCapability } from "numkong";
 
-const caps = getCapabilities();
-
-console.log(caps);
+console.log(getCapabilitiesAvailable()); // what can actually run here
 console.log(hasCapability(Capability.HASWELL));
 console.log(hasCapability(Capability.NEON));
 ```
+
+`getCapabilitiesAvailable()` is the intersection of two independent axes, and is the one you usually want:
+
+| Accessor                     | Meaning                                                     |
+| :--------------------------- | :---------------------------------------------------------- |
+| `getCapabilitiesDetected()`  | what this CPU or WASM host can execute                      |
+| `getCapabilitiesCompiled()`  | what this build contains, from the ISA probes at build time |
+| `getCapabilitiesAvailable()` | the intersection, i.e. what can actually run here           |
+| `getCapabilitiesEnabled()`   | the subset dispatch is restricted to                        |
+
+`getCapabilitiesDetected()` describes the machine and says nothing about whether a kernel was compiled in, so a prebuild whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
+Narrow dispatch with `enableCapabilities`, `disableCapabilities`, or `restrictCapabilities`; all clamp to the available set and always keep the serial fallback.
 
 The exact bitmask depends on whether you are running the native addon or a WASM runtime.
 

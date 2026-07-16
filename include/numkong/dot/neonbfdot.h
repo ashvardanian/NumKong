@@ -28,7 +28,7 @@
  *  @section dot_neonbfdot_stateful Stateful Streaming Logic
  *
  *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_INTERNAL` functions:
+ *  `NK_HELPER_INLINE` functions:
  *
  *  - nk_dot_bf16x8 state with native BFDOT bf16 dot-products.
  *
@@ -75,8 +75,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.6-a+simd+bf16")
 #endif
 
-NK_PUBLIC void nk_dot_bf16_neonbfdot(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars, nk_size_t count_scalars,
-                                     nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_bf16_neonbfdot(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                           nk_size_t count_scalars, nk_f32_t *result) {
     bfloat16x8_t a_bf16x8, b_bf16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_dot_bf16_neonbfdot_cycle:
@@ -98,8 +98,8 @@ nk_dot_bf16_neonbfdot_cycle:
     *result = vaddvq_f32(sum_f32x4);
 }
 
-NK_PUBLIC void nk_dot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs, nk_size_t count_pairs,
-                                      nk_f32c_t *result) {
+NK_API_COMPTIME void nk_dot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs, nk_size_t count_pairs,
+                                            nk_f32c_t *result) {
     float32x4_t sum_real_f32x4 = vdupq_n_f32(0);
     float32x4_t sum_imag_f32x4 = vdupq_n_f32(0);
     while (count_pairs >= 4) {
@@ -125,8 +125,8 @@ NK_PUBLIC void nk_dot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t cons
     result->imag = tail_result.imag + vaddvq_f32(sum_imag_f32x4);
 }
 
-NK_PUBLIC void nk_vdot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs, nk_size_t count_pairs,
-                                       nk_f32c_t *result) {
+NK_API_COMPTIME void nk_vdot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
+                                             nk_size_t count_pairs, nk_f32c_t *result) {
     float32x4_t sum_real_f32x4 = vdupq_n_f32(0);
     float32x4_t sum_imag_f32x4 = vdupq_n_f32(0);
     while (count_pairs >= 4) {
@@ -152,8 +152,8 @@ NK_PUBLIC void nk_vdot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t con
     result->imag = tail_result.imag + vaddvq_f32(sum_imag_f32x4);
 }
 
-NK_PUBLIC void nk_dot_e4m3_neonbfdot(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars, nk_size_t count_scalars,
-                                     nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e4m3_neonbfdot(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                           nk_size_t count_scalars, nk_f32_t *result) {
     bfloat16x8_t a_bf16x8, b_bf16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_dot_e4m3_neonbfdot_cycle:
@@ -175,8 +175,8 @@ nk_dot_e4m3_neonbfdot_cycle:
     *result = vaddvq_f32(sum_f32x4);
 }
 
-NK_PUBLIC void nk_dot_e5m2_neonbfdot(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars, nk_size_t count_scalars,
-                                     nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e5m2_neonbfdot(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                           nk_size_t count_scalars, nk_f32_t *result) {
     bfloat16x8_t a_bf16x8, b_bf16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_dot_e5m2_neonbfdot_cycle:
@@ -205,12 +205,13 @@ typedef struct nk_dot_bf16x8_state_neonbfdot_t {
     float32x4_t sum_f32x4;
 } nk_dot_bf16x8_state_neonbfdot_t;
 
-NK_INTERNAL void nk_dot_bf16x8_init_neonbfdot(nk_dot_bf16x8_state_neonbfdot_t *state) {
+NK_HELPER_INLINE void nk_dot_bf16x8_init_neonbfdot(nk_dot_bf16x8_state_neonbfdot_t *state) {
     state->sum_f32x4 = vdupq_n_f32(0);
 }
 
-NK_INTERNAL void nk_dot_bf16x8_update_neonbfdot(nk_dot_bf16x8_state_neonbfdot_t *state, nk_b128_vec_t a,
-                                                nk_b128_vec_t b, nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_bf16x8_update_neonbfdot(nk_dot_bf16x8_state_neonbfdot_t *state, nk_b128_vec_t a,
+                                                     nk_b128_vec_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     bfloat16x8_t a_bf16x8 = vreinterpretq_bf16_u16(a.u16x8);
@@ -218,7 +219,7 @@ NK_INTERNAL void nk_dot_bf16x8_update_neonbfdot(nk_dot_bf16x8_state_neonbfdot_t 
     state->sum_f32x4 = vbfdotq_f32(state->sum_f32x4, a_bf16x8, b_bf16x8);
 }
 
-NK_INTERNAL void nk_dot_bf16x8_finalize_neonbfdot(                                                  //
+NK_HELPER_INLINE void nk_dot_bf16x8_finalize_neonbfdot(                                             //
     nk_dot_bf16x8_state_neonbfdot_t const *state_a, nk_dot_bf16x8_state_neonbfdot_t const *state_b, //
     nk_dot_bf16x8_state_neonbfdot_t const *state_c, nk_dot_bf16x8_state_neonbfdot_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {

@@ -94,7 +94,7 @@ error_stats_t test_atan(typename scalar_type_::trigonometry_kernel_t kernel) {
 void test_trigonometry() {
     error_stats_section_t check("Trigonometry");
 
-#if NK_DYNAMIC_DISPATCH
+#if NK_RUNTIME_DISPATCH
     check("trig_sin_f32", test_sin<f32_t>, nk_trig_sin_f32);
     check("trig_cos_f32", test_cos<f32_t>, nk_trig_cos_f32);
     check("trig_atan_f32", test_atan<f32_t>, nk_trig_atan_f32);

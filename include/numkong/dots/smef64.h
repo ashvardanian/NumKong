@@ -74,7 +74,7 @@ extern "C" {
  */
 #pragma region F32 Floats
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_f32_smef64(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_f32_smef64(nk_size_t columns, nk_size_t depth) {
     nk_size_t const tile_dimension = nk_sme_cntd_();  // rows per `ZA64` tile (8 for SVL=512)
     nk_size_t const depth_tile_size = nk_sme_cntw_(); // `f32` depth elements per tile (16 for SVL=512)
 
@@ -88,8 +88,8 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_f32_smef64(nk_size_t columns, nk_size_t 
     return size;
 }
 
-NK_PUBLIC void nk_dots_pack_f32_smef64(nk_f32_t const *b, nk_size_t columns, nk_size_t depth,
-                                       nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_f32_smef64(nk_f32_t const *b, nk_size_t columns, nk_size_t depth,
+                                             nk_size_t b_stride_in_bytes, void *b_packed) {
 
     nk_size_t const tile_dimension = nk_sme_cntd_();                  // rows per `ZA64` tile (8 for SVL=512)
     nk_size_t const depth_tile_size = nk_sme_cntw_();                 // `f32` depth elements per tile (16 for SVL=512)
@@ -390,7 +390,7 @@ __arm_new("za") static void nk_dots_packed_f32_smef64_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_packed_f32_smef64( //
+NK_API_COMPTIME void nk_dots_packed_f32_smef64( //
     nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 
@@ -723,7 +723,7 @@ __arm_new("za") static void nk_dots_symmetric_f32_smef64_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_symmetric_f32_smef64( //
+NK_API_COMPTIME void nk_dots_symmetric_f32_smef64( //
     nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f64_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -786,16 +786,17 @@ NK_PUBLIC void nk_dots_symmetric_f32_smef64( //
  *
  *  All slices fit in f32 (24-bit significand). Products: max 19+19 = 38 ≤ 53, exact in f64.
  */
-NK_PUBLIC nk_u64_t nk_f64_smef64_ozaki_mask_19_bits_(void) {
+NK_HELPER_AUTO nk_u64_t nk_f64_smef64_ozaki_mask_19_bits_(void) {
     return 0xFFFFFFFC00000000ULL; // keep top 19 sig bits
 }
-NK_PUBLIC nk_u64_t nk_f64_smef64_ozaki_mask_17_bits_(void) {
+NK_HELPER_AUTO nk_u64_t nk_f64_smef64_ozaki_mask_17_bits_(void) {
     return 0xFFFFFFF000000000ULL; // keep top 17 sig bits
 }
 
 /*  Split a scalar f64 into 3 non-overlapping Ozaki slices (19+17+17 mantissa bits).
  *  Each slice fits in f32. Outputs stored via pointers. */
-NK_PUBLIC void nk_f64_smef64_ozaki_split_f64_(nk_f64_t val, nk_f64_t *slice_0, nk_f64_t *slice_1, nk_f64_t *slice_2) {
+NK_HELPER_AUTO void nk_f64_smef64_ozaki_split_f64_(nk_f64_t val, nk_f64_t *slice_0, nk_f64_t *slice_1,
+                                                   nk_f64_t *slice_2) {
     nk_fui64_t pun;
     pun.f = val;
     pun.u &= nk_f64_smef64_ozaki_mask_19_bits_();
@@ -931,7 +932,7 @@ __arm_new("za") static void nk_dots_symmetric_f64_smef64_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_symmetric_f64_smef64( //
+NK_API_COMPTIME void nk_dots_symmetric_f64_smef64( //
     nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f64_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -943,7 +944,7 @@ NK_PUBLIC void nk_dots_symmetric_f64_smef64( //
     nk_sme_stop_streaming_();
 }
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_f64_smef64(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_f64_smef64(nk_size_t columns, nk_size_t depth) {
     nk_size_t const tile_dimension = nk_sme_cntd_();
     nk_size_t const depth_tile_size = nk_sme_cntw_();
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
@@ -955,8 +956,8 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_f64_smef64(nk_size_t columns, nk_size_t 
     return size;
 }
 
-NK_PUBLIC void nk_dots_pack_f64_smef64(nk_f64_t const *b, nk_size_t columns, nk_size_t depth,
-                                       nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_f64_smef64(nk_f64_t const *b, nk_size_t columns, nk_size_t depth,
+                                             nk_size_t b_stride_in_bytes, void *b_packed) {
 
     nk_size_t const b_stride_elements = b_stride_in_bytes / sizeof(nk_f64_t);
 
@@ -1299,7 +1300,7 @@ __arm_new("za") static void nk_dots_packed_f64_smef64_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_packed_f64_smef64( //
+NK_API_COMPTIME void nk_dots_packed_f64_smef64( //
     nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 

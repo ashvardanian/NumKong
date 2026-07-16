@@ -34,8 +34,8 @@
 extern "C" {
 #endif
 
-NK_PUBLIC void nk_sqeuclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                 nk_size_t count_scalars, nk_f32_t *result) {
     // Per-lane accumulators — deferred horizontal reduction
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sq_sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length); // a² + b²
@@ -64,15 +64,15 @@ NK_PUBLIC void nk_sqeuclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t
     *result = sq_sum - 2.0f * ab_sum;
 }
 
-NK_PUBLIC void nk_euclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                         nk_size_t count_scalars, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                               nk_size_t count_scalars, nk_f32_t *result) {
     nk_sqeuclidean_bf16_rvvbf16(a_scalars, b_scalars, count_scalars, result);
     // Handle potential negative values from floating point errors
     *result = *result > 0.0f ? nk_f32_sqrt_rvv(*result) : 0.0f;
 }
 
-NK_PUBLIC void nk_angular_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars, nk_size_t count_scalars,
-                                       nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                             nk_size_t count_scalars, nk_f32_t *result) {
     // Per-lane accumulators — deferred horizontal reduction
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t dot_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);

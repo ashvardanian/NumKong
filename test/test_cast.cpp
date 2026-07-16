@@ -118,7 +118,7 @@ error_stats_t test_cast_block_scaled(block_scaled_cast_t kernel, block_scaled_fo
 void test_casts() {
     error_stats_section_t check("Type Casts");
 
-#if NK_DYNAMIC_DISPATCH
+#if NK_RUNTIME_DISPATCH
     check("cast_f32_to_f16", test_cast<f32_t, f16_t>, nk_cast);
     check("cast_f16_to_f32", test_cast<f16_t, f32_t>, nk_cast);
     check("cast_f32_to_bf16", test_cast<f32_t, bf16_t>, nk_cast);

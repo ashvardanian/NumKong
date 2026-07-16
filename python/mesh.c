@@ -237,7 +237,7 @@ static PyObject *implement_mesh_alignment(nk_kernel_kind_t metric_kind, PyObject
     // Find the appropriate kernel
     nk_metric_mesh_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(metric_kind, dtype, static_capabilities, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_SetString(PyExc_RuntimeError, "No suitable mesh kernel found for this data type");
         goto cleanup;

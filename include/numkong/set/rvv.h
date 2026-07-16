@@ -63,7 +63,7 @@ extern "C" {
  *  @param[in] vector_length Vector length
  *  @return Vector where each byte contains its popcount (0-8)
  */
-NK_INTERNAL vuint8m4_t nk_popcount_u8m4_rvv_(vuint8m4_t v_u8m4, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint8m4_t nk_popcount_u8m4_rvv_(vuint8m4_t v_u8m4, nk_size_t vector_length) {
     // count pairs — v = (v & 0x55) + ((v >> 1) & 0x55)
     vuint8m4_t t_u8m4 = __riscv_vsrl_vx_u8m4(v_u8m4, 1, vector_length);
     t_u8m4 = __riscv_vand_vx_u8m4(t_u8m4, 0x55, vector_length);
@@ -80,7 +80,7 @@ NK_INTERNAL vuint8m4_t nk_popcount_u8m4_rvv_(vuint8m4_t v_u8m4, nk_size_t vector
     return __riscv_vand_vx_u8m4(v_u8m4, 0x0F, vector_length);
 }
 
-NK_PUBLIC void nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_size_t count_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
 
     // Accumulator for total differences
@@ -106,7 +106,7 @@ NK_PUBLIC void nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size
     *result = __riscv_vmv_x_s_u32m1_u32(sum_u32m1);
 }
 
-NK_PUBLIC void nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_size_t count_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
 
     // Accumulators for intersection and union counts
@@ -146,7 +146,7 @@ NK_PUBLIC void nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size
 
 #pragma region Integer Sets
 
-NK_PUBLIC void nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     vuint32m1_t diff_count_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
 
     nk_size_t i = 0;
@@ -169,7 +169,7 @@ NK_PUBLIC void nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n
     *result = __riscv_vmv_x_s_u32m1_u32(diff_count_u32m1);
 }
 
-NK_PUBLIC void nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t match_count_u32 = 0;
 
     nk_size_t i = 0;
@@ -189,7 +189,7 @@ NK_PUBLIC void nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_
     *result = (n != 0) ? 1.0f - (nk_f32_t)match_count_u32 / (nk_f32_t)n : 0.0f;
 }
 
-NK_PUBLIC void nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t match_count_u32 = 0;
 
     nk_size_t i = 0;

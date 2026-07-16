@@ -38,7 +38,7 @@
  *
  *  On Apple M4, SVE instructions are only available inside SME streaming mode.
  *  Functions using SVE intrinsics are marked `__arm_locally_streaming` in a
- *  `_streaming_` helper; the NK_PUBLIC entry point is a thin non-streaming
+ *  `_streaming_` helper; the NK_API_COMPTIME entry point is a thin non-streaming
  *  wrapper. NEON intrinsics cannot be called from streaming mode, so Mahalanobis
  *  functions split into a streaming helper (SVE) and a non-streaming wrapper
  *  (NEON sqrt).
@@ -72,8 +72,8 @@ extern "C" {
  *  @brief SVE Dot2 accumulator: sum += a × b with error compensation.
  *  Uses TwoProd (svneg+svnmls) and TwoSum error-free transformations.
  */
-NK_PUBLIC void nk_dot2_f64_sve_accumulate_(svbool_t predicate_b64x, svfloat64_t *sum, svfloat64_t *comp,
-                                           svfloat64_t a_f64x, svfloat64_t b_f64x) NK_STREAMING_ {
+NK_HELPER_AUTO void nk_dot2_f64_sve_accumulate_(svbool_t predicate_b64x, svfloat64_t *sum, svfloat64_t *comp,
+                                                svfloat64_t a_f64x, svfloat64_t b_f64x) NK_STREAMING_ {
     svfloat64_t product_f64x = svmul_f64_x(predicate_b64x, a_f64x, b_f64x);
     svfloat64_t product_error_f64x = svneg_f64_x(predicate_b64x,
                                                  svnmls_f64_x(predicate_b64x, product_f64x, a_f64x, b_f64x));
@@ -131,7 +131,7 @@ __arm_new("za") static void nk_bilinear_f32_smef64_streaming_( //
     *result = outer_sum_f64;
 }
 
-NK_PUBLIC void nk_bilinear_f32_smef64( //
+NK_API_COMPTIME void nk_bilinear_f32_smef64( //
     nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result) {
     nk_sme_start_streaming_();
     nk_bilinear_f32_smef64_streaming_(a, b, c, dimensions, result);
@@ -187,7 +187,7 @@ __arm_new("za") static nk_f64_t nk_mahalanobis_f32_smef64_streaming_( //
     return outer_sum_f64;
 }
 
-NK_PUBLIC void nk_mahalanobis_f32_smef64( //
+NK_API_COMPTIME void nk_mahalanobis_f32_smef64( //
     nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result) {
     nk_sme_start_streaming_();
     nk_f64_t quadratic = nk_mahalanobis_f32_smef64_streaming_(a, b, c, dimensions);
@@ -265,7 +265,7 @@ static void nk_bilinear_f64_smef64_ssve_( //
     *result = outer_sum + outer_comp;
 }
 
-NK_PUBLIC void nk_bilinear_f64_smef64( //
+NK_API_COMPTIME void nk_bilinear_f64_smef64( //
     nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result) {
     nk_sme_start_streaming_();
     nk_bilinear_f64_smef64_ssve_(a, b, c, dimensions, result);
@@ -346,7 +346,7 @@ static nk_f64_t nk_mahalanobis_f64_smef64_ssve_( //
     return outer_sum + outer_comp;
 }
 
-NK_PUBLIC void nk_mahalanobis_f64_smef64( //
+NK_API_COMPTIME void nk_mahalanobis_f64_smef64( //
     nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result) {
     nk_sme_start_streaming_();
     nk_f64_t quadratic = nk_mahalanobis_f64_smef64_ssve_(a, b, c, dimensions);
@@ -434,7 +434,7 @@ __arm_new("za") static void nk_bilinear_f32c_smef64_streaming_( //
     results->imag = outer_sum_imag_f64;
 }
 
-NK_PUBLIC void nk_bilinear_f32c_smef64( //
+NK_API_COMPTIME void nk_bilinear_f32c_smef64( //
     nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_f32c_t const *c_pairs, nk_size_t dimensions,
     nk_f64c_t *results) {
     nk_sme_start_streaming_();
@@ -507,7 +507,7 @@ static void nk_bilinear_f64c_smef64_ssve_( //
     results->imag = outer_sum_imag + outer_comp_imag;
 }
 
-NK_PUBLIC void nk_bilinear_f64c_smef64( //
+NK_API_COMPTIME void nk_bilinear_f64c_smef64( //
     nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_f64c_t const *c_pairs, nk_size_t dimensions,
     nk_f64c_t *results) {
     nk_sme_start_streaming_();

@@ -35,22 +35,22 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd")
 #endif
 
-NK_PUBLIC nk_f32_t nk_f32_sqrt_neon(nk_f32_t x) { return vget_lane_f32(vsqrt_f32(vdup_n_f32(x)), 0); }
-NK_PUBLIC nk_f64_t nk_f64_sqrt_neon(nk_f64_t x) { return vget_lane_f64(vsqrt_f64(vdup_n_f64(x)), 0); }
-NK_PUBLIC nk_f32_t nk_f32_rsqrt_neon(nk_f32_t x) {
+NK_API_COMPTIME nk_f32_t nk_f32_sqrt_neon(nk_f32_t x) { return vget_lane_f32(vsqrt_f32(vdup_n_f32(x)), 0); }
+NK_API_COMPTIME nk_f64_t nk_f64_sqrt_neon(nk_f64_t x) { return vget_lane_f64(vsqrt_f64(vdup_n_f64(x)), 0); }
+NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_neon(nk_f32_t x) {
     nk_f32_t r = vrsqrtes_f32(x);
     r *= vrsqrtss_f32(x * r, r);
     r *= vrsqrtss_f32(x * r, r);
     return r;
 }
-NK_PUBLIC nk_f64_t nk_f64_rsqrt_neon(nk_f64_t x) {
+NK_API_COMPTIME nk_f64_t nk_f64_rsqrt_neon(nk_f64_t x) {
     nk_f64_t r = vrsqrted_f64(x);
     r *= vrsqrtsd_f64(x * r, r);
     r *= vrsqrtsd_f64(x * r, r);
     r *= vrsqrtsd_f64(x * r, r);
     return r;
 }
-NK_PUBLIC nk_f32_t nk_f32_fma_neon(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
+NK_API_COMPTIME nk_f32_t nk_f32_fma_neon(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
     // MSVC lacks both GCC inline asm and scalar ACLE FMA intrinsics (vfmas_f32/vfmad_f64).
     // GCC/Clang: use inline asm for scalar FMADD.
     // MSVC: use vector FMA + lane extract (compiler may optimize to scalar FMADD).
@@ -62,7 +62,7 @@ NK_PUBLIC nk_f32_t nk_f32_fma_neon(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
     return r;
 #endif
 }
-NK_PUBLIC nk_f64_t nk_f64_fma_neon(nk_f64_t a, nk_f64_t b, nk_f64_t c) {
+NK_API_COMPTIME nk_f64_t nk_f64_fma_neon(nk_f64_t a, nk_f64_t b, nk_f64_t c) {
     // MSVC lacks both GCC inline asm and scalar ACLE FMA intrinsics (vfmas_f32/vfmad_f64).
     // GCC/Clang: use inline asm for scalar FMADD.
     // MSVC: use vector FMA + lane extract (compiler may optimize to scalar FMADD).
@@ -75,16 +75,16 @@ NK_PUBLIC nk_f64_t nk_f64_fma_neon(nk_f64_t a, nk_f64_t b, nk_f64_t c) {
 #endif
 }
 
-NK_PUBLIC nk_u8_t nk_u8_saturating_add_neon(nk_u8_t a, nk_u8_t b) { return vqaddb_u8(a, b); }
-NK_PUBLIC nk_i8_t nk_i8_saturating_add_neon(nk_i8_t a, nk_i8_t b) { return vqaddb_s8(a, b); }
-NK_PUBLIC nk_u16_t nk_u16_saturating_add_neon(nk_u16_t a, nk_u16_t b) { return vqaddh_u16(a, b); }
-NK_PUBLIC nk_i16_t nk_i16_saturating_add_neon(nk_i16_t a, nk_i16_t b) { return vqaddh_s16(a, b); }
-NK_PUBLIC nk_u32_t nk_u32_saturating_add_neon(nk_u32_t a, nk_u32_t b) { return vqadds_u32(a, b); }
-NK_PUBLIC nk_i32_t nk_i32_saturating_add_neon(nk_i32_t a, nk_i32_t b) { return vqadds_s32(a, b); }
-NK_PUBLIC nk_u64_t nk_u64_saturating_add_neon(nk_u64_t a, nk_u64_t b) { return vqaddd_u64(a, b); }
-NK_PUBLIC nk_i64_t nk_i64_saturating_add_neon(nk_i64_t a, nk_i64_t b) { return vqaddd_s64(a, b); }
+NK_API_COMPTIME nk_u8_t nk_u8_saturating_add_neon(nk_u8_t a, nk_u8_t b) { return vqaddb_u8(a, b); }
+NK_API_COMPTIME nk_i8_t nk_i8_saturating_add_neon(nk_i8_t a, nk_i8_t b) { return vqaddb_s8(a, b); }
+NK_API_COMPTIME nk_u16_t nk_u16_saturating_add_neon(nk_u16_t a, nk_u16_t b) { return vqaddh_u16(a, b); }
+NK_API_COMPTIME nk_i16_t nk_i16_saturating_add_neon(nk_i16_t a, nk_i16_t b) { return vqaddh_s16(a, b); }
+NK_API_COMPTIME nk_u32_t nk_u32_saturating_add_neon(nk_u32_t a, nk_u32_t b) { return vqadds_u32(a, b); }
+NK_API_COMPTIME nk_i32_t nk_i32_saturating_add_neon(nk_i32_t a, nk_i32_t b) { return vqadds_s32(a, b); }
+NK_API_COMPTIME nk_u64_t nk_u64_saturating_add_neon(nk_u64_t a, nk_u64_t b) { return vqaddd_u64(a, b); }
+NK_API_COMPTIME nk_i64_t nk_i64_saturating_add_neon(nk_i64_t a, nk_i64_t b) { return vqaddd_s64(a, b); }
 
-NK_INTERNAL nk_u64_t nk_u64_mulhigh_neon_(nk_u64_t a, nk_u64_t b) {
+NK_HELPER_INLINE nk_u64_t nk_u64_mulhigh_neon_(nk_u64_t a, nk_u64_t b) {
 #if defined(_MSC_VER)
     return __umulh(a, b);
 #else
@@ -93,10 +93,10 @@ NK_INTERNAL nk_u64_t nk_u64_mulhigh_neon_(nk_u64_t a, nk_u64_t b) {
     return high;
 #endif
 }
-NK_PUBLIC nk_u64_t nk_u64_saturating_mul_neon(nk_u64_t a, nk_u64_t b) {
+NK_API_COMPTIME nk_u64_t nk_u64_saturating_mul_neon(nk_u64_t a, nk_u64_t b) {
     return nk_u64_mulhigh_neon_(a, b) ? 18446744073709551615ull : (a * b);
 }
-NK_PUBLIC nk_i64_t nk_i64_saturating_mul_neon(nk_i64_t a, nk_i64_t b) {
+NK_API_COMPTIME nk_i64_t nk_i64_saturating_mul_neon(nk_i64_t a, nk_i64_t b) {
     int sign = (a < 0) ^ (b < 0);
     nk_u64_t abs_a = a < 0 ? (0u - (nk_u64_t)a) : (nk_u64_t)a;
     nk_u64_t abs_b = b < 0 ? (0u - (nk_u64_t)b) : (nk_u64_t)b;

@@ -36,14 +36,14 @@ extern "C" {
 
 #pragma region Binary Sets
 
-NK_PUBLIC void nk_hamming_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
     nk_u32_t differences = 0;
     for (nk_size_t i = 0; i != n_bytes; ++i) differences += nk_u1x8_popcount_(a[i] ^ b[i]);
     *result = differences;
 }
 
-NK_PUBLIC void nk_jaccard_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
     nk_u32_t intersection_count = 0, union_count = 0;
     for (nk_size_t i = 0; i != n_bytes; ++i)
@@ -55,19 +55,19 @@ NK_PUBLIC void nk_jaccard_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_s
 
 #pragma region Integer Sets
 
-NK_PUBLIC void nk_jaccard_u32_serial(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u32_serial(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t intersection_count = 0;
     for (nk_size_t i = 0; i != n; ++i) intersection_count += (a[i] == b[i]);
     *result = (n != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)n : 0.0f;
 }
 
-NK_PUBLIC void nk_hamming_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_u32_t differences = 0;
     for (nk_size_t i = 0; i != n; ++i) differences += (a[i] != b[i]);
     *result = differences;
 }
 
-NK_PUBLIC void nk_jaccard_u16_serial(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u16_serial(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t matches = 0;
     for (nk_size_t i = 0; i != n; ++i) matches += (a[i] == b[i]);
     *result = (n != 0) ? 1.0f - (nk_f32_t)matches / (nk_f32_t)n : 0.0f;
@@ -81,12 +81,13 @@ typedef struct nk_jaccard_u1x128_state_serial_t {
     nk_u64_t intersection_count;
 } nk_jaccard_u1x128_state_serial_t;
 
-NK_INTERNAL void nk_jaccard_u1x128_init_serial(nk_jaccard_u1x128_state_serial_t *state) {
+NK_HELPER_INLINE void nk_jaccard_u1x128_init_serial(nk_jaccard_u1x128_state_serial_t *state) {
     state->intersection_count = 0;
 }
 
-NK_INTERNAL void nk_jaccard_u1x128_update_serial(nk_jaccard_u1x128_state_serial_t *state, nk_b128_vec_t a,
-                                                 nk_b128_vec_t b, nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_jaccard_u1x128_update_serial(nk_jaccard_u1x128_state_serial_t *state, nk_b128_vec_t a,
+                                                      nk_b128_vec_t b, nk_size_t depth_offset,
+                                                      nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_u64_t intersection_low = a.u64s[0] & b.u64s[0];
@@ -95,7 +96,7 @@ NK_INTERNAL void nk_jaccard_u1x128_update_serial(nk_jaccard_u1x128_state_serial_
     state->intersection_count += nk_u64_popcount_(intersection_high);
 }
 
-NK_INTERNAL void nk_jaccard_u1x128_finalize_serial( //
+NK_HELPER_INLINE void nk_jaccard_u1x128_finalize_serial( //
     nk_jaccard_u1x128_state_serial_t const *state_a, nk_jaccard_u1x128_state_serial_t const *state_b,
     nk_jaccard_u1x128_state_serial_t const *state_c, nk_jaccard_u1x128_state_serial_t const *state_d,
     nk_f32_t query_popcount, nk_b128_vec_t const *target_popcounts_vec, nk_size_t total_dimensions,
@@ -122,12 +123,13 @@ typedef struct nk_hamming_u1x128_state_serial_t {
     nk_u64_t intersection_count;
 } nk_hamming_u1x128_state_serial_t;
 
-NK_INTERNAL void nk_hamming_u1x128_init_serial(nk_hamming_u1x128_state_serial_t *state) {
+NK_HELPER_INLINE void nk_hamming_u1x128_init_serial(nk_hamming_u1x128_state_serial_t *state) {
     state->intersection_count = 0;
 }
 
-NK_INTERNAL void nk_hamming_u1x128_update_serial(nk_hamming_u1x128_state_serial_t *state, nk_b128_vec_t a,
-                                                 nk_b128_vec_t b, nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_hamming_u1x128_update_serial(nk_hamming_u1x128_state_serial_t *state, nk_b128_vec_t a,
+                                                      nk_b128_vec_t b, nk_size_t depth_offset,
+                                                      nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_u64_t intersection_low = a.u64s[0] ^ b.u64s[0];
@@ -136,7 +138,7 @@ NK_INTERNAL void nk_hamming_u1x128_update_serial(nk_hamming_u1x128_state_serial_
     state->intersection_count += nk_u64_popcount_(intersection_high);
 }
 
-NK_INTERNAL void nk_hamming_u1x128_finalize_serial( //
+NK_HELPER_INLINE void nk_hamming_u1x128_finalize_serial( //
     nk_hamming_u1x128_state_serial_t const *state_a, nk_hamming_u1x128_state_serial_t const *state_b,
     nk_hamming_u1x128_state_serial_t const *state_c, nk_hamming_u1x128_state_serial_t const *state_d,
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -149,14 +151,16 @@ NK_INTERNAL void nk_hamming_u1x128_finalize_serial( //
 }
 
 /** @brief Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (serial). */
-NK_INTERNAL void nk_hamming_u32x4_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                   nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                        nk_b128_vec_t const *target_pops_vec,
+                                                        nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) result_vec->u32s[i] = query_pop + target_pops_vec->u32s[i] - 2 * dots_vec->u32s[i];
 }
 
 /** @brief Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (serial). */
-NK_INTERNAL void nk_jaccard_f32x4_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                   nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                        nk_b128_vec_t const *target_pops_vec,
+                                                        nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
         nk_f32_t dot = (nk_f32_t)dots_vec->u32s[i];
         nk_f32_t union_val = (nk_f32_t)query_pop + (nk_f32_t)target_pops_vec->u32s[i] - dot;

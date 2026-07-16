@@ -57,17 +57,18 @@ extern "C" {
  *  Input: 24 contiguous fp16 [x0,y0,z0, ..., x7,y7,z7]
  *  Output: x_f16x8, y_f16x8, z_f16x8 channel vectors (8 lanes each)
  */
-NK_INTERNAL void nk_deinterleave_f16x8_to_f16x8x3_neonfhm_(nk_f16_t const *ptr, //
-                                                           float16x8_t *x_out, float16x8_t *y_out, float16x8_t *z_out) {
+NK_HELPER_INLINE void nk_deinterleave_f16x8_to_f16x8x3_neonfhm_(nk_f16_t const *ptr, //
+                                                                float16x8_t *x_out, float16x8_t *y_out,
+                                                                float16x8_t *z_out) {
     uint16x8x3_t xyz_u16x8x3 = vld3q_u16((nk_u16_t const *)ptr);
     *x_out = vreinterpretq_f16_u16(xyz_u16x8x3.val[0]);
     *y_out = vreinterpretq_f16_u16(xyz_u16x8x3.val[1]);
     *z_out = vreinterpretq_f16_u16(xyz_u16x8x3.val[2]);
 }
 
-NK_INTERNAL void nk_partial_deinterleave_f16_to_f16x8x3_neonfhm_(nk_f16_t const *ptr, nk_size_t n_points, //
-                                                                 float16x8_t *x_out, float16x8_t *y_out,
-                                                                 float16x8_t *z_out) {
+NK_HELPER_INLINE void nk_partial_deinterleave_f16_to_f16x8x3_neonfhm_(nk_f16_t const *ptr, nk_size_t n_points, //
+                                                                      float16x8_t *x_out, float16x8_t *y_out,
+                                                                      float16x8_t *z_out) {
     nk_u16_t buf[24] = {0};
     nk_u16_t const *src = (nk_u16_t const *)ptr;
     for (nk_size_t k = 0; k < n_points * 3; ++k) buf[k] = src[k];
@@ -78,8 +79,8 @@ NK_INTERNAL void nk_partial_deinterleave_f16_to_f16x8x3_neonfhm_(nk_f16_t const 
  *  @brief RMSD (Root Mean Square Deviation) using NEON FHM widening FMA.
  *  Matches the serial-RMSD contract: zero centroids, identity rotation, raw √(Σ‖a-b‖² / n).
  */
-NK_PUBLIC void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                   nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NK_API_COMPTIME void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
@@ -144,8 +145,9 @@ NK_PUBLIC void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size
  *  @brief Kabsch algorithm for optimal rigid body superposition using NEON FHM widening FMA.
  *  Finds the rotation matrix R that minimizes RMSD between two point sets.
  */
-NK_PUBLIC void nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                     nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NK_API_COMPTIME void nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                           nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -419,8 +421,9 @@ NK_PUBLIC void nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_si
  *  @brief Umeyama algorithm (Kabsch with uniform scale) using NEON FHM widening FMA.
  *  Finds rotation R and scale c minimizing ‖c·R·a − b‖² after centroid alignment.
  */
-NK_PUBLIC void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NK_API_COMPTIME void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                            nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;

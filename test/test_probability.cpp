@@ -77,7 +77,7 @@ error_stats_t test_jsd(typename scalar_type_::probability_kernel_t kernel) {
 void test_probability() {
     error_stats_section_t check("Probability Divergences");
 
-#if NK_DYNAMIC_DISPATCH
+#if NK_RUNTIME_DISPATCH
     check("kld_f32", test_kld<f32_t>, nk_kld_f32);
     check("kld_f64", test_kld<f64_t>, nk_kld_f64);
     check("kld_f16", test_kld<f16_t>, nk_kld_f16);
@@ -132,5 +132,5 @@ void test_probability() {
     check("jsd_bf16_serial", test_jsd<bf16_t>, nk_jsd_bf16_serial);
     check("jsd_f16_serial", test_jsd<f16_t>, nk_jsd_f16_serial);
 
-#endif // NK_DYNAMIC_DISPATCH
+#endif // NK_RUNTIME_DISPATCH
 }

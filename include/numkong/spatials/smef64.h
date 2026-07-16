@@ -27,7 +27,7 @@ extern "C" {
 #pragma GCC target("+sme+sme-f64f64")
 #endif
 
-NK_PUBLIC nk_f64_t nk_dots_reduce_sumsq_f32_ssve_(nk_f32_t const *data, nk_size_t count) NK_STREAMING_ {
+NK_HELPER_AUTO nk_f64_t nk_dots_reduce_sumsq_f32_ssve_(nk_f32_t const *data, nk_size_t count) NK_STREAMING_ {
     svfloat64_t accumulator_even_f64x = svdup_f64(0.0);
     svfloat64_t accumulator_odd_f64x = svdup_f64(0.0);
     nk_size_t const vector_length = svcntw();
@@ -48,7 +48,7 @@ NK_PUBLIC nk_f64_t nk_dots_reduce_sumsq_f32_ssve_(nk_f32_t const *data, nk_size_
     return nk_svaddv_f64_(svptrue_b64(), accumulator_even_f64x) + nk_svaddv_f64_(svptrue_b64(), accumulator_odd_f64x);
 }
 
-NK_PUBLIC nk_f64_t nk_dots_reduce_sumsq_f64_ssve_(nk_f64_t const *data, nk_size_t count) NK_STREAMING_ {
+NK_HELPER_AUTO nk_f64_t nk_dots_reduce_sumsq_f64_ssve_(nk_f64_t const *data, nk_size_t count) NK_STREAMING_ {
     svfloat64_t accumulator_f64x = svdup_f64(0.0);
     nk_size_t const vector_length = svcntd();
     for (nk_size_t i = 0; i < count; i += vector_length) {
@@ -59,9 +59,9 @@ NK_PUBLIC nk_f64_t nk_dots_reduce_sumsq_f64_ssve_(nk_f64_t const *data, nk_size_
     return nk_svaddv_f64_(svptrue_b64(), accumulator_f64x);
 }
 
-NK_PUBLIC svfloat64_t nk_angulars_from_dot_f64x_ssvef64_(svbool_t predicate_b64x, svfloat64_t dots_f64x,
-                                                         svfloat64_t query_norm_sq_f64x,
-                                                         svfloat64_t target_norms_sq_f64x) NK_STREAMING_ {
+NK_HELPER_AUTO svfloat64_t nk_angulars_from_dot_f64x_ssvef64_(svbool_t predicate_b64x, svfloat64_t dots_f64x,
+                                                              svfloat64_t query_norm_sq_f64x,
+                                                              svfloat64_t target_norms_sq_f64x) NK_STREAMING_ {
     // Separate square roots avoid overflowing the product of two finite-but-large norms.
     svbool_t positive_norms_b64x = svand_b_z(predicate_b64x, svcmpgt_n_f64(predicate_b64x, query_norm_sq_f64x, 0.0),
                                              svcmpgt_n_f64(predicate_b64x, target_norms_sq_f64x, 0.0));
@@ -77,9 +77,9 @@ NK_PUBLIC svfloat64_t nk_angulars_from_dot_f64x_ssvef64_(svbool_t predicate_b64x
     return svmax_f64_x(predicate_b64x, angular_f64x, svdup_n_f64(0.0));
 }
 
-NK_PUBLIC svfloat64_t nk_euclideans_from_dot_f64x_ssvef64_(svbool_t predicate_b64x, svfloat64_t dots_f64x,
-                                                           svfloat64_t query_norm_sq_f64x,
-                                                           svfloat64_t target_norms_sq_f64x) NK_STREAMING_ {
+NK_HELPER_AUTO svfloat64_t nk_euclideans_from_dot_f64x_ssvef64_(svbool_t predicate_b64x, svfloat64_t dots_f64x,
+                                                                svfloat64_t query_norm_sq_f64x,
+                                                                svfloat64_t target_norms_sq_f64x) NK_STREAMING_ {
     svfloat64_t sum_sq_f64x = svadd_f64_x(predicate_b64x, query_norm_sq_f64x, target_norms_sq_f64x);
     svfloat64_t dist_sq_f64x = svsub_f64_x(predicate_b64x, sum_sq_f64x,
                                            svmul_f64_x(predicate_b64x, svdup_n_f64(2.0), dots_f64x));
@@ -113,7 +113,7 @@ static void nk_angulars_packed_f32_smef64_finalize_ssve_( //
     }
 }
 
-NK_PUBLIC void nk_angulars_packed_f32_smef64( //
+NK_API_COMPTIME void nk_angulars_packed_f32_smef64( //
     nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 
@@ -154,7 +154,7 @@ static void nk_euclideans_packed_f32_smef64_finalize_ssve_( //
     }
 }
 
-NK_PUBLIC void nk_euclideans_packed_f32_smef64( //
+NK_API_COMPTIME void nk_euclideans_packed_f32_smef64( //
     nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 
@@ -208,7 +208,7 @@ static void nk_angulars_symmetric_f32_smef64_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NK_PUBLIC void nk_angulars_symmetric_f32_smef64( //
+NK_API_COMPTIME void nk_angulars_symmetric_f32_smef64( //
     nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f64_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -263,7 +263,7 @@ static void nk_euclideans_symmetric_f32_smef64_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NK_PUBLIC void nk_euclideans_symmetric_f32_smef64( //
+NK_API_COMPTIME void nk_euclideans_symmetric_f32_smef64( //
     nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f64_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -305,7 +305,7 @@ static void nk_angulars_packed_f64_smef64_finalize_ssve_( //
     }
 }
 
-NK_PUBLIC void nk_angulars_packed_f64_smef64( //
+NK_API_COMPTIME void nk_angulars_packed_f64_smef64( //
     nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 
@@ -346,7 +346,7 @@ static void nk_euclideans_packed_f64_smef64_finalize_ssve_( //
     }
 }
 
-NK_PUBLIC void nk_euclideans_packed_f64_smef64( //
+NK_API_COMPTIME void nk_euclideans_packed_f64_smef64( //
     nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 
@@ -400,7 +400,7 @@ static void nk_angulars_symmetric_f64_smef64_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NK_PUBLIC void nk_angulars_symmetric_f64_smef64( //
+NK_API_COMPTIME void nk_angulars_symmetric_f64_smef64( //
     nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f64_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -455,7 +455,7 @@ static void nk_euclideans_symmetric_f64_smef64_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NK_PUBLIC void nk_euclideans_symmetric_f64_smef64( //
+NK_API_COMPTIME void nk_euclideans_symmetric_f64_smef64( //
     nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f64_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 

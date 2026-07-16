@@ -50,7 +50,7 @@ extern "C" {
  *  These implement polynomial approximations using 128-bit WASM SIMD vectors.
  */
 
-NK_INTERNAL v128_t nk_f32x4_sin_v128relaxed_(v128_t const angles_radians) {
+NK_HELPER_INLINE v128_t nk_f32x4_sin_v128relaxed_(v128_t const angles_radians) {
     // Constants for argument reduction
     v128_t const pi_f32x4 = wasm_f32x4_splat(3.14159265358979323846f);
     v128_t const pi_reciprocal_f32x4 = wasm_f32x4_splat(0.31830988618379067154f);
@@ -88,7 +88,7 @@ NK_INTERNAL v128_t nk_f32x4_sin_v128relaxed_(v128_t const angles_radians) {
     return results_f32x4;
 }
 
-NK_INTERNAL v128_t nk_f32x4_cos_v128relaxed_(v128_t const angles_radians) {
+NK_HELPER_INLINE v128_t nk_f32x4_cos_v128relaxed_(v128_t const angles_radians) {
     // Constants for argument reduction
     v128_t const pi_f32x4 = wasm_f32x4_splat(3.14159265358979323846f);
     v128_t const pi_half_f32x4 = wasm_f32x4_splat(1.57079632679489661923f);
@@ -127,7 +127,7 @@ NK_INTERNAL v128_t nk_f32x4_cos_v128relaxed_(v128_t const angles_radians) {
     return results_f32x4;
 }
 
-NK_INTERNAL v128_t nk_f32x4_atan_v128relaxed_(v128_t const inputs) {
+NK_HELPER_INLINE v128_t nk_f32x4_atan_v128relaxed_(v128_t const inputs) {
     // Polynomial coefficients for atan approximation (8 terms)
     v128_t const coeff_8_f32x4 = wasm_f32x4_splat(-0.333331018686294555664062f);
     v128_t const coeff_7_f32x4 = wasm_f32x4_splat(+0.199926957488059997558594f);
@@ -184,7 +184,7 @@ NK_INTERNAL v128_t nk_f32x4_atan_v128relaxed_(v128_t const inputs) {
     return result_f32x4;
 }
 
-NK_INTERNAL v128_t nk_f32x4_atan2_v128relaxed_(v128_t const ys_inputs, v128_t const xs_inputs) {
+NK_HELPER_INLINE v128_t nk_f32x4_atan2_v128relaxed_(v128_t const ys_inputs, v128_t const xs_inputs) {
     // Polynomial coefficients (same as atan)
     v128_t const coeff_8_f32x4 = wasm_f32x4_splat(-0.333331018686294555664062f);
     v128_t const coeff_7_f32x4 = wasm_f32x4_splat(+0.199926957488059997558594f);
@@ -252,7 +252,7 @@ NK_INTERNAL v128_t nk_f32x4_atan2_v128relaxed_(v128_t const ys_inputs, v128_t co
     return results_f32x4;
 }
 
-NK_INTERNAL v128_t nk_f64x2_sin_v128relaxed_(v128_t const angles_radians) {
+NK_HELPER_INLINE v128_t nk_f64x2_sin_v128relaxed_(v128_t const angles_radians) {
     // Constants for argument reduction
     v128_t const pi_high_f64x2 = wasm_f64x2_splat(3.141592653589793116);
     v128_t const pi_low_f64x2 = wasm_f64x2_splat(1.2246467991473532072e-16);
@@ -319,7 +319,7 @@ NK_INTERNAL v128_t nk_f64x2_sin_v128relaxed_(v128_t const angles_radians) {
     return results_f64x2;
 }
 
-NK_INTERNAL v128_t nk_f64x2_cos_v128relaxed_(v128_t const angles_radians) {
+NK_HELPER_INLINE v128_t nk_f64x2_cos_v128relaxed_(v128_t const angles_radians) {
     // Constants for argument reduction
     v128_t const pi_high_half_f64x2 = wasm_f64x2_splat(3.141592653589793116 * 0.5);
     v128_t const pi_low_half_f64x2 = wasm_f64x2_splat(1.2246467991473532072e-16 * 0.5);
@@ -381,7 +381,7 @@ NK_INTERNAL v128_t nk_f64x2_cos_v128relaxed_(v128_t const angles_radians) {
     return results_f64x2;
 }
 
-NK_INTERNAL v128_t nk_f64x2_atan_v128relaxed_(v128_t const inputs) {
+NK_HELPER_INLINE v128_t nk_f64x2_atan_v128relaxed_(v128_t const inputs) {
     // Polynomial coefficients for atan approximation (19 terms)
     v128_t const coeff_19_f64x2 = wasm_f64x2_splat(-1.88796008463073496563746e-05);
     v128_t const coeff_18_f64x2 = wasm_f64x2_splat(+0.000209850076645816976906797);
@@ -458,7 +458,7 @@ NK_INTERNAL v128_t nk_f64x2_atan_v128relaxed_(v128_t const inputs) {
     return result_f64x2;
 }
 
-NK_INTERNAL v128_t nk_f64x2_atan2_v128relaxed_(v128_t const ys_inputs, v128_t const xs_inputs) {
+NK_HELPER_INLINE v128_t nk_f64x2_atan2_v128relaxed_(v128_t const ys_inputs, v128_t const xs_inputs) {
     // Polynomial coefficients (same as atan)
     v128_t const coeff_19_f64x2 = wasm_f64x2_splat(-1.88796008463073496563746e-05);
     v128_t const coeff_18_f64x2 = wasm_f64x2_splat(+0.000209850076645816976906797);
@@ -548,12 +548,12 @@ NK_INTERNAL v128_t nk_f64x2_atan2_v128relaxed_(v128_t const ys_inputs, v128_t co
     return results_f64x2;
 }
 
-/*  NK_PUBLIC wrappers — same loop+tail pattern as neon.h.
+/*  NK_API_COMPTIME wrappers — same loop+tail pattern as neon.h.
  *  Full loads use wasm_v128_load/wasm_v128_store.
  *  Tails use nk_partial_load_b32x4_serial_/nk_partial_store_b32x4_serial_ via .v128 union member.
  */
 
-NK_PUBLIC void nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_API_COMPTIME void nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         v128_t angles_f32x4 = wasm_v128_load(ins + i);
@@ -570,7 +570,7 @@ NK_PUBLIC void nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_
     }
 }
 
-NK_PUBLIC void nk_trig_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_API_COMPTIME void nk_trig_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         v128_t angles_f32x4 = wasm_v128_load(ins + i);
@@ -587,7 +587,7 @@ NK_PUBLIC void nk_trig_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_
     }
 }
 
-NK_PUBLIC void nk_trig_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_API_COMPTIME void nk_trig_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         v128_t values_f32x4 = wasm_v128_load(ins + i);
@@ -604,7 +604,7 @@ NK_PUBLIC void nk_trig_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk
     }
 }
 
-NK_PUBLIC void nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_API_COMPTIME void nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         v128_t angles_f64x2 = wasm_v128_load(ins + i);
@@ -621,7 +621,7 @@ NK_PUBLIC void nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_
     }
 }
 
-NK_PUBLIC void nk_trig_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_API_COMPTIME void nk_trig_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         v128_t angles_f64x2 = wasm_v128_load(ins + i);
@@ -638,7 +638,7 @@ NK_PUBLIC void nk_trig_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_
     }
 }
 
-NK_PUBLIC void nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_API_COMPTIME void nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         v128_t values_f64x2 = wasm_v128_load(ins + i);

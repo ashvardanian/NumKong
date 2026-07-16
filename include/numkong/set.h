@@ -161,7 +161,7 @@ extern "C" {
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two vectors are identical.
  */
-NK_DYNAMIC void nk_hamming_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_RUNTIME void nk_hamming_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
 
 /**
  *  @brief Binary Jaccard distance computing the ratio of differing bits to the union of bits.
@@ -174,7 +174,7 @@ NK_DYNAMIC void nk_hamming_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t 
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two vectors are identical.
  */
-NK_DYNAMIC void nk_jaccard_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_RUNTIME void nk_jaccard_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
 
 /**
  *  @brief Integral Jaccard distance computing the ratio of differing bits to the union of bits.
@@ -187,7 +187,7 @@ NK_DYNAMIC void nk_jaccard_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t 
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two vectors are identical.
  */
-NK_DYNAMIC void nk_jaccard_u32(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_RUNTIME void nk_jaccard_u32(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
 
 /**
  *  @brief Byte-level Hamming distance computing the number of differing bytes between two vectors.
@@ -200,7 +200,7 @@ NK_DYNAMIC void nk_jaccard_u32(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two vectors are identical.
  */
-NK_DYNAMIC void nk_hamming_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_RUNTIME void nk_hamming_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 
 /**
  *  @brief Integral Jaccard distance for 16-bit unsigned integer vectors.
@@ -213,109 +213,109 @@ NK_DYNAMIC void nk_hamming_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, n
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two vectors are identical.
  */
-NK_DYNAMIC void nk_jaccard_u16(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_RUNTIME void nk_jaccard_u16(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
 
 /** @copydoc nk_hamming_u1 */
-NK_PUBLIC void nk_hamming_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_hamming_u8 */
-NK_PUBLIC void nk_hamming_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_jaccard_u1 */
-NK_PUBLIC void nk_jaccard_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u32 */
-NK_PUBLIC void nk_jaccard_u32_serial(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u32_serial(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u16 */
-NK_PUBLIC void nk_jaccard_u16_serial(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u16_serial(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
 
 #if NK_TARGET_NEON
 /** @copydoc nk_hamming_u1 */
-NK_PUBLIC void nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_hamming_u8 */
-NK_PUBLIC void nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_jaccard_u1 */
-NK_PUBLIC void nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u32 */
-NK_PUBLIC void nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u16 */
-NK_PUBLIC void nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
 
 #endif // NK_TARGET_NEON
 
 #if NK_TARGET_SVE
 /** @copydoc nk_hamming_u1 */
-NK_PUBLIC void nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_hamming_u8 */
-NK_PUBLIC void nk_hamming_u8_sve(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u8_sve(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_jaccard_u1 */
-NK_PUBLIC void nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u32 */
-NK_PUBLIC void nk_jaccard_u32_sve(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u32_sve(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u16 */
-NK_PUBLIC void nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_SVE
 
 #if NK_TARGET_HASWELL
 /** @copydoc nk_hamming_u1 */
-NK_PUBLIC void nk_hamming_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_hamming_u8 */
-NK_PUBLIC void nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_jaccard_u1 */
-NK_PUBLIC void nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u16 */
-NK_PUBLIC void nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u32 */
-NK_PUBLIC void nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_HASWELL
 
 #if NK_TARGET_ICELAKE
 /** @copydoc nk_hamming_u1 */
-NK_PUBLIC void nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_hamming_u8 */
-NK_PUBLIC void nk_hamming_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_jaccard_u1 */
-NK_PUBLIC void nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u32 */
-NK_PUBLIC void nk_jaccard_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u16 */
-NK_PUBLIC void nk_jaccard_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_ICELAKE
 
 #if NK_TARGET_RVVBB
 /** @copydoc nk_hamming_u1 */
-NK_PUBLIC void nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_jaccard_u1 */
-NK_PUBLIC void nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_RVVBB
 
 #if NK_TARGET_RVV
 /** @copydoc nk_hamming_u1 */
-NK_PUBLIC void nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_hamming_u8 */
-NK_PUBLIC void nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_jaccard_u1 */
-NK_PUBLIC void nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u16 */
-NK_PUBLIC void nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u32 */
-NK_PUBLIC void nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_RVV
 
 #if NK_TARGET_V128RELAXED
 /** @copydoc nk_hamming_u1 */
-NK_PUBLIC void nk_hamming_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_hamming_u8 */
-NK_PUBLIC void nk_hamming_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_jaccard_u1 */
-NK_PUBLIC void nk_jaccard_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u16 */
-NK_PUBLIC void nk_jaccard_u16_v128relaxed(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u16_v128relaxed(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u32 */
-NK_PUBLIC void nk_jaccard_u32_v128relaxed(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u32_v128relaxed(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_V128RELAXED
 
 /**
  *  @brief  Returns the output dtype for Hamming distance.
  */
-NK_INTERNAL nk_dtype_t nk_hamming_output_dtype(nk_dtype_t dtype) {
+NK_HELPER_INLINE nk_dtype_t nk_hamming_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_u1_k: return nk_u32_k;
     case nk_u8_k: return nk_u32_k;
@@ -326,7 +326,7 @@ NK_INTERNAL nk_dtype_t nk_hamming_output_dtype(nk_dtype_t dtype) {
 /**
  *  @brief  Returns the output dtype for Jaccard distance.
  */
-NK_INTERNAL nk_dtype_t nk_jaccard_output_dtype(nk_dtype_t dtype) {
+NK_HELPER_INLINE nk_dtype_t nk_jaccard_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_u1_k: return nk_f32_k;
     case nk_u16_k: return nk_f32_k;
@@ -354,9 +354,9 @@ NK_INTERNAL nk_dtype_t nk_jaccard_output_dtype(nk_dtype_t dtype) {
 extern "C" {
 #endif
 
-#if !NK_DYNAMIC_DISPATCH
+#if !NK_RUNTIME_DISPATCH
 
-NK_PUBLIC void nk_hamming_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
 #if NK_TARGET_V128RELAXED
     nk_hamming_u1_v128relaxed(a, b, n, result);
 #elif NK_TARGET_SVE
@@ -380,7 +380,7 @@ NK_PUBLIC void nk_hamming_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n
 #endif
 }
 
-NK_PUBLIC void nk_jaccard_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
 #if NK_TARGET_V128RELAXED
     nk_jaccard_u1_v128relaxed(a, b, n, result);
 #elif NK_TARGET_SVE
@@ -404,7 +404,7 @@ NK_PUBLIC void nk_jaccard_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n
 #endif
 }
 
-NK_PUBLIC void nk_jaccard_u32(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u32(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
 #if NK_TARGET_V128RELAXED
     nk_jaccard_u32_v128relaxed(a, b, n, result);
 #elif NK_TARGET_SVE
@@ -422,7 +422,7 @@ NK_PUBLIC void nk_jaccard_u32(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
 #endif
 }
 
-NK_PUBLIC void nk_hamming_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
 #if NK_TARGET_V128RELAXED
     nk_hamming_u8_v128relaxed(a, b, n, result);
 #elif NK_TARGET_SVE
@@ -444,7 +444,7 @@ NK_PUBLIC void nk_hamming_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk
 #endif
 }
 
-NK_PUBLIC void nk_jaccard_u16(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u16(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
 #if NK_TARGET_V128RELAXED
     nk_jaccard_u16_v128relaxed(a, b, n, result);
 #elif NK_TARGET_SVE
@@ -462,7 +462,7 @@ NK_PUBLIC void nk_jaccard_u16(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
 #endif
 }
 
-#endif // !NK_DYNAMIC_DISPATCH
+#endif // !NK_RUNTIME_DISPATCH
 
 #if defined(__cplusplus)
 } // extern "C"

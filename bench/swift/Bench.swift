@@ -107,8 +107,8 @@ private func capabilityNames(_ caps: nk_capability_t) -> String {
 // MARK: - Serial Dispatch Helper
 
 private func withSerialDispatch(_ body: () -> Void) {
-    nk_dispatch_table_update(1)  // nk_cap_serial_k
-    defer { nk_dispatch_table_update(nk_capabilities()) }
+    nk_capabilities_restrict(1)  // nk_cap_serial_k
+    defer { nk_capabilities_restrict(nk_capabilities_available()) }
     body()
 }
 
@@ -150,10 +150,10 @@ extension XCTestCase {
 
 final class BenchInfo: XCTestCase {
     func testCapabilities() {
-        let caps = nk_capabilities()
-        let dynamic = nk_uses_dynamic_dispatch()
+        let caps = nk_capabilities_available()
+        let usesRuntimeDispatch = nk_uses_runtime_dispatch()
         print("Capabilities: \(caps) [\(capabilityNames(caps))]")
-        print("Dynamic dispatch: \(dynamic != 0 ? "YES" : "NO")")
+        print("Runtime dispatch: \(usesRuntimeDispatch != 0 ? "YES" : "NO")")
         print("Dense dimensions: \(denseDims)")
         print("Matrix: \(matrixHeight)×\(matrixDepth) × \(matrixWidth)×\(matrixDepth)")
     }

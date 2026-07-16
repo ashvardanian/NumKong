@@ -88,7 +88,7 @@ static void print_isa(char const *name, int compiled, nk_capability_t cap, nk_ca
 bench_config_t bench_config;
 
 int main(int argc, char **argv) {
-    nk_capability_t runtime_caps = nk_capabilities();
+    nk_capability_t runtime_caps = nk_capabilities_detected();
     nk_configure_thread(runtime_caps); // Also enables AMX if available
 
 #if NK_COMPARE_TO_MKL

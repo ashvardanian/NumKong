@@ -74,8 +74,7 @@ error_stats_t test_vdot(typename scalar_type_::vdot_kernel_t kernel) {
 void test_dot() {
     error_stats_section_t check("Dot Products");
 
-#if NK_DYNAMIC_DISPATCH
-    // Dynamic dispatch - only test the dispatcher itself
+#if NK_RUNTIME_DISPATCH
     check("dot_f32", test_dot<f32_t>, nk_dot_f32);
     check("dot_f64", test_dot<f64_t>, nk_dot_f64);
     check("dot_f16", test_dot<f16_t>, nk_dot_f16);
@@ -98,7 +97,6 @@ void test_dot() {
     check("dot_bf16c", test_dot<bf16c_t>, nk_dot_bf16c);
     check("vdot_bf16c", test_vdot<bf16c_t>, nk_vdot_bf16c);
 #else
-    // Static compilation - test all available ISA variants
 
 #if NK_TARGET_NEON
     check("dot_f32_neon", test_dot<f32_t>, nk_dot_f32_neon);
@@ -348,6 +346,6 @@ void test_dot() {
     check("dot_bf16c_serial", test_dot<bf16c_t>, nk_dot_bf16c_serial);
     check("vdot_bf16c_serial", test_vdot<bf16c_t>, nk_vdot_bf16c_serial);
 
-#endif // NK_DYNAMIC_DISPATCH
+#endif // NK_RUNTIME_DISPATCH
     // BLAS/MKL/Accelerate precision comparisons are in test_cross_blas.cpp
 }

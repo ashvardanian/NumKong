@@ -428,12 +428,24 @@ Capability detection is exposed directly for diagnostics and tests:
 ```swift
 import NumKong
 
-let caps = Capabilities.available
-let hasNEON = (caps & Capabilities.neon) != 0
-let hasHaswell = (caps & Capabilities.haswell) != 0
+// `available` is what can actually run: detected on this CPU AND compiled into the binary.
+print(Capabilities.has(Capabilities.neon), Capabilities.has(Capabilities.haswell))
 
-print(hasNEON, hasHaswell)
+// The two raw axes, when you specifically mean one of them:
+let onThisCpu = Capabilities.detected
+let inThisBinary = Capabilities.compiled
 ```
+
+| Accessor                 | Meaning                                                      |
+| :----------------------- | :----------------------------------------------------------- |
+| `Capabilities.detected`  | what this CPU can execute, from CPUID or HWCAP               |
+| `Capabilities.compiled`  | what this binary contains, from the ISA probes at build time |
+| `Capabilities.available` | the intersection, i.e. what can actually run here            |
+| `Capabilities.enabled`   | the subset dispatch is restricted to                         |
+
+Reach for `available` unless you specifically mean one of the raw axes.
+`detected` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
+`Capabilities.configureThread()` enables per-thread state such as Intel AMX, and `Capabilities.enable` / `.disable` / `.restrict` narrow what dispatch may select.
 
 You usually do not need to branch on this in application code.
 The native layer still selects the best enabled kernel automatically.

@@ -27,7 +27,7 @@ let package = Package(
             dependencies: ["NumKong"],
             path: "test/swift",
             cSettings: [
-                .define("NK_DYNAMIC_DISPATCH", to: "1"),
+                .define("NK_RUNTIME_DISPATCH", to: "1"),
                 .define("NK_NATIVE_F16", to: "0"),
                 .define("NK_NATIVE_BF16", to: "0"),
             ]
@@ -37,7 +37,7 @@ let package = Package(
             dependencies: ["NumKong", "CNumKong"],
             path: "bench/swift",
             cSettings: [
-                .define("NK_DYNAMIC_DISPATCH", to: "1"),
+                .define("NK_RUNTIME_DISPATCH", to: "1"),
                 .define("NK_NATIVE_F16", to: "0"),
                 .define("NK_NATIVE_BF16", to: "0"),
             ]
@@ -48,7 +48,7 @@ let package = Package(
             path: "swift",
             exclude: ["README.md"],
             cSettings: [
-                .define("NK_DYNAMIC_DISPATCH", to: "1"),
+                .define("NK_RUNTIME_DISPATCH", to: "1"),
                 .define("NK_NATIVE_F16", to: "0"),
                 .define("NK_NATIVE_BF16", to: "0"),
             ]
@@ -58,7 +58,7 @@ let package = Package(
             path: "include",
             publicHeadersPath: ".",
             cSettings: [
-                .define("NK_DYNAMIC_DISPATCH", to: "1"),
+                .define("NK_RUNTIME_DISPATCH", to: "1"),
                 .define("NK_NATIVE_F16", to: "0"),
                 .define("NK_NATIVE_BF16", to: "0"),
             ]
@@ -74,7 +74,7 @@ let package = Package(
             // look for a non-existent `include/` subdirectory.
             publicHeadersPath: ".",
             cSettings: [
-                .define("NK_DYNAMIC_DISPATCH", to: "1"),
+                .define("NK_RUNTIME_DISPATCH", to: "1"),
                 .define("NK_NATIVE_F16", to: "0"),
                 .define("NK_NATIVE_BF16", to: "0"),
                 .headerSearchPath("../include"),

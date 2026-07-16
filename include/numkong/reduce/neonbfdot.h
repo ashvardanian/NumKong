@@ -28,8 +28,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.6-a+simd+bf16")
 #endif
 
-NK_INTERNAL void nk_reduce_moments_bf16_neonbfdot_contiguous_( //
-    nk_bf16_t const *data_ptr, nk_size_t count,                //
+NK_HELPER_INLINE void nk_reduce_moments_bf16_neonbfdot_contiguous_( //
+    nk_bf16_t const *data_ptr, nk_size_t count,                     //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
     // bf16 representation of 1.0 is 0x3F80 (same as upper 16 bits of f32 1.0)
@@ -57,7 +57,7 @@ NK_INTERNAL void nk_reduce_moments_bf16_neonbfdot_contiguous_( //
     *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
 }
 
-NK_INTERNAL void nk_reduce_moments_bf16_neonbfdot_strided_(                //
+NK_HELPER_INLINE void nk_reduce_moments_bf16_neonbfdot_strided_(           //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -106,7 +106,7 @@ NK_INTERNAL void nk_reduce_moments_bf16_neonbfdot_strided_(                //
     *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
 }
 
-NK_PUBLIC void nk_reduce_moments_bf16_neonbfdot(                        //
+NK_API_COMPTIME void nk_reduce_moments_bf16_neonbfdot(                  //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_bf16_t);

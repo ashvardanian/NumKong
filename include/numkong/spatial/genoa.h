@@ -30,7 +30,7 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512bf16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_INTERNAL __m512i nk_substract_bf16x32_genoa_(__m512i a_i16, __m512i b_i16) {
+NK_HELPER_INLINE __m512i nk_substract_bf16x32_genoa_(__m512i a_i16, __m512i b_i16) {
 
     nk_b512_vec_t d, a_f32_even, b_f32_even, d_f32_even, a_f32_odd, b_f32_odd, d_f32_odd;
 
@@ -74,7 +74,7 @@ NK_INTERNAL __m512i nk_substract_bf16x32_genoa_(__m512i a_i16, __m512i b_i16) {
     return d.zmm;
 }
 
-NK_PUBLIC void nk_sqeuclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
     __m512 a_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_sq_f32x16 = _mm512_setzero_ps();
     __m512 ab_f32x16 = _mm512_setzero_ps();
@@ -102,12 +102,12 @@ nk_sqeuclidean_bf16_genoa_cycle:
     *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16));
 }
 
-NK_PUBLIC void nk_euclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_sqeuclidean_bf16_genoa(a, b, n, result);
     *result = nk_f32_sqrt_haswell(*result);
 }
 
-NK_PUBLIC void nk_angular_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
     __m512 dot_product_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_norm_sq_f32x16 = _mm512_setzero_ps();

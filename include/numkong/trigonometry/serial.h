@@ -24,7 +24,7 @@ extern "C" {
  *  @param[in] angle The input angle in radians.
  *  @return The approximate sine of the input angle in [-1, 1] range.
  */
-NK_PUBLIC nk_f32_t nk_f32_sin(nk_f32_t const angle_radians) {
+NK_API_COMPTIME nk_f32_t nk_f32_sin(nk_f32_t const angle_radians) {
 
     // Cody-Waite constants for argument reduction (pi split into hi + lo)
     nk_f32_t const pi_high = 3.1415927f;
@@ -65,7 +65,7 @@ NK_PUBLIC nk_f32_t nk_f32_sin(nk_f32_t const angle_radians) {
  *  @param[in] angle The input angle in radians.
  *  @return The approximate cosine of the input angle in [-1, 1] range.
  */
-NK_PUBLIC nk_f32_t nk_f32_cos(nk_f32_t const angle_radians) {
+NK_API_COMPTIME nk_f32_t nk_f32_cos(nk_f32_t const angle_radians) {
 
     // Cody-Waite constants for argument reduction (pi split into hi + lo)
     nk_f32_t const pi_high = 3.1415927f;
@@ -108,7 +108,7 @@ NK_PUBLIC nk_f32_t nk_f32_cos(nk_f32_t const angle_radians) {
  *  @param  input The input value.
  *  @return The arc-tangent of the input value in [-π/2, π/2] radians range.
  */
-NK_PUBLIC nk_f32_t nk_f32_atan(nk_f32_t const input) {
+NK_API_COMPTIME nk_f32_t nk_f32_atan(nk_f32_t const input) {
     // Polynomial coefficients for atan approximation
     nk_f32_t const coeff_8 = -0.333331018686294555664062f;
     nk_f32_t const coeff_7 = +0.199926957488059997558594f;
@@ -161,7 +161,7 @@ typedef enum nk_float_class_t {
 
 } nk_float_class_t;
 
-NK_PUBLIC nk_float_class_t nk_f32_classify(nk_f32_t const input) {
+NK_API_COMPTIME nk_float_class_t nk_f32_classify(nk_f32_t const input) {
     // Constants for special cases
     nk_u32_t const positive_zero = 0x00000000u;     // +0
     nk_u32_t const negative_zero = 0x80000000u;     // -0
@@ -182,7 +182,7 @@ NK_PUBLIC nk_float_class_t nk_f32_classify(nk_f32_t const input) {
     return input > 0.0f ? nk_float_positive_finite_k : nk_float_negative_finite_k;
 }
 
-NK_PUBLIC int nk_float_class_belongs_to(nk_float_class_t const class_, int const belongs_to) {
+NK_API_COMPTIME int nk_float_class_belongs_to(nk_float_class_t const class_, int const belongs_to) {
     return (class_ & belongs_to) != 0;
 }
 
@@ -193,7 +193,7 @@ NK_PUBLIC int nk_float_class_belongs_to(nk_float_class_t const class_, int const
  *  @param  x_input The input cosine value.
  *  @return The arc-tangent of (y_input/x_input) in [-π, π] radians range.
  */
-NK_PUBLIC nk_f32_t nk_f32_atan2(nk_f32_t const y_input, nk_f32_t const x_input) {
+NK_API_COMPTIME nk_f32_t nk_f32_atan2(nk_f32_t const y_input, nk_f32_t const x_input) {
 
     // Polynomial coefficients for atan2 approximation
     nk_f32_t const coeff_8 = -0.333331018686294555664062f;
@@ -258,7 +258,7 @@ NK_PUBLIC nk_f32_t nk_f32_atan2(nk_f32_t const y_input, nk_f32_t const x_input) 
  *  @param[in] angle The input angle in radians.
  *  @return The approximate cosine of the input angle.
  */
-NK_PUBLIC nk_f64_t nk_f64_sin(nk_f64_t const angle_radians) {
+NK_API_COMPTIME nk_f64_t nk_f64_sin(nk_f64_t const angle_radians) {
 
     // Constants for argument reduction
     nk_f64_t const pi_high = 3.141592653589793116;                         // High-digits part of π
@@ -319,7 +319,7 @@ NK_PUBLIC nk_f64_t nk_f64_sin(nk_f64_t const angle_radians) {
  *  @param[in] angle The input angle in radians.
  *  @return The approximate cosine of the input angle in [-1, 1] range.
  */
-NK_PUBLIC nk_f64_t nk_f64_cos(nk_f64_t const angle_radians) {
+NK_API_COMPTIME nk_f64_t nk_f64_cos(nk_f64_t const angle_radians) {
 
     // Constants for argument reduction
     nk_f64_t const pi_high_half = 3.141592653589793116 * 0.5;              // High-digits part of π
@@ -374,7 +374,7 @@ NK_PUBLIC nk_f64_t nk_f64_cos(nk_f64_t const angle_radians) {
  *  @param  input The input value.
  *  @return The arc-tangent of the input value in [-π/2, π/2] radians range.
  */
-NK_PUBLIC nk_f64_t nk_f64_atan(nk_f64_t const input) {
+NK_API_COMPTIME nk_f64_t nk_f64_atan(nk_f64_t const input) {
     // Polynomial coefficients for atan approximation
     nk_f64_t const coeff_19 = -1.88796008463073496563746e-05;
     nk_f64_t const coeff_18 = +0.000209850076645816976906797;
@@ -441,7 +441,7 @@ NK_PUBLIC nk_f64_t nk_f64_atan(nk_f64_t const input) {
  *  @param  x_input The input cosine value.
  *  @return The arc-tangent of (y_input/x_input) in [-π/2, π/2] radians range.
  */
-NK_PUBLIC nk_f64_t nk_f64_atan2(nk_f64_t const y_input, nk_f64_t const x_input) {
+NK_API_COMPTIME nk_f64_t nk_f64_atan2(nk_f64_t const y_input, nk_f64_t const x_input) {
     // Polynomial coefficients for atan2 approximation
     nk_f64_t const coeff_19 = -1.88796008463073496563746e-05;
     nk_f64_t const coeff_18 = +0.000209850076645816976906797;
@@ -541,7 +541,7 @@ NK_PUBLIC nk_f64_t nk_f64_atan2(nk_f64_t const y_input, nk_f64_t const x_input) 
  *  @param[in] angle_radians The input angle in radians.
  *  @return The approximate tangent of the input angle.
  */
-NK_PUBLIC nk_f32_t nk_f32_tan(nk_f32_t const angle_radians) {
+NK_API_COMPTIME nk_f32_t nk_f32_tan(nk_f32_t const angle_radians) {
 
     // Cody-Waite constants for argument reduction
     nk_f32_t const pi_high = 3.1415927f;
@@ -593,7 +593,7 @@ NK_PUBLIC nk_f32_t nk_f32_tan(nk_f32_t const angle_radians) {
  *  @param[in] angle_radians The input angle in radians.
  *  @return The approximate tangent of the input angle.
  */
-NK_PUBLIC nk_f64_t nk_f64_tan(nk_f64_t const angle_radians) {
+NK_API_COMPTIME nk_f64_t nk_f64_tan(nk_f64_t const angle_radians) {
 
     // Constants for argument reduction
     nk_f64_t const pi_high = 3.141592653589793116;                         /// High-digits part of π
@@ -650,26 +650,26 @@ NK_PUBLIC nk_f64_t nk_f64_tan(nk_f64_t const angle_radians) {
     return result;
 }
 
-NK_PUBLIC void nk_trig_sin_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_API_COMPTIME void nk_trig_sin_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f32_sin(ins[i]);
 }
-NK_PUBLIC void nk_trig_cos_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_API_COMPTIME void nk_trig_cos_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f32_cos(ins[i]);
 }
-NK_PUBLIC void nk_trig_atan_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_API_COMPTIME void nk_trig_atan_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f32_atan(ins[i]);
 }
-NK_PUBLIC void nk_trig_sin_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_API_COMPTIME void nk_trig_sin_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f64_sin(ins[i]);
 }
-NK_PUBLIC void nk_trig_cos_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_API_COMPTIME void nk_trig_cos_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f64_cos(ins[i]);
 }
-NK_PUBLIC void nk_trig_atan_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_API_COMPTIME void nk_trig_atan_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f64_atan(ins[i]);
 }
 
-NK_PUBLIC void nk_trig_sin_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NK_API_COMPTIME void nk_trig_sin_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t angle_f32;
         nk_f16_to_f32_serial(&ins[i], &angle_f32);
@@ -678,7 +678,7 @@ NK_PUBLIC void nk_trig_sin_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t
     }
 }
 
-NK_PUBLIC void nk_trig_cos_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NK_API_COMPTIME void nk_trig_cos_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t angle_f32;
         nk_f16_to_f32_serial(&ins[i], &angle_f32);
@@ -687,7 +687,7 @@ NK_PUBLIC void nk_trig_cos_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t
     }
 }
 
-NK_PUBLIC void nk_trig_atan_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NK_API_COMPTIME void nk_trig_atan_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t value_f32;
         nk_f16_to_f32_serial(&ins[i], &value_f32);
@@ -704,7 +704,7 @@ NK_PUBLIC void nk_trig_atan_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_
  *  in-place rotation; the caller bakes position lookup and M-RoPE axis assignment into the grids.
  *  `input_scale` folds an E4M3 descale onto the load (1.0 for BF16/F32). */
 #define nk_define_trig_rope_(input_type, load_and_convert, convert_and_store)                                         \
-    NK_PUBLIC void nk_trig_rope_##input_type##_serial(                                                                \
+    NK_API_COMPTIME void nk_trig_rope_##input_type##_serial(                                                          \
         nk_##input_type##_t const *x, nk_##input_type##_t *y, nk_rope_angle_t const *cos, nk_rope_angle_t const *sin, \
         nk_size_t rows, nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,          \
         nk_f32_t input_scale) {                                                                                       \

@@ -38,7 +38,7 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_INTERNAL __m512d nk_haversine_f64x8_skylake_(                   //
+NK_HELPER_INLINE __m512d nk_haversine_f64x8_skylake_(              //
     __m512d first_latitudes_f64x8, __m512d first_longitudes_f64x8, //
     __m512d second_latitudes_f64x8, __m512d second_longitudes_f64x8) {
 
@@ -81,7 +81,7 @@ NK_INTERNAL __m512d nk_haversine_f64x8_skylake_(                   //
     return _mm512_mul_pd(earth_radius_f64x8, central_angle_f64x8);
 }
 
-NK_PUBLIC void nk_haversine_f64_skylake(            //
+NK_API_COMPTIME void nk_haversine_f64_skylake(      //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -117,7 +117,7 @@ NK_PUBLIC void nk_haversine_f64_skylake(            //
  *  @brief  AVX-512 helper for Vincenty's geodesic distance on 8 f64 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking.
  */
-NK_INTERNAL __m512d nk_vincenty_f64x8_skylake_(                    //
+NK_HELPER_INLINE __m512d nk_vincenty_f64x8_skylake_(               //
     __m512d first_latitudes_f64x8, __m512d first_longitudes_f64x8, //
     __m512d second_latitudes_f64x8, __m512d second_longitudes_f64x8) {
 
@@ -282,7 +282,7 @@ NK_INTERNAL __m512d nk_vincenty_f64x8_skylake_(                    //
     return distances_f64x8;
 }
 
-NK_PUBLIC void nk_vincenty_f64_skylake(             //
+NK_API_COMPTIME void nk_vincenty_f64_skylake(       //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -314,7 +314,7 @@ NK_PUBLIC void nk_vincenty_f64_skylake(             //
     }
 }
 
-NK_INTERNAL __m512 nk_haversine_f32x16_skylake_(                   //
+NK_HELPER_INLINE __m512 nk_haversine_f32x16_skylake_(              //
     __m512 first_latitudes_f32x16, __m512 first_longitudes_f32x16, //
     __m512 second_latitudes_f32x16, __m512 second_longitudes_f32x16) {
 
@@ -359,7 +359,7 @@ NK_INTERNAL __m512 nk_haversine_f32x16_skylake_(                   //
     return _mm512_mul_ps(earth_radius_f32x16, central_angle_f32x16);
 }
 
-NK_PUBLIC void nk_haversine_f32_skylake(            //
+NK_API_COMPTIME void nk_haversine_f32_skylake(      //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -395,7 +395,7 @@ NK_PUBLIC void nk_haversine_f32_skylake(            //
  *  @brief  AVX-512 helper for Vincenty's geodesic distance on 16 f32 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking.
  */
-NK_INTERNAL __m512 nk_vincenty_f32x16_skylake_(                    //
+NK_HELPER_INLINE __m512 nk_vincenty_f32x16_skylake_(               //
     __m512 first_latitudes_f32x16, __m512 first_longitudes_f32x16, //
     __m512 second_latitudes_f32x16, __m512 second_longitudes_f32x16) {
 
@@ -563,7 +563,7 @@ NK_INTERNAL __m512 nk_vincenty_f32x16_skylake_(                    //
     return distances_f32x16;
 }
 
-NK_PUBLIC void nk_vincenty_f32_skylake(             //
+NK_API_COMPTIME void nk_vincenty_f32_skylake(       //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {

@@ -63,7 +63,7 @@ typedef struct {
 } nk_attention_packed_header_t;
 
 /** @brief Offsets table size in bytes: u64 payload offsets [count+1] + u32 lengths [count], 64-byte padded. */
-NK_INTERNAL nk_size_t nk_attention_pack_directory_size_(nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_pack_directory_size_(nk_size_t segment_count) {
     return nk_size_round_up_to_multiple_((segment_count + 1) * sizeof(nk_u64_t) + segment_count * sizeof(nk_u32_t), 64);
 }
 
@@ -73,9 +73,10 @@ NK_INTERNAL nk_size_t nk_attention_pack_directory_size_(nk_size_t segment_count)
  *  (the race-free parallel-pack contract). Per-segment payload bytes follow
  *  `2 · key_value_head_count · round_up(len, position_multiple) · unit_bytes`, which covers every backend.
  */
-NK_INTERNAL void nk_attention_pack_directory_(void *key_value_packed, nk_size_t key_value_head_count, nk_size_t depth,
-                                              nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                                              nk_size_t first_task, nk_size_t position_multiple, nk_size_t unit_bytes) {
+NK_HELPER_INLINE void nk_attention_pack_directory_(void *key_value_packed, nk_size_t key_value_head_count,
+                                                   nk_size_t depth, nk_u32_t const *segment_lengths,
+                                                   nk_size_t segment_count, nk_size_t first_task,
+                                                   nk_size_t position_multiple, nk_size_t unit_bytes) {
     if (first_task != 0) return;
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     for (nk_size_t i = 0; i < sizeof(*header) / sizeof(nk_u32_t); i++) ((nk_u32_t *)header)[i] = 0;
@@ -95,35 +96,35 @@ NK_INTERNAL void nk_attention_pack_directory_(void *key_value_packed, nk_size_t 
     payload_offsets[segment_count] = running;
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_segments(void const *key_value_packed) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_segments(void const *key_value_packed) {
     return ((nk_attention_packed_header_t const *)key_value_packed)->segment_count;
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_depth(void const *key_value_packed) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_depth(void const *key_value_packed) {
     return ((nk_attention_packed_header_t const *)key_value_packed)->depth;
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_heads(void const *key_value_packed) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_heads(void const *key_value_packed) {
     return ((nk_attention_packed_header_t const *)key_value_packed)->key_value_head_count;
 }
 
 /** @brief Per-element widening converter, `maxsim/serial.h`-style dtype abstraction. */
 typedef nk_f32_t (*nk_attention_load_f32_serial_t_)(void const *element);
 
-NK_INTERNAL nk_f32_t nk_attention_load_bf16_serial_(void const *element) {
+NK_HELPER_INLINE nk_f32_t nk_attention_load_bf16_serial_(void const *element) {
     nk_f32_t result;
     nk_bf16_to_f32_serial((nk_bf16_t const *)element, &result);
     return result;
 }
 
-NK_INTERNAL nk_f32_t nk_attention_load_e4m3_serial_(void const *element) {
+NK_HELPER_INLINE nk_f32_t nk_attention_load_e4m3_serial_(void const *element) {
     nk_f32_t result;
     nk_e4m3_to_f32_serial((nk_e4m3_t const *)element, &result);
     return result;
 }
 
-NK_INTERNAL nk_size_t nk_attention_packed_size_serial_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                       nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_packed_size_serial_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t payload_bytes = 0;
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
         payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_idx] * depth *
@@ -131,13 +132,15 @@ NK_INTERNAL nk_size_t nk_attention_packed_size_serial_(nk_size_t key_value_head_
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_bf16_serial(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_serial(nk_size_t key_value_head_count, nk_size_t depth,
+                                                               nk_u32_t const *segment_lengths,
+                                                               nk_size_t segment_count) {
     return nk_attention_packed_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_serial(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_serial(nk_size_t key_value_head_count, nk_size_t depth,
+                                                               nk_u32_t const *segment_lengths,
+                                                               nk_size_t segment_count) {
     return nk_attention_packed_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
@@ -146,7 +149,7 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_serial(nk_size_t key_value_hea
  *  The header and offsets table are deterministic functions of the arguments, so concurrent
  *  packing tasks may rewrite them with identical bytes.
  */
-NK_INTERNAL void nk_attention_pack_serial_(                                                                    //
+NK_HELPER_INLINE void nk_attention_pack_serial_(                                                               //
     void const *keys, void const *values, nk_size_t element_bytes,                                             //
     nk_attention_load_f32_serial_t_ load_f32,                                                                  //
     nk_size_t key_value_head_count, nk_size_t depth,                                                           //
@@ -187,7 +190,7 @@ NK_INTERNAL void nk_attention_pack_serial_(                                     
     }
 }
 
-NK_PUBLIC void nk_attention_pack_bf16_serial(                                                        //
+NK_API_COMPTIME void nk_attention_pack_bf16_serial(                                                  //
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
@@ -197,7 +200,7 @@ NK_PUBLIC void nk_attention_pack_bf16_serial(                                   
                               value_stride_bytes, key_value_packed, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_pack_e4m3_serial(                                                        //
+NK_API_COMPTIME void nk_attention_pack_e4m3_serial(                                                  //
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
@@ -216,7 +219,7 @@ NK_PUBLIC void nk_attention_pack_e4m3_serial(                                   
  *  then normalizes by the accumulated sum. Recomputing scores costs ~1.5× the arithmetic
  *  of a buffered implementation and buys exact width-agnosticism with zero allocations.
  */
-NK_INTERNAL void nk_attention_serial_(                                                                          //
+NK_HELPER_INLINE void nk_attention_serial_(                                                                     //
     void const *queries, nk_size_t element_bytes, nk_attention_load_f32_serial_t_ load_f32,                     //
     void const *key_value_packed, nk_f32_t *output,                                                             //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
@@ -282,7 +285,7 @@ NK_INTERNAL void nk_attention_serial_(                                          
     }
 }
 
-NK_PUBLIC void nk_attention_packed_bf16_serial(                                                                 //
+NK_API_COMPTIME void nk_attention_packed_bf16_serial(                                                           //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
@@ -292,7 +295,7 @@ NK_PUBLIC void nk_attention_packed_bf16_serial(                                 
                          output_stride_bytes, scale, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_packed_e4m3_serial(                                                                 //
+NK_API_COMPTIME void nk_attention_packed_e4m3_serial(                                                           //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
@@ -302,15 +305,15 @@ NK_PUBLIC void nk_attention_packed_e4m3_serial(                                 
                          output_stride_bytes, scale, first_task, task_count);
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_i8_serial(nk_size_t key_value_head_count, nk_size_t depth,
-                                                       nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_i8_serial(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t payload_bytes = 0; // raw I8 planes: scores stay exact in I32 integer arithmetic
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
         payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_idx] * depth;
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_PUBLIC void nk_attention_pack_i8_serial(                                                                    //
+NK_API_COMPTIME void nk_attention_pack_i8_serial(                                                              //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth,               //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
@@ -349,7 +352,7 @@ NK_PUBLIC void nk_attention_pack_i8_serial(                                     
     }
 }
 
-NK_PUBLIC void nk_attention_packed_i8_serial(                                                                   //
+NK_API_COMPTIME void nk_attention_packed_i8_serial(                                                             //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //

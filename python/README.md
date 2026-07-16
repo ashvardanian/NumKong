@@ -49,14 +49,14 @@ python -m pip install .
 Quick runtime check:
 
 ```sh
-python -c "import numkong as nk; print(nk.get_capabilities())"
+python -c "import numkong as nk; print(nk.get_capabilities_available())"
 ```
 
 ## Wheel Compatibility and Building from Source
 
 Pre-built wheels are available on PyPI for Linux (x86_64, aarch64, riscv64, plus i686, ppc64le, s390x), macOS (x86_64, arm64), and Windows (AMD64, ARM64).
 Python 3.9 through 3.14 is supported, including free-threading variants (3.13t, 3.14t).
-Every wheel is built with `NK_DYNAMIC_DISPATCH=1`, so a single wheel covers all CPU generations on a given architecture.
+Every wheel is built with `NK_RUNTIME_DISPATCH=1`, so a single wheel covers all CPU generations on a given architecture.
 
 When building from source, the compiler requirements depend on the platform.
 On macOS x86 only AVX2 is available; on macOS ARM NEON is always present, but SME requires Apple M4+ with Xcode 16+ (AppleClang 16+).
@@ -644,8 +644,12 @@ Capability detection is explicit:
 ```python
 import numkong as nk
 
-caps = nk.get_capabilities()
-print({k: v for k, v in caps.items() if v})
+# `available` is what can actually run: detected on this CPU AND compiled into the wheel.
+print({k: v for k, v in nk.get_capabilities_available().items() if v})
+
+# The two raw axes, when you specifically mean one of them:
+print({k: v for k, v in nk.get_capabilities_detected().items() if v}) # this CPU
+print({k: v for k, v in nk.get_capabilities_compiled().items() if v}) # this build
 ```
 
 The current implementation releases the GIL around the native dense metric calls and around the packed and symmetric matrix kernels.

@@ -233,10 +233,14 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+      # Must be a real dev environment, not `setup-msbuild` — MSBuild is not a C compiler, and
+      # without `vcvarsall` there is no `cl.exe` on PATH for the ISA probes to run. `setup.py`
+      # also resolves the compiler itself and fails the build if it cannot; both together mean
+      # neither half can silently regress into a scalar wheel.
       - name: Set Up MSVC
-        uses: microsoft/setup-msbuild@v3
+        uses: ilammy/msvc-dev-cmd@v1
         with:
-          vs-version: "17.10"
+          arch: ${{ matrix.architecture == 'ARM64' && 'amd64_arm64' || 'amd64' }}
       # The ARM64 wheels are cross-compiled on this x64 host. `/openmp:llvm` makes the
       # extension import `libomp140.aarch64.dll`, which ships with Visual Studio's ARM64
       # cross-tools but is not on PATH, so delvewheel cannot find it to vendor into the

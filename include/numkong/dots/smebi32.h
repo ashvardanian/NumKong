@@ -204,7 +204,7 @@ __arm_new("za") static void nk_dots_packed_u1_smebi32_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_packed_u1_smebi32( //
+NK_API_COMPTIME void nk_dots_packed_u1_smebi32( //
     nk_u1x8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
     nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_sme_start_streaming_();
@@ -453,7 +453,7 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_dots_symmetric_u1_smebi32( //
+NK_API_COMPTIME void nk_dots_symmetric_u1_smebi32( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
     nk_u32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     nk_sme_start_streaming_();

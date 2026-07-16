@@ -107,7 +107,7 @@ error_stats_t test_mahalanobis(typename scalar_type_::curved_kernel_t kernel) {
 void test_curved() {
     error_stats_section_t check("Curved/Bilinear Forms");
 
-#if NK_DYNAMIC_DISPATCH
+#if NK_RUNTIME_DISPATCH
     check("bilinear_f32", test_bilinear<f32_t>, nk_bilinear_f32);
     check("bilinear_f64", test_bilinear<f64_t>, nk_bilinear_f64);
     check("bilinear_f32c", test_bilinear<f32c_t>, nk_bilinear_f32c);
@@ -178,5 +178,5 @@ void test_curved() {
     check("bilinear_bf16c_serial", test_bilinear<bf16c_t>, nk_bilinear_bf16c_serial);
     check("mahalanobis_bf16_serial", test_mahalanobis<bf16_t>, nk_mahalanobis_bf16_serial);
 
-#endif // NK_DYNAMIC_DISPATCH
+#endif // NK_RUNTIME_DISPATCH
 }

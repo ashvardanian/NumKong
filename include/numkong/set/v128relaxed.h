@@ -32,7 +32,7 @@ extern "C" {
 
 #pragma region Binary Sets
 
-NK_PUBLIC void nk_hamming_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
     nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
@@ -73,7 +73,7 @@ NK_PUBLIC void nk_hamming_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b,
     *result = differences;
 }
 
-NK_PUBLIC void nk_jaccard_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
     nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
@@ -125,7 +125,7 @@ NK_PUBLIC void nk_jaccard_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b,
 
 #pragma region Integer Sets
 
-NK_PUBLIC void nk_hamming_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_u32_t sum_total = 0;
     nk_size_t i = 0;
 
@@ -159,7 +159,7 @@ NK_PUBLIC void nk_hamming_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_
     *result = sum_total;
 }
 
-NK_PUBLIC void nk_jaccard_u32_v128relaxed(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u32_v128relaxed(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t matches = 0;
     nk_size_t i = 0;
     v128_t matches_u32x4 = wasm_i32x4_splat(0);
@@ -178,7 +178,7 @@ NK_PUBLIC void nk_jaccard_u32_v128relaxed(nk_u32_t const *a, nk_u32_t const *b, 
     *result = (n != 0) ? 1.0f - (nk_f32_t)matches / (nk_f32_t)n : 0.0f;
 }
 
-NK_PUBLIC void nk_jaccard_u16_v128relaxed(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u16_v128relaxed(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t matches = 0;
     nk_size_t i = 0;
     v128_t matches_u32x4 = wasm_i32x4_splat(0);
@@ -201,7 +201,7 @@ NK_PUBLIC void nk_jaccard_u16_v128relaxed(nk_u16_t const *a, nk_u16_t const *b, 
 
 #pragma region Binary Sets from Dot
 
-NK_INTERNAL void nk_hamming_u32x4_from_dot_v128relaxed_( //
+NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_v128relaxed_( //
     nk_b128_vec_t const *dots_vec, nk_u32_t query_pop, nk_b128_vec_t const *target_pops_vec,
     nk_b128_vec_t *result_vec) {
     v128_t dots_u32x4 = dots_vec->v128;
@@ -210,7 +210,7 @@ NK_INTERNAL void nk_hamming_u32x4_from_dot_v128relaxed_( //
     result_vec->v128 = wasm_i32x4_sub(wasm_i32x4_add(query_u32x4, target_u32x4), wasm_i32x4_shl(dots_u32x4, 1));
 }
 
-NK_INTERNAL void nk_jaccard_f32x4_from_dot_v128relaxed_( //
+NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_v128relaxed_( //
     nk_b128_vec_t const *dots_vec, nk_u32_t query_pop, nk_b128_vec_t const *target_pops_vec,
     nk_b128_vec_t *result_vec) {
     v128_t dot_f32x4 = wasm_f32x4_convert_u32x4(dots_vec->v128);

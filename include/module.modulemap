@@ -10,7 +10,7 @@
 
 // Layer 1: Core types (changes rarely, no dependencies)
 module CNumKongCore {
-    config_macros [exhaustive] NK_DYNAMIC_DISPATCH, NK_NATIVE_F16, NK_NATIVE_BF16
+    config_macros [exhaustive] NK_RUNTIME_DISPATCH, NK_NATIVE_F16, NK_NATIVE_BF16
 
     header "numkong/types.h"
     header "numkong/scalar.h"
@@ -19,7 +19,7 @@ module CNumKongCore {
 
 // Layer 2: Kernel families (independent, change frequently during development)
 module CNumKongKernels {
-    config_macros [exhaustive] NK_DYNAMIC_DISPATCH, NK_NATIVE_F16, NK_NATIVE_BF16
+    config_macros [exhaustive] NK_RUNTIME_DISPATCH, NK_NATIVE_F16, NK_NATIVE_BF16
 
     use CNumKongCore
 
@@ -113,7 +113,7 @@ module CNumKongKernels {
 
 // Layer 3: Capability detection (depends on Core, used by umbrella)
 module CNumKongCapabilities {
-    config_macros [exhaustive] NK_DYNAMIC_DISPATCH, NK_NATIVE_F16, NK_NATIVE_BF16
+    config_macros [exhaustive] NK_RUNTIME_DISPATCH, NK_NATIVE_F16, NK_NATIVE_BF16
 
     use CNumKongCore
 
@@ -123,7 +123,7 @@ module CNumKongCapabilities {
 
 // Layer 4: Unified API (top-level umbrella module)
 module CNumKong {
-    config_macros [exhaustive] NK_DYNAMIC_DISPATCH, NK_NATIVE_F16, NK_NATIVE_BF16
+    config_macros [exhaustive] NK_RUNTIME_DISPATCH, NK_NATIVE_F16, NK_NATIVE_BF16
 
     use CNumKongCore
     use CNumKongKernels

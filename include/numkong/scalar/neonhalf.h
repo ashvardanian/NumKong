@@ -29,14 +29,14 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd+fp16")
 #endif
 
-NK_PUBLIC nk_f16_t nk_f16_sqrt_neonhalf(nk_f16_t x) {
+NK_API_COMPTIME nk_f16_t nk_f16_sqrt_neonhalf(nk_f16_t x) {
     float16x4_t x_f16x4 = vld1_dup_f16((nk_f16_for_arm_simd_t const *)&x);
     x_f16x4 = vsqrt_f16(x_f16x4);
     nk_f16_t result;
     vst1_lane_f16((nk_f16_for_arm_simd_t *)&result, x_f16x4, 0);
     return result;
 }
-NK_PUBLIC nk_f16_t nk_f16_rsqrt_neonhalf(nk_f16_t x) {
+NK_API_COMPTIME nk_f16_t nk_f16_rsqrt_neonhalf(nk_f16_t x) {
     float16x4_t x_f16x4 = vld1_dup_f16((nk_f16_for_arm_simd_t const *)&x);
     float16x4_t estimate_f16x4 = vrsqrte_f16(x_f16x4);
     estimate_f16x4 = vmul_f16(estimate_f16x4, vrsqrts_f16(vmul_f16(x_f16x4, estimate_f16x4), estimate_f16x4));
@@ -45,7 +45,7 @@ NK_PUBLIC nk_f16_t nk_f16_rsqrt_neonhalf(nk_f16_t x) {
     vst1_lane_f16((nk_f16_for_arm_simd_t *)&result, estimate_f16x4, 0);
     return result;
 }
-NK_PUBLIC nk_f16_t nk_f16_fma_neonhalf(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
+NK_API_COMPTIME nk_f16_t nk_f16_fma_neonhalf(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
     float16x4_t a_f16x4 = vld1_dup_f16((nk_f16_for_arm_simd_t const *)&a);
     float16x4_t b_f16x4 = vld1_dup_f16((nk_f16_for_arm_simd_t const *)&b);
     float16x4_t c_f16x4 = vld1_dup_f16((nk_f16_for_arm_simd_t const *)&c);

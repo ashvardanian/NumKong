@@ -46,7 +46,7 @@ extern "C" {
  *  nk_reduce_vsaddu_u64m1_rvv_ in reduce/rvv.h). Tail lanes beyond vector_length are zero
  *  from the initial vfmv_v_f, so they are harmless in the reduction.
  */
-NK_INTERNAL nk_f64_t nk_dot_stable_sum_f64m1_rvv_(vfloat64m1_t sum_f64m1, vfloat64m1_t compensation_f64m1) {
+NK_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64m1_rvv_(vfloat64m1_t sum_f64m1, vfloat64m1_t compensation_f64m1) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
     // Stage 0: TwoSum merge of sum + compensation
     vfloat64m1_t tentative_sum_f64m1 = __riscv_vfadd_vv_f64m1(sum_f64m1, compensation_f64m1, max_vector_length);
@@ -78,8 +78,8 @@ NK_INTERNAL nk_f64_t nk_dot_stable_sum_f64m1_rvv_(vfloat64m1_t sum_f64m1, vfloat
     return __riscv_vfmv_f_s_f64m1_f64(tentative_sum_f64m1) + __riscv_vfmv_f_s_f64m1_f64(accumulated_error_f64m1);
 }
 
-NK_PUBLIC void nk_dot_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                             nk_i32_t *result) {
+NK_API_COMPTIME void nk_dot_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                   nk_i32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vint32m4_t sum_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -97,8 +97,8 @@ NK_PUBLIC void nk_dot_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
     *result = __riscv_vmv_x_s_i32m1_i32(__riscv_vredsum_vs_i32m4_i32m1(sum_i32m4, zero_i32m1, max_vector_length));
 }
 
-NK_PUBLIC void nk_dot_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                             nk_u32_t *result) {
+NK_API_COMPTIME void nk_dot_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                   nk_u32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vuint32m4_t sum_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -116,8 +116,8 @@ NK_PUBLIC void nk_dot_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
     *result = __riscv_vmv_x_s_u32m1_u32(__riscv_vredsum_vs_u32m4_u32m1(sum_u32m4, zero_u32m1, max_vector_length));
 }
 
-NK_PUBLIC void nk_dot_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars, nk_size_t count_scalars,
-                              nk_f64_t *result) {
+NK_API_COMPTIME void nk_dot_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars, nk_size_t count_scalars,
+                                    nk_f64_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
     vfloat64m2_t sum_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -133,8 +133,8 @@ NK_PUBLIC void nk_dot_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scala
     *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(sum_f64m2, zero_f64m1, max_vector_length));
 }
 
-NK_PUBLIC void nk_dot_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars, nk_size_t count_scalars,
-                              nk_f64_t *result) {
+NK_API_COMPTIME void nk_dot_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars, nk_size_t count_scalars,
+                                    nk_f64_t *result) {
     // Dot2 (Ogita-Rump-Oishi) compensated accumulation via TwoProd + TwoSum
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
     vfloat64m1_t sum_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
@@ -165,8 +165,8 @@ NK_PUBLIC void nk_dot_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_scala
     *result = nk_dot_stable_sum_f64m1_rvv_(sum_f64m1, compensation_f64m1);
 }
 
-NK_PUBLIC void nk_dot_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
-                              nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
+                                    nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -187,8 +187,8 @@ NK_PUBLIC void nk_dot_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t const *b_scala
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length));
 }
 
-NK_PUBLIC void nk_dot_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars, nk_size_t count_scalars,
-                               nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars, nk_size_t count_scalars,
+                                     nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -209,8 +209,8 @@ NK_PUBLIC void nk_dot_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t const *b_sc
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length));
 }
 
-NK_PUBLIC void nk_dot_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars, nk_size_t count_scalars,
-                               nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars, nk_size_t count_scalars,
+                                     nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -231,8 +231,8 @@ NK_PUBLIC void nk_dot_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_sc
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(sum_f32m4, zero_f32m1, max_vector_length));
 }
 
-NK_PUBLIC void nk_dot_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars, nk_size_t count_scalars,
-                               nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars, nk_size_t count_scalars,
+                                     nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -253,8 +253,8 @@ NK_PUBLIC void nk_dot_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_sc
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(sum_f32m4, zero_f32m1, max_vector_length));
 }
 
-NK_PUBLIC void nk_dot_e2m3_rvv(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars, nk_size_t count_scalars,
-                               nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e2m3_rvv(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars, nk_size_t count_scalars,
+                                     nk_f32_t *result) {
     // Integer dot product for e2m3 using byte gather LUT + widening multiply.
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -294,8 +294,8 @@ NK_PUBLIC void nk_dot_e2m3_rvv(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_sc
     *result = (nk_f32_t)sum / 256.0f;
 }
 
-NK_PUBLIC void nk_dot_e3m2_rvv(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars, nk_size_t count_scalars,
-                               nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e3m2_rvv(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars, nk_size_t count_scalars,
+                                     nk_f32_t *result) {
     // Integer dot product for e3m2 using i16 gather LUT + widening multiply.
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -342,8 +342,8 @@ NK_PUBLIC void nk_dot_e3m2_rvv(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_sc
     *result = (nk_f32_t)sum / 256.0f;
 }
 
-NK_PUBLIC void nk_dot_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars, nk_size_t count_dimensions,
-                             nk_i32_t *result) {
+NK_API_COMPTIME void nk_dot_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars, nk_size_t count_dimensions,
+                                   nk_i32_t *result) {
     // count_dimensions = number of 4-bit values, not bytes
     count_dimensions = nk_size_round_up_to_multiple_(count_dimensions, 2);
     nk_size_t n_full_bytes = count_dimensions / 2;
@@ -385,8 +385,8 @@ NK_PUBLIC void nk_dot_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scal
     *result = __riscv_vmv_x_s_i32m1_i32(__riscv_vredsum_vs_i32m4_i32m1(sum_i32m4, zero_i32m1, max_vector_length));
 }
 
-NK_PUBLIC void nk_dot_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars, nk_size_t count_dimensions,
-                             nk_u32_t *result) {
+NK_API_COMPTIME void nk_dot_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars, nk_size_t count_dimensions,
+                                   nk_u32_t *result) {
     // count_dimensions = number of 4-bit values, not bytes
     count_dimensions = nk_size_round_up_to_multiple_(count_dimensions, 2);
     nk_size_t n_full_bytes = count_dimensions / 2;
@@ -418,7 +418,7 @@ NK_PUBLIC void nk_dot_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scal
     *result = __riscv_vmv_x_s_u32m1_u32(__riscv_vredsum_vs_u32m4_u32m1(sum_u32m4, zero_u32m1, max_vector_length));
 }
 
-NK_PUBLIC void nk_dot_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
+NK_API_COMPTIME void nk_dot_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
     nk_size_t count_bytes = nk_size_divide_round_up_(n_bits, NK_BITS_PER_BYTE);
 
     vuint32m1_t sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
@@ -443,8 +443,8 @@ NK_PUBLIC void nk_dot_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n
     *result = __riscv_vmv_x_s_u32m1_u32(sum_u32m1);
 }
 
-NK_PUBLIC void nk_dot_f32c_rvv(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                               nk_f64c_t *results) {
+NK_API_COMPTIME void nk_dot_f32c_rvv(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
+                                     nk_f64c_t *results) {
     nk_f32_t const *a_f32 = (nk_f32_t const *)a_pairs;
     nk_f32_t const *b_f32 = (nk_f32_t const *)b_pairs;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
@@ -473,8 +473,8 @@ NK_PUBLIC void nk_dot_f32c_rvv(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pair
         __riscv_vfredusum_vs_f64m2_f64m1(sum_imag_f64m2, zero_f64m1, max_vector_length));
 }
 
-NK_PUBLIC void nk_vdot_f32c_rvv(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                nk_f64c_t *results) {
+NK_API_COMPTIME void nk_vdot_f32c_rvv(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
+                                      nk_f64c_t *results) {
     nk_f32_t const *a_f32 = (nk_f32_t const *)a_pairs;
     nk_f32_t const *b_f32 = (nk_f32_t const *)b_pairs;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
@@ -503,8 +503,8 @@ NK_PUBLIC void nk_vdot_f32c_rvv(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pai
         __riscv_vfredusum_vs_f64m2_f64m1(sum_imag_f64m2, zero_f64m1, max_vector_length));
 }
 
-NK_PUBLIC void nk_dot_f64c_rvv(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                               nk_f64c_t *results) {
+NK_API_COMPTIME void nk_dot_f64c_rvv(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
+                                     nk_f64c_t *results) {
     // Dot2 (Ogita-Rump-Oishi) compensated complex dot product
     nk_f64_t const *a_f64 = (nk_f64_t const *)a_pairs;
     nk_f64_t const *b_f64 = (nk_f64_t const *)b_pairs;
@@ -605,8 +605,8 @@ NK_PUBLIC void nk_dot_f64c_rvv(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pair
     results->imag = nk_dot_stable_sum_f64m1_rvv_(sum_imag_f64m1, comp_imag_f64m1);
 }
 
-NK_PUBLIC void nk_vdot_f64c_rvv(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                nk_f64c_t *results) {
+NK_API_COMPTIME void nk_vdot_f64c_rvv(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
+                                      nk_f64c_t *results) {
     // Dot2 (Ogita-Rump-Oishi) compensated conjugate complex dot product
     nk_f64_t const *a_f64 = (nk_f64_t const *)a_pairs;
     nk_f64_t const *b_f64 = (nk_f64_t const *)b_pairs;

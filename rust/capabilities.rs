@@ -1,25 +1,47 @@
-//! Runtime CPU capability detection.
+//! SIMD capability reporting, along two independent axes.
 //!
-//! Capability bits (`cap::*`) are probed at library load time by examining
-//! CPUID / `getauxval` / HWCAP records on the host CPU; [`available`] returns the
-//! resulting bitmask so downstream code can select the best kernel without
-//! recompiling.
+//! Capability bits (`cap::*`) are reported along two axes that have nothing to do with each
+//! other, plus the sets derived from them:
 //!
-//! This module provides:
+//! - [`detected`]: what this CPU can execute, from CPUID / `getauxval` / HWCAP
+//! - [`compiled`]: what this binary contains, from the ISA probes run at build time
+//! - [`available`]: the intersection — what can actually run here
+//! - [`enabled`]: the subset dispatch is currently restricted to
 //!
-//! - [`available`]: Query the bitmask of supported SIMD instruction sets
+//! Reach for [`available`] unless you specifically mean one of the raw axes. [`detected`] alone
+//! describes the machine and says nothing about whether a kernel was compiled in, so selecting
+//! on it claims hardware support for code that may not exist in this build.
+//!
+//! This module also provides:
+//!
+//! - [`has`]: Test a single capability against [`available`]
+//! - [`enable`], [`disable`], [`restrict`]: Narrow what dispatch may select
 //! - [`configure_thread`]: Enable optimal SIMD settings for the current thread
-//! - [`uses_dynamic_dispatch`]: Check if the library selects kernels at runtime
+//! - [`uses_runtime_dispatch`]: Check if the library selects kernels at runtime
 //! - [`cap`]: Constants for individual capability bits (NEON, SKYLAKE, etc.)
 
 #[link(name = "numkong")]
 extern "C" {
     fn nk_configure_thread(capabilities: u64) -> i32;
-    fn nk_uses_dynamic_dispatch() -> i32;
-    fn nk_capabilities() -> u64;
+    fn nk_uses_runtime_dispatch() -> i32;
+    fn nk_capabilities_detected() -> u64;
+    fn nk_capabilities_compiled() -> u64;
+    fn nk_capabilities_available() -> u64;
+    fn nk_capabilities_enabled() -> u64;
+    fn nk_capabilities_restrict(capabilities: u64);
+    fn nk_capabilities_enable(capabilities: u64);
+    fn nk_capabilities_disable(capabilities: u64);
 }
 
-/// Returns the bitmask of available CPU capabilities.
+/// Returns the bitmask of capabilities this CPU supports, whether or not their kernels were
+/// compiled in. See [`available`] for the set that can actually run.
+pub fn detected() -> u64 { unsafe { nk_capabilities_detected() } }
+
+/// Returns the bitmask of capabilities whose kernels were compiled into this binary,
+/// whether or not this CPU supports them.
+pub fn compiled() -> u64 { unsafe { nk_capabilities_compiled() } }
+
+/// Returns the bitmask of capabilities that can actually execute here: [`detected`] & [`compiled`].
 /// Use with `cap::*` constants to check for specific features.
 ///
 /// # Example
@@ -34,18 +56,37 @@ extern "C" {
 ///     println!("AVX-512 (Skylake) is available");
 /// }
 /// ```
-pub fn available() -> u64 { unsafe { nk_capabilities() } }
+pub fn available() -> u64 { unsafe { nk_capabilities_available() } }
+
+/// Returns the bitmask of capabilities dispatch is currently restricted to, a subset of
+/// [`available`].
+pub fn enabled() -> u64 { unsafe { nk_capabilities_enabled() } }
+
+/// Returns `true` if `capability` can actually execute here, i.e. it is in [`available`].
+/// False both when this CPU lacks the feature and when its kernels were not compiled in.
+pub fn has(capability: u64) -> bool { available() & capability != 0 }
+
+/// Restricts dispatch to `capabilities`, clamped to [`available`]; the serial fallback is
+/// always retained.
+pub fn restrict(capabilities: u64) { unsafe { nk_capabilities_restrict(capabilities) } }
+
+/// Adds `capabilities` to [`enabled`]. Anything not in [`available`] is ignored.
+pub fn enable(capabilities: u64) { unsafe { nk_capabilities_enable(capabilities) } }
+
+/// Removes `capabilities` from [`enabled`]. The serial fallback cannot be removed.
+pub fn disable(capabilities: u64) { unsafe { nk_capabilities_disable(capabilities) } }
 
 /// Configures the current thread for optimal SIMD performance.
 /// On x86, this enables AMX tile state via `arch_prctl`. On other platforms this is a no-op.
 /// Must be called once per thread before using AMX (Advanced Matrix Extensions) operations.
 pub fn configure_thread() -> bool {
-    // Pass !0 to enable all capabilities including AMX
-    unsafe { nk_configure_thread(!0) != 0 }
+    // Ask only for what can run here — requesting state for kernels that were never compiled
+    // in, or that this CPU lacks, is meaningless.
+    unsafe { nk_configure_thread(available()) != 0 }
 }
 
-/// Returns `true` if the library uses dynamic dispatch for function selection.
-pub fn uses_dynamic_dispatch() -> bool { unsafe { nk_uses_dynamic_dispatch() != 0 } }
+/// Returns `true` if the library uses runtime dispatch for function selection.
+pub fn uses_runtime_dispatch() -> bool { unsafe { nk_uses_runtime_dispatch() != 0 } }
 
 /// Capability bit masks in chronological order (by first commercial silicon).
 pub mod cap {
@@ -89,4 +130,5 @@ pub mod cap {
     pub const POWERVSX: u64 = 1 << 37; // Power VSX 128-bit SIMD
     pub const DIAMOND: u64 = 1 << 38; // Intel AVX10.2
     pub const NEONFP8: u64 = 1 << 39; // ARM NEON FP8
+    pub const DIAMONDAMX: u64 = 1 << 40; // Intel Diamond Rapids AMX
 }

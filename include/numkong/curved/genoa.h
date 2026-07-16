@@ -31,8 +31,8 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512bf16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_PUBLIC void nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                      nk_f32_t *result) {
+NK_API_COMPTIME void nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
+                                            nk_f32_t *result) {
     nk_size_t const tail_length = n % 32;
     nk_size_t const tail_start = n - tail_length;
     __mmask32 const tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, tail_length);
@@ -64,8 +64,8 @@ NK_PUBLIC void nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk
     *result = _mm512_reduce_add_ps(sum_f32x16);
 }
 
-NK_PUBLIC void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                         nk_f32_t *result) {
+NK_API_COMPTIME void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
+                                               nk_f32_t *result) {
     nk_size_t const tail_length = n % 32;
     nk_size_t const tail_start = n - tail_length;
     __mmask32 const tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, tail_length);
@@ -104,8 +104,8 @@ NK_PUBLIC void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b,
     *result = nk_f32_sqrt_haswell(quadratic > 0 ? quadratic : 0);
 }
 
-NK_PUBLIC void nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c, nk_size_t n,
-                                       nk_f32c_t *results) {
+NK_API_COMPTIME void nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c, nk_size_t n,
+                                             nk_f32c_t *results) {
 
     // We take into account, that FMS is the same as FMA with a negative multiplier.
     // To multiply a floating-point value by -1, we can use the `XOR` instruction to flip the sign bit.

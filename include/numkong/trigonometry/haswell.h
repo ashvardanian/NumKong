@@ -44,7 +44,7 @@ extern "C" {
  *  These implement the same polynomial approximations as Skylake but with 256-bit vectors.
  */
 
-NK_INTERNAL __m256 nk_sin_f32x8_haswell_(__m256 const angles_radians) {
+NK_HELPER_INLINE __m256 nk_sin_f32x8_haswell_(__m256 const angles_radians) {
     // Cody-Waite constants for argument reduction
     __m256 const pi_high_f32x8 = _mm256_set1_ps(3.1415927f);
     __m256 const pi_low_f32x8 = _mm256_set1_ps(-8.742278e-8f);
@@ -83,7 +83,7 @@ NK_INTERNAL __m256 nk_sin_f32x8_haswell_(__m256 const angles_radians) {
     return results_f32x8;
 }
 
-NK_INTERNAL __m256 nk_cos_f32x8_haswell_(__m256 const angles_radians) {
+NK_HELPER_INLINE __m256 nk_cos_f32x8_haswell_(__m256 const angles_radians) {
     // Cody-Waite constants for argument reduction
     __m256 const pi_high_f32x8 = _mm256_set1_ps(3.1415927f);
     __m256 const pi_low_f32x8 = _mm256_set1_ps(-8.742278e-8f);
@@ -124,7 +124,7 @@ NK_INTERNAL __m256 nk_cos_f32x8_haswell_(__m256 const angles_radians) {
     return results_f32x8;
 }
 
-NK_INTERNAL __m256 nk_atan_f32x8_haswell_(__m256 const inputs) {
+NK_HELPER_INLINE __m256 nk_atan_f32x8_haswell_(__m256 const inputs) {
     // Polynomial coefficients for atan approximation (8 terms)
     // These coefficients approximate: atan(x) ≈ x + c8 × x³ + c7 × x⁵ + c6 × x⁷ + ... + c1 × x¹⁵
     __m256 const coeff_8_f32x8 = _mm256_set1_ps(-0.333331018686294555664062f);
@@ -178,7 +178,7 @@ NK_INTERNAL __m256 nk_atan_f32x8_haswell_(__m256 const inputs) {
     return result_f32x8;
 }
 
-NK_INTERNAL __m256 nk_atan2_f32x8_haswell_(__m256 const ys_inputs, __m256 const xs_inputs) {
+NK_HELPER_INLINE __m256 nk_atan2_f32x8_haswell_(__m256 const ys_inputs, __m256 const xs_inputs) {
     // Polynomial coefficients (same as atan)
     __m256 const coeff_8_f32x8 = _mm256_set1_ps(-0.333331018686294555664062f);
     __m256 const coeff_7_f32x8 = _mm256_set1_ps(+0.199926957488059997558594f);
@@ -244,7 +244,7 @@ NK_INTERNAL __m256 nk_atan2_f32x8_haswell_(__m256 const ys_inputs, __m256 const 
     return results_f32x8;
 }
 
-NK_INTERNAL __m256d nk_sin_f64x4_haswell_(__m256d const angles_radians) {
+NK_HELPER_INLINE __m256d nk_sin_f64x4_haswell_(__m256d const angles_radians) {
     // Constants for argument reduction
     __m256d const pi_high_f64x4 = _mm256_set1_pd(3.141592653589793116);         // High-digits part of π
     __m256d const pi_low_f64x4 = _mm256_set1_pd(1.2246467991473532072e-16);     // Low-digits part of π
@@ -309,7 +309,7 @@ NK_INTERNAL __m256d nk_sin_f64x4_haswell_(__m256d const angles_radians) {
     return results_f64x4;
 }
 
-NK_INTERNAL __m256d nk_cos_f64x4_haswell_(__m256d const angles_radians) {
+NK_HELPER_INLINE __m256d nk_cos_f64x4_haswell_(__m256d const angles_radians) {
     // Constants for argument reduction
     __m256d const pi_high_half_f64x4 = _mm256_set1_pd(3.141592653589793116 * 0.5);     // High-digits part of π/2
     __m256d const pi_low_half_f64x4 = _mm256_set1_pd(1.2246467991473532072e-16 * 0.5); // Low-digits part of π/2
@@ -371,7 +371,7 @@ NK_INTERNAL __m256d nk_cos_f64x4_haswell_(__m256d const angles_radians) {
     return results_f64x4;
 }
 
-NK_INTERNAL __m256d nk_atan_f64x4_haswell_(__m256d const inputs) {
+NK_HELPER_INLINE __m256d nk_atan_f64x4_haswell_(__m256d const inputs) {
     // Polynomial coefficients for atan approximation (19 coefficients)
     // The polynomial approximates: atan(x) ≈ x + x³ * P(x²) where P has 19 terms
     __m256d const coeff_19_f64x4 = _mm256_set1_pd(-1.88796008463073496563746e-05);
@@ -448,7 +448,7 @@ NK_INTERNAL __m256d nk_atan_f64x4_haswell_(__m256d const inputs) {
     return result_f64x4;
 }
 
-NK_INTERNAL __m256d nk_atan2_f64x4_haswell_(__m256d const ys_inputs, __m256d const xs_inputs) {
+NK_HELPER_INLINE __m256d nk_atan2_f64x4_haswell_(__m256d const ys_inputs, __m256d const xs_inputs) {
     // Polynomial coefficients for atan approximation (19 coefficients, same as atan)
     __m256d const coeff_19_f64x4 = _mm256_set1_pd(-1.88796008463073496563746e-05);
     __m256d const coeff_18_f64x4 = _mm256_set1_pd(+0.000209850076645816976906797);
@@ -536,7 +536,7 @@ NK_INTERNAL __m256d nk_atan2_f64x4_haswell_(__m256d const ys_inputs, __m256d con
     return results_f64x4;
 }
 
-NK_PUBLIC void nk_trig_sin_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_API_COMPTIME void nk_trig_sin_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m256 angles_f32x8 = _mm256_loadu_ps(ins + i);
@@ -553,7 +553,7 @@ NK_PUBLIC void nk_trig_sin_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_
     }
 }
 
-NK_PUBLIC void nk_trig_cos_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_API_COMPTIME void nk_trig_cos_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m256 angles_f32x8 = _mm256_loadu_ps(ins + i);
@@ -570,7 +570,7 @@ NK_PUBLIC void nk_trig_cos_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_
     }
 }
 
-NK_PUBLIC void nk_trig_atan_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NK_API_COMPTIME void nk_trig_atan_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m256 values_f32x8 = _mm256_loadu_ps(ins + i);
@@ -587,7 +587,7 @@ NK_PUBLIC void nk_trig_atan_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32
     }
 }
 
-NK_PUBLIC void nk_trig_sin_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_API_COMPTIME void nk_trig_sin_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         __m256d angles_f64x4 = _mm256_loadu_pd(ins + i);
@@ -604,7 +604,7 @@ NK_PUBLIC void nk_trig_sin_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_
     }
 }
 
-NK_PUBLIC void nk_trig_cos_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_API_COMPTIME void nk_trig_cos_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         __m256d angles_f64x4 = _mm256_loadu_pd(ins + i);
@@ -621,7 +621,7 @@ NK_PUBLIC void nk_trig_cos_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_
     }
 }
 
-NK_PUBLIC void nk_trig_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NK_API_COMPTIME void nk_trig_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         __m256d values_f64x4 = _mm256_loadu_pd(ins + i);
@@ -638,9 +638,10 @@ NK_PUBLIC void nk_trig_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64
     }
 }
 
-NK_PUBLIC void nk_trig_rope_f32_haswell(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
-                                        nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
-                                        nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) {
+NK_API_COMPTIME void nk_trig_rope_f32_haswell(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
+                                              nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                              nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                              nk_f32_t input_scale) {
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f32_t const *cos_row = cos + r * half_dim;
@@ -670,10 +671,10 @@ NK_PUBLIC void nk_trig_rope_f32_haswell(nk_f32_t const *x, nk_f32_t *y, nk_rope_
     }
 }
 
-NK_PUBLIC void nk_trig_rope_bf16_haswell(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
-                                         nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                         nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                         nk_f32_t input_scale) {
+NK_API_COMPTIME void nk_trig_rope_bf16_haswell(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
+                                               nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                               nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                               nk_f32_t input_scale) {
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f32_t const *cos_row = cos + r * half_dim;
@@ -712,10 +713,10 @@ NK_PUBLIC void nk_trig_rope_bf16_haswell(nk_bf16_t const *x, nk_bf16_t *y, nk_ro
     }
 }
 
-NK_PUBLIC void nk_trig_rope_e4m3_haswell(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
-                                         nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                         nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                         nk_f32_t input_scale) {
+NK_API_COMPTIME void nk_trig_rope_e4m3_haswell(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
+                                               nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                               nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                               nk_f32_t input_scale) {
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f32_t const *cos_row = cos + r * half_dim;

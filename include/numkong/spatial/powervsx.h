@@ -57,7 +57,7 @@ extern "C" {
  *  iterations, achieving ~23-bit precision sufficient for f32.
  *  NR step: rsqrt = rsqrt × (1.5 − 0.5 × x × rsqrt × rsqrt)
  */
-NK_INTERNAL nk_vf32x4_t nk_rsqrt_f32x4_powervsx_(nk_vf32x4_t x) {
+NK_HELPER_INLINE nk_vf32x4_t nk_rsqrt_f32x4_powervsx_(nk_vf32x4_t x) {
     nk_vf32x4_t half_f32x4 = vec_splats(0.5f);
     nk_vf32x4_t three_halves_f32x4 = vec_splats(1.5f);
     nk_vf32x4_t rsqrt_f32x4 = vec_rsqrte(x);
@@ -77,7 +77,7 @@ NK_INTERNAL nk_vf32x4_t nk_rsqrt_f32x4_powervsx_(nk_vf32x4_t x) {
  *  Uses `vec_rsqrte` (~12-bit estimate) followed by three Newton-Raphson
  *  iterations, achieving ~48-bit precision for f64.
  */
-NK_INTERNAL nk_vf64x2_t nk_rsqrt_f64x2_powervsx_(nk_vf64x2_t x) {
+NK_HELPER_INLINE nk_vf64x2_t nk_rsqrt_f64x2_powervsx_(nk_vf64x2_t x) {
     nk_vf64x2_t half_f64x2 = vec_splats(0.5);
     nk_vf64x2_t three_halves_f64x2 = vec_splats(1.5);
     nk_vf64x2_t rsqrt_f64x2 = vec_rsqrte(x);
@@ -94,7 +94,7 @@ NK_INTERNAL nk_vf64x2_t nk_rsqrt_f64x2_powervsx_(nk_vf64x2_t x) {
     return rsqrt_f64x2;
 }
 
-NK_INTERNAL nk_f32_t nk_angular_normalize_f32_powervsx_(nk_f32_t ab, nk_f32_t a2, nk_f32_t b2) {
+NK_HELPER_INLINE nk_f32_t nk_angular_normalize_f32_powervsx_(nk_f32_t ab, nk_f32_t a2, nk_f32_t b2) {
     if (a2 == 0 && b2 == 0) return 0;
     if (ab == 0) return 1;
     nk_vf32x4_t squares_f32x4 = vec_splats(0.0f);
@@ -107,7 +107,7 @@ NK_INTERNAL nk_f32_t nk_angular_normalize_f32_powervsx_(nk_f32_t ab, nk_f32_t a2
     return result > 0 ? result : 0;
 }
 
-NK_INTERNAL nk_f64_t nk_angular_normalize_f64_powervsx_(nk_f64_t ab, nk_f64_t a2, nk_f64_t b2) {
+NK_HELPER_INLINE nk_f64_t nk_angular_normalize_f64_powervsx_(nk_f64_t ab, nk_f64_t a2, nk_f64_t b2) {
     if (a2 == 0 && b2 == 0) return 0;
     if (ab == 0) return 1;
     nk_vf64x2_t squares_f64x2 = vec_splats(0.0);
@@ -122,7 +122,7 @@ NK_INTERNAL nk_f64_t nk_angular_normalize_f64_powervsx_(nk_f64_t ab, nk_f64_t a2
 
 #pragma region F32 and F64 Floats
 
-NK_PUBLIC void nk_sqeuclidean_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     // Accumulate in f64 for numerical stability using vec_doublee/vec_doubleo (f32 → f64)
     nk_vf64x2_t sum_even_f64x2 = vec_splats((nk_f64_t)0);
     nk_vf64x2_t sum_odd_f64x2 = vec_splats((nk_f64_t)0);
@@ -156,12 +156,12 @@ nk_sqeuclidean_f32_powervsx_cycle:
     *result = nk_hsum_f64x2_powervsx_(total_f64x2);
 }
 
-NK_PUBLIC void nk_euclidean_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_euclidean_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_sqeuclidean_f32_powervsx(a, b, n, result);
     *result = nk_f64_sqrt_powervsx(*result);
 }
 
-NK_PUBLIC void nk_angular_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_angular_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     // Accumulate in f64 for numerical stability using vec_doublee/vec_doubleo
     nk_vf64x2_t ab_even_f64x2 = vec_splats((nk_f64_t)0);
     nk_vf64x2_t ab_odd_f64x2 = vec_splats((nk_f64_t)0);
@@ -206,7 +206,7 @@ nk_angular_f32_powervsx_cycle:
     *result = nk_angular_normalize_f64_powervsx_(ab, a2, b2);
 }
 
-NK_PUBLIC void nk_sqeuclidean_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_vf64x2_t sum_f64x2 = vec_splats((nk_f64_t)0);
     nk_vf64x2_t a_f64x2, b_f64x2;
     nk_size_t tail_bytes;
@@ -230,12 +230,12 @@ nk_sqeuclidean_f64_powervsx_cycle:
     *result = nk_hsum_f64x2_powervsx_(sum_f64x2);
 }
 
-NK_PUBLIC void nk_euclidean_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_euclidean_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_sqeuclidean_f64_powervsx(a, b, n, result);
     *result = nk_f64_sqrt_powervsx(*result);
 }
 
-NK_PUBLIC void nk_angular_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_angular_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     // Dot2 (Ogita-Rump-Oishi) for cross-product ab (may have cancellation),
     // simple FMA for self-products a2/b2 (all positive, no cancellation)
     nk_vf64x2_t ab_sum_f64x2 = vec_splats((nk_f64_t)0);
@@ -279,7 +279,8 @@ nk_angular_f64_powervsx_cycle:
 #pragma endregion F32 and F64 Floats
 #pragma region F16 and BF16 Floats
 
-NK_PUBLIC void nk_sqeuclidean_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                  nk_f32_t *result) {
     // bf16 → f32 via merge with zero: places bf16 bits in upper 16 of each f32
     nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
     nk_vf32x4_t sum_f32x4 = vec_splats(0.0f);
@@ -310,12 +311,12 @@ nk_sqeuclidean_bf16_powervsx_cycle:
     *result = nk_hsum_f32x4_powervsx_(sum_f32x4);
 }
 
-NK_PUBLIC void nk_euclidean_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_sqeuclidean_bf16_powervsx(a, b, n, result);
     *result = nk_f32_sqrt_powervsx(*result);
 }
 
-NK_PUBLIC void nk_angular_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
     nk_vf32x4_t ab_f32x4 = vec_splats(0.0f);
     nk_vf32x4_t a2_f32x4 = vec_splats(0.0f);
@@ -352,7 +353,7 @@ nk_angular_bf16_powervsx_cycle:
     *result = nk_angular_normalize_f32_powervsx_(ab, a2, b2);
 }
 
-NK_PUBLIC void nk_sqeuclidean_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     // f16 → f32 via POWER9 hardware XVCVHPSP (vec_extract_fp32_from_shorth/shortl)
     nk_vf32x4_t sum_f32x4 = vec_splats(0.0f);
     nk_vu16x8_t a_u16x8, b_u16x8;
@@ -382,12 +383,12 @@ nk_sqeuclidean_f16_powervsx_cycle:
     *result = nk_hsum_f32x4_powervsx_(sum_f32x4);
 }
 
-NK_PUBLIC void nk_euclidean_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_sqeuclidean_f16_powervsx(a, b, n, result);
     *result = nk_f32_sqrt_powervsx(*result);
 }
 
-NK_PUBLIC void nk_angular_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     // f16 → f32 via POWER9 hardware XVCVHPSP
     nk_vf32x4_t ab_f32x4 = vec_splats(0.0f);
     nk_vf32x4_t a2_f32x4 = vec_splats(0.0f);
@@ -427,7 +428,7 @@ nk_angular_f16_powervsx_cycle:
 #pragma endregion F16 and BF16 Floats
 #pragma region I8 and U8 Integers
 
-NK_PUBLIC void nk_sqeuclidean_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
     // Power has no vabdq_s8. Widen i8 → i16 via vec_unpackh/vec_unpackl,
     // subtract in i16, then vec_msum(diff_i16, diff_i16, accumulator_i32) to square-accumulate.
     nk_vi32x4_t accumulator_i32x4 = vec_splats((nk_i32_t)0);
@@ -462,13 +463,13 @@ nk_sqeuclidean_i8_powervsx_cycle:
     *result = (nk_u32_t)nk_hsum_i32x4_powervsx_(accumulator_i32x4);
 }
 
-NK_PUBLIC void nk_euclidean_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t distance_sq_u32;
     nk_sqeuclidean_i8_powervsx(a, b, n, &distance_sq_u32);
     *result = nk_f32_sqrt_powervsx((nk_f32_t)distance_sq_u32);
 }
 
-NK_PUBLIC void nk_angular_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
     // Hybrid approach for 3-accumulator i8 angular distance:
     //   a·b: algebraic transform — VMSUMMBM(a, b⊕0x80) with correction −128·Σa
     //   a·a: abs-based unsigned   — VMSUMUBM(|a|, |a|), no correction needed
@@ -521,7 +522,7 @@ nk_angular_i8_powervsx_cycle:
                                                  (nk_f32_t)b_norm_sq_u32);
 }
 
-NK_PUBLIC void nk_sqeuclidean_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     // Compute |a-b| without underflow: vec_sub(vec_max(a, b), vec_min(a, b))
     // Then square-accumulate via vec_msum(u8, u8, u32) → VMSUMUBM
     nk_vu32x4_t accumulator_u32x4 = vec_splats((nk_u32_t)0);
@@ -548,13 +549,13 @@ nk_sqeuclidean_u8_powervsx_cycle:
     *result = nk_hsum_u32x4_powervsx_(accumulator_u32x4);
 }
 
-NK_PUBLIC void nk_euclidean_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t distance_sq_u32;
     nk_sqeuclidean_u8_powervsx(a, b, n, &distance_sq_u32);
     *result = nk_f32_sqrt_powervsx((nk_f32_t)distance_sq_u32);
 }
 
-NK_PUBLIC void nk_angular_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
     // Triple accumulator in u32 using vec_msum(u8, u8, u32) → VMSUMUBM
     nk_vu32x4_t ab_u32x4 = vec_splats((nk_u32_t)0);
     nk_vu32x4_t aa_u32x4 = vec_splats((nk_u32_t)0);
@@ -588,9 +589,9 @@ nk_angular_u8_powervsx_cycle:
 
 /** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq) × rsqrt(target_sumsq) for 4 pairs in f64.
  *  Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms. */
-NK_INTERNAL void nk_angular_through_f64_from_dot_powervsx_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
-                                                           nk_b256_vec_t const *target_sumsqs_vec,
-                                                           nk_b256_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_angular_through_f64_from_dot_powervsx_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
+                                                                nk_b256_vec_t const *target_sumsqs_vec,
+                                                                nk_b256_vec_t *result_vec) {
     nk_vf64x2_t dots_ab_f64x2 = dots_vec->vf64x2s[0];
     nk_vf64x2_t dots_cd_f64x2 = dots_vec->vf64x2s[1];
     nk_vf64x2_t query_f64x2 = vec_splats(query_sumsq);
@@ -623,9 +624,9 @@ NK_INTERNAL void nk_angular_through_f64_from_dot_powervsx_(nk_b256_vec_t const *
 }
 
 /** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2×dot) for 4 pairs in f64. */
-NK_INTERNAL void nk_euclidean_through_f64_from_dot_powervsx_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
-                                                             nk_b256_vec_t const *target_sumsqs_vec,
-                                                             nk_b256_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_powervsx_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
+                                                                  nk_b256_vec_t const *target_sumsqs_vec,
+                                                                  nk_b256_vec_t *result_vec) {
     nk_vf64x2_t query_f64x2 = vec_splats(query_sumsq);
     nk_vf64x2_t neg_two_f64x2 = vec_splats(-2.0);
     nk_vf64x2_t zeros_f64x2 = vec_splats(0.0);
@@ -641,9 +642,9 @@ NK_INTERNAL void nk_euclidean_through_f64_from_dot_powervsx_(nk_b256_vec_t const
 
 /** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq) × rsqrt(target_sumsq) for 4 pairs in f32.
  *  Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms. */
-NK_INTERNAL void nk_angular_through_f32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
-                                                           nk_b128_vec_t const *target_sumsqs_vec,
-                                                           nk_b128_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_angular_through_f32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                                nk_b128_vec_t const *target_sumsqs_vec,
+                                                                nk_b128_vec_t *result_vec) {
     nk_vf32x4_t dots_f32x4 = dots_vec->vf32x4;
     nk_vf32x4_t query_rsqrt_f32x4 = nk_rsqrt_f32x4_powervsx_(vec_splats(query_sumsq));
     nk_vf32x4_t target_rsqrt_f32x4 = nk_rsqrt_f32x4_powervsx_(target_sumsqs_vec->vf32x4);
@@ -655,9 +656,9 @@ NK_INTERNAL void nk_angular_through_f32_from_dot_powervsx_(nk_b128_vec_t const *
 }
 
 /** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2×dot) for 4 pairs in f32. */
-NK_INTERNAL void nk_euclidean_through_f32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
-                                                             nk_b128_vec_t const *target_sumsqs_vec,
-                                                             nk_b128_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                                  nk_b128_vec_t const *target_sumsqs_vec,
+                                                                  nk_b128_vec_t *result_vec) {
     nk_vf32x4_t dots_f32x4 = dots_vec->vf32x4;
     nk_vf32x4_t query_f32x4 = vec_splats(query_sumsq);
     nk_vf32x4_t sum_sq_f32x4 = vec_add(query_f32x4, target_sumsqs_vec->vf32x4);
@@ -670,9 +671,9 @@ NK_INTERNAL void nk_euclidean_through_f32_from_dot_powervsx_(nk_b128_vec_t const
 }
 
 /** @brief Angular from_dot for i32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
-NK_INTERNAL void nk_angular_through_i32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
-                                                           nk_b128_vec_t const *target_sumsqs_vec,
-                                                           nk_b128_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_angular_through_i32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+                                                                nk_b128_vec_t const *target_sumsqs_vec,
+                                                                nk_b128_vec_t *result_vec) {
     nk_vi32x4_t dots_i32x4 = dots_vec->vi32x4;
     nk_vf32x4_t dots_f32x4 = vec_ctf(dots_i32x4, 0);
     nk_vi32x4_t targets_i32x4 = target_sumsqs_vec->vi32x4;
@@ -686,9 +687,9 @@ NK_INTERNAL void nk_angular_through_i32_from_dot_powervsx_(nk_b128_vec_t const *
 }
 
 /** @brief Euclidean from_dot for i32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
-NK_INTERNAL void nk_euclidean_through_i32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
-                                                             nk_b128_vec_t const *target_sumsqs_vec,
-                                                             nk_b128_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+                                                                  nk_b128_vec_t const *target_sumsqs_vec,
+                                                                  nk_b128_vec_t *result_vec) {
     nk_vi32x4_t dots_i32x4 = dots_vec->vi32x4;
     nk_vf32x4_t dots_f32x4 = vec_ctf(dots_i32x4, 0);
     nk_vf32x4_t query_f32x4 = vec_splats((nk_f32_t)query_sumsq);
@@ -701,9 +702,9 @@ NK_INTERNAL void nk_euclidean_through_i32_from_dot_powervsx_(nk_b128_vec_t const
 }
 
 /** @brief Angular from_dot for u32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
-NK_INTERNAL void nk_angular_through_u32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
-                                                           nk_b128_vec_t const *target_sumsqs_vec,
-                                                           nk_b128_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_angular_through_u32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
+                                                                nk_b128_vec_t const *target_sumsqs_vec,
+                                                                nk_b128_vec_t *result_vec) {
     nk_vu32x4_t dots_u32x4 = dots_vec->vu32x4;
     nk_vf32x4_t dots_f32x4 = vec_ctf(dots_u32x4, 0);
     nk_vu32x4_t targets_u32x4 = target_sumsqs_vec->vu32x4;
@@ -717,9 +718,9 @@ NK_INTERNAL void nk_angular_through_u32_from_dot_powervsx_(nk_b128_vec_t const *
 }
 
 /** @brief Euclidean from_dot for u32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
-NK_INTERNAL void nk_euclidean_through_u32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
-                                                             nk_b128_vec_t const *target_sumsqs_vec,
-                                                             nk_b128_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_euclidean_through_u32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
+                                                                  nk_b128_vec_t const *target_sumsqs_vec,
+                                                                  nk_b128_vec_t *result_vec) {
     nk_vu32x4_t dots_u32x4 = dots_vec->vu32x4;
     nk_vf32x4_t dots_f32x4 = vec_ctf(dots_u32x4, 0);
     nk_vf32x4_t query_f32x4 = vec_splats((nk_f32_t)query_sumsq);

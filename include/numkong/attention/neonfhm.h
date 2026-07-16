@@ -45,7 +45,7 @@ enum {
 };
 
 /** @brief Fast vectorized 2^x: exact range reduction + the family's shared degree-4 polynomial. */
-NK_INTERNAL float32x4_t nk_attention_exp2_f32x4_neonfhm_(float32x4_t x_f32x4) {
+NK_HELPER_INLINE float32x4_t nk_attention_exp2_f32x4_neonfhm_(float32x4_t x_f32x4) {
     x_f32x4 = vmaxq_f32(vminq_f32(x_f32x4, vdupq_n_f32(127.0f)), vdupq_n_f32(-125.0f));
     float32x4_t const whole_f32x4 = vrndnq_f32(x_f32x4);
     float32x4_t const reduced_f32x4 = vsubq_f32(x_f32x4, whole_f32x4);
@@ -60,8 +60,8 @@ NK_INTERNAL float32x4_t nk_attention_exp2_f32x4_neonfhm_(float32x4_t x_f32x4) {
 }
 
 /** @brief Converts one E4M3 row to a zero-padded F16 destination, 8 lanes per step. */
-NK_INTERNAL void nk_attention_e4m3_row_to_f16_neonfhm_(nk_e4m3_t const *source, nk_u16_t *destination, nk_size_t depth,
-                                                       nk_size_t depth_padded) {
+NK_HELPER_INLINE void nk_attention_e4m3_row_to_f16_neonfhm_(nk_e4m3_t const *source, nk_u16_t *destination,
+                                                            nk_size_t depth, nk_size_t depth_padded) {
     nk_size_t channel_idx = 0;
     for (; channel_idx + 8 <= depth; channel_idx += 8)
         vst1q_u16(destination + channel_idx,
@@ -71,8 +71,9 @@ NK_INTERNAL void nk_attention_e4m3_row_to_f16_neonfhm_(nk_e4m3_t const *source, 
     for (; channel_idx < depth_padded; channel_idx++) destination[channel_idx] = 0;
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_neonfhm(nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_neonfhm(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                nk_u32_t const *segment_lengths,
+                                                                nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_neonfhm_k_)
         return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
@@ -83,7 +84,7 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_neonfhm(nk_size_t key_value_he
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_PUBLIC void nk_attention_pack_e4m3_neonfhm(                                         //
+NK_API_COMPTIME void nk_attention_pack_e4m3_neonfhm(                                   //
     nk_e4m3_t const *keys, nk_e4m3_t const *values,                                    //
     nk_size_t key_value_head_count, nk_size_t depth,                                   //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
@@ -132,7 +133,7 @@ NK_PUBLIC void nk_attention_pack_e4m3_neonfhm(                                  
     }
 }
 
-NK_PUBLIC void nk_attention_packed_e4m3_neonfhm(                                 //
+NK_API_COMPTIME void nk_attention_packed_e4m3_neonfhm(                           //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //

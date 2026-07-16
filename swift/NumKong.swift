@@ -237,10 +237,44 @@ where A.Element == Float32 {
 
 // MARK: - Capabilities
 
-/// Bitmask of SIMD instruction sets detected at runtime.
+/// Bitmasks of SIMD instruction sets, along two independent axes and the sets derived from them.
+///
+/// Prefer ``available`` unless you specifically mean one of the raw axes: ``detected`` describes
+/// the CPU and says nothing about whether a kernel was compiled into this binary, so selecting on
+/// it alone claims hardware support for code that may not exist here.
 public enum Capabilities {
-    public static var available: UInt64 { nk_capabilities() }
+    /// What this CPU supports, from CPUID or HWCAP.
+    public static var detected: UInt64 { nk_capabilities_detected() }
 
+    /// What this binary contains, as decided by the ISA probes at build time.
+    public static var compiled: UInt64 { nk_capabilities_compiled() }
+
+    /// What can actually execute here: ``detected`` intersected with ``compiled``.
+    public static var available: UInt64 { nk_capabilities_available() }
+
+    /// What dispatch is currently restricted to, a subset of ``available``.
+    public static var enabled: UInt64 { nk_capabilities_enabled() }
+
+    /// Whether `capability` can actually execute here, i.e. whether it is in ``available``.
+    /// False both when this CPU lacks the feature and when its kernels were not compiled in.
+    public static func has(_ capability: UInt64) -> Bool { available & capability != 0 }
+
+    /// Restricts dispatch to `capabilities`, clamped to ``available``; serial is always kept.
+    public static func restrict(_ capabilities: UInt64) { nk_capabilities_restrict(capabilities) }
+
+    /// Adds `capabilities` to ``enabled``. Anything not in ``available`` is ignored.
+    public static func enable(_ capabilities: UInt64) { nk_capabilities_enable(capabilities) }
+
+    /// Removes `capabilities` from ``enabled``. The serial fallback cannot be removed.
+    public static func disable(_ capabilities: UInt64) { nk_capabilities_disable(capabilities) }
+
+    /// Configures the current thread for the capabilities that can run here, e.g. AMX tile
+    /// state on x86. Must be called once per thread before using AMX operations.
+    /// - Returns: `true` on success.
+    @discardableResult
+    public static func configureThread() -> Bool { nk_configure_thread(available) != 0 }
+
+    public static let serial: UInt64 = 1 << 0
     public static let neon: UInt64 = 1 << 1
     public static let haswell: UInt64 = 1 << 2
     public static let skylake: UInt64 = 1 << 3
@@ -280,4 +314,5 @@ public enum Capabilities {
     public static let powerVsx: UInt64 = 1 << 37
     public static let diamond: UInt64 = 1 << 38
     public static let neonFp8: UInt64 = 1 << 39
+    public static let diamondAmx: UInt64 = 1 << 40
 }

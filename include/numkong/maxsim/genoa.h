@@ -36,11 +36,11 @@ extern "C" {
                    "bmi", "bmi2")
 #endif
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_bf16_genoa(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_bf16_genoa(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_bf16_t), 64);
 }
 
-NK_PUBLIC void nk_maxsim_pack_bf16_genoa( //
+NK_API_COMPTIME void nk_maxsim_pack_bf16_genoa( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_bf16_t);
@@ -66,7 +66,7 @@ NK_PUBLIC void nk_maxsim_pack_bf16_genoa( //
     }
 }
 
-NK_PUBLIC void nk_maxsim_packed_bf16_genoa( //
+NK_API_COMPTIME void nk_maxsim_packed_bf16_genoa( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 

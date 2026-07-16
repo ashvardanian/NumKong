@@ -50,8 +50,8 @@ extern "C" {
  *  Input:  [x0,y0,z0, x1,y1,z1, x2,y2,z2, x3,y3,z3]
  *  Output: x[4], y[4], z[4] vectors
  */
-NK_INTERNAL void nk_deinterleave_f32x4_v128relaxed_(nk_f32_t const *ptr, v128_t *xs_f32x4, v128_t *ys_f32x4,
-                                                    v128_t *zs_f32x4) {
+NK_HELPER_INLINE void nk_deinterleave_f32x4_v128relaxed_(nk_f32_t const *ptr, v128_t *xs_f32x4, v128_t *ys_f32x4,
+                                                         v128_t *zs_f32x4) {
     v128_t v0_f32x4 = wasm_v128_load(ptr);     // x0 y0 z0 x1
     v128_t v1_f32x4 = wasm_v128_load(ptr + 4); // y1 z1 x2 y2
     v128_t v2_f32x4 = wasm_v128_load(ptr + 8); // z2 x3 y3 z3
@@ -71,8 +71,8 @@ NK_INTERNAL void nk_deinterleave_f32x4_v128relaxed_(nk_f32_t const *ptr, v128_t 
  *  Input:  [x0,y0,z0, x1,y1,z1]
  *  Output: x[2], y[2], z[2] vectors
  */
-NK_INTERNAL void nk_deinterleave_f64x2_v128relaxed_(nk_f64_t const *ptr, v128_t *xs_f64x2, v128_t *ys_f64x2,
-                                                    v128_t *zs_f64x2) {
+NK_HELPER_INLINE void nk_deinterleave_f64x2_v128relaxed_(nk_f64_t const *ptr, v128_t *xs_f64x2, v128_t *ys_f64x2,
+                                                         v128_t *zs_f64x2) {
     v128_t v0_f64x2 = wasm_v128_load(ptr);                    // x0 y0
     v128_t v1_f64x2 = wasm_v128_load(ptr + 2);                // z0 x1
     v128_t v2_f64x2 = wasm_v128_load(ptr + 4);                // y1 z1
@@ -82,17 +82,17 @@ NK_INTERNAL void nk_deinterleave_f64x2_v128relaxed_(nk_f64_t const *ptr, v128_t 
 }
 
 /* Horizontal sum of all 4 f32 lanes. */
-NK_INTERNAL nk_f32_t nk_hsum_f32x4_v128relaxed_(v128_t v) {
+NK_HELPER_INLINE nk_f32_t nk_hsum_f32x4_v128relaxed_(v128_t v) {
     return wasm_f32x4_extract_lane(v, 0) + wasm_f32x4_extract_lane(v, 1) + wasm_f32x4_extract_lane(v, 2) +
            wasm_f32x4_extract_lane(v, 3);
 }
 
 /* Horizontal sum of both f64 lanes. */
-NK_INTERNAL nk_f64_t nk_hsum_f64x2_v128relaxed_(v128_t v) {
+NK_HELPER_INLINE nk_f64_t nk_hsum_f64x2_v128relaxed_(v128_t v) {
     return wasm_f64x2_extract_lane(v, 0) + wasm_f64x2_extract_lane(v, 1);
 }
 
-NK_INTERNAL nk_f64_t nk_reduce_stable_f64x2_v128relaxed_(v128_t values_f64x2) {
+NK_HELPER_INLINE nk_f64_t nk_reduce_stable_f64x2_v128relaxed_(v128_t values_f64x2) {
     nk_b128_vec_t values;
     values.v128 = values_f64x2;
     nk_f64_t sum = 0.0, compensation = 0.0;
@@ -101,8 +101,8 @@ NK_INTERNAL nk_f64_t nk_reduce_stable_f64x2_v128relaxed_(v128_t values_f64x2) {
     return sum + compensation;
 }
 
-NK_INTERNAL void nk_accumulate_square_f64x2_v128relaxed_(v128_t *sum_f64x2, v128_t *compensation_f64x2,
-                                                         v128_t values_f64x2) {
+NK_HELPER_INLINE void nk_accumulate_square_f64x2_v128relaxed_(v128_t *sum_f64x2, v128_t *compensation_f64x2,
+                                                              v128_t values_f64x2) {
     v128_t product_f64x2 = wasm_f64x2_mul(values_f64x2, values_f64x2);
     v128_t product_error_f64x2 = wasm_f64x2_sub(
         wasm_f64x2_relaxed_madd(values_f64x2, values_f64x2, wasm_f64x2_splat(0.0)), product_f64x2);
@@ -115,7 +115,7 @@ NK_INTERNAL void nk_accumulate_square_f64x2_v128relaxed_(v128_t *sum_f64x2, v128
     *compensation_f64x2 = wasm_f64x2_add(*compensation_f64x2, wasm_f64x2_add(sum_error_f64x2, product_error_f64x2));
 }
 
-NK_INTERNAL void nk_centroid_and_cross_covariance_f32_v128relaxed_(         //
+NK_HELPER_INLINE void nk_centroid_and_cross_covariance_f32_v128relaxed_(    //
     nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,                      //
     nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z, //
     nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z, //
@@ -263,10 +263,10 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_f32_v128relaxed_(         //
     if (*centered_norm_squared_b < 0.0) *centered_norm_squared_b = 0.0;
 }
 
-NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f32_v128relaxed_( //
-    nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,                           //
-    nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z,      //
-    nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z,      //
+NK_HELPER_INLINE void nk_centroid_and_cross_covariance_and_variance_f32_v128relaxed_( //
+    nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,                                //
+    nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z,           //
+    nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z,           //
     nk_f64_t cross_covariance[9], nk_f64_t *centered_norm_squared_a, nk_f64_t *centered_norm_squared_b) {
     v128_t zero_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sum_a_x_low_f64x2 = zero_f64x2, sum_a_x_high_f64x2 = zero_f64x2;
@@ -415,8 +415,9 @@ NK_INTERNAL void nk_centroid_and_cross_covariance_and_variance_f32_v128relaxed_(
     if (*centered_norm_squared_b < 0.0) *centered_norm_squared_b = 0.0;
 }
 
-NK_PUBLIC void nk_rmsd_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_rmsd_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                             nk_f64_t *result) {
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
@@ -485,8 +486,9 @@ NK_PUBLIC void nk_rmsd_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_
     *result = nk_f64_sqrt_v128relaxed((sum_sq_x + sum_sq_y + sum_sq_z) / (nk_f64_t)n);
 }
 
-NK_PUBLIC void nk_rmsd_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                       nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_rmsd_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                             nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
+                                             nk_f64_t *result) {
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
@@ -545,8 +547,9 @@ NK_PUBLIC void nk_rmsd_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_
     *result = nk_f64_sqrt_v128relaxed((total_squared_x + total_squared_y + total_squared_z) / (nk_f64_t)n);
 }
 
-NK_PUBLIC void nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                               nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -634,8 +637,9 @@ NK_PUBLIC void nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, n
     *result = nk_f64_sqrt_v128relaxed(sum_squared / (nk_f64_t)n);
 }
 
-NK_PUBLIC void nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                         nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                               nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
+                                               nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -841,8 +845,9 @@ NK_PUBLIC void nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, n
     *result = nk_f64_sqrt_v128relaxed(sum_squared * inv_points_count);
 }
 
-NK_PUBLIC void nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                                nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -937,8 +942,9 @@ NK_PUBLIC void nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, 
     *result = nk_f64_sqrt_v128relaxed(sum_squared / (nk_f64_t)n);
 }
 
-NK_PUBLIC void nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                          nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                                nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
+                                                nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;

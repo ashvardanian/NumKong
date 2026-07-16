@@ -28,8 +28,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd+fp16+fp16fml")
 #endif
 
-NK_INTERNAL void nk_reduce_moments_e4m3_neonfhm_contiguous_( //
-    nk_e4m3_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_e4m3_neonfhm_contiguous_( //
+    nk_e4m3_t const *data_ptr, nk_size_t count,                   //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -61,7 +61,7 @@ NK_INTERNAL void nk_reduce_moments_e4m3_neonfhm_contiguous_( //
     *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
 }
 
-NK_INTERNAL void nk_reduce_moments_e4m3_neonfhm_strided_(                  //
+NK_HELPER_INLINE void nk_reduce_moments_e4m3_neonfhm_strided_(             //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -134,7 +134,7 @@ NK_INTERNAL void nk_reduce_moments_e4m3_neonfhm_strided_(                  //
     *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
 }
 
-NK_PUBLIC void nk_reduce_moments_e4m3_neonfhm(                          //
+NK_API_COMPTIME void nk_reduce_moments_e4m3_neonfhm(                    //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e4m3_t);
@@ -153,8 +153,8 @@ NK_PUBLIC void nk_reduce_moments_e4m3_neonfhm(                          //
     else nk_reduce_moments_e4m3_neonfhm_strided_(data_ptr, count, stride_elements, sum_ptr, sumsq_ptr);
 }
 
-NK_INTERNAL void nk_reduce_moments_e5m2_neonfhm_contiguous_( //
-    nk_e5m2_t const *data_ptr, nk_size_t count,              //
+NK_HELPER_INLINE void nk_reduce_moments_e5m2_neonfhm_contiguous_( //
+    nk_e5m2_t const *data_ptr, nk_size_t count,                   //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -186,7 +186,7 @@ NK_INTERNAL void nk_reduce_moments_e5m2_neonfhm_contiguous_( //
     *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
 }
 
-NK_INTERNAL void nk_reduce_moments_e5m2_neonfhm_strided_(                  //
+NK_HELPER_INLINE void nk_reduce_moments_e5m2_neonfhm_strided_(             //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -259,7 +259,7 @@ NK_INTERNAL void nk_reduce_moments_e5m2_neonfhm_strided_(                  //
     *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
 }
 
-NK_PUBLIC void nk_reduce_moments_e5m2_neonfhm(                          //
+NK_API_COMPTIME void nk_reduce_moments_e5m2_neonfhm(                    //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e5m2_t);

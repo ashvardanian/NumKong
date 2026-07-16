@@ -47,8 +47,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+fp16")
 #endif
 
-NK_PUBLIC void nk_dot_f16_svehalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
-                                  nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_f16_svehalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
+                                        nk_f32_t *result) {
     nk_size_t idx_scalars = 0;
     svfloat32_t ab_f32x = svdup_f32(0);
     do {
@@ -71,8 +71,8 @@ NK_PUBLIC void nk_dot_f16_svehalf(nk_f16_t const *a_scalars, nk_f16_t const *b_s
     *result = nk_svaddv_f32_(svptrue_b32(), ab_f32x);
 }
 
-NK_PUBLIC void nk_dot_f16c_svehalf(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
-                                   nk_f32c_t *results) {
+NK_API_COMPTIME void nk_dot_f16c_svehalf(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
+                                         nk_f32c_t *results) {
     nk_size_t idx_scalars = 0;
     svfloat32_t ab_real_f32x = svdup_f32(0);
     svfloat32_t ab_imag_f32x = svdup_f32(0);
@@ -112,8 +112,8 @@ NK_PUBLIC void nk_dot_f16c_svehalf(nk_f16c_t const *a_pairs, nk_f16c_t const *b_
     results->imag = nk_svaddv_f32_(svptrue_b32(), ab_imag_f32x);
 }
 
-NK_PUBLIC void nk_vdot_f16c_svehalf(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
-                                    nk_f32c_t *results) {
+NK_API_COMPTIME void nk_vdot_f16c_svehalf(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
+                                          nk_f32c_t *results) {
     nk_size_t idx_scalars = 0;
     svfloat32_t ab_real_f32x = svdup_f32(0);
     svfloat32_t ab_imag_f32x = svdup_f32(0);

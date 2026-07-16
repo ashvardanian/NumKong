@@ -41,7 +41,7 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512vnni", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_PUBLIC void nk_each_sum_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result) {
+NK_API_COMPTIME void nk_each_sum_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result) {
     __mmask64 mask_m64 = 0xFFFFFFFFFFFFFFFF;
     __m512i a_i8_vec, b_i8_vec;
     __m512i sum_i8_vec;
@@ -63,7 +63,7 @@ nk_each_sum_i8_icelake_cycle:
     if (n) goto nk_each_sum_i8_icelake_cycle;
 }
 
-NK_PUBLIC void nk_each_sum_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result) {
+NK_API_COMPTIME void nk_each_sum_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result) {
     __mmask64 mask_m64 = 0xFFFFFFFFFFFFFFFF;
     __m512i a_u8_vec, b_u8_vec;
     __m512i sum_u8_vec;
@@ -85,7 +85,7 @@ nk_each_sum_u8_icelake_cycle:
     if (n) goto nk_each_sum_u8_icelake_cycle;
 }
 
-NK_PUBLIC void nk_each_sum_i16_icelake(nk_i16_t const *a, nk_i16_t const *b, nk_size_t n, nk_i16_t *result) {
+NK_API_COMPTIME void nk_each_sum_i16_icelake(nk_i16_t const *a, nk_i16_t const *b, nk_size_t n, nk_i16_t *result) {
     __mmask32 mask_m32 = 0xFFFFFFFF;
     __m512i a_i16_vec, b_i16_vec;
     __m512i sum_i16_vec;
@@ -107,7 +107,7 @@ nk_each_sum_i16_icelake_cycle:
     if (n) goto nk_each_sum_i16_icelake_cycle;
 }
 
-NK_PUBLIC void nk_each_sum_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_u16_t *result) {
+NK_API_COMPTIME void nk_each_sum_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_u16_t *result) {
     __mmask32 mask_m32 = 0xFFFFFFFF;
     __m512i a_u16_vec, b_u16_vec;
     __m512i sum_u16_vec;
@@ -129,7 +129,7 @@ nk_each_sum_u16_icelake_cycle:
     if (n) goto nk_each_sum_u16_icelake_cycle;
 }
 
-NK_INTERNAL __m512i _mm512_adds_epi32_icelake(__m512i a, __m512i b) {
+NK_HELPER_INLINE __m512i _mm512_adds_epi32_icelake(__m512i a, __m512i b) {
     __m512i sum_i32x16 = _mm512_add_epi32(a, b);
     __m512i sign_i32x16 = _mm512_set1_epi32((int)0x80000000);
     // ~(a^b) & (sum^a): overflow iff same-sign inputs produce different-sign result
@@ -142,14 +142,14 @@ NK_INTERNAL __m512i _mm512_adds_epi32_icelake(__m512i a, __m512i b) {
     return _mm512_mask_blend_epi32(overflow_m16, sum_i32x16, saturated_i32x16);
 }
 
-NK_INTERNAL __m512i _mm512_adds_epu32_icelake(__m512i a, __m512i b) {
+NK_HELPER_INLINE __m512i _mm512_adds_epu32_icelake(__m512i a, __m512i b) {
     __m512i sum_i32x16 = _mm512_add_epi32(a, b);
     __mmask16 overflow_m16 = _mm512_cmp_epu32_mask(sum_i32x16, a, _MM_CMPINT_LT); // sum < a means overflow
     __m512i max_val_i32x16 = _mm512_set1_epi32(4294967295u);
     return _mm512_mask_blend_epi32(overflow_m16, sum_i32x16, max_val_i32x16);
 }
 
-NK_INTERNAL __m512i _mm512_adds_epi64_icelake(__m512i a, __m512i b) {
+NK_HELPER_INLINE __m512i _mm512_adds_epi64_icelake(__m512i a, __m512i b) {
     __m512i sum_i64x8 = _mm512_add_epi64(a, b);
     __m512i sign_i64x8 = _mm512_set1_epi64((long long)0x8000000000000000);
     // ~(a^b) & (sum^a): overflow iff same-sign inputs produce different-sign result
@@ -162,14 +162,14 @@ NK_INTERNAL __m512i _mm512_adds_epi64_icelake(__m512i a, __m512i b) {
     return _mm512_mask_blend_epi64(overflow_m8, sum_i64x8, saturated_i64x8);
 }
 
-NK_INTERNAL __m512i _mm512_adds_epu64_icelake(__m512i a, __m512i b) {
+NK_HELPER_INLINE __m512i _mm512_adds_epu64_icelake(__m512i a, __m512i b) {
     __m512i sum_i64x8 = _mm512_add_epi64(a, b);
     __mmask8 overflow_m8 = _mm512_cmp_epu64_mask(sum_i64x8, a, _MM_CMPINT_LT); // sum < a means overflow
     __m512i max_val_i64x8 = _mm512_set1_epi64(18446744073709551615ull);
     return _mm512_mask_blend_epi64(overflow_m8, sum_i64x8, max_val_i64x8);
 }
 
-NK_PUBLIC void nk_each_sum_i32_icelake(nk_i32_t const *a, nk_i32_t const *b, nk_size_t n, nk_i32_t *result) {
+NK_API_COMPTIME void nk_each_sum_i32_icelake(nk_i32_t const *a, nk_i32_t const *b, nk_size_t n, nk_i32_t *result) {
     __mmask16 mask_m16 = 0xFFFF;
     __m512i a_i32_vec, b_i32_vec;
     __m512i sum_i32_vec;
@@ -191,7 +191,7 @@ nk_each_sum_i32_icelake_cycle:
     if (n) goto nk_each_sum_i32_icelake_cycle;
 }
 
-NK_PUBLIC void nk_each_sum_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_each_sum_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_u32_t *result) {
     __mmask16 mask_m16 = 0xFFFF;
     __m512i a_u32_vec, b_u32_vec;
     __m512i sum_u32_vec;
@@ -213,7 +213,7 @@ nk_each_sum_u32_icelake_cycle:
     if (n) goto nk_each_sum_u32_icelake_cycle;
 }
 
-NK_PUBLIC void nk_each_sum_i64_icelake(nk_i64_t const *a, nk_i64_t const *b, nk_size_t n, nk_i64_t *result) {
+NK_API_COMPTIME void nk_each_sum_i64_icelake(nk_i64_t const *a, nk_i64_t const *b, nk_size_t n, nk_i64_t *result) {
     __mmask8 mask_m8 = 0xFF;
     __m512i a_i64_vec, b_i64_vec;
     __m512i sum_i64_vec;
@@ -235,7 +235,7 @@ nk_each_sum_i64_icelake_cycle:
     if (n) goto nk_each_sum_i64_icelake_cycle;
 }
 
-NK_PUBLIC void nk_each_sum_u64_icelake(nk_u64_t const *a, nk_u64_t const *b, nk_size_t n, nk_u64_t *result) {
+NK_API_COMPTIME void nk_each_sum_u64_icelake(nk_u64_t const *a, nk_u64_t const *b, nk_size_t n, nk_u64_t *result) {
     __mmask8 mask_m8 = 0xFF;
     __m512i a_u64_vec, b_u64_vec;
     __m512i sum_u64_vec;

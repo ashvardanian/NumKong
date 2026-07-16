@@ -568,7 +568,9 @@ def downcast_f32_to_dtype(f32_arr: np.ndarray, dtype: str) -> tuple[np.ndarray, 
     return raw, raw.astype(np.float64)
 
 
-available_capabilities: dict[str, str] = nk.get_capabilities()
+# Must be `available`, not `runtime`: parametrizing over a capability this CPU has but this
+# binary lacks silently tests the serial fallback while claiming to cover the SIMD kernel.
+available_capabilities: dict[str, str] = nk.get_capabilities_available()
 
 # fmt: off
 possible_x86_capabilities: list[str] = [

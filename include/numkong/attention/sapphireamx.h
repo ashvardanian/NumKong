@@ -157,16 +157,16 @@ typedef void (*nk_attention_gather_sapphireamx_t_)(nk_dots_bf16_a16x32_sapphirea
                                                    nk_size_t source_stride_bytes, nk_size_t valid_positions,
                                                    nk_size_t valid_columns);
 
-NK_INTERNAL void nk_attention_gather_bf16_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *tile, void const *source,
-                                                       nk_size_t source_stride_bytes, nk_size_t valid_positions,
-                                                       nk_size_t valid_columns) {
+NK_HELPER_INLINE void nk_attention_gather_bf16_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *tile, void const *source,
+                                                            nk_size_t source_stride_bytes, nk_size_t valid_positions,
+                                                            nk_size_t valid_columns) {
     nk_dots_bf16_load_a_sapphireamx_(tile, (nk_bf16_t const *)source, source_stride_bytes / sizeof(nk_bf16_t),
                                      valid_positions, valid_columns);
 }
 
-NK_INTERNAL void nk_attention_gather_e4m3_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *tile, void const *source,
-                                                       nk_size_t source_stride_bytes, nk_size_t valid_positions,
-                                                       nk_size_t valid_columns) {
+NK_HELPER_INLINE void nk_attention_gather_e4m3_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *tile, void const *source,
+                                                            nk_size_t source_stride_bytes, nk_size_t valid_positions,
+                                                            nk_size_t valid_columns) {
     nk_dots_e4m3_load_a_sapphireamx_(tile, (nk_e4m3_t const *)source, source_stride_bytes / sizeof(nk_e4m3_t),
                                      valid_positions, valid_columns);
 }
@@ -175,15 +175,17 @@ NK_INTERNAL void nk_attention_gather_e4m3_sapphireamx_(nk_dots_bf16_a16x32_sapph
 typedef void (*nk_attention_v_rows_sapphireamx_t_)(void const *row_a, void const *row_b, int a_live, int b_live,
                                                    __mmask16 columns_m16, __m256i *a_bf16x16, __m256i *b_bf16x16);
 
-NK_INTERNAL void nk_attention_v_rows_bf16_sapphireamx_(void const *row_a, void const *row_b, int a_live, int b_live,
-                                                       __mmask16 columns_m16, __m256i *a_bf16x16, __m256i *b_bf16x16) {
+NK_HELPER_INLINE void nk_attention_v_rows_bf16_sapphireamx_(void const *row_a, void const *row_b, int a_live,
+                                                            int b_live, __mmask16 columns_m16, __m256i *a_bf16x16,
+                                                            __m256i *b_bf16x16) {
     *a_bf16x16 = a_live ? _mm256_maskz_loadu_epi16(columns_m16, row_a) : _mm256_setzero_si256();
     *b_bf16x16 = b_live ? _mm256_maskz_loadu_epi16(columns_m16, row_b) : _mm256_setzero_si256();
 }
 
 /** @brief One 32-lane E4M3→BF16 conversion covers both rows, packed into the two 128-bit halves. */
-NK_INTERNAL void nk_attention_v_rows_e4m3_sapphireamx_(void const *row_a, void const *row_b, int a_live, int b_live,
-                                                       __mmask16 columns_m16, __m256i *a_bf16x16, __m256i *b_bf16x16) {
+NK_HELPER_INLINE void nk_attention_v_rows_e4m3_sapphireamx_(void const *row_a, void const *row_b, int a_live,
+                                                            int b_live, __mmask16 columns_m16, __m256i *a_bf16x16,
+                                                            __m256i *b_bf16x16) {
     __m128i a_e4m3x16 = a_live ? _mm_maskz_loadu_epi8(columns_m16, row_a) : _mm_setzero_si128();
     __m128i b_e4m3x16 = b_live ? _mm_maskz_loadu_epi8(columns_m16, row_b) : _mm_setzero_si128();
     __m256i both_e4m3x32 = _mm256_inserti128_si256(_mm256_castsi128_si256(a_e4m3x16), b_e4m3x16, 1);
@@ -192,8 +194,9 @@ NK_INTERNAL void nk_attention_v_rows_e4m3_sapphireamx_(void const *row_a, void c
     *b_bf16x16 = _mm512_extracti64x4_epi64(both_bf16x32, 1);
 }
 
-NK_INTERNAL nk_size_t nk_attention_packed_size_sapphireamx_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_packed_size_sapphireamx_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                 nk_u32_t const *segment_lengths,
+                                                                 nk_size_t segment_count) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 32);
     nk_size_t total_tile_bytes = 0;
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++) {
@@ -204,9 +207,9 @@ NK_INTERNAL nk_size_t nk_attention_packed_size_sapphireamx_(nk_size_t key_value_
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + total_tile_bytes;
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_bf16_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *segment_lengths,
-                                                              nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                    nk_u32_t const *segment_lengths,
+                                                                    nk_size_t segment_count) {
     // Shapes outside the AMX fast-path envelope route to the width-agnostic serial tier;
     // the rule is a pure function of the arguments, so pack and attention always agree.
     if (depth > nk_attention_max_depth_sapphireamx_k_)
@@ -214,9 +217,9 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_bf16_sapphireamx(nk_size_t key_valu
     return nk_attention_packed_size_sapphireamx_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *segment_lengths,
-                                                              nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                    nk_u32_t const *segment_lengths,
+                                                                    nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_sapphireamx_k_)
         return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_packed_size_sapphireamx_(key_value_head_count, depth, segment_lengths, segment_count);
@@ -227,7 +230,7 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_sapphireamx(nk_size_t key_valu
  *  The header and directory are deterministic functions of the arguments, so concurrent
  *  packing tasks may rewrite them with identical bytes.
  */
-NK_INTERNAL void nk_attention_pack_sapphireamx_(                                          //
+NK_HELPER_INLINE void nk_attention_pack_sapphireamx_(                                     //
     void const *keys, void const *values, nk_size_t element_bytes,                        //
     nk_attention_gather_sapphireamx_t_ gather, nk_attention_v_rows_sapphireamx_t_ v_rows, //
     nk_size_t key_value_head_count, nk_size_t depth,                                      //
@@ -330,7 +333,7 @@ NK_INTERNAL void nk_attention_pack_sapphireamx_(                                
     nk_compiler_barrier_sapphireamx_();
 }
 
-NK_PUBLIC void nk_attention_pack_bf16_sapphireamx(                                    //
+NK_API_COMPTIME void nk_attention_pack_bf16_sapphireamx(                              //
     nk_bf16_t const *keys, nk_bf16_t const *values,                                   //
     nk_size_t key_value_head_count, nk_size_t depth,                                  //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                 //
@@ -349,7 +352,7 @@ NK_PUBLIC void nk_attention_pack_bf16_sapphireamx(                              
                                    key_value_packed, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_pack_e4m3_sapphireamx(                                    //
+NK_API_COMPTIME void nk_attention_pack_e4m3_sapphireamx(                              //
     nk_e4m3_t const *keys, nk_e4m3_t const *values,                                   //
     nk_size_t key_value_head_count, nk_size_t depth,                                  //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                 //
@@ -385,7 +388,7 @@ typedef struct {
  *  Emits per-row raw (unscaled) maxima for both 16-row groups; padded columns hold exact
  *  zeros, which can only raise the max — always numerically safe, cancels in normalization.
  */
-NK_INTERNAL void nk_attention_score_panel_sapphireamx_(           //
+NK_HELPER_INLINE void nk_attention_score_panel_sapphireamx_(      //
     nk_dots_bf16_a16x32_sapphireamx_t const (*q_tiles)[8],        // [2][depth_tiles] pre-packed Q
     nk_bf16_t const *keys_head_tiles, nk_size_t panel_first_tile, // K tiles, [kv_tile][depth_tile]
     nk_size_t panel_pairs, nk_size_t depth_tiles,                 // panel width / 32, channels / 32
@@ -434,7 +437,7 @@ NK_INTERNAL void nk_attention_score_panel_sapphireamx_(           //
  *  state. Columns past `valid_cols` (sequence padding) get zero weights and no sum
  *  contribution. `new_max` is the base-2-scaled running maximum, already merged.
  */
-NK_INTERNAL void nk_attention_exp_panel_sapphireamx_(                      //
+NK_HELPER_INLINE void nk_attention_exp_panel_sapphireamx_(                 //
     nk_f32_t const *scores_panel, nk_bf16_t *weights_panel,                // [32][panel] each
     nk_size_t panel_cols, nk_size_t valid_channels, nk_size_t panel_width, //
     nk_f32_t scale2, nk_f32_t const (*new_max)[16], nk_f32_t (*panel_sums)[16]) {
@@ -477,12 +480,12 @@ NK_INTERNAL void nk_attention_exp_panel_sapphireamx_(                      //
  *  the F32 output accumulator once per panel, fused with the online correction:
  *  `o_acc = o_acc · correction + o_panel`.
  */
-NK_INTERNAL void nk_attention_weighted_sum_panel_sapphireamx_(     //
-    nk_bf16_t const *weights_panel, nk_size_t panel_width,         // [32][panel] BF16
-    nk_bf16_t const *values_head_tiles, nk_size_t position_blocks, // V tiles, [depth_tile][position_block]
-    nk_size_t panel_first_step, nk_size_t panel_steps,             //
-    nk_size_t depth_blocks, nk_size_t output_stride_floats,        // channels / 32, o_acc row stride
-    nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {          // [2][16], [32][o_stride]
+NK_HELPER_INLINE void nk_attention_weighted_sum_panel_sapphireamx_( //
+    nk_bf16_t const *weights_panel, nk_size_t panel_width,          // [32][panel] BF16
+    nk_bf16_t const *values_head_tiles, nk_size_t position_blocks,  // V tiles, [depth_tile][position_block]
+    nk_size_t panel_first_step, nk_size_t panel_steps,              //
+    nk_size_t depth_blocks, nk_size_t output_stride_floats,         // channels / 32, o_acc row stride
+    nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {           // [2][16], [32][o_stride]
 
     NK_ALIGN64 nk_f32_t o_panel_tile[16][16];
     int const weights_stride_bytes = (int)(panel_width * sizeof(nk_bf16_t));
@@ -531,7 +534,7 @@ NK_INTERNAL void nk_attention_weighted_sum_panel_sapphireamx_(     //
  *  @brief One (segment, head) task: panel-flash attention for `query_count` rows against
  *         one segment's packed KV, with KV-reuse chunking over 128-query groups.
  */
-NK_INTERNAL void nk_attention_task_sapphireamx_(                                                //
+NK_HELPER_INLINE void nk_attention_task_sapphireamx_(                                           //
     void const *queries, nk_size_t element_bytes, nk_attention_gather_sapphireamx_t_ gather,    //
     nk_f32_t *output,                                                                           //
     nk_bf16_t const *keys_head_tiles, nk_bf16_t const *values_head_tiles,                       //
@@ -652,7 +655,7 @@ NK_INTERNAL void nk_attention_task_sapphireamx_(                                
 /**
  *  @brief Shared entry: resolves the task window and per-segment tile bases, then runs tasks.
  */
-NK_INTERNAL void nk_attention_packed_sapphireamx_(                                                              //
+NK_HELPER_INLINE void nk_attention_packed_sapphireamx_(                                                         //
     void const *queries, nk_size_t element_bytes, nk_attention_gather_sapphireamx_t_ gather,                    //
     void const *key_value_packed, nk_f32_t *output,                                                             //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
@@ -705,7 +708,7 @@ NK_INTERNAL void nk_attention_packed_sapphireamx_(                              
     _tile_release();
 }
 
-NK_PUBLIC void nk_attention_packed_bf16_sapphireamx(                             //
+NK_API_COMPTIME void nk_attention_packed_bf16_sapphireamx(                       //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -722,7 +725,7 @@ NK_PUBLIC void nk_attention_packed_bf16_sapphireamx(                            
                                      query_stride_bytes, output_stride_bytes, scale, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_packed_e4m3_sapphireamx(                             //
+NK_API_COMPTIME void nk_attention_packed_e4m3_sapphireamx(                       //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -739,8 +742,9 @@ NK_PUBLIC void nk_attention_packed_e4m3_sapphireamx(                            
                                      query_stride_bytes, output_stride_bytes, scale, first_task, task_count);
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_i8_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_i8_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                  nk_u32_t const *segment_lengths,
+                                                                  nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_sapphireamx_k_)
         return nk_attention_packed_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
@@ -753,7 +757,7 @@ NK_PUBLIC nk_size_t nk_attention_packed_size_i8_sapphireamx(nk_size_t key_value_
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + total_tile_bytes;
 }
 
-NK_PUBLIC void nk_attention_pack_i8_sapphireamx(                                      //
+NK_API_COMPTIME void nk_attention_pack_i8_sapphireamx(                                //
     nk_i8_t const *keys, nk_i8_t const *values,                                       //
     nk_size_t key_value_head_count, nk_size_t depth,                                  //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                 //
@@ -884,7 +888,7 @@ typedef struct {
  *  the F32 path, U8-quantized weights can round to exact zero, so a zero-score padded
  *  column raising the max could zero out an all-negative row's weight sum entirely.
  */
-NK_INTERNAL void nk_attention_score_panel_i8_sapphireamx_(      //
+NK_HELPER_INLINE void nk_attention_score_panel_i8_sapphireamx_( //
     nk_dots_i8_a16x64_sapphireamx_t const (*q_tiles)[4],        // [2][depth_tiles] pre-packed Q
     nk_i8_t const *keys_head_tiles, nk_size_t panel_first_tile, // K tiles, [kv_tile][depth_tile]
     nk_size_t panel_pairs, nk_size_t depth_tiles,               // panel width / 32, channels / 64
@@ -937,7 +941,7 @@ NK_INTERNAL void nk_attention_score_panel_i8_sapphireamx_(      //
  *         the low byte of each I32 lane. A degree-3 fixed-point polynomial covers the fraction and a
  *         lane-variable shift applies the integer part — the AVX-512 mirror of the SME/Ice Lake helper.
  */
-NK_INTERNAL __m512i nk_attention_iexp2_weight_i32x16_sapphireamx_(__m512i t_q15_i32x16) {
+NK_HELPER_INLINE __m512i nk_attention_iexp2_weight_i32x16_sapphireamx_(__m512i t_q15_i32x16) {
     __m512i const whole_i32x16 = _mm512_srai_epi32(t_q15_i32x16, 15); // floor, in [-10, 0]
     __m512i const fraction_i32x16 = _mm512_and_si512(t_q15_i32x16, _mm512_set1_epi32(0x7FFF));
     __m512i poly_i32x16 = _mm512_set1_epi32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
@@ -961,7 +965,7 @@ NK_INTERNAL __m512i nk_attention_iexp2_weight_i32x16_sapphireamx_(__m512i t_q15_
  *         The max-scoring position lands on 255, so the sum can never be zero. Columns past
  *         `valid_channels` get zero weights (U8 zero is an exact zero weight) and no sum contribution.
  */
-NK_INTERNAL void nk_attention_exp_panel_i8_sapphireamx_(                   //
+NK_HELPER_INLINE void nk_attention_exp_panel_i8_sapphireamx_(              //
     nk_i32_t const *scores_panel, nk_u8_t *weights_panel,                  // [32][panel] each
     nk_size_t panel_cols, nk_size_t valid_channels, nk_size_t panel_width, //
     nk_i32_t scale_fixed, nk_i32_t delta_floor, nk_i32_t const (*new_max)[16], nk_f32_t (*panel_sums)[16]) {
@@ -1007,12 +1011,12 @@ NK_INTERNAL void nk_attention_exp_panel_i8_sapphireamx_(                   //
  *  TMM-resident across the panel, then each I32 accumulator converts to F32 once and
  *  fuses with the online correction: `o_acc = o_acc · correction + o_panel`.
  */
-NK_INTERNAL void nk_attention_weighted_sum_panel_i8_sapphireamx_( //
-    nk_u8_t const *weights_panel, nk_size_t panel_width,          // [32][panel] U8
-    nk_i8_t const *values_head_tiles, nk_size_t position_blocks,  // V tiles, [depth_tile][position_block]
-    nk_size_t panel_first_step, nk_size_t panel_steps,            // in 64-position units
-    nk_size_t depth_blocks, nk_size_t output_stride_floats,       // channels / 32, o_acc row stride
-    nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {         // [2][16], [32][o_stride]
+NK_HELPER_INLINE void nk_attention_weighted_sum_panel_i8_sapphireamx_( //
+    nk_u8_t const *weights_panel, nk_size_t panel_width,               // [32][panel] U8
+    nk_i8_t const *values_head_tiles, nk_size_t position_blocks,       // V tiles, [depth_tile][position_block]
+    nk_size_t panel_first_step, nk_size_t panel_steps,                 // in 64-position units
+    nk_size_t depth_blocks, nk_size_t output_stride_floats,            // channels / 32, o_acc row stride
+    nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {              // [2][16], [32][o_stride]
 
     NK_ALIGN64 nk_i32_t o_panel_tile[16][16];
     int const weights_stride_bytes = (int)panel_width;
@@ -1062,7 +1066,7 @@ NK_INTERNAL void nk_attention_weighted_sum_panel_i8_sapphireamx_( //
  *  Panel-local quantization against the running maximum differs from the serial
  *  reference's global-max quantization by design; both normalize the 255 away.
  */
-NK_INTERNAL void nk_attention_task_i8_sapphireamx_(                                             //
+NK_HELPER_INLINE void nk_attention_task_i8_sapphireamx_(                                        //
     nk_i8_t const *queries, nk_f32_t *output,                                                   //
     nk_i8_t const *keys_head_tiles, nk_i8_t const *values_head_tiles,                           //
     nk_size_t head, nk_size_t depth, nk_size_t position_count, nk_size_t position_count_padded, //
@@ -1187,7 +1191,7 @@ NK_INTERNAL void nk_attention_task_i8_sapphireamx_(                             
     }
 }
 
-NK_PUBLIC void nk_attention_packed_i8_sapphireamx(                               //
+NK_API_COMPTIME void nk_attention_packed_i8_sapphireamx(                         //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,      //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //

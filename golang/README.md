@@ -461,7 +461,7 @@ Goroutines can migrate between OS threads, so thread-local state (AMX tiles) wou
 ```go
 defer nk.ConfigureThread()()                // auto-detect, lock thread, defer unlock
 defer nk.ConfigureThreadWith(caps)()        // explicit capability mask variant
-caps := nk.Capabilities()                   // inspect SIMD surface
+caps := nk.CapabilitiesAvailable()          // what can actually run here
 ```
 
 Idiomatic usage is `defer nk.ConfigureThread()()` — the first `()` calls `ConfigureThread` (which locks the thread and returns the unlock function), the second `()` is deferred and calls the unlock function when the surrounding function returns.

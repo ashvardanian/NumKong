@@ -103,7 +103,7 @@ error_stats_t test_vincenty(typename scalar_type_::geospatial_kernel_t kernel) {
 void test_geospatial() {
     error_stats_section_t check("Geospatial Functions");
 
-#if NK_DYNAMIC_DISPATCH
+#if NK_RUNTIME_DISPATCH
     check("haversine_f64", test_haversine<f64_t>, nk_haversine_f64);
     check("haversine_f32", test_haversine<f32_t>, nk_haversine_f32);
     check("vincenty_f64", test_vincenty<f64_t>, nk_vincenty_f64);
@@ -151,5 +151,5 @@ void test_geospatial() {
     check("vincenty_f64_serial", test_vincenty<f64_t>, nk_vincenty_f64_serial);
     check("vincenty_f32_serial", test_vincenty<f32_t>, nk_vincenty_f32_serial);
 
-#endif // NK_DYNAMIC_DISPATCH
+#endif // NK_RUNTIME_DISPATCH
 }

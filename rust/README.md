@@ -73,7 +73,7 @@ numkong = { version = "7", features = ["parallel", "std"] }
 
 ## Compilation and Backend Selection
 
-The crate uses the `cc` build system to compile the C backend with `NK_DYNAMIC_DISPATCH=1` automatically.
+The crate uses the `cc` build system to compile the C backend with `NK_RUNTIME_DISPATCH=1` automatically.
 All supported backends for the target architecture are compiled into a single binary and selected at runtime.
 
 The two Cargo features are `std`, which enables standard library support, and `parallel`, which adds host-side orchestration via ForkUnion and implies `std`.
@@ -96,21 +96,34 @@ NK_TARGET_SVE=0 NK_TARGET_SME=0 cargo build
 If a backend fails to compile, the build system automatically disables it and retries with the remaining backends.
 A warning is emitted for each disabled backend.
 
-## Dynamic Dispatch and Capabilities
+## Runtime Dispatch and Capabilities
 
-`configure_thread` enables CPU-specific acceleration features such as Intel AMX.
+`capabilities::configure_thread` enables CPU-specific acceleration features such as Intel AMX.
 It must be called once per thread before using AMX operations.
 
 ```rust
-use numkong::{available, configure_thread, cap};
+use numkong::{capabilities, cap};
 
-let caps = available();
-configure_thread();
+let caps = capabilities::available();
+capabilities::configure_thread();
 
 if caps & cap::SAPPHIREAMX != 0 {
     println!("AMX available");
 }
 ```
+
+Capabilities are reported along two independent axes, plus the sets derived from them:
+
+| Accessor                    | Meaning                                                      |
+| :-------------------------- | :----------------------------------------------------------- |
+| `capabilities::detected()`  | what this CPU can execute, from CPUID or HWCAP               |
+| `capabilities::compiled()`  | what this binary contains, from the ISA probes at build time |
+| `capabilities::available()` | the intersection, i.e. what can actually run here            |
+| `capabilities::enabled()`   | the subset dispatch is restricted to                         |
+
+Reach for `available()` unless you specifically mean one of the raw axes.
+`detected()` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
+Narrow dispatch with `capabilities::{enable, disable, restrict}`; all clamp to `available()` and always keep `cap::SERIAL`.
 
 Call `configure_thread` at the start of every thread that will use AMX operations.
 In a thread-pool setting, each worker thread needs its own call.

@@ -44,8 +44,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+bf16")
 #endif
 
-NK_PUBLIC void nk_dot_bf16_svebfdot(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars, nk_size_t count_scalars,
-                                    nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_bf16_svebfdot(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                          nk_size_t count_scalars, nk_f32_t *result) {
     nk_size_t idx_scalars = 0;
     svfloat32_t sum_f32x = svdup_f32(0);
     nk_bf16_for_arm_simd_t const *a = (nk_bf16_for_arm_simd_t const *)(a_scalars);

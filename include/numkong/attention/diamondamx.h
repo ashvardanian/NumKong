@@ -57,8 +57,8 @@ enum {
 /** @brief Drains the four FP32 accumulator tiles (TDPBF16PS / TDPHF8PS) of one 2×2 register block to the
  *  score panel, one ZMM row per tile per iteration. Tiles 0/1 fill the top 16 rows, 2/3 the bottom 16;
  *  `_tile_movrow` takes the tile as a compile-time immediate, so all four are written out explicitly. */
-NK_INTERNAL void nk_attention_f32_store_grid_diamondamx_(nk_f32_t *scores_panel, nk_size_t pair_idx,
-                                                         nk_size_t panel_width) {
+NK_HELPER_INLINE void nk_attention_f32_store_grid_diamondamx_(nk_f32_t *scores_panel, nk_size_t pair_idx,
+                                                              nk_size_t panel_width) {
     for (unsigned row_idx = 0; row_idx < 16; row_idx++) {
         nk_f32_t *top_row = scores_panel + pair_idx * 32 + row_idx * panel_width;
         nk_f32_t *bottom_row = scores_panel + 16 * panel_width + pair_idx * 32 + row_idx * panel_width;
@@ -72,9 +72,9 @@ NK_INTERNAL void nk_attention_f32_store_grid_diamondamx_(nk_f32_t *scores_panel,
 /** @brief Fuses the four FP32 accumulator tiles of one 2×2 register block into `o_acc` row-wise as
  *  `o = o·correction + drained`. Tiles 0/1 use the top row-tile's corrections, 2/3 the bottom's;
  *  `_tile_movrow` needs a compile-time tile immediate, so all four are written out explicitly. */
-NK_INTERNAL void nk_attention_f32_accumulate_grid_diamondamx_(nk_size_t channel_start, nk_f32_t *o_acc,
-                                                              nk_size_t output_stride_floats,
-                                                              nk_f32_t const (*corrections)[16]) {
+NK_HELPER_INLINE void nk_attention_f32_accumulate_grid_diamondamx_(nk_size_t channel_start, nk_f32_t *o_acc,
+                                                                   nk_size_t output_stride_floats,
+                                                                   nk_f32_t const (*corrections)[16]) {
     for (unsigned row_idx = 0; row_idx < 16; row_idx++) {
         nk_f32_t *top_row = o_acc + row_idx * output_stride_floats + channel_start;
         nk_f32_t *bottom_row = o_acc + (16 + row_idx) * output_stride_floats + channel_start;
@@ -93,20 +93,20 @@ NK_INTERNAL void nk_attention_f32_accumulate_grid_diamondamx_(nk_size_t channel_
 
 /** @brief Quantizes 16 F32 probabilities to E4M3: F32→F16 (VCVTPS2PHX) then F16→E4M3 (VCVT2PH2HF8).
  *  The second VCVT2PH2HF8 operand fills the result's low half, so the payload rides there. */
-NK_INTERNAL __m128i nk_attention_quantize_e4m3x16_diamondamx_(__m512 weights_f32x16) {
+NK_HELPER_INLINE __m128i nk_attention_quantize_e4m3x16_diamondamx_(__m512 weights_f32x16) {
     __m512h const weights_f16x32 = _mm512_castph256_ph512(_mm512_cvtxps_ph(weights_f32x16));
     return _mm512_castsi512_si128(_mm512_cvts_2ph_hf8(_mm512_setzero_ph(), weights_f16x32));
 }
 
 /** @brief Widens 16 E4M3 probabilities back to F32 (VCVTHF82PH + VCVTPH2PSX) for a consistent sum. */
-NK_INTERNAL __m512 nk_attention_dequantize_e4m3x16_diamondamx_(__m128i weights_e4m3x16) {
+NK_HELPER_INLINE __m512 nk_attention_dequantize_e4m3x16_diamondamx_(__m128i weights_e4m3x16) {
     return _mm512_cvtxph_ps(_mm256_cvthf8_ph(weights_e4m3x16));
 }
 
 /** @brief E4M3 native and I8 share a raw 1-byte, 64-deep, quad-interleaved tile layout. */
-NK_INTERNAL nk_size_t nk_attention_packed_size_quad_diamondamx_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                nk_u32_t const *segment_lengths,
-                                                                nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_packed_size_quad_diamondamx_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                     nk_u32_t const *segment_lengths,
+                                                                     nk_size_t segment_count) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
     nk_size_t total_tile_bytes = 0;
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++) {
@@ -116,15 +116,16 @@ NK_INTERNAL nk_size_t nk_attention_packed_size_quad_diamondamx_(nk_size_t key_va
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + total_tile_bytes;
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_diamondamx(nk_size_t key_value_head_count, nk_size_t depth,
-                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_diamondamx(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                   nk_u32_t const *segment_lengths,
+                                                                   nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_diamondamx_k_)
         return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_packed_size_quad_diamondamx_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
 /** @brief Raw 1-byte packing shared by E4M3-native and I8: K transposed, V quad-interleaved. */
-NK_INTERNAL void nk_attention_pack_quad_diamondamx_(                                             //
+NK_HELPER_INLINE void nk_attention_pack_quad_diamondamx_(                                        //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
@@ -222,9 +223,9 @@ NK_INTERNAL void nk_attention_pack_quad_diamondamx_(                            
     nk_compiler_barrier_sapphireamx_();
 }
 
-NK_PUBLIC void nk_attention_pack_e4m3_diamondamx(    //
-    nk_e4m3_t const *keys, nk_e4m3_t const *values,  //
-    nk_size_t key_value_head_count, nk_size_t depth, //
+NK_API_COMPTIME void nk_attention_pack_e4m3_diamondamx( //
+    nk_e4m3_t const *keys, nk_e4m3_t const *values,     //
+    nk_size_t key_value_head_count, nk_size_t depth,    //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
     nk_size_t task_count) {
@@ -240,8 +241,8 @@ NK_PUBLIC void nk_attention_pack_e4m3_diamondamx(    //
 }
 
 /** @brief Row maxima over the live columns of an FP32 score panel; padded columns excluded. */
-NK_INTERNAL void nk_attention_panel_rowmax_diamondamx_(nk_f32_t const *scores_panel, nk_size_t panel_width,
-                                                       nk_size_t valid_cols, nk_f32_t (*panel_max)[16]) {
+NK_HELPER_INLINE void nk_attention_panel_rowmax_diamondamx_(nk_f32_t const *scores_panel, nk_size_t panel_width,
+                                                            nk_size_t valid_cols, nk_f32_t (*panel_max)[16]) {
     nk_size_t const full_cols = valid_cols & ~(nk_size_t)15;
     __mmask16 const tail_mask = (__mmask16)((1u << (valid_cols - full_cols)) - 1);
     for (nk_size_t row_tile_idx = 0; row_tile_idx < 2; row_tile_idx++)
@@ -259,10 +260,10 @@ NK_INTERNAL void nk_attention_panel_rowmax_diamondamx_(nk_f32_t const *scores_pa
 }
 
 /** @brief E4M3 native Q×Kᵀ: `_tile_dphf8ps` over 64-deep raw E4M3 tiles, drained to FP32. */
-NK_INTERNAL void nk_attention_score_panel_e4m3_diamondamx_(nk_dots_i8_a16x64_sapphireamx_t const (*queries_tiles)[4],
-                                                           nk_i8_t const *keys_head_tiles, nk_size_t panel_first_tile,
-                                                           nk_size_t panel_pairs, nk_size_t depth_blocks,
-                                                           nk_f32_t *scores_panel, nk_size_t panel_width) {
+NK_HELPER_INLINE void nk_attention_score_panel_e4m3_diamondamx_(
+    nk_dots_i8_a16x64_sapphireamx_t const (*queries_tiles)[4], nk_i8_t const *keys_head_tiles,
+    nk_size_t panel_first_tile, nk_size_t panel_pairs, nk_size_t depth_blocks, nk_f32_t *scores_panel,
+    nk_size_t panel_width) {
     nk_size_t const keys_tile_stride = depth_blocks * 1024;
     for (nk_size_t pair_idx = 0; pair_idx < panel_pairs; pair_idx++) {
         nk_i8_t const *keys_tile0 = keys_head_tiles + (panel_first_tile + pair_idx * 2) * keys_tile_stride;
@@ -294,10 +295,11 @@ NK_INTERNAL void nk_attention_score_panel_e4m3_diamondamx_(nk_dots_i8_a16x64_sap
  *  bias that grows with context length. The sum accumulates the dequantized scaled
  *  weights, so the 256 cancels in normalization.
  */
-NK_INTERNAL void nk_attention_exp_panel_e4m3_diamondamx_(nk_f32_t const *scores_panel, nk_e4m3_t *weights_panel,
-                                                         nk_size_t panel_length, nk_size_t valid_cols,
-                                                         nk_size_t panel_width, nk_f32_t scale2,
-                                                         nk_f32_t const (*new_max)[16], nk_f32_t (*panel_sums)[16]) {
+NK_HELPER_INLINE void nk_attention_exp_panel_e4m3_diamondamx_(nk_f32_t const *scores_panel, nk_e4m3_t *weights_panel,
+                                                              nk_size_t panel_length, nk_size_t valid_cols,
+                                                              nk_size_t panel_width, nk_f32_t scale2,
+                                                              nk_f32_t const (*new_max)[16],
+                                                              nk_f32_t (*panel_sums)[16]) {
     __m512 const scale_f32x16 = _mm512_set1_ps(scale2);
     __m512 const amplitude_f32x16 = _mm512_set1_ps(256.0f);
     nk_size_t const full_cols = valid_cols & ~(nk_size_t)15;
@@ -334,12 +336,10 @@ NK_INTERNAL void nk_attention_exp_panel_e4m3_diamondamx_(nk_f32_t const *scores_
 }
 
 /** @brief E4M3 native P×V: `_tile_dphf8ps` (E4M3 weights × E4M3 values → FP32), fused on drain. */
-NK_INTERNAL void nk_attention_weighted_sum_panel_e4m3_diamondamx_(nk_e4m3_t const *weights_panel, nk_size_t panel_width,
-                                                                  nk_i8_t const *values_head_tiles,
-                                                                  nk_size_t position_blocks_total,
-                                                                  nk_size_t panel_first_block, nk_size_t panel_blocks,
-                                                                  nk_size_t depth_tiles, nk_size_t output_stride_floats,
-                                                                  nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {
+NK_HELPER_INLINE void nk_attention_weighted_sum_panel_e4m3_diamondamx_(
+    nk_e4m3_t const *weights_panel, nk_size_t panel_width, nk_i8_t const *values_head_tiles,
+    nk_size_t position_blocks_total, nk_size_t panel_first_block, nk_size_t panel_blocks, nk_size_t depth_tiles,
+    nk_size_t output_stride_floats, nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {
     int const weights_stride_bytes = (int)panel_width;
     for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles; depth_tile_idx++) {
         nk_i8_t const *values_tile0 = values_head_tiles +
@@ -373,13 +373,11 @@ typedef struct {
 } nk_attention_scratch_e4m3_diamondamx_t_;
 
 /** @brief E4M3 native (segment, head) task: `_tile_dphf8ps` scores and P×V with E4M3-quantized weights. */
-NK_INTERNAL void nk_attention_task_e4m3_diamondamx_(nk_e4m3_t const *queries, nk_f32_t *output,
-                                                    nk_i8_t const *keys_head_tiles, nk_i8_t const *values_head_tiles,
-                                                    nk_size_t head_idx, nk_size_t depth, nk_size_t position_count,
-                                                    nk_size_t position_count_padded, nk_size_t query_first,
-                                                    nk_size_t row_count, nk_size_t query_stride_bytes,
-                                                    nk_size_t output_stride_bytes, nk_f32_t scale2,
-                                                    nk_attention_scratch_e4m3_diamondamx_t_ *scratch) {
+NK_HELPER_INLINE void nk_attention_task_e4m3_diamondamx_(
+    nk_e4m3_t const *queries, nk_f32_t *output, nk_i8_t const *keys_head_tiles, nk_i8_t const *values_head_tiles,
+    nk_size_t head_idx, nk_size_t depth, nk_size_t position_count, nk_size_t position_count_padded,
+    nk_size_t query_first, nk_size_t row_count, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes,
+    nk_f32_t scale2, nk_attention_scratch_e4m3_diamondamx_t_ *scratch) {
     nk_size_t const panel_width = nk_attention_panel_diamondamx_k_;
     nk_size_t const row_blocks = 4;
     nk_size_t const kv_padded = nk_size_round_up_to_multiple_(position_count, 64);
@@ -487,7 +485,7 @@ NK_INTERNAL void nk_attention_task_e4m3_diamondamx_(nk_e4m3_t const *queries, nk
     }
 }
 
-NK_PUBLIC void nk_attention_packed_e4m3_diamondamx(                              //
+NK_API_COMPTIME void nk_attention_packed_e4m3_diamondamx(                        //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //

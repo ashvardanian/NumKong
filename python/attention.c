@@ -269,11 +269,8 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
     nk_attention_packed_size_punned_t size_fn = NULL;
     nk_attention_pack_punned_t pack_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_attention_packed_size_k, dtype, static_capabilities, (nk_kernel_punned_t *)&size_fn,
-                          &cap);
-    if (size_fn && cap)
-        nk_find_kernel_punned(nk_kernel_attention_pack_k, dtype, static_capabilities, (nk_kernel_punned_t *)&pack_fn,
-                              &cap);
+    nk_find_kernel_punned(nk_kernel_attention_packed_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    if (size_fn && cap) nk_find_kernel_punned(nk_kernel_attention_pack_k, dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
     if (!size_fn || !pack_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No attention pack kernels for dtype '%s'", nk_dtype_name(dtype));
         goto cleanup;
@@ -453,8 +450,7 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
 
     nk_attention_packed_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_attention_packed_k, kv->dtype, static_capabilities, (nk_kernel_punned_t *)&kernel,
-                          &cap);
+    nk_find_kernel_punned(nk_kernel_attention_packed_k, kv->dtype, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) {
         PyErr_Format(PyExc_LookupError, "No attention kernel for dtype '%s'", nk_dtype_name(kv->dtype));
         goto cleanup;

@@ -33,19 +33,19 @@ extern "C" {
 #pragma GCC target("+dotprod")
 #endif
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_bf16_neonsdot(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_bf16_neonsdot(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_bf16_t), 16);
 }
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f32_neonsdot(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f32_neonsdot(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f32_t), 16);
 }
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f16_neonsdot(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f16_neonsdot(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f16_t), 16);
 }
 
-NK_PUBLIC void nk_maxsim_pack_bf16_neonsdot( //
+NK_API_COMPTIME void nk_maxsim_pack_bf16_neonsdot( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_bf16_t);
@@ -71,7 +71,7 @@ NK_PUBLIC void nk_maxsim_pack_bf16_neonsdot( //
     }
 }
 
-NK_PUBLIC void nk_maxsim_pack_f32_neonsdot( //
+NK_API_COMPTIME void nk_maxsim_pack_f32_neonsdot( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f32_t);
@@ -96,7 +96,7 @@ NK_PUBLIC void nk_maxsim_pack_f32_neonsdot( //
     }
 }
 
-NK_PUBLIC void nk_maxsim_pack_f16_neonsdot( //
+NK_API_COMPTIME void nk_maxsim_pack_f16_neonsdot( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f16_t);
@@ -127,7 +127,7 @@ NK_PUBLIC void nk_maxsim_pack_f16_neonsdot( //
  *  Uses vdotq_s32 (signed×signed) — no XOR bias, no metadata parameter.
  *  4Q×4D register tiling with 16 int32x4_t accumulators.
  */
-NK_INTERNAL void nk_maxsim_coarse_argmax_neonsdot_(                                                       //
+NK_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                                                  //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8, nk_size_t query_count, nk_size_t document_count, //
     nk_size_t depth_i8_padded, nk_u32_t *best_document_indices) {
 
@@ -276,7 +276,7 @@ NK_INTERNAL void nk_maxsim_coarse_argmax_neonsdot_(                             
     }
 }
 
-NK_PUBLIC void nk_maxsim_packed_bf16_neonsdot( //
+NK_API_COMPTIME void nk_maxsim_packed_bf16_neonsdot( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -310,7 +310,7 @@ NK_PUBLIC void nk_maxsim_packed_bf16_neonsdot( //
     *result = (nk_f32_t)total_angular_distance;
 }
 
-NK_PUBLIC void nk_maxsim_packed_f32_neonsdot( //
+NK_API_COMPTIME void nk_maxsim_packed_f32_neonsdot( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
@@ -345,7 +345,7 @@ NK_PUBLIC void nk_maxsim_packed_f32_neonsdot( //
     *result = total_angular_distance;
 }
 
-NK_PUBLIC void nk_maxsim_packed_f16_neonsdot( //
+NK_API_COMPTIME void nk_maxsim_packed_f16_neonsdot( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 

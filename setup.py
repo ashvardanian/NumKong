@@ -9,6 +9,7 @@ to support cross-compilation scenarios like building ARM64 wheels on x64 hosts.
 from __future__ import annotations
 
 import glob
+import inspect
 import os
 import platform
 import subprocess
@@ -123,12 +124,31 @@ def is_wasm() -> bool:
     return "emscripten" in host or "wasm" in host
 
 
-def detect_cc():
-    """Detect the C compiler."""
+def detect_cc() -> tuple[str, bool, dict[str, str] | None]:
+    """Detect the C compiler and the environment its probes need. Returns (cc, is_msvc, env)."""
     if sys.platform == "win32":
-        return ("cl.exe", True)
+        try:
+            # Imported here, not at module scope: this is private API that has already moved
+            # twice (`msvccompiler` → `_msvccompiler` → `compilers.C.msvc`), and every other
+            # platform must keep importing this file if it moves again.
+            from setuptools._distutils.ccompiler import new_compiler
+
+            # MSVC is never on PATH — setuptools locates it per target through `_get_vc_env`,
+            # and the probes must use that same compiler and INCLUDE, or `<immintrin.h>` and
+            # `<arm_neon.h>` resolve to nothing. Mirrors what `build.rs` gets from the `cc`
+            # crate's `windows_registry::find_tool(target)`.
+            compiler = new_compiler(compiler="msvc")
+            compiler.initialize("win-arm64" if is_64bit_arm() else "win-amd64")
+            vc_env = inspect.getmodule(type(compiler))._get_vc_env("arm64" if is_64bit_arm() else "x64")
+            env = os.environ.copy()
+            env.update({key.upper(): value for key, value in vc_env.items()})
+            return (compiler.cc, True, env)
+        except Exception as error:
+            # `check_probe_toolchain` still fails the build, so this stays loud.
+            print(f"[NumKong] Could not resolve MSVC through setuptools: {error!r}")
+            return ("cl.exe", True, None)
     cc = os.environ.get("CC") or sysconfig.get_config_var("CC") or "cc"
-    return (cc.split()[0], False)
+    return (cc.split()[0], False, None)
 
 
 def cross_target_flags() -> list[str]:
@@ -143,20 +163,23 @@ def cross_target_flags() -> list[str]:
     return []
 
 
-def probe_isa(cc, probe_file, flags, is_msvc=False):
-    """Try to compile a probe .c file. Returns True if compiler supports this ISA."""
+def probe_isa(cc, probe_file, flags, is_msvc=False, env=None) -> tuple[bool, str]:
+    """Try to compile a probe .c file. Returns (supported, diagnostics)."""
     with tempfile.NamedTemporaryFile(suffix=".obj" if is_msvc else ".o", delete=False) as tmp:
         obj_path = tmp.name
     try:
-        prefix = [cc, "/c"] if is_msvc else [cc, "-c"]
+        # `/nologo` keeps the banner and the echoed file name out of the diagnostics.
+        prefix = [cc, "/c", "/nologo"] if is_msvc else [cc, "-c"]
         out_flag = ["/Fo" + obj_path] if is_msvc else ["-o", obj_path]
         extra = [] if is_msvc else cross_target_flags()
-        return (
-            subprocess.run(prefix + extra + flags + [probe_file] + out_flag, capture_output=True, timeout=30).returncode
-            == 0
+        # OSError and TimeoutExpired propagate to `check_probe_toolchain`. A compiler that
+        # cannot run is not an answer about any ISA — reporting it as "unsupported" is what
+        # made a misconfigured toolchain indistinguishable from a CPU without the feature.
+        result = subprocess.run(
+            prefix + extra + flags + [probe_file] + out_flag, capture_output=True, timeout=30, env=env
         )
-    except Exception:
-        return False
+        # MSVC writes diagnostics to stdout, GCC and Clang to stderr.
+        return (result.returncode == 0, (result.stdout + result.stderr).decode("utf-8", "replace").strip())
     finally:
         try:
             os.unlink(obj_path)
@@ -233,10 +256,37 @@ PROBE_TABLE_WASM: ProbeTable = [
 ]
 
 
+def check_probe_toolchain(cc, is_msvc, env=None) -> None:
+    """Fail the build if the probe compiler cannot compile a flagless file.
+
+    A target with no SIMD is a supported configuration, so "unsupported" is an answer we honor.
+    A compiler that cannot run is not an answer — it makes every ISA look unsupported and yields
+    a scalar binary that looks identical to a legitimate one. `probes/serial.c` separates the
+    two: a scalar target compiles it and then rejects the ISA probes on their own merits.
+    """
+    if not os.path.isfile("probes/serial.c"):
+        return  # Source tree without probes, e.g. an installed sdist reusing this module.
+    try:
+        supported, diagnostics = probe_isa(cc, "probes/serial.c", [], is_msvc, env)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise SystemExit(
+            f"[NumKong] Cannot run the probe compiler {cc!r}: {error}\n"
+            f"[NumKong] On Windows, build from a Developer Command Prompt or run vcvarsall.bat."
+        ) from error
+    if not supported:
+        raise SystemExit(
+            f"[NumKong] Probe compiler {cc!r} cannot compile probes/serial.c, which uses no "
+            f"ISA flags at all:\n{diagnostics}"
+        )
+
+
 def probe_all_isas() -> list[tuple[str, str]]:
     """Probe all ISAs relevant to the current architecture. Returns macro list."""
-    cc, is_msvc = detect_cc()
+    cc, is_msvc, env = detect_cc()
+    check_probe_toolchain(cc, is_msvc, env)
+    print(f"[NumKong] Probing ISAs with {cc}")
     macros: list[tuple[str, str]] = []
+    reported_diagnostics = False
 
     tables: list[tuple[bool, ProbeTable]] = [
         (is_64bit_x86(), PROBE_TABLE_X86),
@@ -261,12 +311,19 @@ def probe_all_isas() -> list[tuple[str, str]]:
                     print(f"[NumKong] NK_TARGET_{name}: force-disabled via environment")
                     continue
                 flags = msvc_flags if is_msvc else gcc_flags
-                ok = probe_isa(cc, probe_file, flags, is_msvc)
+                ok, diagnostics = probe_isa(cc, probe_file, flags, is_msvc, env)
                 macros.append((f"NK_TARGET_{name}", "1" if ok else "0"))
                 if ok:
                     print(f"[NumKong] Probe NK_TARGET_{name}: supported")
                 else:
                     print(f"[NumKong] Probe NK_TARGET_{name}: not supported")
+                    # Only the first failure carries diagnostic value — an unusable toolchain
+                    # fails every probe with the same message.
+                    if diagnostics and not reported_diagnostics:
+                        reported_diagnostics = True
+                        print(f"[NumKong] First probe failure ({name}) reported:")
+                        for line in diagnostics.splitlines()[:5]:
+                            print(f"[NumKong]   {line}")
             else:
                 macros.append((f"NK_TARGET_{name}", "0"))
 
@@ -291,7 +348,7 @@ def linux_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
         "-lm",  # Add vectorized `logf` implementation from the `glibc`
     ]
     macros: list[tuple[str, str]] = [
-        ("NK_DYNAMIC_DISPATCH", "1"),
+        ("NK_RUNTIME_DISPATCH", "1"),
         ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
@@ -330,7 +387,7 @@ def darwin_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
         compile_args.append(f"-I{libomp_prefix}/include")
         link_args.append(f"-L{libomp_prefix}/lib")
     macros: list[tuple[str, str]] = [
-        ("NK_DYNAMIC_DISPATCH", "1"),
+        ("NK_RUNTIME_DISPATCH", "1"),
         ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
@@ -357,7 +414,7 @@ def freebsd_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
         "-lm",  # Math library
     ]
     macros: list[tuple[str, str]] = [
-        ("NK_DYNAMIC_DISPATCH", "1"),
+        ("NK_RUNTIME_DISPATCH", "1"),
         ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
@@ -383,7 +440,7 @@ def windows_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     ]
     link_args: list[str] = []
     macros: list[tuple[str, str]] = [
-        ("NK_DYNAMIC_DISPATCH", "1"),
+        ("NK_RUNTIME_DISPATCH", "1"),
         ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
@@ -392,6 +449,13 @@ def windows_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     # MSVC requires architecture-specific macros for winnt.h
     if is_64bit_arm():
         macros.append(("_ARM64_", "1"))
+        # Undo the `/GL` + `/LTCG` that distutils adds by default: MSVC 14.51's ARM64 linker
+        # hits a C1001 in the link-time codegen pass on the `#pragma omp parallel for` in
+        # python/distance.c, where 14.44 built it. Costs only cross-translation-unit inlining
+        # here — the hot paths already dispatch through function pointers LTCG cannot see
+        # through. Drop once the runners ship a fixed toolset.
+        compile_args.append("/GL-")
+        link_args.append("/LTCG:OFF")
     elif is_64bit_x86():
         macros.append(("_AMD64_", "1"))
 
@@ -406,12 +470,12 @@ def emscripten_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
         "-w",
     ]
     link_args: list[str] = []
-    # Dynamic dispatch is needed for the Python bindings (nk_find_kernel_punned).
-    # The EM_JS runtime probes in c/numkong.c are guarded by NK_DYNAMIC_DISPATCH
+    # Runtime dispatch is needed for the Python bindings (nk_find_kernel_punned).
+    # The EM_JS runtime probes in c/numkong.c are guarded by NK_RUNTIME_DISPATCH
     # and __EMSCRIPTEN__; when building as a Pyodide side module, we define
     # NK_PYODIDE_SIDE_MODULE to replace them with conservative stubs (serial only).
     macros: list[tuple[str, str]] = [
-        ("NK_DYNAMIC_DISPATCH", "1"),
+        ("NK_RUNTIME_DISPATCH", "1"),
         ("NK_PYODIDE_SIDE_MODULE", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),

@@ -81,13 +81,15 @@ typedef void (*nk_maxsim_to_f32_t)(void const *source, nk_f32_t *destination);
 #endif
 
 /** @brief Identity conversion for f32 sources — just a typed memcpy. */
-NK_INTERNAL void nk_f32_to_f32_(void const *source, nk_f32_t *destination) { *destination = *(nk_f32_t const *)source; }
+NK_HELPER_INLINE void nk_f32_to_f32_(void const *source, nk_f32_t *destination) {
+    *destination = *(nk_f32_t const *)source;
+}
 
 /**
  *  @brief Fills the packed buffer header and returns the padded i8 depth.
  *  Consolidates header/offset computation duplicated in every pack function.
  */
-NK_INTERNAL nk_size_t nk_maxsim_packed_header_setup_(      //
+NK_HELPER_INLINE nk_size_t nk_maxsim_packed_header_setup_( //
     void *packed, nk_size_t vector_count, nk_size_t depth, //
     nk_size_t depth_simd_dimensions, nk_size_t original_element_bytes) {
 
@@ -119,7 +121,7 @@ NK_INTERNAL nk_size_t nk_maxsim_packed_header_setup_(      //
  *  Iterates element-by-element, calling the conversion callback for each f32 value.
  *  No temp buffer needed — works for arbitrary depth.
  */
-NK_INTERNAL void nk_maxsim_quantize_vector_(                             //
+NK_HELPER_INLINE void nk_maxsim_quantize_vector_(                        //
     void const *source_vector, nk_size_t element_bytes, nk_size_t depth, //
     nk_size_t depth_i8_padded, nk_f32_t scale_limit,                     //
     nk_maxsim_to_f32_t convert_to_f32,                                   //
@@ -182,7 +184,7 @@ typedef struct {
     nk_size_t document_original_stride;
 } nk_maxsim_packed_regions_t;
 
-NK_INTERNAL nk_maxsim_packed_regions_t nk_maxsim_extract_packed_regions_( //
+NK_HELPER_INLINE nk_maxsim_packed_regions_t nk_maxsim_extract_packed_regions_( //
     void const *query_packed, void const *document_packed) {
 
     nk_maxsim_packed_header_t const *query_header = (nk_maxsim_packed_header_t const *)query_packed;
@@ -213,8 +215,8 @@ NK_INTERNAL nk_maxsim_packed_regions_t nk_maxsim_extract_packed_regions_( //
  *  @param original_element_bytes Size of each original element (2 for bf16, 4 for f32).
  *  @param depth_simd_dimensions SIMD width for i8 depth padding (1 for serial).
  */
-NK_INTERNAL nk_size_t nk_maxsim_packed_size_( //
-    nk_size_t vector_count, nk_size_t depth,  //
+NK_HELPER_INLINE nk_size_t nk_maxsim_packed_size_( //
+    nk_size_t vector_count, nk_size_t depth,       //
     nk_size_t original_element_bytes, nk_size_t depth_simd_dimensions) {
 
     // Pad i8 depth to SIMD width
@@ -234,15 +236,15 @@ NK_INTERNAL nk_size_t nk_maxsim_packed_size_( //
     return header_size + i8_region_size + metadata_region_size + originals_region_size;
 }
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_bf16_serial(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_bf16_serial(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_bf16_t), 1);
 }
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f32_serial(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f32_serial(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f32_t), 1);
 }
 
-NK_PUBLIC void nk_maxsim_pack_bf16_serial( //
+NK_API_COMPTIME void nk_maxsim_pack_bf16_serial( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_bf16_t);
@@ -268,7 +270,7 @@ NK_PUBLIC void nk_maxsim_pack_bf16_serial( //
     }
 }
 
-NK_PUBLIC void nk_maxsim_pack_f32_serial( //
+NK_API_COMPTIME void nk_maxsim_pack_f32_serial( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f32_t);
@@ -293,11 +295,11 @@ NK_PUBLIC void nk_maxsim_pack_f32_serial( //
     }
 }
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f16_serial(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f16_serial(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f16_t), 1);
 }
 
-NK_PUBLIC void nk_maxsim_pack_f16_serial( //
+NK_API_COMPTIME void nk_maxsim_pack_f16_serial( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f16_t);
@@ -328,7 +330,7 @@ NK_PUBLIC void nk_maxsim_pack_f16_serial( //
  *  Produces per-query best document indices using signed i8×i8 dot products.
  *  No bias correction needed — serial uses native signed×signed multiplication.
  */
-NK_INTERNAL void nk_maxsim_coarse_argmax_serial_( //
+NK_HELPER_INLINE void nk_maxsim_coarse_argmax_serial_( //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth_i8_padded, nk_u32_t *best_document_indices) {
 
@@ -389,7 +391,7 @@ NK_INTERNAL void nk_maxsim_coarse_argmax_serial_( //
     }
 }
 
-NK_PUBLIC void nk_maxsim_packed_bf16_serial( //
+NK_API_COMPTIME void nk_maxsim_packed_bf16_serial( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -423,7 +425,7 @@ NK_PUBLIC void nk_maxsim_packed_bf16_serial( //
     *result = (nk_f32_t)total_angular_distance;
 }
 
-NK_PUBLIC void nk_maxsim_packed_f32_serial( //
+NK_API_COMPTIME void nk_maxsim_packed_f32_serial( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
@@ -458,7 +460,7 @@ NK_PUBLIC void nk_maxsim_packed_f32_serial( //
     *result = total_angular_distance;
 }
 
-NK_PUBLIC void nk_maxsim_packed_f16_serial( //
+NK_API_COMPTIME void nk_maxsim_packed_f16_serial( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 

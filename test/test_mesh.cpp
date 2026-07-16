@@ -149,7 +149,7 @@ error_stats_t test_umeyama(typename scalar_type_::mesh_kernel_t kernel) {
 void test_mesh() {
     error_stats_section_t check("Mesh Operations");
 
-#if NK_DYNAMIC_DISPATCH
+#if NK_RUNTIME_DISPATCH
     check("rmsd_f64", test_rmsd<f64_t>, nk_rmsd_f64);
     check("rmsd_f32", test_rmsd<f32_t>, nk_rmsd_f32);
     check("kabsch_f64", test_kabsch<f64_t>, nk_kabsch_f64);
@@ -250,5 +250,5 @@ void test_mesh() {
     check("umeyama_f64_serial", test_umeyama<f64_t>, nk_umeyama_f64_serial);
     check("umeyama_f32_serial", test_umeyama<f32_t>, nk_umeyama_f32_serial);
 
-#endif // NK_DYNAMIC_DISPATCH
+#endif // NK_RUNTIME_DISPATCH
 }

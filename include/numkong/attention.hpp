@@ -20,8 +20,8 @@ namespace ashvardanian::numkong {
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NK_PUBLIC std::size_t attention_packed_size(std::size_t key_value_head_count, std::size_t depth,
-                                            nk_u32_t const *segment_lengths, std::size_t segment_count) {
+NK_API_COMPTIME std::size_t attention_packed_size(std::size_t key_value_head_count, std::size_t depth,
+                                                  nk_u32_t const *segment_lengths, std::size_t segment_count) {
     constexpr bool simd = allow_simd_ == prefer_simd_k;
     if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
         return nk_attention_packed_size_bf16(key_value_head_count, depth, segment_lengths, segment_count);
@@ -44,10 +44,11 @@ NK_PUBLIC std::size_t attention_packed_size(std::size_t key_value_head_count, st
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NK_PUBLIC void attention_pack(in_type_ const *keys, in_type_ const *values, std::size_t key_value_head_count,
-                              std::size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
-                              std::size_t segment_count, std::size_t key_stride_bytes, std::size_t value_stride_bytes,
-                              void *key_value_packed, std::size_t first_task = 0, std::size_t task_count = 0) {
+NK_API_COMPTIME void attention_pack(in_type_ const *keys, in_type_ const *values, std::size_t key_value_head_count,
+                                    std::size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                    std::size_t segment_count, std::size_t key_stride_bytes,
+                                    std::size_t value_stride_bytes, void *key_value_packed, std::size_t first_task = 0,
+                                    std::size_t task_count = 0) {
     using raw_t = typename in_type_::raw_t;
     constexpr bool simd = allow_simd_ == prefer_simd_k;
     raw_t const *keys_raw = reinterpret_cast<raw_t const *>(keys);
@@ -85,11 +86,11 @@ NK_PUBLIC void attention_pack(in_type_ const *keys, in_type_ const *values, std:
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::attention_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
-NK_PUBLIC void attention_packed(in_type_ const *queries, void const *key_value_packed, result_type_ *output,
-                                std::size_t head_count, std::size_t key_value_head_count, std::size_t depth,
-                                nk_u32_t const *query_offsets, std::size_t query_stride_bytes,
-                                std::size_t output_stride_bytes, nk_f32_t scale, std::size_t first_task = 0,
-                                std::size_t task_count = 0) {
+NK_API_COMPTIME void attention_packed(in_type_ const *queries, void const *key_value_packed, result_type_ *output,
+                                      std::size_t head_count, std::size_t key_value_head_count, std::size_t depth,
+                                      nk_u32_t const *query_offsets, std::size_t query_stride_bytes,
+                                      std::size_t output_stride_bytes, nk_f32_t scale, std::size_t first_task = 0,
+                                      std::size_t task_count = 0) {
     using raw_t = typename in_type_::raw_t;
     static_assert(std::is_same_v<result_type_, typename in_type_::attention_result_t>,
                   "Attention accumulates and normalizes in F32");

@@ -68,7 +68,7 @@ extern "C" {
  *
  *  where R = NK_EARTH_MEDIATORIAL_RADIUS.
  */
-NK_INTERNAL void nk_haversine_f64_rvv_kernel_(      //
+NK_HELPER_INLINE void nk_haversine_f64_rvv_kernel_( //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t vector_length, nk_f64_t *results) {
@@ -121,7 +121,7 @@ NK_INTERNAL void nk_haversine_f64_rvv_kernel_(      //
     __riscv_vse64_v_f64m4(results, distances_f64m4, vector_length);
 }
 
-NK_PUBLIC void nk_haversine_f64_rvv(                //
+NK_API_COMPTIME void nk_haversine_f64_rvv(          //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -136,7 +136,7 @@ NK_PUBLIC void nk_haversine_f64_rvv(                //
 /**
  *  @brief  RVV internal kernel for Haversine distance on vector_length f32 point pairs.
  */
-NK_INTERNAL void nk_haversine_f32_rvv_kernel_(      //
+NK_HELPER_INLINE void nk_haversine_f32_rvv_kernel_( //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t vector_length, nk_f32_t *results) {
@@ -189,7 +189,7 @@ NK_INTERNAL void nk_haversine_f32_rvv_kernel_(      //
     __riscv_vse32_v_f32m4(results, distances_f32m4, vector_length);
 }
 
-NK_PUBLIC void nk_haversine_f32_rvv(                //
+NK_API_COMPTIME void nk_haversine_f32_rvv(          //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -213,7 +213,7 @@ NK_PUBLIC void nk_haversine_f32_rvv(                //
  *  Each SIMD lane tracks its own convergence state via mask registers. The loop terminates
  *  when all lanes have converged (vcpop == vector_length) or after NK_VINCENTY_MAX_ITERATIONS.
  */
-NK_INTERNAL void nk_vincenty_f64_rvv_kernel_(       //
+NK_HELPER_INLINE void nk_vincenty_f64_rvv_kernel_(  //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t vector_length, nk_f64_t *results) {
@@ -474,7 +474,7 @@ NK_INTERNAL void nk_vincenty_f64_rvv_kernel_(       //
     __riscv_vse64_v_f64m4(results, distances_f64m4, vector_length);
 }
 
-NK_PUBLIC void nk_vincenty_f64_rvv(                 //
+NK_API_COMPTIME void nk_vincenty_f64_rvv(           //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -490,7 +490,7 @@ NK_PUBLIC void nk_vincenty_f64_rvv(                 //
  *  @brief  RVV internal kernel for Vincenty's geodesic distance on vector_length f32 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking via vmerge.
  */
-NK_INTERNAL void nk_vincenty_f32_rvv_kernel_(       //
+NK_HELPER_INLINE void nk_vincenty_f32_rvv_kernel_(  //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t vector_length, nk_f32_t *results) {
@@ -742,7 +742,7 @@ NK_INTERNAL void nk_vincenty_f32_rvv_kernel_(       //
     __riscv_vse32_v_f32m4(results, distances_f32m4, vector_length);
 }
 
-NK_PUBLIC void nk_vincenty_f32_rvv(                 //
+NK_API_COMPTIME void nk_vincenty_f32_rvv(           //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {

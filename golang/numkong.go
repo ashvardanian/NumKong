@@ -84,11 +84,57 @@ const (
 	CapPowerVsx    uint64 = 1 << 37 // Power VSX 128-bit SIMD
 	CapDiamond     uint64 = 1 << 38 // 2025+: Intel AVX10.2
 	CapNeonFp8     uint64 = 1 << 39 // ARM NEON FP8
+	CapDiamondAmx  uint64 = 1 << 40 // Intel Diamond Rapids AMX
 )
 
-// Capabilities returns a bitmask of SIMD capabilities available on the current CPU.
-func Capabilities() uint64 {
-	return uint64(C.nk_capabilities())
+// CapabilitiesDetected returns a bitmask of the SIMD capabilities this CPU supports,
+// whether or not their kernels were compiled in. See CapabilitiesAvailable for the set
+// that can actually run here.
+func CapabilitiesDetected() uint64 {
+	return uint64(C.nk_capabilities_detected())
+}
+
+// CapabilitiesCompiled returns a bitmask of the SIMD capabilities whose kernels were
+// compiled into this binary, whether or not this CPU supports them.
+func CapabilitiesCompiled() uint64 {
+	return uint64(C.nk_capabilities_compiled())
+}
+
+// CapabilitiesAvailable returns the bitmask of SIMD capabilities that can actually execute
+// here: CapabilitiesDetected AND CapabilitiesCompiled. Prefer this over either axis alone,
+// which over-reports.
+func CapabilitiesAvailable() uint64 {
+	return uint64(C.nk_capabilities_available())
+}
+
+// CapabilitiesEnabled returns the bitmask of SIMD capabilities dispatch is currently
+// restricted to, a subset of CapabilitiesAvailable.
+func CapabilitiesEnabled() uint64 {
+	return uint64(C.nk_capabilities_enabled())
+}
+
+// CapabilitiesHas reports whether caps can actually execute here, i.e. whether it is in
+// CapabilitiesAvailable. False both when this CPU lacks the feature and when its kernels
+// were not compiled in.
+func CapabilitiesHas(caps uint64) bool {
+	return CapabilitiesAvailable()&caps != 0
+}
+
+// CapabilitiesRestrict restricts dispatch to caps, clamped to CapabilitiesAvailable.
+// The serial fallback is always retained.
+func CapabilitiesRestrict(caps uint64) {
+	C.nk_capabilities_restrict(C.nk_capability_t(caps))
+}
+
+// CapabilitiesEnable adds caps to CapabilitiesEnabled. Anything not available is ignored.
+func CapabilitiesEnable(caps uint64) {
+	C.nk_capabilities_enable(C.nk_capability_t(caps))
+}
+
+// CapabilitiesDisable removes caps from CapabilitiesEnabled. The serial fallback cannot
+// be removed.
+func CapabilitiesDisable(caps uint64) {
+	C.nk_capabilities_disable(C.nk_capability_t(caps))
 }
 
 // ConfigureThread pins the goroutine to an OS thread, configures SIMD state
@@ -97,7 +143,7 @@ func Capabilities() uint64 {
 // when SIMD work is done.
 func ConfigureThread() func() {
 	runtime.LockOSThread()
-	C.nk_configure_thread(C.nk_capability_t(C.nk_capabilities()))
+	C.nk_configure_thread(C.nk_capability_t(C.nk_capabilities_available()))
 	return runtime.UnlockOSThread
 }
 

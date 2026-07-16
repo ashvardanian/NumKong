@@ -42,7 +42,7 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512fp16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_PUBLIC void nk_each_sum_f16_sapphire(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result) {
+NK_API_COMPTIME void nk_each_sum_f16_sapphire(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result) {
     __mmask32 mask_m32 = 0xFFFFFFFF;
     __m512h a_f16_vec, b_f16_vec;
     __m512h sum_f16_vec;
@@ -64,8 +64,8 @@ nk_each_sum_f16_sapphire_cycle:
     if (n) goto nk_each_sum_f16_sapphire_cycle;
 }
 
-NK_PUBLIC void nk_each_scale_u8_sapphire(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
-                                         nk_u8_t *result) {
+NK_API_COMPTIME void nk_each_scale_u8_sapphire(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                               nk_f32_t const *beta, nk_u8_t *result) {
     short alpha_short, beta_short;
     nk_f32_to_f16_sapphire(alpha, (nk_f16_t *)&alpha_short);
     nk_f32_to_f16_sapphire(beta, (nk_f16_t *)&beta_short);
@@ -101,7 +101,7 @@ nk_each_scale_u8_sapphire_cycle:
     if (n) goto nk_each_scale_u8_sapphire_cycle;
 }
 
-NK_PUBLIC void nk_each_blend_u8_sapphire(            //
+NK_API_COMPTIME void nk_each_blend_u8_sapphire(      //
     nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, //
     nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result) {
 
@@ -167,8 +167,8 @@ nk_each_blend_u8_sapphire_cycle:
     if (n) goto nk_each_blend_u8_sapphire_cycle;
 }
 
-NK_PUBLIC void nk_each_scale_i8_sapphire(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
-                                         nk_i8_t *result) {
+NK_API_COMPTIME void nk_each_scale_i8_sapphire(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                               nk_f32_t const *beta, nk_i8_t *result) {
     short alpha_short, beta_short;
     nk_f32_to_f16_sapphire(alpha, (nk_f16_t *)&alpha_short);
     nk_f32_to_f16_sapphire(beta, (nk_f16_t *)&beta_short);
@@ -211,7 +211,7 @@ nk_each_scale_i8_sapphire_cycle:
     if (n) goto nk_each_scale_i8_sapphire_cycle;
 }
 
-NK_PUBLIC void nk_each_blend_i8_sapphire(            //
+NK_API_COMPTIME void nk_each_blend_i8_sapphire(      //
     nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, //
     nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result) {
 
@@ -287,7 +287,7 @@ nk_each_blend_i8_sapphire_cycle:
     if (n) goto nk_each_blend_i8_sapphire_cycle;
 }
 
-NK_PUBLIC void nk_each_sum_e4m3_sapphire(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_e4m3_t *result) {
+NK_API_COMPTIME void nk_each_sum_e4m3_sapphire(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_e4m3_t *result) {
     __m256i a_e4m3x32, b_e4m3x32;
     __m256h a_low_f16x16, a_high_f16x16, b_low_f16x16, b_high_f16x16;
     __m256h sum_low_f16x16, sum_high_f16x16;

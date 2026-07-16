@@ -314,8 +314,8 @@ int main(int argc, char **argv) {
     }
 
     // Breadcrumbs for crash_handler: if SIGILL fires here, the log shows which call faulted.
-    nk_test_current_kernel_ = "nk_capabilities()";
-    nk_capability_t runtime_caps = nk_capabilities();
+    nk_test_current_kernel_ = "nk_capabilities_detected()";
+    nk_capability_t runtime_caps = nk_capabilities_detected();
     nk_test_current_kernel_ = "nk_configure_thread()";
     nk_configure_thread(runtime_caps); // Also enables AMX if available
     nk_test_current_kernel_ = nullptr;

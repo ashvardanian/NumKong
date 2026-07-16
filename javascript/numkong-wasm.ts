@@ -57,7 +57,10 @@ interface EmscriptenModule {
   _nk_kld_f64(a: any, b: any, n: any, result: any): void;
   _nk_jsd_f32(a: any, b: any, n: any, result: any): void;
   _nk_jsd_f64(a: any, b: any, n: any, result: any): void;
-  _nk_capabilities(): any;
+  _nk_capabilities_detected(): any;
+  _nk_capabilities_compiled(): any;
+  _nk_capabilities_available(): any;
+  _nk_capabilities_enabled(): any;
 
   [key: string]: any;
 }
@@ -509,29 +512,62 @@ export function jensenshannon(a: TensorBase | Float64Array | Float32Array, b: Te
   }
 }
 
-/**
- * Returns the runtime-detected SIMD capabilities as a bitmask.
- * @returns Bitmask of capability flags (use with Capability constants).
- */
-export function getCapabilities(): bigint {
-  if (!Module) {
-    throw new Error('WASM module not initialized');
-  }
-
-  // nk_capabilities returns a 64-bit value
-  const caps = Module._nk_capabilities();
-
-  // In wasm64, caps is already bigint; in wasm32, it's a number
+/** In wasm64 the capability mask arrives as a bigint; in wasm32 as a number. */
+function capabilitiesToBigInt(caps: any): bigint {
   return typeof caps === 'bigint' ? caps : BigInt(caps);
 }
 
+function requireModule(): any {
+  if (!Module) {
+    throw new Error('WASM module not initialized');
+  }
+  return Module;
+}
+
 /**
- * Checks if a specific SIMD capability is available at runtime.
+ * Returns the SIMD capabilities this WASM host supports, as a bitmask.
+ * Describes the host only, and says nothing about what was compiled into this module.
+ * @returns Bitmask of capability flags (use with Capability constants).
+ */
+export function getCapabilitiesDetected(): bigint {
+  return capabilitiesToBigInt(requireModule()._nk_capabilities_detected());
+}
+
+/**
+ * Returns the SIMD capabilities whose kernels were compiled into this module, as a bitmask.
+ * @returns Bitmask of capability flags (use with Capability constants).
+ */
+export function getCapabilitiesCompiled(): bigint {
+  return capabilitiesToBigInt(requireModule()._nk_capabilities_compiled());
+}
+
+/**
+ * Returns the SIMD capabilities that can actually execute here, as a bitmask.
+ * The intersection of getCapabilitiesDetected() and getCapabilitiesCompiled().
+ * @returns Bitmask of capability flags (use with Capability constants).
+ */
+export function getCapabilitiesAvailable(): bigint {
+  return capabilitiesToBigInt(requireModule()._nk_capabilities_available());
+}
+
+/**
+ * Returns the SIMD capabilities dispatch is currently restricted to, as a bitmask.
+ * A subset of getCapabilitiesAvailable().
+ * @returns Bitmask of capability flags (use with Capability constants).
+ */
+export function getCapabilitiesEnabled(): bigint {
+  return capabilitiesToBigInt(requireModule()._nk_capabilities_enabled());
+}
+
+/**
+ * Checks whether a specific SIMD capability can actually execute here.
+ * Tests against getCapabilitiesAvailable(), so it is false both when the host lacks the feature
+ * and when its kernels were not compiled into this module.
  * @param cap - Capability flag to check (from Capability constants).
  * @returns True if the capability is available.
  */
 export function hasCapability(cap: bigint): boolean {
-  return (getCapabilities() & cap) !== 0n;
+  return (getCapabilitiesAvailable() & cap) !== 0n;
 }
 
 // FinalizationRegistry for WASM PackedMatrix cleanup (ES2021+, available in Node 14+)

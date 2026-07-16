@@ -25,7 +25,7 @@ extern "C" {
 #pragma GCC target("arch=armv8-a")
 #endif
 
-NK_INTERNAL uint32x4_t nk_intersect_u32x4_neon_(uint32x4_t a, uint32x4_t b) {
+NK_HELPER_INLINE uint32x4_t nk_intersect_u32x4_neon_(uint32x4_t a, uint32x4_t b) {
     uint32x4_t b_rot1_u32x4 = vextq_u32(b, b, 1);
     uint32x4_t b_rot2_u32x4 = vextq_u32(b, b, 2);
     uint32x4_t b_rot3_u32x4 = vextq_u32(b, b, 3);
@@ -38,7 +38,7 @@ NK_INTERNAL uint32x4_t nk_intersect_u32x4_neon_(uint32x4_t a, uint32x4_t b) {
     return matches_u32x4;
 }
 
-NK_INTERNAL uint16x8_t nk_intersect_u16x8_neon_(uint16x8_t a, uint16x8_t b) {
+NK_HELPER_INLINE uint16x8_t nk_intersect_u16x8_neon_(uint16x8_t a, uint16x8_t b) {
     uint16x8_t b_rot1_u16x8 = vextq_u16(b, b, 1);
     uint16x8_t b_rot2_u16x8 = vextq_u16(b, b, 2);
     uint16x8_t b_rot3_u16x8 = vextq_u16(b, b, 3);
@@ -61,9 +61,9 @@ NK_INTERNAL uint16x8_t nk_intersect_u16x8_neon_(uint16x8_t a, uint16x8_t b) {
     return matches_u16x8;
 }
 
-NK_PUBLIC void nk_sparse_intersect_u16_neon( //
-    nk_u16_t const *a, nk_u16_t const *b,    //
-    nk_size_t a_length, nk_size_t b_length,  //
+NK_API_COMPTIME void nk_sparse_intersect_u16_neon( //
+    nk_u16_t const *a, nk_u16_t const *b,          //
+    nk_size_t a_length, nk_size_t b_length,        //
     nk_u16_t *result, nk_size_t *count) {
 
     // NEON lacks compress-store, so fall back to serial for result output
@@ -132,9 +132,9 @@ NK_PUBLIC void nk_sparse_intersect_u16_neon( //
     *count = tail_count + (nk_size_t)vaddvq_u16(c_counts_u16x8);
 }
 
-NK_PUBLIC void nk_sparse_intersect_u32_neon( //
-    nk_u32_t const *a, nk_u32_t const *b,    //
-    nk_size_t a_length, nk_size_t b_length,  //
+NK_API_COMPTIME void nk_sparse_intersect_u32_neon( //
+    nk_u32_t const *a, nk_u32_t const *b,          //
+    nk_size_t a_length, nk_size_t b_length,        //
     nk_u32_t *result, nk_size_t *count) {
 
     // NEON lacks compress-store, so fall back to serial for result output
@@ -199,7 +199,7 @@ NK_PUBLIC void nk_sparse_intersect_u32_neon( //
     *count = tail_count + (nk_size_t)vaddvq_u32(c_counts_u32x4);
 }
 
-NK_INTERNAL uint64x2_t nk_intersect_u64x2_neon_(uint64x2_t a, uint64x2_t b) {
+NK_HELPER_INLINE uint64x2_t nk_intersect_u64x2_neon_(uint64x2_t a, uint64x2_t b) {
     uint64x2_t b_rot1_u64x2 = vextq_u64(b, b, 1);
     uint64x2_t matches_rot0_u64x2 = vceqq_u64(a, b);
     uint64x2_t matches_rot1_u64x2 = vceqq_u64(a, b_rot1_u64x2);
@@ -207,9 +207,9 @@ NK_INTERNAL uint64x2_t nk_intersect_u64x2_neon_(uint64x2_t a, uint64x2_t b) {
     return matches_u64x2;
 }
 
-NK_PUBLIC void nk_sparse_intersect_u64_neon( //
-    nk_u64_t const *a, nk_u64_t const *b,    //
-    nk_size_t a_length, nk_size_t b_length,  //
+NK_API_COMPTIME void nk_sparse_intersect_u64_neon( //
+    nk_u64_t const *a, nk_u64_t const *b,          //
+    nk_size_t a_length, nk_size_t b_length,        //
     nk_u64_t *result, nk_size_t *count) {
 
     // NEON lacks compress-store, so fall back to serial for result output

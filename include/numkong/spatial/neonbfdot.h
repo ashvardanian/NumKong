@@ -47,7 +47,7 @@ extern "C" {
 #pragma GCC target("arch=armv8.6-a+simd+bf16")
 #endif
 
-NK_PUBLIC void nk_angular_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
 
     // Similar to `nk_angular_i8_neon`, we can use the `BFMMLA` instruction through
     // the `vbfmmlaq_f32` intrinsic to compute matrix products and later drop 1/4 of values.
@@ -118,7 +118,8 @@ nk_angular_bf16_neonbfdot_cycle:
     *result = nk_angular_normalize_f32_neon_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
 }
 
-NK_PUBLIC void nk_sqeuclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                   nk_f32_t *result) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
     bfloat16x4_t a_bf16x4, b_bf16x4;
 
@@ -144,7 +145,8 @@ nk_sqeuclidean_bf16_neonbfdot_cycle:
 
     *result = vaddvq_f32(sum_f32x4);
 }
-NK_PUBLIC void nk_euclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                 nk_f32_t *result) {
     nk_sqeuclidean_bf16_neonbfdot(a, b, n, result);
     *result = nk_f32_sqrt_neon(*result);
 }

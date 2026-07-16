@@ -31,20 +31,22 @@ extern "C" {
                    "bmi", "bmi2")
 #endif
 
-NK_INTERNAL void nk_load_e4m3x32_to_f16x32_diamond_(nk_e4m3_t const *src, nk_b512_vec_t *dst) {
+NK_HELPER_INLINE void nk_load_e4m3x32_to_f16x32_diamond_(nk_e4m3_t const *src, nk_b512_vec_t *dst) {
     dst->zmm = nk_m512i_from_m512h_(_mm512_cvthf8_ph(_mm256_loadu_epi8(src)));
 }
 
-NK_INTERNAL void nk_partial_load_e4m3x32_to_f16x32_diamond_(nk_e4m3_t const *src, nk_b512_vec_t *dst, nk_size_t count) {
+NK_HELPER_INLINE void nk_partial_load_e4m3x32_to_f16x32_diamond_(nk_e4m3_t const *src, nk_b512_vec_t *dst,
+                                                                 nk_size_t count) {
     __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, count);
     dst->zmm = nk_m512i_from_m512h_(_mm512_cvthf8_ph(_mm256_maskz_loadu_epi8(mask, src)));
 }
 
-NK_INTERNAL void nk_load_e5m2x32_to_f16x32_diamond_(nk_e5m2_t const *src, nk_b512_vec_t *dst) {
+NK_HELPER_INLINE void nk_load_e5m2x32_to_f16x32_diamond_(nk_e5m2_t const *src, nk_b512_vec_t *dst) {
     dst->zmm = nk_m512i_from_m512h_(_mm512_cvtbf8_ph(_mm256_loadu_epi8(src)));
 }
 
-NK_INTERNAL void nk_partial_load_e5m2x32_to_f16x32_diamond_(nk_e5m2_t const *src, nk_b512_vec_t *dst, nk_size_t count) {
+NK_HELPER_INLINE void nk_partial_load_e5m2x32_to_f16x32_diamond_(nk_e5m2_t const *src, nk_b512_vec_t *dst,
+                                                                 nk_size_t count) {
     __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, count);
     dst->zmm = nk_m512i_from_m512h_(_mm512_cvtbf8_ph(_mm256_maskz_loadu_epi8(mask, src)));
 }

@@ -79,7 +79,7 @@ static nk_u16_t const nk_e3m2_magnitude_lut_rvv_[32] = {0,  1,   2,   3,   4,   
 
 #pragma region F32 Floats
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_f32_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_f32_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     // Break power-of-2 strides for cache associativity
@@ -89,8 +89,8 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_f32_rvv(nk_size_t column_count, nk_size_
            column_count * sizeof(nk_f64_t); // per-column norms
 }
 
-NK_PUBLIC void nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column_count, nk_size_t depth,
-                                    nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column_count, nk_size_t depth,
+                                          nk_size_t b_stride_in_bytes, void *b_packed) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);
@@ -141,10 +141,10 @@ NK_PUBLIC void nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column_count, n
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
  *  Each row loads its own A vector; B vector is shared across rows per depth chunk.
  */
-NK_INTERNAL void nk_dots_packed_f32_rvv_aligned_(nk_f32_t const *a_matrix, void const *b_packed_buffer,
-                                                 nk_f64_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
-                                                 nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                 nk_size_t c_stride_in_bytes) {
+NK_HELPER_INLINE void nk_dots_packed_f32_rvv_aligned_(nk_f32_t const *a_matrix, void const *b_packed_buffer,
+                                                      nk_f64_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                      nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                      nk_size_t c_stride_in_bytes) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
     nk_f32_t const *packed_data = (nk_f32_t const *)((char const *)b_packed_buffer +
@@ -237,9 +237,9 @@ NK_INTERNAL void nk_dots_packed_f32_rvv_aligned_(nk_f32_t const *a_matrix, void 
  *  Dispatches to the aligned kernel for all cases — RVV's `vsetvl` handles partial
  *  vectors naturally, so no separate edge kernel is needed.
  */
-NK_PUBLIC void nk_dots_packed_f32_rvv(nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows,
-                                      nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                      nk_size_t c_stride_in_bytes) {
+NK_API_COMPTIME void nk_dots_packed_f32_rvv(nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows,
+                                            nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                            nk_size_t c_stride_in_bytes) {
     nk_dots_packed_f32_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
@@ -249,9 +249,10 @@ NK_PUBLIC void nk_dots_packed_f32_rvv(nk_f32_t const *a, void const *b_packed, n
  *  Uses f64 widened accumulation via `vfwmacc_vv_f64m4` for precision.
  *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
  */
-NK_PUBLIC void nk_dots_symmetric_f32_rvv(nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                         nk_size_t stride_in_bytes, nk_f64_t *result, nk_size_t result_stride_in_bytes,
-                                         nk_size_t row_start, nk_size_t row_count) {
+NK_API_COMPTIME void nk_dots_symmetric_f32_rvv(nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                               nk_size_t stride_in_bytes, nk_f64_t *result,
+                                               nk_size_t result_stride_in_bytes, nk_size_t row_start,
+                                               nk_size_t row_count) {
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f32_t);
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f64_t);
     nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
@@ -283,7 +284,7 @@ NK_PUBLIC void nk_dots_symmetric_f32_rvv(nk_f32_t const *vectors, nk_size_t vect
 
 #pragma region F64 Floats
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_f64_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_f64_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f64_t);
@@ -292,8 +293,8 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_f64_rvv(nk_size_t column_count, nk_size_
            column_count * sizeof(nk_f64_t); // per-column norms
 }
 
-NK_PUBLIC void nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column_count, nk_size_t depth,
-                                    nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column_count, nk_size_t depth,
+                                          nk_size_t b_stride_in_bytes, void *b_packed) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f64_t);
@@ -341,10 +342,10 @@ NK_PUBLIC void nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column_count, n
  *  Uses Kahan summation over full depth to maintain precision.
  *  Register tile: process 2 rows per iteration (rows_per_tile=2, budget: 32 regs at LMUL=4).
  */
-NK_INTERNAL void nk_dots_packed_f64_rvv_aligned_(nk_f64_t const *a_matrix, void const *b_packed_buffer,
-                                                 nk_f64_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
-                                                 nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                 nk_size_t c_stride_in_bytes) {
+NK_HELPER_INLINE void nk_dots_packed_f64_rvv_aligned_(nk_f64_t const *a_matrix, void const *b_packed_buffer,
+                                                      nk_f64_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                      nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                      nk_size_t c_stride_in_bytes) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
     nk_f64_t const *packed_data = (nk_f64_t const *)((char const *)b_packed_buffer +
@@ -452,9 +453,9 @@ NK_INTERNAL void nk_dots_packed_f64_rvv_aligned_(nk_f64_t const *a_matrix, void 
 /**
  *  @brief  Public f64 packed GEMM wrapper matching the declared signature in dots.h.
  */
-NK_PUBLIC void nk_dots_packed_f64_rvv(nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows,
-                                      nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                      nk_size_t c_stride_in_bytes) {
+NK_API_COMPTIME void nk_dots_packed_f64_rvv(nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows,
+                                            nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                            nk_size_t c_stride_in_bytes) {
     nk_dots_packed_f64_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
@@ -464,9 +465,10 @@ NK_PUBLIC void nk_dots_packed_f64_rvv(nk_f64_t const *a, void const *b_packed, n
  *  Uses Kahan compensation over full depth for precision.
  *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
  */
-NK_PUBLIC void nk_dots_symmetric_f64_rvv(nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                         nk_size_t stride_in_bytes, nk_f64_t *result, nk_size_t result_stride_in_bytes,
-                                         nk_size_t row_start, nk_size_t row_count) {
+NK_API_COMPTIME void nk_dots_symmetric_f64_rvv(nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                               nk_size_t stride_in_bytes, nk_f64_t *result,
+                                               nk_size_t result_stride_in_bytes, nk_size_t row_start,
+                                               nk_size_t row_count) {
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f64_t);
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f64_t);
     nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
@@ -515,13 +517,13 @@ NK_PUBLIC void nk_dots_symmetric_f64_rvv(nk_f64_t const *vectors, nk_size_t vect
  *  Extracts 5-bit magnitude, looks up in LUT, applies sign from bit 5.
  *  Every e2m3 value × 16 is an exact integer in [-120, +120], fitting in i8.
  */
-NK_INTERNAL nk_i8_t nk_e2m3_to_i8_rvv_(nk_u8_t raw) {
+NK_HELPER_INLINE nk_i8_t nk_e2m3_to_i8_rvv_(nk_u8_t raw) {
     nk_u8_t magnitude = raw & 0x1Fu;
     nk_i8_t value = (nk_i8_t)nk_e2m3_magnitude_lut_rvv_[magnitude];
     return (raw & 0x20u) ? (nk_i8_t)(-value) : value;
 }
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_e2m3_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_e2m3_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_i8_t);
@@ -536,8 +538,8 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_e2m3_rvv(nk_size_t column_count, nk_size
  *  Each e2m3 byte is converted to a signed i8 via scalar LUT lookup.
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
-NK_PUBLIC void nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t column_count, nk_size_t depth,
-                                     nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t column_count, nk_size_t depth,
+                                           nk_size_t b_stride_in_bytes, void *b_packed) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_i8_t);
@@ -587,10 +589,10 @@ NK_PUBLIC void nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t column_count,
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
  *  The LUT gather on A magnitudes uses `vluxei8_v_u8m1` (byte-indexed byte gather).
  */
-NK_INTERNAL void nk_dots_packed_e2m3_rvv_aligned_(nk_e2m3_t const *a_matrix, void const *b_packed_buffer,
-                                                  nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
-                                                  nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                  nk_size_t c_stride_in_bytes) {
+NK_HELPER_INLINE void nk_dots_packed_e2m3_rvv_aligned_(nk_e2m3_t const *a_matrix, void const *b_packed_buffer,
+                                                       nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                       nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                       nk_size_t c_stride_in_bytes) {
     nk_f32_t const lut_scale_reciprocal = 1.0f / 256.0f;
 
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
@@ -737,9 +739,9 @@ NK_INTERNAL void nk_dots_packed_e2m3_rvv_aligned_(nk_e2m3_t const *a_matrix, voi
 /**
  *  @brief  Public e2m3 packed GEMM wrapper matching the declared signature in dots.h.
  */
-NK_PUBLIC void nk_dots_packed_e2m3_rvv(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                       nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                       nk_size_t c_stride_in_bytes) {
+NK_API_COMPTIME void nk_dots_packed_e2m3_rvv(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                             nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                             nk_size_t c_stride_in_bytes) {
     nk_dots_packed_e2m3_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
@@ -749,9 +751,10 @@ NK_PUBLIC void nk_dots_packed_e2m3_rvv(nk_e2m3_t const *a, void const *b_packed,
  *  Uses integer i8 LUT arithmetic with i32 accumulation, scaled by 1/256.
  *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
  */
-NK_PUBLIC void nk_dots_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                          nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes,
-                                          nk_size_t row_start, nk_size_t row_count) {
+NK_API_COMPTIME void nk_dots_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                nk_size_t stride_in_bytes, nk_f32_t *result,
+                                                nk_size_t result_stride_in_bytes, nk_size_t row_start,
+                                                nk_size_t row_count) {
     nk_f32_t const lut_scale_reciprocal = 1.0f / 256.0f;
 
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
@@ -810,13 +813,13 @@ NK_PUBLIC void nk_dots_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_size_t ve
  *  Extracts 5-bit magnitude, looks up in LUT, applies sign from bit 5.
  *  Every e3m2 value × 16 is an exact integer in [-448, +448], requiring i16.
  */
-NK_INTERNAL nk_i16_t nk_e3m2_to_i16_rvv_(nk_u8_t raw) {
+NK_HELPER_INLINE nk_i16_t nk_e3m2_to_i16_rvv_(nk_u8_t raw) {
     nk_u8_t magnitude = raw & 0x1Fu;
     nk_i16_t value = (nk_i16_t)nk_e3m2_magnitude_lut_rvv_[magnitude];
     return (raw & 0x20u) ? (nk_i16_t)(-value) : value;
 }
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_e3m2_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_e3m2_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e16m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_i16_t);
@@ -831,8 +834,8 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_e3m2_rvv(nk_size_t column_count, nk_size
  *  Each e3m2 byte is converted to a signed i16 via scalar LUT lookup.
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
-NK_PUBLIC void nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t column_count, nk_size_t depth,
-                                     nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t column_count, nk_size_t depth,
+                                           nk_size_t b_stride_in_bytes, void *b_packed) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e16m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_i16_t);
@@ -881,10 +884,10 @@ NK_PUBLIC void nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t column_count,
  *  Register tile: process 2 rows per iteration (rows_per_tile=2, wider i16/i32 elements reduce VL).
  *  The LUT gather on A magnitudes uses `vluxei16_v_u16m2` (16-bit indexed 16-bit gather).
  */
-NK_INTERNAL void nk_dots_packed_e3m2_rvv_aligned_(nk_e3m2_t const *a_matrix, void const *b_packed_buffer,
-                                                  nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
-                                                  nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                  nk_size_t c_stride_in_bytes) {
+NK_HELPER_INLINE void nk_dots_packed_e3m2_rvv_aligned_(nk_e3m2_t const *a_matrix, void const *b_packed_buffer,
+                                                       nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                       nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                       nk_size_t c_stride_in_bytes) {
     nk_f32_t const lut_scale_reciprocal = 1.0f / 256.0f;
 
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
@@ -1006,9 +1009,9 @@ NK_INTERNAL void nk_dots_packed_e3m2_rvv_aligned_(nk_e3m2_t const *a_matrix, voi
 /**
  *  @brief  Public e3m2 packed GEMM wrapper matching the declared signature in dots.h.
  */
-NK_PUBLIC void nk_dots_packed_e3m2_rvv(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                       nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                       nk_size_t c_stride_in_bytes) {
+NK_API_COMPTIME void nk_dots_packed_e3m2_rvv(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                             nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                             nk_size_t c_stride_in_bytes) {
     nk_dots_packed_e3m2_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
@@ -1018,9 +1021,10 @@ NK_PUBLIC void nk_dots_packed_e3m2_rvv(nk_e3m2_t const *a, void const *b_packed,
  *  Uses integer i16 LUT arithmetic with i32 widening MAC, scaled by 1/256.
  *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
  */
-NK_PUBLIC void nk_dots_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                          nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes,
-                                          nk_size_t row_start, nk_size_t row_count) {
+NK_API_COMPTIME void nk_dots_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                nk_size_t stride_in_bytes, nk_f32_t *result,
+                                                nk_size_t result_stride_in_bytes, nk_size_t row_start,
+                                                nk_size_t row_count) {
     nk_f32_t const lut_scale_reciprocal = 1.0f / 256.0f;
 
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
@@ -1087,7 +1091,7 @@ NK_PUBLIC void nk_dots_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_size_t ve
  *  VL is determined by `__riscv_vsetvlmax_e32m2()` since B is stored as f32.
  *  Layout: column-panel with depth-contiguous f32 values, cache-line padding.
  */
-NK_PUBLIC nk_size_t nk_dots_packed_size_bf16_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_bf16_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     // Break power-of-2 strides for cache associativity
@@ -1103,8 +1107,8 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_bf16_rvv(nk_size_t column_count, nk_size
  *  Each bf16 value is converted to f32 via bit shift (bf16 is the upper 16 bits of f32).
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
-NK_PUBLIC void nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t column_count, nk_size_t depth,
-                                     nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t column_count, nk_size_t depth,
+                                           nk_size_t b_stride_in_bytes, void *b_packed) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);
@@ -1159,10 +1163,10 @@ NK_PUBLIC void nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t column_count,
  *
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
  */
-NK_INTERNAL void nk_dots_packed_bf16_rvv_aligned_(nk_bf16_t const *a_matrix, void const *b_packed_buffer,
-                                                  nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
-                                                  nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                  nk_size_t c_stride_in_bytes) {
+NK_HELPER_INLINE void nk_dots_packed_bf16_rvv_aligned_(nk_bf16_t const *a_matrix, void const *b_packed_buffer,
+                                                       nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                       nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                       nk_size_t c_stride_in_bytes) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
     nk_f32_t const *packed_data = (nk_f32_t const *)((char const *)b_packed_buffer +
@@ -1261,9 +1265,9 @@ NK_INTERNAL void nk_dots_packed_bf16_rvv_aligned_(nk_bf16_t const *a_matrix, voi
  *  Dispatches to the aligned kernel for all cases — RVV's `vsetvl` handles partial
  *  vectors naturally, so no separate edge kernel is needed.
  */
-NK_PUBLIC void nk_dots_packed_bf16_rvv(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                       nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                       nk_size_t c_stride_in_bytes) {
+NK_API_COMPTIME void nk_dots_packed_bf16_rvv(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                             nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                             nk_size_t c_stride_in_bytes) {
     nk_dots_packed_bf16_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
@@ -1275,9 +1279,10 @@ NK_PUBLIC void nk_dots_packed_bf16_rvv(nk_bf16_t const *a, void const *b_packed,
  *  Stride is in bytes.
  *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
  */
-NK_PUBLIC void nk_dots_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                          nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes,
-                                          nk_size_t row_start, nk_size_t row_count) {
+NK_API_COMPTIME void nk_dots_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                nk_size_t stride_in_bytes, nk_f32_t *result,
+                                                nk_size_t result_stride_in_bytes, nk_size_t row_start,
+                                                nk_size_t row_count) {
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
     nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
 
@@ -1316,7 +1321,7 @@ NK_PUBLIC void nk_dots_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_size_t ve
  *  VL is determined by `__riscv_vsetvlmax_e32m2()` since B is stored as f32.
  *  Layout: column-panel with depth-contiguous f32 values, cache-line padding.
  */
-NK_PUBLIC nk_size_t nk_dots_packed_size_f16_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_f16_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     // Break power-of-2 strides for cache associativity
@@ -1332,8 +1337,8 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_f16_rvv(nk_size_t column_count, nk_size_
  *  Each f16 value is converted to f32 via `nk_f16_to_f32_serial`.
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
-NK_PUBLIC void nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t column_count, nk_size_t depth,
-                                    nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t column_count, nk_size_t depth,
+                                          nk_size_t b_stride_in_bytes, void *b_packed) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);
@@ -1381,10 +1386,10 @@ NK_PUBLIC void nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t column_count, n
  *
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
  */
-NK_INTERNAL void nk_dots_packed_f16_rvv_aligned_(nk_f16_t const *a_matrix, void const *b_packed_buffer,
-                                                 nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
-                                                 nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                 nk_size_t c_stride_in_bytes) {
+NK_HELPER_INLINE void nk_dots_packed_f16_rvv_aligned_(nk_f16_t const *a_matrix, void const *b_packed_buffer,
+                                                      nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                      nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                      nk_size_t c_stride_in_bytes) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
     nk_f32_t const *packed_data = (nk_f32_t const *)((char const *)b_packed_buffer +
@@ -1483,9 +1488,9 @@ NK_INTERNAL void nk_dots_packed_f16_rvv_aligned_(nk_f16_t const *a_matrix, void 
  *  Dispatches to the aligned kernel for all cases — RVV's `vsetvl` handles partial
  *  vectors naturally, so no separate edge kernel is needed.
  */
-NK_PUBLIC void nk_dots_packed_f16_rvv(nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                      nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                      nk_size_t c_stride_in_bytes) {
+NK_API_COMPTIME void nk_dots_packed_f16_rvv(nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                            nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                            nk_size_t c_stride_in_bytes) {
     nk_dots_packed_f16_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
@@ -1497,9 +1502,10 @@ NK_PUBLIC void nk_dots_packed_f16_rvv(nk_f16_t const *a, void const *b_packed, n
  *  Stride is in bytes.
  *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
  */
-NK_PUBLIC void nk_dots_symmetric_f16_rvv(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                         nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes,
-                                         nk_size_t row_start, nk_size_t row_count) {
+NK_API_COMPTIME void nk_dots_symmetric_f16_rvv(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                               nk_size_t stride_in_bytes, nk_f32_t *result,
+                                               nk_size_t result_stride_in_bytes, nk_size_t row_start,
+                                               nk_size_t row_count) {
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
     nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
 
@@ -1538,7 +1544,7 @@ NK_PUBLIC void nk_dots_symmetric_f16_rvv(nk_f16_t const *vectors, nk_size_t vect
  *  VL is determined by `__riscv_vsetvlmax_e8m1()` since B is stored as i8.
  *  Layout: column-panel with depth-contiguous i8 values, cache-line padding.
  */
-NK_PUBLIC nk_size_t nk_dots_packed_size_i8_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_i8_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     // Break power-of-2 strides for cache associativity
@@ -1554,8 +1560,8 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_i8_rvv(nk_size_t column_count, nk_size_t
  *  No conversion needed — values are copied directly.
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
-NK_PUBLIC void nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_count, nk_size_t depth,
-                                   nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_count, nk_size_t depth,
+                                         nk_size_t b_stride_in_bytes, void *b_packed) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_i8_t);
@@ -1609,10 +1615,10 @@ NK_PUBLIC void nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_count, nk_
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
  *  Output is nk_i32_t (integer result, no scaling).
  */
-NK_INTERNAL void nk_dots_packed_i8_rvv_aligned_(nk_i8_t const *a_matrix, void const *b_packed_buffer,
-                                                nk_i32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
-                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                nk_size_t c_stride_in_bytes) {
+NK_HELPER_INLINE void nk_dots_packed_i8_rvv_aligned_(nk_i8_t const *a_matrix, void const *b_packed_buffer,
+                                                     nk_i32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                     nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                     nk_size_t c_stride_in_bytes) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
     nk_i8_t const *packed_data = (nk_i8_t const *)((char const *)b_packed_buffer +
@@ -1710,9 +1716,9 @@ NK_INTERNAL void nk_dots_packed_i8_rvv_aligned_(nk_i8_t const *a_matrix, void co
  *  Dispatches to the aligned kernel for all cases — RVV's `vsetvl` handles partial
  *  vectors naturally, so no separate edge kernel is needed.
  */
-NK_PUBLIC void nk_dots_packed_i8_rvv(nk_i8_t const *a, void const *b_packed, nk_i32_t *c, nk_size_t rows,
-                                     nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                     nk_size_t c_stride_in_bytes) {
+NK_API_COMPTIME void nk_dots_packed_i8_rvv(nk_i8_t const *a, void const *b_packed, nk_i32_t *c, nk_size_t rows,
+                                           nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                           nk_size_t c_stride_in_bytes) {
     nk_dots_packed_i8_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
@@ -1724,9 +1730,10 @@ NK_PUBLIC void nk_dots_packed_i8_rvv(nk_i8_t const *a, void const *b_packed, nk_
  *  Stride is in bytes.
  *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
  */
-NK_PUBLIC void nk_dots_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                        nk_size_t stride_in_bytes, nk_i32_t *result, nk_size_t result_stride_in_bytes,
-                                        nk_size_t row_start, nk_size_t row_count) {
+NK_API_COMPTIME void nk_dots_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                              nk_size_t stride_in_bytes, nk_i32_t *result,
+                                              nk_size_t result_stride_in_bytes, nk_size_t row_start,
+                                              nk_size_t row_count) {
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_i32_t);
     nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
 
@@ -1764,7 +1771,7 @@ NK_PUBLIC void nk_dots_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size_t vector
  *  VL is determined by `__riscv_vsetvlmax_e8m1()` since B is stored as u8.
  *  Layout: column-panel with depth-contiguous u8 values, cache-line padding.
  */
-NK_PUBLIC nk_size_t nk_dots_packed_size_u8_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_u8_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     // Break power-of-2 strides for cache associativity
@@ -1780,8 +1787,8 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_u8_rvv(nk_size_t column_count, nk_size_t
  *  No conversion needed — values are copied directly.
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
-NK_PUBLIC void nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_count, nk_size_t depth,
-                                   nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_count, nk_size_t depth,
+                                         nk_size_t b_stride_in_bytes, void *b_packed) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_u8_t);
@@ -1834,10 +1841,10 @@ NK_PUBLIC void nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_count, nk_
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
  *  Output is nk_u32_t (unsigned integer result, no scaling).
  */
-NK_INTERNAL void nk_dots_packed_u8_rvv_aligned_(nk_u8_t const *a_matrix, void const *b_packed_buffer,
-                                                nk_u32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
-                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                nk_size_t c_stride_in_bytes) {
+NK_HELPER_INLINE void nk_dots_packed_u8_rvv_aligned_(nk_u8_t const *a_matrix, void const *b_packed_buffer,
+                                                     nk_u32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                     nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                     nk_size_t c_stride_in_bytes) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
     nk_u8_t const *packed_data = (nk_u8_t const *)((char const *)b_packed_buffer +
@@ -1935,9 +1942,9 @@ NK_INTERNAL void nk_dots_packed_u8_rvv_aligned_(nk_u8_t const *a_matrix, void co
  *  Dispatches to the aligned kernel for all cases — RVV's `vsetvl` handles partial
  *  vectors naturally, so no separate edge kernel is needed.
  */
-NK_PUBLIC void nk_dots_packed_u8_rvv(nk_u8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t rows,
-                                     nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                     nk_size_t c_stride_in_bytes) {
+NK_API_COMPTIME void nk_dots_packed_u8_rvv(nk_u8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t rows,
+                                           nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                           nk_size_t c_stride_in_bytes) {
     nk_dots_packed_u8_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
@@ -1949,9 +1956,10 @@ NK_PUBLIC void nk_dots_packed_u8_rvv(nk_u8_t const *a, void const *b_packed, nk_
  *  Stride is in bytes.
  *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
  */
-NK_PUBLIC void nk_dots_symmetric_u8_rvv(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                        nk_size_t stride_in_bytes, nk_u32_t *result, nk_size_t result_stride_in_bytes,
-                                        nk_size_t row_start, nk_size_t row_count) {
+NK_API_COMPTIME void nk_dots_symmetric_u8_rvv(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                              nk_size_t stride_in_bytes, nk_u32_t *result,
+                                              nk_size_t result_stride_in_bytes, nk_size_t row_start,
+                                              nk_size_t row_count) {
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_u32_t);
     nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
 
@@ -2024,7 +2032,7 @@ static nk_u32_t const nk_e4m3_magnitude_lut_rvv_[128] = {
     0x43C00000u, 0x43D00000u, 0x43E00000u, 0x7FC00000u /* [120..127] */
 };
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_e4m3_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_e4m3_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);
@@ -2039,8 +2047,8 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_e4m3_rvv(nk_size_t column_count, nk_size
  *  Each e4m3 byte is converted to f32 via `nk_e4m3_to_f32_serial`.
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
-NK_PUBLIC void nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t column_count, nk_size_t depth,
-                                     nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t column_count, nk_size_t depth,
+                                           nk_size_t b_stride_in_bytes, void *b_packed) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);
@@ -2089,10 +2097,10 @@ NK_PUBLIC void nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t column_count,
  *
  *  Register tile: process 2 rows per iteration (rows_per_tile=2, u32m2 gather + f64m4 accumulator is register-heavy).
  */
-NK_INTERNAL void nk_dots_packed_e4m3_rvv_aligned_(nk_e4m3_t const *a_matrix, void const *b_packed_buffer,
-                                                  nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
-                                                  nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                  nk_size_t c_stride_in_bytes) {
+NK_HELPER_INLINE void nk_dots_packed_e4m3_rvv_aligned_(nk_e4m3_t const *a_matrix, void const *b_packed_buffer,
+                                                       nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                       nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                       nk_size_t c_stride_in_bytes) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
     nk_f32_t const *packed_data = (nk_f32_t const *)((char const *)b_packed_buffer +
@@ -2211,9 +2219,9 @@ NK_INTERNAL void nk_dots_packed_e4m3_rvv_aligned_(nk_e4m3_t const *a_matrix, voi
 /**
  *  @brief  Public e4m3 packed GEMM wrapper matching the declared signature in dots.h.
  */
-NK_PUBLIC void nk_dots_packed_e4m3_rvv(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                       nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                       nk_size_t c_stride_in_bytes) {
+NK_API_COMPTIME void nk_dots_packed_e4m3_rvv(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                             nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                             nk_size_t c_stride_in_bytes) {
     nk_dots_packed_e4m3_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
@@ -2224,9 +2232,10 @@ NK_PUBLIC void nk_dots_packed_e4m3_rvv(nk_e4m3_t const *a, void const *b_packed,
  *  Both operands are converted from e4m3 on-the-fly via magnitude LUT.
  *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
  */
-NK_PUBLIC void nk_dots_symmetric_e4m3_rvv(nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                          nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes,
-                                          nk_size_t row_start, nk_size_t row_count) {
+NK_API_COMPTIME void nk_dots_symmetric_e4m3_rvv(nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                nk_size_t stride_in_bytes, nk_f32_t *result,
+                                                nk_size_t result_stride_in_bytes, nk_size_t row_start,
+                                                nk_size_t row_count) {
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
     nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
 
@@ -2324,7 +2333,7 @@ static nk_u32_t const nk_e5m2_magnitude_lut_rvv_[128] = {
     0x7F800000u, 0x7FC00000u, 0x7FC00000u, 0x7FC00000u /* [120..127] */
 };
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_e5m2_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_e5m2_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);
@@ -2339,8 +2348,8 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_e5m2_rvv(nk_size_t column_count, nk_size
  *  Each e5m2 byte is converted to f32 via `nk_e5m2_to_f32_serial`.
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
-NK_PUBLIC void nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth,
-                                     nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth,
+                                           nk_size_t b_stride_in_bytes, void *b_packed) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);
@@ -2389,10 +2398,10 @@ NK_PUBLIC void nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t column_count,
  *
  *  Register tile: process 2 rows per iteration (rows_per_tile=2, u32m2 gather + f64m4 accumulator is register-heavy).
  */
-NK_INTERNAL void nk_dots_packed_e5m2_rvv_aligned_(nk_e5m2_t const *a_matrix, void const *b_packed_buffer,
-                                                  nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
-                                                  nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                  nk_size_t c_stride_in_bytes) {
+NK_HELPER_INLINE void nk_dots_packed_e5m2_rvv_aligned_(nk_e5m2_t const *a_matrix, void const *b_packed_buffer,
+                                                       nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                       nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                       nk_size_t c_stride_in_bytes) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
     nk_f32_t const *packed_data = (nk_f32_t const *)((char const *)b_packed_buffer +
@@ -2511,9 +2520,9 @@ NK_INTERNAL void nk_dots_packed_e5m2_rvv_aligned_(nk_e5m2_t const *a_matrix, voi
 /**
  *  @brief  Public e5m2 packed GEMM wrapper matching the declared signature in dots.h.
  */
-NK_PUBLIC void nk_dots_packed_e5m2_rvv(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                       nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                       nk_size_t c_stride_in_bytes) {
+NK_API_COMPTIME void nk_dots_packed_e5m2_rvv(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                             nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                             nk_size_t c_stride_in_bytes) {
     nk_dots_packed_e5m2_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
@@ -2524,9 +2533,10 @@ NK_PUBLIC void nk_dots_packed_e5m2_rvv(nk_e5m2_t const *a, void const *b_packed,
  *  Both operands are converted from e5m2 on-the-fly via magnitude LUT.
  *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
  */
-NK_PUBLIC void nk_dots_symmetric_e5m2_rvv(nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                          nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes,
-                                          nk_size_t row_start, nk_size_t row_count) {
+NK_API_COMPTIME void nk_dots_symmetric_e5m2_rvv(nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                nk_size_t stride_in_bytes, nk_f32_t *result,
+                                                nk_size_t result_stride_in_bytes, nk_size_t row_start,
+                                                nk_size_t row_count) {
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
     nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
 

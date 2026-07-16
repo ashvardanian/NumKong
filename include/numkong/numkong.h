@@ -11,7 +11,7 @@
 #ifndef NK_NUMKONG_H
 #define NK_NUMKONG_H
 
-#include "numkong/capabilities.h" // Runtime detection, like `nk_capabilities_x8664_`
+#include "numkong/capabilities.h" // Runtime detection, like `nk_capabilities_detected_x8664_`
 #include "numkong/scalar.h"       // Scalar math: sqrt, rsqrt, fma, saturating, order, like `nk_f32_sqrt`
 #include "numkong/cast.h"         // Type conversions, like `nk_cast`
 #include "numkong/set.h"          // Hamming, Jaccard, like `nk_hamming_u1`
@@ -38,7 +38,7 @@ extern "C" {
 /**
  *  @brief  Returns the output dtype for a given metric kind and input dtype.
  */
-NK_PUBLIC nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk_dtype_t input) {
+NK_API_COMPTIME nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk_dtype_t input) {
     switch (kind) {
     case nk_kernel_dot_k:
     case nk_kernel_vdot_k:

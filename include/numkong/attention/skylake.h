@@ -50,7 +50,7 @@ enum {
 };
 
 /** @brief Fast vectorized 2^x: exact range reduction + the family's shared degree-4 polynomial. */
-NK_INTERNAL __m512 nk_attention_exp2_f32x16_skylake_(__m512 x_f32x16) {
+NK_HELPER_INLINE __m512 nk_attention_exp2_f32x16_skylake_(__m512 x_f32x16) {
     x_f32x16 = _mm512_max_ps(_mm512_min_ps(x_f32x16, _mm512_set1_ps(127.0f)), _mm512_set1_ps(-125.0f));
     __m512 n_f32x16 = _mm512_roundscale_ps(x_f32x16, _MM_FROUND_TO_NEAREST_INT);
     __m512 r_f32x16 = _mm512_sub_ps(x_f32x16, n_f32x16);
@@ -70,8 +70,8 @@ NK_INTERNAL __m512 nk_attention_exp2_f32x16_skylake_(__m512 x_f32x16) {
  *         weight-sum into the running sum. Returns the correction `2^(m_old − m_new)` the
  *         caller applies to its output accumulators.
  */
-NK_INTERNAL nk_f32_t nk_attention_softmax_panel_skylake_(nk_f32_t *scores, nk_size_t panel_length, nk_f32_t scale2,
-                                                         nk_f32_t *running_max2, nk_f32_t *running_sum) {
+NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_skylake_(nk_f32_t *scores, nk_size_t panel_length, nk_f32_t scale2,
+                                                              nk_f32_t *running_max2, nk_f32_t *running_sum) {
     __m512 max_f32x16 = _mm512_set1_ps(NK_F32_MIN);
     nk_size_t position_index = 0;
     for (; position_index + 16 <= panel_length; position_index += 16)
@@ -111,13 +111,13 @@ NK_INTERNAL nk_f32_t nk_attention_softmax_panel_skylake_(nk_f32_t *scores, nk_si
 /** @brief Widens 16 packed-plane scalars (BF16 or F16 at rest) to F32 inside the hot loops. */
 typedef __m512 (*nk_attention_load_skylake_t_)(void const *plane_chunk);
 
-NK_INTERNAL __m512 nk_attention_load_bf16x16_skylake_(void const *plane_chunk) {
+NK_HELPER_INLINE __m512 nk_attention_load_bf16x16_skylake_(void const *plane_chunk) {
     nk_b512_vec_t widened;
     nk_load_bf16x16_to_f32x16_skylake_(plane_chunk, &widened);
     return widened.zmm_ps;
 }
 
-NK_INTERNAL __m512 nk_attention_load_f16x16_skylake_(void const *plane_chunk) {
+NK_HELPER_INLINE __m512 nk_attention_load_f16x16_skylake_(void const *plane_chunk) {
     nk_b512_vec_t widened;
     nk_load_f16x16_to_f32x16_skylake_(plane_chunk, &widened);
     return widened.zmm_ps;
@@ -127,8 +127,8 @@ NK_INTERNAL __m512 nk_attention_load_f16x16_skylake_(void const *plane_chunk) {
 typedef void (*nk_attention_narrow_skylake_t_)(void const *source, void *destination, nk_size_t count,
                                                nk_size_t padded);
 
-NK_INTERNAL void nk_attention_narrow_bf16_skylake_(void const *source, void *destination, nk_size_t count,
-                                                   nk_size_t padded) {
+NK_HELPER_INLINE void nk_attention_narrow_bf16_skylake_(void const *source, void *destination, nk_size_t count,
+                                                        nk_size_t padded) {
     nk_size_t channel_index = 0; // BF16 stays BF16 at rest, like the dots family
     for (; channel_index + 16 <= count; channel_index += 16)
         _mm256_storeu_si256((__m256i *)((nk_bf16_t *)destination + channel_index),
@@ -143,8 +143,8 @@ NK_INTERNAL void nk_attention_narrow_bf16_skylake_(void const *source, void *des
         _mm256_storeu_si256((__m256i *)((nk_bf16_t *)destination + channel_index), _mm256_setzero_si256());
 }
 
-NK_INTERNAL void nk_attention_narrow_e4m3_skylake_(void const *source, void *destination, nk_size_t count,
-                                                   nk_size_t padded) {
+NK_HELPER_INLINE void nk_attention_narrow_e4m3_skylake_(void const *source, void *destination, nk_size_t count,
+                                                        nk_size_t padded) {
     nk_size_t channel_index = 0; // E4M3 converts once to F16, so the hot loops widen with one VCVTPH2PS
     nk_b256_vec_t converted;
     for (; channel_index + 16 <= count; channel_index += 16) {
@@ -165,8 +165,8 @@ NK_INTERNAL void nk_attention_narrow_e4m3_skylake_(void const *source, void *des
 typedef void (*nk_attention_widen_skylake_t_)(void const *source, nk_f32_t *destination, nk_size_t count,
                                               nk_size_t padded);
 
-NK_INTERNAL void nk_attention_widen_bf16_skylake_(void const *source, nk_f32_t *destination, nk_size_t count,
-                                                  nk_size_t padded) {
+NK_HELPER_INLINE void nk_attention_widen_bf16_skylake_(void const *source, nk_f32_t *destination, nk_size_t count,
+                                                       nk_size_t padded) {
     nk_size_t channel_index = 0;
     nk_b512_vec_t widened;
     for (; channel_index + 16 <= count; channel_index += 16) {
@@ -183,8 +183,8 @@ NK_INTERNAL void nk_attention_widen_bf16_skylake_(void const *source, nk_f32_t *
         _mm512_storeu_ps(destination + channel_index, _mm512_setzero_ps());
 }
 
-NK_INTERNAL void nk_attention_widen_e4m3_skylake_(void const *source, nk_f32_t *destination, nk_size_t count,
-                                                  nk_size_t padded) {
+NK_HELPER_INLINE void nk_attention_widen_e4m3_skylake_(void const *source, nk_f32_t *destination, nk_size_t count,
+                                                       nk_size_t padded) {
     nk_size_t channel_index = 0;
     nk_b512_vec_t widened;
     for (; channel_index + 16 <= count; channel_index += 16) {
@@ -201,8 +201,8 @@ NK_INTERNAL void nk_attention_widen_e4m3_skylake_(void const *source, nk_f32_t *
         _mm512_storeu_ps(destination + channel_index, _mm512_setzero_ps());
 }
 
-NK_INTERNAL nk_size_t nk_attention_packed_size_skylake_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_packed_size_skylake_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
     nk_size_t payload_bytes = 0; // planes hold 16-bit scalars for both dtypes (BF16 or F16)
     for (nk_size_t segment_index = 0; segment_index < segment_count; segment_index++)
@@ -211,21 +211,23 @@ NK_INTERNAL nk_size_t nk_attention_packed_size_skylake_(nk_size_t key_value_head
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_bf16_skylake(nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_skylake(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                nk_u32_t const *segment_lengths,
+                                                                nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_skylake_k_)
         return nk_attention_packed_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_packed_size_skylake_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_skylake(nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_skylake(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                nk_u32_t const *segment_lengths,
+                                                                nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_skylake_k_)
         return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_packed_size_skylake_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
-NK_INTERNAL void nk_attention_pack_skylake_(                                                                   //
+NK_HELPER_INLINE void nk_attention_pack_skylake_(                                                              //
     void const *keys, void const *values, nk_size_t element_bytes,                                             //
     nk_attention_narrow_skylake_t_ narrow,                                                                     //
     nk_size_t key_value_head_count, nk_size_t depth,                                                           //
@@ -264,7 +266,7 @@ NK_INTERNAL void nk_attention_pack_skylake_(                                    
     }
 }
 
-NK_PUBLIC void nk_attention_pack_bf16_skylake(                                                       //
+NK_API_COMPTIME void nk_attention_pack_bf16_skylake(                                                 //
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
@@ -280,7 +282,7 @@ NK_PUBLIC void nk_attention_pack_bf16_skylake(                                  
                                key_stride_bytes, value_stride_bytes, key_value_packed, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_pack_e4m3_skylake(                                                       //
+NK_API_COMPTIME void nk_attention_pack_e4m3_skylake(                                                 //
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
@@ -300,7 +302,7 @@ NK_PUBLIC void nk_attention_pack_e4m3_skylake(                                  
  *  @brief Shared attention core over 16-bit planes: per query row, panel-flash with an
  *         exact online correction; scores keep four KV rows in flight, widening in-loop.
  */
-NK_INTERNAL void nk_attention_packed_skylake_(                                                                  //
+NK_HELPER_INLINE void nk_attention_packed_skylake_(                                                             //
     void const *queries, nk_size_t element_bytes, nk_attention_widen_skylake_t_ widen,                          //
     nk_attention_load_skylake_t_ load,                                                                          //
     void const *key_value_packed, nk_f32_t *output,                                                             //
@@ -422,7 +424,7 @@ NK_INTERNAL void nk_attention_packed_skylake_(                                  
     }
 }
 
-NK_PUBLIC void nk_attention_packed_bf16_skylake(                                 //
+NK_API_COMPTIME void nk_attention_packed_bf16_skylake(                           //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -440,7 +442,7 @@ NK_PUBLIC void nk_attention_packed_bf16_skylake(                                
                                  scale, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_packed_e4m3_skylake(                                 //
+NK_API_COMPTIME void nk_attention_packed_e4m3_skylake(                           //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //

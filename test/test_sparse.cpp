@@ -73,7 +73,7 @@ error_stats_t test_sparse_dot(typename weight_type_::sparse_dot_kernel_t kernel)
 void test_sparse() {
     error_stats_section_t check("Sparse Operations");
 
-#if NK_DYNAMIC_DISPATCH
+#if NK_RUNTIME_DISPATCH
     check("sparse_intersect_u16", test_intersect<u16_t>, nk_sparse_intersect_u16);
     check("sparse_intersect_u32", test_intersect<u32_t>, nk_sparse_intersect_u32);
     check("sparse_intersect_u64", test_intersect<u64_t>, nk_sparse_intersect_u64);
@@ -121,5 +121,5 @@ void test_sparse() {
     check("sparse_dot_u32f32_serial", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_serial);
     check("sparse_dot_u16bf16_serial", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16_serial);
 
-#endif // NK_DYNAMIC_DISPATCH
+#endif // NK_RUNTIME_DISPATCH
 }

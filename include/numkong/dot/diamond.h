@@ -49,8 +49,8 @@ extern "C" {
                    "bmi", "bmi2")
 #endif
 
-NK_PUBLIC void nk_dot_e4m3_diamond(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars, nk_size_t count_scalars,
-                                   nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e4m3_diamond(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                         nk_size_t count_scalars, nk_f32_t *result) {
     __m256i a_e4m3x32, b_e4m3x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
 
@@ -74,8 +74,8 @@ nk_dot_e4m3_diamond_cycle:
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
 }
 
-NK_PUBLIC void nk_dot_e5m2_diamond(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars, nk_size_t count_scalars,
-                                   nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e5m2_diamond(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                         nk_size_t count_scalars, nk_f32_t *result) {
     __m256i a_e5m2x32, b_e5m2x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
 
@@ -99,8 +99,8 @@ nk_dot_e5m2_diamond_cycle:
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
 }
 
-NK_PUBLIC void nk_dot_f16_diamond(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
-                                  nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_f16_diamond(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
+                                        nk_f32_t *result) {
     __m512h a_f16x32, b_f16x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
 
@@ -124,19 +124,19 @@ nk_dot_f16_diamond_cycle:
 
 typedef nk_dot_through_f32_state_skylake_t_ nk_dot_through_f16_state_diamond_t_;
 
-NK_INTERNAL void nk_dot_through_f16_init_diamond_(nk_dot_through_f16_state_diamond_t_ *state) {
+NK_HELPER_INLINE void nk_dot_through_f16_init_diamond_(nk_dot_through_f16_state_diamond_t_ *state) {
     state->sum_f32x16 = _mm512_setzero();
 }
 
-NK_INTERNAL void nk_dot_through_f16_update_diamond_(nk_dot_through_f16_state_diamond_t_ *state, nk_b512_vec_t a,
-                                                    nk_b512_vec_t b, nk_size_t depth_offset,
-                                                    nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_through_f16_update_diamond_(nk_dot_through_f16_state_diamond_t_ *state, nk_b512_vec_t a,
+                                                         nk_b512_vec_t b, nk_size_t depth_offset,
+                                                         nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     state->sum_f32x16 = _mm512_dpph_ps(state->sum_f32x16, nk_m512h_from_m512i_(a.zmm), nk_m512h_from_m512i_(b.zmm));
 }
 
-NK_INTERNAL void nk_dot_through_f16_finalize_diamond_(                                                      //
+NK_HELPER_INLINE void nk_dot_through_f16_finalize_diamond_(                                                 //
     nk_dot_through_f16_state_diamond_t_ const *state_a, nk_dot_through_f16_state_diamond_t_ const *state_b, //
     nk_dot_through_f16_state_diamond_t_ const *state_c, nk_dot_through_f16_state_diamond_t_ const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {

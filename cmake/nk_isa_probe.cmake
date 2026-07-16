@@ -27,7 +27,7 @@ macro (nk_isa_probes_end_)
 endmacro ()
 
 # Two-pass probe: compile with ISA flags (Pass 1) and native flags (Pass 2).
-#   Pass 1 result drives nk_shared (dynamic dispatch — compile all the compiler supports).
+#   Pass 1 result drives nk_shared (runtime dispatch — compile all the compiler supports).
 #   Pass 2 result drives nk_test/nk_bench (must actually run on the local CPU).
 #
 # The native flag (`nk_native_flags_`) is set by the caller:

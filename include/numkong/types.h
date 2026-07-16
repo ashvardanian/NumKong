@@ -94,36 +94,45 @@
 #define NK_DEFINED_FREEBSD_ 1
 #endif
 
-// Annotation for the public API symbols:
-//
-// - `NK_PUBLIC` is used for functions that are part of the public API.
-// - `NK_INTERNAL` is used for internal helper functions with unstable APIs.
-// - `NK_DYNAMIC` is used for functions that are part of the public API, but are dispatched at runtime.
-//
-// On GCC we mark the functions as `nonnull` informing that none of the arguments can be `NULL`.
-// Marking with `pure` and `const` isn't possible as outputting to a pointer is a "side effect".
-#if defined(__GNUC__) || defined(__clang__)
-#define NK_PUBLIC   __attribute__((unused)) inline static
-#define NK_INTERNAL __attribute__((always_inline)) inline static
-#elif defined(_MSC_VER)
-#define NK_PUBLIC   inline static
-#define NK_INTERNAL __forceinline static
-#else
-#define NK_PUBLIC   inline static
-#define NK_INTERNAL inline static
-#endif // defined(__GNUC__) || defined(__clang__)
+/*  Function annotations on two axes — role and, for internal helpers, inlining policy:
+ *  - `NK_API_COMPTIME`    public API, ISA tier resolved at compile time (header-inline).
+ *  - `NK_API_RUNTIME`     public API dispatched at runtime — the only role with cross-TU linkage.
+ *  - `NK_HELPER_AUTO`     internal helper; compiler decides inlining (same expansion as `NK_API_COMPTIME`).
+ *  - `NK_HELPER_INLINE`   internal helper forced inline (structural: devirtualizing driver loops).
+ *  - `NK_HELPER_NOINLINE` internal helper forced out-of-line. Omits `inline` deliberately — GCC ignores
+ *    `noinline` on an `inline` function. */
 
-#if NK_DYNAMIC_DISPATCH
-#if defined(_WIN32) || defined(__CYGWIN__)
-#define NK_DYNAMIC __declspec(dllexport)
-#elif defined(__GNUC__) || defined(__clang__)
-#define NK_DYNAMIC __attribute__((visibility("default")))
+#define NK_C_INLINE inline static
+
+#if defined(__GNUC__) || defined(__clang__)
+#define NK_MAYBE_UNUSED __attribute__((unused))
 #else
-#define NK_DYNAMIC NK_PUBLIC
+#define NK_MAYBE_UNUSED
+#endif
+
+#if defined(_MSC_VER)
+#define NK_HELPER_INLINE   __forceinline static
+#define NK_HELPER_NOINLINE __declspec(noinline) static
+#else
+#define NK_HELPER_INLINE   __attribute__((always_inline)) NK_C_INLINE
+#define NK_HELPER_NOINLINE static __attribute__((noinline))
+#endif
+
+#define NK_API_COMPTIME NK_MAYBE_UNUSED NK_C_INLINE
+#define NK_HELPER_AUTO  NK_MAYBE_UNUSED NK_C_INLINE
+
+// Exported symbol under runtime dispatch; otherwise the header-inline tier.
+#if NK_RUNTIME_DISPATCH
+#if defined(_WIN32) || defined(__CYGWIN__)
+#define NK_API_RUNTIME __declspec(dllexport)
+#elif defined(__GNUC__) || defined(__clang__)
+#define NK_API_RUNTIME __attribute__((visibility("default")))
+#else
+#define NK_API_RUNTIME NK_C_INLINE
 #endif
 #else
-#define NK_DYNAMIC NK_PUBLIC
-#endif // NK_DYNAMIC_DISPATCH
+#define NK_API_RUNTIME NK_C_INLINE
+#endif // NK_RUNTIME_DISPATCH
 
 // Vector union types use type punning by design (write as f16, read as f32, etc.).
 // Without this, GCC at -O2 assumes strict aliasing and may optimize away valid accesses.
@@ -1046,7 +1055,7 @@ typedef enum {
 } nk_dtype_family_t;
 
 /** @brief True when @p dtype encodes a composite block-scaled format. */
-NK_PUBLIC int nk_dtype_is_block_scaled(nk_dtype_t dtype) {
+NK_API_COMPTIME int nk_dtype_is_block_scaled(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_nvfp4_k: return 1;
     case nk_mxfp4_k: return 1;
@@ -1060,7 +1069,7 @@ NK_PUBLIC int nk_dtype_is_block_scaled(nk_dtype_t dtype) {
 }
 
 /** @brief Extracts the element dtype from a composite; returns @p dtype unchanged for plain inputs. */
-NK_PUBLIC nk_dtype_t nk_dtype_element(nk_dtype_t dtype) {
+NK_API_COMPTIME nk_dtype_t nk_dtype_element(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_nvfp4_k: return nk_e2m1_k;
     case nk_mxfp4_k: return nk_e2m1_k;
@@ -1074,7 +1083,7 @@ NK_PUBLIC nk_dtype_t nk_dtype_element(nk_dtype_t dtype) {
 }
 
 /** @brief Extracts the scale dtype from a composite; returns `nk_dtype_unknown_k` for plain inputs. */
-NK_PUBLIC nk_dtype_t nk_dtype_scale(nk_dtype_t dtype) {
+NK_API_COMPTIME nk_dtype_t nk_dtype_scale(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_nvfp4_k: return nk_ue4m3_k;
     case nk_mxfp4_k: return nk_ue8m0_k;
@@ -1088,7 +1097,7 @@ NK_PUBLIC nk_dtype_t nk_dtype_scale(nk_dtype_t dtype) {
 }
 
 /** @brief Block size implied by a composite dtype; 0 for plain inputs. */
-NK_PUBLIC nk_size_t nk_dtype_block_size(nk_dtype_t dtype) {
+NK_API_COMPTIME nk_size_t nk_dtype_block_size(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_nvfp4_k: return 16;
     case nk_mxfp4_k: return 32;
@@ -1102,7 +1111,7 @@ NK_PUBLIC nk_size_t nk_dtype_block_size(nk_dtype_t dtype) {
 }
 
 /** @brief Classifies the family of the dtype. */
-NK_PUBLIC nk_dtype_family_t nk_dtype_family(nk_dtype_t dtype) {
+NK_API_COMPTIME nk_dtype_family_t nk_dtype_family(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_dtype_family_float_k;
     case nk_f32_k: return nk_dtype_family_float_k;
@@ -1143,7 +1152,7 @@ NK_PUBLIC nk_dtype_family_t nk_dtype_family(nk_dtype_t dtype) {
 }
 
 /** @brief Returns the number of bits in a single scalar of a given type. */
-NK_PUBLIC nk_size_t nk_dtype_bits(nk_dtype_t dtype) {
+NK_API_COMPTIME nk_size_t nk_dtype_bits(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return 64;
     case nk_f32_k: return 32;
@@ -1188,7 +1197,7 @@ NK_PUBLIC nk_size_t nk_dtype_bits(nk_dtype_t dtype) {
 /** @brief Returns how many logical dimensions are packed into one storage value.
  *  For sub-byte types multiple dimensions share a single byte container.
  *  For byte-or-larger types this is always 1. */
-NK_PUBLIC nk_size_t nk_dimensions_per_value(nk_dtype_t dtype) {
+NK_API_COMPTIME nk_size_t nk_dimensions_per_value(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_u1_k: return 8;
     case nk_i4_k: return 2;
@@ -1644,7 +1653,7 @@ typedef union NK_MAY_ALIAS_ nk_b512_vec_t {
  *  For flexibility, the API is decoupled from from the `nk_tensor_position_t` structure, and
  *  can be used on any-rank tensors, independent of the `NK_TENSOR_MAX_RANK` constant.
  */
-NK_PUBLIC int nk_tensor_position_next(                                   //
+NK_API_COMPTIME int nk_tensor_position_next(                             //
     nk_size_t const *extents, nk_ssize_t const *strides, nk_size_t rank, //
     nk_size_t *coordinates, nk_ssize_t *byte_offset) {
     // Start from last dimension and move backward
@@ -1668,7 +1677,7 @@ NK_PUBLIC int nk_tensor_position_next(                                   //
  *  @param[out] byte_offset The byte offset of the current element, which will be advanced.
  *  @return 1 if the offset was successfully advanced, 0 if the end of iteration was reached.
  */
-NK_PUBLIC int nk_tensor_position_linearize(                              //
+NK_API_COMPTIME int nk_tensor_position_linearize(                        //
     nk_size_t const *extents, nk_ssize_t const *strides, nk_size_t rank, //
     nk_size_t const *coordinates, nk_ssize_t *byte_offset) {
 
@@ -1695,7 +1704,7 @@ typedef struct nk_tensor_position_t {
     nk_ssize_t byte_offset;                    // Byte offset of the current element
 } nk_tensor_position_t;
 
-NK_PUBLIC void nk_tensor_position_init(nk_tensor_position_t *tensor_position) {
+NK_API_COMPTIME void nk_tensor_position_init(nk_tensor_position_t *tensor_position) {
     for (nk_size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) tensor_position->coordinates[i] = 0;
     tensor_position->byte_offset = 0;
 }
@@ -1719,17 +1728,17 @@ typedef struct nk_tensor_shape_t {
     nk_size_t rank;                         /// Number of dimensions in the tensor
 } nk_tensor_shape_t;
 
-NK_PUBLIC void nk_tensor_shape_init(nk_tensor_shape_t *tensor_shape) {
+NK_API_COMPTIME void nk_tensor_shape_init(nk_tensor_shape_t *tensor_shape) {
     for (nk_size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) tensor_shape->extents[i] = 0, tensor_shape->strides[i] = 0;
     tensor_shape->rank = 0;
 }
 
-NK_INTERNAL nk_u32_t nk_u32_rol(nk_u32_t x, int n) { return (x << n) | (x >> (32 - n)); }
-NK_INTERNAL nk_u16_t nk_u16_rol(nk_u16_t x, int n) { return (x << n) | (x >> (16 - n)); }
-NK_INTERNAL nk_u8_t nk_u8_rol(nk_u8_t x, int n) { return (x << n) | (x >> (8 - n)); }
-NK_INTERNAL nk_u32_t nk_u32_ror(nk_u32_t x, int n) { return (x >> n) | (x << (32 - n)); }
-NK_INTERNAL nk_u16_t nk_u16_ror(nk_u16_t x, int n) { return (x >> n) | (x << (16 - n)); }
-NK_INTERNAL nk_u8_t nk_u8_ror(nk_u8_t x, int n) { return (x >> n) | (x << (8 - n)); }
+NK_HELPER_INLINE nk_u32_t nk_u32_rol(nk_u32_t x, int n) { return (x << n) | (x >> (32 - n)); }
+NK_HELPER_INLINE nk_u16_t nk_u16_rol(nk_u16_t x, int n) { return (x << n) | (x >> (16 - n)); }
+NK_HELPER_INLINE nk_u8_t nk_u8_rol(nk_u8_t x, int n) { return (x << n) | (x >> (8 - n)); }
+NK_HELPER_INLINE nk_u32_t nk_u32_ror(nk_u32_t x, int n) { return (x >> n) | (x << (32 - n)); }
+NK_HELPER_INLINE nk_u16_t nk_u16_ror(nk_u16_t x, int n) { return (x >> n) | (x << (16 - n)); }
+NK_HELPER_INLINE nk_u8_t nk_u8_ror(nk_u8_t x, int n) { return (x >> n) | (x << (8 - n)); }
 
 /**
  *  @brief  SWAR population count for 64-bit integers.
@@ -1742,14 +1751,14 @@ NK_INTERNAL nk_u8_t nk_u8_ror(nk_u8_t x, int n) { return (x >> n) | (x << (8 - n
  *
  *  Cost: ~12 ALU ops, zero memory access (vs 8 table lookups for byte-wise).
  */
-NK_INTERNAL nk_u64_t nk_u64_popcount_(nk_u64_t x) {
+NK_HELPER_INLINE nk_u64_t nk_u64_popcount_(nk_u64_t x) {
     x = x - ((x >> 1) & 0x5555555555555555ull);
     x = (x & 0x3333333333333333ull) + ((x >> 2) & 0x3333333333333333ull);
     x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0Full;
     return (x * 0x0101010101010101ull) >> 56;
 }
 
-NK_INTERNAL unsigned char nk_u1x8_popcount_(nk_u1x8_t x) {
+NK_HELPER_INLINE unsigned char nk_u1x8_popcount_(nk_u1x8_t x) {
     static unsigned char lookup_table[256] = {
         0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, //
         1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
@@ -1763,88 +1772,88 @@ NK_INTERNAL unsigned char nk_u1x8_popcount_(nk_u1x8_t x) {
 }
 
 /** @brief Divides the number rounding up to the next multiple of the given divisor. */
-NK_PUBLIC nk_size_t nk_size_divide_round_up_(nk_size_t number, nk_size_t divisor) NK_STREAMING_COMPATIBLE_ {
+NK_HELPER_AUTO nk_size_t nk_size_divide_round_up_(nk_size_t number, nk_size_t divisor) NK_STREAMING_COMPATIBLE_ {
     return (number + divisor - 1) / divisor;
 }
 
 /** @brief Rounds up the number to the next multiple of the given divisor. */
-NK_PUBLIC nk_size_t nk_size_round_up_to_multiple_(nk_size_t number, nk_size_t divisor) NK_STREAMING_COMPATIBLE_ {
+NK_HELPER_AUTO nk_size_t nk_size_round_up_to_multiple_(nk_size_t number, nk_size_t divisor) NK_STREAMING_COMPATIBLE_ {
     return nk_size_divide_round_up_(number, divisor) * divisor;
 }
 
 /** @brief Multiplies two sizes with overflow detection. Writes the product and returns 1 on success;
  *         returns 0 (leaving @p product unchanged) when @p a * @p b would overflow `nk_size_t`. */
-NK_PUBLIC int nk_size_mul_checked_(nk_size_t a, nk_size_t b, nk_size_t *product) NK_STREAMING_COMPATIBLE_ {
+NK_HELPER_AUTO int nk_size_mul_checked_(nk_size_t a, nk_size_t b, nk_size_t *product) NK_STREAMING_COMPATIBLE_ {
     if (b != 0 && a > NK_SIZE_MAX / b) return 0;
     *product = a * b;
     return 1;
 }
 
-NK_INTERNAL nk_f32_t nk_f32_abs_(nk_f32_t x) { return x < 0 ? -x : x; }
-NK_INTERNAL nk_f64_t nk_f64_abs_(nk_f64_t x) { return x < 0 ? -x : x; }
-NK_INTERNAL nk_i64_t nk_i64_abs_(nk_i64_t x) { return x < 0 ? -x : x; }
-NK_INTERNAL nk_u64_t nk_u64_abs_(nk_u64_t x) { return x; }
-NK_INTERNAL nk_i64_t nk_i32_abs_(nk_i32_t x) { return x < 0 ? -x : x; }
-NK_INTERNAL nk_u32_t nk_u32_abs_(nk_u32_t x) { return x; }
+NK_HELPER_INLINE nk_f32_t nk_f32_abs_(nk_f32_t x) { return x < 0 ? -x : x; }
+NK_HELPER_INLINE nk_f64_t nk_f64_abs_(nk_f64_t x) { return x < 0 ? -x : x; }
+NK_HELPER_INLINE nk_i64_t nk_i64_abs_(nk_i64_t x) { return x < 0 ? -x : x; }
+NK_HELPER_INLINE nk_u64_t nk_u64_abs_(nk_u64_t x) { return x; }
+NK_HELPER_INLINE nk_i64_t nk_i32_abs_(nk_i32_t x) { return x < 0 ? -x : x; }
+NK_HELPER_INLINE nk_u32_t nk_u32_abs_(nk_u32_t x) { return x; }
 
 /** @brief Extract low (bits 0-3) unsigned nibble from packed u4x2 byte. */
-NK_INTERNAL nk_u8_t nk_u4x2_low_(nk_u4x2_t byte_val) { return byte_val & 0x0F; }
+NK_HELPER_INLINE nk_u8_t nk_u4x2_low_(nk_u4x2_t byte_val) { return byte_val & 0x0F; }
 /** @brief Extract high (bits 4-7) unsigned nibble from packed u4x2 byte. */
-NK_INTERNAL nk_u8_t nk_u4x2_high_(nk_u4x2_t byte_val) { return (byte_val >> 4) & 0x0F; }
+NK_HELPER_INLINE nk_u8_t nk_u4x2_high_(nk_u4x2_t byte_val) { return (byte_val >> 4) & 0x0F; }
 
 /** @brief Extract low (bits 0-3) signed nibble from packed i4x2 byte as i8. */
-NK_INTERNAL nk_i8_t nk_i4x2_low_(nk_i4x2_t byte_val) { return (nk_i8_t)(((byte_val & 0x0F) ^ 8) - 8); }
+NK_HELPER_INLINE nk_i8_t nk_i4x2_low_(nk_i4x2_t byte_val) { return (nk_i8_t)(((byte_val & 0x0F) ^ 8) - 8); }
 /** @brief Extract high (bits 4-7) signed nibble from packed i4x2 byte as i8. */
-NK_INTERNAL nk_i8_t nk_i4x2_high_(nk_i4x2_t byte_val) { return (nk_i8_t)((((byte_val >> 4) & 0x0F) ^ 8) - 8); }
+NK_HELPER_INLINE nk_i8_t nk_i4x2_high_(nk_i4x2_t byte_val) { return (nk_i8_t)((((byte_val >> 4) & 0x0F) ^ 8) - 8); }
 
 /** @brief Extract n-th nibble (n=0: low, n=1: high) — branchless. */
-NK_INTERNAL nk_u8_t nk_u4x2_get_(nk_u4x2_t byte_val, int n) { return (byte_val >> ((n & 1) * 4)) & 0x0F; }
-NK_INTERNAL nk_i8_t nk_i4x2_get_(nk_i4x2_t byte_val, int n) {
+NK_HELPER_INLINE nk_u8_t nk_u4x2_get_(nk_u4x2_t byte_val, int n) { return (byte_val >> ((n & 1) * 4)) & 0x0F; }
+NK_HELPER_INLINE nk_i8_t nk_i4x2_get_(nk_i4x2_t byte_val, int n) {
     nk_u8_t nibble = (byte_val >> ((n & 1) * 4)) & 0x0F;
     return (nk_i8_t)((nibble ^ 8) - 8);
 }
 
 /** @brief Extract bit at position n (0-7) from packed u1x8 byte. */
-NK_INTERNAL nk_u8_t nk_u1x8_get_(nk_u1x8_t byte_val, int n) { return (byte_val >> (n & 7)) & 1; }
+NK_HELPER_INLINE nk_u8_t nk_u1x8_get_(nk_u1x8_t byte_val, int n) { return (byte_val >> (n & 7)) & 1; }
 
-NK_INTERNAL nk_f16_t nk_u16_as_f16_(nk_u16_t bits) {
+NK_HELPER_INLINE nk_f16_t nk_u16_as_f16_(nk_u16_t bits) {
     nk_fui16_t c;
     c.u = bits;
     return c.f;
 }
-NK_INTERNAL nk_u16_t nk_f16_as_u16_(nk_f16_t x) {
+NK_HELPER_INLINE nk_u16_t nk_f16_as_u16_(nk_f16_t x) {
     nk_fui16_t c;
     c.f = x;
     return c.u;
 }
-NK_INTERNAL nk_bf16_t nk_u16_as_bf16_(nk_u16_t bits) {
+NK_HELPER_INLINE nk_bf16_t nk_u16_as_bf16_(nk_u16_t bits) {
     nk_fui16_t c;
     c.u = bits;
     return c.bf;
 }
 
-NK_INTERNAL void nk_f64_from_i64_(nk_i64_t const *src, nk_f64_t *dest) { *dest = (nk_f64_t)*src; }
-NK_INTERNAL void nk_f64_from_u64_(nk_u64_t const *src, nk_f64_t *dest) { *dest = (nk_f64_t)*src; }
-NK_INTERNAL void nk_f32_from_i32_(nk_i32_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
-NK_INTERNAL void nk_f32_from_u32_(nk_u32_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
-NK_INTERNAL void nk_f32_from_f64_(nk_f64_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
+NK_HELPER_INLINE void nk_f64_from_i64_(nk_i64_t const *src, nk_f64_t *dest) { *dest = (nk_f64_t)*src; }
+NK_HELPER_INLINE void nk_f64_from_u64_(nk_u64_t const *src, nk_f64_t *dest) { *dest = (nk_f64_t)*src; }
+NK_HELPER_INLINE void nk_f32_from_i32_(nk_i32_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
+NK_HELPER_INLINE void nk_f32_from_u32_(nk_u32_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
+NK_HELPER_INLINE void nk_f32_from_f64_(nk_f64_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
 
 /** @brief E4M3: NaN when (raw & 0x7F) == 0x7F  (two NaN values: 0x7F, 0xFF). */
-NK_INTERNAL int nk_e4m3_is_nan_(nk_e4m3_t x) { return (x & 0x7F) == 0x7F; }
+NK_HELPER_INLINE int nk_e4m3_is_nan_(nk_e4m3_t x) { return (x & 0x7F) == 0x7F; }
 
 /** @brief E5M2: NaN when exponent=31 and mantissa!=0, i.e. (raw & 0x7F) > 0x7C.
  *  Values: 0x7D-0x7F (positive), 0xFD-0xFF (negative). Infinity = 0x7C/0xFC is NOT NaN. */
-NK_INTERNAL int nk_e5m2_is_nan_(nk_e5m2_t x) { return (x & 0x7F) > 0x7C; }
+NK_HELPER_INLINE int nk_e5m2_is_nan_(nk_e5m2_t x) { return (x & 0x7F) > 0x7C; }
 
 /** @brief F16: NaN when (raw & 0x7FFF) > 0x7C00. */
-NK_INTERNAL int nk_f16_is_nan_(nk_f16_t x) {
+NK_HELPER_INLINE int nk_f16_is_nan_(nk_f16_t x) {
     nk_fui16_t x_fui;
     x_fui.f = x;
     return (x_fui.u & 0x7FFF) > 0x7C00;
 }
 
 /** @brief BF16: NaN when (raw & 0x7FFF) > 0x7F80. */
-NK_INTERNAL int nk_bf16_is_nan_(nk_bf16_t x) {
+NK_HELPER_INLINE int nk_bf16_is_nan_(nk_bf16_t x) {
     nk_fui16_t x_fui;
     x_fui.bf = x;
     return (x_fui.u & 0x7FFF) > 0x7F80;
@@ -1862,7 +1871,7 @@ NK_INTERNAL int nk_bf16_is_nan_(nk_bf16_t x) {
  */
 #if NK_TARGET_ARM64_ && NK_TARGET_SME
 /** @brief Streaming SVL byte-element count (SVL/8) via SMSTART SM bracket. */
-NK_INTERNAL nk_size_t nk_sme_cntb_(void) {
+NK_HELPER_INLINE nk_size_t nk_sme_cntb_(void) {
     nk_u64_t r;
     __asm__ __volatile__("smstart sm\n\t" "cntb %0\n\t" "smstop sm"
                          : "=r"(r)
@@ -1874,7 +1883,7 @@ NK_INTERNAL nk_size_t nk_sme_cntb_(void) {
     return (nk_size_t)r;
 }
 /** @brief Streaming SVL half-element count (SVL/16) via SMSTART SM bracket. */
-NK_INTERNAL nk_size_t nk_sme_cnth_(void) {
+NK_HELPER_INLINE nk_size_t nk_sme_cnth_(void) {
     nk_u64_t r;
     __asm__ __volatile__("smstart sm\n\t" "cnth %0\n\t" "smstop sm"
                          : "=r"(r)
@@ -1886,7 +1895,7 @@ NK_INTERNAL nk_size_t nk_sme_cnth_(void) {
     return (nk_size_t)r;
 }
 /** @brief Streaming SVL word-element count (SVL/32) via SMSTART SM bracket. */
-NK_INTERNAL nk_size_t nk_sme_cntw_(void) {
+NK_HELPER_INLINE nk_size_t nk_sme_cntw_(void) {
     nk_u64_t r;
     __asm__ __volatile__("smstart sm\n\t" "cntw %0\n\t" "smstop sm"
                          : "=r"(r)
@@ -1898,7 +1907,7 @@ NK_INTERNAL nk_size_t nk_sme_cntw_(void) {
     return (nk_size_t)r;
 }
 /** @brief Streaming SVL double-element count (SVL/64) via SMSTART SM bracket. */
-NK_INTERNAL nk_size_t nk_sme_cntd_(void) {
+NK_HELPER_INLINE nk_size_t nk_sme_cntd_(void) {
     nk_u64_t r;
     __asm__ __volatile__("smstart sm\n\t" "cntd %0\n\t" "smstop sm"
                          : "=r"(r)
@@ -1913,7 +1922,7 @@ NK_INTERNAL nk_size_t nk_sme_cntd_(void) {
 /** @brief Enter streaming SVE mode (PSTATE.SM = 1). Caller is responsible for smstop.
  *  The transition zeroes every Z and P register, so they are declared clobbered — otherwise
  *  values the compiler caches in the callee-saved V8-V15 are silently lost. */
-NK_INTERNAL void nk_sme_start_streaming_(void) {
+NK_HELPER_INLINE void nk_sme_start_streaming_(void) {
     __asm__ __volatile__("smstart sm"
                          :
                          :
@@ -1923,7 +1932,7 @@ NK_INTERNAL void nk_sme_start_streaming_(void) {
                            "p9", "p10", "p11", "p12", "p13", "p14", "p15", "memory");
 }
 /** @brief Exit streaming SVE mode (PSTATE.SM = 0). Must pair with nk_sme_start_streaming_. */
-NK_INTERNAL void nk_sme_stop_streaming_(void) {
+NK_HELPER_INLINE void nk_sme_stop_streaming_(void) {
     __asm__ __volatile__("smstop sm"
                          :
                          :
@@ -1940,7 +1949,7 @@ NK_INTERNAL void nk_sme_stop_streaming_(void) {
  *
  *  - __arm_tpidr2_save / __arm_tpidr2_restore: lazy ZA save/restore protocol
  *    used in __arm_new("za") prologues. Always no-ops in NumKong because no
- *    NK_PUBLIC function carries ZA state (TPIDR2_EL0 is always null at entry).
+ *    NK_API_COMPTIME function carries ZA state (TPIDR2_EL0 is always null at entry).
  *
  *  - __arm_sc_memset / __arm_sc_memcpy / __arm_sc_memmove: streaming-compatible
  *    memory routines the compiler may emit inside __arm_streaming functions.

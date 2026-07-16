@@ -337,30 +337,29 @@ Pointers eliminate implicit casts for types with platform-dependent storage — 
 `nk_f16_t` and `nk_bf16_t` resolve to native `__fp16` / `__bf16` when available but fall back to `unsigned short` otherwise — if passed by value, the compiler would silently apply integer promotion instead of preserving the bit pattern.
 Passing by pointer keeps the representation opaque: kernels read raw and convert explicitly when needed, so the same binary works regardless of whether the compiler understands `_Float16`.
 
-The only place that requires error signaling is [dynamic dispatch](#compile-time-and-run-time-dispatch) — looking up the best kernel for the current CPU at runtime.
+The only place that requires error signaling is [runtime dispatch](#compile-time-and-run-time-dispatch) — looking up the best kernel for the current CPU at runtime.
 When no kernel matches, the dispatcher sets the [capabilities mask](c/dispatch.h) to zero and fills the function pointer with a family-specific error stub such as `nk_error_dense_` from [c/dispatch.h](c/dispatch.h) and [c/numkong.c](c/numkong.c) that writes `0xFF` into the output — `NaN` for floats, `−1` for signed integers, `TYPE_MAX` for unsigned.
 
 ### Compile-Time and Run-Time Dispatch
 
 NumKong provides two dispatch mechanisms.
 __Compile-time dispatch__ selects the fastest kernel supported by the target platform at build time — thinner binaries, no indirection overhead, but requires knowing your deployment hardware.
-__Run-time dispatch__ compiles every supported kernel into the binary and picks the best one on the target machine via `nk_capabilities()` — one pointer indirection per call, but a single binary runs everywhere.
+__Run-time dispatch__ compiles every supported kernel into the binary and picks the best one on the target machine via `nk_capabilities_available()` — one pointer indirection per call, but a single binary runs everywhere.
 The run-time path is common in DBMS products (ClickHouse), web browsers (Chromium), and other upstream projects that ship to heterogeneous fleets.
 Distributed artifacts (Rust crate, Python wheels, JS native modules, shared libs from the default CMake build) pin the translation-unit baseline to each architecture's ABI floor so the library runs on any CPU matching the ABI, not just the build host — see [CONTRIBUTING.md](CONTRIBUTING.md#target-baseline-policy) for the per-arch table and the `NK_MARCH_NATIVE` override used for host-tuned local builds.
 
 All kernel names follow the pattern `nk_{operation}_{type}_{backend}`.
-If you need to resolve the best kernel manually, use `nk_find_kernel_punned` with a `nk_kernel_kind_t`, `nk_dtype_t`, and a viable capabilities mask:
+If you need to resolve the best kernel manually, use `nk_find_kernel_punned` with a `nk_kernel_kind_t` and a `nk_dtype_t`:
 
 ```c
 nk_metric_dense_punned_t angular = 0;
 nk_capability_t used = nk_cap_serial_k;
 nk_find_kernel_punned(
     nk_kernel_angular_k, nk_f32_k,            // what functionality? for which input type?
-    nk_capabilities(),                        // which capabilities are viable?
     (nk_kernel_punned_t *)&angular, &used);   // the kernel found and capabilties used!
 ```
 
-The first call to `nk_capabilities()` initializes the dispatch table; all subsequent calls are lock-free.
+The search is bounded by `nk_capabilities_enabled()`, the same mask the dispatch table was built from, so a manually resolved kernel and a direct call always agree. The library initializes itself on load and again on first use, so lookups are lock-free.
 
 ## Numeric Types
 

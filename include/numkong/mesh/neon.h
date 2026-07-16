@@ -46,8 +46,8 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd")
 #endif
 
-NK_INTERNAL void nk_deinterleave_f32x4_neon_(nk_f32_t const *ptr, float32x4_t *x_out, float32x4_t *y_out,
-                                             float32x4_t *z_out) {
+NK_HELPER_INLINE void nk_deinterleave_f32x4_neon_(nk_f32_t const *ptr, float32x4_t *x_out, float32x4_t *y_out,
+                                                  float32x4_t *z_out) {
     // Deinterleave 12 floats (4 xyz triplets) into separate x, y, z vectors.
     // Uses NEON vld3q for efficient stride-3 deinterleaving.
     //
@@ -59,8 +59,8 @@ NK_INTERNAL void nk_deinterleave_f32x4_neon_(nk_f32_t const *ptr, float32x4_t *x
     *z_out = xyz_f32x4x3.val[2];
 }
 
-NK_INTERNAL void nk_deinterleave_f64x2_neon_(nk_f64_t const *ptr, float64x2_t *x_out, float64x2_t *y_out,
-                                             float64x2_t *z_out) {
+NK_HELPER_INLINE void nk_deinterleave_f64x2_neon_(nk_f64_t const *ptr, float64x2_t *x_out, float64x2_t *y_out,
+                                                  float64x2_t *z_out) {
     // Deinterleave 6 f64 values (2 xyz triplets) into separate x, y, z vectors.
     //
     // Input: 6 contiguous f64 [x0,y0,z0, x1,y1,z1]
@@ -72,7 +72,7 @@ NK_INTERNAL void nk_deinterleave_f64x2_neon_(nk_f64_t const *ptr, float64x2_t *x
     *z_out = vcombine_f64(vld1_f64(&ptr[2]), vld1_f64(&ptr[5]));
 }
 
-NK_INTERNAL nk_f64_t nk_reduce_stable_f64x2_neon_(float64x2_t values_f64x2) {
+NK_HELPER_INLINE nk_f64_t nk_reduce_stable_f64x2_neon_(float64x2_t values_f64x2) {
     nk_b128_vec_t values;
     values.f64x2 = values_f64x2;
     nk_f64_t sum = 0.0, compensation = 0.0;
@@ -81,8 +81,8 @@ NK_INTERNAL nk_f64_t nk_reduce_stable_f64x2_neon_(float64x2_t values_f64x2) {
     return sum + compensation;
 }
 
-NK_INTERNAL void nk_accumulate_square_f64x2_neon_(float64x2_t *sum_f64x2, float64x2_t *compensation_f64x2,
-                                                  float64x2_t values_f64x2) {
+NK_HELPER_INLINE void nk_accumulate_square_f64x2_neon_(float64x2_t *sum_f64x2, float64x2_t *compensation_f64x2,
+                                                       float64x2_t values_f64x2) {
     float64x2_t product_f64x2 = vmulq_f64(values_f64x2, values_f64x2);
     float64x2_t product_error_f64x2 = vfmaq_f64(vnegq_f64(product_f64x2), values_f64x2, values_f64x2);
     float64x2_t tentative_sum_f64x2 = vaddq_f64(*sum_f64x2, product_f64x2);
@@ -93,8 +93,8 @@ NK_INTERNAL void nk_accumulate_square_f64x2_neon_(float64x2_t *sum_f64x2, float6
     *compensation_f64x2 = vaddq_f64(*compensation_f64x2, vaddq_f64(sum_error_f64x2, product_error_f64x2));
 }
 
-NK_PUBLIC void nk_rmsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_rmsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
     if (rotation)
@@ -150,8 +150,8 @@ NK_PUBLIC void nk_rmsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t 
     *result = nk_f64_sqrt_neon((sum_squared_x + sum_squared_y + sum_squared_z) / (nk_f64_t)n);
 }
 
-NK_PUBLIC void nk_rmsd_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_rmsd_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                      nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
     if (rotation)
@@ -202,8 +202,8 @@ NK_PUBLIC void nk_rmsd_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t 
     *result = nk_f64_sqrt_neon((total_squared_x + total_squared_y + total_squared_z) / (nk_f64_t)n);
 }
 
-NK_PUBLIC void nk_kabsch_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                  nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_kabsch_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -431,8 +431,8 @@ NK_PUBLIC void nk_kabsch_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_
     *result = nk_f64_sqrt_neon(sum_squared / (nk_f64_t)n);
 }
 
-NK_PUBLIC void nk_kabsch_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                  nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_kabsch_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                        nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -706,8 +706,8 @@ NK_PUBLIC void nk_kabsch_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_
     *result = nk_f64_sqrt_neon(sum_squared * inv_n);
 }
 
-NK_PUBLIC void nk_umeyama_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                   nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_umeyama_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -947,8 +947,8 @@ NK_PUBLIC void nk_umeyama_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size
     *result = nk_f64_sqrt_neon(sum_squared / (nk_f64_t)n);
 }
 
-NK_PUBLIC void nk_umeyama_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                   nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+NK_API_COMPTIME void nk_umeyama_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                         nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -1229,10 +1229,10 @@ NK_PUBLIC void nk_umeyama_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size
     *result = nk_f64_sqrt_neon(sum_squared * inv_n);
 }
 
-NK_INTERNAL void nk_deinterleave_f16x8_to_f32x4x2_neon_(nk_f16_t const *ptr,                             //
-                                                        float32x4_t *x_low_out, float32x4_t *x_high_out, //
-                                                        float32x4_t *y_low_out, float32x4_t *y_high_out, //
-                                                        float32x4_t *z_low_out, float32x4_t *z_high_out) {
+NK_HELPER_INLINE void nk_deinterleave_f16x8_to_f32x4x2_neon_(nk_f16_t const *ptr,                             //
+                                                             float32x4_t *x_low_out, float32x4_t *x_high_out, //
+                                                             float32x4_t *y_low_out, float32x4_t *y_high_out, //
+                                                             float32x4_t *z_low_out, float32x4_t *z_high_out) {
     // Deinterleave 24 f16 values (8 xyz triplets) into separate x, y, z vectors.
     // Uses NEON vld3q_u16 for efficient stride-3 deinterleaving, then converts to f32.
     // Avoids vld3q_f16 which is unavailable on MSVC for ARM.
@@ -1251,10 +1251,10 @@ NK_INTERNAL void nk_deinterleave_f16x8_to_f32x4x2_neon_(nk_f16_t const *ptr,    
     *z_high_out = vcvt_high_f32_f16(z_f16x8);
 }
 
-NK_INTERNAL void nk_partial_deinterleave_f16_to_f32x4x2_neon_(nk_f16_t const *ptr, nk_size_t n_points,         //
-                                                              float32x4_t *x_low_out, float32x4_t *x_high_out, //
-                                                              float32x4_t *y_low_out, float32x4_t *y_high_out, //
-                                                              float32x4_t *z_low_out, float32x4_t *z_high_out) {
+NK_HELPER_INLINE void nk_partial_deinterleave_f16_to_f32x4x2_neon_(nk_f16_t const *ptr, nk_size_t n_points,         //
+                                                                   float32x4_t *x_low_out, float32x4_t *x_high_out, //
+                                                                   float32x4_t *y_low_out, float32x4_t *y_high_out, //
+                                                                   float32x4_t *z_low_out, float32x4_t *z_high_out) {
     nk_u16_t buf[24] = {0};
     nk_u16_t const *src = (nk_u16_t const *)ptr;
     for (nk_size_t k = 0; k < n_points * 3; ++k) buf[k] = src[k];
@@ -1266,8 +1266,8 @@ NK_INTERNAL void nk_partial_deinterleave_f16_to_f32x4x2_neon_(nk_f16_t const *pt
  *  @brief RMSD (Root Mean Square Deviation) computation using NEON FP16 with widening to FP32.
  *  Matches the serial-RMSD contract: zero centroids, identity rotation, raw √(Σ‖a-b‖² / n).
  */
-NK_PUBLIC void nk_rmsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NK_API_COMPTIME void nk_rmsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
@@ -1337,8 +1337,8 @@ NK_PUBLIC void nk_rmsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t 
  *  @brief Kabsch algorithm for optimal rigid body superposition using NEON FP16 with widening to FP32.
  *  Finds the rotation matrix R that minimizes RMSD between two point sets.
  */
-NK_PUBLIC void nk_kabsch_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                  nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NK_API_COMPTIME void nk_kabsch_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -1576,8 +1576,8 @@ NK_PUBLIC void nk_kabsch_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_
     *result = nk_f32_sqrt_neon(sum_squared * inv_n);
 }
 
-NK_PUBLIC void nk_umeyama_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                   nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NK_API_COMPTIME void nk_umeyama_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;

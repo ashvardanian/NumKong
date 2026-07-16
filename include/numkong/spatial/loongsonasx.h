@@ -35,14 +35,14 @@ extern "C" {
 
 #pragma region Angular Normalize Helpers
 
-NK_INTERNAL nk_f64_t nk_angular_normalize_f64_loongsonasx_(nk_f64_t ab, nk_f64_t a2, nk_f64_t b2) {
+NK_HELPER_INLINE nk_f64_t nk_angular_normalize_f64_loongsonasx_(nk_f64_t ab, nk_f64_t a2, nk_f64_t b2) {
     if (a2 == 0 && b2 == 0) return 0;
     else if (ab == 0) return 1;
     nk_f64_t result = 1 - ab / (nk_f64_sqrt_loongsonasx(a2) * nk_f64_sqrt_loongsonasx(b2));
     return result > 0 ? result : 0;
 }
 
-NK_INTERNAL nk_f32_t nk_angular_normalize_i32_loongsonasx_(nk_i32_t ab, nk_i32_t a2, nk_i32_t b2) {
+NK_HELPER_INLINE nk_f32_t nk_angular_normalize_i32_loongsonasx_(nk_i32_t ab, nk_i32_t a2, nk_i32_t b2) {
     if (a2 == 0 && b2 == 0) return 0;
     else if (ab == 0) return 1;
     nk_f32_t result = 1.0f -
@@ -54,7 +54,7 @@ NK_INTERNAL nk_f32_t nk_angular_normalize_i32_loongsonasx_(nk_i32_t ab, nk_i32_t
 
 #pragma region I8 and U8 Integers
 
-NK_PUBLIC void nk_sqeuclidean_i8_loongsonasx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_i8_loongsonasx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
     __m256i sum_i32x8 = __lasx_xvreplgr2vr_w(0);
     nk_size_t i = 0;
     for (; i + 32 <= n; i += 32) {
@@ -74,13 +74,13 @@ NK_PUBLIC void nk_sqeuclidean_i8_loongsonasx(nk_i8_t const *a, nk_i8_t const *b,
     *result = (nk_u32_t)sum;
 }
 
-NK_PUBLIC void nk_euclidean_i8_loongsonasx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_i8_loongsonasx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t distance_sq_u32;
     nk_sqeuclidean_i8_loongsonasx(a, b, n, &distance_sq_u32);
     *result = nk_f32_sqrt_loongsonasx((nk_f32_t)distance_sq_u32);
 }
 
-NK_PUBLIC void nk_angular_i8_loongsonasx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_i8_loongsonasx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
     __m256i dot_i32x8 = __lasx_xvreplgr2vr_w(0);
     __m256i a_sq_i32x8 = __lasx_xvreplgr2vr_w(0);
     __m256i b_sq_i32x8 = __lasx_xvreplgr2vr_w(0);
@@ -116,7 +116,7 @@ NK_PUBLIC void nk_angular_i8_loongsonasx(nk_i8_t const *a, nk_i8_t const *b, nk_
     *result = nk_angular_normalize_i32_loongsonasx_(dot, a_sq, b_sq);
 }
 
-NK_PUBLIC void nk_sqeuclidean_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     __m256i sum_i32x8 = __lasx_xvreplgr2vr_w(0);
     __m256i zeros_i8x32 = __lasx_xvreplgr2vr_b(0);
     nk_size_t i = 0;
@@ -144,13 +144,13 @@ NK_PUBLIC void nk_sqeuclidean_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b,
     *result = (nk_u32_t)sum;
 }
 
-NK_PUBLIC void nk_euclidean_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t distance_sq_u32;
     nk_sqeuclidean_u8_loongsonasx(a, b, n, &distance_sq_u32);
     *result = nk_f32_sqrt_loongsonasx((nk_f32_t)distance_sq_u32);
 }
 
-NK_PUBLIC void nk_angular_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
     __m256i dot_i32x8 = __lasx_xvreplgr2vr_w(0);
     __m256i a_sq_i32x8 = __lasx_xvreplgr2vr_w(0);
     __m256i b_sq_i32x8 = __lasx_xvreplgr2vr_w(0);
@@ -201,7 +201,8 @@ NK_PUBLIC void nk_angular_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_
 
 #pragma region F32 and F64 Floats
 
-NK_PUBLIC void nk_sqeuclidean_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                    nk_f64_t *result) {
     __m256d sum_low_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
     __m256d sum_high_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
     nk_size_t i = 0;
@@ -226,12 +227,12 @@ NK_PUBLIC void nk_sqeuclidean_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const 
     *result = sum;
 }
 
-NK_PUBLIC void nk_euclidean_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_euclidean_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_sqeuclidean_f32_loongsonasx(a, b, n, result);
     *result = nk_f64_sqrt_loongsonasx(*result);
 }
 
-NK_PUBLIC void nk_angular_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_angular_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     __m256d dot_low_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
     __m256d dot_high_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
     __m256d a_sq_low_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
@@ -265,7 +266,8 @@ NK_PUBLIC void nk_angular_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b, 
     *result = nk_angular_normalize_f64_loongsonasx_(dot, a_sq, b_sq);
 }
 
-NK_PUBLIC void nk_sqeuclidean_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                    nk_f64_t *result) {
     __m256d sum_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
@@ -282,12 +284,12 @@ NK_PUBLIC void nk_sqeuclidean_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const 
     *result = sum;
 }
 
-NK_PUBLIC void nk_euclidean_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_euclidean_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_sqeuclidean_f64_loongsonasx(a, b, n, result);
     *result = nk_f64_sqrt_loongsonasx(*result);
 }
 
-NK_PUBLIC void nk_angular_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_angular_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     __m256d dot_sum_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
     __m256d dot_compensation_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
     __m256d a_norm_sq_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
@@ -330,7 +332,7 @@ NK_PUBLIC void nk_angular_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const *b, 
 
 #pragma region F16 and BF16 Floats
 
-NK_INTERNAL nk_f32_t nk_angular_normalize_f32_loongsonasx_(nk_f32_t ab, nk_f32_t a2, nk_f32_t b2) {
+NK_HELPER_INLINE nk_f32_t nk_angular_normalize_f32_loongsonasx_(nk_f32_t ab, nk_f32_t a2, nk_f32_t b2) {
     if (a2 == 0.0f && b2 == 0.0f) return 0.0f;
     else if (ab == 0.0f) return 1.0f;
     nk_f32_t result = 1.0f - ab * nk_f32_rsqrt_loongsonasx(a2) * nk_f32_rsqrt_loongsonasx(b2);
@@ -338,7 +340,7 @@ NK_INTERNAL nk_f32_t nk_angular_normalize_f32_loongsonasx_(nk_f32_t ab, nk_f32_t
 }
 
 /** @brief Horizontal sum of 8 × f32 lanes in a 256-bit LASX register. */
-NK_INTERNAL nk_f32_t nk_reduce_add_f32x8_loongsonasx_(__m256 sum_f32x8) {
+NK_HELPER_INLINE nk_f32_t nk_reduce_add_f32x8_loongsonasx_(__m256 sum_f32x8) {
     // Add high 128-bit lane to low 128-bit lane
     __m256 high_f32x4 = (__m256)__lasx_xvpermi_q((__m256i)sum_f32x8, (__m256i)sum_f32x8, 0x11);
     __m256 sum_f32x4 = __lasx_xvfadd_s(sum_f32x8, high_f32x4);
@@ -351,7 +353,8 @@ NK_INTERNAL nk_f32_t nk_reduce_add_f32x8_loongsonasx_(__m256 sum_f32x8) {
     return c.f;
 }
 
-NK_PUBLIC void nk_sqeuclidean_bf16_loongsonasx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_bf16_loongsonasx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result) {
     __m256 sum_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     __m256i mask_high_u32x8 = __lasx_xvreplgr2vr_w((int)0xFFFF0000);
     nk_size_t i = 0;
@@ -378,12 +381,14 @@ NK_PUBLIC void nk_sqeuclidean_bf16_loongsonasx(nk_bf16_t const *a, nk_bf16_t con
     *result = sum;
 }
 
-NK_PUBLIC void nk_euclidean_bf16_loongsonasx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_bf16_loongsonasx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                   nk_f32_t *result) {
     nk_sqeuclidean_bf16_loongsonasx(a, b, n, result);
     *result = nk_f32_sqrt_loongsonasx(*result);
 }
 
-NK_PUBLIC void nk_angular_bf16_loongsonasx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_bf16_loongsonasx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                 nk_f32_t *result) {
     __m256 dot_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     __m256 a_sq_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     __m256 b_sq_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
@@ -417,7 +422,8 @@ NK_PUBLIC void nk_angular_bf16_loongsonasx(nk_bf16_t const *a, nk_bf16_t const *
     *result = nk_angular_normalize_f32_loongsonasx_(dot, a_sq, b_sq);
 }
 
-NK_PUBLIC void nk_sqeuclidean_f16_loongsonasx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_f16_loongsonasx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                    nk_f32_t *result) {
     __m256 sum_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -439,12 +445,12 @@ NK_PUBLIC void nk_sqeuclidean_f16_loongsonasx(nk_f16_t const *a, nk_f16_t const 
     *result = sum;
 }
 
-NK_PUBLIC void nk_euclidean_f16_loongsonasx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_f16_loongsonasx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_sqeuclidean_f16_loongsonasx(a, b, n, result);
     *result = nk_f32_sqrt_loongsonasx(*result);
 }
 
-NK_PUBLIC void nk_angular_f16_loongsonasx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_f16_loongsonasx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     __m256 dot_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     __m256 a_sq_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     __m256 b_sq_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);

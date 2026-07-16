@@ -264,7 +264,7 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
     *result = total_angular_distance;
 }
 
-NK_PUBLIC void nk_maxsim_packed_f16_sme( //
+NK_API_COMPTIME void nk_maxsim_packed_f16_sme( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -460,7 +460,7 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
     *result = total_angular_distance;
 }
 
-NK_PUBLIC void nk_maxsim_packed_bf16_sme( //
+NK_API_COMPTIME void nk_maxsim_packed_bf16_sme( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -469,15 +469,15 @@ NK_PUBLIC void nk_maxsim_packed_bf16_sme( //
     nk_sme_stop_streaming_();
 }
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_bf16_sme(nk_size_t columns, nk_size_t depth) { //
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_bf16_sme(nk_size_t columns, nk_size_t depth) { //
     return nk_dots_packed_size_bf16_sme(columns, depth);
 }
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f16_sme(nk_size_t columns, nk_size_t depth) { //
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f16_sme(nk_size_t columns, nk_size_t depth) { //
     return nk_dots_packed_size_f16_sme(columns, depth);
 }
 
-NK_PUBLIC void nk_maxsim_pack_bf16_sme(                                                                      //
+NK_API_COMPTIME void nk_maxsim_pack_bf16_sme(                                                                //
     nk_bf16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) { //
 
     // Delegate tile interleaving and squared norms computation to dots pack.
@@ -498,7 +498,7 @@ NK_PUBLIC void nk_maxsim_pack_bf16_sme(                                         
     }
 }
 
-NK_PUBLIC void nk_maxsim_pack_f16_sme(                                                                      //
+NK_API_COMPTIME void nk_maxsim_pack_f16_sme(                                                                //
     nk_f16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) { //
 
     // Delegate tile interleaving and squared norms computation to dots pack.
@@ -528,7 +528,7 @@ NK_PUBLIC void nk_maxsim_pack_f16_sme(                                          
  *  Refinement: tile-wide interleaved f64 dot products for the winning (query, document) pairs.
  *  Angular distance: 1 - dot / sqrt(||q||^2 * ||d||^2), accumulated with f64.
  */
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f32_sme(nk_size_t columns, nk_size_t depth) { //
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f32_sme(nk_size_t columns, nk_size_t depth) { //
     nk_size_t const expansion = 4;                                                      // i8->i32 SMOPA
     nk_size_t const tile_dimension = nk_sme_cntw_();                                    // 16 for SVL=512
     nk_size_t const vector_elements = nk_sme_cntb_();                                   // 64 for SVL=512
@@ -543,7 +543,7 @@ NK_PUBLIC nk_size_t nk_maxsim_packed_size_f32_sme(nk_size_t columns, nk_size_t d
     return size;
 }
 
-NK_PUBLIC void nk_maxsim_pack_f32_sme(                                                                      //
+NK_API_COMPTIME void nk_maxsim_pack_f32_sme(                                                                //
     nk_f32_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) { //
 
     nk_size_t const expansion = 4;                    // i8->i32 SMOPA
@@ -629,7 +629,7 @@ NK_PUBLIC void nk_maxsim_pack_f32_sme(                                          
  *  Streaming-compatible f32 dot product with f64 accumulation.
  *  Follows the svcntd()-stride + svcvt_f64_f32_x pattern from nk_dots_reduce_sumsq_f32_ssve_.
  */
-NK_PUBLIC nk_f64_t nk_maxsim_reduce_dot_f32_ssve_(                         //
+NK_HELPER_AUTO nk_f64_t nk_maxsim_reduce_dot_f32_ssve_(                    //
     nk_f32_t const *a, nk_f32_t const *b, nk_size_t count) NK_STREAMING_ { //
     svfloat64_t accumulator_even_f64x = svdup_f64(0.0);
     svfloat64_t accumulator_odd_f64x = svdup_f64(0.0);
@@ -658,7 +658,7 @@ NK_PUBLIC nk_f64_t nk_maxsim_reduce_dot_f32_ssve_(                         //
  *  and contiguous f64 norm arrays.
  *  Computes rsqrt via Newton-Raphson and accumulates `1 - dot / sqrt(||q||^2 * ||d||^2)`.
  */
-NK_PUBLIC nk_f64_t nk_maxsim_angular_from_dots_ssve_(                                    //
+NK_HELPER_AUTO nk_f64_t nk_maxsim_angular_from_dots_ssve_(                               //
     nk_f64_t const *dot_products, nk_size_t count,                                       //
     nk_f64_t const *query_norms_f64, nk_f64_t const *document_norms_f64) NK_STREAMING_ { //
 
@@ -969,7 +969,7 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
     *result = total_angular_distance_f64;
 }
 
-NK_PUBLIC void nk_maxsim_packed_f32_sme( //
+NK_API_COMPTIME void nk_maxsim_packed_f32_sme( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 

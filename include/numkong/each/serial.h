@@ -18,7 +18,7 @@ extern "C" {
 #endif
 
 #define nk_define_each_scale_(input_type, accumulator_type, load_and_convert, convert_and_store) \
-    NK_PUBLIC void nk_each_scale_##input_type##_serial(                                          \
+    NK_API_COMPTIME void nk_each_scale_##input_type##_serial(                                    \
         nk_##input_type##_t const *a, nk_size_t n, nk_##accumulator_type##_t const *alpha,       \
         nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result) {                    \
         nk_##accumulator_type##_t alpha_val = *alpha;                                            \
@@ -30,20 +30,20 @@ extern "C" {
             convert_and_store(&sum, result + i);                                                 \
         }                                                                                        \
     }
-#define nk_define_each_sum_(input_type, accumulator_type, load_and_convert, convert_and_store)                   \
-    NK_PUBLIC void nk_each_sum_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
-                                                     nk_size_t n, nk_##input_type##_t *result) {                 \
-        nk_##accumulator_type##_t ai, bi, sum;                                                                   \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                     \
-            load_and_convert(a + i, &ai);                                                                        \
-            load_and_convert(b + i, &bi);                                                                        \
-            sum = ai + bi;                                                                                       \
-            convert_and_store(&sum, result + i);                                                                 \
-        }                                                                                                        \
+#define nk_define_each_sum_(input_type, accumulator_type, load_and_convert, convert_and_store)                         \
+    NK_API_COMPTIME void nk_each_sum_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
+                                                           nk_size_t n, nk_##input_type##_t *result) {                 \
+        nk_##accumulator_type##_t ai, bi, sum;                                                                         \
+        for (nk_size_t i = 0; i != n; ++i) {                                                                           \
+            load_and_convert(a + i, &ai);                                                                              \
+            load_and_convert(b + i, &bi);                                                                              \
+            sum = ai + bi;                                                                                             \
+            convert_and_store(&sum, result + i);                                                                       \
+        }                                                                                                              \
     }
 
 #define nk_define_each_blend_(input_type, accumulator_type, load_and_convert, convert_and_store)                      \
-    NK_PUBLIC void nk_each_blend_##input_type##_serial(                                                               \
+    NK_API_COMPTIME void nk_each_blend_##input_type##_serial(                                                         \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n,                                      \
         nk_##accumulator_type##_t const *alpha, nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result) { \
         nk_##accumulator_type##_t alpha_val = *alpha;                                                                 \
@@ -60,7 +60,7 @@ extern "C" {
     }
 
 #define nk_define_each_fma_(input_type, accumulator_type, load_and_convert, convert_and_store)                        \
-    NK_PUBLIC void nk_each_fma_##input_type##_serial(                                                                 \
+    NK_API_COMPTIME void nk_each_fma_##input_type##_serial(                                                           \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##input_type##_t const *c, nk_size_t n,        \
         nk_##accumulator_type##_t const *alpha, nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result) { \
         nk_##accumulator_type##_t alpha_val = *alpha;                                                                 \
@@ -173,20 +173,20 @@ nk_define_each_fma_(u64, f64, nk_f64_from_u64_, nk_f64_to_u64_serial)        // 
 #undef nk_define_each_blend_
 #undef nk_define_each_fma_
 
-NK_DYNAMIC void nk_each_sum_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_RUNTIME void nk_each_sum_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result);
 
-NK_PUBLIC void nk_each_sum_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f32c_t *result) {
+NK_API_COMPTIME void nk_each_sum_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f32c_t *result) {
     nk_each_sum_f32((nk_f32_t const *)a, (nk_f32_t const *)b, 2 * n, (nk_f32_t *)result);
 }
 
-NK_PUBLIC void nk_each_sum_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result) {
+NK_API_COMPTIME void nk_each_sum_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result) {
     nk_each_sum_f64((nk_f64_t const *)a, (nk_f64_t const *)b, 2 * n, (nk_f64_t *)result);
 }
 
-NK_DYNAMIC void nk_each_sum_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NK_API_RUNTIME void nk_each_sum_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 
-NK_PUBLIC void nk_each_scale_f32c_serial(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha, nk_f32c_t const *beta,
-                                         nk_f32c_t *result) {
+NK_API_COMPTIME void nk_each_scale_f32c_serial(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
+                                               nk_f32c_t const *beta, nk_f32c_t *result) {
     nk_f32_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f32_t beta_real = beta->real, beta_imag = beta->imag;
     for (nk_size_t i = 0; i != n; ++i) {
@@ -196,8 +196,8 @@ NK_PUBLIC void nk_each_scale_f32c_serial(nk_f32c_t const *a, nk_size_t n, nk_f32
     }
 }
 
-NK_PUBLIC void nk_each_scale_f64c_serial(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha, nk_f64c_t const *beta,
-                                         nk_f64c_t *result) {
+NK_API_COMPTIME void nk_each_scale_f64c_serial(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha,
+                                               nk_f64c_t const *beta, nk_f64c_t *result) {
     nk_f64_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f64_t beta_real = beta->real, beta_imag = beta->imag;
     for (nk_size_t i = 0; i != n; ++i) {
@@ -207,8 +207,8 @@ NK_PUBLIC void nk_each_scale_f64c_serial(nk_f64c_t const *a, nk_size_t n, nk_f64
     }
 }
 
-NK_PUBLIC void nk_each_blend_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f32c_t const *alpha,
-                                         nk_f32c_t const *beta, nk_f32c_t *result) {
+NK_API_COMPTIME void nk_each_blend_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
+                                               nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result) {
     nk_f32_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f32_t beta_real = beta->real, beta_imag = beta->imag;
     for (nk_size_t i = 0; i != n; ++i) {
@@ -223,8 +223,8 @@ NK_PUBLIC void nk_each_blend_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b,
     }
 }
 
-NK_PUBLIC void nk_each_blend_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t const *alpha,
-                                         nk_f64c_t const *beta, nk_f64c_t *result) {
+NK_API_COMPTIME void nk_each_blend_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
+                                               nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result) {
     nk_f64_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f64_t beta_real = beta->real, beta_imag = beta->imag;
     for (nk_size_t i = 0; i != n; ++i) {
@@ -239,8 +239,8 @@ NK_PUBLIC void nk_each_blend_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b,
     }
 }
 
-NK_PUBLIC void nk_each_fma_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                       nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result) {
+NK_API_COMPTIME void nk_each_fma_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
+                                             nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result) {
     nk_f32_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f32_t beta_real = beta->real, beta_imag = beta->imag;
     for (nk_size_t i = 0; i != n; ++i) {
@@ -258,8 +258,8 @@ NK_PUBLIC void nk_each_fma_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, n
     }
 }
 
-NK_PUBLIC void nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                       nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result) {
+NK_API_COMPTIME void nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
+                                             nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result) {
     nk_f64_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f64_t beta_real = beta->real, beta_imag = beta->imag;
     for (nk_size_t i = 0; i != n; ++i) {
@@ -293,7 +293,7 @@ NK_PUBLIC void nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, n
  *  without a v2, and the FFN head's `fc1 → SiLU → fc2` passes `up = NULL`.  `input_scale` folds an
  *  E4M3 descale onto the load (1.0 for BF16/F32). */
 #define nk_define_each_swiglu_(input_type, load_and_convert, convert_and_store)                                 \
-    NK_PUBLIC void nk_each_swiglu_##input_type##_serial(                                                        \
+    NK_API_COMPTIME void nk_each_swiglu_##input_type##_serial(                                                  \
         nk_##input_type##_t const *gate, nk_##input_type##_t const *up, nk_##input_type##_t *y, nk_size_t rows, \
         nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride,             \
         nk_f32_t input_scale) {                                                                                 \

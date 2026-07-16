@@ -273,14 +273,17 @@ int py_number_to_f64(PyObject *obj, nk_f64_t *value);
 
 PyObject *api_enable_capability(PyObject *self, PyObject *cap_name_obj);
 PyObject *api_disable_capability(PyObject *self, PyObject *cap_name_obj);
-PyObject *api_get_capabilities(PyObject *self);
+PyObject *api_get_capabilities_detected(PyObject *self);
+PyObject *api_get_capabilities_compiled(PyObject *self);
+PyObject *api_get_capabilities_available(PyObject *self);
+PyObject *api_get_capabilities_enabled(PyObject *self);
 
 extern char const doc_enable_capability[];
 extern char const doc_disable_capability[];
-extern char const doc_get_capabilities[];
-
-/** @brief CPU capabilities detected at module init time. */
-extern nk_capability_t static_capabilities;
+extern char const doc_get_capabilities_detected[];
+extern char const doc_get_capabilities_compiled[];
+extern char const doc_get_capabilities_available[];
+extern char const doc_get_capabilities_enabled[];
 
 #ifdef __cplusplus
 }

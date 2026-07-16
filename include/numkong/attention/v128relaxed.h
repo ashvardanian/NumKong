@@ -57,7 +57,7 @@ enum {
 };
 
 /** @brief Fast vectorized 2^x: exact range reduction + the family's shared degree-4 polynomial. */
-NK_INTERNAL v128_t nk_attention_exp2_f32x4_v128relaxed_(v128_t x_f32x4) {
+NK_HELPER_INLINE v128_t nk_attention_exp2_f32x4_v128relaxed_(v128_t x_f32x4) {
     x_f32x4 = wasm_f32x4_max(wasm_f32x4_min(x_f32x4, wasm_f32x4_splat(127.0f)), wasm_f32x4_splat(-125.0f));
     v128_t whole_f32x4 = wasm_f32x4_nearest(x_f32x4);
     v128_t reduced_f32x4 = wasm_f32x4_sub(x_f32x4, whole_f32x4);
@@ -78,7 +78,7 @@ NK_INTERNAL v128_t nk_attention_exp2_f32x4_v128relaxed_(v128_t x_f32x4) {
  *         the `>> (14−whole)` are synthesized with a 4-stage `bitselect` barrel network keyed on
  *         `nlz = −whole ∈ [0,10]`. Mirrors the validated SME/Ice Lake helper (no floating point).
  */
-NK_INTERNAL v128_t nk_attention_iexp2_weight_i32x4_v128relaxed_(v128_t t_q15_i32x4) {
+NK_HELPER_INLINE v128_t nk_attention_iexp2_weight_i32x4_v128relaxed_(v128_t t_q15_i32x4) {
     v128_t const zero_i32x4 = wasm_i32x4_splat(0);
     v128_t const whole_i32x4 = wasm_i32x4_shr(t_q15_i32x4, 15); // arithmetic floor, in [-10,0]
     v128_t const fraction_i32x4 = wasm_v128_and(t_q15_i32x4, wasm_i32x4_splat(0x7FFF));
@@ -112,21 +112,21 @@ NK_INTERNAL v128_t nk_attention_iexp2_weight_i32x4_v128relaxed_(v128_t t_q15_i32
 /** @brief Widens 4 raw plane scalars (BF16 or E4M3 at rest) to F32 inside the hot loops. */
 typedef v128_t (*nk_attention_load_v128relaxed_t_)(void const *plane_chunk);
 
-NK_INTERNAL v128_t nk_attention_load_bf16x4_v128relaxed_(void const *plane_chunk) {
+NK_HELPER_INLINE v128_t nk_attention_load_bf16x4_v128relaxed_(void const *plane_chunk) {
     nk_b64_vec_t raw_vec;
     raw_vec.u64 = *(nk_u64_t const *)plane_chunk;
     return nk_bf16x4_to_f32x4_v128relaxed_(raw_vec).v128;
 }
 
-NK_INTERNAL v128_t nk_attention_load_e4m3x4_v128relaxed_(void const *plane_chunk) {
+NK_HELPER_INLINE v128_t nk_attention_load_e4m3x4_v128relaxed_(void const *plane_chunk) {
     nk_b32_vec_t raw_vec;
     raw_vec.u32 = *(nk_u32_t const *)plane_chunk;
     return nk_e4m3x4_to_f32x4_v128relaxed_(raw_vec).v128;
 }
 
-NK_INTERNAL nk_size_t nk_attention_packed_size_v128relaxed_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                                                            nk_size_t element_bytes) {
+NK_HELPER_INLINE nk_size_t nk_attention_packed_size_v128relaxed_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                 nk_u32_t const *segment_lengths,
+                                                                 nk_size_t segment_count, nk_size_t element_bytes) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t payload_bytes = 0; // planes keep the source encoding, like the dots family
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
@@ -135,33 +135,34 @@ NK_INTERNAL nk_size_t nk_attention_packed_size_v128relaxed_(nk_size_t key_value_
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_bf16_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *segment_lengths,
-                                                              nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                    nk_u32_t const *segment_lengths,
+                                                                    nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_v128relaxed_k_)
         return nk_attention_packed_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_packed_size_v128relaxed_(key_value_head_count, depth, segment_lengths, segment_count,
                                                  sizeof(nk_bf16_t));
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *segment_lengths,
-                                                              nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                    nk_u32_t const *segment_lengths,
+                                                                    nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_v128relaxed_k_)
         return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_packed_size_v128relaxed_(key_value_head_count, depth, segment_lengths, segment_count,
                                                  sizeof(nk_e4m3_t));
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_i8_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_i8_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                  nk_u32_t const *segment_lengths,
+                                                                  nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_v128relaxed_k_)
         return nk_attention_packed_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_packed_size_v128relaxed_(key_value_head_count, depth, segment_lengths, segment_count, 1);
 }
 
 /** @brief Raw strided-row repack: source encoding is preserved, tails zero-padded, 16-byte chunks. */
-NK_INTERNAL void nk_attention_pack_v128relaxed_(                                       //
+NK_HELPER_INLINE void nk_attention_pack_v128relaxed_(                                  //
     void const *keys, void const *values, nk_size_t element_bytes,                     //
     nk_size_t key_value_head_count, nk_size_t depth,                                   //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
@@ -210,7 +211,7 @@ NK_INTERNAL void nk_attention_pack_v128relaxed_(                                
     }
 }
 
-NK_PUBLIC void nk_attention_pack_bf16_v128relaxed(                                     //
+NK_API_COMPTIME void nk_attention_pack_bf16_v128relaxed(                               //
     nk_bf16_t const *keys, nk_bf16_t const *values,                                    //
     nk_size_t key_value_head_count, nk_size_t depth,                                   //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
@@ -227,7 +228,7 @@ NK_PUBLIC void nk_attention_pack_bf16_v128relaxed(                              
                                    key_value_packed, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_pack_e4m3_v128relaxed(                                     //
+NK_API_COMPTIME void nk_attention_pack_e4m3_v128relaxed(                               //
     nk_e4m3_t const *keys, nk_e4m3_t const *values,                                    //
     nk_size_t key_value_head_count, nk_size_t depth,                                   //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
@@ -244,7 +245,7 @@ NK_PUBLIC void nk_attention_pack_e4m3_v128relaxed(                              
                                    key_value_packed, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_pack_i8_v128relaxed(                                       //
+NK_API_COMPTIME void nk_attention_pack_i8_v128relaxed(                                 //
     nk_i8_t const *keys, nk_i8_t const *values,                                        //
     nk_size_t key_value_head_count, nk_size_t depth,                                   //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
@@ -265,7 +266,7 @@ NK_PUBLIC void nk_attention_pack_i8_v128relaxed(                                
  *  @brief Shared attention core over raw-encoded planes: per query row, panel-flash with
  *         an exact online correction; queries widen once per row, planes widen in-loop.
  */
-NK_INTERNAL void nk_attention_packed_float_v128relaxed_(                         //
+NK_HELPER_INLINE void nk_attention_packed_float_v128relaxed_(                    //
     void const *queries, nk_size_t element_bytes,                                //
     nk_attention_load_f32_serial_t_ load_f32,                                    //
     nk_attention_load_v128relaxed_t_ load,                                       //
@@ -402,7 +403,7 @@ NK_INTERNAL void nk_attention_packed_float_v128relaxed_(                        
     }
 }
 
-NK_PUBLIC void nk_attention_packed_bf16_v128relaxed(                             //
+NK_API_COMPTIME void nk_attention_packed_bf16_v128relaxed(                       //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -420,7 +421,7 @@ NK_PUBLIC void nk_attention_packed_bf16_v128relaxed(                            
                                            output_stride_bytes, scale, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_packed_e4m3_v128relaxed(                             //
+NK_API_COMPTIME void nk_attention_packed_e4m3_v128relaxed(                       //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -438,7 +439,7 @@ NK_PUBLIC void nk_attention_packed_e4m3_v128relaxed(                            
                                            output_stride_bytes, scale, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_packed_i8_v128relaxed(                               //
+NK_API_COMPTIME void nk_attention_packed_i8_v128relaxed(                         //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,      //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //

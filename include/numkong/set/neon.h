@@ -59,7 +59,7 @@ extern "C" {
 
 #pragma region Binary Sets
 
-NK_PUBLIC void nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
     nk_u32_t differences = 0;
     nk_size_t i = 0;
@@ -82,7 +82,7 @@ NK_PUBLIC void nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_siz
     *result = differences;
 }
 
-NK_PUBLIC void nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
     nk_u32_t intersection_count = 0, union_count = 0;
     nk_size_t i = 0;
@@ -112,7 +112,7 @@ NK_PUBLIC void nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_siz
 
 #pragma region Integer Sets
 
-NK_PUBLIC void nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t intersection_count = 0;
     nk_size_t i = 0;
     uint32x4_t intersection_count_u32x4 = vdupq_n_u32(0);
@@ -127,7 +127,7 @@ NK_PUBLIC void nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size
     *result = (n != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)n : 0.0f;
 }
 
-NK_PUBLIC void nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_size_t i = 0;
     uint32x4_t diff_count_u32x4 = vdupq_n_u32(0);
     // Process 16 bytes at a time using NEON with widening adds to avoid overflow.
@@ -150,7 +150,7 @@ NK_PUBLIC void nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t 
     *result = differences;
 }
 
-NK_PUBLIC void nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t matches = 0;
     nk_size_t i = 0;
     uint32x4_t match_count_u32x4 = vdupq_n_u32(0);
@@ -181,12 +181,13 @@ typedef struct nk_hamming_u1x128_state_neon_t {
     uint32x4_t intersection_count_u32x4;
 } nk_hamming_u1x128_state_neon_t;
 
-NK_INTERNAL void nk_hamming_u1x128_init_neon(nk_hamming_u1x128_state_neon_t *state) {
+NK_HELPER_INLINE void nk_hamming_u1x128_init_neon(nk_hamming_u1x128_state_neon_t *state) {
     state->intersection_count_u32x4 = vdupq_n_u32(0);
 }
 
-NK_INTERNAL void nk_hamming_u1x128_update_neon(nk_hamming_u1x128_state_neon_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                               nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_hamming_u1x128_update_neon(nk_hamming_u1x128_state_neon_t *state, nk_b128_vec_t a,
+                                                    nk_b128_vec_t b, nk_size_t depth_offset,
+                                                    nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
 
@@ -217,7 +218,7 @@ NK_INTERNAL void nk_hamming_u1x128_update_neon(nk_hamming_u1x128_state_neon_t *s
     state->intersection_count_u32x4 = vaddq_u32(state->intersection_count_u32x4, popcount_u32x4);
 }
 
-NK_INTERNAL void nk_hamming_u1x128_finalize_neon( //
+NK_HELPER_INLINE void nk_hamming_u1x128_finalize_neon( //
     nk_hamming_u1x128_state_neon_t const *state_a, nk_hamming_u1x128_state_neon_t const *state_b,
     nk_hamming_u1x128_state_neon_t const *state_c, nk_hamming_u1x128_state_neon_t const *state_d,
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -234,12 +235,13 @@ typedef struct nk_jaccard_u1x128_state_neon_t {
     uint32x4_t intersection_count_u32x4;
 } nk_jaccard_u1x128_state_neon_t;
 
-NK_INTERNAL void nk_jaccard_u1x128_init_neon(nk_jaccard_u1x128_state_neon_t *state) {
+NK_HELPER_INLINE void nk_jaccard_u1x128_init_neon(nk_jaccard_u1x128_state_neon_t *state) {
     state->intersection_count_u32x4 = vdupq_n_u32(0);
 }
 
-NK_INTERNAL void nk_jaccard_u1x128_update_neon(nk_jaccard_u1x128_state_neon_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                               nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_jaccard_u1x128_update_neon(nk_jaccard_u1x128_state_neon_t *state, nk_b128_vec_t a,
+                                                    nk_b128_vec_t b, nk_size_t depth_offset,
+                                                    nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
 
@@ -270,7 +272,7 @@ NK_INTERNAL void nk_jaccard_u1x128_update_neon(nk_jaccard_u1x128_state_neon_t *s
     state->intersection_count_u32x4 = vaddq_u32(state->intersection_count_u32x4, popcount_u32x4);
 }
 
-NK_INTERNAL void nk_jaccard_u1x128_finalize_neon( //
+NK_HELPER_INLINE void nk_jaccard_u1x128_finalize_neon( //
     nk_jaccard_u1x128_state_neon_t const *state_a, nk_jaccard_u1x128_state_neon_t const *state_b,
     nk_jaccard_u1x128_state_neon_t const *state_c, nk_jaccard_u1x128_state_neon_t const *state_d,
     nk_f32_t query_popcount, nk_b128_vec_t const *target_popcounts_vec, nk_size_t total_dimensions,
@@ -314,8 +316,8 @@ NK_INTERNAL void nk_jaccard_u1x128_finalize_neon( //
 }
 
 /** @brief Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (NEON). */
-NK_INTERNAL void nk_hamming_u32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                 nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                      nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
     uint32x4_t dots_u32x4 = dots_vec->u32x4;
     uint32x4_t query_u32x4 = vdupq_n_u32(query_pop);
     uint32x4_t target_u32x4 = target_pops_vec->u32x4;
@@ -323,8 +325,8 @@ NK_INTERNAL void nk_hamming_u32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, 
 }
 
 /** @brief Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (NEON). */
-NK_INTERNAL void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                 nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
+NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                      nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
     float32x4_t dot_f32x4 = vcvtq_f32_u32(dots_vec->u32x4);
     float32x4_t query_f32x4 = vdupq_n_f32((nk_f32_t)query_pop);
     float32x4_t target_f32x4 = vcvtq_f32_u32(target_pops_vec->u32x4);

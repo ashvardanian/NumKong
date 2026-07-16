@@ -122,7 +122,7 @@
 
       // Get capabilities if available
       if (typeof numkong.getCapabilities === "function") {
-        capabilities = numkong.getCapabilities();
+        capabilities = numkong.getCapabilitiesAvailable();
         console.log("Runtime capabilities:", "0x" + capabilities.toString(16));
       }
 
@@ -189,7 +189,7 @@
 
       test("Capability detection", () => {
         if (typeof numkong.getCapabilities === "function") {
-          const caps = numkong.getCapabilities();
+          const caps = numkong.getCapabilitiesAvailable();
           if (typeof caps !== "bigint") {
             throw new Error("getCapabilities should return bigint");
           }

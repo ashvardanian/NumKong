@@ -28,7 +28,7 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_INTERNAL __m512 nk_log2_f32x16_skylake_(__m512 x) {
+NK_HELPER_INLINE __m512 nk_log2_f32x16_skylake_(__m512 x) {
     // Extract the exponent and mantissa: x = 2^exp × m, m ∈ [1, 2)
     __m512 one_f32x16 = _mm512_set1_ps(1.0f);
     __m512 exponent_f32x16 = _mm512_getexp_ps(x);
@@ -49,7 +49,7 @@ NK_INTERNAL __m512 nk_log2_f32x16_skylake_(__m512 x) {
     return _mm512_add_ps(log2m_f32x16, exponent_f32x16);
 }
 
-NK_PUBLIC void nk_kld_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_kld_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     __m512 sum_f32x16 = _mm512_setzero_ps();
     nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
     __m512 epsilon_f32x16 = _mm512_set1_ps(epsilon);
@@ -81,7 +81,7 @@ nk_kld_f32_skylake_cycle:
     *result = sum * log2_normalizer;
 }
 
-NK_PUBLIC void nk_jsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_jsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     __m512 sum_f32x16 = _mm512_setzero_ps();
     nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
     __m512 epsilon_f32x16 = _mm512_set1_ps(epsilon);
@@ -123,7 +123,7 @@ nk_jsd_f32_skylake_cycle:
     *result = sum > 0 ? nk_f64_sqrt_haswell(sum) : 0;
 }
 
-NK_INTERNAL __m512d nk_log2_f64x8_skylake_(__m512d x) {
+NK_HELPER_INLINE __m512d nk_log2_f64x8_skylake_(__m512d x) {
     // Extract the exponent and mantissa: x = 2^exp × m, m ∈ [1, 2)
     __m512d one_f64x8 = _mm512_set1_pd(1.0);
     __m512d two_f64x8 = _mm512_set1_pd(2.0);
@@ -162,7 +162,7 @@ NK_INTERNAL __m512d nk_log2_f64x8_skylake_(__m512d x) {
     return _mm512_add_pd(exponent_f64x8, log2_m_f64x8);
 }
 
-NK_PUBLIC void nk_kld_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_kld_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     __m512d sum_f64x8 = _mm512_setzero_pd();
     __m512d compensation_f64x8 = _mm512_setzero_pd();
     nk_f64_t epsilon = NK_F64_DIVISION_EPSILON;
@@ -195,7 +195,7 @@ nk_kld_f64_skylake_cycle:
     *result = _mm512_reduce_add_pd(sum_f64x8) * log2_normalizer;
 }
 
-NK_PUBLIC void nk_jsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_jsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     __m512d sum_f64x8 = _mm512_setzero_pd();
     __m512d compensation_f64x8 = _mm512_setzero_pd();
     nk_f64_t epsilon = NK_F64_DIVISION_EPSILON;
@@ -243,7 +243,7 @@ nk_jsd_f64_skylake_cycle:
     *result = sum > 0 ? nk_f64_sqrt_haswell(sum) : 0;
 }
 
-NK_PUBLIC void nk_kld_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_kld_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     __m512 sum_f32x16 = _mm512_setzero_ps();
     __m512 epsilon_f32x16 = _mm512_set1_ps(NK_F32_DIVISION_EPSILON);
     __m512 a_f32x16, b_f32x16;
@@ -271,7 +271,7 @@ nk_kld_f16_skylake_cycle:
     *result = _mm512_reduce_add_ps(sum_f32x16) * log2_normalizer;
 }
 
-NK_PUBLIC void nk_jsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     __m512 sum_a_f32x16 = _mm512_setzero_ps();
     __m512 sum_b_f32x16 = _mm512_setzero_ps();
     __m512 epsilon_f32x16 = _mm512_set1_ps(NK_F32_DIVISION_EPSILON);

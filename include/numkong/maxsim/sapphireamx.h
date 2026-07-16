@@ -96,7 +96,7 @@ NK_STATIC_ASSERT(sizeof(nk_maxsim_sapphireamx_i8_header_t) == 64, nk_maxsim_sapp
 
 #pragma region F32 Floats
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f32_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f32_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
     nk_size_t a_side_bytes = column_tile_count * depth_tile_count * 1024;
@@ -107,7 +107,7 @@ NK_PUBLIC nk_size_t nk_maxsim_packed_size_f32_sapphireamx(nk_size_t vector_count
     return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes;
 }
 
-NK_PUBLIC void nk_maxsim_pack_f32_sapphireamx( //
+NK_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
@@ -195,7 +195,7 @@ NK_PUBLIC void nk_maxsim_pack_f32_sapphireamx( //
     }
 }
 
-NK_PUBLIC void nk_maxsim_packed_f32_sapphireamx( //
+NK_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
@@ -351,7 +351,7 @@ NK_PUBLIC void nk_maxsim_packed_f32_sapphireamx( //
 
 #pragma region F16 Floats
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f16_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f16_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
     nk_size_t a_side_bytes = column_tile_count * depth_tile_count * 1024;
@@ -362,7 +362,7 @@ NK_PUBLIC nk_size_t nk_maxsim_packed_size_f16_sapphireamx(nk_size_t vector_count
     return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes;
 }
 
-NK_PUBLIC void nk_maxsim_pack_f16_sapphireamx( //
+NK_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
@@ -453,7 +453,7 @@ NK_PUBLIC void nk_maxsim_pack_f16_sapphireamx( //
     }
 }
 
-NK_PUBLIC void nk_maxsim_packed_f16_sapphireamx( //
+NK_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -624,7 +624,7 @@ typedef struct {
 
 NK_STATIC_ASSERT(sizeof(nk_maxsim_sapphireamx_bf16_header_t) == 64, nk_maxsim_sapphireamx_bf16_header_must_be_64_bytes);
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_bf16_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_bf16_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
     nk_size_t const tile_bytes = 1024; // 16 × 32 × 2B = 1KB per tile
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 32);
@@ -634,7 +634,7 @@ NK_PUBLIC nk_size_t nk_maxsim_packed_size_bf16_sapphireamx(nk_size_t vector_coun
     return sizeof(nk_maxsim_sapphireamx_bf16_header_t) + 63 + a_side_bytes + b_side_bytes + norms_bytes;
 }
 
-NK_PUBLIC void nk_maxsim_pack_bf16_sapphireamx( //
+NK_API_COMPTIME void nk_maxsim_pack_bf16_sapphireamx( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const tile_bytes = 1024;
@@ -713,7 +713,7 @@ NK_PUBLIC void nk_maxsim_pack_bf16_sapphireamx( //
  *  to build per-document dot product vectors, then element-wise max tracks the
  *  running best document per query.
  */
-NK_PUBLIC void nk_maxsim_packed_bf16_sapphireamx( //
+NK_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 

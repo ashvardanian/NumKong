@@ -73,14 +73,14 @@ extern "C" {
 #endif
 
 /*  Read SVL in bytes from non-streaming context using RDSVL instruction. */
-NK_INTERNAL nk_size_t nk_smebi32_svl_bytes_(void) {
+NK_HELPER_INLINE nk_size_t nk_smebi32_svl_bytes_(void) {
     nk_size_t svl_bytes;
     __asm__ volatile("rdsvl %0, #1" : "=r"(svl_bytes));
     return svl_bytes;
 }
 
 /*  Get ZA32 tile dimension (number of f32/u32 elements per row). */
-NK_INTERNAL nk_size_t nk_smebi32_tile_dim_(void) { return nk_smebi32_svl_bytes_() / sizeof(nk_u32_t); }
+NK_HELPER_INLINE nk_size_t nk_smebi32_tile_dim_(void) { return nk_smebi32_svl_bytes_() / sizeof(nk_u32_t); }
 
 typedef struct {
     nk_u32_t row_tile_count;   // ceiling(rows / tile_dim)
@@ -94,7 +94,7 @@ typedef struct {
 
 /** Count total set bits across a byte vector using streaming SVE.
  *  Accumulates per-byte popcounts into u32 lanes via svdot; single horizontal reduction at end. */
-NK_PUBLIC nk_u32_t nk_sets_reduce_sumsq_u1_streaming_(nk_u1x8_t const *data, nk_size_t n_bytes) NK_STREAMING_ {
+NK_HELPER_AUTO nk_u32_t nk_sets_reduce_sumsq_u1_streaming_(nk_u1x8_t const *data, nk_size_t n_bytes) NK_STREAMING_ {
     svuint32_t accumulator_u32x = svdup_u32(0);
     svuint8_t const ones_u8x = svdup_u8(1);
     for (nk_size_t offset = 0; offset < n_bytes; offset += svcntb()) {
@@ -107,7 +107,7 @@ NK_PUBLIC nk_u32_t nk_sets_reduce_sumsq_u1_streaming_(nk_u1x8_t const *data, nk_
 
 #pragma region Hamming Distance
 
-NK_PUBLIC nk_size_t nk_dots_packed_size_u1_smebi32(nk_size_t row_count, nk_size_t depth_bits) {
+NK_API_COMPTIME nk_size_t nk_dots_packed_size_u1_smebi32(nk_size_t row_count, nk_size_t depth_bits) {
     nk_size_t const tile_dim = nk_smebi32_tile_dim_();        // 16 rows per tile
     nk_size_t const depth_tile_size = nk_smebi32_tile_dim_(); // 16 u32 per depth tile = 512 bits
 
@@ -123,8 +123,8 @@ NK_PUBLIC nk_size_t nk_dots_packed_size_u1_smebi32(nk_size_t row_count, nk_size_
     return size;
 }
 
-NK_PUBLIC void nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t row_count, nk_size_t depth_bits,
-                                       nk_size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t row_count, nk_size_t depth_bits,
+                                             nk_size_t b_stride_in_bytes, void *b_packed) {
     nk_size_t const svl_bytes = nk_smebi32_svl_bytes_();
     nk_size_t const tile_dim = nk_smebi32_tile_dim_();        // 16 rows per tile
     nk_size_t const depth_tile_size = nk_smebi32_tile_dim_(); // 16 u32 per depth tile
@@ -344,7 +344,7 @@ __arm_new("za") static void nk_hammings_packed_u1_smebi32_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_hammings_packed_u1_smebi32( //
+NK_API_COMPTIME void nk_hammings_packed_u1_smebi32( //
     nk_u1x8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
     nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_sme_start_streaming_();
@@ -547,7 +547,7 @@ __arm_new("za") static void nk_hammings_symmetric_u1_smebi32_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_hammings_symmetric_u1_smebi32( //
+NK_API_COMPTIME void nk_hammings_symmetric_u1_smebi32( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
     nk_u32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     nk_sme_start_streaming_();
@@ -799,7 +799,7 @@ __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_jaccards_packed_u1_smebi32( //
+NK_API_COMPTIME void nk_jaccards_packed_u1_smebi32( //
     nk_u1x8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
     nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_sme_start_streaming_();
@@ -1109,7 +1109,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
     }
 }
 
-NK_PUBLIC void nk_jaccards_symmetric_u1_smebi32( //
+NK_API_COMPTIME void nk_jaccards_symmetric_u1_smebi32( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     nk_sme_start_streaming_();

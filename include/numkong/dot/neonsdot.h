@@ -40,7 +40,7 @@
  *  @section dot_neonsdot_stateful Stateful Streaming Logic
  *
  *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_INTERNAL` functions:
+ *  `NK_HELPER_INLINE` functions:
  *
  *  - nk_dot_i8x16 for 8-bit signed integer inputs using SDOT,
  *  - nk_dot_u8x16 for 8-bit unsigned integer inputs using UDOT,
@@ -112,8 +112,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+dotprod")
 #endif
 
-NK_PUBLIC void nk_dot_i8_neonsdot(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                  nk_i32_t *result) {
+NK_API_COMPTIME void nk_dot_i8_neonsdot(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                        nk_i32_t *result) {
     int32x4_t sum_i32x4 = vdupq_n_s32(0);
     nk_size_t idx_scalars = 0;
     for (; idx_scalars + 16 <= count_scalars; idx_scalars += 16) {
@@ -126,8 +126,8 @@ NK_PUBLIC void nk_dot_i8_neonsdot(nk_i8_t const *a_scalars, nk_i8_t const *b_sca
     *result = sum;
 }
 
-NK_PUBLIC void nk_dot_u8_neonsdot(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                  nk_u32_t *result) {
+NK_API_COMPTIME void nk_dot_u8_neonsdot(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                        nk_u32_t *result) {
     uint32x4_t sum_u32x4 = vdupq_n_u32(0);
     nk_size_t idx_scalars = 0;
     for (; idx_scalars + 16 <= count_scalars; idx_scalars += 16) {
@@ -147,10 +147,13 @@ typedef struct nk_dot_i8x16_state_neonsdot_t {
     int32x4_t sum_i32x4;
 } nk_dot_i8x16_state_neonsdot_t;
 
-NK_INTERNAL void nk_dot_i8x16_init_neonsdot(nk_dot_i8x16_state_neonsdot_t *state) { state->sum_i32x4 = vdupq_n_s32(0); }
+NK_HELPER_INLINE void nk_dot_i8x16_init_neonsdot(nk_dot_i8x16_state_neonsdot_t *state) {
+    state->sum_i32x4 = vdupq_n_s32(0);
+}
 
-NK_INTERNAL void nk_dot_i8x16_update_neonsdot(nk_dot_i8x16_state_neonsdot_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                              nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_i8x16_update_neonsdot(nk_dot_i8x16_state_neonsdot_t *state, nk_b128_vec_t a,
+                                                   nk_b128_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     int32x4_t sum_i32x4 = state->sum_i32x4;
@@ -158,7 +161,7 @@ NK_INTERNAL void nk_dot_i8x16_update_neonsdot(nk_dot_i8x16_state_neonsdot_t *sta
     state->sum_i32x4 = sum_i32x4;
 }
 
-NK_INTERNAL void nk_dot_i8x16_finalize_neonsdot(                                                //
+NK_HELPER_INLINE void nk_dot_i8x16_finalize_neonsdot(                                           //
     nk_dot_i8x16_state_neonsdot_t const *state_a, nk_dot_i8x16_state_neonsdot_t const *state_b, //
     nk_dot_i8x16_state_neonsdot_t const *state_c, nk_dot_i8x16_state_neonsdot_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -175,10 +178,13 @@ typedef struct nk_dot_u8x16_state_neonsdot_t {
     uint32x4_t sum_u32x4;
 } nk_dot_u8x16_state_neonsdot_t;
 
-NK_INTERNAL void nk_dot_u8x16_init_neonsdot(nk_dot_u8x16_state_neonsdot_t *state) { state->sum_u32x4 = vdupq_n_u32(0); }
+NK_HELPER_INLINE void nk_dot_u8x16_init_neonsdot(nk_dot_u8x16_state_neonsdot_t *state) {
+    state->sum_u32x4 = vdupq_n_u32(0);
+}
 
-NK_INTERNAL void nk_dot_u8x16_update_neonsdot(nk_dot_u8x16_state_neonsdot_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                              nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_u8x16_update_neonsdot(nk_dot_u8x16_state_neonsdot_t *state, nk_b128_vec_t a,
+                                                   nk_b128_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     uint32x4_t sum_u32x4 = state->sum_u32x4;
@@ -186,7 +192,7 @@ NK_INTERNAL void nk_dot_u8x16_update_neonsdot(nk_dot_u8x16_state_neonsdot_t *sta
     state->sum_u32x4 = sum_u32x4;
 }
 
-NK_INTERNAL void nk_dot_u8x16_finalize_neonsdot(                                                //
+NK_HELPER_INLINE void nk_dot_u8x16_finalize_neonsdot(                                           //
     nk_dot_u8x16_state_neonsdot_t const *state_a, nk_dot_u8x16_state_neonsdot_t const *state_b, //
     nk_dot_u8x16_state_neonsdot_t const *state_c, nk_dot_u8x16_state_neonsdot_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -196,7 +202,7 @@ NK_INTERNAL void nk_dot_u8x16_finalize_neonsdot(                                
     result->u32x4 = vpaddq_u32(ab_u32x4, cd_u32x4);
 }
 
-NK_PUBLIC void nk_dot_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
+NK_API_COMPTIME void nk_dot_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     //
@@ -245,7 +251,7 @@ nk_dot_i4_neonsdot_cycle:
     *result = vaddvq_s32(sum_i32x4);
 }
 
-NK_PUBLIC void nk_dot_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_dot_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     // Values are ∈ [0,15], so UDOT can be used directly.
@@ -295,13 +301,13 @@ typedef struct nk_dot_i4x32_state_neonsdot_t {
     int32x4_t product_sum_i32x4;
 } nk_dot_i4x32_state_neonsdot_t;
 
-NK_INTERNAL void nk_dot_i4x32_init_neonsdot(nk_dot_i4x32_state_neonsdot_t *state) {
+NK_HELPER_INLINE void nk_dot_i4x32_init_neonsdot(nk_dot_i4x32_state_neonsdot_t *state) {
     state->product_sum_i32x4 = vdupq_n_s32(0);
 }
 
-NK_INTERNAL void nk_dot_i4x32_update_neonsdot(nk_dot_i4x32_state_neonsdot_t *state, nk_b128_vec_t a_i4x32,
-                                              nk_b128_vec_t b_i4x32, nk_size_t depth_offset,
-                                              nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_i4x32_update_neonsdot(nk_dot_i4x32_state_neonsdot_t *state, nk_b128_vec_t a_i4x32,
+                                                   nk_b128_vec_t b_i4x32, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
 
@@ -319,7 +325,7 @@ NK_INTERNAL void nk_dot_i4x32_update_neonsdot(nk_dot_i4x32_state_neonsdot_t *sta
     state->product_sum_i32x4 = product_sum_i32x4;
 }
 
-NK_INTERNAL void nk_dot_i4x32_finalize_neonsdot(                                                //
+NK_HELPER_INLINE void nk_dot_i4x32_finalize_neonsdot(                                           //
     nk_dot_i4x32_state_neonsdot_t const *state_a, nk_dot_i4x32_state_neonsdot_t const *state_b, //
     nk_dot_i4x32_state_neonsdot_t const *state_c, nk_dot_i4x32_state_neonsdot_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -334,13 +340,13 @@ typedef struct nk_dot_u4x32_state_neonsdot_t {
     uint32x4_t product_sum_u32x4;
 } nk_dot_u4x32_state_neonsdot_t;
 
-NK_INTERNAL void nk_dot_u4x32_init_neonsdot(nk_dot_u4x32_state_neonsdot_t *state) {
+NK_HELPER_INLINE void nk_dot_u4x32_init_neonsdot(nk_dot_u4x32_state_neonsdot_t *state) {
     state->product_sum_u32x4 = vdupq_n_u32(0);
 }
 
-NK_INTERNAL void nk_dot_u4x32_update_neonsdot(nk_dot_u4x32_state_neonsdot_t *state, nk_b128_vec_t a_u4x32,
-                                              nk_b128_vec_t b_u4x32, nk_size_t depth_offset,
-                                              nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_u4x32_update_neonsdot(nk_dot_u4x32_state_neonsdot_t *state, nk_b128_vec_t a_u4x32,
+                                                   nk_b128_vec_t b_u4x32, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     uint8x16_t const nibble_mask_u8x16 = vdupq_n_u8(0x0F);
@@ -358,7 +364,7 @@ NK_INTERNAL void nk_dot_u4x32_update_neonsdot(nk_dot_u4x32_state_neonsdot_t *sta
     state->product_sum_u32x4 = product_sum_u32x4;
 }
 
-NK_INTERNAL void nk_dot_u4x32_finalize_neonsdot(                                                //
+NK_HELPER_INLINE void nk_dot_u4x32_finalize_neonsdot(                                           //
     nk_dot_u4x32_state_neonsdot_t const *state_a, nk_dot_u4x32_state_neonsdot_t const *state_b, //
     nk_dot_u4x32_state_neonsdot_t const *state_c, nk_dot_u4x32_state_neonsdot_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -369,8 +375,8 @@ NK_INTERNAL void nk_dot_u4x32_finalize_neonsdot(                                
     result->u32x4 = vpaddq_u32(ab_u32x4, cd_u32x4);
 }
 
-NK_PUBLIC void nk_dot_e2m3_neonsdot(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars, nk_size_t count_scalars,
-                                    nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e2m3_neonsdot(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                          nk_size_t count_scalars, nk_f32_t *result) {
     // Integer dot product for e2m3 using SDOT (signed×signed i8 → i32).
     // Every e2m3 value × 16 is an exact integer in [-120, +120], fits signed i8.
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -420,8 +426,8 @@ nk_dot_e2m3_neonsdot_cycle:
     *result = (nk_f32_t)vaddvq_s32(sum_i32x4) / 256.0f;
 }
 
-NK_PUBLIC void nk_dot_e3m2_neonsdot(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars, nk_size_t count_scalars,
-                                    nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e3m2_neonsdot(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
+                                          nk_size_t count_scalars, nk_f32_t *result) {
     // Integer dot product for e3m2 using i16 LUT via vqtbl2q_u8 (low bytes) + comparison (high byte) + SMLAL.
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -498,12 +504,13 @@ typedef struct nk_dot_e2m3x16_state_neonsdot_t {
     int32x4_t sum_i32x4;
 } nk_dot_e2m3x16_state_neonsdot_t;
 
-NK_INTERNAL void nk_dot_e2m3x16_init_neonsdot(nk_dot_e2m3x16_state_neonsdot_t *state) {
+NK_HELPER_INLINE void nk_dot_e2m3x16_init_neonsdot(nk_dot_e2m3x16_state_neonsdot_t *state) {
     state->sum_i32x4 = vdupq_n_s32(0);
 }
 
-NK_INTERNAL void nk_dot_e2m3x16_update_neonsdot(nk_dot_e2m3x16_state_neonsdot_t *state, nk_b128_vec_t a,
-                                                nk_b128_vec_t b, nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_e2m3x16_update_neonsdot(nk_dot_e2m3x16_state_neonsdot_t *state, nk_b128_vec_t a,
+                                                     nk_b128_vec_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     static nk_u8_t const lut_data[32] = {0,  2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26,  28,  30,
@@ -526,7 +533,7 @@ NK_INTERNAL void nk_dot_e2m3x16_update_neonsdot(nk_dot_e2m3x16_state_neonsdot_t 
     state->sum_i32x4 = vdotq_s32(state->sum_i32x4, vreinterpretq_s8_u8(a_unsigned_u8x16), b_signed_i8x16);
 }
 
-NK_INTERNAL void nk_dot_e2m3x16_finalize_neonsdot(                                                  //
+NK_HELPER_INLINE void nk_dot_e2m3x16_finalize_neonsdot(                                             //
     nk_dot_e2m3x16_state_neonsdot_t const *state_a, nk_dot_e2m3x16_state_neonsdot_t const *state_b, //
     nk_dot_e2m3x16_state_neonsdot_t const *state_c, nk_dot_e2m3x16_state_neonsdot_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -549,12 +556,13 @@ typedef struct nk_dot_e3m2x16_state_neonsdot_t {
     int32x4_t sum_i32x4;
 } nk_dot_e3m2x16_state_neonsdot_t;
 
-NK_INTERNAL void nk_dot_e3m2x16_init_neonsdot(nk_dot_e3m2x16_state_neonsdot_t *state) {
+NK_HELPER_INLINE void nk_dot_e3m2x16_init_neonsdot(nk_dot_e3m2x16_state_neonsdot_t *state) {
     state->sum_i32x4 = vdupq_n_s32(0);
 }
 
-NK_INTERNAL void nk_dot_e3m2x16_update_neonsdot(nk_dot_e3m2x16_state_neonsdot_t *state, nk_b128_vec_t a,
-                                                nk_b128_vec_t b, nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_e3m2x16_update_neonsdot(nk_dot_e3m2x16_state_neonsdot_t *state, nk_b128_vec_t a,
+                                                     nk_b128_vec_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     static nk_u8_t const lut_data[32] = {0,  1,  2,  3,  4,  5,  6,  7,   8,   10,  12,  14,  16, 20, 24,  28,
@@ -595,7 +603,7 @@ NK_INTERNAL void nk_dot_e3m2x16_update_neonsdot(nk_dot_e3m2x16_state_neonsdot_t 
     state->sum_i32x4 = vmlal_high_s16(state->sum_i32x4, a_unsigned_high_i16x8, b_unsigned_high_i16x8);
 }
 
-NK_INTERNAL void nk_dot_e3m2x16_finalize_neonsdot(                                                  //
+NK_HELPER_INLINE void nk_dot_e3m2x16_finalize_neonsdot(                                             //
     nk_dot_e3m2x16_state_neonsdot_t const *state_a, nk_dot_e3m2x16_state_neonsdot_t const *state_b, //
     nk_dot_e3m2x16_state_neonsdot_t const *state_c, nk_dot_e3m2x16_state_neonsdot_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {

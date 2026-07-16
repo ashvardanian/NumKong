@@ -44,19 +44,19 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2", "avxvnni")
 #endif
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_bf16_alder(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_bf16_alder(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_bf16_t), 32);
 }
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f32_alder(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f32_alder(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f32_t), 32);
 }
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f16_alder(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f16_alder(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f16_t), 32);
 }
 
-NK_PUBLIC void nk_maxsim_pack_bf16_alder( //
+NK_API_COMPTIME void nk_maxsim_pack_bf16_alder( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_bf16_t);
@@ -82,7 +82,7 @@ NK_PUBLIC void nk_maxsim_pack_bf16_alder( //
     }
 }
 
-NK_PUBLIC void nk_maxsim_pack_f32_alder( //
+NK_API_COMPTIME void nk_maxsim_pack_f32_alder( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f32_t);
@@ -107,7 +107,7 @@ NK_PUBLIC void nk_maxsim_pack_f32_alder( //
     }
 }
 
-NK_PUBLIC void nk_maxsim_pack_f16_alder( //
+NK_API_COMPTIME void nk_maxsim_pack_f16_alder( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f16_t);
@@ -138,7 +138,7 @@ NK_PUBLIC void nk_maxsim_pack_f16_alder( //
  *  Uses single VPDPBUSD instruction per query×doc pair (no i16 intermediate).
  *  4Q×4D register tiling with 16 YMM accumulators.
  */
-NK_INTERNAL void nk_maxsim_coarse_argmax_alder_(          //
+NK_HELPER_INLINE void nk_maxsim_coarse_argmax_alder_(     //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8,  //
     nk_maxsim_vector_metadata_t const *document_metadata, //
     nk_size_t query_count, nk_size_t document_count,      //
@@ -393,7 +393,7 @@ NK_INTERNAL void nk_maxsim_coarse_argmax_alder_(          //
     }
 }
 
-NK_PUBLIC void nk_maxsim_packed_bf16_alder( //
+NK_API_COMPTIME void nk_maxsim_packed_bf16_alder( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -427,7 +427,7 @@ NK_PUBLIC void nk_maxsim_packed_bf16_alder( //
     *result = (nk_f32_t)total_angular_distance;
 }
 
-NK_PUBLIC void nk_maxsim_packed_f32_alder( //
+NK_API_COMPTIME void nk_maxsim_packed_f32_alder( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
@@ -462,7 +462,7 @@ NK_PUBLIC void nk_maxsim_packed_f32_alder( //
     *result = total_angular_distance;
 }
 
-NK_PUBLIC void nk_maxsim_packed_f16_alder( //
+NK_API_COMPTIME void nk_maxsim_packed_f16_alder( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 

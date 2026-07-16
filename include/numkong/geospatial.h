@@ -158,13 +158,13 @@ extern "C" {
  *
  *  @note Inputs are in radians and outputs are in meters.
  */
-NK_DYNAMIC void nk_haversine_f64(                   //
+NK_API_RUNTIME void nk_haversine_f64(               //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 
 /** @copydoc nk_haversine_f64 */
-NK_DYNAMIC void nk_haversine_f32(                   //
+NK_API_RUNTIME void nk_haversine_f32(               //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
@@ -182,56 +182,56 @@ NK_DYNAMIC void nk_haversine_f32(                   //
  *  @note Inputs are in radians and outputs are in meters.
  *  @note Uses the Earth ellipsoid parameters configured via `NK_EARTH_ELLIPSOID_*`.
  */
-NK_DYNAMIC void nk_vincenty_f64(                    //
+NK_API_RUNTIME void nk_vincenty_f64(                //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 
 /** @copydoc nk_vincenty_f64 */
-NK_DYNAMIC void nk_vincenty_f32(                    //
+NK_API_RUNTIME void nk_vincenty_f32(                //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
 
 /** @copydoc nk_haversine_f64 */
-NK_PUBLIC void nk_haversine_f64_serial(             //
+NK_API_COMPTIME void nk_haversine_f64_serial(       //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 /** @copydoc nk_vincenty_f64 */
-NK_PUBLIC void nk_vincenty_f64_serial(              //
+NK_API_COMPTIME void nk_vincenty_f64_serial(        //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 /** @copydoc nk_haversine_f32 */
-NK_PUBLIC void nk_haversine_f32_serial(             //
+NK_API_COMPTIME void nk_haversine_f32_serial(       //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
 /** @copydoc nk_vincenty_f32 */
-NK_PUBLIC void nk_vincenty_f32_serial(              //
+NK_API_COMPTIME void nk_vincenty_f32_serial(        //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
 
 #if NK_TARGET_NEON
 /** @copydoc nk_haversine_f64 */
-NK_PUBLIC void nk_haversine_f64_neon(               //
+NK_API_COMPTIME void nk_haversine_f64_neon(         //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 /** @copydoc nk_vincenty_f64 */
-NK_PUBLIC void nk_vincenty_f64_neon(                //
+NK_API_COMPTIME void nk_vincenty_f64_neon(          //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 /** @copydoc nk_haversine_f32 */
-NK_PUBLIC void nk_haversine_f32_neon(               //
+NK_API_COMPTIME void nk_haversine_f32_neon(         //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
 /** @copydoc nk_vincenty_f32 */
-NK_PUBLIC void nk_vincenty_f32_neon(                //
+NK_API_COMPTIME void nk_vincenty_f32_neon(          //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
@@ -239,22 +239,22 @@ NK_PUBLIC void nk_vincenty_f32_neon(                //
 
 #if NK_TARGET_HASWELL
 /** @copydoc nk_haversine_f64 */
-NK_PUBLIC void nk_haversine_f64_haswell(            //
+NK_API_COMPTIME void nk_haversine_f64_haswell(      //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 /** @copydoc nk_vincenty_f64 */
-NK_PUBLIC void nk_vincenty_f64_haswell(             //
+NK_API_COMPTIME void nk_vincenty_f64_haswell(       //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 /** @copydoc nk_haversine_f32 */
-NK_PUBLIC void nk_haversine_f32_haswell(            //
+NK_API_COMPTIME void nk_haversine_f32_haswell(      //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
 /** @copydoc nk_vincenty_f32 */
-NK_PUBLIC void nk_vincenty_f32_haswell(             //
+NK_API_COMPTIME void nk_vincenty_f32_haswell(       //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
@@ -262,22 +262,22 @@ NK_PUBLIC void nk_vincenty_f32_haswell(             //
 
 #if NK_TARGET_SKYLAKE
 /** @copydoc nk_haversine_f64 */
-NK_PUBLIC void nk_haversine_f64_skylake(            //
+NK_API_COMPTIME void nk_haversine_f64_skylake(      //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 /** @copydoc nk_vincenty_f64 */
-NK_PUBLIC void nk_vincenty_f64_skylake(             //
+NK_API_COMPTIME void nk_vincenty_f64_skylake(       //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 /** @copydoc nk_haversine_f32 */
-NK_PUBLIC void nk_haversine_f32_skylake(            //
+NK_API_COMPTIME void nk_haversine_f32_skylake(      //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
 /** @copydoc nk_vincenty_f32 */
-NK_PUBLIC void nk_vincenty_f32_skylake(             //
+NK_API_COMPTIME void nk_vincenty_f32_skylake(       //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
@@ -285,22 +285,22 @@ NK_PUBLIC void nk_vincenty_f32_skylake(             //
 
 #if NK_TARGET_V128RELAXED
 /** @copydoc nk_haversine_f64 */
-NK_PUBLIC void nk_haversine_f64_v128relaxed(        //
+NK_API_COMPTIME void nk_haversine_f64_v128relaxed(  //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 /** @copydoc nk_vincenty_f64 */
-NK_PUBLIC void nk_vincenty_f64_v128relaxed(         //
+NK_API_COMPTIME void nk_vincenty_f64_v128relaxed(   //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 /** @copydoc nk_haversine_f32 */
-NK_PUBLIC void nk_haversine_f32_v128relaxed(        //
+NK_API_COMPTIME void nk_haversine_f32_v128relaxed(  //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
 /** @copydoc nk_vincenty_f32 */
-NK_PUBLIC void nk_vincenty_f32_v128relaxed(         //
+NK_API_COMPTIME void nk_vincenty_f32_v128relaxed(   //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
@@ -308,22 +308,22 @@ NK_PUBLIC void nk_vincenty_f32_v128relaxed(         //
 
 #if NK_TARGET_RVV
 /** @copydoc nk_haversine_f64 */
-NK_PUBLIC void nk_haversine_f64_rvv(                //
+NK_API_COMPTIME void nk_haversine_f64_rvv(          //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 /** @copydoc nk_vincenty_f64 */
-NK_PUBLIC void nk_vincenty_f64_rvv(                 //
+NK_API_COMPTIME void nk_vincenty_f64_rvv(           //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results);
 /** @copydoc nk_haversine_f32 */
-NK_PUBLIC void nk_haversine_f32_rvv(                //
+NK_API_COMPTIME void nk_haversine_f32_rvv(          //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
 /** @copydoc nk_vincenty_f32 */
-NK_PUBLIC void nk_vincenty_f32_rvv(                 //
+NK_API_COMPTIME void nk_vincenty_f32_rvv(           //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results);
@@ -332,7 +332,7 @@ NK_PUBLIC void nk_vincenty_f32_rvv(                 //
 /**
  *  @brief  Returns the output dtype for Haversine distance.
  */
-NK_INTERNAL nk_dtype_t nk_haversine_output_dtype(nk_dtype_t dtype) {
+NK_HELPER_INLINE nk_dtype_t nk_haversine_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
     case nk_f32_k: return nk_f32_k;
@@ -343,7 +343,7 @@ NK_INTERNAL nk_dtype_t nk_haversine_output_dtype(nk_dtype_t dtype) {
 /**
  *  @brief  Returns the output dtype for Vincenty distance.
  */
-NK_INTERNAL nk_dtype_t nk_vincenty_output_dtype(nk_dtype_t dtype) {
+NK_HELPER_INLINE nk_dtype_t nk_vincenty_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
     case nk_f32_k: return nk_f32_k;
@@ -366,9 +366,9 @@ NK_INTERNAL nk_dtype_t nk_vincenty_output_dtype(nk_dtype_t dtype) {
 extern "C" {
 #endif
 
-#if !NK_DYNAMIC_DISPATCH
+#if !NK_RUNTIME_DISPATCH
 
-NK_PUBLIC void nk_haversine_f64(                    //
+NK_API_COMPTIME void nk_haversine_f64(              //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -387,7 +387,7 @@ NK_PUBLIC void nk_haversine_f64(                    //
 #endif
 }
 
-NK_PUBLIC void nk_haversine_f32(                    //
+NK_API_COMPTIME void nk_haversine_f32(              //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -406,7 +406,7 @@ NK_PUBLIC void nk_haversine_f32(                    //
 #endif
 }
 
-NK_PUBLIC void nk_vincenty_f64(                     //
+NK_API_COMPTIME void nk_vincenty_f64(               //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -425,7 +425,7 @@ NK_PUBLIC void nk_vincenty_f64(                     //
 #endif
 }
 
-NK_PUBLIC void nk_vincenty_f32(                     //
+NK_API_COMPTIME void nk_vincenty_f32(               //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -444,7 +444,7 @@ NK_PUBLIC void nk_vincenty_f32(                     //
 #endif
 }
 
-#endif // !NK_DYNAMIC_DISPATCH
+#endif // !NK_RUNTIME_DISPATCH
 
 #if defined(__cplusplus)
 } // extern "C"

@@ -20,22 +20,26 @@ extern "C" {
 #endif
 
 /** @brief Native WASM SIMD 128-bit load. */
-NK_INTERNAL void nk_load_b128_v128relaxed_(void const *src, nk_b128_vec_t *dst) { dst->v128 = wasm_v128_load(src); }
+NK_HELPER_INLINE void nk_load_b128_v128relaxed_(void const *src, nk_b128_vec_t *dst) {
+    dst->v128 = wasm_v128_load(src);
+}
 /** @brief Native WASM SIMD 256-bit load using two v128 loads. */
-NK_INTERNAL void nk_load_b256_v128relaxed_(void const *src, nk_b256_vec_t *dst) {
+NK_HELPER_INLINE void nk_load_b256_v128relaxed_(void const *src, nk_b256_vec_t *dst) {
     dst->v128s[0] = wasm_v128_load(src);
     dst->v128s[1] = wasm_v128_load((char const *)src + 16);
 }
 /** @brief Native WASM SIMD 128-bit store. */
-NK_INTERNAL void nk_store_b128_v128relaxed_(nk_b128_vec_t const *src, void *dst) { wasm_v128_store(dst, src->v128); }
+NK_HELPER_INLINE void nk_store_b128_v128relaxed_(nk_b128_vec_t const *src, void *dst) {
+    wasm_v128_store(dst, src->v128);
+}
 /** @brief Native WASM SIMD 256-bit store using two v128 stores. */
-NK_INTERNAL void nk_store_b256_v128relaxed_(nk_b256_vec_t const *src, void *dst) {
+NK_HELPER_INLINE void nk_store_b256_v128relaxed_(nk_b256_vec_t const *src, void *dst) {
     wasm_v128_store(dst, src->v128s[0]);
     wasm_v128_store((char *)dst + 16, src->v128s[1]);
 }
 
 /** @brief BF16 is the upper 16 bits of F32, so zero-extend to u32 and shift left by 16. */
-NK_INTERNAL nk_b128_vec_t nk_bf16x4_to_f32x4_v128relaxed_(nk_b64_vec_t bf16_vec) {
+NK_HELPER_INLINE nk_b128_vec_t nk_bf16x4_to_f32x4_v128relaxed_(nk_b64_vec_t bf16_vec) {
     v128_t bf16_i64x2 = wasm_i64x2_splat(bf16_vec.u64);
     v128_t bf16_low_u32x4 = wasm_u32x4_extend_low_u16x8(bf16_i64x2);
     nk_b128_vec_t result;
@@ -53,7 +57,7 @@ NK_INTERNAL nk_b128_vec_t nk_bf16x4_to_f32x4_v128relaxed_(nk_b64_vec_t bf16_vec)
  *  integer-to-float conversion needed. Inf/NaN (exp=31) overflows the multiply and
  *  is fixed with a comparison + blend.
  */
-NK_INTERNAL nk_b128_vec_t nk_f16x4_to_f32x4_v128relaxed_(nk_b64_vec_t f16_vec) {
+NK_HELPER_INLINE nk_b128_vec_t nk_f16x4_to_f32x4_v128relaxed_(nk_b64_vec_t f16_vec) {
     v128_t raw_i64x2 = wasm_i64x2_splat(f16_vec.u64);
     v128_t raw_u32x4 = wasm_u32x4_extend_low_u16x8(raw_i64x2);
 
@@ -87,7 +91,7 @@ NK_INTERNAL nk_b128_vec_t nk_f16x4_to_f32x4_v128relaxed_(nk_b64_vec_t f16_vec) {
  *  Shift 7-bit magnitude left by 20 into f32 position, multiply by 2^120 to rebias exponent.
  *  The multiply also normalizes subnormals. NaN fixup for magnitude 0x7F only.
  */
-NK_INTERNAL nk_b128_vec_t nk_e4m3x4_to_f32x4_v128relaxed_(nk_b32_vec_t e4m3_vec) {
+NK_HELPER_INLINE nk_b128_vec_t nk_e4m3x4_to_f32x4_v128relaxed_(nk_b32_vec_t e4m3_vec) {
     v128_t raw_u32x4 = wasm_u32x4_extend_low_u16x8(wasm_u16x8_extend_low_u8x16(wasm_i32x4_splat(e4m3_vec.u32)));
     v128_t sign_u32x4 = wasm_i32x4_shl(wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x80)), 24);
     v128_t nonsign_u32x4 = wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x7F));
@@ -106,7 +110,7 @@ NK_INTERNAL nk_b128_vec_t nk_e4m3x4_to_f32x4_v128relaxed_(nk_b32_vec_t e4m3_vec)
  *  Same exponent encoding as F16 (5-bit, bias=15). Shift 7-bit magnitude left by 21,
  *  multiply by 2^112 to rebias. Inf/NaN fixup for exp=31 (nonsign > 123).
  */
-NK_INTERNAL nk_b128_vec_t nk_e5m2x4_to_f32x4_v128relaxed_(nk_b32_vec_t e5m2_vec) {
+NK_HELPER_INLINE nk_b128_vec_t nk_e5m2x4_to_f32x4_v128relaxed_(nk_b32_vec_t e5m2_vec) {
     v128_t raw_u32x4 = wasm_u32x4_extend_low_u16x8(wasm_u16x8_extend_low_u8x16(wasm_i32x4_splat(e5m2_vec.u32)));
     v128_t sign_u32x4 = wasm_i32x4_shl(wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x80)), 24);
     v128_t nonsign_u32x4 = wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x7F));
@@ -124,7 +128,7 @@ NK_INTERNAL nk_b128_vec_t nk_e5m2x4_to_f32x4_v128relaxed_(nk_b32_vec_t e5m2_vec)
  *  S EE MMM (bias=1). Shift 5-bit magnitude left by 20, multiply by 2^126 to rebias.
  *  No inf/NaN in E2M3FN format, so no fixup needed.
  */
-NK_INTERNAL nk_b128_vec_t nk_e2m3x4_to_f32x4_v128relaxed_(nk_b32_vec_t e2m3_vec) {
+NK_HELPER_INLINE nk_b128_vec_t nk_e2m3x4_to_f32x4_v128relaxed_(nk_b32_vec_t e2m3_vec) {
     v128_t raw_u32x4 = wasm_u32x4_extend_low_u16x8(wasm_u16x8_extend_low_u8x16(wasm_i32x4_splat(e2m3_vec.u32)));
     v128_t sign_u32x4 = wasm_i32x4_shl(wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x20)), 26);
     v128_t nonsign_u32x4 = wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x1F));
@@ -140,7 +144,7 @@ NK_INTERNAL nk_b128_vec_t nk_e2m3x4_to_f32x4_v128relaxed_(nk_b32_vec_t e2m3_vec)
  *  S EEE MM (bias=3). Shift 5-bit magnitude left by 21, multiply by 2^124 to rebias.
  *  No inf/NaN in E3M2FN format, so no fixup needed.
  */
-NK_INTERNAL nk_b128_vec_t nk_e3m2x4_to_f32x4_v128relaxed_(nk_b32_vec_t e3m2_vec) {
+NK_HELPER_INLINE nk_b128_vec_t nk_e3m2x4_to_f32x4_v128relaxed_(nk_b32_vec_t e3m2_vec) {
     v128_t raw_u32x4 = wasm_u32x4_extend_low_u16x8(wasm_u16x8_extend_low_u8x16(wasm_i32x4_splat(e3m2_vec.u32)));
     v128_t sign_u32x4 = wasm_i32x4_shl(wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x20)), 26);
     v128_t nonsign_u32x4 = wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x1F));
@@ -152,7 +156,7 @@ NK_INTERNAL nk_b128_vec_t nk_e3m2x4_to_f32x4_v128relaxed_(nk_b32_vec_t e3m2_vec)
 }
 
 /** @brief Convert 4x i8 → f32x4 (WASM). Widen i8→i16→i32, convert to f32. */
-NK_INTERNAL nk_b128_vec_t nk_i8x4_to_f32x4_v128relaxed_(nk_b32_vec_t in_vec) {
+NK_HELPER_INLINE nk_b128_vec_t nk_i8x4_to_f32x4_v128relaxed_(nk_b32_vec_t in_vec) {
     v128_t in_i8x16 = wasm_i32x4_splat(in_vec.u32);
     v128_t in_i16x8 = wasm_i16x8_extend_low_i8x16(in_i8x16);
     v128_t in_i32x4 = wasm_i32x4_extend_low_i16x8(in_i16x8);
@@ -162,7 +166,7 @@ NK_INTERNAL nk_b128_vec_t nk_i8x4_to_f32x4_v128relaxed_(nk_b32_vec_t in_vec) {
 }
 
 /** @brief Convert 4x u8 → f32x4 (WASM). Widen u8→u16→u32, convert to f32. */
-NK_INTERNAL nk_b128_vec_t nk_u8x4_to_f32x4_v128relaxed_(nk_b32_vec_t in_vec) {
+NK_HELPER_INLINE nk_b128_vec_t nk_u8x4_to_f32x4_v128relaxed_(nk_b32_vec_t in_vec) {
     v128_t in_u8x16 = wasm_i32x4_splat(in_vec.u32);
     v128_t in_u16x8 = wasm_u16x8_extend_low_u8x16(in_u8x16);
     v128_t in_u32x4 = wasm_u32x4_extend_low_u16x8(in_u16x8);
@@ -172,7 +176,7 @@ NK_INTERNAL nk_b128_vec_t nk_u8x4_to_f32x4_v128relaxed_(nk_b32_vec_t in_vec) {
 }
 
 /** @brief Convert f32x4 → 4x bf16 via RNE rounding (WASM). */
-NK_INTERNAL nk_b64_vec_t nk_f32x4_to_bf16x4_v128relaxed_(nk_b128_vec_t hub_vec) {
+NK_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_bf16x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t lsb_u32x4 = wasm_v128_and(wasm_u32x4_shr(bits_u32x4, 16), wasm_i32x4_splat(1));
     v128_t rounded_u32x4 = wasm_i32x4_add(bits_u32x4, wasm_i32x4_add(wasm_i32x4_splat(0x7FFF), lsb_u32x4));
@@ -187,7 +191,7 @@ NK_INTERNAL nk_b64_vec_t nk_f32x4_to_bf16x4_v128relaxed_(nk_b128_vec_t hub_vec) 
  *  @brief F32→F16 via bit manipulation with RNE (WASM).
  *  Handles normal, subnormal, overflow (→inf), and inf/NaN cases.
  */
-NK_INTERNAL nk_b64_vec_t nk_f32x4_to_f16x4_v128relaxed_(nk_b128_vec_t hub_vec) {
+NK_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_f16x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_i32x4_shl(wasm_u32x4_shr(bits_u32x4, 31), 15);
     v128_t f32_exp_u32x4 = wasm_v128_and(wasm_u32x4_shr(bits_u32x4, 23), wasm_i32x4_splat(0xFF));
@@ -239,7 +243,7 @@ NK_INTERNAL nk_b64_vec_t nk_f32x4_to_f16x4_v128relaxed_(nk_b128_vec_t hub_vec) {
 }
 
 /** @brief Convert f32x4 → 4x e4m3 via bit manipulation with RNE (WASM). */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e4m3x4_v128relaxed_(nk_b128_vec_t hub_vec) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e4m3x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_u32x4_shr(bits_u32x4, 31);
     v128_t f32_exp_u32x4 = wasm_v128_and(wasm_u32x4_shr(bits_u32x4, 23), wasm_i32x4_splat(0xFF));
@@ -290,7 +294,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e4m3x4_v128relaxed_(nk_b128_vec_t hub_vec) 
 }
 
 /** @brief Convert f32x4 → 4x e5m2 via bit manipulation with RNE (WASM). */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e5m2x4_v128relaxed_(nk_b128_vec_t hub_vec) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e5m2x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_u32x4_shr(bits_u32x4, 31);
     v128_t f32_exp_u32x4 = wasm_v128_and(wasm_u32x4_shr(bits_u32x4, 23), wasm_i32x4_splat(0xFF));
@@ -337,7 +341,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e5m2x4_v128relaxed_(nk_b128_vec_t hub_vec) 
 }
 
 /** @brief Convert f32x4 → 4x e2m3 via bit manipulation with RNE (WASM). */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e2m3x4_v128relaxed_(nk_b128_vec_t hub_vec) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e2m3x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_u32x4_shr(bits_u32x4, 31);
     v128_t f32_exp_u32x4 = wasm_v128_and(wasm_u32x4_shr(bits_u32x4, 23), wasm_i32x4_splat(0xFF));
@@ -381,7 +385,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e2m3x4_v128relaxed_(nk_b128_vec_t hub_vec) 
 }
 
 /** @brief Convert f32x4 → 4x e3m2 via bit manipulation with RNE (WASM). */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e3m2x4_v128relaxed_(nk_b128_vec_t hub_vec) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e3m2x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_u32x4_shr(bits_u32x4, 31);
     v128_t f32_exp_u32x4 = wasm_v128_and(wasm_u32x4_shr(bits_u32x4, 23), wasm_i32x4_splat(0xFF));
@@ -425,7 +429,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e3m2x4_v128relaxed_(nk_b128_vec_t hub_vec) 
 }
 
 /** @brief Convert f32x4 → 4x i8 with saturation (WASM). */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_i8x4_v128relaxed_(nk_b128_vec_t hub_vec) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_i8x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t clamped_f32x4 = wasm_f32x4_min(wasm_f32x4_max(hub_vec.v128, wasm_f32x4_splat(-128.0f)),
                                           wasm_f32x4_splat(127.0f));
     v128_t result_i32x4 = wasm_i32x4_trunc_sat_f32x4(wasm_f32x4_nearest(clamped_f32x4));
@@ -437,7 +441,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_i8x4_v128relaxed_(nk_b128_vec_t hub_vec) {
 }
 
 /** @brief Convert f32x4 → 4x u8 with saturation (WASM). */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_u8x4_v128relaxed_(nk_b128_vec_t hub_vec) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_u8x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t clamped_f32x4 = wasm_f32x4_min(wasm_f32x4_max(hub_vec.v128, wasm_f32x4_splat(0.0f)),
                                           wasm_f32x4_splat(255.0f));
     v128_t result_u32x4 = wasm_u32x4_trunc_sat_f32x4(wasm_f32x4_nearest(clamped_f32x4));
@@ -448,7 +452,8 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_u8x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     return result_vec;
 }
 
-NK_PUBLIC void nk_cast_v128relaxed(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type) {
+NK_API_COMPTIME void nk_cast_v128relaxed(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                         nk_dtype_t to_type) {
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);

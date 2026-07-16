@@ -20,7 +20,7 @@
  *  @section dot_genoa_stateful Stateful Streaming Logic
  *
  *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_INTERNAL` functions:
+ *  `NK_HELPER_INLINE` functions:
  *
  *  - nk_dot_bf16x32 state with native BF16 dot-products using VDPBF16PS,
  *  - nk_dot_through_bf16 state for FP8 inputs (e4m3, e5m2) converted to BF16.
@@ -97,8 +97,8 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512bf16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_PUBLIC void nk_dot_bf16_genoa(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars, nk_size_t count_scalars,
-                                 nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_bf16_genoa(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars, nk_size_t count_scalars,
+                                       nk_f32_t *result) {
     __m512i a_bf16x32, b_bf16x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
 
@@ -120,8 +120,8 @@ nk_dot_bf16_genoa_cycle:
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
 }
 
-NK_PUBLIC void nk_dot_bf16c_genoa(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs, nk_size_t count_pairs,
-                                  nk_f32c_t *result) {
+NK_API_COMPTIME void nk_dot_bf16c_genoa(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs, nk_size_t count_pairs,
+                                        nk_f32c_t *result) {
     __m512i a_bf16x32, b_bf16x32;
     __m512 sum_real_f32x16 = _mm512_setzero_ps();
     __m512 sum_imag_f32x16 = _mm512_setzero_ps();
@@ -164,8 +164,8 @@ nk_dot_bf16c_genoa_cycle:
     result->imag = nk_reduce_add_f32x16_skylake_(sum_imag_f32x16);
 }
 
-NK_PUBLIC void nk_vdot_bf16c_genoa(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs, nk_size_t count_pairs,
-                                   nk_f32c_t *result) {
+NK_API_COMPTIME void nk_vdot_bf16c_genoa(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs, nk_size_t count_pairs,
+                                         nk_f32c_t *result) {
     __m512i a_bf16x32, b_bf16x32;
     __m512 sum_real_f32x16 = _mm512_setzero_ps();
     __m512 sum_imag_f32x16 = _mm512_setzero_ps();
@@ -208,8 +208,8 @@ nk_vdot_bf16c_genoa_cycle:
     result->imag = nk_reduce_add_f32x16_skylake_(sum_imag_f32x16);
 }
 
-NK_PUBLIC void nk_dot_e5m2_genoa(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars, nk_size_t count_scalars,
-                                 nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e5m2_genoa(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars, nk_size_t count_scalars,
+                                       nk_f32_t *result) {
     __m256i a_e5m2x32, b_e5m2x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
 
@@ -236,19 +236,19 @@ nk_dot_e5m2_genoa_cycle:
 
 typedef nk_dot_through_f32_state_skylake_t_ nk_dot_through_bf16_state_genoa_t_;
 
-NK_INTERNAL void nk_dot_through_bf16_init_genoa_(nk_dot_through_bf16_state_genoa_t_ *state) {
+NK_HELPER_INLINE void nk_dot_through_bf16_init_genoa_(nk_dot_through_bf16_state_genoa_t_ *state) {
     state->sum_f32x16 = _mm512_setzero();
 }
 
-NK_INTERNAL void nk_dot_through_bf16_update_genoa_(nk_dot_through_bf16_state_genoa_t_ *state, nk_b512_vec_t a,
-                                                   nk_b512_vec_t b, nk_size_t depth_offset,
-                                                   nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_through_bf16_update_genoa_(nk_dot_through_bf16_state_genoa_t_ *state, nk_b512_vec_t a,
+                                                        nk_b512_vec_t b, nk_size_t depth_offset,
+                                                        nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     state->sum_f32x16 = _mm512_dpbf16_ps(state->sum_f32x16, nk_m512bh_from_m512i_(a.zmm), nk_m512bh_from_m512i_(b.zmm));
 }
 
-NK_INTERNAL void nk_dot_through_bf16_finalize_genoa_(                                                     //
+NK_HELPER_INLINE void nk_dot_through_bf16_finalize_genoa_(                                                //
     nk_dot_through_bf16_state_genoa_t_ const *state_a, nk_dot_through_bf16_state_genoa_t_ const *state_b, //
     nk_dot_through_bf16_state_genoa_t_ const *state_c, nk_dot_through_bf16_state_genoa_t_ const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -257,20 +257,20 @@ NK_INTERNAL void nk_dot_through_bf16_finalize_genoa_(                           
 
 typedef nk_dot_through_bf16_state_genoa_t_ nk_dot_bf16x32_state_genoa_t;
 
-NK_INTERNAL void nk_dot_bf16x32_init_genoa(nk_dot_bf16x32_state_genoa_t *state) {
+NK_HELPER_INLINE void nk_dot_bf16x32_init_genoa(nk_dot_bf16x32_state_genoa_t *state) {
     nk_dot_through_bf16_init_genoa_(state);
 }
 
-NK_INTERNAL void nk_dot_bf16x32_update_genoa(nk_dot_bf16x32_state_genoa_t *state, nk_b512_vec_t a, nk_b512_vec_t b,
-                                             nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_bf16x32_update_genoa(nk_dot_bf16x32_state_genoa_t *state, nk_b512_vec_t a, nk_b512_vec_t b,
+                                                  nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_dot_through_bf16_update_genoa_(state, a, b, depth_offset, active_dimensions);
 }
 
-NK_INTERNAL void nk_dot_bf16x32_finalize_genoa(nk_dot_bf16x32_state_genoa_t const *state_a,
-                                               nk_dot_bf16x32_state_genoa_t const *state_b,
-                                               nk_dot_bf16x32_state_genoa_t const *state_c,
-                                               nk_dot_bf16x32_state_genoa_t const *state_d, nk_size_t total_dimensions,
-                                               nk_b128_vec_t *result) {
+NK_HELPER_INLINE void nk_dot_bf16x32_finalize_genoa(nk_dot_bf16x32_state_genoa_t const *state_a,
+                                                    nk_dot_bf16x32_state_genoa_t const *state_b,
+                                                    nk_dot_bf16x32_state_genoa_t const *state_c,
+                                                    nk_dot_bf16x32_state_genoa_t const *state_d,
+                                                    nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_dot_through_bf16_finalize_genoa_(state_a, state_b, state_c, state_d, total_dimensions, result);
 }
 

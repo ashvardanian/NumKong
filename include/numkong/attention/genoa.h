@@ -55,8 +55,8 @@ enum {
 typedef void (*nk_attention_narrow_genoa_t_)(void const *source, nk_bf16_t *destination, nk_size_t count,
                                              nk_size_t padded);
 
-NK_INTERNAL void nk_attention_narrow_bf16_genoa_(void const *source, nk_bf16_t *destination, nk_size_t count,
-                                                 nk_size_t padded) {
+NK_HELPER_INLINE void nk_attention_narrow_bf16_genoa_(void const *source, nk_bf16_t *destination, nk_size_t count,
+                                                      nk_size_t padded) {
     nk_size_t channel_idx = 0;
     for (; channel_idx + 32 <= count; channel_idx += 32)
         _mm512_storeu_si512(destination + channel_idx,
@@ -71,8 +71,8 @@ NK_INTERNAL void nk_attention_narrow_bf16_genoa_(void const *source, nk_bf16_t *
         _mm512_storeu_si512(destination + channel_idx, _mm512_setzero_si512());
 }
 
-NK_INTERNAL void nk_attention_narrow_e4m3_genoa_(void const *source, nk_bf16_t *destination, nk_size_t count,
-                                                 nk_size_t padded) {
+NK_HELPER_INLINE void nk_attention_narrow_e4m3_genoa_(void const *source, nk_bf16_t *destination, nk_size_t count,
+                                                      nk_size_t padded) {
     nk_size_t channel_idx = 0;
     nk_b512_vec_t converted;
     for (; channel_idx + 32 <= count; channel_idx += 32) {
@@ -89,8 +89,8 @@ NK_INTERNAL void nk_attention_narrow_e4m3_genoa_(void const *source, nk_bf16_t *
         _mm512_storeu_si512(destination + channel_idx, _mm512_setzero_si512());
 }
 
-NK_INTERNAL nk_size_t nk_attention_packed_size_genoa_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                      nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_packed_size_genoa_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 32);
     nk_size_t payload_bytes = 0;
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
@@ -99,21 +99,23 @@ NK_INTERNAL nk_size_t nk_attention_packed_size_genoa_(nk_size_t key_value_head_c
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_bf16_genoa(nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_genoa(nk_size_t key_value_head_count, nk_size_t depth,
+                                                              nk_u32_t const *segment_lengths,
+                                                              nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_genoa_k_)
         return nk_attention_packed_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_packed_size_genoa_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_e4m3_genoa(nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_genoa(nk_size_t key_value_head_count, nk_size_t depth,
+                                                              nk_u32_t const *segment_lengths,
+                                                              nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_genoa_k_)
         return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_packed_size_genoa_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
-NK_INTERNAL void nk_attention_pack_genoa_(                                                                     //
+NK_HELPER_INLINE void nk_attention_pack_genoa_(                                                                //
     void const *keys, void const *values, nk_size_t element_bytes,                                             //
     nk_attention_narrow_genoa_t_ narrow,                                                                       //
     nk_size_t key_value_head_count, nk_size_t depth,                                                           //
@@ -153,7 +155,7 @@ NK_INTERNAL void nk_attention_pack_genoa_(                                      
     }
 }
 
-NK_PUBLIC void nk_attention_pack_bf16_genoa(                                                         //
+NK_API_COMPTIME void nk_attention_pack_bf16_genoa(                                                   //
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
@@ -169,7 +171,7 @@ NK_PUBLIC void nk_attention_pack_bf16_genoa(                                    
                              value_stride_bytes, key_value_packed, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_pack_e4m3_genoa(                                                         //
+NK_API_COMPTIME void nk_attention_pack_e4m3_genoa(                                                   //
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
@@ -189,7 +191,7 @@ NK_PUBLIC void nk_attention_pack_e4m3_genoa(                                    
  *  @brief Shared attention core over BF16 planes: per query row, panel-flash with an exact
  *         online correction; scores use `vdpbf16ps` with four KV rows in flight.
  */
-NK_INTERNAL void nk_attention_packed_genoa_(                                                                    //
+NK_HELPER_INLINE void nk_attention_packed_genoa_(                                                               //
     void const *queries, nk_size_t element_bytes, nk_attention_narrow_genoa_t_ narrow,                          //
     void const *key_value_packed, nk_f32_t *output,                                                             //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
@@ -313,7 +315,7 @@ NK_INTERNAL void nk_attention_packed_genoa_(                                    
     }
 }
 
-NK_PUBLIC void nk_attention_packed_bf16_genoa(                                   //
+NK_API_COMPTIME void nk_attention_packed_bf16_genoa(                             //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -330,7 +332,7 @@ NK_PUBLIC void nk_attention_packed_bf16_genoa(                                  
                                output_stride_bytes, scale, first_task, task_count);
 }
 
-NK_PUBLIC void nk_attention_packed_e4m3_genoa(                                   //
+NK_API_COMPTIME void nk_attention_packed_e4m3_genoa(                             //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //

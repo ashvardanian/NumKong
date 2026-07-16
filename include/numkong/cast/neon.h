@@ -67,13 +67,13 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd")
 #endif
 
-NK_PUBLIC void nk_f16_to_f32_neon(nk_f16_t const *src, nk_f32_t *dest) {
+NK_API_COMPTIME void nk_f16_to_f32_neon(nk_f16_t const *src, nk_f32_t *dest) {
     float16x4_t f16_f16x4 = vreinterpret_f16_u16(vld1_dup_u16((nk_u16_t const *)src));
     float32x4_t f32_f32x4 = vcvt_f32_f16(f16_f16x4);
     *dest = vgetq_lane_f32(f32_f32x4, 0);
 }
 
-NK_PUBLIC void nk_f32_to_f16_neon(nk_f32_t const *src, nk_f16_t *dest) {
+NK_API_COMPTIME void nk_f32_to_f16_neon(nk_f32_t const *src, nk_f16_t *dest) {
     float32x4_t f32_f32x4 = vdupq_n_f32(*src);
     float16x4_t f16_f16x4 = vcvt_f16_f32(f32_f32x4);
     vst1_lane_u16((nk_u16_t *)dest, vreinterpret_u16_f16(f16_f16x4), 0);
@@ -82,27 +82,29 @@ NK_PUBLIC void nk_f32_to_f16_neon(nk_f32_t const *src, nk_f16_t *dest) {
 #pragma region Type Punned Loads and Stores
 
 /** @brief Type-agnostic 128-bit full load (NEON). */
-NK_INTERNAL void nk_load_b128_neon_(void const *src, nk_b128_vec_t *dst) {
+NK_HELPER_INLINE void nk_load_b128_neon_(void const *src, nk_b128_vec_t *dst) {
     dst->u8x16 = vld1q_u8((nk_u8_t const *)src);
 }
 
 /** @brief Type-agnostic 256-bit full load (NEON). */
-NK_INTERNAL void nk_load_b256_neon_(void const *src, nk_b256_vec_t *dst) {
+NK_HELPER_INLINE void nk_load_b256_neon_(void const *src, nk_b256_vec_t *dst) {
     dst->u8x16s[0] = vld1q_u8((nk_u8_t const *)src);
     dst->u8x16s[1] = vld1q_u8((nk_u8_t const *)src + 16);
 }
 
 /** @brief Type-agnostic 128-bit full store (NEON). */
-NK_INTERNAL void nk_store_b128_neon_(nk_b128_vec_t const *src, void *dst) { vst1q_u8((nk_u8_t *)dst, src->u8x16); }
+NK_HELPER_INLINE void nk_store_b128_neon_(nk_b128_vec_t const *src, void *dst) { vst1q_u8((nk_u8_t *)dst, src->u8x16); }
 
 /** @brief Type-agnostic 256-bit full store (NEON). */
-NK_INTERNAL void nk_store_b256_neon_(nk_b256_vec_t const *src, void *dst) {
+NK_HELPER_INLINE void nk_store_b256_neon_(nk_b256_vec_t const *src, void *dst) {
     vst1q_u8((nk_u8_t *)dst, src->u8x16s[0]);
     vst1q_u8((nk_u8_t *)dst + 16, src->u8x16s[1]);
 }
 
 /** @brief Type-agnostic 64-bit full load (NEON). */
-NK_INTERNAL void nk_load_b64_neon_(void const *src, nk_b64_vec_t *dst) { dst->u8x8 = vld1_u8((nk_u8_t const *)src); }
+NK_HELPER_INLINE void nk_load_b64_neon_(void const *src, nk_b64_vec_t *dst) {
+    dst->u8x8 = vld1_u8((nk_u8_t const *)src);
+}
 
 /**
  *  @brief 8-lane `uint16x8_t` splat that hides the source from the optimizer.
@@ -112,7 +114,7 @@ NK_INTERNAL void nk_load_b64_neon_(void const *src, nk_b64_vec_t *dst) { dst->u8
  *  assemble under a `+bf16`-only pragma. The empty `__asm__` constraint forces `mov w; dup v.8h, w`
  *  instead, valid on plain `armv8-a+simd`. No-op on Clang; skipped on MSVC (neither is affected).
  */
-NK_INTERNAL uint16x8_t nk_u16x8_splat_(nk_u16_t bits) {
+NK_HELPER_INLINE uint16x8_t nk_u16x8_splat_(nk_u16_t bits) {
 #if defined(__GNUC__) || defined(__clang__)
     __asm__("" : "+r"(bits));
 #endif
@@ -127,7 +129,7 @@ NK_INTERNAL uint16x8_t nk_u16x8_splat_(nk_u16_t bits) {
  *  Reinterprets magnitude bits as a tiny f32, then multiplies by 2^(127-bias) to rebias.
  *  Handles zero, subnormals, and normals in a single VMUL. NaN fixup for magnitude 0x7F.
  *  https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/ */
-NK_INTERNAL float32x4_t nk_e4m3x4_to_f32x4_neon_(nk_b32_vec_t src) {
+NK_HELPER_INLINE float32x4_t nk_e4m3x4_to_f32x4_neon_(nk_b32_vec_t src) {
     uint8x8_t e4m3_u8x8 = vcreate_u8(src.u32);
     uint16x8_t e4m3_u16x8 = vmovl_u8(e4m3_u8x8);
     uint32x4_t e4m3_u32x4 = vmovl_u16(vget_low_u16(e4m3_u16x8));
@@ -155,7 +157,7 @@ NK_INTERNAL float32x4_t nk_e4m3x4_to_f32x4_neon_(nk_b32_vec_t src) {
  *  Reinterprets magnitude bits as a tiny f32, then multiplies by 2^(127-bias) to rebias.
  *  Handles zero, subnormals, and normals in a single VMUL. Inf/NaN fixup for exp=31.
  *  https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/ */
-NK_INTERNAL float32x4_t nk_e5m2x4_to_f32x4_neon_(nk_b32_vec_t src) {
+NK_HELPER_INLINE float32x4_t nk_e5m2x4_to_f32x4_neon_(nk_b32_vec_t src) {
     uint8x8_t e5m2_u8x8 = vcreate_u8(src.u32);
     uint16x8_t e5m2_u16x8 = vmovl_u8(e5m2_u8x8);
     uint32x4_t e5m2_u32x4 = vmovl_u16(vget_low_u16(e5m2_u16x8));
@@ -182,7 +184,7 @@ NK_INTERNAL float32x4_t nk_e5m2x4_to_f32x4_neon_(nk_b32_vec_t src) {
 /** @brief Convert 8x e4m3 → f16x8 via bit manipulation (NEON).
  *  E4M3FN format: S EEEE MMM (bias=7). F16: S EEEEE MMMMMMMMMM (bias=15).
  *  E4M3FN has no ∞; only exp=15, mant=7 is NaN. exp=15, mant ∈ [0,6] are valid normals. */
-NK_INTERNAL float16x8_t nk_e4m3x8_to_f16x8_neon_(uint8x8_t e4m3_u8x8) {
+NK_HELPER_INLINE float16x8_t nk_e4m3x8_to_f16x8_neon_(uint8x8_t e4m3_u8x8) {
     uint16x8_t e4m3_u16x8 = vmovl_u8(e4m3_u8x8);
     uint16x8_t sign_u16x8 = vshlq_n_u16(vandq_u16(e4m3_u16x8, vdupq_n_u16(0x80)), 8); // sign << 15
     uint16x8_t exponent_u16x8 = vandq_u16(vshrq_n_u16(e4m3_u16x8, 3), vdupq_n_u16(0x0F));
@@ -222,8 +224,8 @@ NK_INTERNAL float16x8_t nk_e4m3x8_to_f16x8_neon_(uint8x8_t e4m3_u8x8) {
  *  Exact for all 256 input values including subnormals and NaN.
  *
  *  Performance (per 16 elements): ~10-12 instructions vs ~40 for 2× nk_e4m3x8_to_f16x8_neon_ */
-NK_INTERNAL void nk_e4m3x16_to_f16x8x2_neon_(uint8x16_t input_u8x16, float16x8_t *result_low_f16x8,
-                                             float16x8_t *result_high_f16x8) {
+NK_HELPER_INLINE void nk_e4m3x16_to_f16x8x2_neon_(uint8x16_t input_u8x16, float16x8_t *result_low_f16x8,
+                                                  float16x8_t *result_high_f16x8) {
     // Precomputed LUT: F16 high byte for unsigned 7-bit e4m3 values (sign handled separately).
     // Quadrant 0: |e4m3| bytes 0x00..0x3F (exp=0..7)
     static nk_u8_t const table_q0_u8x64[64] = {
@@ -272,7 +274,7 @@ NK_INTERNAL void nk_e4m3x16_to_f16x8x2_neon_(uint8x16_t input_u8x16, float16x8_t
 /** @brief Convert 8x e5m2 → f16x8 via bit shift (NEON).
  *  E5M2 (bias=15) and F16 (bias=15) share the same exponent bias, so conversion is trivial.
  *  E5M2: S EEEEE MM → F16: S EEEEE MM 00000000. Works for all: zero, subnormal, normal, inf, nan. */
-NK_INTERNAL float16x8_t nk_e5m2x8_to_f16x8_neon_(uint8x8_t e5m2_u8x8) {
+NK_HELPER_INLINE float16x8_t nk_e5m2x8_to_f16x8_neon_(uint8x8_t e5m2_u8x8) {
     uint16x8_t e5m2_u16x8 = vmovl_u8(e5m2_u8x8);
     return vreinterpretq_f16_u16(vshlq_n_u16(e5m2_u16x8, 8));
 }
@@ -280,7 +282,7 @@ NK_INTERNAL float16x8_t nk_e5m2x8_to_f16x8_neon_(uint8x8_t e5m2_u8x8) {
 /** @brief Convert 8x e2m3 → f16x8 via direct bit manipulation (NEON).
  *  E2M3FN (FP6): S EE MMM (bias=1) → F16: S EEEEE MMMMMMMMMM (bias=15).
  *  Handles subnormals (exp=0) via arithmetic conversion. No Inf/NaN in E2M3FN. */
-NK_INTERNAL float16x8_t nk_e2m3x8_to_f16x8_neon_(uint8x8_t e2m3_u8x8) {
+NK_HELPER_INLINE float16x8_t nk_e2m3x8_to_f16x8_neon_(uint8x8_t e2m3_u8x8) {
     // Widen to 16-bit for NEON operations
     uint16x8_t e2m3_u16x8 = vmovl_u8(e2m3_u8x8);
 
@@ -313,7 +315,7 @@ NK_INTERNAL float16x8_t nk_e2m3x8_to_f16x8_neon_(uint8x8_t e2m3_u8x8) {
 /** @brief Convert 8x e3m2 → f16x8 via direct bit manipulation (NEON).
  *  E3M2FN (FP6): S EEE MM (bias=3) → F16: S EEEEE MMMMMMMMMM (bias=15).
  *  Handles subnormals (exp=0) via arithmetic conversion. No Inf/NaN in E3M2FN. */
-NK_INTERNAL float16x8_t nk_e3m2x8_to_f16x8_neon_(uint8x8_t e3m2_u8x8) {
+NK_HELPER_INLINE float16x8_t nk_e3m2x8_to_f16x8_neon_(uint8x8_t e3m2_u8x8) {
     // Widen to 16-bit for NEON operations
     uint16x8_t e3m2_u16x8 = vmovl_u8(e3m2_u8x8);
 
@@ -347,8 +349,8 @@ NK_INTERNAL float16x8_t nk_e3m2x8_to_f16x8_neon_(uint8x8_t e3m2_u8x8) {
  *  E2M3FN (FP6): S EE MMM (bias=1) → F16: S EEEEE MMMMMMMMMM (bias=15).
  *  Uses precomputed lookup tables for 64 possible 6-bit values.
  *  VQTBL4 byte shuffle (p01) + VZIP interleave (p01) (~6 instructions, parallel execution) */
-NK_INTERNAL void nk_e2m3x16_to_f16x8x2_neon_(uint8x16_t input_u8x16, float16x8_t *result_low_f16x8,
-                                             float16x8_t *result_high_f16x8) {
+NK_HELPER_INLINE void nk_e2m3x16_to_f16x8x2_neon_(uint8x16_t input_u8x16, float16x8_t *result_low_f16x8,
+                                                  float16x8_t *result_high_f16x8) {
     // E2M3FN → F16 conversion using TBL for high byte, arithmetic for low byte.
     // Sign symmetry: negative half = positive XOR 0x80, so we strip sign (bit 5),
     // lookup unsigned 5-bit value in VQTBL2 (32 bytes), then OR sign back.
@@ -402,8 +404,8 @@ NK_INTERNAL void nk_e2m3x16_to_f16x8x2_neon_(uint8x16_t input_u8x16, float16x8_t
  *    VQTBL4 (table lookup)      3 cy latency, 1 cy throughput
  *    VZIP (interleave)          2 cy latency, 1 cy throughput
  *  Total: ~6-8 cy latency, ~2.5 cy amortized throughput (dominated by table lookup + zip) */
-NK_INTERNAL void nk_e3m2x16_to_f16x8x2_neon_(uint8x16_t input_u8x16, float16x8_t *result_low_f16x8,
-                                             float16x8_t *result_high_f16x8) {
+NK_HELPER_INLINE void nk_e3m2x16_to_f16x8x2_neon_(uint8x16_t input_u8x16, float16x8_t *result_low_f16x8,
+                                                  float16x8_t *result_high_f16x8) {
     // Precomputed lookup table for E3M2FN → F16 conversion (high byte only, unsigned).
     // Sign symmetry: negative half = positive XOR 0x80, so we strip sign (bit 5),
     // lookup unsigned 5-bit value in VQTBL2 (32 bytes), then OR sign back.
@@ -443,7 +445,7 @@ NK_INTERNAL void nk_e3m2x16_to_f16x8x2_neon_(uint8x16_t input_u8x16, float16x8_t
 /** @brief Convert f16x8 → 8x e4m3 with RNE rounding (NEON).
  *  F16: S EEEEE MMMMMMMMMM (bias=15) → E4M3: S EEEE MMM (bias=7).
  *  Handles subnormals (exp < 9 → E4M3 subnormal), overflow (> 448 → clamp), inf → max, nan → nan. */
-NK_INTERNAL uint8x8_t nk_f16x8_to_e4m3x8_neon_(float16x8_t f16x8) {
+NK_HELPER_INLINE uint8x8_t nk_f16x8_to_e4m3x8_neon_(float16x8_t f16x8) {
     uint16x8_t bits_u16x8 = vreinterpretq_u16_f16(f16x8);
     uint16x8_t sign_byte_u16x8 = vshrq_n_u16(vandq_u16(bits_u16x8, vdupq_n_u16(0x8000)), 8);
     uint16x8_t f16_exponent_u16x8 = vandq_u16(vshrq_n_u16(bits_u16x8, 10), vdupq_n_u16(0x1F));
@@ -520,7 +522,7 @@ NK_INTERNAL uint8x8_t nk_f16x8_to_e4m3x8_neon_(float16x8_t f16x8) {
 /** @brief Convert f16x8 → 8x e5m2 with RNE rounding (NEON).
  *  F16 (bias=15) and E5M2 (bias=15) share the same bias, so conversion is truncation with RNE rounding.
  *  F16: S EEEEE MMMMMMMMMM → E5M2: S EEEEE MM. Mantissa overflow carries into exponent. */
-NK_INTERNAL uint8x8_t nk_f16x8_to_e5m2x8_neon_(float16x8_t f16x8) {
+NK_HELPER_INLINE uint8x8_t nk_f16x8_to_e5m2x8_neon_(float16x8_t f16x8) {
     uint16x8_t bits_u16x8 = vreinterpretq_u16_f16(f16x8);
 
     // Detect inf/nan (exp=31) - these should not be rounded, just truncated
@@ -544,14 +546,14 @@ NK_INTERNAL uint8x8_t nk_f16x8_to_e5m2x8_neon_(float16x8_t f16x8) {
 /** @brief Convert 4x bf16 → f32x4 via bit shift (NEON).
  *  BF16 format: S EEEEEEEE MMMMMMM (bias=127, same as f32 but truncated mantissa).
  *  F32 = bf16 << 16. */
-NK_INTERNAL float32x4_t nk_bf16x4_to_f32x4_neon_(uint16x4_t bf16_u16x4) {
+NK_HELPER_INLINE float32x4_t nk_bf16x4_to_f32x4_neon_(uint16x4_t bf16_u16x4) {
     uint32x4_t bits_u32x4 = vshlq_n_u32(vmovl_u16(bf16_u16x4), 16);
     return vreinterpretq_f32_u32(bits_u32x4);
 }
 
 /** @brief Convert f32x4 → 4x bf16 with RNE rounding (NEON).
  *  Round-to-nearest-even: add (0x7FFF + lsb) before truncation. */
-NK_INTERNAL uint16x4_t nk_f32x4_to_bf16x4_neon_(float32x4_t f32x4) {
+NK_HELPER_INLINE uint16x4_t nk_f32x4_to_bf16x4_neon_(float32x4_t f32x4) {
     uint32x4_t bits_u32x4 = vreinterpretq_u32_f32(f32x4);
     uint32x4_t lsb_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 16), vdupq_n_u32(1));
     uint32x4_t rounding_u32x4 = vaddq_u32(vdupq_n_u32(0x7FFF), lsb_u32x4);
@@ -562,7 +564,7 @@ NK_INTERNAL uint16x4_t nk_f32x4_to_bf16x4_neon_(float32x4_t f32x4) {
 /** @brief Convert 8x e4m3 → bf16x8 via direct bit manipulation (NEON).
  *  E4M3FN format: S EEEE MMM (bias=7). BF16: S EEEEEEEE MMMMMMM (bias=127).
  *  Direct conversion without F16 ÷ F32 intermediate for hot loop efficiency. */
-NK_INTERNAL uint16x8_t nk_e4m3x8_to_bf16x8_neon_(uint8x8_t e4m3_u8x8) {
+NK_HELPER_INLINE uint16x8_t nk_e4m3x8_to_bf16x8_neon_(uint8x8_t e4m3_u8x8) {
     uint16x8_t e4m3_u16x8 = vmovl_u8(e4m3_u8x8);
     uint16x8_t sign_u16x8 = vshlq_n_u16(vandq_u16(e4m3_u16x8, vdupq_n_u16(0x80)), 8); // sign << 15
     uint16x8_t exponent_u16x8 = vandq_u16(vshrq_n_u16(e4m3_u16x8, 3), vdupq_n_u16(0x0F));
@@ -597,7 +599,7 @@ NK_INTERNAL uint16x8_t nk_e4m3x8_to_bf16x8_neon_(uint8x8_t e4m3_u8x8) {
 /** @brief Convert 8x e5m2 → bf16x8 via direct bit manipulation (NEON).
  *  E5M2 format: S EEEEE MM (bias=15). BF16: S EEEEEEEE MMMMMMM (bias=127).
  *  Direct conversion without F16 ÷ F32 intermediate for hot loop efficiency. */
-NK_INTERNAL uint16x8_t nk_e5m2x8_to_bf16x8_neon_(uint8x8_t e5m2_u8x8) {
+NK_HELPER_INLINE uint16x8_t nk_e5m2x8_to_bf16x8_neon_(uint8x8_t e5m2_u8x8) {
     uint16x8_t e5m2_u16x8 = vmovl_u8(e5m2_u8x8);
     uint16x8_t sign_u16x8 = vshlq_n_u16(vandq_u16(e5m2_u16x8, vdupq_n_u16(0x80)), 8); // sign << 15
     uint16x8_t exponent_u16x8 = vandq_u16(vshrq_n_u16(e5m2_u16x8, 2), vdupq_n_u16(0x1F));
@@ -632,39 +634,39 @@ NK_INTERNAL uint16x8_t nk_e5m2x8_to_bf16x8_neon_(uint8x8_t e5m2_u8x8) {
 }
 
 /** @brief Convert 4x i16 → f32x4 (NEON). Widen to i32, then convert. */
-NK_INTERNAL float32x4_t nk_i16x4_to_f32x4_neon_(int16x4_t i16x4) { return vcvtq_f32_s32(vmovl_s16(i16x4)); }
+NK_HELPER_INLINE float32x4_t nk_i16x4_to_f32x4_neon_(int16x4_t i16x4) { return vcvtq_f32_s32(vmovl_s16(i16x4)); }
 
 /** @brief Convert 4x u16 → f32x4 (NEON). Widen to u32, then convert. */
-NK_INTERNAL float32x4_t nk_u16x4_to_f32x4_neon_(uint16x4_t u16x4) { return vcvtq_f32_u32(vmovl_u16(u16x4)); }
+NK_HELPER_INLINE float32x4_t nk_u16x4_to_f32x4_neon_(uint16x4_t u16x4) { return vcvtq_f32_u32(vmovl_u16(u16x4)); }
 
 /** @brief Convert 4x i8 → f32x4 (NEON). Loads exactly 4 bytes via nk_b32_vec_t to avoid overread. */
-NK_INTERNAL float32x4_t nk_i8x4_to_f32x4_neon_(nk_b32_vec_t in_vec) {
+NK_HELPER_INLINE float32x4_t nk_i8x4_to_f32x4_neon_(nk_b32_vec_t in_vec) {
     int8x8_t in_i8x8 = vcreate_s8((nk_u64_t)in_vec.u32);
     int16x8_t wide_i16x8 = vmovl_s8(in_i8x8);
     return vcvtq_f32_s32(vmovl_s16(vget_low_s16(wide_i16x8)));
 }
 
 /** @brief Convert 4x u8 → f32x4 (NEON). Loads exactly 4 bytes via nk_b32_vec_t to avoid overread. */
-NK_INTERNAL float32x4_t nk_u8x4_to_f32x4_neon_(nk_b32_vec_t in_vec) {
+NK_HELPER_INLINE float32x4_t nk_u8x4_to_f32x4_neon_(nk_b32_vec_t in_vec) {
     uint8x8_t in_u8x8 = vcreate_u8((nk_u64_t)in_vec.u32);
     uint16x8_t wide_u16x8 = vmovl_u8(in_u8x8);
     return vcvtq_f32_u32(vmovl_u16(vget_low_u16(wide_u16x8)));
 }
 
 /** @brief Convert f32x4 → 4x i16 with saturation (NEON). Convert to i32, narrow. */
-NK_INTERNAL int16x4_t nk_f32x4_to_i16x4_neon_(float32x4_t f32x4) {
+NK_HELPER_INLINE int16x4_t nk_f32x4_to_i16x4_neon_(float32x4_t f32x4) {
     int32x4_t wide_i32x4 = vcvtnq_s32_f32(f32x4);
     return vqmovn_s32(wide_i32x4);
 }
 
 /** @brief Convert f32x4 → 4x u16 with saturation (NEON). Convert to u32, narrow. */
-NK_INTERNAL uint16x4_t nk_f32x4_to_u16x4_neon_(float32x4_t f32x4) {
+NK_HELPER_INLINE uint16x4_t nk_f32x4_to_u16x4_neon_(float32x4_t f32x4) {
     uint32x4_t wide_u32x4 = vcvtnq_u32_f32(f32x4);
     return vqmovn_u32(wide_u32x4);
 }
 
 /** @brief Convert f32x4 → 4x i8 with saturation (NEON). Convert to i32, narrow twice. */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_i8x4_neon_(float32x4_t f32x4) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_i8x4_neon_(float32x4_t f32x4) {
     int32x4_t wide_i32x4 = vcvtnq_s32_f32(f32x4);
     int16x4_t narrow_i16x4 = vqmovn_s32(wide_i32x4);
     int8x8_t packed_i8x8 = vqmovn_s16(vcombine_s16(narrow_i16x4, narrow_i16x4));
@@ -674,7 +676,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_i8x4_neon_(float32x4_t f32x4) {
 }
 
 /** @brief Convert f32x4 → 4x u8 with saturation (NEON). Convert to u32, narrow twice. */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_u8x4_neon_(float32x4_t f32x4) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_u8x4_neon_(float32x4_t f32x4) {
     uint32x4_t wide_u32x4 = vcvtnq_u32_f32(f32x4);
     uint16x4_t narrow_u16x4 = vqmovn_u32(wide_u32x4);
     uint8x8_t packed_u8x8 = vqmovn_u16(vcombine_u16(narrow_u16x4, narrow_u16x4));
@@ -686,7 +688,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_u8x4_neon_(float32x4_t f32x4) {
 /** @brief Convert f32x4 → 4x e4m3 via bit manipulation (NEON).
  *  E4M3 format: S EEEE MMM (bias=7). Handles normal, subnormal, and overflow cases.
  *  Uses RNE (round to nearest even) for mantissa rounding. Returns packed result in nk_b32_vec_t. */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e4m3x4_neon_(float32x4_t f32x4) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e4m3x4_neon_(float32x4_t f32x4) {
     uint32x4_t bits_u32x4 = vreinterpretq_u32_f32(f32x4);
     uint32x4_t sign_u32x4 = vshrq_n_u32(bits_u32x4, 31);
     uint32x4_t f32_exponent_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 23), vdupq_n_u32(0xFF));
@@ -752,7 +754,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e4m3x4_neon_(float32x4_t f32x4) {
 /** @brief Convert f32x4 → 4x e5m2 via bit manipulation (NEON).
  *  E5M2 format: S EEEEE MM (bias=15). Handles normal, subnormal, and overflow cases.
  *  Uses RNE (round to nearest even) for mantissa rounding. Returns packed result in nk_b32_vec_t. */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e5m2x4_neon_(float32x4_t f32x4) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e5m2x4_neon_(float32x4_t f32x4) {
     uint32x4_t bits_u32x4 = vreinterpretq_u32_f32(f32x4);
     uint32x4_t sign_u32x4 = vshrq_n_u32(bits_u32x4, 31);
     uint32x4_t f32_exponent_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 23), vdupq_n_u32(0xFF));
@@ -814,7 +816,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e5m2x4_neon_(float32x4_t f32x4) {
 /** @brief Convert 4x e2m3 → f32x4 via bit manipulation (NEON).
  *  E2M3 format: S EE MMM (bias=1). F32: sign<<31, (exp+126)<<23, mantissa<<20.
  *  Handles subnormals (exp=0, mant ≠ 0). */
-NK_INTERNAL float32x4_t nk_e2m3x4_to_f32x4_neon_(nk_b32_vec_t src) {
+NK_HELPER_INLINE float32x4_t nk_e2m3x4_to_f32x4_neon_(nk_b32_vec_t src) {
     uint8x8_t e2m3_u8x8 = vcreate_u8(src.u32);
     uint16x8_t e2m3_u16x8 = vmovl_u8(e2m3_u8x8);
     uint32x4_t e2m3_u32x4 = vmovl_u16(vget_low_u16(e2m3_u16x8));
@@ -842,7 +844,7 @@ NK_INTERNAL float32x4_t nk_e2m3x4_to_f32x4_neon_(nk_b32_vec_t src) {
 /** @brief Convert 4x e3m2 → f32x4 via bit manipulation (NEON).
  *  E3M2 format: S EEE MM (bias=3). F32: sign<<31, (exp+124)<<23, mantissa<<21.
  *  Handles subnormals (exp=0, mant ≠ 0). */
-NK_INTERNAL float32x4_t nk_e3m2x4_to_f32x4_neon_(nk_b32_vec_t src) {
+NK_HELPER_INLINE float32x4_t nk_e3m2x4_to_f32x4_neon_(nk_b32_vec_t src) {
     uint8x8_t e3m2_u8x8 = vcreate_u8(src.u32);
     uint16x8_t e3m2_u16x8 = vmovl_u8(e3m2_u8x8);
     uint32x4_t e3m2_u32x4 = vmovl_u16(vget_low_u16(e3m2_u16x8));
@@ -870,7 +872,7 @@ NK_INTERNAL float32x4_t nk_e3m2x4_to_f32x4_neon_(nk_b32_vec_t src) {
 /** @brief Convert f32x4 → 4x e2m3 via bit manipulation (NEON).
  *  E2M3 format: S EE MMM (bias=1). Handles normal, subnormal, and overflow cases.
  *  Uses RNE (round to nearest even) for mantissa rounding. Returns packed result in nk_b32_vec_t. */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e2m3x4_neon_(float32x4_t f32x4) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e2m3x4_neon_(float32x4_t f32x4) {
     uint32x4_t bits_u32x4 = vreinterpretq_u32_f32(f32x4);
     uint32x4_t sign_u32x4 = vshrq_n_u32(bits_u32x4, 31);
     uint32x4_t f32_exponent_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 23), vdupq_n_u32(0xFF));
@@ -931,7 +933,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e2m3x4_neon_(float32x4_t f32x4) {
 /** @brief Convert f32x4 → 4x e3m2 via bit manipulation (NEON).
  *  E3M2 format: S EEE MM (bias=3). Handles normal, subnormal, and overflow cases.
  *  Uses RNE (round to nearest even) for mantissa rounding. Returns packed result in nk_b32_vec_t. */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e3m2x4_neon_(float32x4_t f32x4) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e3m2x4_neon_(float32x4_t f32x4) {
     uint32x4_t bits_u32x4 = vreinterpretq_u32_f32(f32x4);
     uint32x4_t sign_u32x4 = vshrq_n_u32(bits_u32x4, 31);
     uint32x4_t f32_exponent_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 23), vdupq_n_u32(0xFF));
@@ -993,7 +995,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_e3m2x4_neon_(float32x4_t f32x4) {
 
 #pragma region Public API
 
-NK_PUBLIC void nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type) {
+NK_API_COMPTIME void nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type) {
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
@@ -1162,7 +1164,7 @@ NK_PUBLIC void nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n,
 }
 
 /** @brief Reduce `block_count` f32s to `max(|x|)` via NEON (f32x4 horizontal max). */
-NK_INTERNAL nk_f32_t nk_block_amax_f32_neon_(nk_f32_t const *block, nk_size_t block_count) {
+NK_HELPER_INLINE nk_f32_t nk_block_amax_f32_neon_(nk_f32_t const *block, nk_size_t block_count) {
     nk_fui32_t qnan;
     qnan.u = 0x7FC00000u; // NaN in any lane → propagate so the block scale becomes the NaN sentinel
     float32x4_t running_max_vec = vdupq_n_f32(0.0f);
@@ -1185,7 +1187,7 @@ NK_INTERNAL nk_f32_t nk_block_amax_f32_neon_(nk_f32_t const *block, nk_size_t bl
 
 /** @brief NEON block-scaled cast. Uses f32x4 amax reduction + broadcast reciprocal multiply around
  *  the NEON element codec hub. `nk_cast_neon` already handles E2M1 / E4M3 / etc. element packing. */
-NK_PUBLIC void nk_cast_block_scaled_neon(                                                                      //
+NK_API_COMPTIME void nk_cast_block_scaled_neon(                                                                //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //

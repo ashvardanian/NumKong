@@ -91,48 +91,48 @@ extern "C" {
 #endif
 
 /** @brief Convert scalar f16 → f32 via POWER9 vector path (xvcvhpsp). */
-NK_PUBLIC void nk_f16_to_f32_powervsx(nk_f16_t const *source, nk_f32_t *destination) {
+NK_API_COMPTIME void nk_f16_to_f32_powervsx(nk_f16_t const *source, nk_f32_t *destination) {
     nk_vu16x8_t values_u16x8 = (nk_vu16x8_t)vec_xl_len((nk_u8_t *)source, 2);
     *destination = vec_extract(vec_extract_fp32_from_shorth(values_u16x8), 0);
 }
 
 /** @brief Convert scalar f32 → f16 via POWER9 vector path (xvcvsphp). */
-NK_PUBLIC void nk_f32_to_f16_powervsx(nk_f32_t const *source, nk_f16_t *destination) {
+NK_API_COMPTIME void nk_f32_to_f16_powervsx(nk_f32_t const *source, nk_f16_t *destination) {
     nk_vu16x8_t packed_u16x8 = vec_pack_to_short_fp32(vec_splats(*source), vec_splats(*source));
     *destination = vec_extract(packed_u16x8, 0);
 }
 
 /** @brief Type-agnostic 128-bit full load (Power VSX). */
-NK_INTERNAL void nk_load_b128_powervsx_(void const *source, nk_b128_vec_t *destination) {
+NK_HELPER_INLINE void nk_load_b128_powervsx_(void const *source, nk_b128_vec_t *destination) {
     destination->vu8x16 = vec_xl(0, (nk_u8_t const *)source);
 }
 
 /** @brief Type-agnostic 256-bit full load (Power VSX). */
-NK_INTERNAL void nk_load_b256_powervsx_(void const *source, nk_b256_vec_t *destination) {
+NK_HELPER_INLINE void nk_load_b256_powervsx_(void const *source, nk_b256_vec_t *destination) {
     destination->vu8x16s[0] = vec_xl(0, (nk_u8_t const *)source);
     destination->vu8x16s[1] = vec_xl(16, (nk_u8_t const *)source);
 }
 
 /** @brief Type-agnostic 128-bit full store (Power VSX). */
-NK_INTERNAL void nk_store_b128_powervsx_(nk_b128_vec_t const *source, void *destination) {
+NK_HELPER_INLINE void nk_store_b128_powervsx_(nk_b128_vec_t const *source, void *destination) {
     vec_xst(source->vu8x16, 0, (nk_u8_t *)destination);
 }
 
 /** @brief Type-agnostic 256-bit full store (Power VSX). */
-NK_INTERNAL void nk_store_b256_powervsx_(nk_b256_vec_t const *source, void *destination) {
+NK_HELPER_INLINE void nk_store_b256_powervsx_(nk_b256_vec_t const *source, void *destination) {
     vec_xst(source->vu8x16s[0], 0, (nk_u8_t *)destination);
     vec_xst(source->vu8x16s[1], 16, (nk_u8_t *)destination);
 }
 
 /** @brief Type-agnostic 64-bit load (Power VSX). */
-NK_INTERNAL void nk_load_b64_powervsx_(void const *source, nk_b64_vec_t *destination) {
+NK_HELPER_INLINE void nk_load_b64_powervsx_(void const *source, nk_b64_vec_t *destination) {
     destination->u64 = *(nk_u64_t const *)source;
 }
 
 /** @brief Partial load for 64-bit elements (n elements, max 4) into 256-bit vector.
  *  Uses vec_xl_len to load exactly n×8 bytes, zero-filling the remainder.
  *  vec_xl_len with length=0 produces a zero vector (no branch needed). */
-NK_INTERNAL void nk_partial_load_b64x4_powervsx_(void const *source, nk_b256_vec_t *destination, nk_size_t n) {
+NK_HELPER_INLINE void nk_partial_load_b64x4_powervsx_(void const *source, nk_b256_vec_t *destination, nk_size_t n) {
     nk_size_t bytes = n * 8;
     nk_size_t first_half = bytes < 16 ? bytes : 16;
     nk_size_t second_half = bytes > 16 ? bytes - 16 : 0;
@@ -141,38 +141,39 @@ NK_INTERNAL void nk_partial_load_b64x4_powervsx_(void const *source, nk_b256_vec
 }
 
 /** @brief Partial load for 64-bit elements (n elements, max 2) into 128-bit vector. */
-NK_INTERNAL void nk_partial_load_b64x2_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n) {
+NK_HELPER_INLINE void nk_partial_load_b64x2_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n) {
     destination->vu8x16 = vec_xl_len((nk_u8_t *)source, n * 8);
 }
 
 /** @brief Partial load for 32-bit elements (n elements, max 4) into 128-bit vector. */
-NK_INTERNAL void nk_partial_load_b32x4_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n) {
+NK_HELPER_INLINE void nk_partial_load_b32x4_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n) {
     destination->vu8x16 = vec_xl_len((nk_u8_t *)source, n * 4);
 }
 
 /** @brief Partial load for 32-bit elements (n elements, max 2) into 64-bit vector. */
-NK_INTERNAL void nk_partial_load_b32x2_powervsx_(void const *source, nk_b64_vec_t *destination, nk_size_t n) {
+NK_HELPER_INLINE void nk_partial_load_b32x2_powervsx_(void const *source, nk_b64_vec_t *destination, nk_size_t n) {
     nk_copy_bytes_(destination, source, n * 4);
 }
 
 /** @brief Partial load for 16-bit elements (n elements, max 8) into 128-bit vector. */
-NK_INTERNAL void nk_partial_load_b16x8_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n) {
+NK_HELPER_INLINE void nk_partial_load_b16x8_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n) {
     destination->vu8x16 = vec_xl_len((nk_u8_t *)source, n * 2);
 }
 
 /** @brief Partial load for 8-bit elements (n elements, max 16) into 128-bit vector. */
-NK_INTERNAL void nk_partial_load_b8x16_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n) {
+NK_HELPER_INLINE void nk_partial_load_b8x16_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n) {
     destination->vu8x16 = vec_xl_len((nk_u8_t *)source, n);
 }
 
 /** @brief Partial load for 1-bit elements (n bits, max 128) into 128-bit vector. */
-NK_INTERNAL void nk_partial_load_b1x128_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n_bits) {
+NK_HELPER_INLINE void nk_partial_load_b1x128_powervsx_(void const *source, nk_b128_vec_t *destination,
+                                                       nk_size_t n_bits) {
     destination->vu8x16 = vec_xl_len((nk_u8_t *)source, nk_size_divide_round_up_(n_bits, 8));
 }
 
 /** @brief Partial store for 64-bit elements (n elements, max 4) from 256-bit vector.
  *  vec_xst_len with length=0 stores nothing (no branch needed). */
-NK_INTERNAL void nk_partial_store_b64x4_powervsx_(nk_b256_vec_t const *source, void *destination, nk_size_t n) {
+NK_HELPER_INLINE void nk_partial_store_b64x4_powervsx_(nk_b256_vec_t const *source, void *destination, nk_size_t n) {
     nk_size_t bytes = n * 8;
     nk_size_t first_half = bytes < 16 ? bytes : 16;
     nk_size_t second_half = bytes > 16 ? bytes - 16 : 0;
@@ -181,20 +182,20 @@ NK_INTERNAL void nk_partial_store_b64x4_powervsx_(nk_b256_vec_t const *source, v
 }
 
 /** @brief Partial store for 32-bit elements (n elements, max 4) from 128-bit vector. */
-NK_INTERNAL void nk_partial_store_b32x4_powervsx_(nk_b128_vec_t const *source, void *destination, nk_size_t n) {
+NK_HELPER_INLINE void nk_partial_store_b32x4_powervsx_(nk_b128_vec_t const *source, void *destination, nk_size_t n) {
     vec_xst_len(source->vu8x16, (nk_u8_t *)destination, n * 4);
 }
 
 /** @brief Convert 4x f16 → f32x4 via POWER9 hardware (xvcvhpsp, 1 instruction!).
  *  Loads 4 f16 values into a u16x8 register and uses `vec_extract_fp32_from_shorth`. */
-NK_INTERNAL nk_vf32x4_t nk_f16x4_to_f32x4_powervsx_(nk_f16_t const *source) {
+NK_HELPER_INLINE nk_vf32x4_t nk_f16x4_to_f32x4_powervsx_(nk_f16_t const *source) {
     nk_vu16x8_t values_u16x8 = (nk_vu16x8_t)vec_xl_len((nk_u8_t *)source, 8);
     return vec_extract_fp32_from_shorth(values_u16x8);
 }
 
 /** @brief Convert f32x4 → 4x f16 via POWER9 hardware (xvcvsphp, 1 instruction!).
  *  Uses `vec_pack_to_short_fp32` to pack 4 f32 values into 4 f16 values. */
-NK_INTERNAL nk_b64_vec_t nk_f32x4_to_f16x4_powervsx_(nk_vf32x4_t values_f32x4) {
+NK_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_f16x4_powervsx_(nk_vf32x4_t values_f32x4) {
     nk_vu16x8_t packed_u16x8 = vec_pack_to_short_fp32(values_f32x4, values_f32x4);
     nk_b64_vec_t result_vec;
     result_vec.u64 = vec_extract((nk_vu64x2_t)packed_u16x8, 0);
@@ -203,7 +204,7 @@ NK_INTERNAL nk_b64_vec_t nk_f32x4_to_f16x4_powervsx_(nk_vf32x4_t values_f32x4) {
 
 /** @brief Convert 4x bf16 → f32x4 via branchless bit manipulation (Power VSX).
  *  BF16 format: upper 16 bits of f32. Conversion is zero-extend via vec_mergeh, reinterpret. */
-NK_INTERNAL nk_vf32x4_t nk_bf16x4_to_f32x4_powervsx_(nk_bf16_t const *source) {
+NK_HELPER_INLINE nk_vf32x4_t nk_bf16x4_to_f32x4_powervsx_(nk_bf16_t const *source) {
     nk_vu16x8_t values_u16x8 = (nk_vu16x8_t)vec_xl_len((nk_u8_t *)source, 8);
     nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
     nk_vu32x4_t bits_u32x4 = (nk_vu32x4_t)vec_mergeh(zero_u16x8, values_u16x8);
@@ -214,7 +215,7 @@ NK_INTERNAL nk_vf32x4_t nk_bf16x4_to_f32x4_powervsx_(nk_bf16_t const *source) {
  *  Round-to-nearest-even: add (0x7FFF + lsb) before truncation.
  *  Uses vec_sr by 16, then vec_pack to narrow u32x4 → u16x8.
  *  Result is in low 4 lanes of the returned u16x8. */
-NK_INTERNAL nk_vu16x8_t nk_f32x4_to_bf16_pack_powervsx_(nk_vf32x4_t values_f32x4) {
+NK_HELPER_INLINE nk_vu16x8_t nk_f32x4_to_bf16_pack_powervsx_(nk_vf32x4_t values_f32x4) {
     nk_vu32x4_t shift_u32x4 = vec_splats((nk_u32_t)16);
     nk_vu32x4_t one_u32x4 = vec_splats((nk_u32_t)1);
     nk_vu32x4_t rounding_base_u32x4 = vec_splats((nk_u32_t)0x7FFF);
@@ -230,21 +231,21 @@ NK_INTERNAL nk_vu16x8_t nk_f32x4_to_bf16_pack_powervsx_(nk_vf32x4_t values_f32x4
 }
 
 /** @brief Convert f32x4 → 4x bf16 with RNE rounding (Power VSX). Returns nk_b64_vec_t. */
-NK_INTERNAL nk_b64_vec_t nk_f32x4_to_bf16x4_powervsx_(nk_vf32x4_t values_f32x4) {
+NK_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_bf16x4_powervsx_(nk_vf32x4_t values_f32x4) {
     nk_b64_vec_t result_vec;
     result_vec.u64 = vec_extract((nk_vu64x2_t)nk_f32x4_to_bf16_pack_powervsx_(values_f32x4), 0);
     return result_vec;
 }
 
 /** @brief Convert 4x i16 → f32x4 (Power VSX). Sign-extend via vec_unpackh, then vec_ctf. */
-NK_INTERNAL nk_vf32x4_t nk_i16x4_to_f32x4_powervsx_(nk_i16_t const *source) {
+NK_HELPER_INLINE nk_vf32x4_t nk_i16x4_to_f32x4_powervsx_(nk_i16_t const *source) {
     nk_vi16x8_t values_i16x8 = (nk_vi16x8_t)vec_xl_len((nk_u8_t *)source, 8);
     nk_vi32x4_t values_i32x4 = vec_unpackh(values_i16x8);
     return vec_ctf(values_i32x4, 0);
 }
 
 /** @brief Convert 4x u16 → f32x4 (Power VSX). Zero-extend via vec_mergeh with zero, then vec_ctf. */
-NK_INTERNAL nk_vf32x4_t nk_u16x4_to_f32x4_powervsx_(nk_u16_t const *source) {
+NK_HELPER_INLINE nk_vf32x4_t nk_u16x4_to_f32x4_powervsx_(nk_u16_t const *source) {
     nk_vu16x8_t values_u16x8 = (nk_vu16x8_t)vec_xl_len((nk_u8_t *)source, 8);
     nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
     nk_vu32x4_t values_u32x4 = (nk_vu32x4_t)vec_mergeh(values_u16x8, zero_u16x8);
@@ -252,7 +253,7 @@ NK_INTERNAL nk_vf32x4_t nk_u16x4_to_f32x4_powervsx_(nk_u16_t const *source) {
 }
 
 /** @brief Convert 4x i8 → f32x4 (Power VSX). Double unpack via vec_unpackh (i8 → i16 → i32), then vec_ctf. */
-NK_INTERNAL nk_vf32x4_t nk_i8x4_to_f32x4_powervsx_(void const *source) {
+NK_HELPER_INLINE nk_vf32x4_t nk_i8x4_to_f32x4_powervsx_(void const *source) {
     nk_vi8x16_t values_i8x16 = (nk_vi8x16_t)vec_xl_len((nk_u8_t *)source, 4);
     nk_vi16x8_t values_i16x8 = vec_unpackh(values_i8x16);
     nk_vi32x4_t values_i32x4 = vec_unpackh(values_i16x8);
@@ -260,7 +261,7 @@ NK_INTERNAL nk_vf32x4_t nk_i8x4_to_f32x4_powervsx_(void const *source) {
 }
 
 /** @brief Convert 4x u8 → f32x4 (Power VSX). Double merge with zero (u8 → u16 → u32), then vec_ctf. */
-NK_INTERNAL nk_vf32x4_t nk_u8x4_to_f32x4_powervsx_(void const *source) {
+NK_HELPER_INLINE nk_vf32x4_t nk_u8x4_to_f32x4_powervsx_(void const *source) {
     nk_vu8x16_t values_u8x16 = (nk_vu8x16_t)vec_xl_len((nk_u8_t *)source, 4);
     nk_vu8x16_t zero_u8x16 = vec_splats((nk_u8_t)0);
     nk_vu16x8_t values_u16x8 = (nk_vu16x8_t)vec_mergeh(values_u8x16, zero_u8x16);
@@ -271,7 +272,7 @@ NK_INTERNAL nk_vf32x4_t nk_u8x4_to_f32x4_powervsx_(void const *source) {
 
 /** @brief Convert f32x4 → 4x i16 with vector saturation (Power VSX).
  *  Uses vec_cts + vec_min/vec_max for clamping, then vec_packs to narrow. */
-NK_INTERNAL nk_b64_vec_t nk_f32x4_to_i16x4_powervsx_(nk_vf32x4_t values_f32x4) {
+NK_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_i16x4_powervsx_(nk_vf32x4_t values_f32x4) {
     nk_vi32x4_t min_i32x4 = vec_splats((nk_i32_t)-32768);
     nk_vi32x4_t max_i32x4 = vec_splats((nk_i32_t)32767);
 
@@ -288,7 +289,7 @@ NK_INTERNAL nk_b64_vec_t nk_f32x4_to_i16x4_powervsx_(nk_vf32x4_t values_f32x4) {
 
 /** @brief Convert f32x4 → 4x u16 with vector saturation (Power VSX).
  *  Uses vec_ctu + vec_round/vec_max for clamping, then vec_pack to narrow. */
-NK_INTERNAL nk_b64_vec_t nk_f32x4_to_u16x4_powervsx_(nk_vf32x4_t values_f32x4) {
+NK_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_u16x4_powervsx_(nk_vf32x4_t values_f32x4) {
     nk_vf32x4_t zero_f32x4 = vec_splats(0.0f);
     nk_vu32x4_t max_u32x4 = vec_splats((nk_u32_t)65535);
 
@@ -305,7 +306,7 @@ NK_INTERNAL nk_b64_vec_t nk_f32x4_to_u16x4_powervsx_(nk_vf32x4_t values_f32x4) {
 
 /** @brief Convert f32x4 → 4x i8 with vector saturation (Power VSX).
  *  Uses vec_cts + vec_min/vec_max for clamping, then vec_packs twice to narrow. */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_i8x4_powervsx_(nk_vf32x4_t values_f32x4) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_i8x4_powervsx_(nk_vf32x4_t values_f32x4) {
     nk_vi32x4_t min_i32x4 = vec_splats((nk_i32_t)-128);
     nk_vi32x4_t max_i32x4 = vec_splats((nk_i32_t)127);
 
@@ -323,7 +324,7 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_i8x4_powervsx_(nk_vf32x4_t values_f32x4) {
 
 /** @brief Convert f32x4 → 4x u8 with vector saturation (Power VSX).
  *  Uses vec_ctu + vec_min/vec_max for clamping, then vec_pack twice to narrow. */
-NK_INTERNAL nk_b32_vec_t nk_f32x4_to_u8x4_powervsx_(nk_vf32x4_t values_f32x4) {
+NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_u8x4_powervsx_(nk_vf32x4_t values_f32x4) {
     nk_vf32x4_t zero_f32x4 = vec_splats(0.0f);
     nk_vu32x4_t max_u32x4 = vec_splats((nk_u32_t)255);
 
@@ -339,7 +340,8 @@ NK_INTERNAL nk_b32_vec_t nk_f32x4_to_u8x4_powervsx_(nk_vf32x4_t values_f32x4) {
     return result_vec;
 }
 
-NK_PUBLIC void nk_cast_powervsx(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type) {
+NK_API_COMPTIME void nk_cast_powervsx(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                      nk_dtype_t to_type) {
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);

@@ -60,19 +60,19 @@ function loadNativeAddon(): any {
   return null;
 }
 
-let compiled: any = loadNativeAddon();
+let addon: any = loadNativeAddon();
 
-if (compiled) {
+if (addon) {
   setConversionFunctions({
-    castF16ToF32: compiled.castF16ToF32,
-    castF32ToF16: compiled.castF32ToF16,
-    castBF16ToF32: compiled.castBF16ToF32,
-    castF32ToBF16: compiled.castF32ToBF16,
-    castE4M3ToF32: compiled.castE4M3ToF32,
-    castF32ToE4M3: compiled.castF32ToE4M3,
-    castE5M2ToF32: compiled.castE5M2ToF32,
-    castF32ToE5M2: compiled.castF32ToE5M2,
-    cast: compiled.cast,
+    castF16ToF32: addon.castF16ToF32,
+    castF32ToF16: addon.castF32ToF16,
+    castBF16ToF32: addon.castBF16ToF32,
+    castF32ToBF16: addon.castF32ToBF16,
+    castE4M3ToF32: addon.castE4M3ToF32,
+    castF32ToE4M3: addon.castF32ToE4M3,
+    castE5M2ToF32: addon.castE5M2ToF32,
+    castF32ToE5M2: addon.castF32ToE5M2,
+    cast: addon.cast,
   });
 } else {
   throw new Error(
@@ -84,7 +84,7 @@ if (compiled) {
 
 /**
  * CPU capability bit masks in chronological order (by first commercial silicon).
- * Use these with getCapabilities() to check for specific SIMD support.
+ * Use these with `capabilities.has()` or `capabilities.available()` to check for SIMD support.
  */
 export const Capability = {
   SERIAL: 1n << 0n,          // Always: Fallback
@@ -127,28 +127,29 @@ export const Capability = {
   POWERVSX: 1n << 37n,       // Power VSX 128-bit SIMD
   DIAMOND: 1n << 38n,        // 2025+: Intel AVX10.2
   NEONFP8: 1n << 39n,        // ARM NEON FP8
+  DIAMONDAMX: 1n << 40n,     // 2025+: Intel Diamond Rapids AMX
 } as const;
 
 export { Float16Array, BFloat16Array, E4M3Array, E5M2Array, BinaryArray, TensorBase, VectorBase, VectorView, Vector, MatrixBase, Matrix, PackedMatrix, outputDtype };
 
 /** Convert a single FP16 value (as uint16 bits) to FP32 */
-export const castF16ToF32 = compiled.castF16ToF32;
+export const castF16ToF32 = addon.castF16ToF32;
 /** Convert a single FP32 value to FP16 (returns uint16 bits) */
-export const castF32ToF16 = compiled.castF32ToF16;
+export const castF32ToF16 = addon.castF32ToF16;
 /** Convert a single BF16 value (as uint16 bits) to FP32 */
-export const castBF16ToF32 = compiled.castBF16ToF32;
+export const castBF16ToF32 = addon.castBF16ToF32;
 /** Convert a single FP32 value to BF16 (returns uint16 bits) */
-export const castF32ToBF16 = compiled.castF32ToBF16;
+export const castF32ToBF16 = addon.castF32ToBF16;
 /** Convert a single E4M3 value (as uint8 bits) to FP32 */
-export const castE4M3ToF32 = compiled.castE4M3ToF32;
+export const castE4M3ToF32 = addon.castE4M3ToF32;
 /** Convert a single FP32 value to E4M3 (returns uint8 bits) */
-export const castF32ToE4M3 = compiled.castF32ToE4M3;
+export const castF32ToE4M3 = addon.castF32ToE4M3;
 /** Convert a single E5M2 value (as uint8 bits) to FP32 */
-export const castE5M2ToF32 = compiled.castE5M2ToF32;
+export const castE5M2ToF32 = addon.castE5M2ToF32;
 /** Convert a single FP32 value to E5M2 (returns uint8 bits) */
-export const castF32ToE5M2 = compiled.castF32ToE5M2;
+export const castF32ToE5M2 = addon.castF32ToE5M2;
 /** Bulk conversion between different numeric types (modifies destination array in-place) */
-export const cast = compiled.cast;
+export const cast = addon.cast;
 
 export { DType };
 
@@ -200,35 +201,83 @@ function unwrapTensor(input: TensorBase): { arr: DistanceArray; dtype: DType } {
 }
 
 /**
- * Returns the runtime-detected SIMD capabilities as a bitmask.
+ * Returns the SIMD capabilities this CPU supports, as a bitmask.
  *
- * The bitmask includes flags for various SIMD instruction sets like AVX2, AVX-512,
- * ARM NEON, ARM SVE, ARM SME, RISC-V Vector, and WASM SIMD extensions.
- * Use with Capability constants to check for specific instruction sets.
+ * Describes the machine only, and says nothing about whether a kernel was compiled into this
+ * build — a prebuild whose ISA probes failed still reports your CPU's full feature set while
+ * containing no SIMD kernels at all. Prefer getCapabilitiesAvailable().
+ *
+ * @returns {bigint} Bitmask of capability flags (use with Capability constants)
+ */
+export const getCapabilitiesDetected = (): bigint => addon.getCapabilitiesDetected();
+
+/**
+ * Returns the SIMD capabilities whose kernels were compiled into this binary, as a bitmask.
+ *
+ * Decided at build time by the ISA probes, independent of the CPU. The only accessor that can
+ * tell you a prebuild is silently scalar.
+ *
+ * @returns {bigint} Bitmask of capability flags (use with Capability constants)
+ */
+export const getCapabilitiesCompiled = (): bigint => addon.getCapabilitiesCompiled();
+
+/**
+ * Returns the SIMD capabilities that can actually execute here, as a bitmask.
+ *
+ * The intersection of getCapabilitiesDetected() and getCapabilitiesCompiled(). Either axis
+ * alone over-reports.
  *
  * @returns {bigint} Bitmask of capability flags (use with Capability constants)
  *
  * @example
  * ```ts
- * import { getCapabilities, Capability } from 'numkong';
+ * import { getCapabilitiesAvailable, Capability } from 'numkong';
  *
- * const caps = getCapabilities();
+ * const caps = getCapabilitiesAvailable();
  * console.log(`Capabilities: 0x${caps.toString(16)}`);
  *
- * // Check for specific SIMD support
  * if (caps & Capability.HASWELL) {
  *   console.log('AVX2 available');
  * }
  * ```
  */
-export const getCapabilities = (): bigint => {
-  return compiled.getCapabilities();
-};
+export const getCapabilitiesAvailable = (): bigint => addon.getCapabilitiesAvailable();
 
 /**
- * Checks if a specific SIMD capability is available at runtime.
+ * Returns the SIMD capabilities dispatch is currently restricted to, as a bitmask.
+ * A subset of getCapabilitiesAvailable().
  *
- * This is a convenience wrapper around getCapabilities() that tests for a single capability.
+ * @returns {bigint} Bitmask of capability flags (use with Capability constants)
+ */
+export const getCapabilitiesEnabled = (): bigint => addon.getCapabilitiesEnabled();
+
+/**
+ * Restricts dispatch to `caps`, clamped to getCapabilitiesAvailable().
+ * The serial fallback is always retained.
+ *
+ * @param {bigint} caps - Capability mask (from Capability constants)
+ */
+export const restrictCapabilities = (caps: bigint): void => addon.capabilitiesRestrict(caps);
+
+/**
+ * Adds `caps` to getCapabilitiesEnabled(). Anything not available is ignored.
+ *
+ * @param {bigint} caps - Capability mask (from Capability constants)
+ */
+export const enableCapabilities = (caps: bigint): void => addon.capabilitiesEnable(caps);
+
+/**
+ * Removes `caps` from getCapabilitiesEnabled(). The serial fallback cannot be removed.
+ *
+ * @param {bigint} caps - Capability mask (from Capability constants)
+ */
+export const disableCapabilities = (caps: bigint): void => addon.capabilitiesDisable(caps);
+
+/**
+ * Checks whether a specific SIMD capability can actually execute here.
+ *
+ * Tests against getCapabilitiesAvailable(), so it is false both when the CPU lacks the feature
+ * and when its kernels were not compiled into this build.
  *
  * @param {bigint} cap - Capability flag to check (from Capability constants)
  * @returns {boolean} True if the capability is available, false otherwise
@@ -240,17 +289,9 @@ export const getCapabilities = (): bigint => {
  * if (hasCapability(Capability.HASWELL)) {
  *   console.log('Intel AVX2 (Haswell) available');
  * }
- * if (hasCapability(Capability.NEON)) {
- *   console.log('ARM NEON available');
- * }
- * if (hasCapability(Capability.V128RELAXED)) {
- *   console.log('WASM Relaxed SIMD available');
- * }
  * ```
  */
-export const hasCapability = (cap: bigint): boolean => {
-  return (getCapabilities() & cap) !== 0n;
-};
+export const hasCapability = (cap: bigint): boolean => (addon.getCapabilitiesAvailable() & cap) !== 0n;
 
 /**
  * Computes the squared Euclidean distance between two vectors.
@@ -263,8 +304,8 @@ export function sqeuclidean(a: NumericArray, b: NumericArray): number;
 export function sqeuclidean(a: DistanceArray, b: DistanceArray, dtype: DType): number;
 export function sqeuclidean(a: TensorBase, b: TensorBase): number;
 export function sqeuclidean(a: DistanceArray | TensorBase, b: DistanceArray | TensorBase, dtype?: DType): number {
-  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return compiled.sqeuclidean(u.arr, v.arr, dtypeToString(u.dtype)); }
-  return dtype !== undefined ? compiled.sqeuclidean(a, b, dtypeToString(dtype)) : compiled.sqeuclidean(a, b);
+  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return addon.sqeuclidean(u.arr, v.arr, dtypeToString(u.dtype)); }
+  return dtype !== undefined ? addon.sqeuclidean(a, b, dtypeToString(dtype)) : addon.sqeuclidean(a, b);
 }
 
 /**
@@ -278,8 +319,8 @@ export function euclidean(a: NumericArray, b: NumericArray): number;
 export function euclidean(a: DistanceArray, b: DistanceArray, dtype: DType): number;
 export function euclidean(a: TensorBase, b: TensorBase): number;
 export function euclidean(a: DistanceArray | TensorBase, b: DistanceArray | TensorBase, dtype?: DType): number {
-  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return compiled.euclidean(u.arr, v.arr, dtypeToString(u.dtype)); }
-  return dtype !== undefined ? compiled.euclidean(a, b, dtypeToString(dtype)) : compiled.euclidean(a, b);
+  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return addon.euclidean(u.arr, v.arr, dtypeToString(u.dtype)); }
+  return dtype !== undefined ? addon.euclidean(a, b, dtypeToString(dtype)) : addon.euclidean(a, b);
 }
 
 /**
@@ -293,8 +334,8 @@ export function angular(a: NumericArray, b: NumericArray): number;
 export function angular(a: DistanceArray, b: DistanceArray, dtype: DType): number;
 export function angular(a: TensorBase, b: TensorBase): number;
 export function angular(a: DistanceArray | TensorBase, b: DistanceArray | TensorBase, dtype?: DType): number {
-  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return compiled.angular(u.arr, v.arr, dtypeToString(u.dtype)); }
-  return dtype !== undefined ? compiled.angular(a, b, dtypeToString(dtype)) : compiled.angular(a, b);
+  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return addon.angular(u.arr, v.arr, dtypeToString(u.dtype)); }
+  return dtype !== undefined ? addon.angular(a, b, dtypeToString(dtype)) : addon.angular(a, b);
 }
 
 /**
@@ -308,8 +349,8 @@ export function inner(a: NumericArray, b: NumericArray): number;
 export function inner(a: DistanceArray, b: DistanceArray, dtype: DType): number;
 export function inner(a: TensorBase, b: TensorBase): number;
 export function inner(a: DistanceArray | TensorBase, b: DistanceArray | TensorBase, dtype?: DType): number {
-  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return compiled.inner(u.arr, v.arr, dtypeToString(u.dtype)); }
-  return dtype !== undefined ? compiled.inner(a, b, dtypeToString(dtype)) : compiled.inner(a, b);
+  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return addon.inner(u.arr, v.arr, dtypeToString(u.dtype)); }
+  return dtype !== undefined ? addon.inner(a, b, dtypeToString(dtype)) : addon.inner(a, b);
 }
 
 /**
@@ -323,8 +364,8 @@ export function dot(a: NumericArray, b: NumericArray): number;
 export function dot(a: DistanceArray, b: DistanceArray, dtype: DType): number;
 export function dot(a: TensorBase, b: TensorBase): number;
 export function dot(a: DistanceArray | TensorBase, b: DistanceArray | TensorBase, dtype?: DType): number {
-  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return compiled.dot(u.arr, v.arr, dtypeToString(u.dtype)); }
-  return dtype !== undefined ? compiled.dot(a, b, dtypeToString(dtype)) : compiled.dot(a, b);
+  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return addon.dot(u.arr, v.arr, dtypeToString(u.dtype)); }
+  return dtype !== undefined ? addon.dot(a, b, dtypeToString(dtype)) : addon.dot(a, b);
 }
 
 /**
@@ -338,8 +379,8 @@ export function dot(a: DistanceArray | TensorBase, b: DistanceArray | TensorBase
  * @returns {number} The Hamming distance (number of differing bits) between vectors a and b.
  */
 export const hamming = (a: Uint8Array | BinaryArray | TensorBase, b: Uint8Array | BinaryArray | TensorBase): number => {
-  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return compiled.hamming(u.arr, v.arr); }
-  return compiled.hamming(a, b);
+  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return addon.hamming(u.arr, v.arr); }
+  return addon.hamming(a, b);
 };
 
 /**
@@ -353,8 +394,8 @@ export const hamming = (a: Uint8Array | BinaryArray | TensorBase, b: Uint8Array 
  * @returns {number} The Jaccard distance (1 - Jaccard similarity) between vectors a and b.
  */
 export const jaccard = (a: Uint8Array | BinaryArray | TensorBase, b: Uint8Array | BinaryArray | TensorBase): number => {
-  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return compiled.jaccard(u.arr, v.arr); }
-  return compiled.jaccard(a, b);
+  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return addon.jaccard(u.arr, v.arr); }
+  return addon.jaccard(a, b);
 };
 
 /**
@@ -372,8 +413,8 @@ export function kullbackleibler(a: Float64Array | Float32Array, b: Float64Array 
 export function kullbackleibler(a: Float64Array | Float32Array | Uint16Array, b: Float64Array | Float32Array | Uint16Array, dtype: DType): number;
 export function kullbackleibler(a: TensorBase, b: TensorBase): number;
 export function kullbackleibler(a: Float64Array | Float32Array | Uint16Array | TensorBase, b: Float64Array | Float32Array | Uint16Array | TensorBase, dtype?: DType): number {
-  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return compiled.kullbackleibler(u.arr, v.arr, dtypeToString(u.dtype)); }
-  return dtype !== undefined ? compiled.kullbackleibler(a, b, dtypeToString(dtype)) : compiled.kullbackleibler(a, b);
+  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return addon.kullbackleibler(u.arr, v.arr, dtypeToString(u.dtype)); }
+  return dtype !== undefined ? addon.kullbackleibler(a, b, dtypeToString(dtype)) : addon.kullbackleibler(a, b);
 }
 
 /**
@@ -392,8 +433,8 @@ export function jensenshannon(a: Float64Array | Float32Array, b: Float64Array | 
 export function jensenshannon(a: Float64Array | Float32Array | Uint16Array, b: Float64Array | Float32Array | Uint16Array, dtype: DType): number;
 export function jensenshannon(a: TensorBase, b: TensorBase): number;
 export function jensenshannon(a: Float64Array | Float32Array | Uint16Array | TensorBase, b: Float64Array | Float32Array | Uint16Array | TensorBase, dtype?: DType): number {
-  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return compiled.jensenshannon(u.arr, v.arr, dtypeToString(u.dtype)); }
-  return dtype !== undefined ? compiled.jensenshannon(a, b, dtypeToString(dtype)) : compiled.jensenshannon(a, b);
+  if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return addon.jensenshannon(u.arr, v.arr, dtypeToString(u.dtype)); }
+  return dtype !== undefined ? addon.jensenshannon(a, b, dtypeToString(dtype)) : addon.jensenshannon(a, b);
 }
 
 /**
@@ -465,7 +506,7 @@ function unwrapResultMatrix(matrix: Matrix): Float64Array | Float32Array | Int32
  * Query the packed buffer byte count for a given matrix shape and dtype.
  */
 export function dotsPackedSize(width: number, depth: number, dtype: DType): number {
-  return compiled.dotsPackedSize(width, depth, dtypeToString(dtype));
+  return addon.dotsPackedSize(width, depth, dtypeToString(dtype));
 }
 
 /**
@@ -473,7 +514,7 @@ export function dotsPackedSize(width: number, depth: number, dtype: DType): numb
  */
 export function dotsPack(matrix: Matrix): PackedMatrix {
   const { array, dtype } = unwrapMatrix(matrix);
-  const result = compiled.dotsPack(array, matrix.rows, matrix.cols, matrix.rowStride, dtypeToString(dtype));
+  const result = addon.dotsPack(array, matrix.rows, matrix.cols, matrix.rowStride, dtypeToString(dtype));
   return new PackedMatrix(result.buffer, result.width, result.depth, matrix.dtype, result.byteLength);
 }
 
@@ -487,7 +528,7 @@ function packedOperation(compiledName: string, family: KernelFamily, a: Matrix, 
   }
   const aUnwrapped = unwrapMatrix(a);
   const resultArray = unwrapResultMatrix(out);
-  (compiled as any)[compiledName](
+  (addon as any)[compiledName](
     aUnwrapped.array, packed.buffer, resultArray,
     a.rows, packed.width, a.cols,
     a.rowStride, out.rowStride,
@@ -504,7 +545,7 @@ function symmetricOperation(compiledName: string, family: KernelFamily, vectors:
   }
   const vectorsUnwrapped = unwrapMatrix(vectors);
   const resultArray = unwrapResultMatrix(out);
-  (compiled as any)[compiledName](
+  (addon as any)[compiledName](
     vectorsUnwrapped.array, resultArray,
     vectors.rows, vectors.cols,
     vectors.rowStride, out.rowStride,

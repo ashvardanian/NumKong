@@ -35,7 +35,7 @@
  *  @section dot_powervsx_stateful Stateful Streaming Logic
  *
  *  For memory-optimal tiled algorithms, this file defines state structures and force-inlined
- *  `NK_INTERNAL` functions:
+ *  `NK_HELPER_INLINE` functions:
  *
  *  - nk_dot_f32x2 state for f32 inputs with double-precision accumulation,
  *  - nk_dot_f64x2 state with Dot2 stable dot-products for f64 inputs,
@@ -62,7 +62,7 @@ extern "C" {
 #endif
 
 /** @brief Horizontal sum of 4 f32 lanes → scalar f32. */
-NK_INTERNAL nk_f32_t nk_hsum_f32x4_powervsx_(nk_vf32x4_t values_f32x4) {
+NK_HELPER_INLINE nk_f32_t nk_hsum_f32x4_powervsx_(nk_vf32x4_t values_f32x4) {
     // Rotate by 8 bytes (2 floats) and add → {v[0]+v[2], v[1]+v[3], ...}
     nk_vf32x4_t rotated_f32x4 = vec_sld(values_f32x4, values_f32x4, 8);
     nk_vf32x4_t partial_f32x4 = vec_add(values_f32x4, rotated_f32x4);
@@ -73,14 +73,14 @@ NK_INTERNAL nk_f32_t nk_hsum_f32x4_powervsx_(nk_vf32x4_t values_f32x4) {
 }
 
 /** @brief Horizontal sum of 2 f64 lanes → scalar f64 via xxpermdi (1 domain crossing). */
-NK_INTERNAL nk_f64_t nk_hsum_f64x2_powervsx_(nk_vf64x2_t values_f64x2) {
+NK_HELPER_INLINE nk_f64_t nk_hsum_f64x2_powervsx_(nk_vf64x2_t values_f64x2) {
     nk_vf64x2_t swapped_f64x2 = vec_xxpermdi(values_f64x2, values_f64x2, 2);
     nk_vf64x2_t sum_f64x2 = vec_add(values_f64x2, swapped_f64x2);
     return vec_extract(sum_f64x2, 0);
 }
 
 /** @brief Horizontal sum of 4 signed i32 lanes → scalar i32. */
-NK_INTERNAL nk_i32_t nk_hsum_i32x4_powervsx_(nk_vi32x4_t values_i32x4) {
+NK_HELPER_INLINE nk_i32_t nk_hsum_i32x4_powervsx_(nk_vi32x4_t values_i32x4) {
     // vec_sums reduces i32x4 → i32 in lane 3 of the result
     nk_vi32x4_t zero_i32x4 = vec_splats((nk_i32_t)0);
     nk_vi32x4_t sums_i32x4 = vec_sums(values_i32x4, zero_i32x4);
@@ -88,7 +88,7 @@ NK_INTERNAL nk_i32_t nk_hsum_i32x4_powervsx_(nk_vi32x4_t values_i32x4) {
 }
 
 /** @brief Horizontal sum of 4 unsigned u32 lanes → scalar u32. */
-NK_INTERNAL nk_u32_t nk_hsum_u32x4_powervsx_(nk_vu32x4_t values_u32x4) {
+NK_HELPER_INLINE nk_u32_t nk_hsum_u32x4_powervsx_(nk_vu32x4_t values_u32x4) {
     // Rotate by 8 bytes (2 ints) and add → {v[0]+v[2], v[1]+v[3], ...}
     nk_vu32x4_t rotated_u32x4 = vec_sld(values_u32x4, values_u32x4, 8);
     nk_vu32x4_t partial_u32x4 = vec_add(values_u32x4, rotated_u32x4);
@@ -99,14 +99,14 @@ NK_INTERNAL nk_u32_t nk_hsum_u32x4_powervsx_(nk_vu32x4_t values_u32x4) {
 }
 
 /** @brief Horizontal sum of 2 unsigned u64 lanes → scalar u64 via xxpermdi. */
-NK_INTERNAL nk_u64_t nk_hsum_u64x2_powervsx_(nk_vu64x2_t values_u64x2) {
+NK_HELPER_INLINE nk_u64_t nk_hsum_u64x2_powervsx_(nk_vu64x2_t values_u64x2) {
     nk_vu64x2_t swapped_u64x2 = vec_xxpermdi(values_u64x2, values_u64x2, 2);
     nk_vu64x2_t sum_u64x2 = vec_add(values_u64x2, swapped_u64x2);
     return vec_extract(sum_u64x2, 0);
 }
 
 /** @brief Compensated horizontal sum of 2 f64 lanes via TwoSum. */
-NK_INTERNAL nk_f64_t nk_dot_stable_sum_f64x2_powervsx_(nk_vf64x2_t sum_f64x2, nk_vf64x2_t compensation_f64x2) {
+NK_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x2_powervsx_(nk_vf64x2_t sum_f64x2, nk_vf64x2_t compensation_f64x2) {
     // TwoSum merge of sum + compensation (2-wide)
     nk_vf64x2_t tentative_sum_f64x2 = vec_add(sum_f64x2, compensation_f64x2);
     nk_vf64x2_t virtual_addend_f64x2 = vec_sub(tentative_sum_f64x2, sum_f64x2);
@@ -125,8 +125,8 @@ NK_INTERNAL nk_f64_t nk_dot_stable_sum_f64x2_powervsx_(nk_vf64x2_t sum_f64x2, nk
 
 #pragma region F32 and F64 Floats
 
-NK_PUBLIC void nk_dot_f32_powervsx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars, nk_size_t count_scalars,
-                                   nk_f64_t *result) {
+NK_API_COMPTIME void nk_dot_f32_powervsx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars, nk_size_t count_scalars,
+                                         nk_f64_t *result) {
     // Upcast f32 → f64 for accumulation via vec_doublee (even lanes) and vec_doubleo (odd lanes)
     nk_vf64x2_t sum_even_f64x2 = vec_splats((nk_f64_t)0);
     nk_vf64x2_t sum_odd_f64x2 = vec_splats((nk_f64_t)0);
@@ -160,8 +160,8 @@ nk_dot_f32_powervsx_cycle:
     *result = nk_hsum_f64x2_powervsx_(total_f64x2);
 }
 
-NK_PUBLIC void nk_dot_f64_powervsx(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars, nk_size_t count_scalars,
-                                   nk_f64_t *result) {
+NK_API_COMPTIME void nk_dot_f64_powervsx(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars, nk_size_t count_scalars,
+                                         nk_f64_t *result) {
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
     nk_vf64x2_t sum_f64x2 = vec_splats((nk_f64_t)0);
     nk_vf64x2_t compensation_f64x2 = vec_splats((nk_f64_t)0);
@@ -201,8 +201,8 @@ nk_dot_f64_powervsx_cycle:
 #pragma endregion F32 and F64 Floats
 #pragma region F16 and BF16 Floats
 
-NK_PUBLIC void nk_dot_bf16_powervsx(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars, nk_size_t count_scalars,
-                                    nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_bf16_powervsx(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                          nk_size_t count_scalars, nk_f32_t *result) {
     // bf16 → f32 via mergeh/mergel with zero: shift 16 bits into f32 upper half
     nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
     nk_vf32x4_t sum_f32x4 = vec_splats((nk_f32_t)0);
@@ -234,8 +234,8 @@ nk_dot_bf16_powervsx_cycle:
     *result = nk_hsum_f32x4_powervsx_(sum_f32x4);
 }
 
-NK_PUBLIC void nk_dot_f16_powervsx(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
-                                   nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_f16_powervsx(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
+                                         nk_f32_t *result) {
     // f16 → f32 via vec_extract_fp32_from_shorth/shortl (Power9 XVCVHPSP)
     nk_vf32x4_t sum_f32x4 = vec_splats((nk_f32_t)0);
     nk_vu16x8_t a_u16x8, b_u16x8;
@@ -269,8 +269,8 @@ nk_dot_f16_powervsx_cycle:
 #pragma endregion F16 and BF16 Floats
 #pragma region I8 and U8 Integers
 
-NK_PUBLIC void nk_dot_i8_powervsx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                  nk_i32_t *result) {
+NK_API_COMPTIME void nk_dot_i8_powervsx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                        nk_i32_t *result) {
     // Algebraic transform for i8×i8 using VMSUMMBM (i8×u8 → i32):
     //   b' = b ⊕ 0x80  (reinterpret signed as unsigned)
     //   a·b = a·b' − 128·Σa
@@ -313,8 +313,8 @@ nk_dot_i8_powervsx_cycle:
     *result = (nk_i32_t)((nk_i64_t)biased_dot - correction);
 }
 
-NK_PUBLIC void nk_dot_u8_powervsx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                  nk_u32_t *result) {
+NK_API_COMPTIME void nk_dot_u8_powervsx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                        nk_u32_t *result) {
     // vec_msum: multiply u8×u8 pairs and accumulate 16 products → 4 u32 lanes per call
     nk_vu32x4_t accumulator_u32x4 = vec_splats((nk_u32_t)0);
     nk_vu8x16_t a_u8x16, b_u8x16;
@@ -343,7 +343,7 @@ nk_dot_u8_powervsx_cycle:
 #pragma endregion I8 and U8 Integers
 #pragma region Binary
 
-NK_PUBLIC void nk_dot_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
+NK_API_COMPTIME void nk_dot_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
     nk_size_t n_bytes = nk_size_divide_round_up_(n_bits, NK_BITS_PER_BYTE);
     nk_vu64x2_t accumulator_u64x2 = vec_splats((nk_u64_t)0);
     nk_vu8x16_t a_u8x16, b_u8x16;
@@ -381,12 +381,12 @@ typedef struct nk_dot_f32x2_state_powervsx_t {
     nk_vf64x2_t sum_f64x2;
 } nk_dot_f32x2_state_powervsx_t;
 
-NK_INTERNAL void nk_dot_f32x2_init_powervsx(nk_dot_f32x2_state_powervsx_t *state) {
+NK_HELPER_INLINE void nk_dot_f32x2_init_powervsx(nk_dot_f32x2_state_powervsx_t *state) {
     state->sum_f64x2 = vec_splats((nk_f64_t)0);
 }
 
-NK_INTERNAL void nk_dot_f32x2_update_powervsx(nk_dot_f32x2_state_powervsx_t *state, nk_b64_vec_t a, nk_b64_vec_t b,
-                                              nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_f32x2_update_powervsx(nk_dot_f32x2_state_powervsx_t *state, nk_b64_vec_t a, nk_b64_vec_t b,
+                                                   nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Load 8 bytes (2 f32s) into a vector register, zero-filling the upper 8 bytes
@@ -401,7 +401,7 @@ NK_INTERNAL void nk_dot_f32x2_update_powervsx(nk_dot_f32x2_state_powervsx_t *sta
     state->sum_f64x2 = vec_madd(a_f64x2, b_f64x2, state->sum_f64x2);
 }
 
-NK_INTERNAL void nk_dot_f32x2_finalize_powervsx(                                                //
+NK_HELPER_INLINE void nk_dot_f32x2_finalize_powervsx(                                           //
     nk_dot_f32x2_state_powervsx_t const *state_a, nk_dot_f32x2_state_powervsx_t const *state_b, //
     nk_dot_f32x2_state_powervsx_t const *state_c, nk_dot_f32x2_state_powervsx_t const *state_d, //
     nk_size_t total_dimensions, nk_b256_vec_t *result) {
@@ -424,13 +424,14 @@ typedef struct nk_dot_f64x2_state_powervsx_t {
     nk_vf64x2_t compensation_f64x2;
 } nk_dot_f64x2_state_powervsx_t;
 
-NK_INTERNAL void nk_dot_f64x2_init_powervsx(nk_dot_f64x2_state_powervsx_t *state) {
+NK_HELPER_INLINE void nk_dot_f64x2_init_powervsx(nk_dot_f64x2_state_powervsx_t *state) {
     state->sum_f64x2 = vec_splats((nk_f64_t)0);
     state->compensation_f64x2 = vec_splats((nk_f64_t)0);
 }
 
-NK_INTERNAL void nk_dot_f64x2_update_powervsx(nk_dot_f64x2_state_powervsx_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                              nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_f64x2_update_powervsx(nk_dot_f64x2_state_powervsx_t *state, nk_b128_vec_t a,
+                                                   nk_b128_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_vf64x2_t sum_f64x2 = state->sum_f64x2;
@@ -453,7 +454,7 @@ NK_INTERNAL void nk_dot_f64x2_update_powervsx(nk_dot_f64x2_state_powervsx_t *sta
     state->compensation_f64x2 = vec_add(compensation_f64x2, vec_add(sum_error_f64x2, product_error_f64x2));
 }
 
-NK_INTERNAL void nk_dot_f64x2_finalize_powervsx(                                                //
+NK_HELPER_INLINE void nk_dot_f64x2_finalize_powervsx(                                           //
     nk_dot_f64x2_state_powervsx_t const *state_a, nk_dot_f64x2_state_powervsx_t const *state_b, //
     nk_dot_f64x2_state_powervsx_t const *state_c, nk_dot_f64x2_state_powervsx_t const *state_d, //
     nk_size_t total_dimensions, nk_b256_vec_t *result) {
@@ -475,12 +476,13 @@ typedef struct nk_dot_bf16x8_state_powervsx_t {
     nk_vf32x4_t sum_f32x4;
 } nk_dot_bf16x8_state_powervsx_t;
 
-NK_INTERNAL void nk_dot_bf16x8_init_powervsx(nk_dot_bf16x8_state_powervsx_t *state) {
+NK_HELPER_INLINE void nk_dot_bf16x8_init_powervsx(nk_dot_bf16x8_state_powervsx_t *state) {
     state->sum_f32x4 = vec_splats((nk_f32_t)0);
 }
 
-NK_INTERNAL void nk_dot_bf16x8_update_powervsx(nk_dot_bf16x8_state_powervsx_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                               nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_bf16x8_update_powervsx(nk_dot_bf16x8_state_powervsx_t *state, nk_b128_vec_t a,
+                                                    nk_b128_vec_t b, nk_size_t depth_offset,
+                                                    nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Convert bf16 → f32 inline: merge with zero puts bf16 bits in upper 16 of each f32
@@ -495,7 +497,7 @@ NK_INTERNAL void nk_dot_bf16x8_update_powervsx(nk_dot_bf16x8_state_powervsx_t *s
     state->sum_f32x4 = vec_madd(a_low_f32x4, b_low_f32x4, state->sum_f32x4);
 }
 
-NK_INTERNAL void nk_dot_bf16x8_finalize_powervsx(                                                 //
+NK_HELPER_INLINE void nk_dot_bf16x8_finalize_powervsx(                                            //
     nk_dot_bf16x8_state_powervsx_t const *state_a, nk_dot_bf16x8_state_powervsx_t const *state_b, //
     nk_dot_bf16x8_state_powervsx_t const *state_c, nk_dot_bf16x8_state_powervsx_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -527,12 +529,13 @@ typedef struct nk_dot_f16x8_state_powervsx_t {
     nk_vf32x4_t sum_f32x4;
 } nk_dot_f16x8_state_powervsx_t;
 
-NK_INTERNAL void nk_dot_f16x8_init_powervsx(nk_dot_f16x8_state_powervsx_t *state) {
+NK_HELPER_INLINE void nk_dot_f16x8_init_powervsx(nk_dot_f16x8_state_powervsx_t *state) {
     state->sum_f32x4 = vec_splats((nk_f32_t)0);
 }
 
-NK_INTERNAL void nk_dot_f16x8_update_powervsx(nk_dot_f16x8_state_powervsx_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                              nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_f16x8_update_powervsx(nk_dot_f16x8_state_powervsx_t *state, nk_b128_vec_t a,
+                                                   nk_b128_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Convert f16 → f32 via hardware XVCVHPSP
@@ -546,7 +549,7 @@ NK_INTERNAL void nk_dot_f16x8_update_powervsx(nk_dot_f16x8_state_powervsx_t *sta
     state->sum_f32x4 = vec_madd(a_low_f32x4, b_low_f32x4, state->sum_f32x4);
 }
 
-NK_INTERNAL void nk_dot_f16x8_finalize_powervsx(                                                //
+NK_HELPER_INLINE void nk_dot_f16x8_finalize_powervsx(                                           //
     nk_dot_f16x8_state_powervsx_t const *state_a, nk_dot_f16x8_state_powervsx_t const *state_b, //
     nk_dot_f16x8_state_powervsx_t const *state_c, nk_dot_f16x8_state_powervsx_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -579,12 +582,13 @@ typedef struct nk_dot_i8x16_state_powervsx_t {
     nk_vi32x4_t biased_sum_i32x4;
 } nk_dot_i8x16_state_powervsx_t;
 
-NK_INTERNAL void nk_dot_i8x16_init_powervsx(nk_dot_i8x16_state_powervsx_t *state) {
+NK_HELPER_INLINE void nk_dot_i8x16_init_powervsx(nk_dot_i8x16_state_powervsx_t *state) {
     state->biased_sum_i32x4 = vec_splats((nk_i32_t)0);
 }
 
-NK_INTERNAL void nk_dot_i8x16_update_powervsx(nk_dot_i8x16_state_powervsx_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                              nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_i8x16_update_powervsx(nk_dot_i8x16_state_powervsx_t *state, nk_b128_vec_t a,
+                                                   nk_b128_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // VMSUMMBM(b, a⊕0x80) = Σ(b_i · (a_i+128)) = a·b + 128·Σb
@@ -595,7 +599,7 @@ NK_INTERNAL void nk_dot_i8x16_update_powervsx(nk_dot_i8x16_state_powervsx_t *sta
     state->biased_sum_i32x4 = vec_msum(b.vi8x16, a_biased_u8x16, state->biased_sum_i32x4);
 }
 
-NK_INTERNAL void nk_dot_i8x16_finalize_powervsx(                                                //
+NK_HELPER_INLINE void nk_dot_i8x16_finalize_powervsx(                                           //
     nk_dot_i8x16_state_powervsx_t const *state_a, nk_dot_i8x16_state_powervsx_t const *state_b, //
     nk_dot_i8x16_state_powervsx_t const *state_c, nk_dot_i8x16_state_powervsx_t const *state_d, //
     nk_size_t total_dimensions,                                                                 //
@@ -633,17 +637,17 @@ typedef struct nk_sum_i8x16_state_powervsx_t {
     nk_vu32x4_t biased_sum_u32x4;
 } nk_sum_i8x16_state_powervsx_t;
 
-NK_INTERNAL void nk_sum_i8x16_init_powervsx(nk_sum_i8x16_state_powervsx_t *state) {
+NK_HELPER_INLINE void nk_sum_i8x16_init_powervsx(nk_sum_i8x16_state_powervsx_t *state) {
     state->biased_sum_u32x4 = vec_splats((nk_u32_t)0);
 }
 
-NK_INTERNAL void nk_sum_i8x16_update_powervsx(nk_sum_i8x16_state_powervsx_t *state, nk_b128_vec_t values_vec) {
+NK_HELPER_INLINE void nk_sum_i8x16_update_powervsx(nk_sum_i8x16_state_powervsx_t *state, nk_b128_vec_t values_vec) {
     nk_vu8x16_t const bias_u8x16 = vec_splats((nk_u8_t)0x80);
     nk_vu8x16_t biased_u8x16 = vec_xor(values_vec.vu8x16, bias_u8x16);
     state->biased_sum_u32x4 = vec_sum4s(biased_u8x16, state->biased_sum_u32x4);
 }
 
-NK_INTERNAL nk_i32_t nk_sum_i8x16_finalize_powervsx(nk_sum_i8x16_state_powervsx_t const *state, nk_size_t count) {
+NK_HELPER_INLINE nk_i32_t nk_sum_i8x16_finalize_powervsx(nk_sum_i8x16_state_powervsx_t const *state, nk_size_t count) {
     nk_u32_t biased_sum = nk_hsum_u32x4_powervsx_(state->biased_sum_u32x4);
     return (nk_i32_t)((nk_i64_t)biased_sum - 128 * (nk_i64_t)count);
 }
@@ -657,12 +661,13 @@ typedef struct nk_dot_u8x16_state_powervsx_t {
     nk_vu32x4_t sum_u32x4;
 } nk_dot_u8x16_state_powervsx_t;
 
-NK_INTERNAL void nk_dot_u8x16_init_powervsx(nk_dot_u8x16_state_powervsx_t *state) {
+NK_HELPER_INLINE void nk_dot_u8x16_init_powervsx(nk_dot_u8x16_state_powervsx_t *state) {
     state->sum_u32x4 = vec_splats((nk_u32_t)0);
 }
 
-NK_INTERNAL void nk_dot_u8x16_update_powervsx(nk_dot_u8x16_state_powervsx_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                              nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_u8x16_update_powervsx(nk_dot_u8x16_state_powervsx_t *state, nk_b128_vec_t a,
+                                                   nk_b128_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Unsigned × unsigned multiply-sum: 16 u8 products accumulated into 4 u32 lanes
@@ -671,7 +676,7 @@ NK_INTERNAL void nk_dot_u8x16_update_powervsx(nk_dot_u8x16_state_powervsx_t *sta
     state->sum_u32x4 = vec_msum(a_u8x16, b_u8x16, state->sum_u32x4);
 }
 
-NK_INTERNAL void nk_dot_u8x16_finalize_powervsx(                                                //
+NK_HELPER_INLINE void nk_dot_u8x16_finalize_powervsx(                                           //
     nk_dot_u8x16_state_powervsx_t const *state_a, nk_dot_u8x16_state_powervsx_t const *state_b, //
     nk_dot_u8x16_state_powervsx_t const *state_c, nk_dot_u8x16_state_powervsx_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -703,12 +708,13 @@ typedef struct nk_dot_u1x128_state_powervsx_t {
     nk_vu64x2_t dot_count_u64x2;
 } nk_dot_u1x128_state_powervsx_t;
 
-NK_INTERNAL void nk_dot_u1x128_init_powervsx(nk_dot_u1x128_state_powervsx_t *state) {
+NK_HELPER_INLINE void nk_dot_u1x128_init_powervsx(nk_dot_u1x128_state_powervsx_t *state) {
     state->dot_count_u64x2 = vec_splats((nk_u64_t)0);
 }
 
-NK_INTERNAL void nk_dot_u1x128_update_powervsx(nk_dot_u1x128_state_powervsx_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                               nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_u1x128_update_powervsx(nk_dot_u1x128_state_powervsx_t *state, nk_b128_vec_t a,
+                                                    nk_b128_vec_t b, nk_size_t depth_offset,
+                                                    nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // AND → doubleword popcount (vpopcntd, 3cy ALU) → vec_add (7cy DP)
@@ -720,7 +726,7 @@ NK_INTERNAL void nk_dot_u1x128_update_powervsx(nk_dot_u1x128_state_powervsx_t *s
     state->dot_count_u64x2 = vec_add(state->dot_count_u64x2, popcnt_u64x2);
 }
 
-NK_INTERNAL void nk_dot_u1x128_finalize_powervsx(                                                 //
+NK_HELPER_INLINE void nk_dot_u1x128_finalize_powervsx(                                            //
     nk_dot_u1x128_state_powervsx_t const *state_a, nk_dot_u1x128_state_powervsx_t const *state_b, //
     nk_dot_u1x128_state_powervsx_t const *state_c, nk_dot_u1x128_state_powervsx_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {

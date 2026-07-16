@@ -33,19 +33,19 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_bf16_v128relaxed(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_bf16_v128relaxed(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_bf16_t), 16);
 }
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f32_v128relaxed(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f32_v128relaxed(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f32_t), 16);
 }
 
-NK_PUBLIC nk_size_t nk_maxsim_packed_size_f16_v128relaxed(nk_size_t vector_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f16_v128relaxed(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f16_t), 16);
 }
 
-NK_PUBLIC void nk_maxsim_pack_bf16_v128relaxed( //
+NK_API_COMPTIME void nk_maxsim_pack_bf16_v128relaxed( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_bf16_t);
@@ -71,7 +71,7 @@ NK_PUBLIC void nk_maxsim_pack_bf16_v128relaxed( //
     }
 }
 
-NK_PUBLIC void nk_maxsim_pack_f32_v128relaxed( //
+NK_API_COMPTIME void nk_maxsim_pack_f32_v128relaxed( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f32_t);
@@ -96,7 +96,7 @@ NK_PUBLIC void nk_maxsim_pack_f32_v128relaxed( //
     }
 }
 
-NK_PUBLIC void nk_maxsim_pack_f16_v128relaxed( //
+NK_API_COMPTIME void nk_maxsim_pack_f16_v128relaxed( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f16_t);
@@ -128,10 +128,10 @@ NK_PUBLIC void nk_maxsim_pack_f16_v128relaxed( //
  *  No bias correction needed (native signed×signed arithmetic).
  *  Simple 1Q×1D tiling with scalar running argmax.
  */
-NK_INTERNAL void nk_maxsim_coarse_argmax_v128relaxed_(    //
-    nk_i8_t const *query_i8, nk_i8_t const *document_i8,  //
-    nk_maxsim_vector_metadata_t const *document_metadata, //
-    nk_size_t query_count, nk_size_t document_count,      //
+NK_HELPER_INLINE void nk_maxsim_coarse_argmax_v128relaxed_( //
+    nk_i8_t const *query_i8, nk_i8_t const *document_i8,    //
+    nk_maxsim_vector_metadata_t const *document_metadata,   //
+    nk_size_t query_count, nk_size_t document_count,        //
     nk_size_t depth_i8_padded, nk_u32_t *best_document_indices) {
 
     nk_unused_(document_metadata);
@@ -165,7 +165,7 @@ NK_INTERNAL void nk_maxsim_coarse_argmax_v128relaxed_(    //
     }
 }
 
-NK_PUBLIC void nk_maxsim_packed_bf16_v128relaxed( //
+NK_API_COMPTIME void nk_maxsim_packed_bf16_v128relaxed( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -199,7 +199,7 @@ NK_PUBLIC void nk_maxsim_packed_bf16_v128relaxed( //
     *result = (nk_f32_t)total_angular_distance;
 }
 
-NK_PUBLIC void nk_maxsim_packed_f32_v128relaxed( //
+NK_API_COMPTIME void nk_maxsim_packed_f32_v128relaxed( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
@@ -234,7 +234,7 @@ NK_PUBLIC void nk_maxsim_packed_f32_v128relaxed( //
     *result = total_angular_distance;
 }
 
-NK_PUBLIC void nk_maxsim_packed_f16_v128relaxed( //
+NK_API_COMPTIME void nk_maxsim_packed_f16_v128relaxed( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 

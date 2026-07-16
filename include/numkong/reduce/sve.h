@@ -12,7 +12,7 @@
  *  The `svaddv` intrinsic stays inside a macro so it expands in the caller's
  *  target context — SVE and SME streaming translation units carry incompatible
  *  target attributes. The unpoisoning runs on the already-reduced scalar, so it
- *  lives in a target-agnostic `NK_INTERNAL` helper called from the macro.
+ *  lives in a target-agnostic `NK_HELPER_INLINE` helper called from the macro.
  *
  *  @sa include/numkong/reduce.h
  */
@@ -24,19 +24,19 @@
 
 #include "numkong/types.h"
 
-NK_INTERNAL nk_f64_t nk_unpoison_f64_(nk_f64_t v) NK_STREAMING_COMPATIBLE_ {
+NK_HELPER_INLINE nk_f64_t nk_unpoison_f64_(nk_f64_t v) NK_STREAMING_COMPATIBLE_ {
     nk_unpoison_(&v, sizeof(v));
     return v;
 }
-NK_INTERNAL nk_f32_t nk_unpoison_f32_(nk_f32_t v) NK_STREAMING_COMPATIBLE_ {
+NK_HELPER_INLINE nk_f32_t nk_unpoison_f32_(nk_f32_t v) NK_STREAMING_COMPATIBLE_ {
     nk_unpoison_(&v, sizeof(v));
     return v;
 }
-NK_INTERNAL nk_u64_t nk_unpoison_u64_(nk_u64_t v) NK_STREAMING_COMPATIBLE_ {
+NK_HELPER_INLINE nk_u64_t nk_unpoison_u64_(nk_u64_t v) NK_STREAMING_COMPATIBLE_ {
     nk_unpoison_(&v, sizeof(v));
     return v;
 }
-NK_INTERNAL nk_i64_t nk_unpoison_i64_(nk_i64_t v) NK_STREAMING_COMPATIBLE_ {
+NK_HELPER_INLINE nk_i64_t nk_unpoison_i64_(nk_i64_t v) NK_STREAMING_COMPATIBLE_ {
     nk_unpoison_(&v, sizeof(v));
     return v;
 }

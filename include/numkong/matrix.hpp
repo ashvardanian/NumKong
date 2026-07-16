@@ -38,7 +38,7 @@ namespace ashvardanian::numkong {
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NK_PUBLIC size_t dots_packed_size(size_t row_count, size_t depth) {
+NK_API_COMPTIME size_t dots_packed_size(size_t row_count, size_t depth) {
     constexpr bool simd = allow_simd_ == prefer_simd_k;
 
     if constexpr (std::is_same_v<in_type_, f64_t> && simd) return nk_dots_packed_size_f64(row_count, depth);
@@ -71,7 +71,8 @@ NK_PUBLIC size_t dots_packed_size(size_t row_count, size_t depth) {
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NK_PUBLIC void dots_pack(in_type_ const *b, size_t row_count, size_t depth, size_t b_stride_in_bytes, void *b_packed) {
+NK_API_COMPTIME void dots_pack(in_type_ const *b, size_t row_count, size_t depth, size_t b_stride_in_bytes,
+                               void *b_packed) {
     using raw_t = typename in_type_::raw_t;
     constexpr bool simd = allow_simd_ == prefer_simd_k;
 
@@ -117,7 +118,7 @@ NK_PUBLIC void dots_pack(in_type_ const *b, size_t row_count, size_t depth, size
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NK_PUBLIC std::size_t maxsim_packed_size(std::size_t vector_count, std::size_t depth) {
+NK_API_COMPTIME std::size_t maxsim_packed_size(std::size_t vector_count, std::size_t depth) {
     constexpr bool simd = allow_simd_ == prefer_simd_k;
 
     if constexpr (std::is_same_v<in_type_, bf16_t> && simd) return nk_maxsim_packed_size_bf16(vector_count, depth);
@@ -138,8 +139,8 @@ NK_PUBLIC std::size_t maxsim_packed_size(std::size_t vector_count, std::size_t d
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NK_PUBLIC void maxsim_pack(typename in_type_::raw_t const *vectors, std::size_t vector_count, std::size_t depth,
-                           std::size_t stride, void *packed) {
+NK_API_COMPTIME void maxsim_pack(typename in_type_::raw_t const *vectors, std::size_t vector_count, std::size_t depth,
+                                 std::size_t stride, void *packed) {
     constexpr bool simd = allow_simd_ == prefer_simd_k;
 
     if constexpr (std::is_same_v<in_type_, bf16_t> && simd)

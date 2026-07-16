@@ -27,7 +27,7 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd")
 #endif
 
-NK_PUBLIC float32x4_t nk_log2_f32x4_neon_(float32x4_t x) {
+NK_HELPER_AUTO float32x4_t nk_log2_f32x4_neon_(float32x4_t x) {
     // Extracting the exponent
     int32x4_t bits_i32x4 = vreinterpretq_s32_f32(x);
     int32x4_t exponent_i32x4 = vsubq_s32(vshrq_n_s32(vandq_s32(bits_i32x4, vdupq_n_s32(0x7F800000)), 23),
@@ -54,7 +54,7 @@ NK_PUBLIC float32x4_t nk_log2_f32x4_neon_(float32x4_t x) {
     return result_f32x4;
 }
 
-NK_PUBLIC void nk_kld_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_kld_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);
     float64x2_t sum_low_f64x2 = vdupq_n_f64(0.0);
@@ -88,7 +88,7 @@ nk_kld_f32_neon_cycle:
     *result = sum;
 }
 
-NK_PUBLIC void nk_jsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NK_API_COMPTIME void nk_jsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);
     float64x2_t sum_low_f64x2 = vdupq_n_f64(0.0);
@@ -142,7 +142,7 @@ nk_jsd_f32_neon_cycle:
 #pragma GCC target("arch=armv8.2-a+simd")
 #endif
 
-NK_PUBLIC void nk_kld_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_kld_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
     nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);
@@ -186,7 +186,7 @@ nk_kld_f16_neon_cycle:
     *result = sum;
 }
 
-NK_PUBLIC void nk_jsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
     nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);

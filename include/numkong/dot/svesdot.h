@@ -47,8 +47,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+dotprod")
 #endif
 
-NK_PUBLIC void nk_dot_i8_svesdot(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                 nk_i32_t *result) {
+NK_API_COMPTIME void nk_dot_i8_svesdot(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                       nk_i32_t *result) {
     nk_size_t idx_scalars = 0;
     svint32_t sum_i32x = svdup_s32(0);
     do {
@@ -61,8 +61,8 @@ NK_PUBLIC void nk_dot_i8_svesdot(nk_i8_t const *a_scalars, nk_i8_t const *b_scal
     *result = (nk_i32_t)nk_svaddv_s32_(svptrue_b32(), sum_i32x);
 }
 
-NK_PUBLIC void nk_dot_u8_svesdot(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                 nk_u32_t *result) {
+NK_API_COMPTIME void nk_dot_u8_svesdot(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                       nk_u32_t *result) {
     nk_size_t idx_scalars = 0;
     svuint32_t sum_u32x = svdup_u32(0);
     do {

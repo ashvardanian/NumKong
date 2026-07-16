@@ -42,8 +42,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.6-a+simd+bf16")
 #endif
 
-NK_PUBLIC void nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                          nk_f32_t *result) {
+NK_API_COMPTIME void nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
+                                                nk_f32_t *result) {
     float32x4_t outer_sum_f32x4 = vdupq_n_f32(0);
 
     for (nk_size_t i = 0; i != n; ++i) {
@@ -80,8 +80,8 @@ NK_PUBLIC void nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b
     *result = vaddvq_f32(outer_sum_f32x4);
 }
 
-NK_PUBLIC void nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                             nk_f32_t *result) {
+NK_API_COMPTIME void nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                   nk_size_t n, nk_f32_t *result) {
     nk_f32_t outer_sum = 0;
 
     for (nk_size_t i = 0; i != n; ++i) {
@@ -130,8 +130,8 @@ NK_PUBLIC void nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const
     *result = nk_f32_sqrt_neon(quadratic > 0 ? quadratic : 0);
 }
 
-NK_PUBLIC void nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
-                                           nk_bf16c_t const *c_pairs, nk_size_t n, nk_f32c_t *result) {
+NK_API_COMPTIME void nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
+                                                 nk_bf16c_t const *c_pairs, nk_size_t n, nk_f32c_t *result) {
     // ARMv8.3-A FCMLA was benchmarked for this complex multiply pattern.
     // The deinterleave+4FMA approach is 2.3x faster on Apple M4 — see `dot/neon.h` comment.
     nk_f32_t outer_sum_real = 0;

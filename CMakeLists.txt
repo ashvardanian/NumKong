@@ -180,7 +180,9 @@ if (APPLE AND CMAKE_OSX_ARCHITECTURES)
     if (nk_osx_archs_len_ EQUAL 1)
         set(CMAKE_SYSTEM_PROCESSOR "${CMAKE_OSX_ARCHITECTURES}")
     else ()
-        message(FATAL_ERROR "Multi-arch CMAKE_OSX_ARCHITECTURES='${CMAKE_OSX_ARCHITECTURES}' not supported; build per-arch")
+        message(
+            FATAL_ERROR "Multi-arch CMAKE_OSX_ARCHITECTURES='${CMAKE_OSX_ARCHITECTURES}' not supported; build per-arch"
+        )
     endif ()
     unset(nk_osx_archs_len_)
 endif ()
@@ -701,7 +703,7 @@ if (NK_BUILD_SHARED)
             "SHELL:-sEXPORT_ES6=1" # Generate ES6 module
             "SHELL:-sMODULARIZE=1" # Wrap in module factory
             "SHELL:-sEXPORT_NAME=NumKongModule" # Export name
-            "SHELL:-sEXPORTED_FUNCTIONS=['_malloc','_free','_nk_dot_f32','_nk_dot_f64','_nk_dot_f16','_nk_dot_bf16','_nk_dot_i8','_nk_dot_u8','_nk_angular_f32','_nk_angular_f64','_nk_angular_f16','_nk_angular_bf16','_nk_angular_i8','_nk_angular_u8','_nk_sqeuclidean_f32','_nk_sqeuclidean_f64','_nk_sqeuclidean_f16','_nk_sqeuclidean_bf16','_nk_sqeuclidean_i8','_nk_sqeuclidean_u8','_nk_euclidean_f32','_nk_euclidean_f64','_nk_euclidean_f16','_nk_euclidean_bf16','_nk_euclidean_i8','_nk_euclidean_u8','_nk_hamming_u1','_nk_hamming_u8','_nk_jaccard_u1','_nk_jaccard_u16','_nk_kld_f32','_nk_kld_f64','_nk_jsd_f32','_nk_jsd_f64','_nk_capabilities','_nk_dots_packed_size_f32','_nk_dots_packed_size_f64','_nk_dots_packed_size_f16','_nk_dots_packed_size_bf16','_nk_dots_packed_size_i8','_nk_dots_packed_size_u8','_nk_dots_pack_f32','_nk_dots_pack_f64','_nk_dots_pack_f16','_nk_dots_pack_bf16','_nk_dots_pack_i8','_nk_dots_pack_u8','_nk_dots_packed_f32','_nk_dots_packed_f64','_nk_dots_packed_f16','_nk_dots_packed_bf16','_nk_dots_packed_i8','_nk_dots_packed_u8','_nk_dots_symmetric_f32','_nk_dots_symmetric_f64','_nk_dots_symmetric_f16','_nk_dots_symmetric_bf16','_nk_dots_symmetric_i8','_nk_dots_symmetric_u8','_nk_angulars_packed_f32','_nk_angulars_packed_f64','_nk_angulars_packed_f16','_nk_angulars_packed_bf16','_nk_angulars_symmetric_f32','_nk_angulars_symmetric_f64','_nk_angulars_symmetric_f16','_nk_angulars_symmetric_bf16','_nk_euclideans_packed_f32','_nk_euclideans_packed_f64','_nk_euclideans_packed_f16','_nk_euclideans_packed_bf16','_nk_euclideans_symmetric_f32','_nk_euclideans_symmetric_f64','_nk_euclideans_symmetric_f16','_nk_euclideans_symmetric_bf16']"
+            "SHELL:-sEXPORTED_FUNCTIONS=['_malloc','_free','_nk_dot_f32','_nk_dot_f64','_nk_dot_f16','_nk_dot_bf16','_nk_dot_i8','_nk_dot_u8','_nk_angular_f32','_nk_angular_f64','_nk_angular_f16','_nk_angular_bf16','_nk_angular_i8','_nk_angular_u8','_nk_sqeuclidean_f32','_nk_sqeuclidean_f64','_nk_sqeuclidean_f16','_nk_sqeuclidean_bf16','_nk_sqeuclidean_i8','_nk_sqeuclidean_u8','_nk_euclidean_f32','_nk_euclidean_f64','_nk_euclidean_f16','_nk_euclidean_bf16','_nk_euclidean_i8','_nk_euclidean_u8','_nk_hamming_u1','_nk_hamming_u8','_nk_jaccard_u1','_nk_jaccard_u16','_nk_kld_f32','_nk_kld_f64','_nk_jsd_f32','_nk_jsd_f64','_nk_capabilities_detected','_nk_capabilities_compiled','_nk_capabilities_available','_nk_capabilities_enabled','_nk_dots_packed_size_f32','_nk_dots_packed_size_f64','_nk_dots_packed_size_f16','_nk_dots_packed_size_bf16','_nk_dots_packed_size_i8','_nk_dots_packed_size_u8','_nk_dots_pack_f32','_nk_dots_pack_f64','_nk_dots_pack_f16','_nk_dots_pack_bf16','_nk_dots_pack_i8','_nk_dots_pack_u8','_nk_dots_packed_f32','_nk_dots_packed_f64','_nk_dots_packed_f16','_nk_dots_packed_bf16','_nk_dots_packed_i8','_nk_dots_packed_u8','_nk_dots_symmetric_f32','_nk_dots_symmetric_f64','_nk_dots_symmetric_f16','_nk_dots_symmetric_bf16','_nk_dots_symmetric_i8','_nk_dots_symmetric_u8','_nk_angulars_packed_f32','_nk_angulars_packed_f64','_nk_angulars_packed_f16','_nk_angulars_packed_bf16','_nk_angulars_symmetric_f32','_nk_angulars_symmetric_f64','_nk_angulars_symmetric_f16','_nk_angulars_symmetric_bf16','_nk_euclideans_packed_f32','_nk_euclideans_packed_f64','_nk_euclideans_packed_f16','_nk_euclideans_packed_bf16','_nk_euclideans_symmetric_f32','_nk_euclideans_symmetric_f64','_nk_euclideans_symmetric_f16','_nk_euclideans_symmetric_bf16']"
             "SHELL:-sEXPORTED_RUNTIME_METHODS=['wasmMemory']" # Export memory object
             "SHELL:-sALLOW_MEMORY_GROWTH=1" # Dynamic memory
             "SHELL:-sENVIRONMENT=web,node" # Both browser and Node.js
@@ -727,7 +729,7 @@ if (NK_BUILD_SHARED)
         target_include_directories(nk_shared PUBLIC "${PROJECT_SOURCE_DIR}/include")
         set_target_properties(nk_shared PROPERTIES OUTPUT_NAME numkong)
 
-        # Hide all symbols by default; only NK_DYNAMIC-annotated API functions are exported.
+        # Hide all symbols by default; only NK_API_RUNTIME-annotated API functions are exported.
         # Strip unwind tables from this pure-C library (saves ~78 KB).
         if (NOT MSVC)
             target_compile_options(
@@ -792,7 +794,7 @@ if (NK_BUILD_SHARED)
     )
 endif ()
 
-# Shared-library test (tests dynamic dispatch path)
+# Shared-library test (tests runtime dispatch path)
 if (NK_BUILD_SHARED_TEST)
     if (NOT NK_BUILD_SHARED)
         message(FATAL_ERROR "NK_BUILD_SHARED_TEST requires NK_BUILD_SHARED=ON")
@@ -808,7 +810,7 @@ if (NK_BUILD_SHARED_TEST)
         test/test_cross_wasm.cpp test/test_maxsim.cpp test/test_tensor.cpp
     )
     target_include_directories(nk_shared_test PRIVATE "${PROJECT_SOURCE_DIR}/include")
-    target_compile_definitions(nk_shared_test PRIVATE NK_DYNAMIC_DISPATCH=1)
+    target_compile_definitions(nk_shared_test PRIVATE NK_RUNTIME_DISPATCH=1)
     target_link_libraries(nk_shared_test nk_shared ${NK_CXX_MATH_LIB_})
 
     # Mirror the shipped Release codegen.

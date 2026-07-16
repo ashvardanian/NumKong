@@ -26,8 +26,8 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_INTERNAL nk_size_t nk_sparse_lower_bound_gallop_u32_haswell_(nk_u32_t const *indices, nk_size_t length,
-                                                                nk_size_t position, nk_u32_t key) {
+NK_HELPER_INLINE nk_size_t nk_sparse_lower_bound_gallop_u32_haswell_(nk_u32_t const *indices, nk_size_t length,
+                                                                     nk_size_t position, nk_u32_t key) {
     if (position >= length || indices[position] >= key) return position;
 
     nk_size_t step = 1;
@@ -45,9 +45,9 @@ NK_INTERNAL nk_size_t nk_sparse_lower_bound_gallop_u32_haswell_(nk_u32_t const *
     return low;
 }
 
-NK_INTERNAL nk_f64_t nk_sparse_dot_gallop_a_u32f32_haswell_(nk_u32_t const *a, nk_u32_t const *b,
-                                                            nk_f32_t const *a_weights, nk_f32_t const *b_weights,
-                                                            nk_size_t a_length, nk_size_t b_length) {
+NK_HELPER_INLINE nk_f64_t nk_sparse_dot_gallop_a_u32f32_haswell_(nk_u32_t const *a, nk_u32_t const *b,
+                                                                 nk_f32_t const *a_weights, nk_f32_t const *b_weights,
+                                                                 nk_size_t a_length, nk_size_t b_length) {
     nk_f64_t sum = 0;
     nk_size_t j = 0;
     for (nk_size_t i = 0; i < a_length; ++i) {
@@ -59,9 +59,9 @@ NK_INTERNAL nk_f64_t nk_sparse_dot_gallop_a_u32f32_haswell_(nk_u32_t const *a, n
     return sum;
 }
 
-NK_INTERNAL nk_f64_t nk_sparse_dot_gallop_b_u32f32_haswell_(nk_u32_t const *a, nk_u32_t const *b,
-                                                            nk_f32_t const *a_weights, nk_f32_t const *b_weights,
-                                                            nk_size_t a_length, nk_size_t b_length) {
+NK_HELPER_INLINE nk_f64_t nk_sparse_dot_gallop_b_u32f32_haswell_(nk_u32_t const *a, nk_u32_t const *b,
+                                                                 nk_f32_t const *a_weights, nk_f32_t const *b_weights,
+                                                                 nk_size_t a_length, nk_size_t b_length) {
     nk_f64_t sum = 0;
     nk_size_t i = 0;
     for (nk_size_t j = 0; j < b_length; ++j) {
@@ -73,7 +73,8 @@ NK_INTERNAL nk_f64_t nk_sparse_dot_gallop_b_u32f32_haswell_(nk_u32_t const *a, n
     return sum;
 }
 
-NK_INTERNAL nk_f64_t nk_sparse_reduce_f64x4x2_haswell_(__m256d accumulator_low_f64x4, __m256d accumulator_high_f64x4) {
+NK_HELPER_INLINE nk_f64_t nk_sparse_reduce_f64x4x2_haswell_(__m256d accumulator_low_f64x4,
+                                                            __m256d accumulator_high_f64x4) {
     __m256d total_f64x4 = _mm256_add_pd(accumulator_low_f64x4, accumulator_high_f64x4);
     __m128d total_low_f64x2 = _mm256_castpd256_pd128(total_f64x4);
     __m128d total_high_f64x2 = _mm256_extractf128_pd(total_f64x4, 1);
@@ -82,9 +83,9 @@ NK_INTERNAL nk_f64_t nk_sparse_reduce_f64x4x2_haswell_(__m256d accumulator_low_f
     return _mm_cvtsd_f64(sum_f64x1);
 }
 
-NK_PUBLIC void nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
-                                            nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                            nk_f64_t *product) {
+NK_API_COMPTIME void nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
+                                                  nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                                  nk_f64_t *product) {
     if ((a_length << 6) < b_length) {
         *product = nk_sparse_dot_gallop_a_u32f32_haswell_(a, b, a_weights, b_weights, a_length, b_length);
         return;

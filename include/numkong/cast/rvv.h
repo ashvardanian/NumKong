@@ -62,7 +62,7 @@ extern "C" {
  *  BF16 is the upper 16 bits of F32 (same sign + exponent + top 7 mantissa bits).
  *  Conversion is simply: f32_bits = bf16_bits << 16.
  */
-NK_INTERNAL vfloat32m2_t nk_bf16m1_to_f32m2_rvv_(vuint16m1_t bf16_u16m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vfloat32m2_t nk_bf16m1_to_f32m2_rvv_(vuint16m1_t bf16_u16m1, nk_size_t vector_length) {
     vuint32m2_t bits_u32m2 = __riscv_vzext_vf2_u32m2(bf16_u16m1, vector_length);
     bits_u32m2 = __riscv_vsll_vx_u32m2(bits_u32m2, 16, vector_length);
     return __riscv_vreinterpret_v_u32m2_f32m2(bits_u32m2);
@@ -73,7 +73,7 @@ NK_INTERNAL vfloat32m2_t nk_bf16m1_to_f32m2_rvv_(vuint16m1_t bf16_u16m1, nk_size
  *
  *  Conversion with round-to-nearest-even (RNE): add (0x7FFF + lsb) to match hardware BF16 behavior.
  */
-NK_INTERNAL vuint16m1_t nk_f32m2_to_bf16m1_rvv_(vfloat32m2_t f32_f32m2, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint16m1_t nk_f32m2_to_bf16m1_rvv_(vfloat32m2_t f32_f32m2, nk_size_t vector_length) {
     vuint32m2_t bits_u32m2 = __riscv_vreinterpret_v_f32m2_u32m2(f32_f32m2);
     // Extract LSB of result (bit 16) for round-to-nearest-even
     vuint32m2_t lsb_u32m2 = __riscv_vand_vx_u32m2(__riscv_vsrl_vx_u32m2(bits_u32m2, 16, vector_length), 1,
@@ -96,7 +96,7 @@ NK_INTERNAL vuint16m1_t nk_f32m2_to_bf16m1_rvv_(vfloat32m2_t f32_f32m2, nk_size_
  *
  *  https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
  */
-NK_INTERNAL vfloat32m2_t nk_f16m1_to_f32m2_rvv_(vuint16m1_t f16_u16m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vfloat32m2_t nk_f16m1_to_f32m2_rvv_(vuint16m1_t f16_u16m1, nk_size_t vector_length) {
     // Widen to 32-bit for manipulation
     vuint32m2_t bits_u32m2 = __riscv_vzext_vf2_u32m2(f16_u16m1, vector_length);
     // Extract sign: (raw >> 15) << 31
@@ -135,7 +135,7 @@ NK_INTERNAL vfloat32m2_t nk_f16m1_to_f32m2_rvv_(vuint16m1_t f16_u16m1, nk_size_t
  *
  *  Conversion: Rebias exponent from 127 to 15, truncate mantissa from 23 to 10 bits with rounding.
  */
-NK_INTERNAL vuint16m1_t nk_f32m2_to_f16m1_rvv_(vfloat32m2_t f32_f32m2, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint16m1_t nk_f32m2_to_f16m1_rvv_(vfloat32m2_t f32_f32m2, nk_size_t vector_length) {
     // Full IEEE-754 f32→f16 with round-to-nearest-even, mirroring nk_f32_to_f16_serial. Each lane's
     // f32 exponent falls in exactly one bucket; per-bucket f16 magnitudes are computed unconditionally
     // and merged by mask. Sign is applied last; the result is narrowed u32m2 → u16m1.
@@ -234,7 +234,7 @@ NK_INTERNAL vuint16m1_t nk_f32m2_to_f16m1_rvv_(vfloat32m2_t f32_f32m2, nk_size_t
  *  Handles zero, subnormals, and normals in a single vfmul. NaN fixup for magnitude 0x7F.
  *  https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
  */
-NK_INTERNAL vfloat32m4_t nk_e4m3m1_to_f32m4_rvv_(vuint8m1_t e4m3_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vfloat32m4_t nk_e4m3m1_to_f32m4_rvv_(vuint8m1_t e4m3_u8m1, nk_size_t vector_length) {
     // Extract sign: (raw & 0x80) → bit 7, shift to bit 31
     vuint32m4_t sign_u32m4 = __riscv_vsll_vx_u32m4(
         __riscv_vzext_vf4_u32m4(__riscv_vand_vx_u8m1(e4m3_u8m1, 0x80, vector_length), vector_length), 24,
@@ -266,7 +266,7 @@ NK_INTERNAL vfloat32m4_t nk_e4m3m1_to_f32m4_rvv_(vuint8m1_t e4m3_u8m1, nk_size_t
  *  Handles zero, subnormals, and normals in a single vfmul. Inf/NaN fixup for exp=31.
  *  https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
  */
-NK_INTERNAL vfloat32m4_t nk_e5m2m1_to_f32m4_rvv_(vuint8m1_t e5m2_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vfloat32m4_t nk_e5m2m1_to_f32m4_rvv_(vuint8m1_t e5m2_u8m1, nk_size_t vector_length) {
     // Extract sign: (raw & 0x80) → bit 7, shift to bit 31
     vuint32m4_t sign_u32m4 = __riscv_vsll_vx_u32m4(
         __riscv_vzext_vf4_u32m4(__riscv_vand_vx_u8m1(e5m2_u8m1, 0x80, vector_length), vector_length), 24,
@@ -299,7 +299,7 @@ NK_INTERNAL vfloat32m4_t nk_e5m2m1_to_f32m4_rvv_(vuint8m1_t e5m2_u8m1, nk_size_t
  *  Handles zero, subnormals, and normals in a single vfmul. No inf/NaN in E2M3FN.
  *  https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
  */
-NK_INTERNAL vfloat32m4_t nk_e2m3m1_to_f32m4_rvv_(vuint8m1_t e2m3_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vfloat32m4_t nk_e2m3m1_to_f32m4_rvv_(vuint8m1_t e2m3_u8m1, nk_size_t vector_length) {
     // Extract sign: bit 5 → bit 31
     vuint32m4_t sign_u32m4 = __riscv_vsll_vx_u32m4(
         __riscv_vzext_vf4_u32m4(__riscv_vand_vx_u8m1(e2m3_u8m1, 0x20, vector_length), vector_length), 26,
@@ -327,7 +327,7 @@ NK_INTERNAL vfloat32m4_t nk_e2m3m1_to_f32m4_rvv_(vuint8m1_t e2m3_u8m1, nk_size_t
  *  Handles zero, subnormals, and normals in a single vfmul. No inf/NaN in E3M2FN.
  *  https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
  */
-NK_INTERNAL vfloat32m4_t nk_e3m2m1_to_f32m4_rvv_(vuint8m1_t e3m2_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vfloat32m4_t nk_e3m2m1_to_f32m4_rvv_(vuint8m1_t e3m2_u8m1, nk_size_t vector_length) {
     // Extract sign: bit 5 → bit 31
     vuint32m4_t sign_u32m4 = __riscv_vsll_vx_u32m4(
         __riscv_vzext_vf4_u32m4(__riscv_vand_vx_u8m1(e3m2_u8m1, 0x20, vector_length), vector_length), 26,
@@ -351,7 +351,7 @@ NK_INTERNAL vfloat32m4_t nk_e3m2m1_to_f32m4_rvv_(vuint8m1_t e3m2_u8m1, nk_size_t
 
 /** @brief Convert e4m3 (m1) to bf16 (m2) via Giesen magic-multiply.
  *  Magic-multiply to f32, truncate upper 16 bits to bf16. NaN fixup for magnitude 0x7F. */
-NK_INTERNAL vuint16m2_t nk_e4m3m1_to_bf16m2_rvv_(vuint8m1_t e4m3_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint16m2_t nk_e4m3m1_to_bf16m2_rvv_(vuint8m1_t e4m3_u8m1, nk_size_t vector_length) {
     vuint8m1_t sign_u8m1 = __riscv_vand_vx_u8m1(e4m3_u8m1, 0x80, vector_length);
     vuint8m1_t nonsign_u8m1 = __riscv_vand_vx_u8m1(e4m3_u8m1, 0x7F, vector_length);
     vuint32m4_t nonsign_u32m4 = __riscv_vzext_vf4_u32m4(nonsign_u8m1, vector_length);
@@ -373,7 +373,7 @@ NK_INTERNAL vuint16m2_t nk_e4m3m1_to_bf16m2_rvv_(vuint8m1_t e4m3_u8m1, nk_size_t
 
 /** @brief Convert e5m2 (m1) to bf16 (m2) via Giesen magic-multiply.
  *  Magic-multiply to f32, inf/NaN fixup, truncate upper 16 bits to bf16. */
-NK_INTERNAL vuint16m2_t nk_e5m2m1_to_bf16m2_rvv_(vuint8m1_t e5m2_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint16m2_t nk_e5m2m1_to_bf16m2_rvv_(vuint8m1_t e5m2_u8m1, nk_size_t vector_length) {
     vuint8m1_t sign_u8m1 = __riscv_vand_vx_u8m1(e5m2_u8m1, 0x80, vector_length);
     vuint8m1_t nonsign_u8m1 = __riscv_vand_vx_u8m1(e5m2_u8m1, 0x7F, vector_length);
     vuint32m4_t nonsign_u32m4 = __riscv_vzext_vf4_u32m4(nonsign_u8m1, vector_length);
@@ -396,7 +396,7 @@ NK_INTERNAL vuint16m2_t nk_e5m2m1_to_bf16m2_rvv_(vuint8m1_t e5m2_u8m1, nk_size_t
 
 /** @brief Convert e2m3 (m1) to bf16 (m2) via Giesen magic-multiply.
  *  Magic-multiply to f32, truncate upper 16 bits to bf16. No inf/NaN in E2M3FN. */
-NK_INTERNAL vuint16m2_t nk_e2m3m1_to_bf16m2_rvv_(vuint8m1_t e2m3_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint16m2_t nk_e2m3m1_to_bf16m2_rvv_(vuint8m1_t e2m3_u8m1, nk_size_t vector_length) {
     vuint8m1_t sign_u8m1 = __riscv_vand_vx_u8m1(e2m3_u8m1, 0x20, vector_length);
     vuint8m1_t nonsign_u8m1 = __riscv_vand_vx_u8m1(e2m3_u8m1, 0x1F, vector_length);
     vuint32m4_t nonsign_u32m4 = __riscv_vzext_vf4_u32m4(nonsign_u8m1, vector_length);
@@ -416,7 +416,7 @@ NK_INTERNAL vuint16m2_t nk_e2m3m1_to_bf16m2_rvv_(vuint8m1_t e2m3_u8m1, nk_size_t
 
 /** @brief Convert e3m2 (m1) to bf16 (m2) via Giesen magic-multiply.
  *  Magic-multiply to f32, truncate upper 16 bits to bf16. No inf/NaN in E3M2FN. */
-NK_INTERNAL vuint16m2_t nk_e3m2m1_to_bf16m2_rvv_(vuint8m1_t e3m2_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint16m2_t nk_e3m2m1_to_bf16m2_rvv_(vuint8m1_t e3m2_u8m1, nk_size_t vector_length) {
     vuint8m1_t sign_u8m1 = __riscv_vand_vx_u8m1(e3m2_u8m1, 0x20, vector_length);
     vuint8m1_t nonsign_u8m1 = __riscv_vand_vx_u8m1(e3m2_u8m1, 0x1F, vector_length);
     vuint32m4_t nonsign_u32m4 = __riscv_vzext_vf4_u32m4(nonsign_u8m1, vector_length);
@@ -435,7 +435,7 @@ NK_INTERNAL vuint16m2_t nk_e3m2m1_to_bf16m2_rvv_(vuint8m1_t e3m2_u8m1, nk_size_t
 }
 
 /** @brief Convert e4m3 (m1) to f16 (m2) via sign-symmetric magnitude LUT. Sign bit 7 → f16 bit 15 (<<8). */
-NK_INTERNAL vuint16m2_t nk_e4m3m1_to_f16m2_rvv_(vuint8m1_t e4m3_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint16m2_t nk_e4m3m1_to_f16m2_rvv_(vuint8m1_t e4m3_u8m1, nk_size_t vector_length) {
     static nk_u16_t const nk_e4m3_mag_to_f16_lut_[128] = {
         0x0000u, 0x1800u, 0x1C00u, 0x1E00u, 0x2000u, 0x2100u, 0x2200u, 0x2300u, /* [  0..  7] */
         0x2400u, 0x2480u, 0x2500u, 0x2580u, 0x2600u, 0x2680u, 0x2700u, 0x2780u, /* [  8.. 15] */
@@ -464,7 +464,7 @@ NK_INTERNAL vuint16m2_t nk_e4m3m1_to_f16m2_rvv_(vuint8m1_t e4m3_u8m1, nk_size_t 
 }
 
 /** @brief Convert e2m3 (m1) to f16 (m2) via sign-symmetric magnitude LUT. Sign bit 5 → f16 bit 15 (<<10). */
-NK_INTERNAL vuint16m2_t nk_e2m3m1_to_f16m2_rvv_(vuint8m1_t e2m3_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint16m2_t nk_e2m3m1_to_f16m2_rvv_(vuint8m1_t e2m3_u8m1, nk_size_t vector_length) {
     static nk_u16_t const nk_e2m3_mag_to_f16_lut_[32] = {
         0x0000u, 0x3000u, 0x3400u, 0x3600u, 0x3800u, 0x3900u, 0x3A00u, 0x3B00u, /* [  0..  7] */
         0x3C00u, 0x3C80u, 0x3D00u, 0x3D80u, 0x3E00u, 0x3E80u, 0x3F00u, 0x3F80u, /* [  8.. 15] */
@@ -482,7 +482,7 @@ NK_INTERNAL vuint16m2_t nk_e2m3m1_to_f16m2_rvv_(vuint8m1_t e2m3_u8m1, nk_size_t 
 }
 
 /** @brief Convert e3m2 (m1) to f16 (m2) via sign-symmetric magnitude LUT. Sign bit 5 → f16 bit 15 (<<10). */
-NK_INTERNAL vuint16m2_t nk_e3m2m1_to_f16m2_rvv_(vuint8m1_t e3m2_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint16m2_t nk_e3m2m1_to_f16m2_rvv_(vuint8m1_t e3m2_u8m1, nk_size_t vector_length) {
     static nk_u16_t const nk_e3m2_mag_to_f16_lut_[32] = {
         0x0000u, 0x2C00u, 0x3000u, 0x3200u, 0x3400u, 0x3500u, 0x3600u, 0x3700u, /* [  0..  7] */
         0x3800u, 0x3900u, 0x3A00u, 0x3B00u, 0x3C00u, 0x3D00u, 0x3E00u, 0x3F00u, /* [  8.. 15] */
@@ -511,7 +511,7 @@ NK_INTERNAL vuint16m2_t nk_e3m2m1_to_f16m2_rvv_(vuint8m1_t e3m2_u8m1, nk_size_t 
  *
  *  Returns a tuple of two m1 vectors (high nibbles, low nibbles) for segment store.
  */
-NK_INTERNAL vint8m1x2_t nk_i4m1_to_i8m2_rvv_(vuint8m1_t packed_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vint8m1x2_t nk_i4m1_to_i8m2_rvv_(vuint8m1_t packed_u8m1, nk_size_t vector_length) {
     // Extract high nibble (even indices in output)
     vuint8m1_t high_u8m1 = __riscv_vsrl_vx_u8m1(packed_u8m1, 4, vector_length);
     // Sign extend: (x ^ 8) - 8
@@ -532,7 +532,7 @@ NK_INTERNAL vint8m1x2_t nk_i4m1_to_i8m2_rvv_(vuint8m1_t packed_u8m1, nk_size_t v
  *
  *  Returns a tuple of two m1 vectors (high nibbles, low nibbles) for segment store.
  */
-NK_INTERNAL vuint8m1x2_t nk_u4m1_to_u8m2_rvv_(vuint8m1_t packed_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint8m1x2_t nk_u4m1_to_u8m2_rvv_(vuint8m1_t packed_u8m1, nk_size_t vector_length) {
     // Extract high nibble (even indices in output)
     vuint8m1_t high_u8m1 = __riscv_vsrl_vx_u8m1(packed_u8m1, 4, vector_length);
 
@@ -548,7 +548,7 @@ NK_INTERNAL vuint8m1x2_t nk_u4m1_to_u8m2_rvv_(vuint8m1_t packed_u8m1, nk_size_t 
  *  Takes a tuple of two m1 vectors (high nibbles, low nibbles from segment load).
  *  Values are clamped to [-8, 7] before packing.
  */
-NK_INTERNAL vuint8m1_t nk_i8m2_to_i4m1_rvv_(vint8m1_t high_i8m1, vint8m1_t low_i8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint8m1_t nk_i8m2_to_i4m1_rvv_(vint8m1_t high_i8m1, vint8m1_t low_i8m1, nk_size_t vector_length) {
     // Clamp to [-8, 7]
     high_i8m1 = __riscv_vmax_vx_i8m1(__riscv_vmin_vx_i8m1(high_i8m1, 7, vector_length), -8, vector_length);
     low_i8m1 = __riscv_vmax_vx_i8m1(__riscv_vmin_vx_i8m1(low_i8m1, 7, vector_length), -8, vector_length);
@@ -567,7 +567,7 @@ NK_INTERNAL vuint8m1_t nk_i8m2_to_i4m1_rvv_(vint8m1_t high_i8m1, vint8m1_t low_i
  *  Takes a tuple of two m1 vectors (high nibbles, low nibbles from segment load).
  *  Values are clamped to [0, 15] before packing.
  */
-NK_INTERNAL vuint8m1_t nk_u8m2_to_u4m1_rvv_(vuint8m1_t high_u8m1, vuint8m1_t low_u8m1, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint8m1_t nk_u8m2_to_u4m1_rvv_(vuint8m1_t high_u8m1, vuint8m1_t low_u8m1, nk_size_t vector_length) {
     // Clamp to [0, 15]
     high_u8m1 = __riscv_vminu_vx_u8m1(high_u8m1, 15, vector_length);
     low_u8m1 = __riscv_vminu_vx_u8m1(low_u8m1, 15, vector_length);
@@ -583,7 +583,7 @@ NK_INTERNAL vuint8m1_t nk_u8m2_to_u4m1_rvv_(vuint8m1_t high_u8m1, vuint8m1_t low
  *  Handles normal, subnormal, overflow, and NaN. Uses RNE mantissa rounding.
  *  E4M3FN quirk: exp=15 with mant=7 is NaN (0x7F), so max finite is 0x7E (exp=15, mant=6).
  */
-NK_INTERNAL vuint8m1_t nk_f32m4_to_e4m3m1_rvv_(vfloat32m4_t f32_f32m4, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint8m1_t nk_f32m4_to_e4m3m1_rvv_(vfloat32m4_t f32_f32m4, nk_size_t vector_length) {
     vuint32m4_t bits_u32m4 = __riscv_vreinterpret_v_f32m4_u32m4(f32_f32m4);
     vuint32m4_t sign_u32m4 = __riscv_vsrl_vx_u32m4(bits_u32m4, 31, vector_length);
     vuint32m4_t abs_u32m4 = __riscv_vand_vx_u32m4(bits_u32m4, 0x7FFFFFFF, vector_length);
@@ -665,7 +665,7 @@ NK_INTERNAL vuint8m1_t nk_f32m4_to_e4m3m1_rvv_(vfloat32m4_t f32_f32m4, nk_size_t
  *  E5M2 format: S EEEEE MM (1 sign, 5 exponent bits with bias=15, 2 mantissa bits)
  *  Handles normal, subnormal, overflow (→ infinity), and NaN. Uses RNE mantissa rounding.
  */
-NK_INTERNAL vuint8m1_t nk_f32m4_to_e5m2m1_rvv_(vfloat32m4_t f32_f32m4, nk_size_t vector_length) {
+NK_HELPER_INLINE vuint8m1_t nk_f32m4_to_e5m2m1_rvv_(vfloat32m4_t f32_f32m4, nk_size_t vector_length) {
     vuint32m4_t bits_u32m4 = __riscv_vreinterpret_v_f32m4_u32m4(f32_f32m4);
     vuint32m4_t sign_u32m4 = __riscv_vsrl_vx_u32m4(bits_u32m4, 31, vector_length);
     vuint32m4_t abs_u32m4 = __riscv_vand_vx_u32m4(bits_u32m4, 0x7FFFFFFF, vector_length);
@@ -737,7 +737,8 @@ NK_INTERNAL vuint8m1_t nk_f32m4_to_e5m2m1_rvv_(vfloat32m4_t f32_f32m4, nk_size_t
 
 #pragma region Unified Cast Dispatcher
 
-NK_PUBLIC void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size_t count, void *to, nk_dtype_t to_type) {
+NK_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
+                                 nk_dtype_t to_type) {
     // bf16 → f32
     if (from_type == nk_bf16_k && to_type == nk_f32_k) {
         nk_bf16_t const *source = (nk_bf16_t const *)from;

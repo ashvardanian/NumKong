@@ -100,7 +100,7 @@ extern "C" {
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
  */
-NK_DYNAMIC void nk_sparse_intersect_u16( //
+NK_API_RUNTIME void nk_sparse_intersect_u16( //
     nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length, nk_size_t b_length, nk_u16_t *result, nk_size_t *count);
 
 /**
@@ -115,7 +115,7 @@ NK_DYNAMIC void nk_sparse_intersect_u16( //
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
  */
-NK_DYNAMIC void nk_sparse_intersect_u32( //
+NK_API_RUNTIME void nk_sparse_intersect_u32( //
     nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length, nk_size_t b_length, nk_u32_t *result, nk_size_t *count);
 
 /**
@@ -130,7 +130,7 @@ NK_DYNAMIC void nk_sparse_intersect_u32( //
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
  */
-NK_DYNAMIC void nk_sparse_intersect_u64( //
+NK_API_RUNTIME void nk_sparse_intersect_u64( //
     nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length, nk_size_t b_length, nk_u64_t *result, nk_size_t *count);
 
 /**
@@ -146,7 +146,7 @@ NK_DYNAMIC void nk_sparse_intersect_u64( //
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
  */
-NK_DYNAMIC void nk_sparse_dot_u16bf16( //
+NK_API_RUNTIME void nk_sparse_dot_u16bf16( //
     nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights, nk_bf16_t const *b_weights, nk_size_t a_length,
     nk_size_t b_length, nk_f32_t *product);
 
@@ -163,110 +163,110 @@ NK_DYNAMIC void nk_sparse_dot_u16bf16( //
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
  */
-NK_DYNAMIC void nk_sparse_dot_u32f32( //
+NK_API_RUNTIME void nk_sparse_dot_u32f32( //
     nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights, nk_f32_t const *b_weights, nk_size_t a_length,
     nk_size_t b_length, nk_f64_t *product);
 
 /** @copydoc nk_sparse_intersect_u16 */
-NK_PUBLIC void nk_sparse_intersect_u16_serial(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
-                                              nk_size_t b_length, nk_u16_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u16_serial(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
+                                                    nk_size_t b_length, nk_u16_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_intersect_u32 */
-NK_PUBLIC void nk_sparse_intersect_u32_serial(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
-                                              nk_size_t b_length, nk_u32_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u32_serial(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
+                                                    nk_size_t b_length, nk_u32_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_intersect_u64 */
-NK_PUBLIC void nk_sparse_intersect_u64_serial(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
-                                              nk_size_t b_length, nk_u64_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u64_serial(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
+                                                    nk_size_t b_length, nk_u64_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_dot_u16bf16 */
-NK_PUBLIC void nk_sparse_dot_u16bf16_serial(nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights,
-                                            nk_bf16_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                            nk_f32_t *product);
+NK_API_COMPTIME void nk_sparse_dot_u16bf16_serial(nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights,
+                                                  nk_bf16_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                                  nk_f32_t *product);
 /** @copydoc nk_sparse_dot_u32f32 */
-NK_PUBLIC void nk_sparse_dot_u32f32_serial(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
-                                           nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                           nk_f64_t *product);
+NK_API_COMPTIME void nk_sparse_dot_u32f32_serial(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
+                                                 nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                                 nk_f64_t *product);
 
 #if NK_TARGET_NEON
 /** @copydoc nk_sparse_intersect_u16 */
-NK_PUBLIC void nk_sparse_intersect_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
-                                            nk_size_t b_length, nk_u16_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
+                                                  nk_size_t b_length, nk_u16_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_intersect_u32 */
-NK_PUBLIC void nk_sparse_intersect_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
-                                            nk_size_t b_length, nk_u32_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
+                                                  nk_size_t b_length, nk_u32_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_intersect_u64 */
-NK_PUBLIC void nk_sparse_intersect_u64_neon(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
-                                            nk_size_t b_length, nk_u64_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u64_neon(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
+                                                  nk_size_t b_length, nk_u64_t *result, nk_size_t *count);
 #endif // NK_TARGET_NEON
 
 #if NK_TARGET_SVE2
 /** @copydoc nk_sparse_intersect_u16 */
-NK_PUBLIC void nk_sparse_intersect_u16_sve2(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
-                                            nk_size_t b_length, nk_u16_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u16_sve2(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
+                                                  nk_size_t b_length, nk_u16_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_intersect_u32 */
-NK_PUBLIC void nk_sparse_intersect_u32_sve2(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
-                                            nk_size_t b_length, nk_u32_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u32_sve2(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
+                                                  nk_size_t b_length, nk_u32_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_intersect_u64 */
-NK_PUBLIC void nk_sparse_intersect_u64_sve2(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
-                                            nk_size_t b_length, nk_u64_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u64_sve2(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
+                                                  nk_size_t b_length, nk_u64_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_dot_u32f32 */
-NK_PUBLIC void nk_sparse_dot_u32f32_sve2(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
-                                         nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                         nk_f64_t *product);
+NK_API_COMPTIME void nk_sparse_dot_u32f32_sve2(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
+                                               nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                               nk_f64_t *product);
 #endif // NK_TARGET_SVE2
 
 #if NK_TARGET_SVE2 && NK_TARGET_SVEBFDOT
 /** @copydoc nk_sparse_dot_u16bf16 */
-NK_PUBLIC void nk_sparse_dot_u16bf16_sve2(nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights,
-                                          nk_bf16_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                          nk_f32_t *product);
+NK_API_COMPTIME void nk_sparse_dot_u16bf16_sve2(nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights,
+                                                nk_bf16_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                                nk_f32_t *product);
 #endif // NK_TARGET_SVE2 && NK_TARGET_SVEBFDOT
 
 #if NK_TARGET_ICELAKE
 /** @copydoc nk_sparse_intersect_u16 */
-NK_PUBLIC void nk_sparse_intersect_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
-                                               nk_size_t b_length, nk_u16_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
+                                                     nk_size_t b_length, nk_u16_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_intersect_u32 */
-NK_PUBLIC void nk_sparse_intersect_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
-                                               nk_size_t b_length, nk_u32_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
+                                                     nk_size_t b_length, nk_u32_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_intersect_u64 */
-NK_PUBLIC void nk_sparse_intersect_u64_icelake(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
-                                               nk_size_t b_length, nk_u64_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u64_icelake(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
+                                                     nk_size_t b_length, nk_u64_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_dot_u32f32 */
-NK_PUBLIC void nk_sparse_dot_u32f32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
-                                            nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                            nk_f64_t *product);
+NK_API_COMPTIME void nk_sparse_dot_u32f32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
+                                                  nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                                  nk_f64_t *product);
 #endif // NK_TARGET_ICELAKE
 
 #if NK_TARGET_HASWELL
 /** @copydoc nk_sparse_dot_u32f32 */
-NK_PUBLIC void nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
-                                            nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                            nk_f64_t *product);
+NK_API_COMPTIME void nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
+                                                  nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                                  nk_f64_t *product);
 #endif // NK_TARGET_HASWELL
 
 #if NK_TARGET_TURIN
 /** @copydoc nk_sparse_intersect_u16 */
-NK_PUBLIC void nk_sparse_intersect_u16_turin(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
-                                             nk_size_t b_length, nk_u16_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u16_turin(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
+                                                   nk_size_t b_length, nk_u16_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_intersect_u32 */
-NK_PUBLIC void nk_sparse_intersect_u32_turin(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
-                                             nk_size_t b_length, nk_u32_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u32_turin(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
+                                                   nk_size_t b_length, nk_u32_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_intersect_u64 */
-NK_PUBLIC void nk_sparse_intersect_u64_turin(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
-                                             nk_size_t b_length, nk_u64_t *result, nk_size_t *count);
+NK_API_COMPTIME void nk_sparse_intersect_u64_turin(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
+                                                   nk_size_t b_length, nk_u64_t *result, nk_size_t *count);
 /** @copydoc nk_sparse_dot_u16bf16 */
-NK_PUBLIC void nk_sparse_dot_u16bf16_turin(nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights,
-                                           nk_bf16_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                           nk_f32_t *product);
+NK_API_COMPTIME void nk_sparse_dot_u16bf16_turin(nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights,
+                                                 nk_bf16_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                                 nk_f32_t *product);
 /** @copydoc nk_sparse_dot_u32f32 */
-NK_PUBLIC void nk_sparse_dot_u32f32_turin(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
-                                          nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                          nk_f64_t *product);
+NK_API_COMPTIME void nk_sparse_dot_u32f32_turin(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
+                                                nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                                nk_f64_t *product);
 #endif // NK_TARGET_TURIN
 
 /**
  *  @brief  Returns the output dtype for sparse dot products.
  */
-NK_INTERNAL nk_dtype_t nk_sparse_dot_output_dtype(nk_dtype_t dtype) {
+NK_HELPER_INLINE nk_dtype_t nk_sparse_dot_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f32_k: return nk_f64_k;
     case nk_bf16_k: return nk_f32_k;
@@ -289,10 +289,10 @@ NK_INTERNAL nk_dtype_t nk_sparse_dot_output_dtype(nk_dtype_t dtype) {
 extern "C" {
 #endif
 
-#if !NK_DYNAMIC_DISPATCH
+#if !NK_RUNTIME_DISPATCH
 
-NK_PUBLIC void nk_sparse_intersect_u16(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length, nk_size_t b_length,
-                                       nk_u16_t *result, nk_size_t *count) {
+NK_API_COMPTIME void nk_sparse_intersect_u16(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
+                                             nk_size_t b_length, nk_u16_t *result, nk_size_t *count) {
 #if NK_TARGET_SVE2
     nk_sparse_intersect_u16_sve2(a, b, a_length, b_length, result, count);
 #elif NK_TARGET_NEON
@@ -306,8 +306,8 @@ NK_PUBLIC void nk_sparse_intersect_u16(nk_u16_t const *a, nk_u16_t const *b, nk_
 #endif
 }
 
-NK_PUBLIC void nk_sparse_intersect_u32(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length, nk_size_t b_length,
-                                       nk_u32_t *result, nk_size_t *count) {
+NK_API_COMPTIME void nk_sparse_intersect_u32(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
+                                             nk_size_t b_length, nk_u32_t *result, nk_size_t *count) {
 #if NK_TARGET_SVE2
     nk_sparse_intersect_u32_sve2(a, b, a_length, b_length, result, count);
 #elif NK_TARGET_NEON
@@ -321,8 +321,8 @@ NK_PUBLIC void nk_sparse_intersect_u32(nk_u32_t const *a, nk_u32_t const *b, nk_
 #endif
 }
 
-NK_PUBLIC void nk_sparse_intersect_u64(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length, nk_size_t b_length,
-                                       nk_u64_t *result, nk_size_t *count) {
+NK_API_COMPTIME void nk_sparse_intersect_u64(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
+                                             nk_size_t b_length, nk_u64_t *result, nk_size_t *count) {
 #if NK_TARGET_SVE2
     nk_sparse_intersect_u64_sve2(a, b, a_length, b_length, result, count);
 #elif NK_TARGET_NEON
@@ -336,9 +336,9 @@ NK_PUBLIC void nk_sparse_intersect_u64(nk_u64_t const *a, nk_u64_t const *b, nk_
 #endif
 }
 
-NK_PUBLIC void nk_sparse_dot_u16bf16(nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights,
-                                     nk_bf16_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                     nk_f32_t *product) {
+NK_API_COMPTIME void nk_sparse_dot_u16bf16(nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights,
+                                           nk_bf16_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                           nk_f32_t *product) {
 #if NK_TARGET_SVE2 && NK_TARGET_SVEBFDOT
     nk_sparse_dot_u16bf16_sve2(a, b, a_weights, b_weights, a_length, b_length, product);
 #elif NK_TARGET_TURIN
@@ -348,9 +348,9 @@ NK_PUBLIC void nk_sparse_dot_u16bf16(nk_u16_t const *a, nk_u16_t const *b, nk_bf
 #endif
 }
 
-NK_PUBLIC void nk_sparse_dot_u32f32(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
-                                    nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                    nk_f64_t *product) {
+NK_API_COMPTIME void nk_sparse_dot_u32f32(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
+                                          nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                          nk_f64_t *product) {
 #if NK_TARGET_SVE2
     nk_sparse_dot_u32f32_sve2(a, b, a_weights, b_weights, a_length, b_length, product);
 #elif NK_TARGET_TURIN
@@ -364,7 +364,7 @@ NK_PUBLIC void nk_sparse_dot_u32f32(nk_u32_t const *a, nk_u32_t const *b, nk_f32
 #endif
 }
 
-#endif // !NK_DYNAMIC_DISPATCH
+#endif // !NK_RUNTIME_DISPATCH
 
 #if defined(__cplusplus)
 } // extern "C"

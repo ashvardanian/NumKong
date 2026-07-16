@@ -91,7 +91,8 @@ enum {
  *         VNNI depth-quad tiles. The `shuffle_i32x4` stages emit rows in the group order `groups[i]` holds
  *         group `{0,1,2,3,8,9,10,11,4,5,6,7,12,13,14,15}[i]`; the caller restores natural order at store.
  */
-NK_INTERNAL void nk_attention_transpose_i32x16x16_icelake_(__m512i const rows_i32x16[16], __m512i groups_i32x16[16]) {
+NK_HELPER_INLINE void nk_attention_transpose_i32x16x16_icelake_(__m512i const rows_i32x16[16],
+                                                                __m512i groups_i32x16[16]) {
     __m512i t01_low_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[0], rows_i32x16[1]),
             t01_high_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[0], rows_i32x16[1]);
     __m512i t23_low_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[2], rows_i32x16[3]),
@@ -158,8 +159,8 @@ NK_INTERNAL void nk_attention_transpose_i32x16x16_icelake_(__m512i const rows_i3
     groups_i32x16[15] = _mm512_shuffle_i32x4(v3_b_i32x16, v7_b_i32x16, 0xDD);
 }
 
-NK_INTERNAL nk_size_t nk_attention_packed_size_icelake_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_packed_size_icelake_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
     nk_size_t payload_bytes = 0; // raw I8 K/V planes plus one I32 Σk per KV position, folded as `+ 2` per plane pair
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
@@ -169,14 +170,15 @@ NK_INTERNAL nk_size_t nk_attention_packed_size_icelake_(nk_size_t key_value_head
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_PUBLIC nk_size_t nk_attention_packed_size_i8_icelake(nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_packed_size_i8_icelake(nk_size_t key_value_head_count, nk_size_t depth,
+                                                              nk_u32_t const *segment_lengths,
+                                                              nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_icelake_k_)
         return nk_attention_packed_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_packed_size_icelake_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
-NK_PUBLIC void nk_attention_pack_i8_icelake(                                                                   //
+NK_API_COMPTIME void nk_attention_pack_i8_icelake(                                                             //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth,               //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
@@ -300,9 +302,9 @@ NK_PUBLIC void nk_attention_pack_i8_icelake(                                    
  *         directly per lane. The `128·Σk` correction is one 16-wide `zmm ≪ 7` subtract per
  *         tile. Writes a `16 × panel_width` score block, each query row `panel_width` apart.
  */
-NK_INTERNAL void nk_attention_score_block_icelake_(nk_u8_t const *queries_biased, nk_i8_t const *keys_plane,
-                                                   nk_i32_t const *key_sums_plane, nk_size_t panel_start,
-                                                   nk_size_t panel_len, nk_size_t depth_padded, nk_i32_t *scores) {
+NK_HELPER_INLINE void nk_attention_score_block_icelake_(nk_u8_t const *queries_biased, nk_i8_t const *keys_plane,
+                                                        nk_i32_t const *key_sums_plane, nk_size_t panel_start,
+                                                        nk_size_t panel_len, nk_size_t depth_padded, nk_i32_t *scores) {
     nk_size_t const depth_groups = depth_padded / 4;
     nk_size_t const tile_first = panel_start / 16;
     nk_size_t const tile_count = (panel_len + 15) / 16;
@@ -335,7 +337,7 @@ NK_INTERNAL void nk_attention_score_block_icelake_(nk_u8_t const *queries_biased
  *         and a lane-variable shift applies the integer part, so no floating-point instruction
  *         touches the weights — the AVX-512 mirror of `nk_attention_iexp2_weight_i32x_sme_`.
  */
-NK_INTERNAL __m512i nk_attention_iexp2_weight_i32x16_icelake_(__m512i t_q15_i32x16) {
+NK_HELPER_INLINE __m512i nk_attention_iexp2_weight_i32x16_icelake_(__m512i t_q15_i32x16) {
     __m512i const whole_i32x16 = _mm512_srai_epi32(t_q15_i32x16, 15); // floor, in [-10, 0]
     __m512i const fraction_i32x16 = _mm512_and_si512(t_q15_i32x16, _mm512_set1_epi32(0x7FFF));
     __m512i poly_i32x16 = _mm512_set1_epi32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
@@ -359,9 +361,10 @@ NK_INTERNAL __m512i nk_attention_iexp2_weight_i32x16_icelake_(__m512i t_q15_i32x
  *         per-panel online correction `2^((m_old − m_new)·scale₂)` stays in F32, where it scales
  *         the F32 output accumulators anyway. Returns that correction.
  */
-NK_INTERNAL nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores, nk_u8_t *weights, nk_size_t panel_len,
-                                                         nk_f32_t scale2, nk_i32_t scale_fixed, nk_i32_t delta_floor,
-                                                         nk_i32_t *running_max, nk_f32_t *running_sum) {
+NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores, nk_u8_t *weights,
+                                                              nk_size_t panel_len, nk_f32_t scale2,
+                                                              nk_i32_t scale_fixed, nk_i32_t delta_floor,
+                                                              nk_i32_t *running_max, nk_f32_t *running_sum) {
     nk_size_t const full = panel_len & ~(nk_size_t)15;
     __mmask16 const tail_m16 = (__mmask16)((1u << (panel_len - full)) - 1);
 
@@ -429,10 +432,10 @@ NK_INTERNAL nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores,
  *  @brief P×V for one panel: `dpbusd(weight_quad, v_quad)` over the quad-interleaved V plane,
  *         I32 accumulators drained to F32 and folded into `O = O·correction + panel`.
  */
-NK_INTERNAL void nk_attention_weighted_sum_panel_icelake_(nk_u8_t const *weights, nk_i8_t const *values_plane,
-                                                          nk_size_t panel_start, nk_size_t panel_len,
-                                                          nk_size_t depth_padded, nk_f32_t correction,
-                                                          nk_f32_t *output_row) {
+NK_HELPER_INLINE void nk_attention_weighted_sum_panel_icelake_(nk_u8_t const *weights, nk_i8_t const *values_plane,
+                                                               nk_size_t panel_start, nk_size_t panel_len,
+                                                               nk_size_t depth_padded, nk_f32_t correction,
+                                                               nk_f32_t *output_row) {
     nk_size_t const quad_count = (panel_len + 3) / 4;
     nk_size_t const quad_start = panel_start / 4;
     __m512 const correction_f32x16 = _mm512_set1_ps(correction);
@@ -449,7 +452,7 @@ NK_INTERNAL void nk_attention_weighted_sum_panel_icelake_(nk_u8_t const *weights
     }
 }
 
-NK_PUBLIC void nk_attention_packed_i8_icelake(                                                                  //
+NK_API_COMPTIME void nk_attention_packed_i8_icelake(                                                            //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //

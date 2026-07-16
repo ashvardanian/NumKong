@@ -44,7 +44,7 @@ extern "C" {
  *  @brief  Analogous to `_mm512_2intersect_epi16_mask`, but compatible with Ice Lake CPUs,
  *          slightly faster than the native Tiger Lake implementation, but returns only one mask.
  */
-NK_INTERNAL nk_u32_t nk_intersect_u16x32_icelake_(__m512i a, __m512i b) {
+NK_HELPER_INLINE nk_u32_t nk_intersect_u16x32_icelake_(__m512i a, __m512i b) {
     __m512i a1_u16x32 = _mm512_alignr_epi32(a, a, 4);
     __m512i a2_u16x32 = _mm512_alignr_epi32(a, a, 8);
     __m512i a3_u16x32 = _mm512_alignr_epi32(a, a, 12);
@@ -105,7 +105,7 @@ NK_INTERNAL nk_u32_t nk_intersect_u16x32_icelake_(__m512i a, __m512i b) {
  *  @brief  Analogous to `_mm512_2intersect_epi32`, but compatible with Ice Lake CPUs,
  *          slightly faster than the native Tiger Lake implementation, but returns only one mask.
  */
-NK_INTERNAL nk_u16_t nk_intersect_u32x16_icelake_(__m512i a, __m512i b) {
+NK_HELPER_INLINE nk_u16_t nk_intersect_u32x16_icelake_(__m512i a, __m512i b) {
     __m512i a1_u32x16 = _mm512_alignr_epi32(a, a, 4);
     __m512i b1_u32x16 = _mm512_shuffle_epi32(b, _MM_PERM_ADCB);
     __mmask16 nm00_m16 = _mm512_cmpneq_epi32_mask(a, b);
@@ -137,9 +137,9 @@ NK_INTERNAL nk_u16_t nk_intersect_u32x16_icelake_(__m512i a, __m512i b) {
     return ~(nk_u16_t)(nm0_m16 & nk_u16_rol(nm1_m16, 4) & nk_u16_rol(nm2_m16, 8) & nk_u16_ror(nm3_m16, 4));
 }
 
-NK_PUBLIC void nk_sparse_intersect_u16_icelake( //
-    nk_u16_t const *a, nk_u16_t const *b,       //
-    nk_size_t a_length, nk_size_t b_length,     //
+NK_API_COMPTIME void nk_sparse_intersect_u16_icelake( //
+    nk_u16_t const *a, nk_u16_t const *b,             //
+    nk_size_t a_length, nk_size_t b_length,           //
     nk_u16_t *result, nk_size_t *count) {
 
 #if NK_ALLOW_ISA_REDIRECT
@@ -200,9 +200,9 @@ NK_PUBLIC void nk_sparse_intersect_u16_icelake( //
     *count = c + tail_count;
 }
 
-NK_PUBLIC void nk_sparse_intersect_u32_icelake( //
-    nk_u32_t const *a, nk_u32_t const *b,       //
-    nk_size_t a_length, nk_size_t b_length,     //
+NK_API_COMPTIME void nk_sparse_intersect_u32_icelake( //
+    nk_u32_t const *a, nk_u32_t const *b,             //
+    nk_size_t a_length, nk_size_t b_length,           //
     nk_u32_t *result, nk_size_t *count) {
 
 #if NK_ALLOW_ISA_REDIRECT
@@ -267,7 +267,7 @@ NK_PUBLIC void nk_sparse_intersect_u32_icelake( //
  *  @brief  Analogous to `_mm512_2intersect_epi64`, but compatible with Ice Lake CPUs,
  *          returns only one mask indicating which elements in `a` have a match in `b`.
  */
-NK_INTERNAL nk_u8_t nk_intersect_u64x8_icelake_(__m512i a, __m512i b) {
+NK_HELPER_INLINE nk_u8_t nk_intersect_u64x8_icelake_(__m512i a, __m512i b) {
     __m512i a1_u64x8 = _mm512_alignr_epi64(a, a, 2);
     __m512i b1_u64x8 = _mm512_permutex_epi64(b, _MM_PERM_ADCB);
     __mmask8 nm00_m8 = _mm512_cmpneq_epi64_mask(a, b);
@@ -299,9 +299,9 @@ NK_INTERNAL nk_u8_t nk_intersect_u64x8_icelake_(__m512i a, __m512i b) {
     return ~(nk_u8_t)(nm0_m8 & nk_u8_rol(nm1_m8, 2) & nk_u8_rol(nm2_m8, 4) & nk_u8_ror(nm3_m8, 2));
 }
 
-NK_PUBLIC void nk_sparse_intersect_u64_icelake( //
-    nk_u64_t const *a, nk_u64_t const *b,       //
-    nk_size_t a_length, nk_size_t b_length,     //
+NK_API_COMPTIME void nk_sparse_intersect_u64_icelake( //
+    nk_u64_t const *a, nk_u64_t const *b,             //
+    nk_size_t a_length, nk_size_t b_length,           //
     nk_u64_t *result, nk_size_t *count) {
 
 #if NK_ALLOW_ISA_REDIRECT
@@ -362,7 +362,7 @@ NK_PUBLIC void nk_sparse_intersect_u64_icelake( //
     *count = c + tail_count;
 }
 
-NK_PUBLIC void nk_sparse_dot_u32f32_icelake(              //
+NK_API_COMPTIME void nk_sparse_dot_u32f32_icelake(        //
     nk_u32_t const *a, nk_u32_t const *b,                 //
     nk_f32_t const *a_weights, nk_f32_t const *b_weights, //
     nk_size_t a_length, nk_size_t b_length, nk_f64_t *product) {

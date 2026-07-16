@@ -31,7 +31,8 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd+fp8dot4")
 #endif
 
-NK_PUBLIC void nk_sqeuclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                 nk_f32_t *result) {
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t a2_f32x4 = vdupq_n_f32(0), ab_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_e4m3_neonfp8_cycle:
@@ -55,12 +56,12 @@ nk_sqeuclidean_e4m3_neonfp8_cycle:
     *result = vaddvq_f32(a2_f32x4) - 2 * vaddvq_f32(ab_f32x4) + vaddvq_f32(b2_f32x4);
 }
 
-NK_PUBLIC void nk_euclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_sqeuclidean_e4m3_neonfp8(a, b, n, result);
     *result = nk_f32_sqrt_neon(*result);
 }
 
-NK_PUBLIC void nk_angular_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t ab_f32x4 = vdupq_n_f32(0), a2_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_angular_e4m3_neonfp8_cycle:
@@ -84,7 +85,8 @@ nk_angular_e4m3_neonfp8_cycle:
     *result = nk_angular_normalize_f32_neon_(vaddvq_f32(ab_f32x4), vaddvq_f32(a2_f32x4), vaddvq_f32(b2_f32x4));
 }
 
-NK_PUBLIC void nk_sqeuclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                 nk_f32_t *result) {
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t a2_f32x4 = vdupq_n_f32(0), ab_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_e5m2_neonfp8_cycle:
@@ -108,12 +110,12 @@ nk_sqeuclidean_e5m2_neonfp8_cycle:
     *result = vaddvq_f32(a2_f32x4) - 2 * vaddvq_f32(ab_f32x4) + vaddvq_f32(b2_f32x4);
 }
 
-NK_PUBLIC void nk_euclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_sqeuclidean_e5m2_neonfp8(a, b, n, result);
     *result = nk_f32_sqrt_neon(*result);
 }
 
-NK_PUBLIC void nk_angular_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t ab_f32x4 = vdupq_n_f32(0), a2_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_angular_e5m2_neonfp8_cycle:
@@ -137,7 +139,8 @@ nk_angular_e5m2_neonfp8_cycle:
     *result = nk_angular_normalize_f32_neon_(vaddvq_f32(ab_f32x4), vaddvq_f32(a2_f32x4), vaddvq_f32(b2_f32x4));
 }
 
-NK_PUBLIC void nk_sqeuclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                 nk_f32_t *result) {
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t a2_f32x4 = vdupq_n_f32(0), ab_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_e2m3_neonfp8_cycle:
@@ -161,12 +164,12 @@ nk_sqeuclidean_e2m3_neonfp8_cycle:
     *result = vaddvq_f32(a2_f32x4) - 2 * vaddvq_f32(ab_f32x4) + vaddvq_f32(b2_f32x4);
 }
 
-NK_PUBLIC void nk_euclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_sqeuclidean_e2m3_neonfp8(a, b, n, result);
     *result = nk_f32_sqrt_neon(*result);
 }
 
-NK_PUBLIC void nk_angular_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t ab_f32x4 = vdupq_n_f32(0), a2_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_angular_e2m3_neonfp8_cycle:
@@ -190,7 +193,8 @@ nk_angular_e2m3_neonfp8_cycle:
     *result = nk_angular_normalize_f32_neon_(vaddvq_f32(ab_f32x4), vaddvq_f32(a2_f32x4), vaddvq_f32(b2_f32x4));
 }
 
-NK_PUBLIC void nk_sqeuclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_sqeuclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                 nk_f32_t *result) {
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t a2_f32x4 = vdupq_n_f32(0), ab_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_e3m2_neonfp8_cycle:
@@ -214,12 +218,12 @@ nk_sqeuclidean_e3m2_neonfp8_cycle:
     *result = vaddvq_f32(a2_f32x4) - 2 * vaddvq_f32(ab_f32x4) + vaddvq_f32(b2_f32x4);
 }
 
-NK_PUBLIC void nk_euclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_euclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_sqeuclidean_e3m2_neonfp8(a, b, n, result);
     *result = nk_f32_sqrt_neon(*result);
 }
 
-NK_PUBLIC void nk_angular_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_angular_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t ab_f32x4 = vdupq_n_f32(0), a2_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_angular_e3m2_neonfp8_cycle:

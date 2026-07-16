@@ -19,7 +19,7 @@
  *  @section dot_icelake_stateful Stateful Streaming Logic
  *
  *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_INTERNAL` functions:
+ *  `NK_HELPER_INLINE` functions:
  *
  *  - nk_dot_i8x64 for 8-bit signed integer inputs using DPBUSD with algebraic transformation,
  *  - nk_dot_u8x64 for 8-bit unsigned integer inputs using DPBUSD with algebraic transformation,
@@ -96,8 +96,8 @@ extern "C" {
                    "avx512vpopcntdq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_PUBLIC void nk_dot_i8_icelake(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                 nk_i32_t *result) {
+NK_API_COMPTIME void nk_dot_i8_icelake(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                       nk_i32_t *result) {
     // Optimized i8×i8 dot product using algebraic transformation with DPBUSD
     //
     // Old approach (Haswell/Skylake):
@@ -155,8 +155,8 @@ nk_dot_i8_icelake_cycle:
     *result = (nk_i32_t)(ab_sum - correction);
 }
 
-NK_PUBLIC void nk_dot_u8_icelake(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                 nk_u32_t *result) {
+NK_API_COMPTIME void nk_dot_u8_icelake(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                       nk_u32_t *result) {
     // Optimized u8×u8 dot product using algebraic transformation with DPBUSD
     //
     // Algebraic transformation:
@@ -218,12 +218,12 @@ typedef struct nk_dot_i8x64_state_icelake_t {
     __m512i biased_product_sum_i32x16; // Single accumulator: (a^0x80)×b
 } nk_dot_i8x64_state_icelake_t;
 
-NK_INTERNAL void nk_dot_i8x64_init_icelake(nk_dot_i8x64_state_icelake_t *state) {
+NK_HELPER_INLINE void nk_dot_i8x64_init_icelake(nk_dot_i8x64_state_icelake_t *state) {
     state->biased_product_sum_i32x16 = _mm512_setzero_si512();
 }
 
-NK_INTERNAL void nk_dot_i8x64_update_icelake(nk_dot_i8x64_state_icelake_t *state, nk_b512_vec_t a, nk_b512_vec_t b,
-                                             nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_i8x64_update_icelake(nk_dot_i8x64_state_icelake_t *state, nk_b512_vec_t a, nk_b512_vec_t b,
+                                                  nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Optimized i8×i8 using DPBUSD with algebraic transformation
@@ -241,7 +241,7 @@ NK_INTERNAL void nk_dot_i8x64_update_icelake(nk_dot_i8x64_state_icelake_t *state
     state->biased_product_sum_i32x16 = _mm512_dpbusd_epi32(state->biased_product_sum_i32x16, a_unsigned_u8x64, b_i8x64);
 }
 
-NK_INTERNAL void nk_dot_i8x64_finalize_icelake(                                               //
+NK_HELPER_INLINE void nk_dot_i8x64_finalize_icelake(                                          //
     nk_dot_i8x64_state_icelake_t const *state_a, nk_dot_i8x64_state_icelake_t const *state_b, //
     nk_dot_i8x64_state_icelake_t const *state_c, nk_dot_i8x64_state_icelake_t const *state_d, //
     nk_size_t total_dimensions,                                                               //
@@ -286,12 +286,12 @@ typedef struct nk_dot_u8x64_state_icelake_t {
     __m512i biased_product_sum_i32x16; // Single accumulator: DPBUSD(b, a^0x80)
 } nk_dot_u8x64_state_icelake_t;
 
-NK_INTERNAL void nk_dot_u8x64_init_icelake(nk_dot_u8x64_state_icelake_t *state) {
+NK_HELPER_INLINE void nk_dot_u8x64_init_icelake(nk_dot_u8x64_state_icelake_t *state) {
     state->biased_product_sum_i32x16 = _mm512_setzero_si512();
 }
 
-NK_INTERNAL void nk_dot_u8x64_update_icelake(nk_dot_u8x64_state_icelake_t *state, nk_b512_vec_t a, nk_b512_vec_t b,
-                                             nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_u8x64_update_icelake(nk_dot_u8x64_state_icelake_t *state, nk_b512_vec_t a, nk_b512_vec_t b,
+                                                  nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Optimized u8×u8 using operand swap: DPBUSD(b, a^0x80)
@@ -309,7 +309,7 @@ NK_INTERNAL void nk_dot_u8x64_update_icelake(nk_dot_u8x64_state_icelake_t *state
     state->biased_product_sum_i32x16 = _mm512_dpbusd_epi32(state->biased_product_sum_i32x16, b_u8x64, a_signed_i8x64);
 }
 
-NK_INTERNAL void nk_dot_u8x64_finalize_icelake(                                               //
+NK_HELPER_INLINE void nk_dot_u8x64_finalize_icelake(                                          //
     nk_dot_u8x64_state_icelake_t const *state_a, nk_dot_u8x64_state_icelake_t const *state_b, //
     nk_dot_u8x64_state_icelake_t const *state_c, nk_dot_u8x64_state_icelake_t const *state_d, //
     nk_size_t total_dimensions,                                                               //
@@ -360,15 +360,15 @@ typedef struct nk_sum_i8x64_state_icelake_t {
     __m512i biased_sum_u64x8;
 } nk_sum_i8x64_state_icelake_t;
 
-NK_INTERNAL void nk_sum_i8x64_init_icelake(nk_sum_i8x64_state_icelake_t *state) {
+NK_HELPER_INLINE void nk_sum_i8x64_init_icelake(nk_sum_i8x64_state_icelake_t *state) {
     state->biased_sum_u64x8 = _mm512_setzero_si512();
 }
-NK_INTERNAL void nk_sum_i8x64_update_icelake(nk_sum_i8x64_state_icelake_t *state, nk_b512_vec_t vector) {
+NK_HELPER_INLINE void nk_sum_i8x64_update_icelake(nk_sum_i8x64_state_icelake_t *state, nk_b512_vec_t vector) {
     __m512i vector_unsigned_u8x64 = _mm512_xor_si512(vector.zmm, _mm512_set1_epi8((char)0x80));
     __m512i sad_result_u64x8 = _mm512_sad_epu8(vector_unsigned_u8x64, _mm512_setzero_si512());
     state->biased_sum_u64x8 = _mm512_add_epi64(state->biased_sum_u64x8, sad_result_u64x8);
 }
-NK_INTERNAL nk_i32_t nk_sum_i8x64_finalize_icelake(nk_sum_i8x64_state_icelake_t const *state, nk_size_t count) {
+NK_HELPER_INLINE nk_i32_t nk_sum_i8x64_finalize_icelake(nk_sum_i8x64_state_icelake_t const *state, nk_size_t count) {
     nk_u64_t unsigned_sum = (nk_u64_t)_mm512_reduce_add_epi64(state->biased_sum_u64x8);
     return (nk_i32_t)((nk_i64_t)unsigned_sum - 128 * (nk_i64_t)count);
 }
@@ -378,14 +378,14 @@ typedef struct nk_sum_u8x64_state_icelake_t {
     __m512i sum_u64x8;
 } nk_sum_u8x64_state_icelake_t;
 
-NK_INTERNAL void nk_sum_u8x64_init_icelake(nk_sum_u8x64_state_icelake_t *state) {
+NK_HELPER_INLINE void nk_sum_u8x64_init_icelake(nk_sum_u8x64_state_icelake_t *state) {
     state->sum_u64x8 = _mm512_setzero_si512();
 }
-NK_INTERNAL void nk_sum_u8x64_update_icelake(nk_sum_u8x64_state_icelake_t *state, nk_b512_vec_t vector) {
+NK_HELPER_INLINE void nk_sum_u8x64_update_icelake(nk_sum_u8x64_state_icelake_t *state, nk_b512_vec_t vector) {
     __m512i sad_result_u64x8 = _mm512_sad_epu8(vector.zmm, _mm512_setzero_si512());
     state->sum_u64x8 = _mm512_add_epi64(state->sum_u64x8, sad_result_u64x8);
 }
-NK_INTERNAL nk_u32_t nk_sum_u8x64_finalize_icelake(nk_sum_u8x64_state_icelake_t const *state, nk_size_t count) {
+NK_HELPER_INLINE nk_u32_t nk_sum_u8x64_finalize_icelake(nk_sum_u8x64_state_icelake_t const *state, nk_size_t count) {
     nk_unused_(count);
     return (nk_u32_t)_mm512_reduce_add_epi64(state->sum_u64x8);
 }
@@ -397,10 +397,10 @@ typedef struct nk_sum_i4x128_state_icelake_t {
     __m512i biased_sum_u64x8; /* Accumulates SAD of (nibble ^ 0x08), needs bias correction */
 } nk_sum_i4x128_state_icelake_t;
 
-NK_INTERNAL void nk_sum_i4x128_init_icelake(nk_sum_i4x128_state_icelake_t *state) {
+NK_HELPER_INLINE void nk_sum_i4x128_init_icelake(nk_sum_i4x128_state_icelake_t *state) {
     state->biased_sum_u64x8 = _mm512_setzero_si512();
 }
-NK_INTERNAL void nk_sum_i4x128_update_icelake(nk_sum_i4x128_state_icelake_t *state, nk_b512_vec_t v) {
+NK_HELPER_INLINE void nk_sum_i4x128_update_icelake(nk_sum_i4x128_state_icelake_t *state, nk_b512_vec_t v) {
     __m512i const nibble_mask_u8x64 = _mm512_set1_epi8(0x0F);
     __m512i const xor_mask_u8x64 = _mm512_set1_epi8(0x08);
     __m512i const zeros_u8x64 = _mm512_setzero_si512();
@@ -414,13 +414,13 @@ NK_INTERNAL void nk_sum_i4x128_update_icelake(nk_sum_i4x128_state_icelake_t *sta
     state->biased_sum_u64x8 = _mm512_add_epi64(state->biased_sum_u64x8,
                                                _mm512_sad_epu8(high_biased_u8x64, zeros_u8x64));
 }
-NK_INTERNAL nk_i32_t nk_sum_i4x128_finalize_icelake(nk_sum_i4x128_state_icelake_t const *state, nk_size_t count) {
+NK_HELPER_INLINE nk_i32_t nk_sum_i4x128_finalize_icelake(nk_sum_i4x128_state_icelake_t const *state, nk_size_t count) {
     // Reduce u64x8 → scalar, then undo XOR bias: signed_sum = unsigned_sum - 8 * count
     nk_i64_t unsigned_sum = _mm512_reduce_add_epi64(state->biased_sum_u64x8);
     return (nk_i32_t)(unsigned_sum - 8 * (nk_i64_t)count);
 }
 
-NK_PUBLIC void nk_dot_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
+NK_API_COMPTIME void nk_dot_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     //
@@ -485,7 +485,7 @@ nk_dot_i4_icelake_cycle:
     *result = (nk_i32_t)(cd_dot - 8 * (sum_cx + sum_dx) + 64 * (nk_i64_t)n);
 }
 
-NK_PUBLIC void nk_dot_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_dot_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     // Values are ∈ [0,15], so DPBUSD can be used directly.
@@ -529,12 +529,13 @@ typedef struct nk_dot_i4x128_state_icelake_t {
     __m512i biased_product_sum_i32x16; // Single accumulator: (a^8)×(b^8) products
 } nk_dot_i4x128_state_icelake_t;
 
-NK_INTERNAL void nk_dot_i4x128_init_icelake(nk_dot_i4x128_state_icelake_t *state) {
+NK_HELPER_INLINE void nk_dot_i4x128_init_icelake(nk_dot_i4x128_state_icelake_t *state) {
     state->biased_product_sum_i32x16 = _mm512_setzero_si512();
 }
 
-NK_INTERNAL void nk_dot_i4x128_update_icelake(nk_dot_i4x128_state_icelake_t *state, nk_b512_vec_t a, nk_b512_vec_t b,
-                                              nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_i4x128_update_icelake(nk_dot_i4x128_state_icelake_t *state, nk_b512_vec_t a,
+                                                   nk_b512_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
     // i4 values are packed as nibbles: 128 nibbles in 64 bytes (512 bits)
     // Algebraic transformation: a×b = (a^8)×(b^8) − 8×(Σa + Σb) − 64×n
     // Correction applied at finalize time using precomputed sums.
@@ -565,7 +566,7 @@ NK_INTERNAL void nk_dot_i4x128_update_icelake(nk_dot_i4x128_state_icelake_t *sta
                                                            b_biased_high_u8x64);
 }
 
-NK_INTERNAL void nk_dot_i4x128_finalize_icelake(                                                //
+NK_HELPER_INLINE void nk_dot_i4x128_finalize_icelake(                                           //
     nk_dot_i4x128_state_icelake_t const *state_a, nk_dot_i4x128_state_icelake_t const *state_b, //
     nk_dot_i4x128_state_icelake_t const *state_c, nk_dot_i4x128_state_icelake_t const *state_d, //
     nk_size_t total_dimensions,                                                                 //
@@ -619,12 +620,13 @@ typedef struct nk_dot_u4x128_state_icelake_t {
     __m512i sum_i32x16; // Direct unsigned accumulator
 } nk_dot_u4x128_state_icelake_t;
 
-NK_INTERNAL void nk_dot_u4x128_init_icelake(nk_dot_u4x128_state_icelake_t *state) {
+NK_HELPER_INLINE void nk_dot_u4x128_init_icelake(nk_dot_u4x128_state_icelake_t *state) {
     state->sum_i32x16 = _mm512_setzero_si512();
 }
 
-NK_INTERNAL void nk_dot_u4x128_update_icelake(nk_dot_u4x128_state_icelake_t *state, nk_b512_vec_t a, nk_b512_vec_t b,
-                                              nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_u4x128_update_icelake(nk_dot_u4x128_state_icelake_t *state, nk_b512_vec_t a,
+                                                   nk_b512_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // u4 values are packed as nibbles: 128 nibbles in 64 bytes (512 bits)
@@ -646,7 +648,7 @@ NK_INTERNAL void nk_dot_u4x128_update_icelake(nk_dot_u4x128_state_icelake_t *sta
     state->sum_i32x16 = _mm512_dpbusd_epi32(state->sum_i32x16, a_high_u8x64, b_high_u8x64);
 }
 
-NK_INTERNAL void nk_dot_u4x128_finalize_icelake(                                                //
+NK_HELPER_INLINE void nk_dot_u4x128_finalize_icelake(                                           //
     nk_dot_u4x128_state_icelake_t const *state_a, nk_dot_u4x128_state_icelake_t const *state_b, //
     nk_dot_u4x128_state_icelake_t const *state_c, nk_dot_u4x128_state_icelake_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -684,8 +686,8 @@ NK_INTERNAL void nk_dot_u4x128_finalize_icelake(                                
     result->xmm = final_i32x4;
 }
 
-NK_PUBLIC void nk_dot_e2m3_icelake(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars, nk_size_t count_scalars,
-                                   nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e2m3_icelake(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                         nk_size_t count_scalars, nk_f32_t *result) {
     // Integer dot product for e2m3 using VPERMB (LUT) + VPDPBUSD (unsigned×signed multiply-add).
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -743,8 +745,8 @@ nk_dot_e2m3_icelake_cycle:
     *result = (nk_f32_t)_mm512_reduce_add_epi32(sum_i32x16) / 256.0f;
 }
 
-NK_PUBLIC void nk_dot_e3m2_icelake(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars, nk_size_t count_scalars,
-                                   nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e3m2_icelake(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
+                                         nk_size_t count_scalars, nk_f32_t *result) {
     // Integer dot product for e3m2 using VPERMW (i16 LUT) + VPMADDWD (i16×i16→i32).
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -807,8 +809,8 @@ nk_dot_e3m2_icelake_cycle:
 
 #pragma region F16 and BF16 Floats
 
-NK_PUBLIC void nk_dot_e4m3_icelake(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars, nk_size_t count_scalars,
-                                   nk_f32_t *result) {
+NK_API_COMPTIME void nk_dot_e4m3_icelake(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                         nk_size_t count_scalars, nk_f32_t *result) {
     // E4M3 dot product via octave decomposition + VPDPBUSD integer MAC.
     // Splits 4-bit exponent into 2 octave bits + 2 remainder bits, maps low 5 bits via VPERMB
     // to u8 integers [0, 120], then 16 VPDPBUSD cross-products across 4×4 octave pairs.
@@ -920,7 +922,7 @@ nk_dot_e4m3_icelake_cycle:
 
 #pragma region Binary
 
-NK_PUBLIC void nk_dot_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
+NK_API_COMPTIME void nk_dot_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
     nk_size_t n_bytes = nk_size_divide_round_up_(n_bits, NK_BITS_PER_BYTE);
     __m512i and_popcount_u64x8 = _mm512_setzero_si512();
     __m512i a_u8x64, b_u8x64;
@@ -947,19 +949,20 @@ typedef struct nk_dot_u1x512_state_icelake_t {
     __m512i dot_count_i64x8;
 } nk_dot_u1x512_state_icelake_t;
 
-NK_INTERNAL void nk_dot_u1x512_init_icelake(nk_dot_u1x512_state_icelake_t *state) {
+NK_HELPER_INLINE void nk_dot_u1x512_init_icelake(nk_dot_u1x512_state_icelake_t *state) {
     state->dot_count_i64x8 = _mm512_setzero_si512();
 }
 
-NK_INTERNAL void nk_dot_u1x512_update_icelake(nk_dot_u1x512_state_icelake_t *state, nk_b512_vec_t a, nk_b512_vec_t b,
-                                              nk_size_t depth_offset, nk_size_t active_dimensions) {
+NK_HELPER_INLINE void nk_dot_u1x512_update_icelake(nk_dot_u1x512_state_icelake_t *state, nk_b512_vec_t a,
+                                                   nk_b512_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     state->dot_count_i64x8 = _mm512_add_epi64(state->dot_count_i64x8,
                                               _mm512_popcnt_epi64(_mm512_and_si512(a.zmm, b.zmm)));
 }
 
-NK_INTERNAL void nk_dot_u1x512_finalize_icelake( //
+NK_HELPER_INLINE void nk_dot_u1x512_finalize_icelake( //
     nk_dot_u1x512_state_icelake_t const *state_a, nk_dot_u1x512_state_icelake_t const *state_b,
     nk_dot_u1x512_state_icelake_t const *state_c, nk_dot_u1x512_state_icelake_t const *state_d,
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
