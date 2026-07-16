@@ -224,7 +224,7 @@ select = "*-pyodide*"
 test-command = """
     python -m pip install numpy --only-binary=:all: || (echo "Failed to install NumPy" && exit 0) &&
     python -m pip install scipy --only-binary=:all: || (echo "Failed to install SciPy" && exit 0) &&
-    python -c "import numkong; print(numkong.get_capabilities())" &&
+    python -c "import numkong; print(numkong.get_capabilities_available())" &&
     PYTHONMALLOC=debug python -m pytest {project}/test/ -s -x -Wd
 """
 

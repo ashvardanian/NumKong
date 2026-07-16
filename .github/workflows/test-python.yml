@@ -85,5 +85,5 @@ jobs:
 
       - name: Test with PyTest
         run: |
-          python -c "import numkong; print(numkong.get_capabilities())"
+          python -c "import numkong; print(numkong.get_capabilities_available())"
           pytest test/ -s -x -Wd -v

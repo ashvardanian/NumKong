@@ -755,7 +755,7 @@ if (NK_BUILD_SHARED)
 
         # NK_TARGET_* defines — driven by ISA compiler probes.
         # Probes test compiler capability (can emit instructions); runtime dispatch
-        # via nk_capabilities() selects the best backend at execution time.
+        # via nk_capabilities_available() selects the best backend at execution time.
         # Platform-specific overrides applied AFTER probes for OS/runtime constraints.
 
         # Apply compile-only probe results for each architecture
