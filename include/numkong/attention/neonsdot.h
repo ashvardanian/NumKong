@@ -309,7 +309,8 @@ NK_API_COMPTIME void nk_attention_packed_i8_neonsdot(                           
                     vst1_lane_u32((nk_u32_t *)(weights + position_idx), vreinterpret_u32_u8(weight_u8x8), 0);
                 }
                 if (position_idx < panel_length) { // masked vector tail — no scalar exp2, padded lanes forced to 0
-                    uint32x4_t const lane_index_u32x4 = {0, 1, 2, 3};
+                    nk_u32_t const lane_indices_u32[4] = {0, 1, 2, 3};
+                    uint32x4_t const lane_index_u32x4 = vld1q_u32(lane_indices_u32);
                     uint32x4_t const tail_mask_u32x4 = vcltq_u32(lane_index_u32x4,
                                                                  vdupq_n_u32((nk_u32_t)(panel_length - position_idx)));
                     int32x4_t const delta_i32x4 = vmaxq_s32(vsubq_s32(vld1q_s32(scores + position_idx), new_max_i32x4),
