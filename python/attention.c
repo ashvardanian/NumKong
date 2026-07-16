@@ -303,8 +303,10 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         // running it first keeps the parallel remainder read-only on that region.
         pack_fn(k_buffer.buf, v_buffer.buf, kv_heads, head_dim, segment_offsets, segment_lengths, segment_count,
                 k_stride, v_stride, packed->start, 0, 1);
+        // MSVC's ARM64 backend raises C1001 on any expression inside `num_threads` beside an `if` clause.
+        int const thread_count = (int)threads;
         int task_index;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads((int)threads)
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads(thread_count)
         for (task_index = 1; task_index < task_count; task_index++)
             pack_fn(k_buffer.buf, v_buffer.buf, kv_heads, head_dim, segment_offsets, segment_lengths, segment_count,
                     k_stride, v_stride, packed->start, (nk_size_t)task_index, 1);
@@ -465,8 +467,10 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
         if (threads == 0) threads = 1;
 #endif
         int const task_count = (int)(kv->segment_count * num_heads);
+        // MSVC's ARM64 backend raises C1001 on any expression inside `num_threads` beside an `if` clause.
+        int const thread_count = (int)threads;
         int task_index;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads((int)threads)
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads(thread_count)
         for (task_index = 0; task_index < task_count; task_index++)
             kernel(q_buffer.buf, kv->start, (nk_f32_t *)result->data, num_heads, kv->num_kv_heads, kv->head_dim,
                    query_offsets, q_stride, o_stride, scale, (nk_size_t)task_index, 1);

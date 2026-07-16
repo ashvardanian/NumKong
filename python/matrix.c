@@ -229,9 +229,11 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
 #endif
     // `int` loop counter pre-declared: see the note in api_packed_common().
     int const tile_count = (int)nk_size_divide_round_up_(height, NK_PARALLEL_PACKED_TILE);
+    // MSVC's ARM64 backend raises C1001 on any expression inside `num_threads` beside an `if` clause.
+    int const thread_count = (int)threads;
     int tile_idx;
 #pragma omp parallel for schedule(dynamic, 1) if (tile_count > 1 && nk_parallel_worthwhile(height * n * k, threads)) \
-    num_threads((int)threads)
+    num_threads(thread_count)
     for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
         nk_size_t row = (nk_size_t)tile_idx * NK_PARALLEL_PACKED_TILE;
         nk_size_t chunk = (row + NK_PARALLEL_PACKED_TILE <= height) ? NK_PARALLEL_PACKED_TILE : (height - row);
@@ -492,8 +494,10 @@ static PyObject *api_packed_common( //
         // OpenMP stays at 2.0 canonical form, which forbids in-init
         // declarations and rejects 64-bit iterators (both trigger C3015).
         int const tile_count = (int)nk_size_divide_round_up_(slice_height, NK_PARALLEL_PACKED_TILE);
+        // MSVC's ARM64 backend raises C1001 on any expression inside `num_threads` beside an `if` clause.
+        int const thread_count = (int)threads;
         int tile_idx;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads((int)threads)
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads(thread_count)
         for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
             nk_size_t row = (nk_size_t)tile_idx * NK_PARALLEL_PACKED_TILE;
             nk_size_t chunk = (row + NK_PARALLEL_PACKED_TILE <= slice_height) ? NK_PARALLEL_PACKED_TILE
@@ -630,8 +634,10 @@ static PyObject *api_symmetric_common( //
 #endif
         // `int` loop counter pre-declared: see note at the packed variant above.
         int const tile_count = (int)nk_size_divide_round_up_(row_count_val, NK_PARALLEL_SYMMETRIC_TILE);
+        // MSVC's ARM64 backend raises C1001 on any expression inside `num_threads` beside an `if` clause.
+        int const thread_count = (int)threads;
         int tile_idx;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads((int)threads)
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads(thread_count)
         for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
             nk_size_t tile_start = row_start + (nk_size_t)tile_idx * NK_PARALLEL_SYMMETRIC_TILE;
             nk_size_t tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= row_end) ? NK_PARALLEL_SYMMETRIC_TILE

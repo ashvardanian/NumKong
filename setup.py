@@ -449,13 +449,6 @@ def windows_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     # MSVC requires architecture-specific macros for winnt.h
     if is_64bit_arm():
         macros.append(("_ARM64_", "1"))
-        # Undo the `/GL` + `/LTCG` that distutils adds by default: MSVC 14.51's ARM64 linker
-        # hits a C1001 in the link-time codegen pass on the `#pragma omp parallel for` in
-        # python/distance.c, where 14.44 built it. Costs only cross-translation-unit inlining
-        # here — the hot paths already dispatch through function pointers LTCG cannot see
-        # through. Drop once the runners ship a fixed toolset.
-        compile_args.append("/GL-")
-        link_args.append("/LTCG:OFF")
     elif is_64bit_x86():
         macros.append(("_AMD64_", "1"))
 

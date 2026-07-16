@@ -646,8 +646,10 @@ static int cdist_batch_symmetric(                             //
     // form, which forbids in-init declarations and rejects 64-bit
     // iterators — either would trip C3015.
     int const tile_count = (int)nk_size_divide_round_up_(n_vectors, NK_PARALLEL_SYMMETRIC_TILE);
+    // MSVC's ARM64 backend raises C1001 on any expression inside `num_threads` beside an `if` clause.
+    int const thread_count = (int)threads;
     int tile_idx;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads((int)threads)
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads(thread_count)
     for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
         nk_size_t tile_start = (nk_size_t)tile_idx * NK_PARALLEL_SYMMETRIC_TILE;
         nk_size_t tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= n_vectors) ? NK_PARALLEL_SYMMETRIC_TILE
@@ -699,8 +701,10 @@ static int cdist_batch_packed(                                               //
 
     // `int` loop counter pre-declared: see note at `cdist_batch_symmetric`.
     int const tile_count = (int)nk_size_divide_round_up_(a_count, NK_PARALLEL_PACKED_TILE);
+    // MSVC's ARM64 backend raises C1001 on any expression inside `num_threads` beside an `if` clause.
+    int const thread_count = (int)threads;
     int tile_idx;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads((int)threads)
+#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads(thread_count)
     for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
         nk_size_t row = (nk_size_t)tile_idx * NK_PARALLEL_PACKED_TILE;
         nk_size_t chunk = (row + NK_PARALLEL_PACKED_TILE <= a_count) ? NK_PARALLEL_PACKED_TILE : (a_count - row);
