@@ -230,6 +230,11 @@ test-command = """
 
 [tool.cibuildwheel.windows]
 before-build = ["rd /s /q {project}\\build || echo Done"]
+# Set explicitly: cibuildwheel < 4 leaves the Windows repair command empty, so the wheel shipped
+# without the `libomp140.<arch>.dll` that `/openmp:llvm` makes it import, and only imported on
+# machines that happened to have Visual Studio (#358). The step that puts that DLL on PATH is in
+# `.github/workflows/_wheels.yml` — delvewheel vendors only what it can find there.
+repair-wheel-command = "delvewheel repair -w {dest_dir} -v {wheel}"
 
 [tool.pyright]
 extraPaths = ["test"]

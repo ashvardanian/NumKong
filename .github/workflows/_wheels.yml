@@ -241,19 +241,19 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.architecture == 'ARM64' && 'amd64_arm64' || 'amd64' }}
-      # The ARM64 wheels are cross-compiled on this x64 host. `/openmp:llvm` makes the
-      # extension import `libomp140.aarch64.dll`, which ships with Visual Studio's ARM64
-      # cross-tools but is not on PATH, so delvewheel cannot find it to vendor into the
-      # wheel. Locate it and put its directory on PATH (delvewheel searches PATH).
-      - name: Expose ARM64 OpenMP runtime to delvewheel
-        if: matrix.architecture == 'ARM64'
+      # `/openmp:llvm` makes the extension import `libomp140.<arch>.dll`. It ships with Visual
+      # Studio, but under `VC\Redist\...\debug_nonredist\`, which vcvarsall does not add to PATH
+      # — and delvewheel vendors only what it can find on PATH. Every Windows runner has Visual
+      # Studio, so an unvendored wheel still imports here and fails only on a user's machine.
+      - name: Expose the OpenMP runtime to delvewheel
         shell: pwsh
         run: |
+          $name = if ('${{ matrix.architecture }}' -eq 'ARM64') { 'libomp140.aarch64.dll' } else { 'libomp140.x86_64.dll' }
           $roots = @("${env:ProgramFiles}\Microsoft Visual Studio", "${env:ProgramFiles(x86)}\Microsoft Visual Studio")
-          $dll = Get-ChildItem -Path $roots -Recurse -Filter 'libomp140.aarch64.dll' -ErrorAction SilentlyContinue |
+          $dll = Get-ChildItem -Path $roots -Recurse -Filter $name -ErrorAction SilentlyContinue |
                  Select-Object -First 1
-          if (-not $dll) { Write-Error 'libomp140.aarch64.dll not found in the Visual Studio install'; exit 1 }
-          Write-Host "Found ARM64 libomp: $($dll.FullName)"
+          if (-not $dll) { Write-Error "$name not found in the Visual Studio install"; exit 1 }
+          Write-Host "Found libomp: $($dll.FullName)"
           Add-Content -Path $env:GITHUB_PATH -Value $dll.DirectoryName
       - name: Install cibuildwheel
         uses: nick-fields/retry@v4
@@ -273,6 +273,21 @@ jobs:
           CIBW_BUILD: cp${{ matrix.python-version }}-win_${{ matrix.architecture }}
           CIBW_PLATFORM: windows
           NK_REPETITIONS: 1
+      # Every Windows runner has Visual Studio, so `import numkong` succeeds whether or not
+      # delvewheel vendored the OpenMP runtime. Only the archive shows the truth.
+      - name: Verify the OpenMP runtime is vendored
+        shell: pwsh
+        run: |
+          $wheel = Get-ChildItem wheelhouse\*.whl | Select-Object -First 1
+          if (-not $wheel) { Write-Error 'No wheel was produced'; exit 1 }
+          $names = python -c "import sys, zipfile; print(chr(10).join(zipfile.ZipFile(sys.argv[1]).namelist()))" $wheel.FullName
+          # delvewheel mangles the vendored name (libomp140.x86_64-<hash>.dll), so match the stem.
+          if ($names -notmatch 'libomp140') {
+            Write-Error "$($wheel.Name) imports libomp140 but does not carry it; it would fail to import wherever Visual Studio is absent"
+            exit 1
+          }
+          Write-Host "OK: OpenMP runtime vendored into $($wheel.Name)"
+          $names -split "`n" | Select-String 'libomp140' | ForEach-Object { "  $_" }
       - name: Upload Wheels
         uses: actions/upload-artifact@v7
         with:
