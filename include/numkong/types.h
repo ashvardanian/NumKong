@@ -888,9 +888,13 @@ typedef nk_f64_t nk_fmax_t;
 /**
  *  @brief `NK_NULL`, analogous to `NULL`, so headers need not pull in `<stddef.h>`.
  *         `__null` gives better null-pointer diagnostics where the compiler provides it.
+ *         The `nullptr` branch matters for MSVC C++: unlike C, it forbids a `void *`
+ *         arm in a typed conditional, so `(void *)0` there fails to compile.
  */
 #ifdef __GNUG__
 #define NK_NULL __null
+#elif defined(__cplusplus)
+#define NK_NULL nullptr
 #else
 #define NK_NULL ((void *)0)
 #endif
