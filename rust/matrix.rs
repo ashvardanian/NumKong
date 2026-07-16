@@ -2888,14 +2888,9 @@ impl<Scalar: Dots, Alloc: Allocator + Clone> Clone for PackedMatrix<Scalar, Allo
 
 // Generic allocator-aware methods
 impl<Scalar: Dots, Alloc: Allocator> PackedMatrix<Scalar, Alloc> {
-    /// Pack B matrix where B is (n × k) row-major using a custom allocator.
+    /// An empty packed matrix owning no allocation, using a custom allocator.
     ///
-    /// Result computes: C = A × Bᵀ
-    ///
-    /// Returns `Err` if:
-    /// - b is not 2D
-    /// - allocation fails
-    /// An empty packed matrix owning no allocation; fill it with [`try_pack_into`](Self::try_pack_into).
+    /// Fill it with [`try_pack_into`](Self::try_pack_into).
     pub fn empty_in(alloc: Alloc) -> Self {
         Self {
             data: NonNull::dangling(),

@@ -14,7 +14,7 @@
 //! - [`crate::each`]: `ScaleOps` / `SumOps` / `BlendOps` / `FmaOps` / `TrigSinOps` /
 //!   `TrigCosOps` / `TrigAtanOps` / `AllCloseOps`
 //! - [`crate::reduce`]: `MomentsOps` / `MinMaxOps` / `BitwiseReductions`
-//! - [`crate::cast`]: `CastOps`
+//! - [`crate::cast`]: `CastOps` dtype conversions
 //!
 //! Batch matrix operations (GEMM, packed spatial distances) live in [`crate::matrix`].
 //!
@@ -59,8 +59,6 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-#[cfg(feature = "alloc")]
-use alloc::vec::Vec;
 use core::marker::PhantomData;
 use core::ops::{Index, IndexMut};
 use core::ptr::NonNull;
@@ -873,7 +871,7 @@ impl<Scalar: StorageElement + Clone, const MAX_RANK: usize> Tensor<Scalar, Globa
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use numkong::tensor::Tensor;
+    /// use numkong::tensor::{Tensor, TensorRef};
     ///
     /// let zeros = Tensor::<f32>::try_full(&[2, 3], 0.0).unwrap();
     /// assert_eq!(zeros.shape(), &[2, 3]);
@@ -1262,10 +1260,10 @@ impl SliceArg for RangeStep {
             });
         }
         let count = if self.step > 0 {
-            (self.end.saturating_sub(self.start) + self.step as usize - 1) / self.step as usize
+            self.end.saturating_sub(self.start).div_ceil(self.step as usize)
         } else {
             let abs_step = (-self.step) as usize;
-            (self.start.saturating_sub(self.end) + abs_step - 1) / abs_step
+            self.start.saturating_sub(self.end).div_ceil(abs_step)
         };
         out_shape[*new_ndim] = count;
         out_strides[*new_ndim] = dim_stride * self.step;
@@ -4399,10 +4397,10 @@ fn slice_layout_<const MAX_RANK: usize>(
                     });
                 }
                 let count = if step > 0 {
-                    (end.saturating_sub(start) + step as usize - 1) / step as usize
+                    end.saturating_sub(start).div_ceil(step as usize)
                 } else {
                     let abs_step = (-step) as usize;
-                    (start.saturating_sub(end) + abs_step - 1) / abs_step
+                    start.saturating_sub(end).div_ceil(abs_step)
                 };
                 new_shape[new_ndim] = count;
                 new_strides[new_ndim] = dim_stride * step;
@@ -5174,8 +5172,8 @@ where
     validate_same_shape(source.shape(), out.shape())?;
     let mut target_strides = [0isize; MAX_RANK];
     let out_ndim = out.ndim();
-    for dim in 0..out_ndim {
-        target_strides[dim] = out.stride_bytes(dim);
+    for (dim, target_stride) in target_strides.iter_mut().enumerate().take(out_ndim) {
+        *target_stride = out.stride_bytes(dim);
     }
     let target_ptr = out.as_mut_ptr();
     unsafe {
@@ -5212,8 +5210,8 @@ where
     validate_same_shape(first.shape(), out.shape())?;
     let mut target_strides = [0isize; MAX_RANK];
     let out_ndim = out.ndim();
-    for dim in 0..out_ndim {
-        target_strides[dim] = out.stride_bytes(dim);
+    for (dim, target_stride) in target_strides.iter_mut().enumerate().take(out_ndim) {
+        *target_stride = out.stride_bytes(dim);
     }
     let target_ptr = out.as_mut_ptr();
     unsafe {
@@ -5256,8 +5254,8 @@ where
     validate_same_shape(first.shape(), out.shape())?;
     let mut target_strides = [0isize; MAX_RANK];
     let out_ndim = out.ndim();
-    for dim in 0..out_ndim {
-        target_strides[dim] = out.stride_bytes(dim);
+    for (dim, target_stride) in target_strides.iter_mut().enumerate().take(out_ndim) {
+        *target_stride = out.stride_bytes(dim);
     }
     let target_ptr = out.as_mut_ptr();
     unsafe {
@@ -5886,9 +5884,9 @@ where
         let reduced_ndim = reduced_shape_into(self.shape(), axis, keep_dims, &mut shape_buf);
         let output_shape = &shape_buf[..reduced_ndim];
         let mut sums =
-            Tensor::<Scalar::SumOutput, Global, MAX_RANK>::try_full(&output_shape, Scalar::SumOutput::default())?;
+            Tensor::<Scalar::SumOutput, Global, MAX_RANK>::try_full(output_shape, Scalar::SumOutput::default())?;
         let mut sumsqs =
-            Tensor::<Scalar::SumSqOutput, Global, MAX_RANK>::try_full(&output_shape, Scalar::SumSqOutput::default())?;
+            Tensor::<Scalar::SumSqOutput, Global, MAX_RANK>::try_full(output_shape, Scalar::SumSqOutput::default())?;
         self.try_moments_axis_into(axis, keep_dims, &mut sums, &mut sumsqs)?;
         Ok((sums, sumsqs))
     }
@@ -5909,8 +5907,8 @@ where
         let mut shape_buf = [0usize; MAX_RANK];
         let reduced_ndim = reduced_shape_into(self.shape(), axis, keep_dims, &mut shape_buf);
         let expected_shape = &shape_buf[..reduced_ndim];
-        validate_same_shape(&expected_shape, sum_out.shape())?;
-        validate_same_shape(&expected_shape, sumsq_out.shape())?;
+        validate_same_shape(expected_shape, sum_out.shape())?;
+        validate_same_shape(expected_shape, sumsq_out.shape())?;
 
         let out_ndim = sum_out.ndim();
         let mut sum_strides = [0isize; MAX_RANK];
@@ -5927,8 +5925,8 @@ where
                 unsafe { normalize_reduction_lane(lane_ptr, lane_len, lane_stride) };
             let (sum, sumsq) =
                 unsafe { Scalar::reduce_moments(core::slice::from_raw_parts(lane_ptr, lane_len), lane_stride) };
-            let sum_offset = logical_index_byte_offset(output_index, &expected_shape, &sum_strides[..out_ndim]);
-            let sumsq_offset = logical_index_byte_offset(output_index, &expected_shape, &sumsq_strides[..out_ndim]);
+            let sum_offset = logical_index_byte_offset(output_index, expected_shape, &sum_strides[..out_ndim]);
+            let sumsq_offset = logical_index_byte_offset(output_index, expected_shape, &sumsq_strides[..out_ndim]);
             unsafe {
                 *(sum_base.offset(sum_offset) as *mut Scalar::SumOutput) = sum;
                 *(sumsq_base.offset(sumsq_offset) as *mut Scalar::SumSqOutput) = sumsq;
@@ -5962,9 +5960,9 @@ where
         let mut shape_buf = [0usize; MAX_RANK];
         let reduced_ndim = reduced_shape_into(self.shape(), axis, keep_dims, &mut shape_buf);
         let expected_shape = &shape_buf[..reduced_ndim];
-        validate_same_shape(&expected_shape, out.shape())?;
+        validate_same_shape(expected_shape, out.shape())?;
         let mut scratch =
-            Tensor::<Scalar::SumSqOutput, Global, MAX_RANK>::try_full(&expected_shape, Scalar::SumSqOutput::default())?;
+            Tensor::<Scalar::SumSqOutput, Global, MAX_RANK>::try_full(expected_shape, Scalar::SumSqOutput::default())?;
         self.try_moments_axis_into(axis, keep_dims, out, &mut scratch)
     }
 
@@ -6000,21 +5998,21 @@ where
         let mut shape_buf = [0usize; MAX_RANK];
         let reduced_ndim = reduced_shape_into(self.shape(), axis, keep_dims, &mut shape_buf);
         let expected_shape = &shape_buf[..reduced_ndim];
-        validate_same_shape(&expected_shape, out.shape())?;
+        validate_same_shape(expected_shape, out.shape())?;
         let mut scratch_sum =
-            Tensor::<Scalar::SumOutput, Global, MAX_RANK>::try_full(&expected_shape, Scalar::SumOutput::default())?;
+            Tensor::<Scalar::SumOutput, Global, MAX_RANK>::try_full(expected_shape, Scalar::SumOutput::default())?;
         let mut scratch_sumsq =
-            Tensor::<Scalar::SumSqOutput, Global, MAX_RANK>::try_full(&expected_shape, Scalar::SumSqOutput::default())?;
+            Tensor::<Scalar::SumSqOutput, Global, MAX_RANK>::try_full(expected_shape, Scalar::SumSqOutput::default())?;
         self.try_moments_axis_into(axis, keep_dims, &mut scratch_sum, &mut scratch_sumsq)?;
 
         let out_ndim = out.ndim();
         let mut out_strides = [0isize; MAX_RANK];
-        for dim in 0..out_ndim {
-            out_strides[dim] = out.stride_bytes(dim);
+        for (dim, out_stride) in out_strides.iter_mut().enumerate().take(out_ndim) {
+            *out_stride = out.stride_bytes(dim);
         }
         let out_base = out.as_mut_ptr() as *mut u8;
         for (flat_index, value) in scratch_sumsq.as_slice().iter().enumerate() {
-            let offset = logical_index_byte_offset(flat_index, &expected_shape, &out_strides[..out_ndim]);
+            let offset = logical_index_byte_offset(flat_index, expected_shape, &out_strides[..out_ndim]);
             unsafe {
                 *(out_base.offset(offset) as *mut f64) = Roots::sqrt(SumSqToF64::to_f64(*value));
             }
@@ -6052,11 +6050,11 @@ where
         let reduced_ndim = reduced_shape_into(self.shape(), axis, keep_dims, &mut shape_buf);
         let output_shape = &shape_buf[..reduced_ndim];
         let mut min_values =
-            Tensor::<Scalar::Output, Global, MAX_RANK>::try_full(&output_shape, Scalar::Output::default())?;
-        let mut min_indices = Tensor::<usize, Global, MAX_RANK>::try_full(&output_shape, 0)?;
+            Tensor::<Scalar::Output, Global, MAX_RANK>::try_full(output_shape, Scalar::Output::default())?;
+        let mut min_indices = Tensor::<usize, Global, MAX_RANK>::try_full(output_shape, 0)?;
         let mut max_values =
-            Tensor::<Scalar::Output, Global, MAX_RANK>::try_full(&output_shape, Scalar::Output::default())?;
-        let mut max_indices = Tensor::<usize, Global, MAX_RANK>::try_full(&output_shape, 0)?;
+            Tensor::<Scalar::Output, Global, MAX_RANK>::try_full(output_shape, Scalar::Output::default())?;
+        let mut max_indices = Tensor::<usize, Global, MAX_RANK>::try_full(output_shape, 0)?;
         self.try_minmax_axis_into(
             axis,
             keep_dims,
@@ -6091,10 +6089,10 @@ where
         let mut shape_buf = [0usize; MAX_RANK];
         let reduced_ndim = reduced_shape_into(self.shape(), axis, keep_dims, &mut shape_buf);
         let expected_shape = &shape_buf[..reduced_ndim];
-        validate_same_shape(&expected_shape, min_out.shape())?;
-        validate_same_shape(&expected_shape, argmin_out.shape())?;
-        validate_same_shape(&expected_shape, max_out.shape())?;
-        validate_same_shape(&expected_shape, argmax_out.shape())?;
+        validate_same_shape(expected_shape, min_out.shape())?;
+        validate_same_shape(expected_shape, argmin_out.shape())?;
+        validate_same_shape(expected_shape, max_out.shape())?;
+        validate_same_shape(expected_shape, argmax_out.shape())?;
 
         let out_ndim = min_out.ndim();
         let mut min_strides = [0isize; MAX_RANK];
@@ -6122,12 +6120,12 @@ where
             if let Some((min_value, min_index, max_value, max_index)) =
                 unsafe { Scalar::reduce_minmax(core::slice::from_raw_parts(lane_ptr, lane_len), lane_stride) }
             {
-                let min_offset = logical_index_byte_offset(output_index, &expected_shape, &min_strides[..out_ndim]);
+                let min_offset = logical_index_byte_offset(output_index, expected_shape, &min_strides[..out_ndim]);
                 let argmin_offset =
-                    logical_index_byte_offset(output_index, &expected_shape, &argmin_strides[..out_ndim]);
-                let max_offset = logical_index_byte_offset(output_index, &expected_shape, &max_strides[..out_ndim]);
+                    logical_index_byte_offset(output_index, expected_shape, &argmin_strides[..out_ndim]);
+                let max_offset = logical_index_byte_offset(output_index, expected_shape, &max_strides[..out_ndim]);
                 let argmax_offset =
-                    logical_index_byte_offset(output_index, &expected_shape, &argmax_strides[..out_ndim]);
+                    logical_index_byte_offset(output_index, expected_shape, &argmax_strides[..out_ndim]);
                 unsafe {
                     *(min_base.offset(min_offset) as *mut Scalar::Output) = min_value;
                     *(argmin_base.offset(argmin_offset) as *mut usize) =
@@ -6315,7 +6313,7 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
                 capacity: self.elements.capacity(),
             });
         }
-        let scale_storage = Tensor::<F::Scale, A>::shape_storage_count(&scales_shape)?;
+        let scale_storage = Tensor::<F::Scale, A>::shape_storage_count(scales_shape)?;
         if scale_storage > self.block_scales.capacity() {
             return Err(TensorError::CapacityExceeded {
                 requested: scale_storage,
@@ -6326,7 +6324,7 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
             .try_resize(new_shape)
             .expect("elements capacity pre-checked");
         self.block_scales
-            .try_resize(&scales_shape)
+            .try_resize(scales_shape)
             .expect("scales capacity pre-checked");
         Ok(())
     }
@@ -6338,7 +6336,7 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
         let scales_ndim = Self::scales_shape_into(new_shape, &mut scales_buf)?;
         let scales_shape = &scales_buf[..scales_ndim];
         self.elements.try_reserve(new_shape)?;
-        self.block_scales.try_reserve(&scales_shape)?;
+        self.block_scales.try_reserve(scales_shape)?;
         Ok(())
     }
 

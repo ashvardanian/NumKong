@@ -11,8 +11,6 @@
 extern crate alloc;
 
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
-#[cfg(feature = "alloc")]
-use alloc::vec::Vec;
 use core::ffi::c_void;
 
 #[link(name = "numkong")]
@@ -569,7 +567,7 @@ pub trait DenseToScaledOps<const MAX_RANK: usize>: TensorRef<f32, MAX_RANK> {
         let source = view.as_packed_slice().ok_or(TensorError::NonContiguousRows)?;
 
         let mut elements = Tensor::<F::Element>::try_zeros(shape)?;
-        let mut block_scales = Tensor::<F::Scale>::try_zeros(&scales_shape)?;
+        let mut block_scales = Tensor::<F::Scale>::try_zeros(scales_shape)?;
         let tensor_scale = block_scaled_cast_(
             source.as_ptr() as *const c_void,
             core::ptr::null(),
@@ -632,7 +630,7 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
             .ok_or(TensorError::NonContiguousRows)?;
 
         let mut elements = Tensor::<G::Element>::try_zeros(shape)?;
-        let mut block_scales = Tensor::<G::Scale>::try_zeros(&scales_shape)?;
+        let mut block_scales = Tensor::<G::Scale>::try_zeros(scales_shape)?;
         let tensor_scale = block_scaled_cast_(
             src_elements.as_ptr() as *const c_void,
             src_scales.as_ptr() as *const c_void,

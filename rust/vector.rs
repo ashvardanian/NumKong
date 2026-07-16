@@ -1114,13 +1114,13 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
         }
         let count = if step > 0 {
             if end > start {
-                (end - start + step as usize - 1) / step as usize
+                (end - start).div_ceil(step as usize)
             } else {
                 0
             }
         } else if start > end {
             let abs_step = (-step) as usize;
-            (start - end + abs_step - 1) / abs_step
+            (start - end).div_ceil(abs_step)
         } else {
             0
         };
