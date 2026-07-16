@@ -1573,25 +1573,27 @@ NK_PUBLIC void nk_each_swiglu_f32_skylake(nk_f32_t const *gate, nk_f32_t const *
                                           nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride,
                                           nk_size_t y_row_stride, nk_f32_t input_scale) {
     __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
-    for (nk_size_t r = 0; r != rows; ++r) {
-        nk_f32_t const *g_row = (nk_f32_t const *)((unsigned char const *)gate + r * gate_row_stride);
-        nk_f32_t const *u_row = up ? (nk_f32_t const *)((unsigned char const *)up + r * up_row_stride) : NK_NULL;
-        nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + r * y_row_stride);
-        nk_size_t c = 0;
-        for (; c + 16 <= cols; c += 16) {
-            __m512 result_f32x16 = nk_silu_f32x16_skylake_(_mm512_mul_ps(_mm512_loadu_ps(g_row + c), scale_f32x16));
-            if (u_row)
-                result_f32x16 = _mm512_mul_ps(result_f32x16, _mm512_mul_ps(_mm512_loadu_ps(u_row + c), scale_f32x16));
-            _mm512_storeu_ps(y_row + c, result_f32x16);
-        }
-        if (c < cols) {
-            __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)(cols - c));
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f32_t const *gate_row = (nk_f32_t const *)((unsigned char const *)gate + row * gate_row_stride);
+        nk_f32_t const *up_row = up ? (nk_f32_t const *)((unsigned char const *)up + row * up_row_stride) : NK_NULL;
+        nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + row * y_row_stride);
+        nk_size_t col = 0;
+        for (; col + 16 <= cols; col += 16) {
             __m512 result_f32x16 = nk_silu_f32x16_skylake_(
-                _mm512_mul_ps(_mm512_maskz_loadu_ps(mask_m16, g_row + c), scale_f32x16));
-            if (u_row)
+                _mm512_mul_ps(_mm512_loadu_ps(gate_row + col), scale_f32x16));
+            if (up_row)
                 result_f32x16 = _mm512_mul_ps(result_f32x16,
-                                              _mm512_mul_ps(_mm512_maskz_loadu_ps(mask_m16, u_row + c), scale_f32x16));
-            _mm512_mask_storeu_ps(y_row + c, mask_m16, result_f32x16);
+                                              _mm512_mul_ps(_mm512_loadu_ps(up_row + col), scale_f32x16));
+            _mm512_storeu_ps(y_row + col, result_f32x16);
+        }
+        if (col < cols) {
+            __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)(cols - col));
+            __m512 result_f32x16 = nk_silu_f32x16_skylake_(
+                _mm512_mul_ps(_mm512_maskz_loadu_ps(mask_m16, gate_row + col), scale_f32x16));
+            if (up_row)
+                result_f32x16 = _mm512_mul_ps(
+                    result_f32x16, _mm512_mul_ps(_mm512_maskz_loadu_ps(mask_m16, up_row + col), scale_f32x16));
+            _mm512_mask_storeu_ps(y_row + col, mask_m16, result_f32x16);
         }
     }
 }
@@ -1600,34 +1602,34 @@ NK_PUBLIC void nk_each_swiglu_bf16_skylake(nk_bf16_t const *gate, nk_bf16_t cons
                                            nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride,
                                            nk_size_t y_row_stride, nk_f32_t input_scale) {
     __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
-    for (nk_size_t r = 0; r != rows; ++r) {
-        nk_bf16_t const *g_row = (nk_bf16_t const *)((unsigned char const *)gate + r * gate_row_stride);
-        nk_bf16_t const *u_row = up ? (nk_bf16_t const *)((unsigned char const *)up + r * up_row_stride) : NK_NULL;
-        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + r * y_row_stride);
-        nk_size_t c = 0;
-        for (; c + 16 <= cols; c += 16) {
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_bf16_t const *gate_row = (nk_bf16_t const *)((unsigned char const *)gate + row * gate_row_stride);
+        nk_bf16_t const *up_row = up ? (nk_bf16_t const *)((unsigned char const *)up + row * up_row_stride) : NK_NULL;
+        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + row * y_row_stride);
+        nk_size_t col = 0;
+        for (; col + 16 <= cols; col += 16) {
             nk_b512_vec_t gate_vec;
-            nk_load_bf16x16_to_f32x16_skylake_(g_row + c, &gate_vec);
+            nk_load_bf16x16_to_f32x16_skylake_(gate_row + col, &gate_vec);
             __m512 result_f32x16 = nk_silu_f32x16_skylake_(_mm512_mul_ps(gate_vec.zmm_ps, scale_f32x16));
-            if (u_row) {
+            if (up_row) {
                 nk_b512_vec_t up_vec;
-                nk_load_bf16x16_to_f32x16_skylake_(u_row + c, &up_vec);
+                nk_load_bf16x16_to_f32x16_skylake_(up_row + col, &up_vec);
                 result_f32x16 = _mm512_mul_ps(result_f32x16, _mm512_mul_ps(up_vec.zmm_ps, scale_f32x16));
             }
-            _mm256_storeu_si256((__m256i *)(y_row + c), nk_f32x16_to_bf16x16_skylake_(result_f32x16));
+            _mm256_storeu_si256((__m256i *)(y_row + col), nk_f32x16_to_bf16x16_skylake_(result_f32x16));
         }
-        if (c < cols) {
-            nk_size_t remaining = cols - c;
+        if (col < cols) {
+            nk_size_t remaining = cols - col;
             __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)remaining);
             nk_b512_vec_t gate_vec;
-            nk_partial_load_bf16x16_to_f32x16_skylake_(g_row + c, &gate_vec, remaining);
+            nk_partial_load_bf16x16_to_f32x16_skylake_(gate_row + col, &gate_vec, remaining);
             __m512 result_f32x16 = nk_silu_f32x16_skylake_(_mm512_mul_ps(gate_vec.zmm_ps, scale_f32x16));
-            if (u_row) {
+            if (up_row) {
                 nk_b512_vec_t up_vec;
-                nk_partial_load_bf16x16_to_f32x16_skylake_(u_row + c, &up_vec, remaining);
+                nk_partial_load_bf16x16_to_f32x16_skylake_(up_row + col, &up_vec, remaining);
                 result_f32x16 = _mm512_mul_ps(result_f32x16, _mm512_mul_ps(up_vec.zmm_ps, scale_f32x16));
             }
-            _mm256_mask_storeu_epi16((void *)(y_row + c), mask_m16, nk_f32x16_to_bf16x16_skylake_(result_f32x16));
+            _mm256_mask_storeu_epi16((void *)(y_row + col), mask_m16, nk_f32x16_to_bf16x16_skylake_(result_f32x16));
         }
     }
 }
@@ -1636,34 +1638,34 @@ NK_PUBLIC void nk_each_swiglu_e4m3_skylake(nk_e4m3_t const *gate, nk_e4m3_t cons
                                            nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride,
                                            nk_size_t y_row_stride, nk_f32_t input_scale) {
     __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
-    for (nk_size_t r = 0; r != rows; ++r) {
-        nk_e4m3_t const *g_row = (nk_e4m3_t const *)((unsigned char const *)gate + r * gate_row_stride);
-        nk_e4m3_t const *u_row = up ? (nk_e4m3_t const *)((unsigned char const *)up + r * up_row_stride) : NK_NULL;
-        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + r * y_row_stride);
-        nk_size_t c = 0;
-        for (; c + 16 <= cols; c += 16) {
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_e4m3_t const *gate_row = (nk_e4m3_t const *)((unsigned char const *)gate + row * gate_row_stride);
+        nk_e4m3_t const *up_row = up ? (nk_e4m3_t const *)((unsigned char const *)up + row * up_row_stride) : NK_NULL;
+        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + row * y_row_stride);
+        nk_size_t col = 0;
+        for (; col + 16 <= cols; col += 16) {
             nk_b512_vec_t gate_vec;
-            nk_load_e4m3x16_to_f32x16_skylake_(g_row + c, &gate_vec);
+            nk_load_e4m3x16_to_f32x16_skylake_(gate_row + col, &gate_vec);
             __m512 result_f32x16 = nk_silu_f32x16_skylake_(_mm512_mul_ps(gate_vec.zmm_ps, scale_f32x16));
-            if (u_row) {
+            if (up_row) {
                 nk_b512_vec_t up_vec;
-                nk_load_e4m3x16_to_f32x16_skylake_(u_row + c, &up_vec);
+                nk_load_e4m3x16_to_f32x16_skylake_(up_row + col, &up_vec);
                 result_f32x16 = _mm512_mul_ps(result_f32x16, _mm512_mul_ps(up_vec.zmm_ps, scale_f32x16));
             }
-            _mm_storeu_si128((__m128i *)(y_row + c), nk_f32x16_to_e4m3x16_skylake_(result_f32x16));
+            _mm_storeu_si128((__m128i *)(y_row + col), nk_f32x16_to_e4m3x16_skylake_(result_f32x16));
         }
-        if (c < cols) {
-            nk_size_t remaining = cols - c;
+        if (col < cols) {
+            nk_size_t remaining = cols - col;
             __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)remaining);
             nk_b512_vec_t gate_vec;
-            nk_partial_load_e4m3x16_to_f32x16_skylake_(g_row + c, &gate_vec, remaining);
+            nk_partial_load_e4m3x16_to_f32x16_skylake_(gate_row + col, &gate_vec, remaining);
             __m512 result_f32x16 = nk_silu_f32x16_skylake_(_mm512_mul_ps(gate_vec.zmm_ps, scale_f32x16));
-            if (u_row) {
+            if (up_row) {
                 nk_b512_vec_t up_vec;
-                nk_partial_load_e4m3x16_to_f32x16_skylake_(u_row + c, &up_vec, remaining);
+                nk_partial_load_e4m3x16_to_f32x16_skylake_(up_row + col, &up_vec, remaining);
                 result_f32x16 = _mm512_mul_ps(result_f32x16, _mm512_mul_ps(up_vec.zmm_ps, scale_f32x16));
             }
-            _mm_mask_storeu_epi8((void *)(y_row + c), mask_m16, nk_f32x16_to_e4m3x16_skylake_(result_f32x16));
+            _mm_mask_storeu_epi8((void *)(y_row + col), mask_m16, nk_f32x16_to_e4m3x16_skylake_(result_f32x16));
         }
     }
 }

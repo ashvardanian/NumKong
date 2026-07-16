@@ -297,22 +297,23 @@ NK_PUBLIC void nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, n
         nk_##input_type##_t const *gate, nk_##input_type##_t const *up, nk_##input_type##_t *y, nk_size_t rows, \
         nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride,             \
         nk_f32_t input_scale) {                                                                                 \
-        for (nk_size_t r = 0; r != rows; ++r) {                                                                 \
-            nk_##input_type##_t const *g_row = (nk_##input_type##_t const *)((unsigned char const *)gate +      \
-                                                                             r * gate_row_stride);              \
-            nk_##input_type##_t const *u_row =                                                                  \
-                up ? (nk_##input_type##_t const *)((unsigned char const *)up + r * up_row_stride) : NK_NULL;    \
-            nk_##input_type##_t *y_row = (nk_##input_type##_t *)((unsigned char *)y + r * y_row_stride);        \
-            for (nk_size_t c = 0; c != cols; ++c) {                                                             \
-                nk_f32_t gate;                                                                                  \
-                load_and_convert(g_row + c, &gate);                                                             \
-                nk_f32_t result = nk_silu_f32_serial_(gate * input_scale);                                      \
-                if (u_row) {                                                                                    \
-                    nk_f32_t up;                                                                                \
-                    load_and_convert(u_row + c, &up);                                                           \
-                    result *= up * input_scale;                                                                 \
+        for (nk_size_t row = 0; row != rows; ++row) {                                                           \
+            nk_##input_type##_t const *gate_row = /**/                                                          \
+                (nk_##input_type##_t const *)((unsigned char const *)gate + row * gate_row_stride);             \
+            nk_##input_type##_t const *up_row = /**/                                                            \
+                up ? (nk_##input_type##_t const *)((unsigned char const *)up + row * up_row_stride) : NK_NULL;  \
+            nk_##input_type##_t *y_row = /**/                                                                   \
+                (nk_##input_type##_t *)((unsigned char *)y + row * y_row_stride);                               \
+            for (nk_size_t col = 0; col != cols; ++col) {                                                       \
+                nk_f32_t gate_value;                                                                            \
+                load_and_convert(gate_row + col, &gate_value);                                                  \
+                nk_f32_t result = nk_silu_f32_serial_(gate_value * input_scale);                                \
+                if (up_row) {                                                                                   \
+                    nk_f32_t up_value;                                                                          \
+                    load_and_convert(up_row + col, &up_value);                                                  \
+                    result *= up_value * input_scale;                                                           \
                 }                                                                                               \
-                convert_and_store(&result, y_row + c);                                                          \
+                convert_and_store(&result, y_row + col);                                                        \
             }                                                                                                   \
         }                                                                                                       \
     }
