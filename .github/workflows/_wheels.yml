@@ -280,14 +280,16 @@ jobs:
         run: |
           $wheel = Get-ChildItem wheelhouse\*.whl | Select-Object -First 1
           if (-not $wheel) { Write-Error 'No wheel was produced'; exit 1 }
-          $names = python -c "import sys, zipfile; print(chr(10).join(zipfile.ZipFile(sys.argv[1]).namelist()))" $wheel.FullName
+          $names = @(python -c "import sys, zipfile; print(chr(10).join(zipfile.ZipFile(sys.argv[1]).namelist()))" $wheel.FullName)
           # delvewheel mangles the vendored name (libomp140.x86_64-<hash>.dll), so match the stem.
-          if ($names -notmatch 'libomp140') {
+          # `-match` over a list filters it; `-notmatch` would return every other entry and read as true.
+          $vendored = @($names -match 'libomp140')
+          if ($vendored.Count -eq 0) {
             Write-Error "$($wheel.Name) imports libomp140 but does not carry it; it would fail to import wherever Visual Studio is absent"
             exit 1
           }
           Write-Host "OK: OpenMP runtime vendored into $($wheel.Name)"
-          $names -split "`n" | Select-String 'libomp140' | ForEach-Object { "  $_" }
+          $vendored | ForEach-Object { "  $_" }
       - name: Upload Wheels
         uses: actions/upload-artifact@v7
         with:
