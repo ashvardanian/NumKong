@@ -70,7 +70,7 @@
 # NumKong does not support NVHPC (nvc and nvc++): those compilers cannot apply per-function
 # __attribute__((target(...))), which is how SIMD kernels are dispatched in this library.
 #
-cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.21 FATAL_ERROR)
 
 # Leverage `ccache` for incremental compilation
 find_program(CCACHE_PROGRAM ccache)
@@ -84,8 +84,9 @@ endif ()
 
 # Enable the in-repo Git hooks. Git will not auto-run hooks shipped inside a clone (that would let any
 # cloned repo execute code), so point `core.hooksPath` at `.githooks` here — configuring the build arms
-# the `pre-commit` / `commit-msg` checks. Skipped when there is no `.git` (tarball / export builds).
-if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+# the `pre-commit` / `commit-msg` checks. Skipped when built as a subproject — mutating a submodule's
+# Git config is not a consumer's business — or without `.git` (tarball / export builds).
+if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
     execute_process(
         COMMAND git config core.hooksPath .githooks WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         RESULT_VARIABLE _nk_hooks_status OUTPUT_QUIET ERROR_QUIET
@@ -119,18 +120,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 set(CMAKE_CXX_EXTENSIONS NO)
 
 # Determine if NumKong is built as a sub-project (using `add_subdirectory`) or if it is the main project
-set(NK_IS_MAIN_PROJECT_ OFF)
+set(NK_IS_MAIN_PROJECT_ ${PROJECT_IS_TOP_LEVEL})
 set(NK_IS_WASI_PROJECT_ OFF)
-
-if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    set(NK_IS_MAIN_PROJECT_ ON)
-endif ()
 
 if (CMAKE_SYSTEM_NAME STREQUAL "WASI")
     set(NK_IS_WASI_PROJECT_ ON)
 endif ()
 
 option(NK_BUILD_SHARED "Compile a dynamic library" ${NK_IS_MAIN_PROJECT_})
+option(NK_INSTALL "Install headers, libraries & the CMake package files" ${NK_IS_MAIN_PROJECT_})
 option(NK_BUILD_TEST "Compile precision tests with ULP-based error analysis" OFF)
 option(NK_BUILD_BENCH "Compile micro-benchmarks for current ISA" OFF)
 option(NK_BUILD_CUDA_TEST "Compile CUDA tensors & type system interop tests" OFF)
@@ -315,11 +313,16 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     add_compile_options(-fmax-errors=1 -Wno-tautological-constant-compare -Wno-psabi)
 endif ()
 
-# Define the header-only library
+# Define the header-only library. The include path & sources wear `BUILD_INTERFACE` genexes, so the
+# target stays exportable: the installed package resolves headers under the install prefix instead.
 file(GLOB NK_SOURCES include/numkong/*.h include/numkong/*.hpp)
 add_library(numkong INTERFACE)
-target_sources(numkong INTERFACE ${NK_SOURCES})
-target_include_directories(numkong INTERFACE "${PROJECT_SOURCE_DIR}/include")
+add_library(numkong::numkong ALIAS numkong)
+target_sources(numkong INTERFACE "$<BUILD_INTERFACE:${NK_SOURCES}>")
+target_include_directories(
+    numkong INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+)
+target_compile_features(numkong INTERFACE c_std_99)
 
 # MSVC's traditional preprocessor can't short-circuit `defined(__has_builtin) && __has_builtin(...)`.
 # The conforming preprocessor (/Zc:preprocessor, available since MSVC 2019 16.6) handles this.
@@ -328,15 +331,20 @@ if (MSVC)
     target_compile_options(numkong INTERFACE /Zc:preprocessor)
 endif ()
 
-# Enable Clang C modules for incremental compilation
+# Enable Clang C modules for incremental compilation. Build-tree only: the flags reference this
+# build's module cache, so they must never leak into the exported package.
 if (CMAKE_C_COMPILER_ID MATCHES "Clang")
     target_compile_options(
-        numkong INTERFACE $<$<COMPILE_LANGUAGE:C>:-fmodules> $<$<COMPILE_LANGUAGE:C>:-fimplicit-module-maps>
-                          $<$<COMPILE_LANGUAGE:C>:-fmodules-cache-path=${CMAKE_BINARY_DIR}/module-cache>
+        numkong
+        INTERFACE $<BUILD_INTERFACE:$<$<COMPILE_LANGUAGE:C>:-fmodules>>
+                  $<BUILD_INTERFACE:$<$<COMPILE_LANGUAGE:C>:-fimplicit-module-maps>>
+                  $<BUILD_INTERFACE:$<$<COMPILE_LANGUAGE:C>:-fmodules-cache-path=${CMAKE_BINARY_DIR}/module-cache>>
     )
 
     # Install module map
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/module.modulemap DESTINATION include)
+    if (NK_INSTALL)
+        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/module.modulemap DESTINATION include)
+    endif ()
 
     message(STATUS "Clang C modules enabled: cache at ${CMAKE_BINARY_DIR}/module-cache")
 endif ()
@@ -499,7 +507,7 @@ if (NK_BUILD_BENCH)
     set(BENCHMARK_USE_BUNDLED_GTEST ON CACHE BOOL "" FORCE)
     set(HAVE_STD_REGEX ON CACHE BOOL "Force std::regex for Google Benchmark" FORCE)
 
-    FetchContent_Declare(benchmark GIT_REPOSITORY https://github.com/google/benchmark.git GIT_TAG main)
+    FetchContent_Declare(benchmark GIT_REPOSITORY https://github.com/google/benchmark.git GIT_TAG v1.9.1)
     FetchContent_MakeAvailable(benchmark)
 
     # Remove the Google Benchmark's "built in debug warning"
@@ -726,8 +734,11 @@ if (NK_BUILD_SHARED)
         set_target_properties(nk_shared PROPERTIES ENABLE_EXPORTS ON)
     else ()
         add_library(nk_shared SHARED ${NK_SOURCES})
-        target_include_directories(nk_shared PUBLIC "${PROJECT_SOURCE_DIR}/include")
-        set_target_properties(nk_shared PROPERTIES OUTPUT_NAME numkong)
+        add_library(numkong::shared ALIAS nk_shared)
+        target_include_directories(
+            nk_shared PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+        )
+        set_target_properties(nk_shared PROPERTIES OUTPUT_NAME numkong EXPORT_NAME shared)
 
         # Hide all symbols by default; only NK_API_RUNTIME-annotated API functions are exported.
         # Strip unwind tables from this pure-C library (saves ~78 KB).
@@ -780,18 +791,21 @@ if (NK_BUILD_SHARED)
         # fail on unsupported OS/runtime combinations.
     endif ()
 
-    install(
-        TARGETS nk_shared
-        ARCHIVE
-        BUNDLE
-        FRAMEWORK
-        LIBRARY
-        OBJECTS
-        PRIVATE_HEADER
-        PUBLIC_HEADER
-        RESOURCE
-        RUNTIME
-    )
+    if (NK_INSTALL)
+        install(
+            TARGETS nk_shared
+            EXPORT numkongTargets
+            ARCHIVE
+            BUNDLE
+            FRAMEWORK
+            LIBRARY
+            OBJECTS
+            PRIVATE_HEADER
+            PUBLIC_HEADER
+            RESOURCE
+            RUNTIME
+        )
+    endif ()
 endif ()
 
 # Shared-library test (tests runtime dispatch path)
@@ -884,5 +898,29 @@ if (NK_BUILD_CUDA_TEST)
     add_test(NAME nk_cuda_test COMMAND nk_cuda_test)
 endif ()
 
-install(DIRECTORY include/ DESTINATION include)
-install(DIRECTORY c/ DESTINATION share/doc/${PROJECT_NAME}/src)
+# Install & export — gated, so a parent project's `make install` ships NumKong only on request, and
+# `find_package(numkong)` works after installation, mirroring ForkUnion's packaging.
+if (NK_INSTALL)
+    include(GNUInstallDirs)
+    include(CMakePackageConfigHelpers)
+
+    install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(DIRECTORY c/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${PROJECT_NAME}/src)
+    install(TARGETS numkong EXPORT numkongTargets)
+    install(EXPORT numkongTargets FILE numkongTargets.cmake NAMESPACE numkong::
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/numkong
+    )
+
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/numkongConfigVersion.cmake" VERSION ${PROJECT_VERSION}
+        COMPATIBILITY AnyNewerVersion
+    )
+    configure_package_config_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/numkongConfig.cmake.in" "${CMAKE_CURRENT_BINARY_DIR}/numkongConfig.cmake"
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/numkong
+    )
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/numkongConfig.cmake"
+                  "${CMAKE_CURRENT_BINARY_DIR}/numkongConfigVersion.cmake"
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/numkong
+    )
+endif ()
