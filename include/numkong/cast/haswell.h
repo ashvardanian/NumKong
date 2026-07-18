@@ -614,7 +614,7 @@ NK_HELPER_INLINE void nk_load_f16x8_to_f32x8_haswell_(void const *src, nk_b256_v
 }
 
 /** @brief Partial load for f16 elements (up to 8) with conversion to f32 via F16C. */
-NK_HELPER_INLINE void nk_partial_load_f16x8_to_f32x8_haswell_(nk_f16_t const *src, nk_b256_vec_t *dst, nk_size_t n) {
+NK_HELPER_INLINE void nk_partial_load_f16x8_to_f32x8_haswell_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b128_vec_t vec;
     nk_partial_load_b16x8_serial_(src, &vec, n);
     dst->ymm_ps = _mm256_cvtph_ps(vec.xmm);
