@@ -917,7 +917,7 @@ typedef nk_f64_t nk_fmax_t;
  *  kernels. Base-2 polynomial evaluation means natural-log/exp quantities fold through log₂e and
  *  ln2, so both the single- and double-precision spellings are provided and each site keeps its
  *  exact bits. Trigonometric range-reduction constants (π high/low, 1/π, π/2) are intentionally
- *  not here — they are a Cody-Waite set local to `trigonometry/*`, tuned per approximation. */
+ *  not here — they are a Cody-Waite set local to the `trigonometry/` sources, tuned per approximation. */
 #define NK_F32_LN2_   0.6931471805599453f // ln2 (single precision)
 #define NK_F64_LN2_   0.6931471805599453  // ln2 (double precision)
 #define NK_F32_LOG2E_ 1.4426950408889634f // log₂e = 1/ln2 (single)
