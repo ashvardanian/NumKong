@@ -466,16 +466,17 @@ unsafe impl<Scalar: StorageElement + Sync, Alloc: Allocator + Sync> Sync for Vec
 impl<Scalar: StorageElement, Alloc: Allocator> Drop for Vector<Scalar, Alloc> {
     fn drop(&mut self) {
         let storage_count = self.capacity;
-        if storage_count > 0 {
-            let layout =
-                core::alloc::Layout::from_size_align(storage_count * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
-                    .unwrap();
-            // SAFETY: data was allocated with this layout in try_zeros_in,
-            // and storage_count > 0 guarantees the pointer is non-dangling.
-            unsafe {
-                self.alloc
-                    .deallocate(NonNull::new_unchecked(self.data.as_ptr() as *mut u8), layout);
-            }
+        if storage_count == 0 {
+            return;
+        }
+        // SAFETY: data was allocated with this layout in try_zeros_in,
+        // and storage_count > 0 guarantees the pointer is non-dangling.
+        unsafe {
+            crate::tensor::dealloc_aligned(
+                &self.alloc,
+                NonNull::new_unchecked(self.data.as_ptr() as *mut u8),
+                storage_count * core::mem::size_of::<Scalar>(),
+            );
         }
     }
 }

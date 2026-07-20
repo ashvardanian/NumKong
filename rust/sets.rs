@@ -582,22 +582,23 @@ where
         pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
             let row_start = thread_index * rows_per_thread;
+            if row_start >= height {
+                return;
+            }
             let row_end = (row_start + rows_per_thread).min(height);
-            if row_start < height {
-                unsafe {
-                    let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
-                    let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut u32;
-                    Scalar::hammings_packed(
-                        a_row,
-                        packed_ptr.as_ptr(),
-                        c_row,
-                        row_end - row_start,
-                        width,
-                        depth,
-                        a_stride,
-                        c_stride,
-                    );
-                }
+            unsafe {
+                let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
+                let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut u32;
+                Scalar::hammings_packed(
+                    a_row,
+                    packed_ptr.as_ptr(),
+                    c_row,
+                    row_end - row_start,
+                    width,
+                    depth,
+                    a_stride,
+                    c_stride,
+                );
             }
         });
         Ok(())
@@ -734,22 +735,23 @@ where
         pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
             let row_start = thread_index * rows_per_thread;
+            if row_start >= height {
+                return;
+            }
             let row_end = (row_start + rows_per_thread).min(height);
-            if row_start < height {
-                unsafe {
-                    let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
-                    let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut Scalar::JaccardResult;
-                    Scalar::jaccards_packed(
-                        a_row,
-                        packed_ptr.as_ptr(),
-                        c_row,
-                        row_end - row_start,
-                        width,
-                        depth,
-                        a_stride,
-                        c_stride,
-                    );
-                }
+            unsafe {
+                let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
+                let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut Scalar::JaccardResult;
+                Scalar::jaccards_packed(
+                    a_row,
+                    packed_ptr.as_ptr(),
+                    c_row,
+                    row_end - row_start,
+                    width,
+                    depth,
+                    a_stride,
+                    c_stride,
+                );
             }
         });
         Ok(())

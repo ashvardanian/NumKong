@@ -475,12 +475,10 @@ unsafe impl<Scalar: Attention + Sync, Alloc: Allocator + Sync> Sync for Attentio
 
 impl<Scalar: Attention, Alloc: Allocator> Drop for AttentionPackedMatrix<Scalar, Alloc> {
     fn drop(&mut self) {
-        if self.capacity > 0 {
-            unsafe {
-                let layout = core::alloc::Layout::from_size_align_unchecked(self.capacity, SIMD_ALIGNMENT);
-                self.alloc.deallocate(self.data, layout);
-            }
+        if self.capacity == 0 {
+            return;
         }
+        unsafe { crate::tensor::dealloc_aligned(&self.alloc, self.data, self.capacity) };
     }
 }
 
@@ -547,6 +545,30 @@ where
         });
     }
     Ok((view.shape()[0], view.shape()[1] / depth, row_stride_bytes as usize))
+}
+
+/// Validates the `keys` and `values` token views together and returns their shared geometry as
+/// `(tokens, heads, keys_stride_bytes, values_stride_bytes)`. Both views must be 2D
+/// `[tokens, heads * depth]` with contiguous rows and matching token and head counts.
+fn validate_attention_views<Scalar, Keys, Values, const MAX_RANK: usize>(
+    keys: &Keys,
+    values: &Values,
+    depth: usize,
+) -> Result<(usize, usize, usize, usize), TensorError>
+where
+    Scalar: StorageElement,
+    Keys: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    Values: TensorRef<Scalar, MAX_RANK> + ?Sized,
+{
+    let (keys_tokens, keys_heads, keys_stride_bytes) = validate_token_view(keys, depth)?;
+    let (values_tokens, values_heads, values_stride_bytes) = validate_token_view(values, depth)?;
+    if keys_tokens != values_tokens || keys_heads != values_heads {
+        return Err(TensorError::DimensionMismatch {
+            expected: keys_tokens,
+            got: values_tokens,
+        });
+    }
+    Ok((keys_tokens, keys_heads, keys_stride_bytes, values_stride_bytes))
 }
 
 /// Validates that `offsets` is cumulative and covers at most `tokens` rows.
@@ -631,15 +653,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
         VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
-        let (k_tokens, heads, key_stride_bytes) = validate_token_view(keys, depth)?;
-        let (v_tokens, v_heads, value_stride_bytes) = validate_token_view(values, depth)?;
-        if k_tokens != v_tokens || heads != v_heads {
-            return Err(TensorError::DimensionMismatch {
-                expected: k_tokens,
-                got: v_tokens,
-            });
-        }
-        let segment_count = validate_offsets(segment_offsets, k_tokens)?;
+        let (tokens, heads, keys_stride_bytes, values_stride_bytes) = validate_attention_views(keys, values, depth)?;
+        let segment_count = validate_offsets(segment_offsets, tokens)?;
 
         #[cfg(feature = "alloc")]
         let mut lengths_storage;
@@ -675,33 +690,33 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         if size > self.capacity {
             self.grow_to(size)?;
         }
-        if size > 0 {
-            unsafe {
-                // Zero first so any alignment padding the packer leaves untouched is deterministic —
-                // packed blobs stay byte-reproducible across allocations and match the parallel path.
-                core::ptr::write_bytes(self.data.as_ptr(), 0, size);
-                Scalar::attention_pack(
-                    keys.as_ptr(),
-                    values.as_ptr(),
-                    heads,
-                    depth,
-                    segment_offsets.as_ptr(),
-                    segment_lengths.as_ptr(),
-                    segment_count,
-                    key_stride_bytes,
-                    value_stride_bytes,
-                    self.data.as_ptr(),
-                    0,
-                    0,
-                );
-            }
-        }
-
         self.size = size;
         self.heads = heads;
         self.depth = depth;
         self.segment_count = segment_count;
         self.total_tokens = *segment_offsets.last().unwrap() as usize;
+        if size == 0 {
+            return Ok(());
+        }
+        unsafe {
+            // Zero first so any alignment padding the packer leaves untouched is deterministic —
+            // packed blobs stay byte-reproducible across allocations and match the parallel path.
+            core::ptr::write_bytes(self.data.as_ptr(), 0, size);
+            Scalar::attention_pack(
+                keys.as_ptr(),
+                values.as_ptr(),
+                heads,
+                depth,
+                segment_offsets.as_ptr(),
+                segment_lengths.as_ptr(),
+                segment_count,
+                keys_stride_bytes,
+                values_stride_bytes,
+                self.data.as_ptr(),
+                0,
+                0,
+            );
+        }
         Ok(())
     }
 
@@ -739,24 +754,24 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutTensor: TensorMut<f32, OUT_MAX_RANK> + ?Sized,
     {
-        let (q_tokens, head_count, query_stride_bytes) = validate_token_view(queries, self.depth)?;
-        if head_count % self.heads != 0 {
+        let (query_tokens, query_head_count, query_stride_bytes) = validate_token_view(queries, self.depth)?;
+        if query_head_count % self.heads != 0 {
             return Err(TensorError::DimensionMismatch {
                 expected: self.heads,
-                got: head_count,
+                got: query_head_count,
             });
         }
-        let segment_count = validate_offsets(query_offsets, q_tokens)?;
+        let segment_count = validate_offsets(query_offsets, query_tokens)?;
         if segment_count != self.segment_count {
             return Err(TensorError::DimensionMismatch {
                 expected: self.segment_count,
                 got: segment_count,
             });
         }
-        let row_values = head_count * self.depth;
-        if output.shape() != [q_tokens, row_values] {
+        let row_values = query_head_count * self.depth;
+        if output.shape() != [query_tokens, row_values] {
             return Err(TensorError::DimensionMismatch {
-                expected: q_tokens * row_values,
+                expected: query_tokens * row_values,
                 got: output.shape().iter().product(),
             });
         }
@@ -766,7 +781,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                 queries.as_ptr(),
                 self.data.as_ptr(),
                 output.as_mut_ptr(),
-                head_count,
+                query_head_count,
                 self.heads,
                 self.depth,
                 query_offsets.as_ptr(),
@@ -876,8 +891,8 @@ impl<Scalar: Attention> AttentionPackedMatrix<Scalar, Global> {
     where
         QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
-        let (q_tokens, head_count, _) = validate_token_view(queries, self.depth)?;
-        let mut output = Tensor::<f32>::try_full(&[q_tokens, head_count * self.depth], 0.0)?;
+        let (query_tokens, query_head_count, _) = validate_token_view(queries, self.depth)?;
+        let mut output = Tensor::<f32>::try_full(&[query_tokens, query_head_count * self.depth], 0.0)?;
         self.try_attention_into(queries, query_offsets, scale, &mut output)?;
         Ok(output)
     }
@@ -914,24 +929,24 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutTensor: TensorMut<f32, OUT_MAX_RANK> + ?Sized,
     {
-        let (q_tokens, head_count, query_stride_bytes) = validate_token_view(queries, self.depth)?;
-        if head_count % self.heads != 0 {
+        let (query_tokens, query_head_count, query_stride_bytes) = validate_token_view(queries, self.depth)?;
+        if query_head_count % self.heads != 0 {
             return Err(TensorError::DimensionMismatch {
                 expected: self.heads,
-                got: head_count,
+                got: query_head_count,
             });
         }
-        let segment_count = validate_offsets(query_offsets, q_tokens)?;
+        let segment_count = validate_offsets(query_offsets, query_tokens)?;
         if segment_count != self.segment_count {
             return Err(TensorError::DimensionMismatch {
                 expected: self.segment_count,
                 got: segment_count,
             });
         }
-        let row_values = head_count * self.depth;
-        if output.shape() != [q_tokens, row_values] {
+        let row_values = query_head_count * self.depth;
+        if output.shape() != [query_tokens, row_values] {
             return Err(TensorError::DimensionMismatch {
-                expected: q_tokens * row_values,
+                expected: query_tokens * row_values,
                 got: output.shape().iter().product(),
             });
         }
@@ -948,7 +963,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         // length, so equal-count windows can be ~64× unbalanced on ragged batches.
         // Dynamic per-task scheduling mirrors the Python layer's `schedule(dynamic, 1)`;
         // GQA-sibling heads stay adjacent in task order, preserving packed-KV reuse.
-        let total_tasks = segment_count * head_count;
+        let total_tasks = segment_count * query_head_count;
         pool.for_n_dynamic(total_tasks, move |prong| {
             // Configure the worker for AMX and other thread-local SIMD state — idempotent.
             crate::capabilities::configure_thread();
@@ -957,7 +972,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                     q_ptr.as_ptr(),
                     kv_ptr.as_ptr(),
                     out_ptr.as_ptr(),
-                    head_count,
+                    query_head_count,
                     heads,
                     depth,
                     offsets_ptr.as_ptr(),
@@ -986,8 +1001,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     where
         QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
-        let (q_tokens, head_count, _) = validate_token_view(queries, self.depth)?;
-        let mut output = Tensor::<f32>::try_full(&[q_tokens, head_count * self.depth], 0.0)?;
+        let (query_tokens, query_head_count, _) = validate_token_view(queries, self.depth)?;
+        let mut output = Tensor::<f32>::try_full(&[query_tokens, query_head_count * self.depth], 0.0)?;
         self.try_attention_parallel_into(queries, query_offsets, scale, &mut output, pool)?;
         Ok(output)
     }
@@ -1024,15 +1039,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
         VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
-        let (k_tokens, heads, key_stride_bytes) = validate_token_view(keys, depth)?;
-        let (v_tokens, v_heads, value_stride_bytes) = validate_token_view(values, depth)?;
-        if k_tokens != v_tokens || heads != v_heads {
-            return Err(TensorError::DimensionMismatch {
-                expected: k_tokens,
-                got: v_tokens,
-            });
-        }
-        let segment_count = validate_offsets(segment_offsets, k_tokens)?;
+        let (tokens, heads, keys_stride_bytes, values_stride_bytes) = validate_attention_views(keys, values, depth)?;
+        let segment_count = validate_offsets(segment_offsets, tokens)?;
 
         #[cfg(feature = "alloc")]
         let mut lengths_storage;
@@ -1068,68 +1076,70 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         if size > self.capacity {
             self.grow_to(size)?;
         }
-        if size > 0 {
-            // Zero the blob so alignment padding is deterministic and the parallel result is
-            // byte-identical to the serial path regardless of allocator-provided contents.
-            unsafe { core::ptr::write_bytes(self.data.as_ptr(), 0, size) };
-
-            // Task 0's window writes the shared header + payload-offsets directory that every other
-            // window reads to locate its plane (see the `attention_pack` safety note). Run it serially
-            // first: fanning task 0 out with the rest races — a worker could read the directory before
-            // it is populated and scatter its plane to a garbage offset.
-            unsafe {
-                Scalar::attention_pack(
-                    keys.as_ptr(),
-                    values.as_ptr(),
-                    heads,
-                    depth,
-                    segment_offsets.as_ptr(),
-                    segment_lengths.as_ptr(),
-                    segment_count,
-                    key_stride_bytes,
-                    value_stride_bytes,
-                    self.data.as_ptr(),
-                    0,
-                    1,
-                );
-            }
-
-            // Remaining `(segment, kv_head)` windows read the now-populated directory. Dynamic
-            // scheduling keeps GQA-sibling heads adjacent to preserve locality.
-            let total_tasks = segment_count * heads;
-            if total_tasks > 1 {
-                let keys_ptr = fu::SyncConstPtr::new(keys.as_ptr());
-                let values_ptr = fu::SyncConstPtr::new(values.as_ptr());
-                let offsets_ptr = fu::SyncConstPtr::new(segment_offsets.as_ptr());
-                let lengths_ptr = fu::SyncConstPtr::new(segment_lengths.as_ptr());
-                let packed_ptr = fu::SyncMutPtr::new(self.data.as_ptr());
-                pool.for_n_dynamic(total_tasks - 1, move |prong| {
-                    crate::capabilities::configure_thread();
-                    unsafe {
-                        Scalar::attention_pack(
-                            keys_ptr.as_ptr(),
-                            values_ptr.as_ptr(),
-                            heads,
-                            depth,
-                            offsets_ptr.as_ptr(),
-                            lengths_ptr.as_ptr(),
-                            segment_count,
-                            key_stride_bytes,
-                            value_stride_bytes,
-                            packed_ptr.as_ptr(),
-                            prong.task_index + 1,
-                            1,
-                        );
-                    }
-                }); // executes and synchronizes on drop
-            }
-        }
-
         self.size = size;
         self.heads = heads;
         self.depth = depth;
         self.segment_count = segment_count;
         self.total_tokens = *segment_offsets.last().unwrap() as usize;
+        if size == 0 {
+            return Ok(());
+        }
+
+        // Zero the blob so alignment padding is deterministic and the parallel result is
+        // byte-identical to the serial path regardless of allocator-provided contents.
+        unsafe { core::ptr::write_bytes(self.data.as_ptr(), 0, size) };
+
+        // Task 0's window writes the shared header + payload-offsets directory that every other
+        // window reads to locate its plane (see the `attention_pack` safety note). Run it serially
+        // first: fanning task 0 out with the rest races — a worker could read the directory before
+        // it is populated and scatter its plane to a garbage offset.
+        unsafe {
+            Scalar::attention_pack(
+                keys.as_ptr(),
+                values.as_ptr(),
+                heads,
+                depth,
+                segment_offsets.as_ptr(),
+                segment_lengths.as_ptr(),
+                segment_count,
+                keys_stride_bytes,
+                values_stride_bytes,
+                self.data.as_ptr(),
+                0,
+                1,
+            );
+        }
+
+        // Remaining `(segment, kv_head)` windows read the now-populated directory. Dynamic
+        // scheduling keeps GQA-sibling heads adjacent to preserve locality.
+        let total_tasks = segment_count * heads;
+        if total_tasks <= 1 {
+            return Ok(());
+        }
+        let keys_ptr = fu::SyncConstPtr::new(keys.as_ptr());
+        let values_ptr = fu::SyncConstPtr::new(values.as_ptr());
+        let offsets_ptr = fu::SyncConstPtr::new(segment_offsets.as_ptr());
+        let lengths_ptr = fu::SyncConstPtr::new(segment_lengths.as_ptr());
+        let packed_ptr = fu::SyncMutPtr::new(self.data.as_ptr());
+        pool.for_n_dynamic(total_tasks - 1, move |prong| {
+            crate::capabilities::configure_thread();
+            unsafe {
+                Scalar::attention_pack(
+                    keys_ptr.as_ptr(),
+                    values_ptr.as_ptr(),
+                    heads,
+                    depth,
+                    offsets_ptr.as_ptr(),
+                    lengths_ptr.as_ptr(),
+                    segment_count,
+                    keys_stride_bytes,
+                    values_stride_bytes,
+                    packed_ptr.as_ptr(),
+                    prong.task_index + 1,
+                    1,
+                );
+            }
+        }); // executes and synchronizes on drop
         Ok(())
     }
 }

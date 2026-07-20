@@ -81,6 +81,16 @@ pub const DEFAULT_MAX_RANK: usize = 8;
 /// Alignment for SIMD-friendly allocations — 64 bytes for AVX-512.
 pub const SIMD_ALIGNMENT: usize = 64;
 
+/// Frees a `SIMD_ALIGNMENT`-aligned allocation of `byte_len` bytes through `alloc`.
+///
+/// # Safety
+/// - `data` must have been allocated by `alloc` with `byte_len` bytes at `SIMD_ALIGNMENT`.
+/// - Call only when `byte_len > 0`; the caller owns the empty-allocation guard.
+pub(crate) unsafe fn dealloc_aligned<A: Allocator>(alloc: &A, data: NonNull<u8>, byte_len: usize) {
+    let layout = core::alloc::Layout::from_size_align_unchecked(byte_len, SIMD_ALIGNMENT);
+    alloc.deallocate(data, layout);
+}
+
 /// Memory allocator trait for custom allocation strategies.
 ///
 /// Implement this trait to use custom allocators (arena, pool, etc.) with
@@ -302,22 +312,21 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Drop for T
         // Mirror construction's storage sizing exactly: the product of a rank-0 shape is the
         // empty product, 1, so a rank-0 tensor owns one storage element and must be freed here.
         // Special-casing `ndim == 0` to 0 skipped that deallocation and leaked the element.
+        if self.capacity == 0 {
+            return;
+        }
         let total: usize = self.shape[..self.ndim].iter().product();
         let live_count = total / Scalar::dimensions_per_value();
-        if self.capacity > 0 {
-            unsafe {
-                // Drop only the live (initialized) elements; the buffer may hold spare capacity slots.
-                if live_count > 0 {
-                    core::ptr::drop_in_place(core::ptr::slice_from_raw_parts_mut(self.data.as_ptr(), live_count));
-                }
-                let layout = core::alloc::Layout::from_size_align(
-                    self.capacity * core::mem::size_of::<Scalar>(),
-                    SIMD_ALIGNMENT,
-                )
-                .unwrap();
-                self.alloc
-                    .deallocate(NonNull::new_unchecked(self.data.as_ptr() as *mut u8), layout);
+        unsafe {
+            // Drop only the live (initialized) elements; the buffer may hold spare capacity slots.
+            if live_count > 0 {
+                core::ptr::drop_in_place(core::ptr::slice_from_raw_parts_mut(self.data.as_ptr(), live_count));
             }
+            dealloc_aligned(
+                &self.alloc,
+                NonNull::new_unchecked(self.data.as_ptr() as *mut u8),
+                self.capacity * core::mem::size_of::<Scalar>(),
+            );
         }
     }
 }

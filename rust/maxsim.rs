@@ -249,12 +249,10 @@ unsafe impl<Scalar: MaxSim + Sync, Alloc: Allocator + Sync> Sync for MaxSimPacke
 
 impl<Scalar: MaxSim, Alloc: Allocator> Drop for MaxSimPackedMatrix<Scalar, Alloc> {
     fn drop(&mut self) {
-        if self.capacity > 0 {
-            unsafe {
-                let layout = core::alloc::Layout::from_size_align_unchecked(self.capacity, SIMD_ALIGNMENT);
-                self.alloc.deallocate(self.data, layout);
-            }
+        if self.capacity == 0 {
+            return;
         }
+        unsafe { crate::tensor::dealloc_aligned(&self.alloc, self.data, self.capacity) };
     }
 }
 

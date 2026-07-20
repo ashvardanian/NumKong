@@ -1137,12 +1137,10 @@ unsafe impl<Scalar: Dots + Sync, Alloc: Allocator + Sync> Sync for DotsPackedMat
 
 impl<Scalar: Dots, Alloc: Allocator> Drop for DotsPackedMatrix<Scalar, Alloc> {
     fn drop(&mut self) {
-        if self.capacity > 0 {
-            unsafe {
-                let layout = core::alloc::Layout::from_size_align_unchecked(self.capacity, SIMD_ALIGNMENT);
-                self.alloc.deallocate(self.data, layout);
-            }
+        if self.capacity == 0 {
+            return;
         }
+        unsafe { crate::tensor::dealloc_aligned(&self.alloc, self.data, self.capacity) };
     }
 }
 
@@ -1697,24 +1695,24 @@ where
             crate::capabilities::configure_thread();
 
             let row_start = thread_index * rows_per_thread;
+            if row_start >= height {
+                return;
+            }
             let row_end = (row_start + rows_per_thread).min(height);
-
-            if row_start < height {
-                unsafe {
-                    // Byte arithmetic so sub-byte types such as u1x8 stride correctly.
-                    let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
-                    let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut Scalar::Accumulator;
-                    Scalar::dots_packed(
-                        a_row,
-                        packed_ptr.as_ptr(),
-                        c_row,
-                        row_end - row_start,
-                        width,
-                        depth,
-                        a_stride,
-                        c_stride,
-                    );
-                }
+            unsafe {
+                // Byte arithmetic so sub-byte types such as u1x8 stride correctly.
+                let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
+                let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut Scalar::Accumulator;
+                Scalar::dots_packed(
+                    a_row,
+                    packed_ptr.as_ptr(),
+                    c_row,
+                    row_end - row_start,
+                    width,
+                    depth,
+                    a_stride,
+                    c_stride,
+                );
             }
         });
 
