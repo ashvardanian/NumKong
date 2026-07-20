@@ -682,7 +682,9 @@ if (NK_BUILD_SHARED)
         )
 
         add_executable(nk_shared ${NK_SOURCES} "${CMAKE_BINARY_DIR}/emscripten_stub.c")
-        target_include_directories(nk_shared PUBLIC "${PROJECT_SOURCE_DIR}/include")
+        target_include_directories(
+            nk_shared PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+        )
 
         if (NK_WASM64_)
             set_target_properties(
