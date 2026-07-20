@@ -17,14 +17,13 @@ env:
 
 jobs:
   test_python:
-    name: Test Python ${{ matrix.python-version }} on ${{ matrix.architecture }} ${{ matrix.os }}
+    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-15, windows-2025]
         python-version: ["3.14", "3.10"]
-        architecture: [x64, arm64]
 
     steps:
       - name: Checkout
