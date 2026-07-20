@@ -461,6 +461,51 @@ class MaxSimPackedMatrix:
         """Return a string representation."""
         ...
 
+class AttentionPackedMatrix:
+    """Opaque pre-packed ragged KV-cache for scaled-dot-product attention.
+
+    Created by attention_pack() and used with attention_packed().
+    """
+
+    @property
+    def segments(self) -> int:
+        """Number of ragged segments."""
+        ...
+
+    @property
+    def heads(self) -> int:
+        """Number of KV heads."""
+        ...
+
+    @property
+    def depth(self) -> int:
+        """Channels per head."""
+        ...
+
+    @property
+    def tokens(self) -> int:
+        """Total KV tokens across segments."""
+        ...
+
+    @property
+    def shape(self) -> tuple[int, int, int]:
+        """Dimensions (heads, depth, segments) read from the packed buffer header."""
+        ...
+
+    @property
+    def dtype(self) -> _IntegralTypeName | _FloatTypeName | _ComplexTypeName:
+        """Data type of the packed KV-cache."""
+        ...
+
+    @property
+    def nbytes(self) -> int:
+        """Size of the packed buffer in bytes."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+        ...
+
 # endregion Forward Declarations and Shared Types
 
 # region Capabilities
@@ -1092,6 +1137,29 @@ def euclideans_packed(
 # region MaxSim
 def maxsim_pack(b: _BufferType, /, dtype: _FloatTypeName | _MiniFloatType | None = None) -> MaxSimPackedMatrix: ...
 def maxsim_packed(queries: MaxSimPackedMatrix, documents: MaxSimPackedMatrix, /) -> float: ...
+def attention_pack(
+    k: _BufferType,
+    v: _BufferType,
+    /,
+    segment_offsets: _BufferType,
+    segment_lengths: _BufferType | None = None,
+    depth: int | None = None,
+    threads: int = 1,
+) -> AttentionPackedMatrix:
+    """Pack ragged K/V token matrices into a backend-opaque KV-cache blob."""
+    ...
+
+def attention_packed(
+    q: _BufferType,
+    kv: AttentionPackedMatrix,
+    /,
+    query_offsets: _BufferType,
+    out: Tensor | None = None,
+    scale: float | None = None,
+    threads: int = 1,
+) -> Tensor:
+    """Compute ragged scaled-dot-product attention against a packed KV-cache."""
+    ...
 def maxsim(
     queries: _BufferType, documents: _BufferType, /, dtype: _FloatTypeName | _MiniFloatType | None = None
 ) -> float: ...

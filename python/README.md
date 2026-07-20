@@ -637,6 +637,29 @@ assert np.isfinite(score)
 assert q.nbytes == nk.MaxSimPackedMatrix.pack_size(32, 128, dtype="float32")
 ```
 
+## Attention with a Pre-Packed KV-Cache
+
+Ragged scaled-dot-product attention packs the key/value tokens once, then scores many queries against them.
+Segments of different lengths share one packed cache, addressed by cumulative `segment_offsets`.
+
+```python
+import numpy as np
+import numkong as nk
+
+lengths = [6, 10]  # two ragged segments
+offsets = np.array([0, *np.cumsum(lengths)], dtype=np.uint32)
+tokens, heads, depth = int(offsets[-1]), 2, 64
+
+k = nk.Tensor(np.random.randn(tokens, heads * depth).astype(np.float32)).astype("bfloat16")
+v = nk.Tensor(np.random.randn(tokens, heads * depth).astype(np.float32)).astype("bfloat16")
+kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=depth)
+
+queries = nk.Tensor(np.random.randn(tokens, heads * depth).astype(np.float32)).astype("bfloat16")
+out = nk.attention_packed(queries, kv, query_offsets=offsets)
+
+assert kv.shape == (kv.heads, kv.depth, kv.segments)
+```
+
 ## Capabilities, GIL Behavior, and Parallel Partitioning
 
 Capability detection is explicit:
