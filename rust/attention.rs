@@ -677,6 +677,9 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         }
         if size > 0 {
             unsafe {
+                // Zero first so any alignment padding the packer leaves untouched is deterministic —
+                // packed blobs stay byte-reproducible across allocations and match the parallel path.
+                core::ptr::write_bytes(self.data.as_ptr(), 0, size);
                 Scalar::attention_pack(
                     keys.as_ptr(),
                     values.as_ptr(),
@@ -1066,35 +1069,60 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
             self.grow_to(size)?;
         }
         if size > 0 {
-            let keys_ptr = fu::SyncConstPtr::new(keys.as_ptr());
-            let values_ptr = fu::SyncConstPtr::new(values.as_ptr());
-            let offsets_ptr = fu::SyncConstPtr::new(segment_offsets.as_ptr());
-            let lengths_ptr = fu::SyncConstPtr::new(segment_lengths.as_ptr());
-            let packed_ptr = fu::SyncMutPtr::new(self.data.as_ptr());
+            // Zero the blob so alignment padding is deterministic and the parallel result is
+            // byte-identical to the serial path regardless of allocator-provided contents.
+            unsafe { core::ptr::write_bytes(self.data.as_ptr(), 0, size) };
 
-            // Same `(segment, kv_head)` grid the C packer windows over; task 0 writes the header —
-            // see the `attention_pack` safety note — and dynamic scheduling keeps GQA-sibling heads
-            // adjacent to preserve locality.
+            // Task 0's window writes the shared header + payload-offsets directory that every other
+            // window reads to locate its plane (see the `attention_pack` safety note). Run it serially
+            // first: fanning task 0 out with the rest races — a worker could read the directory before
+            // it is populated and scatter its plane to a garbage offset.
+            unsafe {
+                Scalar::attention_pack(
+                    keys.as_ptr(),
+                    values.as_ptr(),
+                    heads,
+                    depth,
+                    segment_offsets.as_ptr(),
+                    segment_lengths.as_ptr(),
+                    segment_count,
+                    key_stride_bytes,
+                    value_stride_bytes,
+                    self.data.as_ptr(),
+                    0,
+                    1,
+                );
+            }
+
+            // Remaining `(segment, kv_head)` windows read the now-populated directory. Dynamic
+            // scheduling keeps GQA-sibling heads adjacent to preserve locality.
             let total_tasks = segment_count * heads;
-            pool.for_n_dynamic(total_tasks, move |prong| {
-                crate::capabilities::configure_thread();
-                unsafe {
-                    Scalar::attention_pack(
-                        keys_ptr.as_ptr(),
-                        values_ptr.as_ptr(),
-                        heads,
-                        depth,
-                        offsets_ptr.as_ptr(),
-                        lengths_ptr.as_ptr(),
-                        segment_count,
-                        key_stride_bytes,
-                        value_stride_bytes,
-                        packed_ptr.as_ptr(),
-                        prong.task_index,
-                        1,
-                    );
-                }
-            }); // executes and synchronizes on drop
+            if total_tasks > 1 {
+                let keys_ptr = fu::SyncConstPtr::new(keys.as_ptr());
+                let values_ptr = fu::SyncConstPtr::new(values.as_ptr());
+                let offsets_ptr = fu::SyncConstPtr::new(segment_offsets.as_ptr());
+                let lengths_ptr = fu::SyncConstPtr::new(segment_lengths.as_ptr());
+                let packed_ptr = fu::SyncMutPtr::new(self.data.as_ptr());
+                pool.for_n_dynamic(total_tasks - 1, move |prong| {
+                    crate::capabilities::configure_thread();
+                    unsafe {
+                        Scalar::attention_pack(
+                            keys_ptr.as_ptr(),
+                            values_ptr.as_ptr(),
+                            heads,
+                            depth,
+                            offsets_ptr.as_ptr(),
+                            lengths_ptr.as_ptr(),
+                            segment_count,
+                            key_stride_bytes,
+                            value_stride_bytes,
+                            packed_ptr.as_ptr(),
+                            prong.task_index + 1,
+                            1,
+                        );
+                    }
+                }); // executes and synchronizes on drop
+            }
         }
 
         self.size = size;
