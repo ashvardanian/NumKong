@@ -38,21 +38,21 @@ namespace ashvardanian::numkong {
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NK_API_COMPTIME size_t dots_packed_size(size_t row_count, size_t depth) {
+NK_API_COMPTIME size_t dots_pack_size(size_t row_count, size_t depth) {
     constexpr bool simd = allow_simd_ == prefer_simd_k;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd) return nk_dots_packed_size_f64(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) return nk_dots_packed_size_f32(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) return nk_dots_packed_size_f16(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd) return nk_dots_packed_size_bf16(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, i8_t> && simd) return nk_dots_packed_size_i8(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, u8_t> && simd) return nk_dots_packed_size_u8(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd) return nk_dots_packed_size_e4m3(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, e5m2_t> && simd) return nk_dots_packed_size_e5m2(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd) return nk_dots_packed_size_e2m3(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd) return nk_dots_packed_size_e3m2(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, u4x2_t> && simd) return nk_dots_packed_size_u4(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, i4x2_t> && simd) return nk_dots_packed_size_i4(row_count, depth);
+    if constexpr (std::is_same_v<in_type_, f64_t> && simd) return nk_dots_pack_size_f64(row_count, depth);
+    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) return nk_dots_pack_size_f32(row_count, depth);
+    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) return nk_dots_pack_size_f16(row_count, depth);
+    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd) return nk_dots_pack_size_bf16(row_count, depth);
+    else if constexpr (std::is_same_v<in_type_, i8_t> && simd) return nk_dots_pack_size_i8(row_count, depth);
+    else if constexpr (std::is_same_v<in_type_, u8_t> && simd) return nk_dots_pack_size_u8(row_count, depth);
+    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd) return nk_dots_pack_size_e4m3(row_count, depth);
+    else if constexpr (std::is_same_v<in_type_, e5m2_t> && simd) return nk_dots_pack_size_e5m2(row_count, depth);
+    else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd) return nk_dots_pack_size_e2m3(row_count, depth);
+    else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd) return nk_dots_pack_size_e3m2(row_count, depth);
+    else if constexpr (std::is_same_v<in_type_, u4x2_t> && simd) return nk_dots_pack_size_u4(row_count, depth);
+    else if constexpr (std::is_same_v<in_type_, i4x2_t> && simd) return nk_dots_pack_size_i4(row_count, depth);
     else {
         // We need enough space for the pointer to the original B matrix and its stride
         return sizeof(void *) + sizeof(size_t);
@@ -118,12 +118,12 @@ NK_API_COMPTIME void dots_pack(in_type_ const *b, size_t row_count, size_t depth
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NK_API_COMPTIME std::size_t maxsim_packed_size(std::size_t vector_count, std::size_t depth) {
+NK_API_COMPTIME std::size_t maxsim_pack_size(std::size_t vector_count, std::size_t depth) {
     constexpr bool simd = allow_simd_ == prefer_simd_k;
 
-    if constexpr (std::is_same_v<in_type_, bf16_t> && simd) return nk_maxsim_packed_size_bf16(vector_count, depth);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) return nk_maxsim_packed_size_f32(vector_count, depth);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) return nk_maxsim_packed_size_f16(vector_count, depth);
+    if constexpr (std::is_same_v<in_type_, bf16_t> && simd) return nk_maxsim_pack_size_bf16(vector_count, depth);
+    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) return nk_maxsim_pack_size_f32(vector_count, depth);
+    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) return nk_maxsim_pack_size_f16(vector_count, depth);
     else return sizeof(void *) + sizeof(std::size_t);
 }
 
@@ -133,7 +133,7 @@ NK_API_COMPTIME std::size_t maxsim_packed_size(std::size_t vector_count, std::si
  *  @param[in] vector_count Number of vectors.
  *  @param[in] depth Number of dimensions per vector.
  *  @param[in] stride Row stride in bytes for the input vectors.
- *  @param[out] packed Output packed buffer from maxsim_packed_size.
+ *  @param[out] packed Output packed buffer from maxsim_pack_size.
  *
  *  @tparam in_type_ Input element type (bf16_t, f32_t, f16_t).
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
@@ -224,7 +224,7 @@ struct packed_matrix {
 
         pm.rows_ = b.extent(0);
         pm.depth_ = b.extent(1);
-        pm.size_bytes_ = dots_packed_size<value_type_>(pm.rows_, pm.depth_);
+        pm.size_bytes_ = dots_pack_size<value_type_>(pm.rows_, pm.depth_);
         if (pm.size_bytes_ == 0) return pm;
 
         pm.data_ = alloc_traits::allocate(pm.alloc_, pm.size_bytes_);
@@ -307,7 +307,7 @@ class packed_maxsim {
 
         pm.vector_count_ = vectors.extent(0);
         pm.depth_ = vectors.extent(1);
-        pm.size_bytes_ = maxsim_packed_size<value_type_>(pm.vector_count_, pm.depth_);
+        pm.size_bytes_ = maxsim_pack_size<value_type_>(pm.vector_count_, pm.depth_);
         if (pm.size_bytes_ == 0) return pm;
 
         pm.data_ = alloc_traits::allocate(pm.alloc_, pm.size_bytes_);

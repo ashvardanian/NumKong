@@ -50,7 +50,7 @@ use forkunion as fu;
 
 #[link(name = "numkong")]
 extern "C" {
-    fn nk_attention_packed_size_bf16(
+    fn nk_attention_pack_size_bf16(
         key_value_head_count: usize,
         depth: usize,
         segment_lengths: *const u32,
@@ -85,7 +85,7 @@ extern "C" {
         task_count: usize,
     );
 
-    fn nk_attention_packed_size_e4m3(
+    fn nk_attention_pack_size_e4m3(
         key_value_head_count: usize,
         depth: usize,
         segment_lengths: *const u32,
@@ -120,7 +120,7 @@ extern "C" {
         task_count: usize,
     );
 
-    fn nk_attention_packed_size_i8(
+    fn nk_attention_pack_size_i8(
         key_value_head_count: usize,
         depth: usize,
         segment_lengths: *const u32,
@@ -163,7 +163,7 @@ extern "C" {
 /// Trait abstracting ragged-attention pack/compute operations per scalar type.
 pub trait Attention: StorageElement + Clone {
     /// Returns the packed KV-cache size in bytes for the given segment geometry.
-    fn attention_packed_size(
+    fn attention_pack_size(
         key_value_head_count: usize,
         depth: usize,
         segment_lengths: &[u32],
@@ -174,7 +174,7 @@ pub trait Attention: StorageElement + Clone {
     /// # Safety
     /// - `k` / `v` must point to token matrices with `key_stride_bytes` / `value_stride_bytes` byte rows
     ///   covering every token addressed by `segment_offsets` + `segment_lengths`
-    /// - `key_value_packed` must have at least `attention_packed_size(..)` bytes
+    /// - `key_value_packed` must have at least `attention_pack_size(..)` bytes
     /// - a window with `first_task > 0` requires the header already initialized by a
     ///   prior or concurrent window covering task 0
     #[allow(clippy::too_many_arguments)]
@@ -216,13 +216,13 @@ pub trait Attention: StorageElement + Clone {
 }
 
 impl Attention for bf16 {
-    fn attention_packed_size(
+    fn attention_pack_size(
         key_value_head_count: usize,
         depth: usize,
         segment_lengths: &[u32],
         segment_count: usize,
     ) -> usize {
-        unsafe { nk_attention_packed_size_bf16(key_value_head_count, depth, segment_lengths.as_ptr(), segment_count) }
+        unsafe { nk_attention_pack_size_bf16(key_value_head_count, depth, segment_lengths.as_ptr(), segment_count) }
     }
 
     unsafe fn attention_pack(
@@ -291,13 +291,13 @@ impl Attention for bf16 {
 }
 
 impl Attention for e4m3 {
-    fn attention_packed_size(
+    fn attention_pack_size(
         key_value_head_count: usize,
         depth: usize,
         segment_lengths: &[u32],
         segment_count: usize,
     ) -> usize {
-        unsafe { nk_attention_packed_size_e4m3(key_value_head_count, depth, segment_lengths.as_ptr(), segment_count) }
+        unsafe { nk_attention_pack_size_e4m3(key_value_head_count, depth, segment_lengths.as_ptr(), segment_count) }
     }
 
     unsafe fn attention_pack(
@@ -366,13 +366,13 @@ impl Attention for e4m3 {
 }
 
 impl Attention for i8 {
-    fn attention_packed_size(
+    fn attention_pack_size(
         key_value_head_count: usize,
         depth: usize,
         segment_lengths: &[u32],
         segment_count: usize,
     ) -> usize {
-        unsafe { nk_attention_packed_size_i8(key_value_head_count, depth, segment_lengths.as_ptr(), segment_count) }
+        unsafe { nk_attention_pack_size_i8(key_value_head_count, depth, segment_lengths.as_ptr(), segment_count) }
     }
 
     unsafe fn attention_pack(
@@ -664,7 +664,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedCache<Scalar, Alloc> {
             }
         };
 
-        let size = Scalar::attention_packed_size(key_value_head_count, depth, segment_lengths, segment_count);
+        let size = Scalar::attention_pack_size(key_value_head_count, depth, segment_lengths, segment_count);
         if size > self.capacity {
             self.grow_to(size)?;
         }
@@ -771,11 +771,11 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedCache<Scalar, Alloc> {
     }
 
     /// Bytes a packed cache needs for the given ragged geometry — the infallible size query
-    /// mirroring [`Dots::dots_packed_size`](crate::Dots::dots_packed_size). `segment_lengths`
+    /// mirroring [`Dots::dots_pack_size`](crate::Dots::dots_pack_size). `segment_lengths`
     /// carries one token count per segment, so its length is the segment count. Useful for
     /// pre-sizing an external buffer before packing, without constructing a cache.
-    pub fn packed_size(key_value_head_count: usize, depth: usize, segment_lengths: &[u32]) -> usize {
-        Scalar::attention_packed_size(key_value_head_count, depth, segment_lengths, segment_lengths.len())
+    pub fn pack_size(key_value_head_count: usize, depth: usize, segment_lengths: &[u32]) -> usize {
+        Scalar::attention_pack_size(key_value_head_count, depth, segment_lengths, segment_lengths.len())
     }
 
     /// Read the geometry of an externally-produced packed KV blob straight from its self-describing
@@ -1062,7 +1062,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedCache<Scalar, Alloc> {
             }
         };
 
-        let size = Scalar::attention_packed_size(key_value_head_count, depth, segment_lengths, segment_count);
+        let size = Scalar::attention_pack_size(key_value_head_count, depth, segment_lengths, segment_count);
         if size > self.capacity {
             self.grow_to(size)?;
         }

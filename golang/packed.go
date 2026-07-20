@@ -32,7 +32,7 @@ func NewPackedMatrixF64(b []float64, width, depth int) PackedMatrix {
 	if len(b) < width*depth {
 		panic("input slice too short for the given width and depth")
 	}
-	size := int(C.nk_dots_packed_size_f64(C.nk_size_t(width), C.nk_size_t(depth)))
+	size := int(C.nk_dots_pack_size_f64(C.nk_size_t(width), C.nk_size_t(depth)))
 	data := make([]byte, size)
 	C.nk_dots_pack_f64(
 		(*C.nk_f64_t)(&b[0]),
@@ -48,7 +48,7 @@ func NewPackedMatrixF32(b []float32, width, depth int) PackedMatrix {
 	if len(b) < width*depth {
 		panic("input slice too short for the given width and depth")
 	}
-	size := int(C.nk_dots_packed_size_f32(C.nk_size_t(width), C.nk_size_t(depth)))
+	size := int(C.nk_dots_pack_size_f32(C.nk_size_t(width), C.nk_size_t(depth)))
 	data := make([]byte, size)
 	C.nk_dots_pack_f32(
 		(*C.nk_f32_t)(&b[0]),
@@ -64,7 +64,7 @@ func NewPackedMatrixI8(b []int8, width, depth int) PackedMatrix {
 	if len(b) < width*depth {
 		panic("input slice too short for the given width and depth")
 	}
-	size := int(C.nk_dots_packed_size_i8(C.nk_size_t(width), C.nk_size_t(depth)))
+	size := int(C.nk_dots_pack_size_i8(C.nk_size_t(width), C.nk_size_t(depth)))
 	data := make([]byte, size)
 	C.nk_dots_pack_i8(
 		(*C.nk_i8_t)(&b[0]),
@@ -80,7 +80,7 @@ func NewPackedMatrixU8(b []uint8, width, depth int) PackedMatrix {
 	if len(b) < width*depth {
 		panic("input slice too short for the given width and depth")
 	}
-	size := int(C.nk_dots_packed_size_u8(C.nk_size_t(width), C.nk_size_t(depth)))
+	size := int(C.nk_dots_pack_size_u8(C.nk_size_t(width), C.nk_size_t(depth)))
 	data := make([]byte, size)
 	C.nk_dots_pack_u8(
 		(*C.nk_u8_t)(&b[0]),
@@ -98,7 +98,7 @@ func NewPackedMatrixU1(b []byte, width, depth int) PackedMatrix {
 	if len(b) < width*bytesPerVec {
 		panic("input slice too short for the given width and depth")
 	}
-	size := int(C.nk_dots_packed_size_u1(C.nk_size_t(width), C.nk_size_t(depth)))
+	size := int(C.nk_dots_pack_size_u1(C.nk_size_t(width), C.nk_size_t(depth)))
 	data := make([]byte, size)
 	C.nk_dots_pack_u1(
 		(*C.nk_u1x8_t)(&b[0]),

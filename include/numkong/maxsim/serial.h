@@ -215,8 +215,8 @@ NK_HELPER_INLINE nk_maxsim_packed_regions_t nk_maxsim_extract_packed_regions_( /
  *  @param original_element_bytes Size of each original element (2 for bf16, 4 for f32).
  *  @param depth_simd_dimensions SIMD width for i8 depth padding (1 for serial).
  */
-NK_HELPER_INLINE nk_size_t nk_maxsim_packed_size_( //
-    nk_size_t vector_count, nk_size_t depth,       //
+NK_HELPER_INLINE nk_size_t nk_maxsim_pack_size_( //
+    nk_size_t vector_count, nk_size_t depth,     //
     nk_size_t original_element_bytes, nk_size_t depth_simd_dimensions) {
 
     // Pad i8 depth to SIMD width
@@ -236,12 +236,12 @@ NK_HELPER_INLINE nk_size_t nk_maxsim_packed_size_( //
     return header_size + i8_region_size + metadata_region_size + originals_region_size;
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_bf16_serial(nk_size_t vector_count, nk_size_t depth) {
-    return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_bf16_t), 1);
+NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_serial(nk_size_t vector_count, nk_size_t depth) {
+    return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_bf16_t), 1);
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f32_serial(nk_size_t vector_count, nk_size_t depth) {
-    return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f32_t), 1);
+NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_serial(nk_size_t vector_count, nk_size_t depth) {
+    return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 1);
 }
 
 NK_API_COMPTIME void nk_maxsim_pack_bf16_serial( //
@@ -295,8 +295,8 @@ NK_API_COMPTIME void nk_maxsim_pack_f32_serial( //
     }
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f16_serial(nk_size_t vector_count, nk_size_t depth) {
-    return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f16_t), 1);
+NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_serial(nk_size_t vector_count, nk_size_t depth) {
+    return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 1);
 }
 
 NK_API_COMPTIME void nk_maxsim_pack_f16_serial( //

@@ -132,7 +132,7 @@ func _nkValidateMatrixSpan<Element>(_ matrix: MatrixSpan<Element>) throws {
 public protocol NumKongDotsMatrixElement {
     associatedtype DotsOutput
 
-    static func _nk_dots_packed_size(_ n: Int, _ k: Int) -> Int
+    static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int
     static func _nk_dots_pack(
         _ b: UnsafePointer<Self>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer)
     static func _nk_dots_packed(
@@ -260,7 +260,7 @@ extension PackedMatrix where Element: NumKongDotsMatrixElement {
     /// Packs the given matrix view into a kernel-optimized layout for batch dot products.
     public convenience init(packing matrix: MatrixView<Element>) throws {
         try _nkValidateMatrixView(matrix)
-        let bytes = Element._nk_dots_packed_size(matrix.rows, matrix.cols)
+        let bytes = Element._nk_dots_pack_size(matrix.rows, matrix.cols)
         guard bytes > 0 else { throw NumKongMatrixError.packedBufferTooSmall }
         let ptr = UnsafeMutableRawPointer.allocate(byteCount: bytes, alignment: 64)
         Element._nk_dots_pack(matrix.baseAddress, matrix.rows, matrix.cols, matrix.rowStrideBytes, ptr)
@@ -574,8 +574,8 @@ public func jaccards_symmetric<Element: NumKongSetsMatrixElement>(
 extension Float32: NumKongDotsMatrixElement {
     public typealias DotsOutput = Float64
 
-    public static func _nk_dots_packed_size(_ n: Int, _ k: Int) -> Int {
-        Int(nk_dots_packed_size_f32(UInt64(n), UInt64(k)))
+    public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
+        Int(nk_dots_pack_size_f32(UInt64(n), UInt64(k)))
     }
 
     public static func _nk_dots_pack(
@@ -644,8 +644,8 @@ extension Float32: NumKongSpatialsMatrixElement {
 extension Float64: NumKongDotsMatrixElement {
     public typealias DotsOutput = Float64
 
-    public static func _nk_dots_packed_size(_ n: Int, _ k: Int) -> Int {
-        Int(nk_dots_packed_size_f64(UInt64(n), UInt64(k)))
+    public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
+        Int(nk_dots_pack_size_f64(UInt64(n), UInt64(k)))
     }
 
     public static func _nk_dots_pack(
@@ -714,8 +714,8 @@ extension Float64: NumKongSpatialsMatrixElement {
 extension Int8: NumKongDotsMatrixElement {
     public typealias DotsOutput = Int32
 
-    public static func _nk_dots_packed_size(_ n: Int, _ k: Int) -> Int {
-        Int(nk_dots_packed_size_i8(UInt64(n), UInt64(k)))
+    public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
+        Int(nk_dots_pack_size_i8(UInt64(n), UInt64(k)))
     }
 
     public static func _nk_dots_pack(
@@ -784,8 +784,8 @@ extension Int8: NumKongSpatialsMatrixElement {
 extension UInt8: NumKongDotsMatrixElement {
     public typealias DotsOutput = UInt32
 
-    public static func _nk_dots_packed_size(_ n: Int, _ k: Int) -> Int {
-        Int(nk_dots_packed_size_u8(UInt64(n), UInt64(k)))
+    public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
+        Int(nk_dots_pack_size_u8(UInt64(n), UInt64(k)))
     }
 
     public static func _nk_dots_pack(
@@ -856,8 +856,8 @@ extension UInt8: NumKongSpatialsMatrixElement {
 extension Float16: NumKongDotsMatrixElement {
     public typealias DotsOutput = Float32
 
-    public static func _nk_dots_packed_size(_ n: Int, _ k: Int) -> Int {
-        Int(nk_dots_packed_size_f16(UInt64(n), UInt64(k)))
+    public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
+        Int(nk_dots_pack_size_f16(UInt64(n), UInt64(k)))
     }
 
     public static func _nk_dots_pack(
@@ -935,8 +935,8 @@ extension Float16: NumKongSpatialsMatrixElement {
 extension BFloat16: NumKongDotsMatrixElement {
     public typealias DotsOutput = Float32
 
-    public static func _nk_dots_packed_size(_ n: Int, _ k: Int) -> Int {
-        Int(nk_dots_packed_size_bf16(UInt64(n), UInt64(k)))
+    public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
+        Int(nk_dots_pack_size_bf16(UInt64(n), UInt64(k)))
     }
 
     public static func _nk_dots_pack(
@@ -1010,8 +1010,8 @@ extension BFloat16: NumKongSpatialsMatrixElement {
 extension E4M3: NumKongDotsMatrixElement {
     public typealias DotsOutput = Float32
 
-    public static func _nk_dots_packed_size(_ n: Int, _ k: Int) -> Int {
-        Int(nk_dots_packed_size_e4m3(UInt64(n), UInt64(k)))
+    public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
+        Int(nk_dots_pack_size_e4m3(UInt64(n), UInt64(k)))
     }
 
     public static func _nk_dots_pack(
@@ -1085,8 +1085,8 @@ extension E4M3: NumKongSpatialsMatrixElement {
 extension E5M2: NumKongDotsMatrixElement {
     public typealias DotsOutput = Float32
 
-    public static func _nk_dots_packed_size(_ n: Int, _ k: Int) -> Int {
-        Int(nk_dots_packed_size_e5m2(UInt64(n), UInt64(k)))
+    public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
+        Int(nk_dots_pack_size_e5m2(UInt64(n), UInt64(k)))
     }
 
     public static func _nk_dots_pack(
@@ -1160,8 +1160,8 @@ extension E5M2: NumKongSpatialsMatrixElement {
 extension E2M3: NumKongDotsMatrixElement {
     public typealias DotsOutput = Float32
 
-    public static func _nk_dots_packed_size(_ n: Int, _ k: Int) -> Int {
-        Int(nk_dots_packed_size_e2m3(UInt64(n), UInt64(k)))
+    public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
+        Int(nk_dots_pack_size_e2m3(UInt64(n), UInt64(k)))
     }
 
     public static func _nk_dots_pack(
@@ -1235,8 +1235,8 @@ extension E2M3: NumKongSpatialsMatrixElement {
 extension E3M2: NumKongDotsMatrixElement {
     public typealias DotsOutput = Float32
 
-    public static func _nk_dots_packed_size(_ n: Int, _ k: Int) -> Int {
-        Int(nk_dots_packed_size_e3m2(UInt64(n), UInt64(k)))
+    public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
+        Int(nk_dots_pack_size_e3m2(UInt64(n), UInt64(k)))
     }
 
     public static func _nk_dots_pack(
@@ -1312,8 +1312,8 @@ extension E3M2: NumKongSpatialsMatrixElement {
 extension U1x8: NumKongDotsMatrixElement {
     public typealias DotsOutput = UInt32
 
-    public static func _nk_dots_packed_size(_ n: Int, _ k: Int) -> Int {
-        Int(nk_dots_packed_size_u1(UInt64(n), UInt64(k * 8)))
+    public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
+        Int(nk_dots_pack_size_u1(UInt64(n), UInt64(k * 8)))
     }
 
     public static func _nk_dots_pack(

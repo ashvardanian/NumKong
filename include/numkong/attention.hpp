@@ -20,21 +20,21 @@ namespace ashvardanian::numkong {
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NK_API_COMPTIME std::size_t attention_packed_size(std::size_t key_value_head_count, std::size_t depth,
-                                                  nk_u32_t const *segment_lengths, std::size_t segment_count) {
+NK_API_COMPTIME std::size_t attention_pack_size(std::size_t key_value_head_count, std::size_t depth,
+                                                nk_u32_t const *segment_lengths, std::size_t segment_count) {
     constexpr bool simd = allow_simd_ == prefer_simd_k;
     if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        return nk_attention_packed_size_bf16(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_bf16(key_value_head_count, depth, segment_lengths, segment_count);
     else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd)
-        return nk_attention_packed_size_e4m3(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_e4m3(key_value_head_count, depth, segment_lengths, segment_count);
     else if constexpr (std::is_same_v<in_type_, i8_t> && simd)
-        return nk_attention_packed_size_i8(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_i8(key_value_head_count, depth, segment_lengths, segment_count);
     else if constexpr (std::is_same_v<in_type_, bf16_t>)
-        return nk_attention_packed_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
-        return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
     else if constexpr (std::is_same_v<in_type_, i8_t>)
-        return nk_attention_packed_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
     else return 0;
 }
 

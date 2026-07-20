@@ -71,11 +71,11 @@ NK_HELPER_INLINE void nk_attention_e4m3_row_to_f16_neonfhm_(nk_e4m3_t const *sou
     for (; channel_idx < depth_padded; channel_idx++) destination[channel_idx] = 0;
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_neonfhm(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                nk_u32_t const *segment_lengths,
-                                                                nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_neonfhm(nk_size_t key_value_head_count, nk_size_t depth,
+                                                              nk_u32_t const *segment_lengths,
+                                                              nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_neonfhm_k_)
-        return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t payload_bytes = 0; // planes store the exact F16 widening of the E4M3 inputs
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)

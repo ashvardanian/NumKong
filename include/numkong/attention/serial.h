@@ -123,8 +123,8 @@ NK_HELPER_INLINE nk_f32_t nk_attention_load_e4m3_serial_(void const *element) {
     return result;
 }
 
-NK_HELPER_INLINE nk_size_t nk_attention_packed_size_serial_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_pack_size_serial_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t payload_bytes = 0;
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
         payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_idx] * depth *
@@ -132,16 +132,14 @@ NK_HELPER_INLINE nk_size_t nk_attention_packed_size_serial_(nk_size_t key_value_
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_serial(nk_size_t key_value_head_count, nk_size_t depth,
-                                                               nk_u32_t const *segment_lengths,
-                                                               nk_size_t segment_count) {
-    return nk_attention_packed_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_serial(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+    return nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_serial(nk_size_t key_value_head_count, nk_size_t depth,
-                                                               nk_u32_t const *segment_lengths,
-                                                               nk_size_t segment_count) {
-    return nk_attention_packed_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_serial(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+    return nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
 /**
@@ -305,8 +303,8 @@ NK_API_COMPTIME void nk_attention_packed_e4m3_serial(                           
                          output_stride_bytes, scale, first_task, task_count);
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_i8_serial(nk_size_t key_value_head_count, nk_size_t depth,
-                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_serial(nk_size_t key_value_head_count, nk_size_t depth,
+                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t payload_bytes = 0; // raw I8 planes: scores stay exact in I32 integer arithmetic
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
         payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_idx] * depth;

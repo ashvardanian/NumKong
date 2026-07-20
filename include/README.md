@@ -444,7 +444,7 @@ The useful economics are:
 
 Caller-side alignment is not required.
 Owned `packed_matrix` storage uses its allocator.
-The C ABI also exposes `nk_dots_packed_size_*` so you can `malloc` the exact external buffer yourself.
+The C ABI also exposes `nk_dots_pack_size_*` so you can `malloc` the exact external buffer yourself.
 
 ## Symmetric Kernels for SYRK-Like Workloads
 

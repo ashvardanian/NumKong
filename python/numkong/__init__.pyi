@@ -415,7 +415,7 @@ class PackedMatrix:
         ...
 
     @classmethod
-    def packed_size(
+    def pack_size(
         cls,
         width: int,
         depth: int,
@@ -453,7 +453,7 @@ class MaxSimPackedMatrix:
         ...
 
     @classmethod
-    def packed_size(cls, vector_count: int, depth: int, /, dtype: _FloatTypeName | _MiniFloatType = "bf16") -> int:
+    def pack_size(cls, vector_count: int, depth: int, /, dtype: _FloatTypeName | _MiniFloatType = "bf16") -> int:
         """Return packed buffer size in bytes for given dimensions and dtype."""
         ...
 

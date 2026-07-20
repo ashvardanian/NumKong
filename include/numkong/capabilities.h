@@ -229,10 +229,10 @@ typedef enum {
     nk_kernel_reduce_rmsnorm_k = 'H', ///< Grouped RMSNorm: y = x · rsqrt(mean(x²) + eps) · γ
 
     // GEMM-like batched dot products:
-    nk_kernel_dots_packed_size_k = 'P', ///< GEMM packed buffer size
-    nk_kernel_dots_pack_k = 'Q',        ///< GEMM B matrix packing
-    nk_kernel_dots_packed_k = 'G',      ///< GEMM computation
-    nk_kernel_dots_symmetric_k = 'y',   ///< Symmetric Gram matrix (A x At)
+    nk_kernel_dots_pack_size_k = 'P', ///< GEMM packed buffer size
+    nk_kernel_dots_pack_k = 'Q',      ///< GEMM B matrix packing
+    nk_kernel_dots_packed_k = 'G',    ///< GEMM computation
+    nk_kernel_dots_symmetric_k = 'y', ///< Symmetric Gram matrix (A x At)
 
     // GEMM-like batched set similarity functions:
     nk_kernel_hammings_packed_k = 'M',    ///< Hamming distance computation
@@ -247,14 +247,14 @@ typedef enum {
     nk_kernel_euclideans_symmetric_k = 'D', ///< Symmetric euclidean distance matrix
 
     // MaxSim late-interaction functions:
-    nk_kernel_maxsim_packed_size_k = 'L', ///< MaxSim packed buffer size
-    nk_kernel_maxsim_pack_k = 'l',        ///< MaxSim vector packing
-    nk_kernel_maxsim_packed_k = 'T',      ///< MaxSim late-interaction computation
+    nk_kernel_maxsim_pack_size_k = 'L', ///< MaxSim packed buffer size
+    nk_kernel_maxsim_pack_k = 'l',      ///< MaxSim vector packing
+    nk_kernel_maxsim_packed_k = 'T',    ///< MaxSim late-interaction computation
 
     // Ragged scaled-dot-product attention functions:
-    nk_kernel_attention_packed_size_k = 'B', ///< Attention packed KV-cache Buffer size in Bytes
-    nk_kernel_attention_pack_k = 'V',        ///< Attention K/V packing (KV cache → backend format)
-    nk_kernel_attention_packed_k = 'F',      ///< Fused (Flash-style) attention computation
+    nk_kernel_attention_pack_size_k = 'B', ///< Attention packed KV-cache Buffer size in Bytes
+    nk_kernel_attention_pack_k = 'V',      ///< Attention K/V packing (KV cache → backend format)
+    nk_kernel_attention_packed_k = 'F',    ///< Fused (Flash-style) attention computation
 
     nk_kernel_cast_k = '-',              ///< Type casting from one type to another
     nk_kernel_cast_block_scaled_k = '~', ///< Block-scaled cast (MX / NVFP4 encode / decode / transcode)
@@ -360,7 +360,7 @@ typedef void (*nk_kernel_trig_rope_punned_t)(void const *x, void *y, void const 
                                              nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride,
                                              nk_size_t y_row_stride, nk_f32_t input_scale);
 
-typedef nk_size_t (*nk_dots_packed_size_punned_t)(nk_size_t columns, nk_size_t depth);
+typedef nk_size_t (*nk_dots_pack_size_punned_t)(nk_size_t columns, nk_size_t depth);
 
 typedef void (*nk_dots_pack_punned_t)(void const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_bytes,
                                       void *b_packed);
@@ -404,8 +404,8 @@ typedef void (*nk_euclideans_symmetric_punned_t)(void const *vectors, nk_size_t 
 typedef void (*nk_maxsim_packed_punned_t)(void const *q_packed, void const *d_packed, nk_size_t query_count,
                                           nk_size_t document_count, nk_size_t depth, void *result);
 
-typedef nk_size_t (*nk_attention_packed_size_punned_t)(nk_size_t num_kv_heads, nk_size_t head_dim,
-                                                       nk_u32_t const *segment_lengths, nk_size_t segment_count);
+typedef nk_size_t (*nk_attention_pack_size_punned_t)(nk_size_t num_kv_heads, nk_size_t head_dim,
+                                                     nk_u32_t const *segment_lengths, nk_size_t segment_count);
 typedef void (*nk_attention_pack_punned_t)(void const *k, void const *v, nk_size_t num_kv_heads, nk_size_t head_dim,
                                            nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
                                            nk_size_t segment_count, nk_size_t k_stride_bytes, nk_size_t v_stride_bytes,

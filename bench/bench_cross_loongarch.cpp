@@ -26,19 +26,19 @@ void bench_cross_loongarch() {
 #if NK_TARGET_LOONGSONASX
 
     // Dots: packed
-    run_dots_packed<f64_k>("dots_packed_f64_loongsonasx", nk_dots_packed_size_f64_loongsonasx,
+    run_dots_packed<f64_k>("dots_packed_f64_loongsonasx", nk_dots_pack_size_f64_loongsonasx,
                            nk_dots_pack_f64_loongsonasx, nk_dots_packed_f64_loongsonasx);
-    run_dots_packed<f32_k>("dots_packed_f32_loongsonasx", nk_dots_packed_size_f32_loongsonasx,
+    run_dots_packed<f32_k>("dots_packed_f32_loongsonasx", nk_dots_pack_size_f32_loongsonasx,
                            nk_dots_pack_f32_loongsonasx, nk_dots_packed_f32_loongsonasx);
-    run_dots_packed<bf16_k>("dots_packed_bf16_loongsonasx", nk_dots_packed_size_bf16_loongsonasx,
+    run_dots_packed<bf16_k>("dots_packed_bf16_loongsonasx", nk_dots_pack_size_bf16_loongsonasx,
                             nk_dots_pack_bf16_loongsonasx, nk_dots_packed_bf16_loongsonasx);
-    run_dots_packed<f16_k>("dots_packed_f16_loongsonasx", nk_dots_packed_size_f16_loongsonasx,
+    run_dots_packed<f16_k>("dots_packed_f16_loongsonasx", nk_dots_pack_size_f16_loongsonasx,
                            nk_dots_pack_f16_loongsonasx, nk_dots_packed_f16_loongsonasx);
-    run_dots_packed<i8_k>("dots_packed_i8_loongsonasx", nk_dots_packed_size_i8_loongsonasx, nk_dots_pack_i8_loongsonasx,
+    run_dots_packed<i8_k>("dots_packed_i8_loongsonasx", nk_dots_pack_size_i8_loongsonasx, nk_dots_pack_i8_loongsonasx,
                           nk_dots_packed_i8_loongsonasx);
-    run_dots_packed<u8_k>("dots_packed_u8_loongsonasx", nk_dots_packed_size_u8_loongsonasx, nk_dots_pack_u8_loongsonasx,
+    run_dots_packed<u8_k>("dots_packed_u8_loongsonasx", nk_dots_pack_size_u8_loongsonasx, nk_dots_pack_u8_loongsonasx,
                           nk_dots_packed_u8_loongsonasx);
-    run_dots_packed<u1_k>("dots_packed_u1_loongsonasx", nk_dots_packed_size_u1_loongsonasx, nk_dots_pack_u1_loongsonasx,
+    run_dots_packed<u1_k>("dots_packed_u1_loongsonasx", nk_dots_pack_size_u1_loongsonasx, nk_dots_pack_u1_loongsonasx,
                           nk_dots_packed_u1_loongsonasx);
 
     // Dots: symmetric
@@ -51,17 +51,17 @@ void bench_cross_loongarch() {
     run_dots_symmetric<u1_k>("dots_symmetric_u1_loongsonasx", nk_dots_symmetric_u1_loongsonasx);
 
     // Angulars: packed
-    run_angulars_packed<f64_k>("angulars_packed_f64_loongsonasx", nk_dots_packed_size_f64_loongsonasx,
+    run_angulars_packed<f64_k>("angulars_packed_f64_loongsonasx", nk_dots_pack_size_f64_loongsonasx,
                                nk_dots_pack_f64_loongsonasx, nk_angulars_packed_f64_loongsonasx);
-    run_angulars_packed<f32_k>("angulars_packed_f32_loongsonasx", nk_dots_packed_size_f32_loongsonasx,
+    run_angulars_packed<f32_k>("angulars_packed_f32_loongsonasx", nk_dots_pack_size_f32_loongsonasx,
                                nk_dots_pack_f32_loongsonasx, nk_angulars_packed_f32_loongsonasx);
-    run_angulars_packed<bf16_k>("angulars_packed_bf16_loongsonasx", nk_dots_packed_size_bf16_loongsonasx,
+    run_angulars_packed<bf16_k>("angulars_packed_bf16_loongsonasx", nk_dots_pack_size_bf16_loongsonasx,
                                 nk_dots_pack_bf16_loongsonasx, nk_angulars_packed_bf16_loongsonasx);
-    run_angulars_packed<f16_k>("angulars_packed_f16_loongsonasx", nk_dots_packed_size_f16_loongsonasx,
+    run_angulars_packed<f16_k>("angulars_packed_f16_loongsonasx", nk_dots_pack_size_f16_loongsonasx,
                                nk_dots_pack_f16_loongsonasx, nk_angulars_packed_f16_loongsonasx);
-    run_angulars_packed<i8_k>("angulars_packed_i8_loongsonasx", nk_dots_packed_size_i8_loongsonasx,
+    run_angulars_packed<i8_k>("angulars_packed_i8_loongsonasx", nk_dots_pack_size_i8_loongsonasx,
                               nk_dots_pack_i8_loongsonasx, nk_angulars_packed_i8_loongsonasx);
-    run_angulars_packed<u8_k>("angulars_packed_u8_loongsonasx", nk_dots_packed_size_u8_loongsonasx,
+    run_angulars_packed<u8_k>("angulars_packed_u8_loongsonasx", nk_dots_pack_size_u8_loongsonasx,
                               nk_dots_pack_u8_loongsonasx, nk_angulars_packed_u8_loongsonasx);
 
     // Angulars: symmetric
@@ -73,17 +73,17 @@ void bench_cross_loongarch() {
     run_angulars_symmetric<u8_k>("angulars_symmetric_u8_loongsonasx", nk_angulars_symmetric_u8_loongsonasx);
 
     // Euclideans: packed
-    run_euclideans_packed<f64_k>("euclideans_packed_f64_loongsonasx", nk_dots_packed_size_f64_loongsonasx,
+    run_euclideans_packed<f64_k>("euclideans_packed_f64_loongsonasx", nk_dots_pack_size_f64_loongsonasx,
                                  nk_dots_pack_f64_loongsonasx, nk_euclideans_packed_f64_loongsonasx);
-    run_euclideans_packed<f32_k>("euclideans_packed_f32_loongsonasx", nk_dots_packed_size_f32_loongsonasx,
+    run_euclideans_packed<f32_k>("euclideans_packed_f32_loongsonasx", nk_dots_pack_size_f32_loongsonasx,
                                  nk_dots_pack_f32_loongsonasx, nk_euclideans_packed_f32_loongsonasx);
-    run_euclideans_packed<bf16_k>("euclideans_packed_bf16_loongsonasx", nk_dots_packed_size_bf16_loongsonasx,
+    run_euclideans_packed<bf16_k>("euclideans_packed_bf16_loongsonasx", nk_dots_pack_size_bf16_loongsonasx,
                                   nk_dots_pack_bf16_loongsonasx, nk_euclideans_packed_bf16_loongsonasx);
-    run_euclideans_packed<f16_k>("euclideans_packed_f16_loongsonasx", nk_dots_packed_size_f16_loongsonasx,
+    run_euclideans_packed<f16_k>("euclideans_packed_f16_loongsonasx", nk_dots_pack_size_f16_loongsonasx,
                                  nk_dots_pack_f16_loongsonasx, nk_euclideans_packed_f16_loongsonasx);
-    run_euclideans_packed<i8_k>("euclideans_packed_i8_loongsonasx", nk_dots_packed_size_i8_loongsonasx,
+    run_euclideans_packed<i8_k>("euclideans_packed_i8_loongsonasx", nk_dots_pack_size_i8_loongsonasx,
                                 nk_dots_pack_i8_loongsonasx, nk_euclideans_packed_i8_loongsonasx);
-    run_euclideans_packed<u8_k>("euclideans_packed_u8_loongsonasx", nk_dots_packed_size_u8_loongsonasx,
+    run_euclideans_packed<u8_k>("euclideans_packed_u8_loongsonasx", nk_dots_pack_size_u8_loongsonasx,
                                 nk_dots_pack_u8_loongsonasx, nk_euclideans_packed_u8_loongsonasx);
 
     // Euclideans: symmetric
@@ -95,10 +95,10 @@ void bench_cross_loongarch() {
     run_euclideans_symmetric<u8_k>("euclideans_symmetric_u8_loongsonasx", nk_euclideans_symmetric_u8_loongsonasx);
 
     // Sets
-    run_hammings_packed<u1_k>("hammings_packed_u1_loongsonasx", nk_dots_packed_size_u1_serial, nk_dots_pack_u1_serial,
+    run_hammings_packed<u1_k>("hammings_packed_u1_loongsonasx", nk_dots_pack_size_u1_serial, nk_dots_pack_u1_serial,
                               nk_hammings_packed_u1_loongsonasx);
     run_hammings_symmetric<u1_k>("hammings_symmetric_u1_loongsonasx", nk_hammings_symmetric_u1_loongsonasx);
-    run_jaccards_packed<u1_k>("jaccards_packed_u1_loongsonasx", nk_dots_packed_size_u1_serial, nk_dots_pack_u1_serial,
+    run_jaccards_packed<u1_k>("jaccards_packed_u1_loongsonasx", nk_dots_pack_size_u1_serial, nk_dots_pack_u1_serial,
                               nk_jaccards_packed_u1_loongsonasx);
     run_jaccards_symmetric<u1_k>("jaccards_symmetric_u1_loongsonasx", nk_jaccards_symmetric_u1_loongsonasx);
 

@@ -11,7 +11,7 @@ import CNumKong
 /// Element type that supports MaxSim (late-interaction) scoring with packed representations.
 public protocol NumKongMaxSimElement {
     associatedtype MaxSimOutput
-    static func _nk_maxsim_packed_size(_ vectorCount: Int, _ depth: Int) -> Int
+    static func _nk_maxsim_pack_size(_ vectorCount: Int, _ depth: Int) -> Int
     static func _nk_maxsim_pack(
         _ vectors: UnsafePointer<Self>, _ vectorCount: Int, _ depth: Int, _ stride: Int,
         _ packed: UnsafeMutableRawPointer)
@@ -48,7 +48,7 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
         guard matrix.rows > 0 && matrix.cols > 0 else {
             throw NumKongMatrixError.invalidDimensions
         }
-        let bytes = Element._nk_maxsim_packed_size(matrix.rows, matrix.cols)
+        let bytes = Element._nk_maxsim_pack_size(matrix.rows, matrix.cols)
         guard bytes > 0 else { throw NumKongMatrixError.packedBufferTooSmall }
         let ptr = UnsafeMutableRawPointer.allocate(byteCount: bytes, alignment: 64)
         Element._nk_maxsim_pack(matrix.baseAddress, matrix.rows, matrix.cols, matrix.rowStrideBytes, ptr)
@@ -78,8 +78,8 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
 extension Float32: NumKongMaxSimElement {
     public typealias MaxSimOutput = Float64
 
-    public static func _nk_maxsim_packed_size(_ vectorCount: Int, _ depth: Int) -> Int {
-        Int(nk_maxsim_packed_size_f32(UInt64(vectorCount), UInt64(depth)))
+    public static func _nk_maxsim_pack_size(_ vectorCount: Int, _ depth: Int) -> Int {
+        Int(nk_maxsim_pack_size_f32(UInt64(vectorCount), UInt64(depth)))
     }
 
     public static func _nk_maxsim_pack(
@@ -102,8 +102,8 @@ extension Float32: NumKongMaxSimElement {
 extension BFloat16: NumKongMaxSimElement {
     public typealias MaxSimOutput = Float32
 
-    public static func _nk_maxsim_packed_size(_ vectorCount: Int, _ depth: Int) -> Int {
-        Int(nk_maxsim_packed_size_bf16(UInt64(vectorCount), UInt64(depth)))
+    public static func _nk_maxsim_pack_size(_ vectorCount: Int, _ depth: Int) -> Int {
+        Int(nk_maxsim_pack_size_bf16(UInt64(vectorCount), UInt64(depth)))
     }
 
     public static func _nk_maxsim_pack(
@@ -129,8 +129,8 @@ extension BFloat16: NumKongMaxSimElement {
 extension Float16: NumKongMaxSimElement {
     public typealias MaxSimOutput = Float32
 
-    public static func _nk_maxsim_packed_size(_ vectorCount: Int, _ depth: Int) -> Int {
-        Int(nk_maxsim_packed_size_f16(UInt64(vectorCount), UInt64(depth)))
+    public static func _nk_maxsim_pack_size(_ vectorCount: Int, _ depth: Int) -> Int {
+        Int(nk_maxsim_pack_size_f16(UInt64(vectorCount), UInt64(depth)))
     }
 
     public static func _nk_maxsim_pack(

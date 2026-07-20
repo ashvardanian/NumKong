@@ -120,7 +120,7 @@ enum {
  */
 #pragma region F16 Floats
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_f16_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_f16_sme(nk_size_t columns, nk_size_t depth) {
     nk_size_t const expansion = 2;                    // FMOPA f16 → f32: 2 f16 pairs per f32 output
     nk_size_t const tile_dimension = nk_sme_cntw_();  // ZA32 tile dim: 16
     nk_size_t const vector_elements = nk_sme_cnth_(); // f16 elements per SVE vector: 32
@@ -133,8 +133,8 @@ NK_API_COMPTIME nk_size_t nk_dots_packed_size_f16_sme(nk_size_t columns, nk_size
     return size;
 }
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_bf16_sme(nk_size_t columns, nk_size_t depth) {
-    return nk_dots_packed_size_f16_sme(columns, depth);
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_sme(nk_size_t columns, nk_size_t depth) {
+    return nk_dots_pack_size_f16_sme(columns, depth);
 }
 
 /**
@@ -1057,7 +1057,7 @@ NK_API_COMPTIME void nk_dots_symmetric_bf16_sme( //
 
 #pragma region I8 Integers
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_i8_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_sme(nk_size_t columns, nk_size_t depth) {
     nk_size_t const expansion = 4;                    // SMOPA i8→i32: 4 i8 pairs per i32 output
     nk_size_t const tile_dimension = nk_sme_cntw_();  // ZA32 tile dim: 16
     nk_size_t const vector_elements = nk_sme_cntb_(); // i8 elements per SVE vector: 64
@@ -1672,9 +1672,9 @@ __arm_new("za") static void nk_dots_packed_e4m3_sme_streaming_( //
     }
 }
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_e4m3_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_e4m3_sme(nk_size_t columns, nk_size_t depth) {
     // Uses `f16` format for packed data
-    return nk_dots_packed_size_f16_sme(columns, depth);
+    return nk_dots_pack_size_f16_sme(columns, depth);
 }
 
 /** @brief Streaming e4m3 → f16 pack using ZA tile transpose. */
@@ -2188,8 +2188,8 @@ __arm_new("za") static void nk_dots_packed_e5m2_sme_streaming_( //
     }
 }
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_e5m2_sme(nk_size_t columns, nk_size_t depth) {
-    return nk_dots_packed_size_f16_sme(columns, depth);
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_e5m2_sme(nk_size_t columns, nk_size_t depth) {
+    return nk_dots_pack_size_f16_sme(columns, depth);
 }
 
 NK_API_COMPTIME void nk_dots_pack_e5m2_sme(nk_e5m2_t const *b, nk_size_t columns, nk_size_t depth,
@@ -2662,9 +2662,9 @@ __arm_new("za") static void nk_dots_packed_e2m3_sme_streaming_( //
     }
 }
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_e2m3_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_e2m3_sme(nk_size_t columns, nk_size_t depth) {
     // Uses `i8` format for packed data (same tile geometry as i8)
-    return nk_dots_packed_size_i8_sme(columns, depth);
+    return nk_dots_pack_size_i8_sme(columns, depth);
 }
 
 /** @brief Streaming pack helper for e2m3 → i8 conversion + quad-interleave using ZA tile transpose. */
@@ -3175,8 +3175,8 @@ __arm_new("za") static void nk_dots_packed_e3m2_sme_streaming_( //
     }
 }
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_e3m2_sme(nk_size_t columns, nk_size_t depth) {
-    return nk_dots_packed_size_f16_sme(columns, depth);
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_e3m2_sme(nk_size_t columns, nk_size_t depth) {
+    return nk_dots_pack_size_f16_sme(columns, depth);
 }
 
 /** @brief Streaming e3m2 → f16 pack using ZA tile transpose. */
@@ -3504,8 +3504,8 @@ NK_API_COMPTIME void nk_dots_symmetric_e3m2_sme( //
 
 #pragma region U8 Integers
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_u8_sme(nk_size_t columns, nk_size_t depth) {
-    return nk_dots_packed_size_i8_sme(columns, depth);
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_u8_sme(nk_size_t columns, nk_size_t depth) {
+    return nk_dots_pack_size_i8_sme(columns, depth);
 }
 
 NK_API_COMPTIME void nk_dots_pack_u8_sme( //
@@ -3892,7 +3892,7 @@ NK_API_COMPTIME void nk_dots_symmetric_u8_sme( //
 
 #pragma region U4 Integers
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_u4_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_u4_sme(nk_size_t columns, nk_size_t depth) {
     nk_size_t const tile_dimension = nk_sme_cntw_();
     nk_size_t const vector_elements = nk_sme_cntb_();
     nk_size_t const packed_depth = nk_size_divide_round_up_(depth, 2);
@@ -4165,7 +4165,7 @@ NK_API_COMPTIME void nk_dots_packed_u4_sme( //
 
 #pragma region I4 Integers
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_i4_sme(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_i4_sme(nk_size_t columns, nk_size_t depth) {
     nk_size_t const tile_dimension = nk_sme_cntw_();
     nk_size_t const vector_elements = nk_sme_cntb_();
     nk_size_t const packed_depth = nk_size_divide_round_up_(depth, 2);

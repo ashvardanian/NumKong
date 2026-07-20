@@ -50,7 +50,7 @@ use crate::types::{bf16, f16, StorageElement};
 
 #[link(name = "numkong")]
 extern "C" {
-    fn nk_maxsim_packed_size_f32(vector_count: usize, depth: usize) -> usize;
+    fn nk_maxsim_pack_size_f32(vector_count: usize, depth: usize) -> usize;
     fn nk_maxsim_pack_f32(v: *const f32, vector_count: usize, depth: usize, stride: usize, packed: *mut u8);
     fn nk_maxsim_packed_f32(
         q: *const u8,
@@ -61,7 +61,7 @@ extern "C" {
         result: *mut f64,
     );
 
-    fn nk_maxsim_packed_size_f16(vector_count: usize, depth: usize) -> usize;
+    fn nk_maxsim_pack_size_f16(vector_count: usize, depth: usize) -> usize;
     fn nk_maxsim_pack_f16(v: *const f16, vector_count: usize, depth: usize, stride: usize, packed: *mut u8);
     fn nk_maxsim_packed_f16(
         q: *const u8,
@@ -72,7 +72,7 @@ extern "C" {
         result: *mut f32,
     );
 
-    fn nk_maxsim_packed_size_bf16(vector_count: usize, depth: usize) -> usize;
+    fn nk_maxsim_pack_size_bf16(vector_count: usize, depth: usize) -> usize;
     fn nk_maxsim_pack_bf16(v: *const bf16, vector_count: usize, depth: usize, stride: usize, packed: *mut u8);
     fn nk_maxsim_packed_bf16(
         q: *const u8,
@@ -94,13 +94,13 @@ pub trait MaxSim: StorageElement + Clone {
     type Score: Clone + Default;
 
     /// Returns the packed buffer size in bytes for `vector_count` vectors of given `depth`.
-    fn maxsim_packed_size(vector_count: usize, depth: usize) -> usize;
+    fn maxsim_pack_size(vector_count: usize, depth: usize) -> usize;
 
     /// Pack vectors into backend-specific quantized format.
     ///
     /// # Safety
     /// - `vectors` must point to `vector_count` rows of `depth` elements, byte stride `stride`
-    /// - `packed` must have at least `maxsim_packed_size(vector_count, depth)` bytes
+    /// - `packed` must have at least `maxsim_pack_size(vector_count, depth)` bytes
     unsafe fn maxsim_pack(vectors: *const Self, vector_count: usize, depth: usize, stride: usize, packed: *mut u8);
 
     /// Compute MaxSim score on pre-packed buffers.
@@ -125,8 +125,8 @@ pub trait MaxSim: StorageElement + Clone {
 impl MaxSim for f32 {
     type Score = f64;
 
-    fn maxsim_packed_size(vector_count: usize, depth: usize) -> usize {
-        unsafe { nk_maxsim_packed_size_f32(vector_count, depth) }
+    fn maxsim_pack_size(vector_count: usize, depth: usize) -> usize {
+        unsafe { nk_maxsim_pack_size_f32(vector_count, depth) }
     }
 
     unsafe fn maxsim_pack(vectors: *const Self, vector_count: usize, depth: usize, stride: usize, packed: *mut u8) {
@@ -148,8 +148,8 @@ impl MaxSim for f32 {
 impl MaxSim for f16 {
     type Score = f32;
 
-    fn maxsim_packed_size(vector_count: usize, depth: usize) -> usize {
-        unsafe { nk_maxsim_packed_size_f16(vector_count, depth) }
+    fn maxsim_pack_size(vector_count: usize, depth: usize) -> usize {
+        unsafe { nk_maxsim_pack_size_f16(vector_count, depth) }
     }
 
     unsafe fn maxsim_pack(vectors: *const Self, vector_count: usize, depth: usize, stride: usize, packed: *mut u8) {
@@ -171,8 +171,8 @@ impl MaxSim for f16 {
 impl MaxSim for bf16 {
     type Score = f32;
 
-    fn maxsim_packed_size(vector_count: usize, depth: usize) -> usize {
-        unsafe { nk_maxsim_packed_size_bf16(vector_count, depth) }
+    fn maxsim_pack_size(vector_count: usize, depth: usize) -> usize {
+        unsafe { nk_maxsim_pack_size_bf16(vector_count, depth) }
     }
 
     unsafe fn maxsim_pack(vectors: *const Self, vector_count: usize, depth: usize, stride: usize, packed: *mut u8) {
@@ -299,7 +299,7 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
         Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let (vector_count, depth, row_stride_bytes) = validate_maxsim_view(vectors)?;
-        let size = Scalar::maxsim_packed_size(vector_count, depth);
+        let size = Scalar::maxsim_pack_size(vector_count, depth);
         if size > self.capacity {
             self.grow_to(size)?;
         }
@@ -384,7 +384,7 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
 
     /// Bytes a packed buffer occupies for `vector_count` vectors of the given `depth` under the
     /// active backend's layout, letting a caller pre-size an external buffer without packing.
-    pub fn packed_size(vector_count: usize, depth: usize) -> usize { Scalar::maxsim_packed_size(vector_count, depth) }
+    pub fn pack_size(vector_count: usize, depth: usize) -> usize { Scalar::maxsim_pack_size(vector_count, depth) }
 
     /// Adopt an externally-produced packed buffer by copying `bytes` into a container-owned
     /// allocation tagged with the given `vector_count` and `depth`. The packed layout is not

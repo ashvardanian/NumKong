@@ -124,9 +124,9 @@ NK_HELPER_INLINE v128_t nk_attention_load_e4m3x4_v128relaxed_(void const *plane_
     return nk_e4m3x4_to_f32x4_v128relaxed_(raw_vec).v128;
 }
 
-NK_HELPER_INLINE nk_size_t nk_attention_packed_size_v128relaxed_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                 nk_u32_t const *segment_lengths,
-                                                                 nk_size_t segment_count, nk_size_t element_bytes) {
+NK_HELPER_INLINE nk_size_t nk_attention_pack_size_v128relaxed_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                               nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                               nk_size_t element_bytes) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t payload_bytes = 0; // planes keep the source encoding, like the dots family
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
@@ -135,30 +135,30 @@ NK_HELPER_INLINE nk_size_t nk_attention_packed_size_v128relaxed_(nk_size_t key_v
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                    nk_u32_t const *segment_lengths,
-                                                                    nk_size_t segment_count) {
-    if (depth > nk_attention_max_depth_v128relaxed_k_)
-        return nk_attention_packed_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_v128relaxed_(key_value_head_count, depth, segment_lengths, segment_count,
-                                                 sizeof(nk_bf16_t));
-}
-
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                    nk_u32_t const *segment_lengths,
-                                                                    nk_size_t segment_count) {
-    if (depth > nk_attention_max_depth_v128relaxed_k_)
-        return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_v128relaxed_(key_value_head_count, depth, segment_lengths, segment_count,
-                                                 sizeof(nk_e4m3_t));
-}
-
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_i8_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
                                                                   nk_u32_t const *segment_lengths,
                                                                   nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_v128relaxed_k_)
-        return nk_attention_packed_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_v128relaxed_(key_value_head_count, depth, segment_lengths, segment_count, 1);
+        return nk_attention_pack_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_v128relaxed_(key_value_head_count, depth, segment_lengths, segment_count,
+                                               sizeof(nk_bf16_t));
+}
+
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                  nk_u32_t const *segment_lengths,
+                                                                  nk_size_t segment_count) {
+    if (depth > nk_attention_max_depth_v128relaxed_k_)
+        return nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_v128relaxed_(key_value_head_count, depth, segment_lengths, segment_count,
+                                               sizeof(nk_e4m3_t));
+}
+
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                nk_u32_t const *segment_lengths,
+                                                                nk_size_t segment_count) {
+    if (depth > nk_attention_max_depth_v128relaxed_k_)
+        return nk_attention_pack_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_v128relaxed_(key_value_head_count, depth, segment_lengths, segment_count, 1);
 }
 
 /** @brief Raw strided-row repack: source encoding is preserved, tails zero-padded, 16-byte chunks. */

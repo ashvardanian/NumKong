@@ -46,8 +46,8 @@ extern "C" {
 
 #pragma region F32 Floats
 
-NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f32_icelake(nk_size_t vector_count, nk_size_t depth) {
-    return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f32_t), 64);
+NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_icelake(nk_size_t vector_count, nk_size_t depth) {
+    return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 64);
 }
 
 NK_API_COMPTIME void nk_maxsim_pack_f32_icelake( //
@@ -79,8 +79,8 @@ NK_API_COMPTIME void nk_maxsim_pack_f32_icelake( //
 
 #pragma region F16 Floats
 
-NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f16_icelake(nk_size_t vector_count, nk_size_t depth) {
-    return nk_maxsim_packed_size_(vector_count, depth, sizeof(nk_f16_t), 64);
+NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_icelake(nk_size_t vector_count, nk_size_t depth) {
+    return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 64);
 }
 
 NK_API_COMPTIME void nk_maxsim_pack_f16_icelake( //

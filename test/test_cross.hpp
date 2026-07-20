@@ -15,7 +15,7 @@
 #include "numkong/spatials.h"    // `nk_angulars_packed_*`, `nk_euclideans_packed_*`
 
 #include "numkong/dots.hpp"   // `nk::dots_packed`, `nk::dots_symmetric`
-#include "numkong/matrix.hpp" // `nk::dots_packed_size`, `nk::dots_pack`
+#include "numkong/matrix.hpp" // `nk::dots_pack_size`, `nk::dots_pack`
 #include "numkong/reduce.hpp" // `nk::reduce_moments`
 
 #include "test.hpp"
@@ -25,7 +25,7 @@
  *  Works for all types: f32, f64, f16, bf16, i8.
  */
 template <typename scalar_type_>
-error_stats_t test_dots_packed(typename scalar_type_::dots_packed_size_kernel_t packed_size_fn,
+error_stats_t test_dots_packed(typename scalar_type_::dots_pack_size_kernel_t packed_size_fn,
                                typename scalar_type_::dots_pack_kernel_t pack_fn,
                                typename scalar_type_::dots_packed_kernel_t dots_fn) {
     using scalar_t = scalar_type_;
@@ -49,8 +49,8 @@ error_stats_t test_dots_packed(typename scalar_type_::dots_packed_size_kernel_t 
 
     nk_size_t packed_size = packed_size_fn(n, k);
     auto b_packed = make_vector<char>(packed_size);
-    nk_size_t ref_packed_size = nk::dots_packed_size<scalar_t, nk::no_simd_k>(n, k);
-    auto b_packed_ref = make_vector<char>(ref_packed_size);
+    nk_size_t ref_pack_size = nk::dots_pack_size<scalar_t, nk::no_simd_k>(n, k);
+    auto b_packed_ref = make_vector<char>(ref_pack_size);
 
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, a);
@@ -117,7 +117,7 @@ error_stats_t test_dots_symmetric(typename scalar_type_::dots_symmetric_kernel_t
  *         mix with a zero-length PAD segment, GQA 2:1, executed through per-task windows.
  */
 template <typename scalar_type_>
-error_stats_t test_attention_packed(typename scalar_type_::attention_packed_size_kernel_t packed_size_fn,
+error_stats_t test_attention_packed(typename scalar_type_::attention_pack_size_kernel_t packed_size_fn,
                                     typename scalar_type_::attention_pack_kernel_t pack_fn,
                                     typename scalar_type_::attention_packed_kernel_t attention_fn) {
     using scalar_t = scalar_type_;
@@ -155,7 +155,7 @@ error_stats_t test_attention_packed(typename scalar_type_::attention_packed_size
                              head_count, key_value_head_count, depth, offsets.data(), query_stride_bytes,
                              queries_row_width * sizeof(nk_f32_t), scale, task_idx, 1);
 
-            auto key_value_reference = make_vector<char>(nk::attention_packed_size<scalar_t, nk::no_simd_k>(
+            auto key_value_reference = make_vector<char>(nk::attention_pack_size<scalar_t, nk::no_simd_k>(
                 key_value_head_count, depth, lengths.data(), lengths.size()));
             // Compute reference through the serial backend via the C++ wrappers
             nk::attention_pack<scalar_t, nk::no_simd_k>(
@@ -177,7 +177,7 @@ error_stats_t test_attention_packed(typename scalar_type_::attention_packed_size
  *  @brief Test batched Hamming distance computation with packed B matrix.
  */
 template <typename scalar_type_>
-error_stats_t test_hammings_packed(typename scalar_type_::hammings_packed_size_kernel_t packed_size_fn,
+error_stats_t test_hammings_packed(typename scalar_type_::hammings_pack_size_kernel_t packed_size_fn,
                                    typename scalar_type_::hammings_pack_kernel_t pack_fn,
                                    typename scalar_type_::hammings_packed_kernel_t hammings_fn) {
     using scalar_t = scalar_type_;
@@ -200,7 +200,7 @@ error_stats_t test_hammings_packed(typename scalar_type_::hammings_packed_size_k
     auto b_packed = make_vector<char>(packed_size);
 
     // Allocate buffer for reference computation
-    nk_size_t packed_size_ref = nk::dots_packed_size<scalar_t, nk::no_simd_k>(n, k);
+    nk_size_t packed_size_ref = nk::dots_pack_size<scalar_t, nk::no_simd_k>(n, k);
     auto b_packed_ref = make_vector<char>(packed_size_ref);
 
     for (auto start = test_start_time(); within_time_budget(start);) {
@@ -263,7 +263,7 @@ error_stats_t test_hammings_symmetric(typename scalar_type_::hammings_symmetric_
  *  @brief Test batched Jaccard distance computation with packed B matrix.
  */
 template <typename scalar_type_>
-error_stats_t test_jaccards_packed(typename scalar_type_::jaccards_packed_size_kernel_t packed_size_fn,
+error_stats_t test_jaccards_packed(typename scalar_type_::jaccards_pack_size_kernel_t packed_size_fn,
                                    typename scalar_type_::jaccards_pack_kernel_t pack_fn,
                                    typename scalar_type_::jaccards_packed_kernel_t jaccards_fn) {
     using scalar_t = scalar_type_;
@@ -286,7 +286,7 @@ error_stats_t test_jaccards_packed(typename scalar_type_::jaccards_packed_size_k
     auto b_packed = make_vector<char>(packed_size);
 
     // Allocate buffer for reference computation
-    nk_size_t packed_size_ref = nk::dots_packed_size<scalar_t, nk::no_simd_k>(n, k);
+    nk_size_t packed_size_ref = nk::dots_pack_size<scalar_t, nk::no_simd_k>(n, k);
     auto b_packed_ref = make_vector<char>(packed_size_ref);
 
     for (auto start = test_start_time(); within_time_budget(start);) {
@@ -350,7 +350,7 @@ error_stats_t test_jaccards_symmetric(typename scalar_type_::jaccards_symmetric_
  *  Angular distance: 1 - dot(a,b) / sqrt(sumsq(a) * sumsq(b))
  */
 template <typename scalar_type_>
-error_stats_t test_angulars_packed(typename scalar_type_::dots_packed_size_kernel_t packed_size_fn,
+error_stats_t test_angulars_packed(typename scalar_type_::dots_pack_size_kernel_t packed_size_fn,
                                    typename scalar_type_::dots_pack_kernel_t pack_fn,
                                    typename scalar_type_::angulars_packed_kernel_t angulars_fn) {
     using scalar_t = scalar_type_;
@@ -375,8 +375,8 @@ error_stats_t test_angulars_packed(typename scalar_type_::dots_packed_size_kerne
     nk_size_t packed_size = packed_size_fn(n, k);
     auto b_packed = make_vector<char>(packed_size);
 
-    nk_size_t ref_packed_size = nk::dots_packed_size<scalar_t, nk::no_simd_k>(n, k);
-    auto b_packed_ref = make_vector<char>(ref_packed_size);
+    nk_size_t ref_pack_size = nk::dots_pack_size<scalar_t, nk::no_simd_k>(n, k);
+    auto b_packed_ref = make_vector<char>(ref_pack_size);
     auto a_sumsqs = make_vector<reference_t>(m);
     auto b_sumsqs = make_vector<reference_t>(n);
 
@@ -421,7 +421,7 @@ error_stats_t test_angulars_packed(typename scalar_type_::dots_packed_size_kerne
  *  Euclidean distance: sqrt(max(0, sumsq(a) + sumsq(b) - 2*dot(a,b)))
  */
 template <typename scalar_type_>
-error_stats_t test_euclideans_packed(typename scalar_type_::dots_packed_size_kernel_t packed_size_fn,
+error_stats_t test_euclideans_packed(typename scalar_type_::dots_pack_size_kernel_t packed_size_fn,
                                      typename scalar_type_::dots_pack_kernel_t pack_fn,
                                      typename scalar_type_::euclideans_packed_kernel_t euclideans_fn) {
     using scalar_t = scalar_type_;
@@ -446,8 +446,8 @@ error_stats_t test_euclideans_packed(typename scalar_type_::dots_packed_size_ker
     nk_size_t packed_size = packed_size_fn(n, k);
     auto b_packed = make_vector<char>(packed_size);
 
-    nk_size_t ref_packed_size = nk::dots_packed_size<scalar_t, nk::no_simd_k>(n, k);
-    auto b_packed_ref = make_vector<char>(ref_packed_size);
+    nk_size_t ref_pack_size = nk::dots_pack_size<scalar_t, nk::no_simd_k>(n, k);
+    auto b_packed_ref = make_vector<char>(ref_pack_size);
     auto a_sumsqs = make_vector<reference_t>(m);
     auto b_sumsqs = make_vector<reference_t>(n);
 

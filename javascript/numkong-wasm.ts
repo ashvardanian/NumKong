@@ -625,7 +625,7 @@ function allocAndCopyMatrix(matrix: Matrix): number {
 export function dotsPackedSize(width: number, depth: number, dtype: DType): number {
   if (!Module) throw new Error('WASM module not initialized');
 
-  const fnName = `_nk_dots_packed_size_${dtypeToString(dtype)}`;
+  const fnName = `_nk_dots_pack_size_${dtypeToString(dtype)}`;
   const fn = Module[fnName] as any;
   if (!fn || typeof fn !== 'function') {
     throw new Error(`Function ${fnName} not available in WASM module`);
@@ -640,7 +640,7 @@ export function dotsPack(matrix: Matrix): PackedMatrix {
   if (!Module) throw new Error('WASM module not initialized');
 
   const dtypeStr = dtypeToString(matrix.dtype);
-  const sizeFnName = `_nk_dots_packed_size_${dtypeStr}`;
+  const sizeFnName = `_nk_dots_pack_size_${dtypeStr}`;
   const packFnName = `_nk_dots_pack_${dtypeStr}`;
 
   const sizeFn = Module[sizeFnName] as any;

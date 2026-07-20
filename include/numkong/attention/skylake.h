@@ -201,8 +201,8 @@ NK_HELPER_INLINE void nk_attention_widen_e4m3_skylake_(void const *source, nk_f3
         _mm512_storeu_ps(destination + channel_index, _mm512_setzero_ps());
 }
 
-NK_HELPER_INLINE nk_size_t nk_attention_packed_size_skylake_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_pack_size_skylake_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
     nk_size_t payload_bytes = 0; // planes hold 16-bit scalars for both dtypes (BF16 or F16)
     for (nk_size_t segment_index = 0; segment_index < segment_count; segment_index++)
@@ -211,20 +211,20 @@ NK_HELPER_INLINE nk_size_t nk_attention_packed_size_skylake_(nk_size_t key_value
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_skylake(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                nk_u32_t const *segment_lengths,
-                                                                nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_skylake(nk_size_t key_value_head_count, nk_size_t depth,
+                                                              nk_u32_t const *segment_lengths,
+                                                              nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_skylake_k_)
-        return nk_attention_packed_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_skylake_(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_skylake_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_skylake(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                nk_u32_t const *segment_lengths,
-                                                                nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_skylake(nk_size_t key_value_head_count, nk_size_t depth,
+                                                              nk_u32_t const *segment_lengths,
+                                                              nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_skylake_k_)
-        return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_skylake_(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_skylake_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
 NK_HELPER_INLINE void nk_attention_pack_skylake_(                                                              //

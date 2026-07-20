@@ -159,8 +159,8 @@ NK_HELPER_INLINE svint32_t nk_attention_iexp2_weight_i32x_sme_(svint32_t t_q15_i
     return svasr_s32_x(predicate_all_b32x, svadd_s32_x(predicate_all_b32x, scaled_i32x, bias_i32x), shift_u32x);
 }
 
-NK_HELPER_INLINE nk_size_t nk_attention_packed_size_b16_sme_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_pack_size_b16_sme_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t const tile_dimension = nk_sme_cntw_();
     nk_size_t const vector_elements = nk_sme_cnth_();
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
@@ -173,13 +173,13 @@ NK_HELPER_INLINE nk_size_t nk_attention_packed_size_b16_sme_(nk_size_t key_value
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_sme(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_sme(nk_size_t key_value_head_count, nk_size_t depth,
+                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     // Shapes outside the tile fast-path envelope route to the width-agnostic serial tier;
     // the rule is a pure function of the arguments and the machine, so pack and attention agree.
     if (depth > nk_attention_max_depth_sme_k_ || nk_sme_cntw_() > nk_attention_max_tile_sme_k_)
-        return nk_attention_packed_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_b16_sme_(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_b16_sme_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
 /**
@@ -324,11 +324,11 @@ NK_API_COMPTIME void nk_attention_pack_bf16_sme(                                
     nk_sme_stop_streaming_();
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_sme(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_sme(nk_size_t key_value_head_count, nk_size_t depth,
+                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_sme_k_ || nk_sme_cntw_() > nk_attention_max_tile_sme_k_)
-        return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_b16_sme_(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_b16_sme_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
 NK_API_COMPTIME void nk_attention_pack_e4m3_sme(                                      //
@@ -774,8 +774,8 @@ NK_API_COMPTIME void nk_attention_packed_e4m3_sme(                              
     nk_sme_stop_streaming_();
 }
 
-NK_HELPER_INLINE nk_size_t nk_attention_packed_size_b8_sme_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_pack_size_b8_sme_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t const tile_dimension = nk_sme_cntw_();
     nk_size_t const position_multiple = nk_sme_cnth_();
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
@@ -788,11 +788,11 @@ NK_HELPER_INLINE nk_size_t nk_attention_packed_size_b8_sme_(nk_size_t key_value_
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_i8_sme(nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_sme(nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_sme_k_ || nk_sme_cntw_() > nk_attention_max_tile_sme_k_)
-        return nk_attention_packed_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_b8_sme_(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_b8_sme_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
 /**

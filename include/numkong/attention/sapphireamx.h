@@ -194,9 +194,9 @@ NK_HELPER_INLINE void nk_attention_v_rows_e4m3_sapphireamx_(void const *row_a, v
     *b_bf16x16 = _mm512_extracti64x4_epi64(both_bf16x32, 1);
 }
 
-NK_HELPER_INLINE nk_size_t nk_attention_packed_size_sapphireamx_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                 nk_u32_t const *segment_lengths,
-                                                                 nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_pack_size_sapphireamx_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                               nk_u32_t const *segment_lengths,
+                                                               nk_size_t segment_count) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 32);
     nk_size_t total_tile_bytes = 0;
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++) {
@@ -207,22 +207,22 @@ NK_HELPER_INLINE nk_size_t nk_attention_packed_size_sapphireamx_(nk_size_t key_v
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + total_tile_bytes;
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                    nk_u32_t const *segment_lengths,
-                                                                    nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                  nk_u32_t const *segment_lengths,
+                                                                  nk_size_t segment_count) {
     // Shapes outside the AMX fast-path envelope route to the width-agnostic serial tier;
     // the rule is a pure function of the arguments, so pack and attention always agree.
     if (depth > nk_attention_max_depth_sapphireamx_k_)
-        return nk_attention_packed_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_sapphireamx_(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_sapphireamx_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                    nk_u32_t const *segment_lengths,
-                                                                    nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                  nk_u32_t const *segment_lengths,
+                                                                  nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_sapphireamx_k_)
-        return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_sapphireamx_(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_sapphireamx_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
 /**
@@ -742,11 +742,11 @@ NK_API_COMPTIME void nk_attention_packed_e4m3_sapphireamx(                      
                                      query_stride_bytes, output_stride_bytes, scale, first_task, task_count);
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_i8_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                  nk_u32_t const *segment_lengths,
-                                                                  nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                nk_u32_t const *segment_lengths,
+                                                                nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_sapphireamx_k_)
-        return nk_attention_packed_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
     nk_size_t total_tile_bytes = 0;
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++) {

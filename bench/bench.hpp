@@ -206,11 +206,11 @@ void run_dense(std::string name, kernel_type_ *kernel) {
 //  Batched dot products measurement for packed B matrix API
 //  Used by: all bench_cross_*.cpp files
 template <nk_dtype_t input_dtype_>
-void measure_dots_packed(                                                                //
-    bm::State &state,                                                                    //
-    typename nk::type_for<input_dtype_>::type::dots_packed_size_kernel_t packed_size_fn, //
-    typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,               //
-    typename nk::type_for<input_dtype_>::type::dots_packed_kernel_t kernel,              //
+void measure_dots_packed(                                                              //
+    bm::State &state,                                                                  //
+    typename nk::type_for<input_dtype_>::type::dots_pack_size_kernel_t packed_size_fn, //
+    typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,             //
+    typename nk::type_for<input_dtype_>::type::dots_packed_kernel_t kernel,            //
     std::size_t m, std::size_t n, std::size_t k) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
@@ -259,7 +259,7 @@ void measure_dots_packed(                                                       
 
 template <nk_dtype_t input_dtype_>
 void run_dots_packed(std::string name, //
-                     typename nk::type_for<input_dtype_>::type::dots_packed_size_kernel_t packed_size_fn,
+                     typename nk::type_for<input_dtype_>::type::dots_pack_size_kernel_t packed_size_fn,
                      typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,
                      typename nk::type_for<input_dtype_>::type::dots_packed_kernel_t kernel) {
     std::string bench_name = name + "<" + std::to_string(bench_config.matrix_height) + "x" +
@@ -347,11 +347,11 @@ void run_attention(                                                             
 }
 
 template <nk_dtype_t input_dtype_>
-void measure_angulars_packed(                                                            //
-    bm::State &state,                                                                    //
-    typename nk::type_for<input_dtype_>::type::dots_packed_size_kernel_t packed_size_fn, //
-    typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,               //
-    typename nk::type_for<input_dtype_>::type::angulars_packed_kernel_t kernel,          //
+void measure_angulars_packed(                                                          //
+    bm::State &state,                                                                  //
+    typename nk::type_for<input_dtype_>::type::dots_pack_size_kernel_t packed_size_fn, //
+    typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,             //
+    typename nk::type_for<input_dtype_>::type::angulars_packed_kernel_t kernel,        //
     std::size_t m, std::size_t n, std::size_t k) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
@@ -398,7 +398,7 @@ void measure_angulars_packed(                                                   
 
 template <nk_dtype_t input_dtype_>
 void run_angulars_packed(std::string name, //
-                         typename nk::type_for<input_dtype_>::type::dots_packed_size_kernel_t packed_size_fn,
+                         typename nk::type_for<input_dtype_>::type::dots_pack_size_kernel_t packed_size_fn,
                          typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,
                          typename nk::type_for<input_dtype_>::type::angulars_packed_kernel_t kernel) {
     std::string bench_name = name + "<" + std::to_string(bench_config.matrix_height) + "x" +
@@ -409,11 +409,11 @@ void run_angulars_packed(std::string name, //
 }
 
 template <nk_dtype_t input_dtype_>
-void measure_euclideans_packed(                                                          //
-    bm::State &state,                                                                    //
-    typename nk::type_for<input_dtype_>::type::dots_packed_size_kernel_t packed_size_fn, //
-    typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,               //
-    typename nk::type_for<input_dtype_>::type::euclideans_packed_kernel_t kernel,        //
+void measure_euclideans_packed(                                                        //
+    bm::State &state,                                                                  //
+    typename nk::type_for<input_dtype_>::type::dots_pack_size_kernel_t packed_size_fn, //
+    typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,             //
+    typename nk::type_for<input_dtype_>::type::euclideans_packed_kernel_t kernel,      //
     std::size_t m, std::size_t n, std::size_t k) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
@@ -460,7 +460,7 @@ void measure_euclideans_packed(                                                 
 
 template <nk_dtype_t input_dtype_>
 void run_euclideans_packed(std::string name, //
-                           typename nk::type_for<input_dtype_>::type::dots_packed_size_kernel_t packed_size_fn,
+                           typename nk::type_for<input_dtype_>::type::dots_pack_size_kernel_t packed_size_fn,
                            typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,
                            typename nk::type_for<input_dtype_>::type::euclideans_packed_kernel_t kernel) {
     std::string bench_name = name + "<" + std::to_string(bench_config.matrix_height) + "x" +
@@ -630,11 +630,11 @@ void run_euclideans_symmetric(std::string name, //
  *  Used by: all bench_cross_*.cpp files
  */
 template <nk_dtype_t input_dtype_>
-void measure_hammings_packed(                                                                //
-    bm::State &state,                                                                        //
-    typename nk::type_for<input_dtype_>::type::hammings_packed_size_kernel_t packed_size_fn, //
-    typename nk::type_for<input_dtype_>::type::hammings_pack_kernel_t pack_fn,               //
-    typename nk::type_for<input_dtype_>::type::hammings_packed_kernel_t kernel,              //
+void measure_hammings_packed(                                                              //
+    bm::State &state,                                                                      //
+    typename nk::type_for<input_dtype_>::type::hammings_pack_size_kernel_t packed_size_fn, //
+    typename nk::type_for<input_dtype_>::type::hammings_pack_kernel_t pack_fn,             //
+    typename nk::type_for<input_dtype_>::type::hammings_packed_kernel_t kernel,            //
     std::size_t m, std::size_t n, std::size_t k) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
@@ -730,7 +730,7 @@ void measure_hammings_symmetric(                                                
 
 template <nk_dtype_t input_dtype_>
 void run_hammings_packed(std::string name, //
-                         typename nk::type_for<input_dtype_>::type::hammings_packed_size_kernel_t packed_size_fn,
+                         typename nk::type_for<input_dtype_>::type::hammings_pack_size_kernel_t packed_size_fn,
                          typename nk::type_for<input_dtype_>::type::hammings_pack_kernel_t pack_fn,
                          typename nk::type_for<input_dtype_>::type::hammings_packed_kernel_t kernel) {
     std::string bench_name = name + "<" + std::to_string(bench_config.matrix_height) + "x" +
@@ -753,11 +753,11 @@ void run_hammings_symmetric(std::string name, //
  *  @brief Measure packed Jaccard distance matrix computation.
  */
 template <nk_dtype_t input_dtype_>
-void measure_jaccards_packed(                                                                //
-    bm::State &state,                                                                        //
-    typename nk::type_for<input_dtype_>::type::jaccards_packed_size_kernel_t packed_size_fn, //
-    typename nk::type_for<input_dtype_>::type::jaccards_pack_kernel_t pack_fn,               //
-    typename nk::type_for<input_dtype_>::type::jaccards_packed_kernel_t kernel,              //
+void measure_jaccards_packed(                                                              //
+    bm::State &state,                                                                      //
+    typename nk::type_for<input_dtype_>::type::jaccards_pack_size_kernel_t packed_size_fn, //
+    typename nk::type_for<input_dtype_>::type::jaccards_pack_kernel_t pack_fn,             //
+    typename nk::type_for<input_dtype_>::type::jaccards_packed_kernel_t kernel,            //
     std::size_t m, std::size_t n, std::size_t k) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
@@ -845,7 +845,7 @@ void measure_jaccards_symmetric(                                                
 
 template <nk_dtype_t input_dtype_>
 void run_jaccards_packed(std::string name, //
-                         typename nk::type_for<input_dtype_>::type::jaccards_packed_size_kernel_t packed_size_fn,
+                         typename nk::type_for<input_dtype_>::type::jaccards_pack_size_kernel_t packed_size_fn,
                          typename nk::type_for<input_dtype_>::type::jaccards_pack_kernel_t pack_fn,
                          typename nk::type_for<input_dtype_>::type::jaccards_packed_kernel_t kernel) {
     std::string bench_name = name + "<" + std::to_string(bench_config.matrix_height) + "x" +

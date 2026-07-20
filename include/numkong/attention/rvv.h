@@ -158,9 +158,9 @@ NK_HELPER_INLINE void nk_attention_pack_row_i8_rvv_(void const *source, void *de
     }
 }
 
-NK_HELPER_INLINE nk_size_t nk_attention_packed_size_rvv_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                                                         nk_size_t packed_element_bytes) {
+NK_HELPER_INLINE nk_size_t nk_attention_pack_size_rvv_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                       nk_size_t packed_element_bytes) {
     nk_size_t payload_bytes = 0; // raw unpadded planes: VLA strip-mining needs no channel padding
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
         payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_idx] * depth *
@@ -168,27 +168,26 @@ NK_HELPER_INLINE nk_size_t nk_attention_packed_size_rvv_(nk_size_t key_value_hea
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_rvv(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
-    if (depth > nk_attention_max_depth_rvv_k_)
-        return nk_attention_packed_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_rvv_(key_value_head_count, depth, segment_lengths, segment_count,
-                                         sizeof(nk_bf16_t));
-}
-
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_rvv(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
-    if (depth > nk_attention_max_depth_rvv_k_)
-        return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_rvv_(key_value_head_count, depth, segment_lengths, segment_count,
-                                         sizeof(nk_bf16_t)); // E4M3 K/V packs as BF16
-}
-
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_i8_rvv(nk_size_t key_value_head_count, nk_size_t depth,
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_rvv(nk_size_t key_value_head_count, nk_size_t depth,
                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_rvv_k_)
-        return nk_attention_packed_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_rvv_(key_value_head_count, depth, segment_lengths, segment_count, sizeof(nk_i8_t));
+        return nk_attention_pack_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_rvv_(key_value_head_count, depth, segment_lengths, segment_count, sizeof(nk_bf16_t));
+}
+
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_rvv(nk_size_t key_value_head_count, nk_size_t depth,
+                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+    if (depth > nk_attention_max_depth_rvv_k_)
+        return nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_rvv_(key_value_head_count, depth, segment_lengths, segment_count,
+                                       sizeof(nk_bf16_t)); // E4M3 K/V packs as BF16
+}
+
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_rvv(nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+    if (depth > nk_attention_max_depth_rvv_k_)
+        return nk_attention_pack_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_rvv_(key_value_head_count, depth, segment_lengths, segment_count, sizeof(nk_i8_t));
 }
 
 /**

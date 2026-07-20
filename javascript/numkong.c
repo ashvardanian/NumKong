@@ -449,7 +449,7 @@ napi_value api_cast(napi_env env, napi_callback_info info) {
 #pragma region Packed API
 
 /** @brief Query packed buffer byte count: dotsPackedSize(width, depth, dtype) → number */
-static napi_value api_dots_packed_size(napi_env env, napi_callback_info info) {
+static napi_value api_dots_pack_size(napi_env env, napi_callback_info info) {
     size_t argc = 3;
     napi_value args[3];
     napi_get_cb_info(env, info, &argc, args, NULL, NULL);
@@ -471,11 +471,11 @@ static napi_value api_dots_packed_size(napi_env env, napi_callback_info info) {
         return NULL;
     }
 
-    nk_dots_packed_size_punned_t size_fn = NULL;
+    nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_packed_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn) {
-        napi_throw_error(env, NULL, "dots_packed_size not available for this dtype");
+        napi_throw_error(env, NULL, "dots_pack_size not available for this dtype");
         return NULL;
     }
 
@@ -516,11 +516,11 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     }
 
     // Get packed size
-    nk_dots_packed_size_punned_t size_fn = NULL;
+    nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_packed_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn) {
-        napi_throw_error(env, NULL, "dots_packed_size not available for this dtype");
+        napi_throw_error(env, NULL, "dots_pack_size not available for this dtype");
         return NULL;
     }
     nk_size_t packed_byte_count = size_fn((nk_size_t)width, (nk_size_t)depth);
@@ -781,7 +781,7 @@ napi_value Init(napi_env env, napi_value exports) {
         export_function(env, exports, "castE5M2ToF32", api_cast_e5m2_to_f32) != napi_ok ||
         export_function(env, exports, "castF32ToE5M2", api_cast_f32_to_e5m2) != napi_ok ||
         export_function(env, exports, "cast", api_cast) != napi_ok ||
-        export_function(env, exports, "dotsPackedSize", api_dots_packed_size) != napi_ok ||
+        export_function(env, exports, "dotsPackedSize", api_dots_pack_size) != napi_ok ||
         export_function(env, exports, "dotsPack", api_dots_pack) != napi_ok ||
         export_function(env, exports, "dotsPacked", api_dots_packed) != napi_ok ||
         export_function(env, exports, "angularsPacked", api_angulars_packed) != napi_ok ||

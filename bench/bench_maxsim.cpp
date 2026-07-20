@@ -12,11 +12,11 @@ namespace nk = ashvardanian::numkong;
 namespace bm = benchmark;
 
 template <nk_dtype_t input_dtype_>
-void measure_maxsim_packed(                                                              //
-    bm::State &state,                                                                    //
-    typename nk::type_for<input_dtype_>::type::dots_packed_size_kernel_t packed_size_fn, //
-    typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,               //
-    typename nk::type_for<input_dtype_>::type::maxsim_packed_kernel_t maxsim_fn,         //
+void measure_maxsim_packed(                                                            //
+    bm::State &state,                                                                  //
+    typename nk::type_for<input_dtype_>::type::dots_pack_size_kernel_t packed_size_fn, //
+    typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,             //
+    typename nk::type_for<input_dtype_>::type::maxsim_packed_kernel_t maxsim_fn,       //
     std::size_t query_count, std::size_t document_count, std::size_t depth) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
@@ -63,7 +63,7 @@ void measure_maxsim_packed(                                                     
 
 template <nk_dtype_t input_dtype_>
 void run_maxsim_packed(std::string name, //
-                       typename nk::type_for<input_dtype_>::type::dots_packed_size_kernel_t packed_size_fn,
+                       typename nk::type_for<input_dtype_>::type::dots_pack_size_kernel_t packed_size_fn,
                        typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,
                        typename nk::type_for<input_dtype_>::type::maxsim_packed_kernel_t maxsim_fn) {
     std::size_t query_count = bench_config.matrix_height;
@@ -79,76 +79,76 @@ void bench_maxsim() {
     constexpr nk_dtype_t bf16_k = nk_bf16_k, f32_k = nk_f32_k, f16_k = nk_f16_k;
 
     // Serial maxsim benchmarks
-    run_maxsim_packed<bf16_k>("maxsim_bf16_serial", nk_maxsim_packed_size_bf16_serial, nk_maxsim_pack_bf16_serial,
+    run_maxsim_packed<bf16_k>("maxsim_bf16_serial", nk_maxsim_pack_size_bf16_serial, nk_maxsim_pack_bf16_serial,
                               nk_maxsim_packed_bf16_serial);
-    run_maxsim_packed<f32_k>("maxsim_f32_serial", nk_maxsim_packed_size_f32_serial, nk_maxsim_pack_f32_serial,
+    run_maxsim_packed<f32_k>("maxsim_f32_serial", nk_maxsim_pack_size_f32_serial, nk_maxsim_pack_f32_serial,
                              nk_maxsim_packed_f32_serial);
-    run_maxsim_packed<f16_k>("maxsim_f16_serial", nk_maxsim_packed_size_f16_serial, nk_maxsim_pack_f16_serial,
+    run_maxsim_packed<f16_k>("maxsim_f16_serial", nk_maxsim_pack_size_f16_serial, nk_maxsim_pack_f16_serial,
                              nk_maxsim_packed_f16_serial);
 
 #if NK_TARGET_HASWELL
-    run_maxsim_packed<bf16_k>("maxsim_bf16_haswell", nk_maxsim_packed_size_bf16_haswell, nk_maxsim_pack_bf16_haswell,
+    run_maxsim_packed<bf16_k>("maxsim_bf16_haswell", nk_maxsim_pack_size_bf16_haswell, nk_maxsim_pack_bf16_haswell,
                               nk_maxsim_packed_bf16_haswell);
-    run_maxsim_packed<f32_k>("maxsim_f32_haswell", nk_maxsim_packed_size_f32_haswell, nk_maxsim_pack_f32_haswell,
+    run_maxsim_packed<f32_k>("maxsim_f32_haswell", nk_maxsim_pack_size_f32_haswell, nk_maxsim_pack_f32_haswell,
                              nk_maxsim_packed_f32_haswell);
-    run_maxsim_packed<f16_k>("maxsim_f16_haswell", nk_maxsim_packed_size_f16_haswell, nk_maxsim_pack_f16_haswell,
+    run_maxsim_packed<f16_k>("maxsim_f16_haswell", nk_maxsim_pack_size_f16_haswell, nk_maxsim_pack_f16_haswell,
                              nk_maxsim_packed_f16_haswell);
 #endif
 
 #if NK_TARGET_ALDER
-    run_maxsim_packed<bf16_k>("maxsim_bf16_alder", nk_maxsim_packed_size_bf16_alder, nk_maxsim_pack_bf16_alder,
+    run_maxsim_packed<bf16_k>("maxsim_bf16_alder", nk_maxsim_pack_size_bf16_alder, nk_maxsim_pack_bf16_alder,
                               nk_maxsim_packed_bf16_alder);
-    run_maxsim_packed<f32_k>("maxsim_f32_alder", nk_maxsim_packed_size_f32_alder, nk_maxsim_pack_f32_alder,
+    run_maxsim_packed<f32_k>("maxsim_f32_alder", nk_maxsim_pack_size_f32_alder, nk_maxsim_pack_f32_alder,
                              nk_maxsim_packed_f32_alder);
-    run_maxsim_packed<f16_k>("maxsim_f16_alder", nk_maxsim_packed_size_f16_alder, nk_maxsim_pack_f16_alder,
+    run_maxsim_packed<f16_k>("maxsim_f16_alder", nk_maxsim_pack_size_f16_alder, nk_maxsim_pack_f16_alder,
                              nk_maxsim_packed_f16_alder);
 #endif
 
 #if NK_TARGET_ICELAKE
-    run_maxsim_packed<f32_k>("maxsim_f32_icelake", nk_maxsim_packed_size_f32_icelake, nk_maxsim_pack_f32_icelake,
+    run_maxsim_packed<f32_k>("maxsim_f32_icelake", nk_maxsim_pack_size_f32_icelake, nk_maxsim_pack_f32_icelake,
                              nk_maxsim_packed_f32_icelake);
-    run_maxsim_packed<f16_k>("maxsim_f16_icelake", nk_maxsim_packed_size_f16_icelake, nk_maxsim_pack_f16_icelake,
+    run_maxsim_packed<f16_k>("maxsim_f16_icelake", nk_maxsim_pack_size_f16_icelake, nk_maxsim_pack_f16_icelake,
                              nk_maxsim_packed_f16_icelake);
 #endif
 
 #if NK_TARGET_GENOA
-    run_maxsim_packed<bf16_k>("maxsim_bf16_genoa", nk_maxsim_packed_size_bf16_genoa, nk_maxsim_pack_bf16_genoa,
+    run_maxsim_packed<bf16_k>("maxsim_bf16_genoa", nk_maxsim_pack_size_bf16_genoa, nk_maxsim_pack_bf16_genoa,
                               nk_maxsim_packed_bf16_genoa);
 #endif
 
 #if NK_TARGET_SAPPHIREAMX
-    run_maxsim_packed<bf16_k>("maxsim_bf16_sapphireamx", nk_maxsim_packed_size_bf16_sapphireamx,
+    run_maxsim_packed<bf16_k>("maxsim_bf16_sapphireamx", nk_maxsim_pack_size_bf16_sapphireamx,
                               nk_maxsim_pack_bf16_sapphireamx, nk_maxsim_packed_bf16_sapphireamx);
-    run_maxsim_packed<f32_k>("maxsim_f32_sapphireamx", nk_maxsim_packed_size_f32_sapphireamx,
+    run_maxsim_packed<f32_k>("maxsim_f32_sapphireamx", nk_maxsim_pack_size_f32_sapphireamx,
                              nk_maxsim_pack_f32_sapphireamx, nk_maxsim_packed_f32_sapphireamx);
-    run_maxsim_packed<f16_k>("maxsim_f16_sapphireamx", nk_maxsim_packed_size_f16_sapphireamx,
+    run_maxsim_packed<f16_k>("maxsim_f16_sapphireamx", nk_maxsim_pack_size_f16_sapphireamx,
                              nk_maxsim_pack_f16_sapphireamx, nk_maxsim_packed_f16_sapphireamx);
 #endif
 
 #if NK_TARGET_NEONSDOT
-    run_maxsim_packed<bf16_k>("maxsim_bf16_neonsdot", nk_maxsim_packed_size_bf16_neonsdot, nk_maxsim_pack_bf16_neonsdot,
+    run_maxsim_packed<bf16_k>("maxsim_bf16_neonsdot", nk_maxsim_pack_size_bf16_neonsdot, nk_maxsim_pack_bf16_neonsdot,
                               nk_maxsim_packed_bf16_neonsdot);
-    run_maxsim_packed<f32_k>("maxsim_f32_neonsdot", nk_maxsim_packed_size_f32_neonsdot, nk_maxsim_pack_f32_neonsdot,
+    run_maxsim_packed<f32_k>("maxsim_f32_neonsdot", nk_maxsim_pack_size_f32_neonsdot, nk_maxsim_pack_f32_neonsdot,
                              nk_maxsim_packed_f32_neonsdot);
-    run_maxsim_packed<f16_k>("maxsim_f16_neonsdot", nk_maxsim_packed_size_f16_neonsdot, nk_maxsim_pack_f16_neonsdot,
+    run_maxsim_packed<f16_k>("maxsim_f16_neonsdot", nk_maxsim_pack_size_f16_neonsdot, nk_maxsim_pack_f16_neonsdot,
                              nk_maxsim_packed_f16_neonsdot);
 #endif
 
 #if NK_TARGET_V128RELAXED
-    run_maxsim_packed<bf16_k>("maxsim_bf16_v128relaxed", nk_maxsim_packed_size_bf16_v128relaxed,
+    run_maxsim_packed<bf16_k>("maxsim_bf16_v128relaxed", nk_maxsim_pack_size_bf16_v128relaxed,
                               nk_maxsim_pack_bf16_v128relaxed, nk_maxsim_packed_bf16_v128relaxed);
-    run_maxsim_packed<f32_k>("maxsim_f32_v128relaxed", nk_maxsim_packed_size_f32_v128relaxed,
+    run_maxsim_packed<f32_k>("maxsim_f32_v128relaxed", nk_maxsim_pack_size_f32_v128relaxed,
                              nk_maxsim_pack_f32_v128relaxed, nk_maxsim_packed_f32_v128relaxed);
-    run_maxsim_packed<f16_k>("maxsim_f16_v128relaxed", nk_maxsim_packed_size_f16_v128relaxed,
+    run_maxsim_packed<f16_k>("maxsim_f16_v128relaxed", nk_maxsim_pack_size_f16_v128relaxed,
                              nk_maxsim_pack_f16_v128relaxed, nk_maxsim_packed_f16_v128relaxed);
 #endif
 
 #if NK_TARGET_SME
-    run_maxsim_packed<bf16_k>("maxsim_bf16_sme", nk_maxsim_packed_size_bf16_sme, nk_maxsim_pack_bf16_sme,
+    run_maxsim_packed<bf16_k>("maxsim_bf16_sme", nk_maxsim_pack_size_bf16_sme, nk_maxsim_pack_bf16_sme,
                               nk_maxsim_packed_bf16_sme);
-    run_maxsim_packed<f32_k>("maxsim_f32_sme", nk_maxsim_packed_size_f32_sme, nk_maxsim_pack_f32_sme,
+    run_maxsim_packed<f32_k>("maxsim_f32_sme", nk_maxsim_pack_size_f32_sme, nk_maxsim_pack_f32_sme,
                              nk_maxsim_packed_f32_sme);
-    run_maxsim_packed<f16_k>("maxsim_f16_sme", nk_maxsim_packed_size_f16_sme, nk_maxsim_pack_f16_sme,
+    run_maxsim_packed<f16_k>("maxsim_f16_sme", nk_maxsim_pack_size_f16_sme, nk_maxsim_pack_f16_sme,
                              nk_maxsim_packed_f16_sme);
 #endif
 }

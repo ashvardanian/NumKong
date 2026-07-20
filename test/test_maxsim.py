@@ -201,12 +201,12 @@ def test_maxsim_type_errors(capability: str, nk_seed: int):
 
 
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_maxsim_packed_size(capability: str):
-    """Verify classmethod packed_size returns a positive integer."""
+def test_maxsim_pack_size(capability: str):
+    """Verify classmethod pack_size returns a positive integer."""
     keep_one_capability(capability)
-    size = nk.MaxSimPackedMatrix.packed_size(8, 64, dtype="bf16")
+    size = nk.MaxSimPackedMatrix.pack_size(8, 64, dtype="bf16")
     assert isinstance(size, int)
     assert size > 0
 
-    size_f32 = nk.MaxSimPackedMatrix.packed_size(8, 64, dtype="f32")
+    size_f32 = nk.MaxSimPackedMatrix.pack_size(8, 64, dtype="f32")
     assert size_f32 > 0

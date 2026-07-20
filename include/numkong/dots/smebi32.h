@@ -18,7 +18,7 @@
 
 #include "numkong/types.h"
 #include "numkong/dots/sme.h"     // nk_sme_zero_za32_* constants
-#include "numkong/sets/smebi32.h" // nk_dots_packed_size_u1_smebi32, nk_dots_pack_u1_smebi32
+#include "numkong/sets/smebi32.h" // nk_dots_pack_size_u1_smebi32, nk_dots_pack_u1_smebi32
 
 #if defined(__cplusplus)
 extern "C" {

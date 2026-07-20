@@ -145,12 +145,12 @@ StatementMacros:
   - nk_dispatch_mesh_
   - nk_dispatch_reduce_moments_
   - nk_dispatch_reduce_minmax_
-  - nk_dispatch_cross_packed_size_
+  - nk_dispatch_cross_pack_size_
   - nk_dispatch_cross_pack_
   - nk_dispatch_cross_packed_
   - nk_dispatch_cross_symmetric_
   - nk_dispatch_maxsim_packed_
-  - nk_dispatch_attention_packed_size_
+  - nk_dispatch_attention_pack_size_
   - nk_dispatch_attention_pack_
   - nk_dispatch_attention_packed_
 

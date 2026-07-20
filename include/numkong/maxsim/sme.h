@@ -469,12 +469,12 @@ NK_API_COMPTIME void nk_maxsim_packed_bf16_sme( //
     nk_sme_stop_streaming_();
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_bf16_sme(nk_size_t columns, nk_size_t depth) { //
-    return nk_dots_packed_size_bf16_sme(columns, depth);
+NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sme(nk_size_t columns, nk_size_t depth) { //
+    return nk_dots_pack_size_bf16_sme(columns, depth);
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f16_sme(nk_size_t columns, nk_size_t depth) { //
-    return nk_dots_packed_size_f16_sme(columns, depth);
+NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sme(nk_size_t columns, nk_size_t depth) { //
+    return nk_dots_pack_size_f16_sme(columns, depth);
 }
 
 NK_API_COMPTIME void nk_maxsim_pack_bf16_sme(                                                                //
@@ -528,7 +528,7 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_sme(                                    
  *  Refinement: tile-wide interleaved f64 dot products for the winning (query, document) pairs.
  *  Angular distance: 1 - dot / sqrt(||q||^2 * ||d||^2), accumulated with f64.
  */
-NK_API_COMPTIME nk_size_t nk_maxsim_packed_size_f32_sme(nk_size_t columns, nk_size_t depth) { //
+NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sme(nk_size_t columns, nk_size_t depth) { //
     nk_size_t const expansion = 4;                                                      // i8->i32 SMOPA
     nk_size_t const tile_dimension = nk_sme_cntw_();                                    // 16 for SVL=512
     nk_size_t const vector_elements = nk_sme_cntb_();                                   // 64 for SVL=512

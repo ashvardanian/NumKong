@@ -159,8 +159,8 @@ NK_HELPER_INLINE void nk_attention_transpose_i32x16x16_icelake_(__m512i const ro
     groups_i32x16[15] = _mm512_shuffle_i32x4(v3_b_i32x16, v7_b_i32x16, 0xDD);
 }
 
-NK_HELPER_INLINE nk_size_t nk_attention_packed_size_icelake_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_pack_size_icelake_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
     nk_size_t payload_bytes = 0; // raw I8 K/V planes plus one I32 Σk per KV position, folded as `+ 2` per plane pair
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
@@ -170,12 +170,11 @@ NK_HELPER_INLINE nk_size_t nk_attention_packed_size_icelake_(nk_size_t key_value
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_i8_icelake(nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *segment_lengths,
-                                                              nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_icelake(nk_size_t key_value_head_count, nk_size_t depth,
+                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_icelake_k_)
-        return nk_attention_packed_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_icelake_(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_icelake_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
 NK_API_COMPTIME void nk_attention_pack_i8_icelake(                                                             //

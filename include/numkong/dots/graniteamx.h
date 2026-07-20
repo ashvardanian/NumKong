@@ -204,7 +204,7 @@ NK_HELPER_INLINE void nk_dots_f16_update_graniteamx_( //
 
 #pragma region F16 Native
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_f16_graniteamx(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_f16_graniteamx(nk_size_t column_count, nk_size_t depth) {
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 32;
     nk_size_t const tile_bytes = 512 * sizeof(nk_f16_t); // 16 × 32 × 2 = 1KB
@@ -757,7 +757,7 @@ NK_HELPER_INLINE void nk_dots_e5m2_load_a_graniteamx_(   //
     nk_compiler_barrier_sapphireamx_();
 }
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_e5m2_graniteamx(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_e5m2_graniteamx(nk_size_t column_count, nk_size_t depth) {
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 32;
     nk_size_t const tile_bytes = 512 * sizeof(nk_f16_t); // Tiles hold F16 after widen: same 1KB as F16.

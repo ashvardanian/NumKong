@@ -44,7 +44,7 @@
  *
  *  @section packing Packing
  *
- *  Uses the SAME pack functions as dot products (nk_dots_packed_size_*, nk_dots_pack_*).
+ *  Uses the SAME pack functions as dot products (nk_dots_pack_size_*, nk_dots_pack_*).
  *  The packed buffer includes norms appended after the data.
  */
 

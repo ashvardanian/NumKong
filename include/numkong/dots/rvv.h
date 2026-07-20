@@ -79,7 +79,7 @@ static nk_u16_t const nk_e3m2_magnitude_lut_rvv_[32] = {0,  1,   2,   3,   4,   
 
 #pragma region F32 Floats
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_f32_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_f32_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     // Break power-of-2 strides for cache associativity
@@ -284,7 +284,7 @@ NK_API_COMPTIME void nk_dots_symmetric_f32_rvv(nk_f32_t const *vectors, nk_size_
 
 #pragma region F64 Floats
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_f64_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_f64_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f64_t);
@@ -523,7 +523,7 @@ NK_HELPER_INLINE nk_i8_t nk_e2m3_to_i8_rvv_(nk_u8_t raw) {
     return (raw & 0x20u) ? (nk_i8_t)(-value) : value;
 }
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_e2m3_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_e2m3_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_i8_t);
@@ -819,7 +819,7 @@ NK_HELPER_INLINE nk_i16_t nk_e3m2_to_i16_rvv_(nk_u8_t raw) {
     return (raw & 0x20u) ? (nk_i16_t)(-value) : value;
 }
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_e3m2_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_e3m2_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e16m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_i16_t);
@@ -1091,7 +1091,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_siz
  *  VL is determined by `__riscv_vsetvlmax_e32m2()` since B is stored as f32.
  *  Layout: column-panel with depth-contiguous f32 values, cache-line padding.
  */
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_bf16_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     // Break power-of-2 strides for cache associativity
@@ -1321,7 +1321,7 @@ NK_API_COMPTIME void nk_dots_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_siz
  *  VL is determined by `__riscv_vsetvlmax_e32m2()` since B is stored as f32.
  *  Layout: column-panel with depth-contiguous f32 values, cache-line padding.
  */
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_f16_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_f16_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     // Break power-of-2 strides for cache associativity
@@ -1544,7 +1544,7 @@ NK_API_COMPTIME void nk_dots_symmetric_f16_rvv(nk_f16_t const *vectors, nk_size_
  *  VL is determined by `__riscv_vsetvlmax_e8m1()` since B is stored as i8.
  *  Layout: column-panel with depth-contiguous i8 values, cache-line padding.
  */
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_i8_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     // Break power-of-2 strides for cache associativity
@@ -1771,7 +1771,7 @@ NK_API_COMPTIME void nk_dots_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size_t 
  *  VL is determined by `__riscv_vsetvlmax_e8m1()` since B is stored as u8.
  *  Layout: column-panel with depth-contiguous u8 values, cache-line padding.
  */
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_u8_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_u8_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     // Break power-of-2 strides for cache associativity
@@ -2032,7 +2032,7 @@ static nk_u32_t const nk_e4m3_magnitude_lut_rvv_[128] = {
     0x43C00000u, 0x43D00000u, 0x43E00000u, 0x7FC00000u /* [120..127] */
 };
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_e4m3_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_e4m3_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);
@@ -2333,7 +2333,7 @@ static nk_u32_t const nk_e5m2_magnitude_lut_rvv_[128] = {
     0x7F800000u, 0x7FC00000u, 0x7FC00000u, 0x7FC00000u /* [120..127] */
 };
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_e5m2_rvv(nk_size_t column_count, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_e5m2_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);

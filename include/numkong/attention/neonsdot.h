@@ -81,11 +81,10 @@ NK_HELPER_INLINE int32x4_t nk_attention_iexp2_weight_i32x4_neonsdot_(int32x4_t t
     return vshlq_s32(vaddq_s32(scaled_i32x4, bias_i32x4), vnegq_s32(shift_i32x4)); // round-half-up, then ≫ shift
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_i8_neonsdot(nk_size_t key_value_head_count, nk_size_t depth,
-                                                               nk_u32_t const *segment_lengths,
-                                                               nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_neonsdot(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_neonsdot_k_)
-        return nk_attention_packed_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
     nk_size_t payload_bytes = 0; // K rows plus quad-tiled V, positions padded to the UDOT quad
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)

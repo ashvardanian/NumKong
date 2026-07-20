@@ -107,7 +107,7 @@ NK_HELPER_AUTO nk_u32_t nk_sets_reduce_sumsq_u1_streaming_(nk_u1x8_t const *data
 
 #pragma region Hamming Distance
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_u1_smebi32(nk_size_t row_count, nk_size_t depth_bits) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_u1_smebi32(nk_size_t row_count, nk_size_t depth_bits) {
     nk_size_t const tile_dim = nk_smebi32_tile_dim_();        // 16 rows per tile
     nk_size_t const depth_tile_size = nk_smebi32_tile_dim_(); // 16 u32 per depth tile = 512 bits
 

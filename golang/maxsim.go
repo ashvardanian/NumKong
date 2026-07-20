@@ -28,7 +28,7 @@ func NewMaxSimPackedF32(vectors []float32, vectorCount, depth int) MaxSimPacked 
 	if len(vectors) < vectorCount*depth {
 		panic("input slice too short for the given vectorCount and depth")
 	}
-	size := int(C.nk_maxsim_packed_size_f32(C.nk_size_t(vectorCount), C.nk_size_t(depth)))
+	size := int(C.nk_maxsim_pack_size_f32(C.nk_size_t(vectorCount), C.nk_size_t(depth)))
 	data := make([]byte, size)
 	C.nk_maxsim_pack_f32(
 		(*C.nk_f32_t)(&vectors[0]),

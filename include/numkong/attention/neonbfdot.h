@@ -57,11 +57,11 @@ NK_HELPER_INLINE float32x4_t nk_attention_exp2_f32x4_neonbfdot_(float32x4_t x_f3
     return vmulq_f32(poly_f32x4, power_f32x4);
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_bf16_neonbfdot(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                  nk_u32_t const *segment_lengths,
-                                                                  nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_neonbfdot(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                nk_u32_t const *segment_lengths,
+                                                                nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_neonbfdot_k_)
-        return nk_attention_packed_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t payload_bytes = 0; // planes keep the raw BF16 encoding
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)

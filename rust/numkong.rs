@@ -386,7 +386,7 @@ mod tests {
         }
     }
 
-    /// Exercises the Wave 2 attention surface: the `packed_size` query, the `pack` / `attention` /
+    /// Exercises the Wave 2 attention surface: the `pack_size` query, the `pack` / `attention` /
     /// `attention_parallel` panic wrappers, and the allocating `try_pack_parallel` /
     /// `try_attention_parallel`. Parallel packing must reproduce the serial blob byte-for-byte,
     /// and every compute path must agree bit-for-bit.
@@ -406,16 +406,16 @@ mod tests {
         let keys = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.125)).unwrap();
         let values = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.75)).unwrap();
 
-        // The infallible `packed_size` query must predict the produced blob size exactly.
+        // The infallible `pack_size` query must predict the produced blob size exactly.
         let seg_lengths: Vec<u32> = offsets.windows(2).map(|p| p[1] - p[0]).collect();
-        let predicted = AttentionPackedCache::<bf16>::packed_size(kv_heads, head_dim, &seg_lengths);
+        let predicted = AttentionPackedCache::<bf16>::pack_size(kv_heads, head_dim, &seg_lengths);
 
         // Serial pack via the panicking `pack` wrapper.
         let kv_serial = AttentionPackedCache::pack(&keys.view(), &values.view(), head_dim, &offsets, None);
         assert_eq!(
             kv_serial.as_bytes().len(),
             predicted,
-            "packed_size must predict the blob size"
+            "pack_size must predict the blob size"
         );
 
         // Parallel pack must yield a byte-identical blob.

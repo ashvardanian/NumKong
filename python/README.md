@@ -538,7 +538,7 @@ right_packed = nk.dots_pack(right, dtype="float32")  # pack once, reuse many tim
 scores = nk.dots_packed(left, right_packed)          # equivalent to left @ right.T
 
 assert scores.shape == (128, 10_000)
-assert right_packed.nbytes == nk.PackedMatrix.packed_size(10_000, 768, dtype="float32")
+assert right_packed.nbytes == nk.PackedMatrix.pack_size(10_000, 768, dtype="float32")
 ```
 
 Important runtime rules from the current implementation:
@@ -634,7 +634,7 @@ d = nk.maxsim_pack(documents, dtype="float32")
 score = nk.maxsim_packed(q, d)
 
 assert np.isfinite(score)
-assert q.nbytes == nk.MaxSimPackedMatrix.packed_size(32, 128, dtype="float32")
+assert q.nbytes == nk.MaxSimPackedMatrix.pack_size(32, 128, dtype="float32")
 ```
 
 ## Capabilities, GIL Behavior, and Parallel Partitioning

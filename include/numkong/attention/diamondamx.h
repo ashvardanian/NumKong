@@ -104,9 +104,9 @@ NK_HELPER_INLINE __m512 nk_attention_dequantize_e4m3x16_diamondamx_(__m128i weig
 }
 
 /** @brief E4M3 native and I8 share a raw 1-byte, 64-deep, quad-interleaved tile layout. */
-NK_HELPER_INLINE nk_size_t nk_attention_packed_size_quad_diamondamx_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                     nk_u32_t const *segment_lengths,
-                                                                     nk_size_t segment_count) {
+NK_HELPER_INLINE nk_size_t nk_attention_pack_size_quad_diamondamx_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                   nk_u32_t const *segment_lengths,
+                                                                   nk_size_t segment_count) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
     nk_size_t total_tile_bytes = 0;
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++) {
@@ -116,12 +116,12 @@ NK_HELPER_INLINE nk_size_t nk_attention_packed_size_quad_diamondamx_(nk_size_t k
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + total_tile_bytes;
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_size_e4m3_diamondamx(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                   nk_u32_t const *segment_lengths,
-                                                                   nk_size_t segment_count) {
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_diamondamx(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                 nk_u32_t const *segment_lengths,
+                                                                 nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_diamondamx_k_)
-        return nk_attention_packed_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_packed_size_quad_diamondamx_(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_attention_pack_size_quad_diamondamx_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
 /** @brief Raw 1-byte packing shared by E4M3-native and I8: K transposed, V quad-interleaved. */

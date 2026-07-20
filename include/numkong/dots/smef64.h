@@ -74,7 +74,7 @@ extern "C" {
  */
 #pragma region F32 Floats
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_f32_smef64(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_f32_smef64(nk_size_t columns, nk_size_t depth) {
     nk_size_t const tile_dimension = nk_sme_cntd_();  // rows per `ZA64` tile (8 for SVL=512)
     nk_size_t const depth_tile_size = nk_sme_cntw_(); // `f32` depth elements per tile (16 for SVL=512)
 
@@ -944,7 +944,7 @@ NK_API_COMPTIME void nk_dots_symmetric_f64_smef64( //
     nk_sme_stop_streaming_();
 }
 
-NK_API_COMPTIME nk_size_t nk_dots_packed_size_f64_smef64(nk_size_t columns, nk_size_t depth) {
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_f64_smef64(nk_size_t columns, nk_size_t depth) {
     nk_size_t const tile_dimension = nk_sme_cntd_();
     nk_size_t const depth_tile_size = nk_sme_cntw_();
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);

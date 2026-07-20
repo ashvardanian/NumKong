@@ -237,7 +237,7 @@ This hidden allocation has caused real problems: [14 lock/unlock pairs per small
 The [BLASFEO](https://github.com/giaf/blasfeo) library was created specifically for embedded model-predictive control where `malloc` during computation is unacceptable.
 
 NumKong __never allocates memory__.
-Following the same philosophy as [Intel MKL's packed GEMM API](https://www.intel.com/content/www/us/en/developer/articles/technical/introducing-the-new-packed-apis-for-gemm.html) (`cblas_sgemm_pack_get_size` → `cblas_sgemm_pack` → `cblas_sgemm_compute`), NumKong exposes typed three-phase interfaces — `nk_dots_packed_size_*` → `nk_dots_pack_*` → `nk_dots_packed_*` — where the caller owns the buffer and NumKong only fills it.
+Following the same philosophy as [Intel MKL's packed GEMM API](https://www.intel.com/content/www/us/en/developer/articles/technical/introducing-the-new-packed-apis-for-gemm.html) (`cblas_sgemm_pack_get_size` → `cblas_sgemm_pack` → `cblas_sgemm_compute`), NumKong exposes typed three-phase interfaces — `nk_dots_pack_size_*` → `nk_dots_pack_*` → `nk_dots_packed_*` — where the caller owns the buffer and NumKong only fills it.
 
 The owning containers follow the same caller-controls-allocation discipline across every binding.
 In C++, Rust, Python, JavaScript, and Swift an owning tensor or vector is _fixed-capacity resizable_: `capacity` is the allocated ceiling, `try_resize`/`resize` reshapes within it without moving storage so handed-out views stay valid, `reserve` is the explicit opt-in that may reallocate to grow, and `clear` empties the shape while keeping capacity.

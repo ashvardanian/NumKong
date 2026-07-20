@@ -17,7 +17,7 @@
 #include "numkong/set.h"          // Hamming, Jaccard, like `nk_hamming_u1`
 #include "numkong/curved.h"       // Mahalanobis, Bilinear Forms, like `nk_bilinear_f64`
 #include "numkong/dot.h"          // Inner (dot) product and its conjugate, like `nk_dot_f32`
-#include "numkong/dots.h"         // GEMM-style MxN batched dot-products, like `nk_dots_packed_size_bf16`
+#include "numkong/dots.h"         // GEMM-style MxN batched dot-products, like `nk_dots_pack_size_bf16`
 #include "numkong/each.h"         // Weighted Sum, Fused-Multiply-Add, like `nk_each_scale_f64`
 #include "numkong/geospatial.h"   // Haversine and Vincenty, like `nk_haversine_f64`
 #include "numkong/mesh.h"         // RMSD, Kabsch, Umeyama, like `nk_rmsd_f64`

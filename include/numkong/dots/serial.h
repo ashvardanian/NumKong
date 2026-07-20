@@ -243,32 +243,32 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *  @param depth_simd_dimensions SIMD vector width in values for this platform/type combination
  *  @param dimensions_per_value Number of logical dimensions in a single value of input_type_name.
  */
-#define nk_define_cross_pack_size_(api_name, input_type_name, isa_suffix, input_value_type, packed_value_type,     \
-                                   norm_value_type, depth_simd_dimensions, dimensions_per_value)                   \
-    NK_API_COMPTIME nk_size_t nk_##api_name##_packed_size_##input_type_name##_##isa_suffix(nk_size_t column_count, \
-                                                                                           nk_size_t depth) {      \
-        /* depth is always in logical dimensions (nibbles for i4, bytes for i8, etc.) */                           \
-        /* depth_simd_dimensions is also in logical dimensions */                                                  \
-                                                                                                                   \
-        /* Pad depth in dimensions */                                                                              \
-        nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);           \
-                                                                                                                   \
-        /* Convert dimensions to storage values */                                                                 \
-        nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value);   \
-                                                                                                                   \
-        /* Calculate stride in bytes for power-of-2 check */                                                       \
-        nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                   \
-                                                                                                                   \
-        /* Break power-of-2 strides for cache associativity */                                                     \
-        if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0) {                                        \
-            /* Add one SIMD step worth of storage values */                                                        \
-            depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);          \
-        }                                                                                                          \
-                                                                                                                   \
-        /* Return total buffer size (packed data + per-column norms) */                                            \
-        return sizeof(nk_cross_packed_buffer_header_t) +                                                           \
-               column_count * depth_values_padded * sizeof(nk_##packed_value_type##_t) +                           \
-               column_count * sizeof(nk_##norm_value_type##_t);                                                    \
+#define nk_define_cross_pack_size_(api_name, input_type_name, isa_suffix, input_value_type, packed_value_type,   \
+                                   norm_value_type, depth_simd_dimensions, dimensions_per_value)                 \
+    NK_API_COMPTIME nk_size_t nk_##api_name##_pack_size_##input_type_name##_##isa_suffix(nk_size_t column_count, \
+                                                                                         nk_size_t depth) {      \
+        /* depth is always in logical dimensions (nibbles for i4, bytes for i8, etc.) */                         \
+        /* depth_simd_dimensions is also in logical dimensions */                                                \
+                                                                                                                 \
+        /* Pad depth in dimensions */                                                                            \
+        nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);         \
+                                                                                                                 \
+        /* Convert dimensions to storage values */                                                               \
+        nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value); \
+                                                                                                                 \
+        /* Calculate stride in bytes for power-of-2 check */                                                     \
+        nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                 \
+                                                                                                                 \
+        /* Break power-of-2 strides for cache associativity */                                                   \
+        if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0) {                                      \
+            /* Add one SIMD step worth of storage values */                                                      \
+            depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);        \
+        }                                                                                                        \
+                                                                                                                 \
+        /* Return total buffer size (packed data + per-column norms) */                                          \
+        return sizeof(nk_cross_packed_buffer_header_t) +                                                         \
+               column_count * depth_values_padded * sizeof(nk_##packed_value_type##_t) +                         \
+               column_count * sizeof(nk_##norm_value_type##_t);                                                  \
     }
 
 /**
@@ -340,20 +340,20 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *  Layout: [ Header 64B ] [ Packed data ] [ Norms (norm_type) ] [ Column sums (sum_type) ]
  *  Norms first → existing nk_define_cross_normalized_packed_ reads norms at the same offset.
  */
-#define nk_define_cross_compensated_pack_size_(api_name, input_type_name, isa_suffix, input_value_type,            \
-                                               packed_value_type, sum_value_type, norm_value_type,                 \
-                                               depth_simd_dimensions, dimensions_per_value)                        \
-    NK_API_COMPTIME nk_size_t nk_##api_name##_packed_size_##input_type_name##_##isa_suffix(nk_size_t column_count, \
-                                                                                           nk_size_t depth) {      \
-        nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);           \
-        nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value);   \
-        nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                   \
-        if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0) {                                        \
-            depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);          \
-        }                                                                                                          \
-        return sizeof(nk_cross_packed_buffer_header_t) +                                                           \
-               column_count * depth_values_padded * sizeof(nk_##packed_value_type##_t) +                           \
-               column_count * sizeof(nk_##norm_value_type##_t) + column_count * sizeof(nk_##sum_value_type##_t);   \
+#define nk_define_cross_compensated_pack_size_(api_name, input_type_name, isa_suffix, input_value_type,          \
+                                               packed_value_type, sum_value_type, norm_value_type,               \
+                                               depth_simd_dimensions, dimensions_per_value)                      \
+    NK_API_COMPTIME nk_size_t nk_##api_name##_pack_size_##input_type_name##_##isa_suffix(nk_size_t column_count, \
+                                                                                         nk_size_t depth) {      \
+        nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);         \
+        nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value); \
+        nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                 \
+        if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0) {                                      \
+            depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);        \
+        }                                                                                                        \
+        return sizeof(nk_cross_packed_buffer_header_t) +                                                         \
+               column_count * depth_values_padded * sizeof(nk_##packed_value_type##_t) +                         \
+               column_count * sizeof(nk_##norm_value_type##_t) + column_count * sizeof(nk_##sum_value_type##_t); \
     }
 
 /**

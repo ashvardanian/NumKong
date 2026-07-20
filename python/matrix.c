@@ -29,9 +29,9 @@ static void PackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self);
 
 /** @brief Compute packed buffer size for a PackedMatrix. */
 static size_t packed_matrix_nbytes(PackedMatrix *mm) {
-    nk_dots_packed_size_punned_t size_fn = NULL;
+    nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_packed_size_k, mm->dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, mm->dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn || !cap) return 0;
     return size_fn(mm->width, mm->depth);
 }
@@ -71,7 +71,7 @@ static PyGetSetDef PackedMatrix_getset[] = {
     {NULL, NULL, NULL, NULL, NULL},
 };
 
-static PyObject *PackedMatrix_packed_size(PyObject *cls, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
+static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(cls);
 
     PyObject *width_obj = NULL, *depth_obj = NULL, *dtype_obj = NULL;
@@ -79,7 +79,7 @@ static PyObject *PackedMatrix_packed_size(PyObject *cls, PyObject *const *args, 
     Py_ssize_t total = nargs + nkw;
 
     if (nargs < 2 || total > 3 || nargs > 3) {
-        PyErr_SetString(PyExc_TypeError, "packed_size(width, depth, /, dtype='bf16')");
+        PyErr_SetString(PyExc_TypeError, "pack_size(width, depth, /, dtype='bf16')");
         return NULL;
     }
 
@@ -92,19 +92,19 @@ static PyObject *PackedMatrix_packed_size(PyObject *cls, PyObject *const *args, 
         PyObject *value = args[nargs + i];
         if (PyUnicode_CompareWithASCIIString(name, "dtype") == 0) {
             if (dtype_obj) {
-                PyErr_SetString(PyExc_TypeError, "packed_size() got multiple values for argument 'dtype'");
+                PyErr_SetString(PyExc_TypeError, "pack_size() got multiple values for argument 'dtype'");
                 return NULL;
             }
             dtype_obj = value;
         }
         else {
-            PyErr_Format(PyExc_TypeError, "packed_size() got unexpected keyword argument '%S'", name);
+            PyErr_Format(PyExc_TypeError, "pack_size() got unexpected keyword argument '%S'", name);
             return NULL;
         }
     }
 
     if (!dtype_obj) {
-        PyErr_SetString(PyExc_TypeError, "packed_size() requires 'dtype' argument");
+        PyErr_SetString(PyExc_TypeError, "pack_size() requires 'dtype' argument");
         return NULL;
     }
 
@@ -116,11 +116,11 @@ static PyObject *PackedMatrix_packed_size(PyObject *cls, PyObject *const *args, 
     nk_dtype_t dtype = py_object_to_nk_dtype(dtype_obj);
     if (dtype == nk_dtype_unknown_k) return NULL;
 
-    nk_dots_packed_size_punned_t size_fn = NULL;
+    nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_packed_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn || !cap) {
-        PyErr_Format(PyExc_LookupError, "No packed_size kernel for dtype '%s'", nk_dtype_to_pybuffer_typestr(dtype));
+        PyErr_Format(PyExc_LookupError, "No pack_size kernel for dtype '%s'", nk_dtype_to_pybuffer_typestr(dtype));
         return NULL;
     }
 
@@ -128,7 +128,7 @@ static PyObject *PackedMatrix_packed_size(PyObject *cls, PyObject *const *args, 
 }
 
 static PyMethodDef PackedMatrix_methods[] = {
-    {"packed_size", (PyCFunction)PackedMatrix_packed_size, METH_CLASS | METH_FASTCALL | METH_KEYWORDS,
+    {"pack_size", (PyCFunction)PackedMatrix_pack_size, METH_CLASS | METH_FASTCALL | METH_KEYWORDS,
      "Return packed buffer size in bytes for a matrix shape and dtype."},
     {NULL, NULL, 0, NULL},
 };
@@ -758,9 +758,9 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
     }
 
     // Get packed size via punned dispatch
-    nk_dots_packed_size_punned_t size_fn = NULL;
+    nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_packed_size_k, target_dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, target_dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn || !cap) {
         PyBuffer_Release(&b_buffer);
         PyErr_Format(PyExc_LookupError, "No packing kernel for dtype '%s'", nk_dtype_to_pybuffer_typestr(target_dtype));
