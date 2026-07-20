@@ -25,6 +25,7 @@ use forkunion as fu;
 extern "C" {
 
     fn nk_dots_pack_size_f32(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_f32(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_f32(b: *const f32, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_f32(
         a: *const f32,
@@ -38,6 +39,7 @@ extern "C" {
     );
 
     fn nk_dots_pack_size_f64(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_f64(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_f64(b: *const f64, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_f64(
         a: *const f64,
@@ -51,6 +53,7 @@ extern "C" {
     );
 
     fn nk_dots_pack_size_f16(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_f16(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_f16(b: *const u16, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_f16(
         a: *const u16,
@@ -64,6 +67,7 @@ extern "C" {
     );
 
     fn nk_dots_pack_size_bf16(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_bf16(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_bf16(b: *const u16, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_bf16(
         a: *const u16,
@@ -77,6 +81,7 @@ extern "C" {
     );
 
     fn nk_dots_pack_size_i8(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_i8(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_i8(b: *const i8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_i8(
         a: *const i8,
@@ -90,6 +95,7 @@ extern "C" {
     );
 
     fn nk_dots_pack_size_u8(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_u8(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_u8(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_u8(
         a: *const u8,
@@ -103,6 +109,7 @@ extern "C" {
     );
 
     fn nk_dots_pack_size_e4m3(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_e4m3(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_e4m3(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_e4m3(
         a: *const u8,
@@ -116,6 +123,7 @@ extern "C" {
     );
 
     fn nk_dots_pack_size_e5m2(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_e5m2(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_e5m2(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_e5m2(
         a: *const u8,
@@ -129,6 +137,7 @@ extern "C" {
     );
 
     fn nk_dots_pack_size_e2m3(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_e2m3(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_e2m3(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_e2m3(
         a: *const u8,
@@ -142,6 +151,7 @@ extern "C" {
     );
 
     fn nk_dots_pack_size_e3m2(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_e3m2(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_e3m2(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_e3m2(
         a: *const u8,
@@ -155,6 +165,7 @@ extern "C" {
     );
 
     fn nk_dots_pack_size_u4(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_u4(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_u4(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_u4(
         a: *const u8,
@@ -168,6 +179,7 @@ extern "C" {
     );
 
     fn nk_dots_pack_size_i4(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_i4(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_i4(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
     fn nk_dots_packed_i4(
         a: *const u8,
@@ -303,6 +315,7 @@ extern "C" {
     );
 
     fn nk_dots_pack_size_u1(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_u1(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_u1(q: *const u8, width: usize, depth: usize, q_stride: usize, q_packed: *mut u8);
     fn nk_dots_packed_u1(
         a: *const u8,
@@ -374,6 +387,11 @@ pub trait Dots: StorageElement + private::Sealed {
     /// Returns the size in bytes needed for the packed B matrix buffer.
     fn dots_pack_size(width: usize, depth: usize) -> usize;
 
+    /// Reads the packed B matrix's width and depth from its header.
+    /// # Safety
+    /// `packed` must point to a buffer produced by `dots_pack`.
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize);
+
     /// Packs the B matrix into an optimized backend-specific layout.
     ///
     /// # Safety
@@ -424,6 +442,11 @@ impl Dots for f32 {
     type Accumulator = f64;
 
     fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_f32(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_f32(packed, &mut width, &mut depth);
+        (width, depth)
+    }
 
     unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_f32(b, width, depth, b_stride, packed)
@@ -469,6 +492,11 @@ impl Dots for f64 {
     type Accumulator = f64;
 
     fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_f64(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_f64(packed, &mut width, &mut depth);
+        (width, depth)
+    }
 
     unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_f64(b, width, depth, b_stride, packed)
@@ -514,6 +542,11 @@ impl Dots for f16 {
     type Accumulator = f32;
 
     fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_f16(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_f16(packed, &mut width, &mut depth);
+        (width, depth)
+    }
 
     unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_f16(b as *const u16, width, depth, b_stride, packed)
@@ -559,6 +592,11 @@ impl Dots for bf16 {
     type Accumulator = f32;
 
     fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_bf16(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_bf16(packed, &mut width, &mut depth);
+        (width, depth)
+    }
 
     unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_bf16(b as *const u16, width, depth, b_stride, packed)
@@ -604,6 +642,11 @@ impl Dots for i8 {
     type Accumulator = i32;
 
     fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_i8(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_i8(packed, &mut width, &mut depth);
+        (width, depth)
+    }
 
     unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_i8(b, width, depth, b_stride, packed)
@@ -649,6 +692,11 @@ impl Dots for u8 {
     type Accumulator = u32;
 
     fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_u8(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_u8(packed, &mut width, &mut depth);
+        (width, depth)
+    }
 
     unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_u8(b, width, depth, b_stride, packed)
@@ -694,6 +742,11 @@ impl Dots for e4m3 {
     type Accumulator = f32;
 
     fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_e4m3(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_e4m3(packed, &mut width, &mut depth);
+        (width, depth)
+    }
 
     unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_e4m3(b as *const u8, width, depth, b_stride, packed)
@@ -739,6 +792,11 @@ impl Dots for e5m2 {
     type Accumulator = f32;
 
     fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_e5m2(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_e5m2(packed, &mut width, &mut depth);
+        (width, depth)
+    }
 
     unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_e5m2(b as *const u8, width, depth, b_stride, packed)
@@ -784,6 +842,11 @@ impl Dots for e2m3 {
     type Accumulator = f32;
 
     fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_e2m3(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_e2m3(packed, &mut width, &mut depth);
+        (width, depth)
+    }
 
     unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_e2m3(b as *const u8, width, depth, b_stride, packed)
@@ -829,6 +892,11 @@ impl Dots for e3m2 {
     type Accumulator = f32;
 
     fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_e3m2(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_e3m2(packed, &mut width, &mut depth);
+        (width, depth)
+    }
 
     unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_e3m2(b as *const u8, width, depth, b_stride, packed)
@@ -874,6 +942,11 @@ impl Dots for u4x2 {
     type Accumulator = u32;
 
     fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_u4(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_u4(packed, &mut width, &mut depth);
+        (width, depth)
+    }
 
     unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_u4(b as *const u8, width, depth, b_stride, packed)
@@ -919,6 +992,11 @@ impl Dots for i4x2 {
     type Accumulator = i32;
 
     fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_i4(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_i4(packed, &mut width, &mut depth);
+        (width, depth)
+    }
 
     unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_i4(b as *const u8, width, depth, b_stride, packed)
@@ -964,6 +1042,11 @@ impl Dots for u1x8 {
     type Accumulator = u32;
 
     fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_u1(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_u1(packed, &mut width, &mut depth);
+        (width, depth)
+    }
 
     unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
         nk_dots_pack_u1(b as *const u8, width, depth, b_stride, packed)
@@ -1215,11 +1298,11 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     /// Returns a reference to the allocator.
     pub fn allocator(&self) -> &Alloc { &self.alloc }
 
-    /// Returns dimensions (width, depth) of the original B matrix.
-    pub fn dims(&self) -> (usize, usize) { (self.width, self.depth) }
+    /// Returns the shape (width, depth) of the original B matrix.
+    pub fn shape(&self) -> (usize, usize) { (self.width, self.depth) }
 
     /// Bytes a packed buffer occupies for a width-by-depth B matrix of this scalar type under the
-    /// active backend's layout. Mirrors [`crate::attention::AttentionPackedCache::pack_size`] and
+    /// active backend's layout. Mirrors [`crate::attention::AttentionPackedMatrix::pack_size`] and
     /// lets a caller pre-size an external buffer without packing.
     pub fn pack_size(width: usize, depth: usize) -> usize { Scalar::dots_pack_size(width, depth) }
 
@@ -1327,7 +1410,7 @@ where
         return Err(TensorError::NonContiguousRows);
     }
     let (height, depth) = (a.shape()[0], a.shape()[1]);
-    let (width, packed_depth) = packed_b.dims();
+    let (width, packed_depth) = packed_b.shape();
     if depth != packed_depth {
         return Err(TensorError::ShapeMismatch {
             axis: 1,
@@ -1648,7 +1731,7 @@ where
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
-        let (width, _) = packed_b.dims();
+        let (width, _) = packed_b.shape();
         let mut c = Tensor::<Scalar::Accumulator, Global, MAX_RANK>::try_full(
             &[height, width],
             Scalar::Accumulator::default(),
@@ -2258,16 +2341,40 @@ mod tests {
             DotsPackedMatrix::<f32>::pack_size(width, depth),
             packed.as_bytes().len()
         );
-        assert_eq!(packed.dims(), (width, depth));
+        assert_eq!(packed.shape(), (width, depth));
 
         // Adopting the packed bytes reproduces byte-identical contents and an identical multiply.
         let adopted =
             unsafe { DotsPackedMatrix::<f32>::from_packed_bytes_in(packed.as_bytes(), width, depth, Global).unwrap() };
         assert_eq!(adopted.as_bytes(), packed.as_bytes());
-        assert_eq!(adopted.dims(), (width, depth));
+        assert_eq!(adopted.shape(), (width, depth));
 
         let a_data: Vec<f32> = (0..3 * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
         let a = Tensor::<f32>::from_slice(&a_data, &[3, depth]);
         assert_eq!(a.dots_packed(&packed).as_slice(), a.dots_packed(&adopted).as_slice());
+    }
+
+    #[test]
+    fn packed_shape_reads_dims() {
+        init_thread();
+        fn check<Scalar: TestableType + Dots>(width: usize, depth: usize) {
+            let depth = align_depth::<Scalar>(depth);
+            let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
+            let packed = DotsPackedMatrix::try_pack(&b).unwrap();
+            let (read_width, read_depth) = unsafe { Scalar::dots_packed_shape(packed.as_ptr()) };
+            assert_eq!(
+                (read_width, read_depth),
+                (width, depth),
+                "packed_shape<{}> @ ({width},{depth})",
+                core::any::type_name::<Scalar>()
+            );
+        }
+        for &(width, depth) in &[(4usize, 5usize), (17, 33), (1, 8)] {
+            check::<f32>(width, depth);
+            check::<f16>(width, depth);
+            check::<bf16>(width, depth);
+            check::<i8>(width, depth);
+            check::<u8>(width, depth);
+        }
     }
 }

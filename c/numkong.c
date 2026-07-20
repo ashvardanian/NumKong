@@ -218,6 +218,12 @@ nk_size_t nk_error_pack_size_(nk_size_t n, nk_size_t k) {
     return 0;
 }
 
+void nk_error_packed_shape_(void const *packed, nk_size_t *n, nk_size_t *k) {
+    nk_unused_(packed);
+    if (n) *n = 0;
+    if (k) *k = 0;
+}
+
 void nk_error_pack_(void const *b, nk_size_t n, nk_size_t k, nk_size_t b_stride, void *b_packed) {
     nk_unused_(b);
     nk_unused_(n);
@@ -250,6 +256,14 @@ nk_size_t nk_error_attention_pack_size_(nk_size_t num_kv_heads, nk_size_t head_d
                                         nk_size_t segment_count) {
     nk_unused_(num_kv_heads), nk_unused_(head_dim), nk_unused_(segment_lengths), nk_unused_(segment_count);
     return 0;
+}
+
+void nk_error_attention_packed_shape_(void const *key_value_packed, nk_size_t *heads, nk_size_t *depth,
+                                      nk_size_t *segments) {
+    nk_unused_(key_value_packed);
+    if (heads) *heads = 0;
+    if (depth) *depth = 0;
+    if (segments) *segments = 0;
 }
 
 void nk_error_attention_pack_(void const *k, void const *v, nk_size_t num_kv_heads, nk_size_t head_dim,
@@ -417,6 +431,11 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
         return nk_dispatch_table.api_name##_pack_size_##name(n, k);                       \
     }
 
+#define nk_dispatch_cross_packed_shape_(api_name, name, input_type, accum_type)                               \
+    NK_API_RUNTIME void nk_##api_name##_packed_shape_##name(void const *packed, nk_size_t *n, nk_size_t *k) { \
+        nk_dispatch_table.api_name##_packed_shape_##name(packed, n, k);                                       \
+    }
+
 #define nk_dispatch_cross_pack_(api_name, name, input_type, accum_type)                                     \
     NK_API_RUNTIME void nk_##api_name##_pack_##name(nk_##input_type##_t const *b, nk_size_t n, nk_size_t k, \
                                                     nk_size_t b_stride, void *b_packed) {                   \
@@ -451,6 +470,12 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
     NK_API_RUNTIME nk_size_t nk_attention_pack_size_##name(nk_size_t num_kv_heads, nk_size_t head_dim,                 \
                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count) { \
         return nk_dispatch_table.attention_pack_size_##name(num_kv_heads, head_dim, segment_lengths, segment_count);   \
+    }
+
+#define nk_dispatch_attention_packed_shape_(name)                                                                \
+    NK_API_RUNTIME void nk_attention_packed_shape_##name(void const *packed, nk_size_t *heads, nk_size_t *depth, \
+                                                         nk_size_t *segments) {                                  \
+        nk_dispatch_table.attention_packed_shape_##name(packed, heads, depth, segments);                         \
     }
 
 #define nk_dispatch_attention_pack_(name)                                                                              \
@@ -743,8 +768,19 @@ nk_dispatch_cross_pack_size_(dots, u8, u8, u32)
 nk_dispatch_cross_pack_size_(dots, u4, u4x2, u32)
 nk_dispatch_cross_pack_size_(dots, u1, u1x8, u32)
 
-// Dots packing
-nk_dispatch_cross_pack_(dots, f64, f64, f64)
+nk_dispatch_cross_packed_shape_(dots, f64, f64, f64) nk_dispatch_cross_packed_shape_(dots, f32, f32, f32)
+    nk_dispatch_cross_packed_shape_(dots, bf16, bf16, f32) nk_dispatch_cross_packed_shape_(dots, f16, f16, f32)
+        nk_dispatch_cross_packed_shape_(dots, e5m2, e5m2, f32) nk_dispatch_cross_packed_shape_(dots, e4m3, e4m3, f32)
+            nk_dispatch_cross_packed_shape_(dots, e3m2, e3m2, f32)
+                nk_dispatch_cross_packed_shape_(dots, e2m3, e2m3, f32)
+                    nk_dispatch_cross_packed_shape_(dots, i8, i8, i32)
+                        nk_dispatch_cross_packed_shape_(dots, i4, i4x2, i32)
+                            nk_dispatch_cross_packed_shape_(dots, u8, u8, u32)
+                                nk_dispatch_cross_packed_shape_(dots, u4, u4x2, u32)
+                                    nk_dispatch_cross_packed_shape_(dots, u1, u1x8, u32)
+
+    // Dots packing
+    nk_dispatch_cross_pack_(dots, f64, f64, f64)
 nk_dispatch_cross_pack_(dots, f32, f32, f32)
 nk_dispatch_cross_pack_(dots, bf16, bf16, f32)
 nk_dispatch_cross_pack_(dots, f16, f16, f32)
@@ -857,8 +893,11 @@ nk_dispatch_cross_pack_size_(maxsim, f32, f32, f32)
 nk_dispatch_cross_pack_size_(maxsim, bf16, bf16, f32)
 nk_dispatch_cross_pack_size_(maxsim, f16, f16, f32)
 
-// MaxSim packing
-nk_dispatch_cross_pack_(maxsim, f32, f32, f32)
+nk_dispatch_cross_packed_shape_(maxsim, f32, f32, f32) nk_dispatch_cross_packed_shape_(maxsim, bf16, bf16, f32)
+    nk_dispatch_cross_packed_shape_(maxsim, f16, f16, f32)
+
+    // MaxSim packing
+    nk_dispatch_cross_pack_(maxsim, f32, f32, f32)
 nk_dispatch_cross_pack_(maxsim, bf16, bf16, f32)
 nk_dispatch_cross_pack_(maxsim, f16, f16, f32)
 
@@ -872,8 +911,11 @@ nk_dispatch_attention_pack_size_(bf16)
 nk_dispatch_attention_pack_size_(e4m3)
 nk_dispatch_attention_pack_size_(i8)
 
-// Attention KV packing
-nk_dispatch_attention_pack_(bf16)
+nk_dispatch_attention_packed_shape_(bf16) nk_dispatch_attention_packed_shape_(e4m3)
+    nk_dispatch_attention_packed_shape_(i8)
+
+    // Attention KV packing
+    nk_dispatch_attention_pack_(bf16)
 nk_dispatch_attention_pack_(e4m3)
 nk_dispatch_attention_pack_(i8)
 

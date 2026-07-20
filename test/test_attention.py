@@ -61,8 +61,8 @@ def test_attention_packed(dtype, tolerance, scenario, head_dim, threads):
 
     kv = nk.attention_pack(k, v, segment_offsets=offsets, head_dim=head_dim, threads=threads)
     assert kv.segments == len(lengths)
-    assert kv.kv_heads == num_kv_heads
-    assert kv.head_dim == head_dim
+    assert kv.heads == num_kv_heads
+    assert kv.depth == head_dim
     assert kv.tokens == tokens
 
     out = nk.attention_packed(q, kv, query_offsets=offsets, threads=threads)

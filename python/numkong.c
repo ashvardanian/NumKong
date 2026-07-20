@@ -1303,7 +1303,7 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     if (PyType_Ready(&TensorIterType) < 0) return NULL;
     if (PyType_Ready(&PackedMatrixType) < 0) return NULL;
     if (PyType_Ready(&MaxSimPackedMatrixType) < 0) return NULL;
-    if (PyType_Ready(&AttentionPackedKVType) < 0) return NULL;
+    if (PyType_Ready(&AttentionPackedMatrixType) < 0) return NULL;
     if (PyType_Ready(&MeshAlignmentResultType) < 0) return NULL;
 
     m = PyModule_Create(&nk_module);
@@ -1357,10 +1357,10 @@ PyMODINIT_FUNC PyInit__numkong(void) {
         return NULL;
     }
 
-    // Register AttentionPackedKV type
-    Py_INCREF(&AttentionPackedKVType);
-    if (PyModule_AddObject(m, "AttentionPackedKV", (PyObject *)&AttentionPackedKVType) < 0) {
-        Py_XDECREF(&AttentionPackedKVType);
+    // Register AttentionPackedMatrix type
+    Py_INCREF(&AttentionPackedMatrixType);
+    if (PyModule_AddObject(m, "AttentionPackedMatrix", (PyObject *)&AttentionPackedMatrixType) < 0) {
+        Py_XDECREF(&AttentionPackedMatrixType);
         Py_XDECREF(m);
         return NULL;
     }

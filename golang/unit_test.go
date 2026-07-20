@@ -539,7 +539,7 @@ func TestMaxSimConstructorValidation(t *testing.T) {
 			t.Errorf("Expected panic for short input")
 		}
 	}()
-	NewMaxSimPackedF32([]float32{1, 2, 3}, 2, 4) // needs 8, got 3
+	NewMaxSimPackedMatrixF32([]float32{1, 2, 3}, 2, 4) // needs 8, got 3
 }
 
 func TestMaxSimDepthMismatch(t *testing.T) {
@@ -548,8 +548,8 @@ func TestMaxSimDepthMismatch(t *testing.T) {
 			t.Errorf("Expected panic for depth mismatch")
 		}
 	}()
-	q := NewMaxSimPackedF32(make([]float32, 8), 1, 8)
-	d := NewMaxSimPackedF32(make([]float32, 16), 1, 16)
+	q := NewMaxSimPackedMatrixF32(make([]float32, 8), 1, 8)
+	d := NewMaxSimPackedMatrixF32(make([]float32, 16), 1, 16)
 	MaxSimF32(q, d)
 }
 
@@ -1307,8 +1307,8 @@ func TestMaxSimF32(t *testing.T) {
 	document[depth+2] = 1.0
 	document[2*depth+1] = 1.0
 
-	qPacked := NewMaxSimPackedF32(query, queryCount, depth)
-	dPacked := NewMaxSimPackedF32(document, documentCount, depth)
+	qPacked := NewMaxSimPackedMatrixF32(query, queryCount, depth)
+	dPacked := NewMaxSimPackedMatrixF32(document, documentCount, depth)
 
 	result := MaxSimF32(qPacked, dPacked)
 	// Both queries have perfect matches → angular distance ≈ 0
@@ -1328,8 +1328,8 @@ func TestMaxSimF32NonNegative(t *testing.T) {
 		document[i] = float32(i) * 0.05
 	}
 
-	qPacked := NewMaxSimPackedF32(query, queryCount, depth)
-	dPacked := NewMaxSimPackedF32(document, documentCount, depth)
+	qPacked := NewMaxSimPackedMatrixF32(query, queryCount, depth)
+	dPacked := NewMaxSimPackedMatrixF32(document, documentCount, depth)
 
 	result := MaxSimF32(qPacked, dPacked)
 	if result < 0 {

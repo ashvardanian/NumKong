@@ -88,6 +88,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_f32_smef64(nk_size_t columns, nk_siz
     return size;
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_f32_smef64(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME void nk_dots_pack_f32_smef64(nk_f32_t const *b, nk_size_t columns, nk_size_t depth,
                                              nk_size_t b_stride_in_bytes, void *b_packed) {
 
@@ -954,6 +960,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_f64_smef64(nk_size_t columns, nk_siz
     size += column_tile_count * depth_tile_count * 3 * tile_dimension * depth_tile_size * sizeof(nk_f32_t);
     size += columns * sizeof(nk_f64_t); // per-column squared norms
     return size;
+}
+
+NK_API_COMPTIME void nk_dots_packed_shape_f64_smef64(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
 }
 
 NK_API_COMPTIME void nk_dots_pack_f64_smef64(nk_f64_t const *b, nk_size_t columns, nk_size_t depth,

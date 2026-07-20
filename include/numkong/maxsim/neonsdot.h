@@ -37,12 +37,24 @@ NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_neonsdot(nk_size_t vector_cou
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_bf16_t), 16);
 }
 
+NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+    nk_maxsim_packed_shape_(packed, vectors, depth);
+}
+
 NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_neonsdot(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 16);
 }
 
+NK_API_COMPTIME void nk_maxsim_packed_shape_f32_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+    nk_maxsim_packed_shape_(packed, vectors, depth);
+}
+
 NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_neonsdot(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 16);
+}
+
+NK_API_COMPTIME void nk_maxsim_packed_shape_f16_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+    nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
 NK_API_COMPTIME void nk_maxsim_pack_bf16_neonsdot( //

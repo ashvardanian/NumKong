@@ -228,6 +228,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_f16_graniteamx(nk_size_t column_coun
     return size;
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_f16_graniteamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME void nk_dots_pack_f16_graniteamx(               //
     nk_f16_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed) {
@@ -247,6 +253,8 @@ NK_API_COMPTIME void nk_dots_pack_f16_graniteamx(               //
 
     // Write header with layout metadata
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
+    header->columns = (nk_u32_t)column_count;
+    header->depth = (nk_u32_t)depth;
     header->full_column_tiles = (nk_u32_t)column_tiles_count;
     header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
     header->column_remainder_count = (nk_u32_t)column_remainder_count;
@@ -774,6 +782,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_e5m2_graniteamx(nk_size_t column_cou
     return size;
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_e5m2_graniteamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME void nk_dots_pack_e5m2_graniteamx(               //
     nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed) {
@@ -790,6 +804,8 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_graniteamx(               //
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
+    header->columns = (nk_u32_t)column_count;
+    header->depth = (nk_u32_t)depth;
     header->full_column_tiles = (nk_u32_t)column_tiles_count;
     header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
     header->column_remainder_count = (nk_u32_t)column_remainder_count;

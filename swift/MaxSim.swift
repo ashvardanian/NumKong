@@ -11,9 +11,10 @@ import CNumKong
 /// Element type that supports MaxSim (late-interaction) scoring with packed representations.
 public protocol NumKongMaxSimElement {
     associatedtype MaxSimOutput
-    static func _nk_maxsim_pack_size(_ vectorCount: Int, _ depth: Int) -> Int
+    static func _nk_maxsim_pack_size(_ vectors: Int, _ depth: Int) -> Int
+    static func _nk_maxsim_packed_shape(_ packed: UnsafeRawPointer, _ vectors: inout Int, _ depth: inout Int)
     static func _nk_maxsim_pack(
-        _ vectors: UnsafePointer<Self>, _ vectorCount: Int, _ depth: Int, _ stride: Int,
+        _ vectorsData: UnsafePointer<Self>, _ vectorsCount: Int, _ depth: Int, _ stride: Int,
         _ packed: UnsafeMutableRawPointer)
     static func _nk_maxsim_packed(
         _ queryPacked: UnsafeRawPointer, _ docPacked: UnsafeRawPointer, _ queryCount: Int, _ docCount: Int,
@@ -24,7 +25,7 @@ public protocol NumKongMaxSimElement {
 
 /// Owns a packed representation of multi-vector embeddings for MaxSim scoring.
 public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked Sendable {
-    public let vectorCount: Int
+    public let vectors: Int
     public let depth: Int
     public let byteCount: Int
 
@@ -32,8 +33,8 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
     let rawPointer: UnsafeMutableRawPointer
 
     @usableFromInline
-    init(vectorCount: Int, depth: Int, byteCount: Int, rawPointer: UnsafeMutableRawPointer) {
-        self.vectorCount = vectorCount
+    init(vectors: Int, depth: Int, byteCount: Int, rawPointer: UnsafeMutableRawPointer) {
+        self.vectors = vectors
         self.depth = depth
         self.byteCount = byteCount
         self.rawPointer = rawPointer
@@ -52,7 +53,7 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
         guard bytes > 0 else { throw NumKongMatrixError.packedBufferTooSmall }
         let ptr = UnsafeMutableRawPointer.allocate(byteCount: bytes, alignment: 64)
         Element._nk_maxsim_pack(matrix.baseAddress, matrix.rows, matrix.cols, matrix.rowStrideBytes, ptr)
-        self.init(vectorCount: matrix.rows, depth: matrix.cols, byteCount: bytes, rawPointer: ptr)
+        self.init(vectors: matrix.rows, depth: matrix.cols, byteCount: bytes, rawPointer: ptr)
     }
 
     /// Computes the MaxSim score between this (query) and a document's packed matrix.
@@ -64,12 +65,20 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
         Element._nk_maxsim_packed(
             UnsafeRawPointer(rawPointer),
             UnsafeRawPointer(document.rawPointer),
-            vectorCount,
-            document.vectorCount,
+            vectors,
+            document.vectors,
             depth,
             ptr
         )
         return ptr.pointee
+    }
+
+    /// Reads the packed vector-set shape (vectors, depth) back from the buffer's self-describing header.
+    public var shape: (vectors: Int, depth: Int) {
+        var v = 0
+        var d = 0
+        Element._nk_maxsim_packed_shape(UnsafeRawPointer(rawPointer), &v, &d)
+        return (v, d)
     }
 }
 
@@ -78,15 +87,23 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
 extension Float32: NumKongMaxSimElement {
     public typealias MaxSimOutput = Float64
 
-    public static func _nk_maxsim_pack_size(_ vectorCount: Int, _ depth: Int) -> Int {
-        Int(nk_maxsim_pack_size_f32(UInt64(vectorCount), UInt64(depth)))
+    public static func _nk_maxsim_pack_size(_ vectors: Int, _ depth: Int) -> Int {
+        Int(nk_maxsim_pack_size_f32(UInt64(vectors), UInt64(depth)))
+    }
+
+    public static func _nk_maxsim_packed_shape(_ packed: UnsafeRawPointer, _ vectors: inout Int, _ depth: inout Int) {
+        var v: UInt64 = 0
+        var d: UInt64 = 0
+        nk_maxsim_packed_shape_f32(packed, &v, &d)
+        vectors = Int(v)
+        depth = Int(d)
     }
 
     public static func _nk_maxsim_pack(
-        _ vectors: UnsafePointer<Float32>, _ vectorCount: Int, _ depth: Int, _ stride: Int,
+        _ vectorsData: UnsafePointer<Float32>, _ vectorsCount: Int, _ depth: Int, _ stride: Int,
         _ packed: UnsafeMutableRawPointer
     ) {
-        nk_maxsim_pack_f32(vectors, UInt64(vectorCount), UInt64(depth), UInt64(stride), packed)
+        nk_maxsim_pack_f32(vectorsData, UInt64(vectorsCount), UInt64(depth), UInt64(stride), packed)
     }
 
     public static func _nk_maxsim_packed(
@@ -102,16 +119,24 @@ extension Float32: NumKongMaxSimElement {
 extension BFloat16: NumKongMaxSimElement {
     public typealias MaxSimOutput = Float32
 
-    public static func _nk_maxsim_pack_size(_ vectorCount: Int, _ depth: Int) -> Int {
-        Int(nk_maxsim_pack_size_bf16(UInt64(vectorCount), UInt64(depth)))
+    public static func _nk_maxsim_pack_size(_ vectors: Int, _ depth: Int) -> Int {
+        Int(nk_maxsim_pack_size_bf16(UInt64(vectors), UInt64(depth)))
+    }
+
+    public static func _nk_maxsim_packed_shape(_ packed: UnsafeRawPointer, _ vectors: inout Int, _ depth: inout Int) {
+        var v: UInt64 = 0
+        var d: UInt64 = 0
+        nk_maxsim_packed_shape_bf16(packed, &v, &d)
+        vectors = Int(v)
+        depth = Int(d)
     }
 
     public static func _nk_maxsim_pack(
-        _ vectors: UnsafePointer<BFloat16>, _ vectorCount: Int, _ depth: Int, _ stride: Int,
+        _ vectorsData: UnsafePointer<BFloat16>, _ vectorsCount: Int, _ depth: Int, _ stride: Int,
         _ packed: UnsafeMutableRawPointer
     ) {
-        let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_bf16_t.self)
-        nk_maxsim_pack_bf16(cPtr, UInt64(vectorCount), UInt64(depth), UInt64(stride), packed)
+        let cPtr = UnsafeRawPointer(vectorsData).assumingMemoryBound(to: nk_bf16_t.self)
+        nk_maxsim_pack_bf16(cPtr, UInt64(vectorsCount), UInt64(depth), UInt64(stride), packed)
     }
 
     public static func _nk_maxsim_packed(
@@ -129,16 +154,24 @@ extension BFloat16: NumKongMaxSimElement {
 extension Float16: NumKongMaxSimElement {
     public typealias MaxSimOutput = Float32
 
-    public static func _nk_maxsim_pack_size(_ vectorCount: Int, _ depth: Int) -> Int {
-        Int(nk_maxsim_pack_size_f16(UInt64(vectorCount), UInt64(depth)))
+    public static func _nk_maxsim_pack_size(_ vectors: Int, _ depth: Int) -> Int {
+        Int(nk_maxsim_pack_size_f16(UInt64(vectors), UInt64(depth)))
+    }
+
+    public static func _nk_maxsim_packed_shape(_ packed: UnsafeRawPointer, _ vectors: inout Int, _ depth: inout Int) {
+        var v: UInt64 = 0
+        var d: UInt64 = 0
+        nk_maxsim_packed_shape_f16(packed, &v, &d)
+        vectors = Int(v)
+        depth = Int(d)
     }
 
     public static func _nk_maxsim_pack(
-        _ vectors: UnsafePointer<Float16>, _ vectorCount: Int, _ depth: Int, _ stride: Int,
+        _ vectorsData: UnsafePointer<Float16>, _ vectorsCount: Int, _ depth: Int, _ stride: Int,
         _ packed: UnsafeMutableRawPointer
     ) {
-        let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_f16_t.self)
-        nk_maxsim_pack_f16(cPtr, UInt64(vectorCount), UInt64(depth), UInt64(stride), packed)
+        let cPtr = UnsafeRawPointer(vectorsData).assumingMemoryBound(to: nk_f16_t.self)
+        nk_maxsim_pack_f16(cPtr, UInt64(vectorsCount), UInt64(depth), UInt64(stride), packed)
     }
 
     public static func _nk_maxsim_packed(

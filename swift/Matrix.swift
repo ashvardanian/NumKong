@@ -133,6 +133,7 @@ public protocol NumKongDotsMatrixElement {
     associatedtype DotsOutput
 
     static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int
+    static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ width: inout Int, _ depth: inout Int)
     static func _nk_dots_pack(
         _ b: UnsafePointer<Self>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer)
     static func _nk_dots_packed(
@@ -265,6 +266,14 @@ extension PackedMatrix where Element: NumKongDotsMatrixElement {
         let ptr = UnsafeMutableRawPointer.allocate(byteCount: bytes, alignment: 64)
         Element._nk_dots_pack(matrix.baseAddress, matrix.rows, matrix.cols, matrix.rowStrideBytes, ptr)
         self.init(rows: matrix.rows, cols: matrix.cols, byteCount: bytes, rawPointer: ptr)
+    }
+
+    /// Reads the packed matrix shape (rows, cols) back from the buffer's self-describing header.
+    public var shape: (rows: Int, cols: Int) {
+        var r = 0
+        var c = 0
+        Element._nk_dots_packed_shape(UnsafeRawPointer(rawPointer), &r, &c)
+        return (r, c)
     }
 }
 
@@ -578,6 +587,14 @@ extension Float32: NumKongDotsMatrixElement {
         Int(nk_dots_pack_size_f32(UInt64(n), UInt64(k)))
     }
 
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ width: inout Int, _ depth: inout Int) {
+        var w: UInt64 = 0
+        var d: UInt64 = 0
+        nk_dots_packed_shape_f32(packed, &w, &d)
+        width = Int(w)
+        depth = Int(d)
+    }
+
     public static func _nk_dots_pack(
         _ b: UnsafePointer<Float32>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
@@ -646,6 +663,14 @@ extension Float64: NumKongDotsMatrixElement {
 
     public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
         Int(nk_dots_pack_size_f64(UInt64(n), UInt64(k)))
+    }
+
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ width: inout Int, _ depth: inout Int) {
+        var w: UInt64 = 0
+        var d: UInt64 = 0
+        nk_dots_packed_shape_f64(packed, &w, &d)
+        width = Int(w)
+        depth = Int(d)
     }
 
     public static func _nk_dots_pack(
@@ -718,6 +743,14 @@ extension Int8: NumKongDotsMatrixElement {
         Int(nk_dots_pack_size_i8(UInt64(n), UInt64(k)))
     }
 
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ width: inout Int, _ depth: inout Int) {
+        var w: UInt64 = 0
+        var d: UInt64 = 0
+        nk_dots_packed_shape_i8(packed, &w, &d)
+        width = Int(w)
+        depth = Int(d)
+    }
+
     public static func _nk_dots_pack(
         _ b: UnsafePointer<Int8>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
@@ -786,6 +819,14 @@ extension UInt8: NumKongDotsMatrixElement {
 
     public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
         Int(nk_dots_pack_size_u8(UInt64(n), UInt64(k)))
+    }
+
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ width: inout Int, _ depth: inout Int) {
+        var w: UInt64 = 0
+        var d: UInt64 = 0
+        nk_dots_packed_shape_u8(packed, &w, &d)
+        width = Int(w)
+        depth = Int(d)
     }
 
     public static func _nk_dots_pack(
@@ -858,6 +899,14 @@ extension Float16: NumKongDotsMatrixElement {
 
     public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
         Int(nk_dots_pack_size_f16(UInt64(n), UInt64(k)))
+    }
+
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ width: inout Int, _ depth: inout Int) {
+        var w: UInt64 = 0
+        var d: UInt64 = 0
+        nk_dots_packed_shape_f16(packed, &w, &d)
+        width = Int(w)
+        depth = Int(d)
     }
 
     public static func _nk_dots_pack(
@@ -939,6 +988,14 @@ extension BFloat16: NumKongDotsMatrixElement {
         Int(nk_dots_pack_size_bf16(UInt64(n), UInt64(k)))
     }
 
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ width: inout Int, _ depth: inout Int) {
+        var w: UInt64 = 0
+        var d: UInt64 = 0
+        nk_dots_packed_shape_bf16(packed, &w, &d)
+        width = Int(w)
+        depth = Int(d)
+    }
+
     public static func _nk_dots_pack(
         _ b: UnsafePointer<BFloat16>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
@@ -1012,6 +1069,14 @@ extension E4M3: NumKongDotsMatrixElement {
 
     public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
         Int(nk_dots_pack_size_e4m3(UInt64(n), UInt64(k)))
+    }
+
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ width: inout Int, _ depth: inout Int) {
+        var w: UInt64 = 0
+        var d: UInt64 = 0
+        nk_dots_packed_shape_e4m3(packed, &w, &d)
+        width = Int(w)
+        depth = Int(d)
     }
 
     public static func _nk_dots_pack(
@@ -1089,6 +1154,14 @@ extension E5M2: NumKongDotsMatrixElement {
         Int(nk_dots_pack_size_e5m2(UInt64(n), UInt64(k)))
     }
 
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ width: inout Int, _ depth: inout Int) {
+        var w: UInt64 = 0
+        var d: UInt64 = 0
+        nk_dots_packed_shape_e5m2(packed, &w, &d)
+        width = Int(w)
+        depth = Int(d)
+    }
+
     public static func _nk_dots_pack(
         _ b: UnsafePointer<E5M2>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
@@ -1162,6 +1235,14 @@ extension E2M3: NumKongDotsMatrixElement {
 
     public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
         Int(nk_dots_pack_size_e2m3(UInt64(n), UInt64(k)))
+    }
+
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ width: inout Int, _ depth: inout Int) {
+        var w: UInt64 = 0
+        var d: UInt64 = 0
+        nk_dots_packed_shape_e2m3(packed, &w, &d)
+        width = Int(w)
+        depth = Int(d)
     }
 
     public static func _nk_dots_pack(
@@ -1239,6 +1320,14 @@ extension E3M2: NumKongDotsMatrixElement {
         Int(nk_dots_pack_size_e3m2(UInt64(n), UInt64(k)))
     }
 
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ width: inout Int, _ depth: inout Int) {
+        var w: UInt64 = 0
+        var d: UInt64 = 0
+        nk_dots_packed_shape_e3m2(packed, &w, &d)
+        width = Int(w)
+        depth = Int(d)
+    }
+
     public static func _nk_dots_pack(
         _ b: UnsafePointer<E3M2>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
@@ -1314,6 +1403,14 @@ extension U1x8: NumKongDotsMatrixElement {
 
     public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
         Int(nk_dots_pack_size_u1(UInt64(n), UInt64(k * 8)))
+    }
+
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ width: inout Int, _ depth: inout Int) {
+        var w: UInt64 = 0
+        var d: UInt64 = 0
+        nk_dots_packed_shape_u1(packed, &w, &d)
+        width = Int(w)
+        depth = Int(d)
     }
 
     public static func _nk_dots_pack(

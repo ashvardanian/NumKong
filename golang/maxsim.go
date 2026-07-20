@@ -10,38 +10,49 @@ package numkong
 import "C"
 import "unsafe"
 
-// MaxSimPacked holds a pre-packed set of vectors for MaxSim computation.
-// Construct with NewMaxSimPackedF32.
-type MaxSimPacked struct {
-	data        []byte
-	vectorCount int
-	depth       int
+// MaxSimPackedMatrix holds a pre-packed set of vectors for MaxSim computation.
+// Construct with NewMaxSimPackedMatrixF32.
+type MaxSimPackedMatrix struct {
+	data    []byte
+	vectors int
+	depth   int
 }
 
-func (p MaxSimPacked) VectorCount() int { return p.vectorCount }
-func (p MaxSimPacked) Depth() int       { return p.depth }
-func (p MaxSimPacked) Bytes() []byte    { return p.data }
+func (p MaxSimPackedMatrix) Vectors() int  { return p.vectors }
+func (p MaxSimPackedMatrix) Depth() int    { return p.depth }
+func (p MaxSimPackedMatrix) Bytes() []byte { return p.data }
 
-// NewMaxSimPackedF32 packs vectors for MaxSim computation.
-// vectors must have capacity >= vectorCount × depth.
-func NewMaxSimPackedF32(vectors []float32, vectorCount, depth int) MaxSimPacked {
-	if len(vectors) < vectorCount*depth {
-		panic("input slice too short for the given vectorCount and depth")
+// Shape reads the packed vector-set dimensions (vectors, depth) back from the
+// buffer's self-describing header via nk_maxsim_packed_shape_f32.
+func (p MaxSimPackedMatrix) Shape() (vectors, depth int) {
+	if len(p.data) == 0 {
+		return 0, 0
 	}
-	size := int(C.nk_maxsim_pack_size_f32(C.nk_size_t(vectorCount), C.nk_size_t(depth)))
+	var v, d C.nk_size_t
+	C.nk_maxsim_packed_shape_f32(unsafe.Pointer(&p.data[0]), &v, &d)
+	return int(v), int(d)
+}
+
+// NewMaxSimPackedMatrixF32 packs vectors for MaxSim computation.
+// vectors must have capacity >= vectorCount × depth.
+func NewMaxSimPackedMatrixF32(vectorsData []float32, vectorsCount, depth int) MaxSimPackedMatrix {
+	if len(vectorsData) < vectorsCount*depth {
+		panic("input slice too short for the given vectorsCount and depth")
+	}
+	size := int(C.nk_maxsim_pack_size_f32(C.nk_size_t(vectorsCount), C.nk_size_t(depth)))
 	data := make([]byte, size)
 	C.nk_maxsim_pack_f32(
-		(*C.nk_f32_t)(&vectors[0]),
-		C.nk_size_t(vectorCount), C.nk_size_t(depth),
+		(*C.nk_f32_t)(&vectorsData[0]),
+		C.nk_size_t(vectorsCount), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
 		unsafe.Pointer(&data[0]))
-	return MaxSimPacked{data: data, vectorCount: vectorCount, depth: depth}
+	return MaxSimPackedMatrix{data: data, vectors: vectorsCount, depth: depth}
 }
 
 // MaxSimF32 computes MaxSim (ColBERT late interaction) between pre-packed queries and documents.
 // Returns the MaxSim score as float64 (widened).
 // query and document must have the same depth.
-func MaxSimF32(query, document MaxSimPacked) float64 {
+func MaxSimF32(query, document MaxSimPackedMatrix) float64 {
 	if query.depth != document.depth {
 		panic("query and document must have the same depth")
 	}
@@ -49,7 +60,7 @@ func MaxSimF32(query, document MaxSimPacked) float64 {
 	C.nk_maxsim_packed_f32(
 		unsafe.Pointer(&query.data[0]),
 		unsafe.Pointer(&document.data[0]),
-		C.nk_size_t(query.vectorCount), C.nk_size_t(document.vectorCount), C.nk_size_t(query.depth),
+		C.nk_size_t(query.vectors), C.nk_size_t(document.vectors), C.nk_size_t(query.depth),
 		&result)
 	return float64(result)
 }

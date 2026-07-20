@@ -133,8 +133,20 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_f16_sme(nk_size_t columns, nk_size_t
     return size;
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_f16_sme(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_sme(nk_size_t columns, nk_size_t depth) {
     return nk_dots_pack_size_f16_sme(columns, depth);
+}
+
+NK_API_COMPTIME void nk_dots_packed_shape_bf16_sme(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
 }
 
 /**
@@ -1070,6 +1082,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_sme(nk_size_t columns, nk_size_t 
     return size;
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_i8_sme(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME void nk_dots_pack_i8_sme( //
     nk_i8_t const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_in_bytes, void *b_packed) {
 
@@ -1677,6 +1695,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_e4m3_sme(nk_size_t columns, nk_size_
     return nk_dots_pack_size_f16_sme(columns, depth);
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_e4m3_sme(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 /** @brief Streaming e4m3 → f16 pack using ZA tile transpose. */
 __arm_new("za") static void nk_dots_pack_e4m3_to_b16_sme_streaming_( //
     void const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_bytes, void *tiles_ptr) NK_STREAMING_ {
@@ -2192,6 +2216,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_e5m2_sme(nk_size_t columns, nk_size_
     return nk_dots_pack_size_f16_sme(columns, depth);
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_e5m2_sme(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME void nk_dots_pack_e5m2_sme(nk_e5m2_t const *b, nk_size_t columns, nk_size_t depth,
                                            nk_size_t b_stride_in_bytes, void *b_packed) {
 
@@ -2665,6 +2695,12 @@ __arm_new("za") static void nk_dots_packed_e2m3_sme_streaming_( //
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_e2m3_sme(nk_size_t columns, nk_size_t depth) {
     // Uses `i8` format for packed data (same tile geometry as i8)
     return nk_dots_pack_size_i8_sme(columns, depth);
+}
+
+NK_API_COMPTIME void nk_dots_packed_shape_e2m3_sme(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
 }
 
 /** @brief Streaming pack helper for e2m3 → i8 conversion + quad-interleave using ZA tile transpose. */
@@ -3179,6 +3215,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_e3m2_sme(nk_size_t columns, nk_size_
     return nk_dots_pack_size_f16_sme(columns, depth);
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_e3m2_sme(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 /** @brief Streaming e3m2 → f16 pack using ZA tile transpose. */
 __arm_new("za") static void nk_dots_pack_e3m2_to_b16_sme_streaming_( //
     void const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_bytes, void *tiles_ptr) NK_STREAMING_ {
@@ -3506,6 +3548,12 @@ NK_API_COMPTIME void nk_dots_symmetric_e3m2_sme( //
 
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_u8_sme(nk_size_t columns, nk_size_t depth) {
     return nk_dots_pack_size_i8_sme(columns, depth);
+}
+
+NK_API_COMPTIME void nk_dots_packed_shape_u8_sme(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
 }
 
 NK_API_COMPTIME void nk_dots_pack_u8_sme( //
@@ -3905,6 +3953,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_u4_sme(nk_size_t columns, nk_size_t 
     return size;
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_u4_sme(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME void nk_dots_pack_u4_sme( //
     nk_u4x2_t const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_in_bytes, void *b_packed) {
 
@@ -4176,6 +4230,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_i4_sme(nk_size_t columns, nk_size_t 
     size += column_tile_count * depth_step_count * vector_pair_stride * sizeof(nk_u8_t);
     size += columns * sizeof(nk_u32_t); // per-column squared norms
     return size;
+}
+
+NK_API_COMPTIME void nk_dots_packed_shape_i4_sme(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
 }
 
 NK_API_COMPTIME void nk_dots_pack_i4_sme(                   //

@@ -634,6 +634,31 @@ export function dotsPackedSize(width: number, depth: number, dtype: DType): numb
 }
 
 /**
+ * Read a packed matrix's shape (width, depth) back from its self-describing header.
+ */
+export function dotsPackedShape(packed: PackedMatrix): { width: number; depth: number } {
+  if (!Module) throw new Error('WASM module not initialized');
+
+  const fnName = `_nk_dots_packed_shape_${dtypeToString(packed.dtype)}`;
+  const fn = Module[fnName] as any;
+  if (!fn || typeof fn !== 'function') {
+    throw new Error(`Function ${fnName} not available in WASM module`);
+  }
+
+  const blobPtr = allocAndCopyResolved(packed.buffer, 0, packed.byteLength);
+  const outPtr = Module._malloc(8); // two nk_size_t out-params (i32 each in WASM)
+  try {
+    fn(toWasmPtr(blobPtr), toWasmPtr(outPtr), toWasmPtr(outPtr + 4));
+    const width = HEAPU32[outPtr / 4];
+    const depth = HEAPU32[(outPtr + 4) / 4];
+    return { width, depth };
+  } finally {
+    Module._free(outPtr);
+    Module._free(blobPtr);
+  }
+}
+
+/**
  * Pack a Matrix for use with packed GEMM-like operations.
  */
 export function dotsPack(matrix: Matrix): PackedMatrix {

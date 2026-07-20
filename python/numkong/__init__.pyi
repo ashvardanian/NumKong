@@ -433,7 +433,7 @@ class MaxSimPackedMatrix:
     """Opaque pre-packed matrix for MaxSim late-interaction scoring."""
 
     @property
-    def vector_count(self) -> int:
+    def vectors(self) -> int:
         """Number of vectors."""
         ...
 
@@ -453,7 +453,7 @@ class MaxSimPackedMatrix:
         ...
 
     @classmethod
-    def pack_size(cls, vector_count: int, depth: int, /, dtype: _FloatTypeName | _MiniFloatType = "bf16") -> int:
+    def pack_size(cls, vectors: int, depth: int, /, dtype: _FloatTypeName | _MiniFloatType = "bf16") -> int:
         """Return packed buffer size in bytes for given dimensions and dtype."""
         ...
 

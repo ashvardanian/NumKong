@@ -14,7 +14,7 @@
 //   - Packed angular/Euclidean: AngularsPackedF64/F32/I8/U8, EuclideansPackedF64/F32/I8/U8
 //   - Packed binary: HammingsPackedU1, JaccardsPackedU1
 //   - Symmetric self-similarity: DotsSymmetric*, AngularsSymmetric*, EuclideansSymmetric*
-//   - MaxSim (ColBERT): MaxSimF32 with MaxSimPacked
+//   - MaxSim (ColBERT): MaxSimF32 with MaxSimPackedMatrix
 //
 // Output widening: f32 inputs produce f64 outputs; i8 inputs produce i32 or f32 outputs;
 // u8 inputs produce u32 or f32 outputs. This prevents overflow in accumulation.

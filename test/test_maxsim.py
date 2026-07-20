@@ -125,7 +125,7 @@ def test_maxsim_pack_and_packed(rows: int, columns: int, depth: int, dtype: str,
     dp = nk.maxsim_pack(documents, dtype=dtype_str)
 
     assert isinstance(qp, nk.MaxSimPackedMatrix)
-    assert qp.vector_count == rows
+    assert qp.vectors == rows
     assert qp.depth == depth
     assert qp.nbytes > 0
     assert repr(qp)  # smoke-test repr doesn't crash

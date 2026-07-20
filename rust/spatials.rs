@@ -1562,7 +1562,7 @@ impl<Scalar: Angulars, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
             return Err(TensorError::NonContiguousRows);
         }
         let (height, depth) = (self.shape()[0], self.shape()[1]);
-        let (width, packed_depth) = packed_b.dims();
+        let (width, packed_depth) = packed_b.shape();
         if depth != packed_depth {
             return Err(TensorError::ShapeMismatch {
                 axis: 1,
@@ -1611,7 +1611,7 @@ impl<Scalar: Euclideans, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor
             return Err(TensorError::NonContiguousRows);
         }
         let (height, depth) = (self.shape()[0], self.shape()[1]);
-        let (width, packed_depth) = packed_b.dims();
+        let (width, packed_depth) = packed_b.shape();
         if depth != packed_depth {
             return Err(TensorError::ShapeMismatch {
                 axis: 1,
@@ -1962,7 +1962,7 @@ where
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
-        let (width, _) = packed_b.dims();
+        let (width, _) = packed_b.shape();
         let mut c = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
             &[height, width],
             Scalar::SpatialResult::default(),
@@ -2173,7 +2173,7 @@ where
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
-        let (width, _) = packed_b.dims();
+        let (width, _) = packed_b.shape();
         let mut c = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
             &[height, width],
             Scalar::SpatialResult::default(),

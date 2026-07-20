@@ -19,7 +19,7 @@ extern "C" {
 /** @brief Pre-packed matrix for MaxSim late-interaction scoring. */
 typedef struct MaxSimPackedMatrix {
     PyObject_HEAD nk_dtype_t dtype;
-    nk_size_t vector_count;
+    nk_size_t vectors;
     nk_size_t depth;
     char start[];
 } MaxSimPackedMatrix;

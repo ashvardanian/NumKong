@@ -135,6 +135,11 @@ NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_haswell(nk_size_t key_valu
                                            sizeof(nk_bf16_t));
 }
 
+NK_API_COMPTIME void nk_attention_packed_shape_bf16_haswell(void const *key_value_packed, nk_size_t *heads,
+                                                            nk_size_t *depth, nk_size_t *segments) {
+    nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
+}
+
 NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_haswell(nk_size_t key_value_head_count, nk_size_t depth,
                                                               nk_u32_t const *segment_lengths,
                                                               nk_size_t segment_count) {
@@ -142,6 +147,11 @@ NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_haswell(nk_size_t key_valu
         return nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
     return nk_attention_pack_size_haswell_(key_value_head_count, depth, segment_lengths, segment_count,
                                            sizeof(nk_e4m3_t));
+}
+
+NK_API_COMPTIME void nk_attention_packed_shape_e4m3_haswell(void const *key_value_packed, nk_size_t *heads,
+                                                            nk_size_t *depth, nk_size_t *segments) {
+    nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
 }
 
 /** @brief Raw strided-row repack: source encoding is preserved, tails zero-padded. */
@@ -234,8 +244,8 @@ NK_HELPER_INLINE void nk_attention_packed_haswell_(                             
     nk_size_t first_task, nk_size_t task_count) {
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
-    if (header->depth != depth || header->key_value_head_count != key_value_head_count) return;
-    nk_size_t const segment_count = header->segment_count;
+    if (header->depth != depth || header->heads != key_value_head_count) return;
+    nk_size_t const segment_count = header->segments;
     nk_u64_t const *payload_offsets = (nk_u64_t const *)((char const *)key_value_packed + sizeof(*header));
     nk_u32_t const *segment_lengths = (nk_u32_t const *)(payload_offsets + segment_count + 1);
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
@@ -627,6 +637,11 @@ NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_haswell(nk_size_t key_value_
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
+NK_API_COMPTIME void nk_attention_packed_shape_i8_haswell(void const *key_value_packed, nk_size_t *heads,
+                                                          nk_size_t *depth, nk_size_t *segments) {
+    nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
+}
+
 NK_API_COMPTIME void nk_attention_pack_i8_haswell(                                                             //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth,               //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
@@ -728,8 +743,8 @@ NK_API_COMPTIME void nk_attention_packed_i8_haswell(                            
     }
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
-    if (header->depth != depth || header->key_value_head_count != key_value_head_count) return;
-    nk_size_t const segment_count = header->segment_count;
+    if (header->depth != depth || header->heads != key_value_head_count) return;
+    nk_size_t const segment_count = header->segments;
     nk_u64_t const *payload_offsets = (nk_u64_t const *)((char const *)key_value_packed + sizeof(*header));
     nk_u32_t const *segment_lengths = (nk_u32_t const *)(payload_offsets + segment_count + 1);
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +

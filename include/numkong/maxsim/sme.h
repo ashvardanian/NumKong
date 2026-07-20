@@ -473,8 +473,20 @@ NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sme(nk_size_t columns, nk_siz
     return nk_dots_pack_size_bf16_sme(columns, depth);
 }
 
+NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+    nk_maxsim_sme_packed_header_t const *header = (nk_maxsim_sme_packed_header_t const *)packed;
+    *vectors = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sme(nk_size_t columns, nk_size_t depth) { //
     return nk_dots_pack_size_f16_sme(columns, depth);
+}
+
+NK_API_COMPTIME void nk_maxsim_packed_shape_f16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+    nk_maxsim_sme_packed_header_t const *header = (nk_maxsim_sme_packed_header_t const *)packed;
+    *vectors = header->columns;
+    *depth = header->depth;
 }
 
 NK_API_COMPTIME void nk_maxsim_pack_bf16_sme(                                                                //
@@ -529,9 +541,9 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_sme(                                    
  *  Angular distance: 1 - dot / sqrt(||q||^2 * ||d||^2), accumulated with f64.
  */
 NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sme(nk_size_t columns, nk_size_t depth) { //
-    nk_size_t const expansion = 4;                                                      // i8->i32 SMOPA
-    nk_size_t const tile_dimension = nk_sme_cntw_();                                    // 16 for SVL=512
-    nk_size_t const vector_elements = nk_sme_cntb_();                                   // 64 for SVL=512
+    nk_size_t const expansion = 4;                                                          // i8->i32 SMOPA
+    nk_size_t const tile_dimension = nk_sme_cntw_();                                        // 16 for SVL=512
+    nk_size_t const vector_elements = nk_sme_cntb_();                                       // 64 for SVL=512
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
     nk_size_t const depth_step_count = nk_size_divide_round_up_(depth, expansion);
     nk_size_t const original_stride = nk_size_round_up_to_multiple_(depth * sizeof(nk_f32_t), 64);
@@ -541,6 +553,12 @@ NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sme(nk_size_t columns, nk_size
     size += columns * sizeof(nk_f32_t);                             // f32 squared norms
     size += columns * original_stride;                              // f32 originals
     return size;
+}
+
+NK_API_COMPTIME void nk_maxsim_packed_shape_f32_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+    nk_maxsim_sme_packed_header_t const *header = (nk_maxsim_sme_packed_header_t const *)packed;
+    *vectors = header->columns;
+    *depth = header->depth;
 }
 
 NK_API_COMPTIME void nk_maxsim_pack_f32_sme(                                                                //

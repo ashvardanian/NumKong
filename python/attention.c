@@ -5,7 +5,7 @@
  *  @date July 6, 2026
  *
  *  This module owns:
- *  - `AttentionPackedKV`: opaque pre-packed ragged KV-cache.
+ *  - `AttentionPackedMatrix`: opaque pre-packed ragged KV-cache.
  *  - Packing API: `attention_pack()`.
  *  - Compute API: `attention_packed()`.
  */
@@ -20,65 +20,83 @@
 #include <omp.h>
 #endif
 
-static void AttentionPackedKV_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self); }
+static void AttentionPackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self); }
 
-static PyObject *AttentionPackedKV_repr(PyObject *self) {
-    AttentionPackedKV *kv = (AttentionPackedKV *)self;
+static PyObject *AttentionPackedMatrix_repr(PyObject *self) {
+    AttentionPackedMatrix *kv = (AttentionPackedMatrix *)self;
     return PyUnicode_FromFormat(
-        "<AttentionPackedKV segments=%zu kv_heads=%zu head_dim=%zu tokens=%zu dtype='%s' nbytes=%zu>",
-        (size_t)kv->segment_count, (size_t)kv->num_kv_heads, (size_t)kv->head_dim, (size_t)kv->total_tokens,
+        "<AttentionPackedMatrix segments=%zu heads=%zu depth=%zu tokens=%zu dtype='%s' nbytes=%zu>",
+        (size_t)kv->segment_count, (size_t)kv->heads, (size_t)kv->depth, (size_t)kv->total_tokens,
         nk_dtype_name(kv->dtype), (size_t)kv->nbytes);
 }
 
-static PyObject *AttentionPackedKV_get_segments(PyObject *self, void *closure) {
+static PyObject *AttentionPackedMatrix_get_segments(PyObject *self, void *closure) {
     nk_unused_(closure);
-    return PyLong_FromSize_t(((AttentionPackedKV *)self)->segment_count);
+    return PyLong_FromSize_t(((AttentionPackedMatrix *)self)->segment_count);
 }
 
-static PyObject *AttentionPackedKV_get_kv_heads(PyObject *self, void *closure) {
+static PyObject *AttentionPackedMatrix_get_heads(PyObject *self, void *closure) {
     nk_unused_(closure);
-    return PyLong_FromSize_t(((AttentionPackedKV *)self)->num_kv_heads);
+    return PyLong_FromSize_t(((AttentionPackedMatrix *)self)->heads);
 }
 
-static PyObject *AttentionPackedKV_get_head_dim(PyObject *self, void *closure) {
+static PyObject *AttentionPackedMatrix_get_depth(PyObject *self, void *closure) {
     nk_unused_(closure);
-    return PyLong_FromSize_t(((AttentionPackedKV *)self)->head_dim);
+    return PyLong_FromSize_t(((AttentionPackedMatrix *)self)->depth);
 }
 
-static PyObject *AttentionPackedKV_get_tokens(PyObject *self, void *closure) {
+static PyObject *AttentionPackedMatrix_get_tokens(PyObject *self, void *closure) {
     nk_unused_(closure);
-    return PyLong_FromSize_t(((AttentionPackedKV *)self)->total_tokens);
+    return PyLong_FromSize_t(((AttentionPackedMatrix *)self)->total_tokens);
 }
 
-static PyObject *AttentionPackedKV_get_dtype(PyObject *self, void *closure) {
+static PyObject *AttentionPackedMatrix_get_dtype(PyObject *self, void *closure) {
     nk_unused_(closure);
-    return PyUnicode_FromString(nk_dtype_name(((AttentionPackedKV *)self)->dtype));
+    return PyUnicode_FromString(nk_dtype_name(((AttentionPackedMatrix *)self)->dtype));
 }
 
-static PyObject *AttentionPackedKV_get_nbytes(PyObject *self, void *closure) {
+static PyObject *AttentionPackedMatrix_get_nbytes(PyObject *self, void *closure) {
     nk_unused_(closure);
-    return PyLong_FromSize_t(((AttentionPackedKV *)self)->nbytes);
+    return PyLong_FromSize_t(((AttentionPackedMatrix *)self)->nbytes);
 }
 
-static PyGetSetDef AttentionPackedKV_getset[] = {
-    {"segments", AttentionPackedKV_get_segments, NULL, "Number of ragged segments", NULL},
-    {"kv_heads", AttentionPackedKV_get_kv_heads, NULL, "Number of KV heads", NULL},
-    {"head_dim", AttentionPackedKV_get_head_dim, NULL, "Channels per head", NULL},
-    {"tokens", AttentionPackedKV_get_tokens, NULL, "Total KV tokens across segments", NULL},
-    {"dtype", AttentionPackedKV_get_dtype, NULL, "Data type of the packed KV-cache", NULL},
-    {"nbytes", AttentionPackedKV_get_nbytes, NULL, "Size of the packed buffer in bytes", NULL},
+static PyObject *AttentionPackedMatrix_get_shape(PyObject *self, void *closure) {
+    nk_unused_(closure);
+    AttentionPackedMatrix *mm = (AttentionPackedMatrix *)self;
+    nk_attention_packed_shape_punned_t shape_fn = NULL;
+    nk_capability_t cap = nk_cap_serial_k;
+    nk_find_kernel_punned(nk_kernel_attention_packed_shape_k, mm->dtype, (nk_kernel_punned_t *)&shape_fn, &cap);
+    if (!shape_fn || !cap) {
+        PyErr_Format(PyExc_LookupError, "No packed_shape kernel for dtype '%s'",
+                     nk_dtype_to_pybuffer_typestr(mm->dtype));
+        return NULL;
+    }
+    nk_size_t heads = 0, depth = 0, segments = 0;
+    shape_fn(mm->start, &heads, &depth, &segments);
+    return Py_BuildValue("(nnn)", (Py_ssize_t)heads, (Py_ssize_t)depth, (Py_ssize_t)segments);
+}
+
+static PyGetSetDef AttentionPackedMatrix_getset[] = {
+    {"segments", AttentionPackedMatrix_get_segments, NULL, "Number of ragged segments", NULL},
+    {"heads", AttentionPackedMatrix_get_heads, NULL, "Number of KV heads", NULL},
+    {"depth", AttentionPackedMatrix_get_depth, NULL, "Channels per head", NULL},
+    {"tokens", AttentionPackedMatrix_get_tokens, NULL, "Total KV tokens across segments", NULL},
+    {"dtype", AttentionPackedMatrix_get_dtype, NULL, "Data type of the packed KV-cache", NULL},
+    {"nbytes", AttentionPackedMatrix_get_nbytes, NULL, "Size of the packed buffer in bytes", NULL},
+    {"shape", AttentionPackedMatrix_get_shape, NULL,
+     "Dimensions (heads, depth, segments) read from the packed buffer header", NULL},
     {NULL, NULL, NULL, NULL, NULL},
 };
 
-PyTypeObject AttentionPackedKVType = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "numkong.AttentionPackedKV",
+PyTypeObject AttentionPackedMatrixType = {
+    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "numkong.AttentionPackedMatrix",
     .tp_doc = "Opaque pre-packed ragged KV-cache for scaled-dot-product attention",
-    .tp_basicsize = sizeof(AttentionPackedKV),
+    .tp_basicsize = sizeof(AttentionPackedMatrix),
     .tp_itemsize = sizeof(char),
-    .tp_dealloc = AttentionPackedKV_dealloc,
+    .tp_dealloc = AttentionPackedMatrix_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_getset = AttentionPackedKV_getset,
-    .tp_repr = AttentionPackedKV_repr,
+    .tp_getset = AttentionPackedMatrix_getset,
+    .tp_repr = AttentionPackedMatrix_repr,
 };
 
 /** @brief Parses a 1-D contiguous `u32` buffer, releasing it on failure. */
@@ -99,17 +117,17 @@ static int attention_parse_u32_vector(PyObject *obj, char const *name, Py_buffer
     return 1;
 }
 
-/** @brief Interprets a K/V/Q buffer as `[tokens, heads * head_dim]`, inferring the head split. */
-static int attention_parse_token_matrix(Py_buffer const *buffer, char const *name, nk_size_t head_dim,
-                                        nk_size_t *tokens, nk_size_t *heads, nk_size_t *row_stride) {
+/** @brief Interprets a K/V/Q buffer as `[tokens, heads * depth]`, inferring the head split. */
+static int attention_parse_token_matrix(Py_buffer const *buffer, char const *name, nk_size_t depth, nk_size_t *tokens,
+                                        nk_size_t *heads, nk_size_t *row_stride) {
     if (buffer->ndim == 3) {
         if (buffer->strides[2] != buffer->itemsize || buffer->strides[1] != buffer->shape[2] * buffer->itemsize) {
             PyErr_Format(PyExc_ValueError, "%s heads must be contiguous in memory", name);
             return 0;
         }
-        if (head_dim && (nk_size_t)buffer->shape[2] != head_dim) {
-            PyErr_Format(PyExc_ValueError, "%s head_dim %zd does not match the packed KV-cache (%zu)", name,
-                         buffer->shape[2], head_dim);
+        if (depth && (nk_size_t)buffer->shape[2] != depth) {
+            PyErr_Format(PyExc_ValueError, "%s depth %zd does not match the packed KV-cache (%zu)", name,
+                         buffer->shape[2], depth);
             return 0;
         }
         *tokens = (nk_size_t)buffer->shape[0];
@@ -122,48 +140,48 @@ static int attention_parse_token_matrix(Py_buffer const *buffer, char const *nam
             PyErr_Format(PyExc_ValueError, "%s rows must be contiguous in memory", name);
             return 0;
         }
-        if (!head_dim) {
-            PyErr_Format(PyExc_TypeError, "%s is 2-D, so 'head_dim' must be provided to split the rows", name);
+        if (!depth) {
+            PyErr_Format(PyExc_TypeError, "%s is 2-D, so 'depth' must be provided to split the rows", name);
             return 0;
         }
-        if ((nk_size_t)buffer->shape[1] % head_dim) {
-            PyErr_Format(PyExc_ValueError, "%s row width %zd is not a multiple of head_dim %zu", name, buffer->shape[1],
-                         head_dim);
+        if ((nk_size_t)buffer->shape[1] % depth) {
+            PyErr_Format(PyExc_ValueError, "%s row width %zd is not a multiple of depth %zu", name, buffer->shape[1],
+                         depth);
             return 0;
         }
         *tokens = (nk_size_t)buffer->shape[0];
-        *heads = (nk_size_t)buffer->shape[1] / head_dim;
+        *heads = (nk_size_t)buffer->shape[1] / depth;
         *row_stride = (nk_size_t)buffer->strides[0];
         return 1;
     }
-    PyErr_Format(PyExc_ValueError, "%s must be a 2-D [tokens, heads*head_dim] or 3-D [tokens, heads, head_dim]", name);
+    PyErr_Format(PyExc_ValueError, "%s must be a 2-D [tokens, heads*depth] or 3-D [tokens, heads, depth]", name);
     return 0;
 }
 
 char const doc_attention_pack[] =                                                     //
-    "attention_pack(k, v, /, segment_offsets, segment_lengths=None, head_dim=None, "  //
-    "threads=1) -> AttentionPackedKV\n\n"                                             //
+    "attention_pack(k, v, /, segment_offsets, segment_lengths=None, depth=None, "     //
+    "threads=1) -> AttentionPackedMatrix\n\n"                                         //
     "Pack ragged K/V token matrices into a backend-opaque KV-cache blob.\n\n"         //
     "Parameters:\n"                                                                   //
-    "    k, v (array_like): Token matrices, 2-D (tokens, kv_heads*head_dim) or\n"     //
-    "        3-D (tokens, kv_heads, head_dim); bf16 or e4m3, rows may be strided\n"   //
+    "    k, v (array_like): Token matrices, 2-D (tokens, heads*depth) or\n"           //
+    "        3-D (tokens, heads, depth); bf16 or e4m3, rows may be strided\n"         //
     "        interior views of a fused QKV buffer.\n"                                 //
     "    segment_offsets (u32 array): Cumulative token offsets, length segments+1.\n" //
     "    segment_lengths (u32 array, optional): KV length per segment; defaults to\n" //
     "        adjacent offset differences (self-attention).\n"                         //
-    "    head_dim (int, optional): Required when k/v are 2-D.\n"                      //
+    "    depth (int, optional): Required when k/v are 2-D.\n"                         //
     "    threads (int): OpenMP threads for packing; 0 = all cores.\n\n"               //
     "Returns:\n"                                                                      //
-    "    AttentionPackedKV: Opaque packed KV-cache for attention_packed().\n\n"       //
+    "    AttentionPackedMatrix: Opaque packed KV-cache for attention_packed().\n\n"   //
     "Signature:\n"                                                                    //
     "    >>> def attention_pack(k, v, /, segment_offsets, segment_lengths=None,\n"    //
-    "    ...                    head_dim=None, threads=1) -> AttentionPackedKV: ...";
+    "    ...                    depth=None, threads=1) -> AttentionPackedMatrix: ...";
 
 PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
 
     PyObject *k_obj = NULL, *v_obj = NULL, *offsets_obj = NULL, *lengths_obj = NULL;
-    nk_size_t head_dim = 0, threads = 1;
+    nk_size_t depth = 0, threads = 1;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     if (nargs < 2 || nargs > 3 || nargs + nkw > 6) {
@@ -177,9 +195,9 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         PyObject *value = args[nargs + i];
         if (PyUnicode_CompareWithASCIIString(name, "segment_offsets") == 0) offsets_obj = value;
         else if (PyUnicode_CompareWithASCIIString(name, "segment_lengths") == 0) lengths_obj = value;
-        else if (PyUnicode_CompareWithASCIIString(name, "head_dim") == 0) {
-            head_dim = (nk_size_t)PyLong_AsSize_t(value);
-            if (head_dim == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
+        else if (PyUnicode_CompareWithASCIIString(name, "depth") == 0) {
+            depth = (nk_size_t)PyLong_AsSize_t(value);
+            if (depth == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
         }
         else if (PyUnicode_CompareWithASCIIString(name, "threads") == 0) {
             threads = (nk_size_t)PyLong_AsSize_t(value);
@@ -207,7 +225,7 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         return NULL;
     }
 
-    AttentionPackedKV *packed = NULL;
+    AttentionPackedMatrix *packed = NULL;
     nk_u32_t *lengths_owned = NULL;
     int offsets_held = 0, lengths_held = 0;
 
@@ -222,11 +240,11 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         goto cleanup;
     }
 
-    nk_size_t k_tokens, v_tokens, kv_heads, v_heads, k_stride, v_stride;
-    if (!attention_parse_token_matrix(&k_buffer, "k", head_dim, &k_tokens, &kv_heads, &k_stride)) goto cleanup;
-    if (k_buffer.ndim == 3) head_dim = (nk_size_t)k_buffer.shape[2];
-    if (!attention_parse_token_matrix(&v_buffer, "v", head_dim, &v_tokens, &v_heads, &v_stride)) goto cleanup;
-    if (k_tokens != v_tokens || kv_heads != v_heads) {
+    nk_size_t k_tokens, v_tokens, heads, v_heads, k_stride, v_stride;
+    if (!attention_parse_token_matrix(&k_buffer, "k", depth, &k_tokens, &heads, &k_stride)) goto cleanup;
+    if (k_buffer.ndim == 3) depth = (nk_size_t)k_buffer.shape[2];
+    if (!attention_parse_token_matrix(&v_buffer, "v", depth, &v_tokens, &v_heads, &v_stride)) goto cleanup;
+    if (k_tokens != v_tokens || heads != v_heads) {
         PyErr_SetString(PyExc_ValueError, "k and v must have identical shapes");
         goto cleanup;
     }
@@ -276,15 +294,15 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         goto cleanup;
     }
 
-    nk_size_t const packed_bytes = size_fn(kv_heads, head_dim, segment_lengths, segment_count);
-    packed = PyObject_NewVar(AttentionPackedKV, &AttentionPackedKVType, (Py_ssize_t)packed_bytes);
+    nk_size_t const packed_bytes = size_fn(heads, depth, segment_lengths, segment_count);
+    packed = PyObject_NewVar(AttentionPackedMatrix, &AttentionPackedMatrixType, (Py_ssize_t)packed_bytes);
     if (!packed) {
         PyErr_NoMemory();
         goto cleanup;
     }
     packed->dtype = dtype;
-    packed->num_kv_heads = kv_heads;
-    packed->head_dim = head_dim;
+    packed->heads = heads;
+    packed->depth = depth;
     packed->segment_count = segment_count;
     packed->total_tokens = segment_offsets[segment_count];
     packed->nbytes = packed_bytes;
@@ -298,18 +316,18 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
 #else
         if (threads == 0) threads = 1;
 #endif
-        int const task_count = (int)(segment_count * kv_heads);
+        int const task_count = (int)(segment_count * heads);
         // The window covering task 0 initializes the blob's header and directory;
         // running it first keeps the parallel remainder read-only on that region.
-        pack_fn(k_buffer.buf, v_buffer.buf, kv_heads, head_dim, segment_offsets, segment_lengths, segment_count,
-                k_stride, v_stride, packed->start, 0, 1);
+        pack_fn(k_buffer.buf, v_buffer.buf, heads, depth, segment_offsets, segment_lengths, segment_count, k_stride,
+                v_stride, packed->start, 0, 1);
         // MSVC's ARM64 backend raises C1001 on any expression inside `num_threads` beside an `if` clause.
         int const thread_count = (int)threads;
         int task_index;
 #pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads(thread_count)
         for (task_index = 1; task_index < task_count; task_index++)
-            pack_fn(k_buffer.buf, v_buffer.buf, kv_heads, head_dim, segment_offsets, segment_lengths, segment_count,
-                    k_stride, v_stride, packed->start, (nk_size_t)task_index, 1);
+            pack_fn(k_buffer.buf, v_buffer.buf, heads, depth, segment_offsets, segment_lengths, segment_count, k_stride,
+                    v_stride, packed->start, (nk_size_t)task_index, 1);
         PyEval_RestoreThread(save);
     }
 
@@ -331,13 +349,13 @@ char const doc_attention_packed[] =                                             
     "-> Tensor\n\n"                                                                   //
     "Ragged scaled-dot-product attention against a pre-packed KV-cache.\n\n"          //
     "Parameters:\n"                                                                   //
-    "    q (array_like): Query tokens, 2-D (tokens, heads*head_dim) or 3-D\n"         //
-    "        (tokens, heads, head_dim), same dtype as the packed KV-cache.\n"         //
-    "    kv (AttentionPackedKV): Packed KV-cache from attention_pack().\n"            //
+    "    q (array_like): Query tokens, 2-D (tokens, heads*depth) or 3-D\n"            //
+    "        (tokens, heads, depth), same dtype as the packed KV-cache.\n"            //
+    "    kv (AttentionPackedMatrix): Packed KV-cache from attention_pack().\n"        //
     "    query_offsets (u32 array): Cumulative query offsets, length segments+1;\n"   //
     "        arange(segments+1) turns the call into a batched single-query pool.\n"   //
     "    out (Tensor, optional): Pre-allocated f32 output of the same shape as q.\n"  //
-    "    scale (float, optional): Score scale; default 1/sqrt(head_dim).\n"           //
+    "    scale (float, optional): Score scale; default 1/sqrt(depth).\n"              //
     "    threads (int): OpenMP threads over the segment*head task grid; 0 = all.\n\n" //
     "Returns:\n"                                                                      //
     "    Tensor: f32 outputs, rows covered by query_offsets are written.\n\n"         //
@@ -377,11 +395,11 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
         PyErr_SetString(PyExc_TypeError, "attention_packed() requires 'query_offsets'");
         return NULL;
     }
-    if (!PyObject_TypeCheck(kv_obj, &AttentionPackedKVType)) {
-        PyErr_SetString(PyExc_TypeError, "kv must be an AttentionPackedKV from attention_pack()");
+    if (!PyObject_TypeCheck(kv_obj, &AttentionPackedMatrixType)) {
+        PyErr_SetString(PyExc_TypeError, "kv must be an AttentionPackedMatrix from attention_pack()");
         return NULL;
     }
-    AttentionPackedKV *kv = (AttentionPackedKV *)kv_obj;
+    AttentionPackedMatrix *kv = (AttentionPackedMatrix *)kv_obj;
 
     nk_f32_t scale = 0;
     if (scale_obj) {
@@ -389,7 +407,7 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
         if (scale_f64 == -1.0 && PyErr_Occurred()) return NULL;
         scale = (nk_f32_t)scale_f64;
     }
-    else { scale = (nk_f32_t)(1.0 / sqrt((double)kv->head_dim)); }
+    else { scale = (nk_f32_t)(1.0 / sqrt((double)kv->depth)); }
 
     Py_buffer q_buffer, offsets_buffer;
     nk_buffer_backing_t q_backing, offsets_backing;
@@ -406,10 +424,10 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
         goto cleanup;
     }
     nk_size_t q_tokens, num_heads, q_stride;
-    if (!attention_parse_token_matrix(&q_buffer, "q", kv->head_dim, &q_tokens, &num_heads, &q_stride)) goto cleanup;
-    if (num_heads % kv->num_kv_heads) {
-        PyErr_Format(PyExc_ValueError, "num_heads %zu is not a multiple of the packed kv_heads %zu", (size_t)num_heads,
-                     (size_t)kv->num_kv_heads);
+    if (!attention_parse_token_matrix(&q_buffer, "q", kv->depth, &q_tokens, &num_heads, &q_stride)) goto cleanup;
+    if (num_heads % kv->heads) {
+        PyErr_Format(PyExc_ValueError, "num_heads %zu is not a multiple of the packed heads %zu", (size_t)num_heads,
+                     (size_t)kv->heads);
         goto cleanup;
     }
 
@@ -429,7 +447,7 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
         goto cleanup;
     }
 
-    nk_size_t const row_values = num_heads * kv->head_dim;
+    nk_size_t const row_values = num_heads * kv->depth;
     if (out_obj) {
         if (!PyObject_TypeCheck(out_obj, &TensorType)) {
             PyErr_SetString(PyExc_TypeError, "out must be a numkong.Tensor");
@@ -438,7 +456,7 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
         result = (Tensor *)out_obj;
         if (result->dtype != nk_f32_k || result->rank != 2 || (nk_size_t)result->shape[0] < q_tokens ||
             (nk_size_t)result->shape[1] != row_values) {
-            PyErr_SetString(PyExc_ValueError, "out must be an f32 Tensor of shape (tokens, heads*head_dim)");
+            PyErr_SetString(PyExc_ValueError, "out must be an f32 Tensor of shape (tokens, heads*depth)");
             result = NULL;
             goto cleanup;
         }
@@ -472,8 +490,8 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
         int task_index;
 #pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads(thread_count)
         for (task_index = 0; task_index < task_count; task_index++)
-            kernel(q_buffer.buf, kv->start, (nk_f32_t *)result->data, num_heads, kv->num_kv_heads, kv->head_dim,
-                   query_offsets, q_stride, o_stride, scale, (nk_size_t)task_index, 1);
+            kernel(q_buffer.buf, kv->start, (nk_f32_t *)result->data, num_heads, kv->heads, kv->depth, query_offsets,
+                   q_stride, o_stride, scale, (nk_size_t)task_index, 1);
         PyEval_RestoreThread(save);
     }
 

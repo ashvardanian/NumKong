@@ -94,12 +94,14 @@ extern "C" {
  *  Different from nk_dots_amx_packed_header_t as AMX uses tile-based layout.
  */
 typedef struct {
+    nk_u32_t columns;                // exact N; offset 0, shared front dims for nk_dots_packed_shape
+    nk_u32_t depth;                  // exact K; offset 4
     nk_u32_t full_column_tiles;      // Number of full column tiles (16 rows each)
     nk_u32_t full_depth_tiles;       // Number of depth tiles (32 columns for BF16, 64 for I8)
     nk_u32_t column_remainder_count; // Remaining rows after full tiles (0-15)
     nk_u32_t column_edge_offset;     // Byte offset to edge data region
     nk_u32_t norms_byte_offset;      // Byte offset to per-column norms (for angular/euclidean)
-    nk_u32_t reserved[11];           // Padding to 64 bytes
+    nk_u32_t reserved[9];            // Padding to 64 bytes
 } nk_dots_amx_packed_header_t;
 
 /*  Composable tile structures for AMX operations.
@@ -889,6 +891,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_sapphireamx(nk_size_t column_co
     return size;
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_bf16_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME void nk_dots_pack_bf16_sapphireamx(              //
     nk_bf16_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed) {
@@ -908,6 +916,8 @@ NK_API_COMPTIME void nk_dots_pack_bf16_sapphireamx(              //
 
     // Write header with layout metadata
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
+    header->columns = (nk_u32_t)column_count;
+    header->depth = (nk_u32_t)depth;
     header->full_column_tiles = (nk_u32_t)column_tiles_count;
     header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
     header->column_remainder_count = (nk_u32_t)column_remainder_count;
@@ -1424,6 +1434,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_sapphireamx(nk_size_t column_coun
     return size;
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_i8_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME void nk_dots_pack_i8_sapphireamx(              //
     nk_i8_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed) {
@@ -1442,6 +1458,8 @@ NK_API_COMPTIME void nk_dots_pack_i8_sapphireamx(              //
 
     // Write header with layout metadata
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
+    header->columns = (nk_u32_t)column_count;
+    header->depth = (nk_u32_t)depth;
     header->full_column_tiles = (nk_u32_t)column_tiles_count;
     header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
     header->column_remainder_count = (nk_u32_t)column_remainder_count;
@@ -2008,6 +2026,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_u8_sapphireamx(nk_size_t column_coun
     return nk_dots_pack_size_i8_sapphireamx(column_count, depth);
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_u8_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME void nk_dots_pack_u8_sapphireamx(              //
     nk_u8_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed) {
@@ -2023,6 +2047,8 @@ NK_API_COMPTIME void nk_dots_pack_u8_sapphireamx(              //
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
+    header->columns = (nk_u32_t)column_count;
+    header->depth = (nk_u32_t)depth;
     header->full_column_tiles = (nk_u32_t)column_tiles_count;
     header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
     header->column_remainder_count = (nk_u32_t)column_remainder_count;
@@ -2479,6 +2505,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_e4m3_sapphireamx(nk_size_t column_co
     return nk_dots_pack_size_bf16_sapphireamx(column_count, depth);
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_e4m3_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME void nk_dots_pack_e4m3_sapphireamx(              //
     nk_e4m3_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed) {
@@ -2494,6 +2526,8 @@ NK_API_COMPTIME void nk_dots_pack_e4m3_sapphireamx(              //
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
+    header->columns = (nk_u32_t)column_count;
+    header->depth = (nk_u32_t)depth;
     header->full_column_tiles = (nk_u32_t)column_tiles_count;
     header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
     header->column_remainder_count = (nk_u32_t)column_remainder_count;
@@ -2762,6 +2796,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_e5m2_sapphireamx(nk_size_t column_co
     return nk_dots_pack_size_bf16_sapphireamx(column_count, depth);
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_e5m2_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME void nk_dots_pack_e5m2_sapphireamx(              //
     nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed) {
@@ -2777,6 +2817,8 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_sapphireamx(              //
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
+    header->columns = (nk_u32_t)column_count;
+    header->depth = (nk_u32_t)depth;
     header->full_column_tiles = (nk_u32_t)column_tiles_count;
     header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
     header->column_remainder_count = (nk_u32_t)column_remainder_count;
@@ -3267,6 +3309,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_e2m3_sapphireamx(nk_size_t column_co
     return nk_dots_pack_size_i8_sapphireamx(column_count, depth);
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_e2m3_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME void nk_dots_pack_e2m3_sapphireamx(              //
     nk_e2m3_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed) {
@@ -3283,6 +3331,8 @@ NK_API_COMPTIME void nk_dots_pack_e2m3_sapphireamx(              //
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
+    header->columns = (nk_u32_t)column_count;
+    header->depth = (nk_u32_t)depth;
     header->full_column_tiles = (nk_u32_t)column_tiles_count;
     header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
     header->column_remainder_count = (nk_u32_t)column_remainder_count;
@@ -3657,6 +3707,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_e3m2_sapphireamx(nk_size_t column_co
     return nk_dots_pack_size_bf16_sapphireamx(column_count, depth);
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_e3m2_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    *width = header->columns;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME void nk_dots_pack_e3m2_sapphireamx(              //
     nk_e3m2_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed) {
@@ -3672,6 +3728,8 @@ NK_API_COMPTIME void nk_dots_pack_e3m2_sapphireamx(              //
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
+    header->columns = (nk_u32_t)column_count;
+    header->depth = (nk_u32_t)depth;
     header->full_column_tiles = (nk_u32_t)column_tiles_count;
     header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
     header->column_remainder_count = (nk_u32_t)column_remainder_count;

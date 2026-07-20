@@ -123,6 +123,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_u1_smebi32(nk_size_t row_count, nk_s
     return size;
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_u1_smebi32(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_sets_smebi32_packed_header_t const *header = (nk_sets_smebi32_packed_header_t const *)b_packed;
+    *width = header->rows;
+    *depth = header->depth_bits;
+}
+
 NK_API_COMPTIME void nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t row_count, nk_size_t depth_bits,
                                              nk_size_t b_stride_in_bytes, void *b_packed) {
     nk_size_t const svl_bytes = nk_smebi32_svl_bytes_();

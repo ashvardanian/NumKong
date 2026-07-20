@@ -22,19 +22,19 @@ static size_t maxsim_packed_matrix_nbytes(MaxSimPackedMatrix *mm) {
     nk_capability_t cap = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_maxsim_pack_size_k, mm->dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn || !cap) return 0;
-    return size_fn(mm->vector_count, mm->depth);
+    return size_fn(mm->vectors, mm->depth);
 }
 
 static PyObject *MaxSimPackedMatrix_repr(PyObject *self) {
     MaxSimPackedMatrix *mm = (MaxSimPackedMatrix *)self;
     size_t packed_size = maxsim_packed_matrix_nbytes(mm);
-    return PyUnicode_FromFormat("<MaxSimPackedMatrix vector_count=%zu depth=%zu dtype='%s' nbytes=%zu>",
-                                (size_t)mm->vector_count, (size_t)mm->depth, nk_dtype_name(mm->dtype), packed_size);
+    return PyUnicode_FromFormat("<MaxSimPackedMatrix vectors=%zu depth=%zu dtype='%s' nbytes=%zu>", (size_t)mm->vectors,
+                                (size_t)mm->depth, nk_dtype_name(mm->dtype), packed_size);
 }
 
-static PyObject *MaxSimPackedMatrix_get_vector_count(PyObject *self, void *closure) {
+static PyObject *MaxSimPackedMatrix_get_vectors(PyObject *self, void *closure) {
     nk_unused_(closure);
-    return PyLong_FromSize_t(((MaxSimPackedMatrix *)self)->vector_count);
+    return PyLong_FromSize_t(((MaxSimPackedMatrix *)self)->vectors);
 }
 
 static PyObject *MaxSimPackedMatrix_get_depth(PyObject *self, void *closure) {
@@ -52,11 +52,29 @@ static PyObject *MaxSimPackedMatrix_get_nbytes(PyObject *self, void *closure) {
     return PyLong_FromSize_t(maxsim_packed_matrix_nbytes((MaxSimPackedMatrix *)self));
 }
 
+static PyObject *MaxSimPackedMatrix_get_shape(PyObject *self, void *closure) {
+    nk_unused_(closure);
+    MaxSimPackedMatrix *mm = (MaxSimPackedMatrix *)self;
+    nk_dots_packed_shape_punned_t shape_fn = NULL;
+    nk_capability_t cap = nk_cap_serial_k;
+    nk_find_kernel_punned(nk_kernel_maxsim_packed_shape_k, mm->dtype, (nk_kernel_punned_t *)&shape_fn, &cap);
+    if (!shape_fn || !cap) {
+        PyErr_Format(PyExc_LookupError, "No packed_shape kernel for dtype '%s'",
+                     nk_dtype_to_pybuffer_typestr(mm->dtype));
+        return NULL;
+    }
+    nk_size_t vectors = 0, depth = 0;
+    shape_fn(mm->start, &vectors, &depth);
+    return Py_BuildValue("(nn)", (Py_ssize_t)vectors, (Py_ssize_t)depth);
+}
+
 static PyGetSetDef MaxSimPackedMatrix_getset[] = {
-    {"vector_count", MaxSimPackedMatrix_get_vector_count, NULL, "Number of vectors", NULL},
+    {"vectors", MaxSimPackedMatrix_get_vectors, NULL, "Number of vectors", NULL},
     {"depth", MaxSimPackedMatrix_get_depth, NULL, "Number of dimensions per vector (depth)", NULL},
     {"dtype", MaxSimPackedMatrix_get_dtype, NULL, "Data type of the packed vectors", NULL},
     {"nbytes", MaxSimPackedMatrix_get_nbytes, NULL, "Size of the packed buffer in bytes", NULL},
+    {"shape", MaxSimPackedMatrix_get_shape, NULL, "Dimensions (vectors, depth) read from the packed buffer header",
+     NULL},
     {NULL, NULL, NULL, NULL, NULL},
 };
 
@@ -69,7 +87,7 @@ static PyObject *MaxSimPackedMatrix_pack_size(PyObject *cls, PyObject *const *ar
     Py_ssize_t total = nargs + nkw;
 
     if (nargs < 2 || total > 3 || nargs > 3) {
-        PyErr_SetString(PyExc_TypeError, "pack_size(vector_count, depth, /, dtype='bf16')");
+        PyErr_SetString(PyExc_TypeError, "pack_size(vectors, depth, /, dtype='bf16')");
         return NULL;
     }
 
@@ -98,8 +116,8 @@ static PyObject *MaxSimPackedMatrix_pack_size(PyObject *cls, PyObject *const *ar
         return NULL;
     }
 
-    nk_size_t vector_count = (nk_size_t)PyLong_AsSize_t(vector_count_obj);
-    if (vector_count == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
+    nk_size_t vectors = (nk_size_t)PyLong_AsSize_t(vector_count_obj);
+    if (vectors == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
     nk_size_t depth = (nk_size_t)PyLong_AsSize_t(depth_obj);
     if (depth == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
 
@@ -115,7 +133,7 @@ static PyObject *MaxSimPackedMatrix_pack_size(PyObject *cls, PyObject *const *ar
         return NULL;
     }
 
-    return PyLong_FromSize_t(size_fn(vector_count, depth));
+    return PyLong_FromSize_t(size_fn(vectors, depth));
 }
 
 static PyMethodDef MaxSimPackedMatrix_methods[] = {
@@ -140,7 +158,7 @@ char const doc_maxsim_pack[] =                                                  
     "maxsim_pack(b, /, dtype=None) -> MaxSimPackedMatrix\n\n"                   //
     "Pack a 2D matrix for MaxSim late-interaction scoring.\n\n"                 //
     "Parameters:\n"                                                             //
-    "    b (array_like): Source matrix with shape (vector_count, depth).\n"     //
+    "    b (array_like): Source matrix with shape (vectors, depth).\n"          //
     "    dtype (str, optional): Packing dtype. Default: inferred from input.\n" //
     "        Supported values: 'bf16', 'f16', 'f32'.\n\n"                       //
     "Returns:\n"                                                                //
@@ -225,7 +243,7 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
         return NULL;
     }
 
-    nk_size_t vector_count = (nk_size_t)b_buffer.shape[0];
+    nk_size_t vectors = (nk_size_t)b_buffer.shape[0];
     nk_size_t depth = (nk_size_t)b_buffer.shape[1];
     nk_size_t row_stride = (nk_size_t)b_buffer.strides[0];
     nk_size_t col_stride = (nk_size_t)b_buffer.strides[1];
@@ -251,7 +269,7 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
                      nk_dtype_to_pybuffer_typestr(target_dtype));
         return NULL;
     }
-    nk_size_t packed_size = size_fn(vector_count, depth);
+    nk_size_t packed_size = size_fn(vectors, depth);
 
     MaxSimPackedMatrix *packed = PyObject_NewVar(MaxSimPackedMatrix, &MaxSimPackedMatrixType, packed_size);
     if (!packed) {
@@ -261,7 +279,7 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
     }
 
     packed->dtype = target_dtype;
-    packed->vector_count = vector_count;
+    packed->vectors = vectors;
     packed->depth = depth;
 
     nk_dots_pack_punned_t pack_fn = NULL;
@@ -277,7 +295,7 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
 
     {
         PyThreadState *save = PyEval_SaveThread();
-        pack_fn(b_buffer.buf, vector_count, depth, row_stride, packed->start);
+        pack_fn(b_buffer.buf, vectors, depth, row_stride, packed->start);
         PyEval_RestoreThread(save);
     }
 
@@ -364,8 +382,8 @@ PyObject *api_maxsim_packed(PyObject *self, PyObject *const *args, Py_ssize_t na
         return NULL;
     }
 
-    return maxsim_result_to_py_number(kernel, queries->dtype, queries->start, documents->start, queries->vector_count,
-                                      documents->vector_count, queries->depth);
+    return maxsim_result_to_py_number(kernel, queries->dtype, queries->start, documents->start, queries->vectors,
+                                      documents->vectors, queries->depth);
 }
 
 char const doc_maxsim[] =                                                               //
@@ -534,7 +552,7 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
             goto cleanup;
         }
         q_packed->dtype = target_dtype;
-        q_packed->vector_count = query_count;
+        q_packed->vectors = query_count;
         q_packed->depth = query_depth;
 
         d_packed = PyObject_NewVar(MaxSimPackedMatrix, &MaxSimPackedMatrixType, d_pack_size);
@@ -543,7 +561,7 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
             goto cleanup;
         }
         d_packed->dtype = target_dtype;
-        d_packed->vector_count = document_count;
+        d_packed->vectors = document_count;
         d_packed->depth = document_depth;
 
         {

@@ -56,10 +56,10 @@ extern "C" {
  *  Followed by the segment offsets table; the payload beyond it is backend-specific.
  */
 typedef struct {
-    nk_u32_t key_value_head_count; /**< Number of K/V heads (≤ query heads for GQA) */
-    nk_u32_t depth;                /**< Head dimension the buffer was packed for */
-    nk_u32_t segment_count;        /**< Number of independent segments packed */
-    nk_u32_t reserved[13];         /**< Zeroed; pads the header to 64 bytes */
+    nk_u32_t heads;        /**< Number of K/V heads (≤ query heads for GQA) */
+    nk_u32_t depth;        /**< Head dimension the buffer was packed for */
+    nk_u32_t segments;     /**< Number of independent segments packed */
+    nk_u32_t reserved[13]; /**< Zeroed; pads the header to 64 bytes */
 } nk_attention_packed_header_t;
 
 /** @brief Offsets table size in bytes: u64 payload offsets [count+1] + u32 lengths [count], 64-byte padded. */
@@ -80,9 +80,9 @@ NK_HELPER_INLINE void nk_attention_pack_directory_(void *key_value_packed, nk_si
     if (first_task != 0) return;
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     for (nk_size_t i = 0; i < sizeof(*header) / sizeof(nk_u32_t); i++) ((nk_u32_t *)header)[i] = 0;
-    header->key_value_head_count = (nk_u32_t)key_value_head_count;
+    header->heads = (nk_u32_t)key_value_head_count;
     header->depth = (nk_u32_t)depth;
-    header->segment_count = (nk_u32_t)segment_count;
+    header->segments = (nk_u32_t)segment_count;
     nk_u64_t *payload_offsets = (nk_u64_t *)((char *)key_value_packed + sizeof(*header));
     nk_u32_t *lengths_copy = (nk_u32_t *)(payload_offsets + segment_count + 1);
     nk_u64_t running = 0;
@@ -96,16 +96,17 @@ NK_HELPER_INLINE void nk_attention_pack_directory_(void *key_value_packed, nk_si
     payload_offsets[segment_count] = running;
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_packed_segments(void const *key_value_packed) {
-    return ((nk_attention_packed_header_t const *)key_value_packed)->segment_count;
-}
-
-NK_API_COMPTIME nk_size_t nk_attention_packed_depth(void const *key_value_packed) {
-    return ((nk_attention_packed_header_t const *)key_value_packed)->depth;
-}
-
-NK_API_COMPTIME nk_size_t nk_attention_packed_heads(void const *key_value_packed) {
-    return ((nk_attention_packed_header_t const *)key_value_packed)->key_value_head_count;
+/**
+ *  @brief Reads a packed KV cache's shape from its header.
+ *
+ *  Shared by every per-(dtype, ISA) nk_attention_packed_shape_* accessor.
+ */
+NK_HELPER_INLINE void nk_attention_packed_shape_(void const *key_value_packed, nk_size_t *heads, nk_size_t *depth,
+                                                 nk_size_t *segments) {
+    nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
+    *heads = header->heads;
+    *depth = header->depth;
+    *segments = header->segments;
 }
 
 /** @brief Per-element widening converter, `maxsim/serial.h`-style dtype abstraction. */
@@ -137,9 +138,19 @@ NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_serial(nk_size_t key_value
     return nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
+NK_API_COMPTIME void nk_attention_packed_shape_bf16_serial(void const *key_value_packed, nk_size_t *heads,
+                                                           nk_size_t *depth, nk_size_t *segments) {
+    nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
+}
+
 NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_serial(nk_size_t key_value_head_count, nk_size_t depth,
                                                              nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     return nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
+}
+
+NK_API_COMPTIME void nk_attention_packed_shape_e4m3_serial(void const *key_value_packed, nk_size_t *heads,
+                                                           nk_size_t *depth, nk_size_t *segments) {
+    nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
 }
 
 /**
@@ -225,8 +236,8 @@ NK_HELPER_INLINE void nk_attention_serial_(                                     
     nk_size_t first_task, nk_size_t task_count) {
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
-    if (header->depth != depth || header->key_value_head_count != key_value_head_count) return;
-    nk_size_t const segment_count = header->segment_count;
+    if (header->depth != depth || header->heads != key_value_head_count) return;
+    nk_size_t const segment_count = header->segments;
     nk_u64_t const *payload_offsets = (nk_u64_t const *)((char const *)key_value_packed + sizeof(*header));
     nk_u32_t const *segment_lengths = (nk_u32_t const *)(payload_offsets + segment_count + 1);
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
@@ -311,6 +322,11 @@ NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_serial(nk_size_t key_value_h
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
+NK_API_COMPTIME void nk_attention_packed_shape_i8_serial(void const *key_value_packed, nk_size_t *heads,
+                                                         nk_size_t *depth, nk_size_t *segments) {
+    nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
+}
+
 NK_API_COMPTIME void nk_attention_pack_i8_serial(                                                              //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth,               //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
@@ -357,8 +373,8 @@ NK_API_COMPTIME void nk_attention_packed_i8_serial(                             
     nk_size_t first_task, nk_size_t task_count) {
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
-    if (header->depth != depth || header->key_value_head_count != key_value_head_count) return;
-    nk_size_t const segment_count = header->segment_count;
+    if (header->depth != depth || header->heads != key_value_head_count) return;
+    nk_size_t const segment_count = header->segments;
     nk_u64_t const *payload_offsets = (nk_u64_t const *)((char const *)key_value_packed + sizeof(*header));
     nk_u32_t const *segment_lengths = (nk_u32_t const *)(payload_offsets + segment_count + 1);
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +

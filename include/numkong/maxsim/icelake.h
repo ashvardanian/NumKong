@@ -50,6 +50,10 @@ NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_icelake(nk_size_t vector_count
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 64);
 }
 
+NK_API_COMPTIME void nk_maxsim_packed_shape_f32_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+    nk_maxsim_packed_shape_(packed, vectors, depth);
+}
+
 NK_API_COMPTIME void nk_maxsim_pack_f32_icelake( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
@@ -81,6 +85,10 @@ NK_API_COMPTIME void nk_maxsim_pack_f32_icelake( //
 
 NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_icelake(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 64);
+}
+
+NK_API_COMPTIME void nk_maxsim_packed_shape_f16_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+    nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
 NK_API_COMPTIME void nk_maxsim_pack_f16_icelake( //

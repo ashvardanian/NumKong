@@ -287,7 +287,7 @@ impl<Scalar: Hammings, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
             return Err(TensorError::NonContiguousRows);
         }
         let (height, depth) = (self.shape()[0], self.shape()[1]);
-        let (width, packed_depth) = packed_b.dims();
+        let (width, packed_depth) = packed_b.shape();
         if depth != packed_depth {
             return Err(TensorError::ShapeMismatch {
                 axis: 1,
@@ -421,7 +421,7 @@ impl<Scalar: Jaccards, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
             return Err(TensorError::NonContiguousRows);
         }
         let (height, depth) = (self.shape()[0], self.shape()[1]);
-        let (width, packed_depth) = packed_b.dims();
+        let (width, packed_depth) = packed_b.shape();
         if depth != packed_depth {
             return Err(TensorError::ShapeMismatch {
                 axis: 1,
@@ -610,7 +610,7 @@ where
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<u32, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
-        let (width, _) = packed_b.dims();
+        let (width, _) = packed_b.shape();
         let mut c = Tensor::<u32, Global, MAX_RANK>::try_full(&[height, width], 0u32)?;
         self.try_hammings_packed_parallel_into(packed_b, &mut c, pool)?;
         Ok(c)
@@ -762,7 +762,7 @@ where
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::JaccardResult, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
-        let (width, _) = packed_b.dims();
+        let (width, _) = packed_b.shape();
         let mut c = Tensor::<Scalar::JaccardResult, Global, MAX_RANK>::try_full(
             &[height, width],
             Scalar::JaccardResult::default(),

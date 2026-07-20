@@ -34,10 +34,11 @@ extern "C" {
 /* I8 GEMM: depth_simd_dimensions=32 (32 i8s = 32 bytes = AVX2 register width) */
 nk_define_cross_pack_size_(dots, i8, sierra, i8, i8, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/1)
-nk_define_cross_pack_(dots, i8, sierra, i8, i8, nk_b128_vec_t, nk_load_b128_haswell_, nk_partial_load_b8x16_serial_,
-                      nk_store_b128_haswell_, nk_partial_store_b8x16_serial_, /*simd_width=*/16,
-                      /*norm_value_type=*/u32, nk_dots_reduce_sumsq_i8_, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_(dots, i8, sierra)
+    nk_define_cross_pack_(dots, i8, sierra, i8, i8, nk_b128_vec_t, nk_load_b128_haswell_, nk_partial_load_b8x16_serial_,
+                          nk_store_b128_haswell_, nk_partial_store_b8x16_serial_, /*simd_width=*/16,
+                          /*norm_value_type=*/u32, nk_dots_reduce_sumsq_i8_, /*depth_simd_dimensions=*/16,
+                          /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, i8, sierra, i8, i32, nk_b256_vec_t, nk_dot_i8x32_state_sierra_t, nk_b128_vec_t,
                            nk_dot_i8x32_init_sierra, nk_load_b256_haswell_, nk_partial_load_b8x32_serial_,
                            nk_dot_i8x32_update_sierra, nk_dot_i8x32_finalize_sierra, nk_store_b128_haswell_,
@@ -52,10 +53,11 @@ nk_define_cross_packed_(dots, i8, sierra, i8, i8, i32, nk_b256_vec_t, nk_dot_i8x
 /* U8 GEMM: depth_simd_dimensions=32 (32 u8s = 32 bytes = AVX2 register width) */
 nk_define_cross_pack_size_(dots, u8, sierra, u8, u8, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/1)
-nk_define_cross_pack_(dots, u8, sierra, u8, u8, nk_b128_vec_t, nk_load_b128_haswell_, nk_partial_load_b8x16_serial_,
-                      nk_store_b128_haswell_, nk_partial_store_b8x16_serial_, /*simd_width=*/16,
-                      /*norm_value_type=*/u32, nk_dots_reduce_sumsq_u8_, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_(dots, u8, sierra)
+    nk_define_cross_pack_(dots, u8, sierra, u8, u8, nk_b128_vec_t, nk_load_b128_haswell_, nk_partial_load_b8x16_serial_,
+                          nk_store_b128_haswell_, nk_partial_store_b8x16_serial_, /*simd_width=*/16,
+                          /*norm_value_type=*/u32, nk_dots_reduce_sumsq_u8_, /*depth_simd_dimensions=*/16,
+                          /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, u8, sierra, u8, u32, nk_b256_vec_t, nk_dot_u8x32_state_sierra_t, nk_b128_vec_t,
                            nk_dot_u8x32_init_sierra, nk_load_b256_haswell_, nk_partial_load_b8x32_serial_,
                            nk_dot_u8x32_update_sierra, nk_dot_u8x32_finalize_sierra, nk_store_b128_haswell_,
@@ -70,10 +72,11 @@ nk_define_cross_packed_(dots, u8, sierra, u8, u8, u32, nk_b256_vec_t, nk_dot_u8x
 /* E2M3 GEMM via DPBUSD integer path: depth_simd_dimensions=32 (32 e2m3s = 32 bytes = AVX2 register width) */
 nk_define_cross_pack_size_(dots, e2m3, sierra, e2m3, e2m3, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/1)
-nk_define_cross_pack_(dots, e2m3, sierra, e2m3, e2m3, nk_b128_vec_t, nk_load_b128_haswell_,
-                      nk_partial_load_b8x16_serial_, nk_store_b128_haswell_, nk_partial_store_b8x16_serial_,
-                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m3_,
-                      /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_(dots, e2m3, sierra)
+    nk_define_cross_pack_(dots, e2m3, sierra, e2m3, e2m3, nk_b128_vec_t, nk_load_b128_haswell_,
+                          nk_partial_load_b8x16_serial_, nk_store_b128_haswell_, nk_partial_store_b8x16_serial_,
+                          /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m3_,
+                          /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, e2m3, sierra, e2m3, f32, nk_b256_vec_t, nk_dot_e2m3x32_state_sierra_t, nk_b128_vec_t,
                            nk_dot_e2m3x32_init_sierra, nk_load_b256_haswell_, nk_partial_load_b8x32_serial_,
                            nk_dot_e2m3x32_update_sierra, nk_dot_e2m3x32_finalize_sierra, nk_store_b128_haswell_,

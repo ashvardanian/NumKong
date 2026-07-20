@@ -40,8 +40,8 @@ extern "C" {
  *  Stored at the beginning of every maxsim packed buffer.
  */
 typedef struct {
-    nk_u32_t vector_count;           ///< Number of vectors packed
-    nk_u32_t depth_dimensions;       ///< Logical depth (number of elements per vector)
+    nk_u32_t vectors;                ///< Number of vectors packed
+    nk_u32_t depth;                  ///< Logical depth (number of elements per vector)
     nk_u32_t depth_i8_padded;        ///< Padded i8 depth in bytes (SIMD-aligned)
     nk_u32_t original_element_bytes; ///< 2 for bf16, 4 for f32
     nk_u32_t offset_i8_data;         ///< Byte offset from buffer start to i8 region
@@ -103,8 +103,8 @@ NK_HELPER_INLINE nk_size_t nk_maxsim_packed_header_setup_( //
     nk_size_t const original_stride = nk_size_round_up_to_multiple_(depth * original_element_bytes, 64);
 
     nk_maxsim_packed_header_t *header = (nk_maxsim_packed_header_t *)packed;
-    header->vector_count = (nk_u32_t)vector_count;
-    header->depth_dimensions = (nk_u32_t)depth;
+    header->vectors = (nk_u32_t)vector_count;
+    header->depth = (nk_u32_t)depth;
     header->depth_i8_padded = (nk_u32_t)depth_i8_padded;
     header->original_element_bytes = (nk_u32_t)original_element_bytes;
     header->offset_i8_data = (nk_u32_t)header_size;
@@ -236,12 +236,31 @@ NK_HELPER_INLINE nk_size_t nk_maxsim_pack_size_( //
     return header_size + i8_region_size + metadata_region_size + originals_region_size;
 }
 
+/**
+ *  @brief Reads a packed maxsim buffer's shape from its header.
+ *
+ *  Shared by every per-(dtype, ISA) nk_maxsim_packed_shape_* accessor.
+ */
+NK_HELPER_INLINE void nk_maxsim_packed_shape_(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
+    *vectors = header->vectors;
+    *depth = header->depth;
+}
+
 NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_serial(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_bf16_t), 1);
 }
 
+NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+    nk_maxsim_packed_shape_(packed, vectors, depth);
+}
+
 NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_serial(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 1);
+}
+
+NK_API_COMPTIME void nk_maxsim_packed_shape_f32_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+    nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
 NK_API_COMPTIME void nk_maxsim_pack_bf16_serial( //
@@ -297,6 +316,10 @@ NK_API_COMPTIME void nk_maxsim_pack_f32_serial( //
 
 NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_serial(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 1);
+}
+
+NK_API_COMPTIME void nk_maxsim_packed_shape_f16_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+    nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
 NK_API_COMPTIME void nk_maxsim_pack_f16_serial( //

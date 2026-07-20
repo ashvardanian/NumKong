@@ -19,14 +19,14 @@
  *  geometry needed to validate query batches against it.  Created via
  *  `nk.attention_pack()` and consumed by `nk.attention_packed()`.
  */
-typedef struct AttentionPackedKV {
+typedef struct AttentionPackedMatrix {
     PyObject_HEAD
     /** Input dtype (bf16 or e4m3). */
     nk_dtype_t dtype;
     /** Number of KV heads packed per token. */
-    nk_size_t num_kv_heads;
+    nk_size_t heads;
     /** Channels per head. */
-    nk_size_t head_dim;
+    nk_size_t depth;
     /** Number of ragged segments. */
     nk_size_t segment_count;
     /** Total KV tokens across all segments. */
@@ -35,10 +35,10 @@ typedef struct AttentionPackedKV {
     nk_size_t nbytes;
     /** Variable-length packed data. */
     char start[];
-} AttentionPackedKV;
+} AttentionPackedMatrix;
 
-/** @brief AttentionPackedKV Python type object. */
-extern PyTypeObject AttentionPackedKVType;
+/** @brief AttentionPackedMatrix Python type object. */
+extern PyTypeObject AttentionPackedMatrixType;
 
 /** @brief Pack ragged K/V token matrices into a backend-opaque KV-cache blob. */
 PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);

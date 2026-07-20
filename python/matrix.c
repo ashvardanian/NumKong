@@ -63,11 +63,28 @@ static PyObject *PackedMatrix_get_nbytes(PyObject *self, void *closure) {
     return PyLong_FromSize_t(packed_matrix_nbytes((PackedMatrix *)self));
 }
 
+static PyObject *PackedMatrix_get_shape(PyObject *self, void *closure) {
+    nk_unused_(closure);
+    PackedMatrix *mm = (PackedMatrix *)self;
+    nk_dots_packed_shape_punned_t shape_fn = NULL;
+    nk_capability_t cap = nk_cap_serial_k;
+    nk_find_kernel_punned(nk_kernel_dots_packed_shape_k, mm->dtype, (nk_kernel_punned_t *)&shape_fn, &cap);
+    if (!shape_fn || !cap) {
+        PyErr_Format(PyExc_LookupError, "No packed_shape kernel for dtype '%s'",
+                     nk_dtype_to_pybuffer_typestr(mm->dtype));
+        return NULL;
+    }
+    nk_size_t width = 0, depth = 0;
+    shape_fn(mm->start, &width, &depth);
+    return Py_BuildValue("(nn)", (Py_ssize_t)width, (Py_ssize_t)depth);
+}
+
 static PyGetSetDef PackedMatrix_getset[] = {
     {"width", PackedMatrix_get_width, NULL, "Number of rows in the original matrix", NULL},
     {"depth", PackedMatrix_get_depth, NULL, "Number of columns in the original matrix", NULL},
     {"dtype", PackedMatrix_get_dtype, NULL, "Data type of the matrix elements", NULL},
     {"nbytes", PackedMatrix_get_nbytes, NULL, "Size of the packed buffer in bytes", NULL},
+    {"shape", PackedMatrix_get_shape, NULL, "Dimensions (width, depth) read from the packed buffer header", NULL},
     {NULL, NULL, NULL, NULL, NULL},
 };
 

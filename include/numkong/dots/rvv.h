@@ -89,6 +89,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_f32_rvv(nk_size_t column_count, nk_s
            column_count * sizeof(nk_f64_t); // per-column norms
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_f32_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    *width = header->column_count;
+    *depth = header->depth_dimensions;
+}
+
 NK_API_COMPTIME void nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column_count, nk_size_t depth,
                                           nk_size_t b_stride_in_bytes, void *b_packed) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
@@ -291,6 +297,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_f64_rvv(nk_size_t column_count, nk_s
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
     return sizeof(nk_cross_packed_buffer_header_t) + column_count * depth_padded * sizeof(nk_f64_t) +
            column_count * sizeof(nk_f64_t); // per-column norms
+}
+
+NK_API_COMPTIME void nk_dots_packed_shape_f64_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    *width = header->column_count;
+    *depth = header->depth_dimensions;
 }
 
 NK_API_COMPTIME void nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column_count, nk_size_t depth,
@@ -530,6 +542,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_e2m3_rvv(nk_size_t column_count, nk_
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
     return sizeof(nk_cross_packed_buffer_header_t) + column_count * depth_padded * sizeof(nk_i8_t) +
            column_count * sizeof(nk_f32_t); // per-column norms
+}
+
+NK_API_COMPTIME void nk_dots_packed_shape_e2m3_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    *width = header->column_count;
+    *depth = header->depth_dimensions;
 }
 
 /**
@@ -828,6 +846,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_e3m2_rvv(nk_size_t column_count, nk_
            column_count * sizeof(nk_f32_t); // per-column norms
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_e3m2_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    *width = header->column_count;
+    *depth = header->depth_dimensions;
+}
+
 /**
  *  @brief  Pack B matrix from e3m2 to signed i16 (value × 16) for integer dot product.
  *
@@ -1101,6 +1125,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_rvv(nk_size_t column_count, nk_
            column_count * sizeof(nk_f32_t); // per-column norms
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_bf16_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    *width = header->column_count;
+    *depth = header->depth_dimensions;
+}
+
 /**
  *  @brief  Pack B matrix from bf16 to f32 for widened dot product.
  *
@@ -1331,6 +1361,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_f16_rvv(nk_size_t column_count, nk_s
            column_count * sizeof(nk_f32_t); // per-column norms
 }
 
+NK_API_COMPTIME void nk_dots_packed_shape_f16_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    *width = header->column_count;
+    *depth = header->depth_dimensions;
+}
+
 /**
  *  @brief  Pack B matrix from f16 to f32 for widened dot product.
  *
@@ -1552,6 +1588,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_rvv(nk_size_t column_count, nk_si
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
     return sizeof(nk_cross_packed_buffer_header_t) + column_count * depth_padded * sizeof(nk_i8_t) +
            column_count * sizeof(nk_u32_t); // per-column norms
+}
+
+NK_API_COMPTIME void nk_dots_packed_shape_i8_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    *width = header->column_count;
+    *depth = header->depth_dimensions;
 }
 
 /**
@@ -1779,6 +1821,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_u8_rvv(nk_size_t column_count, nk_si
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
     return sizeof(nk_cross_packed_buffer_header_t) + column_count * depth_padded * sizeof(nk_u8_t) +
            column_count * sizeof(nk_u32_t); // per-column norms
+}
+
+NK_API_COMPTIME void nk_dots_packed_shape_u8_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    *width = header->column_count;
+    *depth = header->depth_dimensions;
 }
 
 /**
@@ -2039,6 +2087,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_e4m3_rvv(nk_size_t column_count, nk_
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
     return sizeof(nk_cross_packed_buffer_header_t) + column_count * depth_padded * sizeof(nk_f32_t) +
            column_count * sizeof(nk_f32_t); // per-column norms
+}
+
+NK_API_COMPTIME void nk_dots_packed_shape_e4m3_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    *width = header->column_count;
+    *depth = header->depth_dimensions;
 }
 
 /**
@@ -2340,6 +2394,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_e5m2_rvv(nk_size_t column_count, nk_
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
     return sizeof(nk_cross_packed_buffer_header_t) + column_count * depth_padded * sizeof(nk_f32_t) +
            column_count * sizeof(nk_f32_t); // per-column norms
+}
+
+NK_API_COMPTIME void nk_dots_packed_shape_e5m2_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    *width = header->column_count;
+    *depth = header->depth_dimensions;
 }
 
 /**

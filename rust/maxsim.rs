@@ -82,6 +82,10 @@ extern "C" {
         depth: usize,
         result: *mut f32,
     );
+
+    fn nk_maxsim_packed_shape_f32(packed: *const u8, vectors: *mut usize, depth: *mut usize);
+    fn nk_maxsim_packed_shape_f16(packed: *const u8, vectors: *mut usize, depth: *mut usize);
+    fn nk_maxsim_packed_shape_bf16(packed: *const u8, vectors: *mut usize, depth: *mut usize);
 }
 
 // endregion: FFI
@@ -95,6 +99,11 @@ pub trait MaxSim: StorageElement + Clone {
 
     /// Returns the packed buffer size in bytes for `vector_count` vectors of given `depth`.
     fn maxsim_pack_size(vector_count: usize, depth: usize) -> usize;
+
+    /// Reads the packed vector count and depth from the buffer header.
+    /// # Safety
+    /// `packed` must point to a buffer produced by `maxsim_pack`.
+    unsafe fn maxsim_packed_shape(packed: *const u8) -> (usize, usize);
 
     /// Pack vectors into backend-specific quantized format.
     ///
@@ -129,6 +138,12 @@ impl MaxSim for f32 {
         unsafe { nk_maxsim_pack_size_f32(vector_count, depth) }
     }
 
+    unsafe fn maxsim_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut vectors, mut depth) = (0usize, 0usize);
+        nk_maxsim_packed_shape_f32(packed, &mut vectors, &mut depth);
+        (vectors, depth)
+    }
+
     unsafe fn maxsim_pack(vectors: *const Self, vector_count: usize, depth: usize, stride: usize, packed: *mut u8) {
         nk_maxsim_pack_f32(vectors, vector_count, depth, stride, packed)
     }
@@ -152,6 +167,12 @@ impl MaxSim for f16 {
         unsafe { nk_maxsim_pack_size_f16(vector_count, depth) }
     }
 
+    unsafe fn maxsim_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut vectors, mut depth) = (0usize, 0usize);
+        nk_maxsim_packed_shape_f16(packed, &mut vectors, &mut depth);
+        (vectors, depth)
+    }
+
     unsafe fn maxsim_pack(vectors: *const Self, vector_count: usize, depth: usize, stride: usize, packed: *mut u8) {
         nk_maxsim_pack_f16(vectors, vector_count, depth, stride, packed)
     }
@@ -173,6 +194,12 @@ impl MaxSim for bf16 {
 
     fn maxsim_pack_size(vector_count: usize, depth: usize) -> usize {
         unsafe { nk_maxsim_pack_size_bf16(vector_count, depth) }
+    }
+
+    unsafe fn maxsim_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut vectors, mut depth) = (0usize, 0usize);
+        nk_maxsim_packed_shape_bf16(packed, &mut vectors, &mut depth);
+        (vectors, depth)
     }
 
     unsafe fn maxsim_pack(vectors: *const Self, vector_count: usize, depth: usize, stride: usize, packed: *mut u8) {
@@ -379,8 +406,8 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
     /// Returns a reference to the allocator.
     pub fn allocator(&self) -> &Alloc { &self.alloc }
 
-    /// Returns dimensions (vector_count, depth) of the original vector set.
-    pub fn dims(&self) -> (usize, usize) { (self.vector_count, self.depth) }
+    /// Returns the shape (vector_count, depth) of the original vector set.
+    pub fn shape(&self) -> (usize, usize) { (self.vector_count, self.depth) }
 
     /// Bytes a packed buffer occupies for `vector_count` vectors of the given `depth` under the
     /// active backend's layout, letting a caller pre-size an external buffer without packing.
@@ -517,13 +544,13 @@ mod tests {
         let queries_packed = queries.try_pack().unwrap();
         let docs_packed = docs.try_pack().unwrap();
 
-        assert_eq!(queries_packed.dims(), (4, 16));
-        assert_eq!(docs_packed.dims(), (8, 16));
+        assert_eq!(queries_packed.shape(), (4, 16));
+        assert_eq!(docs_packed.shape(), (8, 16));
         assert!(queries_packed.score(&docs_packed).is_finite());
 
         // The panicking `pack` wrapper must agree with the `try_` form.
         let queries_panic = queries.pack();
-        assert_eq!(queries_panic.dims(), (4, 16));
+        assert_eq!(queries_panic.shape(), (4, 16));
         assert_eq!(queries_panic.as_bytes(), queries_packed.as_bytes());
     }
 
@@ -543,7 +570,7 @@ mod tests {
             .unwrap();
 
         let queries_packed = odd_rows.try_pack().unwrap();
-        assert_eq!(queries_packed.dims(), (3, 16));
+        assert_eq!(queries_packed.shape(), (3, 16));
     }
 
     #[test]
@@ -555,5 +582,27 @@ mod tests {
 
         let result = reversed_rows.try_pack();
         assert!(matches!(result, Err(TensorError::InvalidShape { .. })));
+    }
+
+    #[test]
+    fn packed_shape_reads_dims() {
+        fn check<Scalar: MaxSim>(vectors: usize, depth: usize, fill: Scalar) {
+            let packed = Tensor::<Scalar>::try_full(&[vectors, depth], fill)
+                .unwrap()
+                .try_pack()
+                .unwrap();
+            let (read_vectors, read_depth) = unsafe { Scalar::maxsim_packed_shape(packed.as_ptr()) };
+            assert_eq!(
+                (read_vectors, read_depth),
+                (vectors, depth),
+                "maxsim packed_shape<{}>",
+                core::any::type_name::<Scalar>()
+            );
+        }
+        for &(vectors, depth) in &[(4usize, 16usize), (33usize, 65usize)] {
+            check::<f32>(vectors, depth, 1.0);
+            check::<f16>(vectors, depth, f16::from_f32(1.0));
+            check::<bf16>(vectors, depth, bf16::from_f32(1.0));
+        }
     }
 }

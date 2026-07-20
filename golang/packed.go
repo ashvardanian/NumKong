@@ -26,6 +26,29 @@ func (p PackedMatrix) Depth() int    { return p.depth }
 func (p PackedMatrix) Dtype() string { return p.dtype }
 func (p PackedMatrix) Bytes() []byte { return p.data }
 
+// Shape reads the packed matrix dimensions (width, depth) back from the buffer's
+// self-describing header via nk_dots_packed_shape_<dtype>.
+func (p PackedMatrix) Shape() (width, depth int) {
+	if len(p.data) == 0 {
+		return 0, 0
+	}
+	var w, d C.nk_size_t
+	blob := unsafe.Pointer(&p.data[0])
+	switch p.dtype {
+	case "f64":
+		C.nk_dots_packed_shape_f64(blob, &w, &d)
+	case "f32":
+		C.nk_dots_packed_shape_f32(blob, &w, &d)
+	case "i8":
+		C.nk_dots_packed_shape_i8(blob, &w, &d)
+	case "u8":
+		C.nk_dots_packed_shape_u8(blob, &w, &d)
+	case "u1":
+		C.nk_dots_packed_shape_u1(blob, &w, &d)
+	}
+	return int(w), int(d)
+}
+
 // NewPackedMatrixF64 packs a B matrix (width × depth f64 values) for batch operations.
 // b must have capacity >= width × depth.
 func NewPackedMatrixF64(b []float64, width, depth int) PackedMatrix {

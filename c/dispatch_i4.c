@@ -16,6 +16,9 @@ void nk_dispatch_i4_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
     if (v & nk_cap_v128relaxed_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_i4_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_dots_pack_size_k: *m = (m_t)&nk_dots_pack_size_i4_v128relaxed, *c = nk_cap_v128relaxed_k; return;
+        case nk_kernel_dots_packed_shape_k:
+            *m = (m_t)&nk_dots_packed_shape_i4_v128relaxed, *c = nk_cap_v128relaxed_k;
+            return;
         case nk_kernel_dots_pack_k: *m = (m_t)&nk_dots_pack_i4_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_dots_packed_k: *m = (m_t)&nk_dots_packed_i4_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_dots_symmetric_k: *m = (m_t)&nk_dots_symmetric_i4_v128relaxed, *c = nk_cap_v128relaxed_k; return;
@@ -25,6 +28,7 @@ void nk_dispatch_i4_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
 #if NK_TARGET_SME
     if (v & nk_cap_sme_k) switch (k) {
         case nk_kernel_dots_pack_size_k: *m = (m_t)&nk_dots_pack_size_i4_sme, *c = nk_cap_sme_k; return;
+        case nk_kernel_dots_packed_shape_k: *m = (m_t)&nk_dots_packed_shape_i4_sme, *c = nk_cap_sme_k; return;
         case nk_kernel_dots_pack_k: *m = (m_t)&nk_dots_pack_i4_sme, *c = nk_cap_sme_k; return;
         case nk_kernel_dots_packed_k: *m = (m_t)&nk_dots_packed_i4_sme, *c = nk_cap_sme_k; return;
         case nk_kernel_dots_symmetric_k: *m = (m_t)&nk_dots_symmetric_i4_sme, *c = nk_cap_sme_k; return;
@@ -39,6 +43,7 @@ void nk_dispatch_i4_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
     if (v & nk_cap_neonsdot_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_i4_neonsdot, *c = nk_cap_neonsdot_k; return;
         case nk_kernel_dots_pack_size_k: *m = (m_t)&nk_dots_pack_size_i4_neonsdot, *c = nk_cap_neonsdot_k; return;
+        case nk_kernel_dots_packed_shape_k: *m = (m_t)&nk_dots_packed_shape_i4_neonsdot, *c = nk_cap_neonsdot_k; return;
         case nk_kernel_dots_pack_k: *m = (m_t)&nk_dots_pack_i4_neonsdot, *c = nk_cap_neonsdot_k; return;
         case nk_kernel_dots_packed_k: *m = (m_t)&nk_dots_packed_i4_neonsdot, *c = nk_cap_neonsdot_k; return;
         case nk_kernel_dots_symmetric_k: *m = (m_t)&nk_dots_symmetric_i4_neonsdot, *c = nk_cap_neonsdot_k; return;
@@ -63,6 +68,7 @@ void nk_dispatch_i4_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         case nk_kernel_sqeuclidean_k: *m = (m_t)&nk_sqeuclidean_i4_icelake, *c = nk_cap_icelake_k; return;
         case nk_kernel_euclidean_k: *m = (m_t)&nk_euclidean_i4_icelake, *c = nk_cap_icelake_k; return;
         case nk_kernel_dots_pack_size_k: *m = (m_t)&nk_dots_pack_size_i4_icelake, *c = nk_cap_icelake_k; return;
+        case nk_kernel_dots_packed_shape_k: *m = (m_t)&nk_dots_packed_shape_i4_icelake, *c = nk_cap_icelake_k; return;
         case nk_kernel_dots_pack_k: *m = (m_t)&nk_dots_pack_i4_icelake, *c = nk_cap_icelake_k; return;
         case nk_kernel_dots_packed_k: *m = (m_t)&nk_dots_packed_i4_icelake, *c = nk_cap_icelake_k; return;
         case nk_kernel_dots_symmetric_k: *m = (m_t)&nk_dots_symmetric_i4_icelake, *c = nk_cap_icelake_k; return;
@@ -85,6 +91,7 @@ void nk_dispatch_i4_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
     if (v & nk_cap_haswell_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_i4_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_dots_pack_size_k: *m = (m_t)&nk_dots_pack_size_i4_haswell, *c = nk_cap_haswell_k; return;
+        case nk_kernel_dots_packed_shape_k: *m = (m_t)&nk_dots_packed_shape_i4_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_dots_pack_k: *m = (m_t)&nk_dots_pack_i4_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_dots_packed_k: *m = (m_t)&nk_dots_packed_i4_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_dots_symmetric_k: *m = (m_t)&nk_dots_symmetric_i4_haswell, *c = nk_cap_haswell_k; return;
@@ -107,6 +114,7 @@ void nk_dispatch_i4_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         case nk_kernel_sqeuclidean_k: *m = (m_t)&nk_sqeuclidean_i4_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_euclidean_k: *m = (m_t)&nk_euclidean_i4_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_dots_pack_size_k: *m = (m_t)&nk_dots_pack_size_i4_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_dots_packed_shape_k: *m = (m_t)&nk_dots_packed_shape_i4_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_dots_pack_k: *m = (m_t)&nk_dots_pack_i4_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_dots_packed_k: *m = (m_t)&nk_dots_packed_i4_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_dots_symmetric_k: *m = (m_t)&nk_dots_symmetric_i4_serial, *c = nk_cap_serial_k; return;
@@ -136,6 +144,7 @@ void nk_dispatch_i4_init_(nk_capability_t caps) {
     nk_dispatch_i4_find_(caps, nk_kernel_reduce_moments_k, (nk_kernel_punned_t *)&t->reduce_moments_i4, &used);
     nk_dispatch_i4_find_(caps, nk_kernel_reduce_minmax_k, (nk_kernel_punned_t *)&t->reduce_minmax_i4, &used);
     nk_dispatch_i4_find_(caps, nk_kernel_dots_pack_size_k, (nk_kernel_punned_t *)&t->dots_pack_size_i4, &used);
+    nk_dispatch_i4_find_(caps, nk_kernel_dots_packed_shape_k, (nk_kernel_punned_t *)&t->dots_packed_shape_i4, &used);
     nk_dispatch_i4_find_(caps, nk_kernel_dots_pack_k, (nk_kernel_punned_t *)&t->dots_pack_i4, &used);
     nk_dispatch_i4_find_(caps, nk_kernel_dots_packed_k, (nk_kernel_punned_t *)&t->dots_packed_i4, &used);
     nk_dispatch_i4_find_(caps, nk_kernel_dots_symmetric_k, (nk_kernel_punned_t *)&t->dots_symmetric_i4, &used);

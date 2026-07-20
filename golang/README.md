@@ -34,7 +34,7 @@ GEMM-like batch workloads with pack-once-reuse-many semantics via `PackedMatrix`
 __Symmetric self-similarity.__
 SYRK-like kernels that skip duplicate `(i, j)` and `(j, i)` work.
 __MaxSim late interaction.__
-ColBERT-style scoring with pre-packed queries and documents via `MaxSimPacked`.
+ColBERT-style scoring with pre-packed queries and documents via `MaxSimPackedMatrix`.
 __Binary set metrics.__
 Hamming and Jaccard on packed bit vectors and set-hash vectors.
 __Probability metrics.__
@@ -361,7 +361,7 @@ MaxSim is the late-interaction primitive used by systems such as [ColBERT](https
 It computes the sum of per-query-token maximum cosine similarities across document tokens.
 The result is an angular distance: `sum(1 - max_cosine)`.
 
-The `MaxSimPacked` struct wraps packed vectors with their metadata.
+The `MaxSimPackedMatrix` struct wraps packed vectors with their metadata.
 
 ```go
 package main
@@ -381,8 +381,8 @@ func main() {
 	for i := range docs { docs[i] = float32(i%3) + 1 }
 
 	// Pack both sides
-	qPacked := nk.NewMaxSimPackedF32(queries, queryTokens, depth)
-	dPacked := nk.NewMaxSimPackedF32(docs, docTokens, depth)
+	qPacked := nk.NewMaxSimPackedMatrixF32(queries, queryTokens, depth)
+	dPacked := nk.NewMaxSimPackedMatrixF32(docs, docTokens, depth)
 
 	// Compute MaxSim score
 	score := nk.MaxSimF32(qPacked, dPacked)
@@ -479,7 +479,7 @@ That means a few rules matter:
 - Length mismatches and insufficient slice capacity panic uniformly across all functions.
 - Empty slices return zero for scalar outputs rather than crashing.
 - The slice backing arrays remain owned by Go.
-- `PackedMatrix` and `MaxSimPacked` structs own their packed buffers and carry dimensions and dtype metadata.
+- `PackedMatrix` and `MaxSimPackedMatrix` structs own their packed buffers and carry dimensions and dtype metadata.
 - Constructors validate that input slices are large enough for the given dimensions.
 - Batch functions validate both input and output slice sizes.
 - Symmetric output matrices must be `n × n` in size.
@@ -489,7 +489,7 @@ That means a few rules matter:
 Go automatically pins slice backing arrays for the duration of each cGo call.
 No `runtime.Pinner` or manual pinning is needed from the caller.
 
-`PackedMatrix` and `MaxSimPacked` hold strong Go references to their `[]byte` buffers.
+`PackedMatrix` and `MaxSimPackedMatrix` hold strong Go references to their `[]byte` buffers.
 This keeps the packed data alive for garbage collection as long as the struct is reachable.
 
 Memory footprint in Go is easiest to think about in two layers.

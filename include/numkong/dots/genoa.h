@@ -31,10 +31,11 @@ extern "C" {
 /* BF16 GEMM: depth_simd_dimensions=32 (32 bf16s = 64 bytes = 1 cache line) */
 nk_define_cross_pack_size_(dots, bf16, genoa, bf16, bf16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/1)
-nk_define_cross_pack_(dots, bf16, genoa, bf16, bf16, nk_b512_vec_t, nk_load_b512_skylake_,
-                      nk_partial_load_b16x32_skylake_, nk_store_b512_skylake_, nk_partial_store_b16x32_skylake_,
-                      /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_bf16_,
-                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_(dots, bf16, genoa)
+    nk_define_cross_pack_(dots, bf16, genoa, bf16, bf16, nk_b512_vec_t, nk_load_b512_skylake_,
+                          nk_partial_load_b16x32_skylake_, nk_store_b512_skylake_, nk_partial_store_b16x32_skylake_,
+                          /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_bf16_,
+                          /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, bf16, genoa, bf16, f32, nk_b512_vec_t, nk_dot_through_bf16_state_genoa_t_,
                            nk_b128_vec_t, nk_dot_through_bf16_init_genoa_, nk_load_b512_skylake_,
                            nk_partial_load_b16x32_skylake_, nk_dot_through_bf16_update_genoa_,
@@ -50,10 +51,11 @@ nk_define_cross_packed_(dots, bf16, genoa, bf16, bf16, f32, nk_b512_vec_t, nk_do
 /* E4M3 GEMM: depth_simd_dimensions=32 (32 e4m3s = 32 bytes = half cache line), F32 accumulator */
 nk_define_cross_pack_size_(dots, e4m3, genoa, e4m3, bf16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/1)
-nk_define_cross_pack_(dots, e4m3, genoa, e4m3, bf16, nk_b512_vec_t, nk_load_e4m3x32_to_bf16x32_icelake_,
-                      nk_partial_load_e4m3x32_to_bf16x32_icelake_, nk_store_b512_skylake_,
-                      nk_partial_store_b16x32_skylake_, /*simd_width=*/32, /*norm_value_type=*/f32,
-                      nk_dots_reduce_sumsq_e4m3_, /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_(dots, e4m3, genoa)
+    nk_define_cross_pack_(dots, e4m3, genoa, e4m3, bf16, nk_b512_vec_t, nk_load_e4m3x32_to_bf16x32_icelake_,
+                          nk_partial_load_e4m3x32_to_bf16x32_icelake_, nk_store_b512_skylake_,
+                          nk_partial_store_b16x32_skylake_, /*simd_width=*/32, /*norm_value_type=*/f32,
+                          nk_dots_reduce_sumsq_e4m3_, /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, e4m3, genoa, e4m3, f32, nk_b512_vec_t, nk_dot_through_bf16_state_genoa_t_,
                            nk_b128_vec_t, nk_dot_through_bf16_init_genoa_, nk_load_e4m3x32_to_bf16x32_icelake_,
                            nk_partial_load_e4m3x32_to_bf16x32_icelake_, nk_dot_through_bf16_update_genoa_,
@@ -69,10 +71,11 @@ nk_define_cross_packed_(dots, e4m3, genoa, e4m3, bf16, f32, nk_b512_vec_t, nk_do
 /* E5M2 GEMM: depth_simd_dimensions=32 (32 e5m2s = 32 bytes = half cache line), F32 accumulator */
 nk_define_cross_pack_size_(dots, e5m2, genoa, e5m2, bf16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/1)
-nk_define_cross_pack_(dots, e5m2, genoa, e5m2, bf16, nk_b512_vec_t, nk_load_e5m2x32_to_bf16x32_icelake_,
-                      nk_partial_load_e5m2x32_to_bf16x32_icelake_, nk_store_b512_skylake_,
-                      nk_partial_store_b16x32_skylake_, /*simd_width=*/32, /*norm_value_type=*/f32,
-                      nk_dots_reduce_sumsq_e5m2_, /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_(dots, e5m2, genoa)
+    nk_define_cross_pack_(dots, e5m2, genoa, e5m2, bf16, nk_b512_vec_t, nk_load_e5m2x32_to_bf16x32_icelake_,
+                          nk_partial_load_e5m2x32_to_bf16x32_icelake_, nk_store_b512_skylake_,
+                          nk_partial_store_b16x32_skylake_, /*simd_width=*/32, /*norm_value_type=*/f32,
+                          nk_dots_reduce_sumsq_e5m2_, /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, e5m2, genoa, e5m2, f32, nk_b512_vec_t, nk_dot_through_bf16_state_genoa_t_,
                            nk_b128_vec_t, nk_dot_through_bf16_init_genoa_, nk_load_e5m2x32_to_bf16x32_icelake_,
                            nk_partial_load_e5m2x32_to_bf16x32_icelake_, nk_dot_through_bf16_update_genoa_,

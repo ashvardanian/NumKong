@@ -124,6 +124,11 @@ NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_diamondamx(nk_size_t key_v
     return nk_attention_pack_size_quad_diamondamx_(key_value_head_count, depth, segment_lengths, segment_count);
 }
 
+NK_API_COMPTIME void nk_attention_packed_shape_e4m3_diamondamx(void const *key_value_packed, nk_size_t *heads,
+                                                               nk_size_t *depth, nk_size_t *segments) {
+    nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
+}
+
 /** @brief Raw 1-byte packing shared by E4M3-native and I8: K transposed, V quad-interleaved. */
 NK_HELPER_INLINE void nk_attention_pack_quad_diamondamx_(                                        //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
@@ -498,8 +503,8 @@ NK_API_COMPTIME void nk_attention_packed_e4m3_diamondamx(                       
         return;
     }
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
-    if (header->depth != depth || header->key_value_head_count != key_value_head_count) return;
-    nk_size_t const segment_count = header->segment_count;
+    if (header->depth != depth || header->heads != key_value_head_count) return;
+    nk_size_t const segment_count = header->segments;
     nk_u64_t const *tile_offsets = (nk_u64_t const *)((char const *)key_value_packed + sizeof(*header));
     nk_u32_t const *segment_lengths = (nk_u32_t const *)(tile_offsets + segment_count + 1);
     char const *tiles_base = (char const *)key_value_packed + sizeof(*header) +

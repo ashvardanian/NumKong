@@ -298,6 +298,19 @@ typedef struct {
     nk_dots_pack_size_punned_t dots_pack_size_u8;
     nk_dots_pack_size_punned_t dots_pack_size_u4;
     nk_dots_pack_size_punned_t dots_pack_size_u1;
+    nk_dots_packed_shape_punned_t dots_packed_shape_f64;
+    nk_dots_packed_shape_punned_t dots_packed_shape_f32;
+    nk_dots_packed_shape_punned_t dots_packed_shape_bf16;
+    nk_dots_packed_shape_punned_t dots_packed_shape_f16;
+    nk_dots_packed_shape_punned_t dots_packed_shape_e5m2;
+    nk_dots_packed_shape_punned_t dots_packed_shape_e4m3;
+    nk_dots_packed_shape_punned_t dots_packed_shape_e3m2;
+    nk_dots_packed_shape_punned_t dots_packed_shape_e2m3;
+    nk_dots_packed_shape_punned_t dots_packed_shape_i8;
+    nk_dots_packed_shape_punned_t dots_packed_shape_i4;
+    nk_dots_packed_shape_punned_t dots_packed_shape_u8;
+    nk_dots_packed_shape_punned_t dots_packed_shape_u4;
+    nk_dots_packed_shape_punned_t dots_packed_shape_u1;
     // Dots pack
     nk_dots_pack_punned_t dots_pack_f64;
     nk_dots_pack_punned_t dots_pack_f32;
@@ -402,6 +415,9 @@ typedef struct {
     nk_dots_pack_size_punned_t maxsim_pack_size_f32;
     nk_dots_pack_size_punned_t maxsim_pack_size_bf16;
     nk_dots_pack_size_punned_t maxsim_pack_size_f16;
+    nk_dots_packed_shape_punned_t maxsim_packed_shape_f32;
+    nk_dots_packed_shape_punned_t maxsim_packed_shape_bf16;
+    nk_dots_packed_shape_punned_t maxsim_packed_shape_f16;
     // MaxSim pack
     nk_dots_pack_punned_t maxsim_pack_f32;
     nk_dots_pack_punned_t maxsim_pack_bf16;
@@ -413,6 +429,9 @@ typedef struct {
     nk_attention_pack_size_punned_t attention_pack_size_bf16;
     nk_attention_pack_size_punned_t attention_pack_size_e4m3;
     nk_attention_pack_size_punned_t attention_pack_size_i8;
+    nk_attention_packed_shape_punned_t attention_packed_shape_bf16;
+    nk_attention_packed_shape_punned_t attention_packed_shape_e4m3;
+    nk_attention_packed_shape_punned_t attention_packed_shape_i8;
     nk_attention_pack_punned_t attention_pack_bf16;
     nk_attention_pack_punned_t attention_pack_e4m3;
     nk_attention_pack_punned_t attention_pack_i8;
