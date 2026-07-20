@@ -59,7 +59,7 @@ def test_attention_packed(dtype, tolerance, scenario, head_dim, threads):
     v_f32 = (np.random.randn(tokens, num_kv_heads * head_dim) * 0.3).astype(np.float32)
     q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
 
-    kv = nk.attention_pack(k, v, segment_offsets=offsets, head_dim=head_dim, threads=threads)
+    kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=head_dim, threads=threads)
     assert kv.segments == len(lengths)
     assert kv.heads == num_kv_heads
     assert kv.depth == head_dim
@@ -88,7 +88,7 @@ def test_attention_pool(dtype, tolerance):
     v_f32 = (np.random.randn(tokens, num_heads * head_dim) * 0.3).astype(np.float32)
     q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
 
-    kv = nk.attention_pack(k, v, segment_offsets=kv_offsets, head_dim=head_dim, threads=1)
+    kv = nk.attention_pack(k, v, segment_offsets=kv_offsets, depth=head_dim, threads=1)
     out = nk.attention_packed(q, kv, query_offsets=pool_offsets, threads=1)
     result = np.from_dlpack(out)
 
@@ -120,7 +120,7 @@ def test_attention_i8():
     k = nk.Tensor(np.random.randint(-31, 32, (tokens, num_heads * head_dim)).astype(np.int8))
     v = nk.Tensor(np.random.randint(-31, 32, (tokens, num_heads * head_dim)).astype(np.int8))
 
-    kv = nk.attention_pack(k, v, segment_offsets=offsets, head_dim=head_dim, threads=0)
+    kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=head_dim, threads=0)
     out = nk.attention_packed(q, kv, query_offsets=offsets, scale=scale, threads=0)
     result = np.from_dlpack(out)
 
@@ -133,7 +133,7 @@ def test_attention_i8():
 def test_attention_validation():
     offsets = np.array([0, 4], dtype=np.uint32)
     matrix = nk.Tensor(np.zeros((4, 128), dtype=np.float32)).astype("bf16")
-    kv = nk.attention_pack(matrix, matrix, segment_offsets=offsets, head_dim=128, threads=1)
+    kv = nk.attention_pack(matrix, matrix, segment_offsets=offsets, depth=128, threads=1)
 
     with pytest.raises(TypeError):
         nk.attention_packed(matrix, "not-packed", query_offsets=offsets)
