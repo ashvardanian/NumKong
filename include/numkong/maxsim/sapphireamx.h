@@ -115,6 +115,8 @@ NK_API_COMPTIME void nk_maxsim_packed_shape_f32_sapphireamx(void const *packed, 
 
 NK_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
+    nk_size_t const blob_bytes = nk_maxsim_pack_size_f32_sapphireamx(vector_count, depth);
+    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
 
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
@@ -376,6 +378,8 @@ NK_API_COMPTIME void nk_maxsim_packed_shape_f16_sapphireamx(void const *packed, 
 
 NK_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
+    nk_size_t const blob_bytes = nk_maxsim_pack_size_f16_sapphireamx(vector_count, depth);
+    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
 
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
@@ -654,6 +658,8 @@ NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_sapphireamx(void const *packed,
 
 NK_API_COMPTIME void nk_maxsim_pack_bf16_sapphireamx( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
+    nk_size_t const blob_bytes = nk_maxsim_pack_size_bf16_sapphireamx(vector_count, depth);
+    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
 
     nk_size_t const tile_bytes = 1024;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_bf16_t);

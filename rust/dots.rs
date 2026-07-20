@@ -1233,8 +1233,9 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
             self.grow_to(size)?;
         }
         if size > 0 {
+            // The packer zero-fills its header reserved words and panel padding, so it owns every
+            // byte of the blob — no pre-zeroing needed here.
             unsafe {
-                core::ptr::write_bytes(self.data.as_ptr(), 0, size);
                 Scalar::dots_pack(b.as_ptr(), width, depth, b.stride_bytes(0) as usize, self.data.as_ptr());
             }
         }
@@ -2374,5 +2375,42 @@ mod tests {
             check::<i8>(width, depth);
             check::<u8>(width, depth);
         }
+    }
+
+    #[test]
+    fn pack_is_hermetic() {
+        // Packing is a pure function of its inputs: pre-filling the destination with different garbage
+        // must not change a byte of the result. Both windows are 64-aligned so the layout is identical.
+        // Non-tile-multiple width/depth exercises the panel and header padding across backends (the
+        // cross panel path for f32/f16, the AMX tile path for i8/u8/bf16 on Sapphire Rapids).
+        fn check<Scalar: TestableType + Dots>() {
+            let (width, depth) = (5usize, align_depth::<Scalar>(20usize));
+            let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
+            let size = <Scalar as Dots>::dots_pack_size(width, depth);
+            let b_ptr = b.as_ptr();
+            let b_stride = b.stride_bytes(0) as usize;
+
+            let pack_with_fill = |fill: u8| -> Vec<u8> {
+                let mut backing = vec![fill; size + SIMD_ALIGNMENT];
+                let base = backing.as_mut_ptr();
+                let packed = unsafe { base.add(base.align_offset(SIMD_ALIGNMENT)) };
+                unsafe {
+                    <Scalar as Dots>::dots_pack(b_ptr, width, depth, b_stride, packed);
+                    core::slice::from_raw_parts(packed, size).to_vec()
+                }
+            };
+            assert_eq!(
+                pack_with_fill(0x00),
+                pack_with_fill(0xFF),
+                "dots pack must be a pure function of its inputs: {}",
+                core::any::type_name::<Scalar>()
+            );
+        }
+        init_thread();
+        check::<f32>();
+        check::<f16>();
+        check::<bf16>();
+        check::<i8>();
+        check::<u8>();
     }
 }

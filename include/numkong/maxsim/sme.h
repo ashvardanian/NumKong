@@ -491,6 +491,8 @@ NK_API_COMPTIME void nk_maxsim_packed_shape_f16_sme(void const *packed, nk_size_
 
 NK_API_COMPTIME void nk_maxsim_pack_bf16_sme(                                                                //
     nk_bf16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) { //
+    nk_size_t const blob_bytes = nk_maxsim_pack_size_bf16_sme(columns, depth);
+    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
 
     // Delegate tile interleaving and squared norms computation to dots pack.
     // Both headers are 64 bytes with identical layout for the first 6 fields.
@@ -512,6 +514,8 @@ NK_API_COMPTIME void nk_maxsim_pack_bf16_sme(                                   
 
 NK_API_COMPTIME void nk_maxsim_pack_f16_sme(                                                                //
     nk_f16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) { //
+    nk_size_t const blob_bytes = nk_maxsim_pack_size_f16_sme(columns, depth);
+    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
 
     // Delegate tile interleaving and squared norms computation to dots pack.
     // Both headers are 64 bytes with identical layout for the first 6 fields.
@@ -563,6 +567,8 @@ NK_API_COMPTIME void nk_maxsim_packed_shape_f32_sme(void const *packed, nk_size_
 
 NK_API_COMPTIME void nk_maxsim_pack_f32_sme(                                                                //
     nk_f32_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) { //
+    nk_size_t const blob_bytes = nk_maxsim_pack_size_f32_sme(columns, depth);
+    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
 
     nk_size_t const expansion = 4;                    // i8->i32 SMOPA
     nk_size_t const tile_dimension = nk_sme_cntw_();  // 16 for SVL=512

@@ -102,6 +102,13 @@ NK_HELPER_INLINE nk_size_t nk_maxsim_packed_header_setup_( //
         vector_count * sizeof(nk_maxsim_vector_metadata_t), 64);
     nk_size_t const original_stride = nk_size_round_up_to_multiple_(depth * original_element_bytes, 64);
 
+    // Zero the whole buffer up front so the alignment slack between the i8 / metadata / originals
+    // regions and each region's round-up tail stay deterministic — the pack writes only the data,
+    // leaving these bytes zero, which makes the packed blob a pure function of its inputs.
+
+    nk_size_t const total_bytes = header_size + i8_region_size + metadata_region_size + vector_count * original_stride;
+    for (nk_size_t byte_index = 0; byte_index < total_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
+
     nk_maxsim_packed_header_t *header = (nk_maxsim_packed_header_t *)packed;
     header->vectors = (nk_u32_t)vector_count;
     header->depth = (nk_u32_t)depth;

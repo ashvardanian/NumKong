@@ -698,10 +698,10 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         if size == 0 {
             return Ok(());
         }
+        // The packer writes every byte it owns — the directory (header + offsets table incl. its
+        // aligned tail) and every payload plane's padding are zero-filled by the kernel — so the
+        // blob is a pure function of the inputs and needs no pre-zeroing here.
         unsafe {
-            // Zero first so any alignment padding the packer leaves untouched is deterministic —
-            // packed blobs stay byte-reproducible across allocations and match the parallel path.
-            core::ptr::write_bytes(self.data.as_ptr(), 0, size);
             Scalar::attention_pack(
                 keys.as_ptr(),
                 values.as_ptr(),
@@ -1085,10 +1085,6 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
             return Ok(());
         }
 
-        // Zero the blob so alignment padding is deterministic and the parallel result is
-        // byte-identical to the serial path regardless of allocator-provided contents.
-        unsafe { core::ptr::write_bytes(self.data.as_ptr(), 0, size) };
-
         // Task 0's window writes the shared header + payload-offsets directory that every other
         // window reads to locate its plane (see the `attention_pack` safety note). Run it serially
         // first: fanning task 0 out with the rest races — a worker could read the directory before
@@ -1186,5 +1182,53 @@ mod tests {
         let read = AttentionPackedMatrix::<bf16>::shape(cache.as_bytes()).unwrap();
         assert_eq!(read, (cache.heads(), cache.depth(), cache.segments()));
         assert_eq!(AttentionPackedMatrix::<bf16>::shape(&[]), None);
+    }
+
+    #[test]
+    fn pack_is_hermetic() {
+        // Packing must be a pure function of its inputs: pre-filling the destination with different
+        // garbage must not change a single byte of the result. This is the invariant that lets the
+        // container skip pre-zeroing — the packer owns every byte, including the directory's aligned
+        // tail and each plane's padding. Both windows are 64-aligned so the layout is identical.
+        crate::capabilities::configure_thread();
+        let (heads, depth) = (2usize, 64usize);
+        let offsets = [0u32, 7, 7, 40]; // three segments, including a 0-length PAD (7..7)
+        let segment_lengths: Vec<u32> = offsets.windows(2).map(|pair| pair[1] - pair[0]).collect();
+        let segment_count = segment_lengths.len();
+        let tokens = *offsets.last().unwrap() as usize;
+        let keys = Tensor::<bf16>::try_full(&[tokens, heads * depth], bf16::from_f32(0.1)).unwrap();
+        let values = Tensor::<bf16>::try_full(&[tokens, heads * depth], bf16::from_f32(0.2)).unwrap();
+        let (keys_view, values_view) = (keys.view(), values.view());
+        let size = <bf16 as Attention>::attention_pack_size(heads, depth, &segment_lengths, segment_count);
+        let keys_stride = keys_view.stride_bytes(0) as usize;
+        let values_stride = values_view.stride_bytes(0) as usize;
+
+        let pack_with_fill = |fill: u8| -> Vec<u8> {
+            let mut backing = vec![fill; size + SIMD_ALIGNMENT];
+            let base = backing.as_mut_ptr();
+            let packed = unsafe { base.add(base.align_offset(SIMD_ALIGNMENT)) };
+            unsafe {
+                <bf16 as Attention>::attention_pack(
+                    keys_view.as_ptr(),
+                    values_view.as_ptr(),
+                    heads,
+                    depth,
+                    offsets.as_ptr(),
+                    segment_lengths.as_ptr(),
+                    segment_count,
+                    keys_stride,
+                    values_stride,
+                    packed,
+                    0,
+                    0,
+                );
+                core::slice::from_raw_parts(packed, size).to_vec()
+            }
+        };
+        assert_eq!(
+            pack_with_fill(0x00),
+            pack_with_fill(0xFF),
+            "attention pack must be a pure function of its inputs (no allocator garbage in the blob)"
+        );
     }
 }

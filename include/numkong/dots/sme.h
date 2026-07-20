@@ -270,6 +270,8 @@ NK_API_COMPTIME void nk_dots_pack_f16_sme(                 //
     nk_size_t const total_vectors = column_tile_count * depth_step_count;
 
     nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_tile_count = (nk_u32_t)column_tile_count;
     header->depth_tile_count = (nk_u32_t)depth_step_count;
     header->columns = (nk_u32_t)columns;
@@ -304,6 +306,8 @@ NK_API_COMPTIME void nk_dots_pack_bf16_sme(                 //
     nk_size_t const total_vectors = column_tile_count * depth_step_count;
 
     nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_tile_count = (nk_u32_t)column_tile_count;
     header->depth_tile_count = (nk_u32_t)depth_step_count;
     header->columns = (nk_u32_t)columns;
@@ -1100,6 +1104,8 @@ NK_API_COMPTIME void nk_dots_pack_i8_sme( //
     nk_size_t const total_vectors = column_tile_count * depth_step_count;
 
     nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_tile_count = (nk_u32_t)column_tile_count;
     header->depth_tile_count = (nk_u32_t)depth_step_count;
     header->columns = (nk_u32_t)columns;
@@ -1804,6 +1810,8 @@ NK_API_COMPTIME void nk_dots_pack_e4m3_sme(                 //
     nk_size_t const total_vectors = column_tile_count * depth_step_count;
 
     nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_tile_count = (nk_u32_t)column_tile_count;
     header->depth_tile_count = (nk_u32_t)depth_step_count;
     header->columns = (nk_u32_t)columns;
@@ -2234,6 +2242,8 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_sme(nk_e5m2_t const *b, nk_size_t columns
     nk_size_t const total_vectors = column_tile_count * depth_step_count;
 
     nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_tile_count = (nk_u32_t)column_tile_count;
     header->depth_tile_count = (nk_u32_t)depth_step_count;
     header->columns = (nk_u32_t)columns;
@@ -2760,6 +2770,8 @@ NK_API_COMPTIME void nk_dots_pack_e2m3_sme( //
     nk_size_t const total_vectors = column_tile_count * depth_step_count;
 
     nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_tile_count = (nk_u32_t)column_tile_count;
     header->depth_tile_count = (nk_u32_t)depth_step_count;
     header->columns = (nk_u32_t)columns;
@@ -3278,6 +3290,8 @@ NK_API_COMPTIME void nk_dots_pack_e3m2_sme( //
     nk_size_t const total_vectors = column_tile_count * depth_step_count;
 
     nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_tile_count = (nk_u32_t)column_tile_count;
     header->depth_tile_count = (nk_u32_t)depth_step_count;
     header->columns = (nk_u32_t)columns;
@@ -3568,6 +3582,8 @@ NK_API_COMPTIME void nk_dots_pack_u8_sme( //
     nk_size_t const total_vectors = column_tile_count * depth_step_count;
 
     nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_tile_count = (nk_u32_t)column_tile_count;
     header->depth_tile_count = (nk_u32_t)depth_step_count;
     header->columns = (nk_u32_t)columns;
@@ -3972,6 +3988,8 @@ NK_API_COMPTIME void nk_dots_pack_u4_sme( //
     nk_size_t const total_vectors = column_tile_count * depth_step_count;
 
     nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_tile_count = (nk_u32_t)column_tile_count;
     header->depth_tile_count = (nk_u32_t)depth_step_count;
     header->columns = (nk_u32_t)columns;
@@ -4252,6 +4270,8 @@ NK_API_COMPTIME void nk_dots_pack_i4_sme(                   //
     nk_size_t const total_vectors = column_tile_count * depth_step_count;
 
     nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_tile_count = (nk_u32_t)column_tile_count;
     header->depth_tile_count = (nk_u32_t)depth_step_count;
     header->columns = (nk_u32_t)columns;

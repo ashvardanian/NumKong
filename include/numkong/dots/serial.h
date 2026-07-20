@@ -318,6 +318,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         header->column_count = (nk_u32_t)column_count;                                                                \
         header->depth_dimensions = (nk_u32_t)depth;                                                                   \
         header->depth_padded_values = (nk_u32_t)depth_values_padded;                                                  \
+        for (nk_size_t reserved_index = 0; reserved_index < 13; reserved_index++)                                     \
+            header->reserved[reserved_index] = 0;                                                                     \
                                                                                                                       \
         nk_##packed_value_type##_t *packed = (nk_##packed_value_type##_t *)((char *)b_packed +                        \
                                                                             sizeof(nk_cross_packed_buffer_header_t)); \
@@ -395,6 +397,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         header->column_count = (nk_u32_t)column_count;                                                                \
         header->depth_dimensions = (nk_u32_t)depth;                                                                   \
         header->depth_padded_values = (nk_u32_t)depth_values_padded;                                                  \
+        for (nk_size_t reserved_index = 0; reserved_index < 13; reserved_index++)                                     \
+            header->reserved[reserved_index] = 0;                                                                     \
                                                                                                                       \
         nk_##packed_value_type##_t *packed = (nk_##packed_value_type##_t *)((char *)b_packed +                        \
                                                                             sizeof(nk_cross_packed_buffer_header_t)); \

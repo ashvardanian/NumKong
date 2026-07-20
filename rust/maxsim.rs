@@ -332,8 +332,8 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
             self.grow_to(size)?;
         }
         if size > 0 {
+            // The packer zeros the whole buffer up front, so it owns every byte — no pre-zeroing here.
             unsafe {
-                core::ptr::write_bytes(self.data.as_ptr(), 0, size);
                 Scalar::maxsim_pack(
                     vectors.as_ptr(),
                     vector_count,
@@ -606,5 +606,32 @@ mod tests {
             check::<f16>(vectors, depth, f16::from_f32(1.0));
             check::<bf16>(vectors, depth, bf16::from_f32(1.0));
         }
+    }
+
+    #[test]
+    fn pack_is_hermetic() {
+        // Packing is a pure function of its inputs: pre-filling the destination with different garbage
+        // must not change a byte of the result. Both windows are 64-aligned so the layout is identical.
+        crate::capabilities::configure_thread();
+        let (vector_count, depth) = (5usize, 20usize); // non-tile-multiple exercises padding
+        let vectors = Tensor::<f32>::try_full(&[vector_count, depth], 1.5f32).unwrap();
+        let size = <f32 as MaxSim>::maxsim_pack_size(vector_count, depth);
+        let vectors_ptr = vectors.as_ptr();
+        let vectors_stride = vectors.stride_bytes(0) as usize;
+
+        let pack_with_fill = |fill: u8| -> Vec<u8> {
+            let mut backing = vec![fill; size + SIMD_ALIGNMENT];
+            let base = backing.as_mut_ptr();
+            let packed = unsafe { base.add(base.align_offset(SIMD_ALIGNMENT)) };
+            unsafe {
+                <f32 as MaxSim>::maxsim_pack(vectors_ptr, vector_count, depth, vectors_stride, packed);
+                core::slice::from_raw_parts(packed, size).to_vec()
+            }
+        };
+        assert_eq!(
+            pack_with_fill(0x00),
+            pack_with_fill(0xFF),
+            "maxsim pack must be a pure function of its inputs (no allocator garbage in the blob)"
+        );
     }
 }

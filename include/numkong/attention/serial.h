@@ -78,8 +78,16 @@ NK_HELPER_INLINE void nk_attention_pack_directory_(void *key_value_packed, nk_si
                                                    nk_size_t segment_count, nk_size_t first_task,
                                                    nk_size_t position_multiple, nk_size_t unit_bytes) {
     if (first_task != 0) return;
+    // Zero the whole directory — header plus the offsets table including its 64-byte-aligned tail —
+    // so the packed blob is a pure function of its inputs, with no allocator garbage in the unwritten
+    // slack. The per-segment payload planes are zero-filled by each backend, so this makes the pack
+    // hermetic and the caller need not pre-zero the buffer.
+
+    nk_size_t const directory_bytes = sizeof(nk_attention_packed_header_t) +
+                                      nk_attention_pack_directory_size_(segment_count);
+    for (nk_size_t byte_index = 0; byte_index < directory_bytes; byte_index++)
+        ((char *)key_value_packed)[byte_index] = 0;
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
-    for (nk_size_t i = 0; i < sizeof(*header) / sizeof(nk_u32_t); i++) ((nk_u32_t *)header)[i] = 0;
     header->heads = (nk_u32_t)key_value_head_count;
     header->depth = (nk_u32_t)depth;
     header->segments = (nk_u32_t)segment_count;

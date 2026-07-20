@@ -253,6 +253,8 @@ NK_API_COMPTIME void nk_dots_pack_f16_graniteamx(               //
 
     // Write header with layout metadata
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->columns = (nk_u32_t)column_count;
     header->depth = (nk_u32_t)depth;
     header->full_column_tiles = (nk_u32_t)column_tiles_count;
@@ -804,6 +806,8 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_graniteamx(               //
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->columns = (nk_u32_t)column_count;
     header->depth = (nk_u32_t)depth;
     header->full_column_tiles = (nk_u32_t)column_tiles_count;

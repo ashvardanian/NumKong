@@ -103,6 +103,8 @@ NK_API_COMPTIME void nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column_co
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_count = (nk_u32_t)column_count;
     header->depth_dimensions = (nk_u32_t)depth;
     header->depth_padded_values = (nk_u32_t)depth_padded;
@@ -313,6 +315,8 @@ NK_API_COMPTIME void nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column_co
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_count = (nk_u32_t)column_count;
     header->depth_dimensions = (nk_u32_t)depth;
     header->depth_padded_values = (nk_u32_t)depth_padded;
@@ -564,6 +568,8 @@ NK_API_COMPTIME void nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t column_
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_count = (nk_u32_t)column_count;
     header->depth_dimensions = (nk_u32_t)depth;
     header->depth_padded_values = (nk_u32_t)depth_padded;
@@ -866,6 +872,8 @@ NK_API_COMPTIME void nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t column_
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_count = (nk_u32_t)column_count;
     header->depth_dimensions = (nk_u32_t)depth;
     header->depth_padded_values = (nk_u32_t)depth_padded;
@@ -1145,6 +1153,8 @@ NK_API_COMPTIME void nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t column_
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_count = (nk_u32_t)column_count;
     header->depth_dimensions = (nk_u32_t)depth;
     header->depth_padded_values = (nk_u32_t)depth_padded;
@@ -1381,6 +1391,8 @@ NK_API_COMPTIME void nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t column_co
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_count = (nk_u32_t)column_count;
     header->depth_dimensions = (nk_u32_t)depth;
     header->depth_padded_values = (nk_u32_t)depth_padded;
@@ -1610,6 +1622,8 @@ NK_API_COMPTIME void nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_coun
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_count = (nk_u32_t)column_count;
     header->depth_dimensions = (nk_u32_t)depth;
     header->depth_padded_values = (nk_u32_t)depth_padded;
@@ -1843,6 +1857,8 @@ NK_API_COMPTIME void nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_coun
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_count = (nk_u32_t)column_count;
     header->depth_dimensions = (nk_u32_t)depth;
     header->depth_padded_values = (nk_u32_t)depth_padded;
@@ -2109,6 +2125,8 @@ NK_API_COMPTIME void nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t column_
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_count = (nk_u32_t)column_count;
     header->depth_dimensions = (nk_u32_t)depth;
     header->depth_padded_values = (nk_u32_t)depth_padded;
@@ -2416,6 +2434,8 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t column_
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        ((nk_u32_t *)header)[word_index] = 0;
     header->column_count = (nk_u32_t)column_count;
     header->depth_dimensions = (nk_u32_t)depth;
     header->depth_padded_values = (nk_u32_t)depth_padded;
