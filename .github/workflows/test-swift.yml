@@ -20,7 +20,7 @@ jobs:
     container: swift:6.2
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Print Machine Specs
         shell: bash
         run: |
@@ -37,7 +37,7 @@ jobs:
     runs-on: macos-15
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Set Up Swift
         uses: swift-actions/setup-swift@v3
         with:

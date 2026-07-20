@@ -31,7 +31,7 @@ jobs:
             target: aarch64-linux-gnu
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: "main"
       - name: Get Version
@@ -95,7 +95,7 @@ jobs:
             cmake_arch: ARM64
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: "main"
       - name: Set Up MSVC
@@ -135,7 +135,7 @@ jobs:
         arch: [arm64, x86_64]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: "main"
       - name: Get Version
@@ -172,7 +172,7 @@ jobs:
             arch: arm64
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: "main"
       - name: Get Version
@@ -204,7 +204,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: "main"
       - name: Get Version
@@ -272,7 +272,7 @@ jobs:
             processor: aarch64
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: "main"
       - name: Get Version
@@ -331,7 +331,7 @@ jobs:
             processor: loongarch64
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: "main"
       - name: Get Version
@@ -366,7 +366,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: "main"
       - name: Get Version
