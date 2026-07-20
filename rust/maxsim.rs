@@ -29,6 +29,9 @@
 //! ```rust,no_run
 //! use numkong::{MaxSimPackedMatrix, Tensor};
 //!
+//! // Required once per thread before scoring: enables AMX tile state on x86.
+//! numkong::capabilities::configure_thread();
+//!
 //! let queries = Tensor::<f32>::try_full(&[32, 128], 1.0).unwrap();
 //! let documents = Tensor::<f32>::try_full(&[1024, 128], 1.0).unwrap();
 //!
@@ -538,6 +541,7 @@ mod tests {
 
     #[test]
     fn maxsim_packs_from_tensor_view() {
+        crate::capabilities::configure_thread();
         let queries = Tensor::<f32>::try_full(&[4, 16], 1.0).unwrap();
         let docs = Tensor::<f32>::try_full(&[8, 16], 1.0).unwrap();
 
