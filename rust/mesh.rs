@@ -9,7 +9,7 @@
 //!
 //! All three entry points align point cloud A onto point cloud B by minimising
 //! residual squared distance, returning a [`MeshAlignmentResult`] that bundles the
-//! transformation (rotation matrix, scale, and the two centroids) together with
+//! transformation — rotation matrix, scale, and the two centroids — together with
 //! the RMSD of the aligned pairs:
 //!
 //! - **RMSD** only reports the root-mean-square deviation between correspondent
@@ -17,13 +17,13 @@
 //!   aligned.
 //! - **Kabsch** solves the classic orthogonal Procrustes problem: assume both
 //!   clouds have matching centroids, find the 3×3 rotation matrix `R` that
-//!   minimises `Σᵢ ‖R·aᵢ − bᵢ‖²`. Scale is always reported as `1.0` (rigid body
-//!   only). Uses an SVD of the cross-covariance matrix under the hood.
+//!   minimises `Σᵢ ‖R·aᵢ − bᵢ‖²`. Scale is always reported as `1.0`, rigid body
+//!   only. Uses an SVD of the cross-covariance matrix under the hood.
 //! - **Umeyama** extends Kabsch with a uniform scale factor — the same SVD core,
 //!   but the result also reports an optimal `s > 0` so rescaled copies of the
 //!   same cloud align cleanly.
 //!
-//! Inputs are `[[Scalar; 3]]` slices (length ≥ 3 and matching on both sides);
+//! Inputs are `[[Scalar; 3]]` slices, length ≥ 3 and matching on both sides;
 //! mismatched or too-small inputs return `None`. The struct-returning API makes
 //! downstream `transform_point` / `transform_points` calls trivial.
 
@@ -153,22 +153,22 @@ extern "C" {
     );
 }
 
-/// Result of mesh alignment operations (RMSD, Kabsch, Umeyama).
+/// Result of mesh alignment operations: RMSD, Kabsch, Umeyama.
 ///
-/// Contains the rigid-body transformation (rotation, scale, translation)
+/// Contains the rigid-body transformation — rotation, scale, translation —
 /// that best aligns point cloud A onto point cloud B, along with the
 /// root-mean-square deviation of the aligned points.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MeshAlignmentResult<TTransform, TMetric> {
     /// 3×3 rotation matrix in row-major order.
     pub rotation_matrix: [TTransform; 9],
-    /// Uniform scale factor (1.0 for Kabsch, free for Umeyama).
+    /// Uniform scale factor — 1.0 for Kabsch, free for Umeyama.
     pub scale: TTransform,
     /// Root-mean-square deviation after alignment.
     pub rmsd: TMetric,
     /// Centroid of point cloud A before alignment.
     pub a_centroid: [TTransform; 3],
-    /// Centroid of point cloud B (target).
+    /// Centroid of point cloud B, the target.
     pub b_centroid: [TTransform; 3],
 }
 
@@ -253,11 +253,11 @@ pub trait MeshAlignment: Sized {
     fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>>;
 
     /// Kabsch rigid-body alignment: recovers the best-fit 3×3 rotation matrix
-    /// (no scaling) that aligns `a` onto `b`, plus the residual RMSD. The
+    /// with no scaling that aligns `a` onto `b`, plus the residual RMSD. The
     /// returned struct's `scale` is always `1.0` by construction.
     ///
     /// Returns `None` if `a.len() != b.len()` or if either cloud has fewer than
-    /// three points (degenerate SVD).
+    /// three points — a degenerate SVD.
     ///
     /// # Examples
     ///
@@ -727,7 +727,7 @@ mod tests {
         assert!(f64::kabsch(pair, pair).is_none());
 
         // Kabsch on random-ish clouds: check outputs are finite and scale == 1.
-        // The underlying SVD solver (Jacobi, 16 fixed iterations) is only approximate,
+        // The underlying SVD solver — Jacobi, 16 fixed iterations — is only approximate,
         // so we verify structural properties rather than exact transform recovery.
         let cloud_a: &[[f64; 3]] = &[
             [2.0, 0.0, 0.0],
@@ -745,7 +745,7 @@ mod tests {
         ];
         let result = f64::kabsch(cloud_a, cloud_b).unwrap();
 
-        // Scale must be 1.0 (Kabsch is rigid, no scaling)
+        // Scale must be 1.0 — Kabsch is rigid, no scaling
         assert!(
             (result.scale - 1.0).abs() < 1e-6,
             "Expected scale ~1.0, got {}",
@@ -753,7 +753,7 @@ mod tests {
         );
         // RMSD must be finite and non-negative
         assert!(result.rmsd.is_finite() && result.rmsd >= 0.0);
-        // Rotation determinant must be ±1 (orthogonal matrix)
+        // Rotation determinant must be ±1 for an orthogonal matrix
         let rotation_matrix = &result.rotation_matrix;
         let det = rotation_matrix[0]
             * (rotation_matrix[4] * rotation_matrix[8] - rotation_matrix[5] * rotation_matrix[7])

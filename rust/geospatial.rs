@@ -11,9 +11,9 @@
 //! Both kernels use a fixed input / output unit convention. Callers holding degree
 //! values must convert with `.to_radians()` first:
 //!
-//! - **Input latitudes and longitudes**: radians (not degrees)
+//! - **Input latitudes and longitudes**: radians, not degrees
 //! - **Output distance**: meters
-//! - **Earth radius** for Haversine: `6 335 439 m` (WGS-84 mean meridional radius)
+//! - **Earth radius** for Haversine: `6 335 439 m` — the WGS-84 mean meridional radius
 //! - **Ellipsoid** for Vincenty: WGS-84 (`a = 6 378 137 m`, `f = 1/298.257223563`)
 //!
 //! The four latitude/longitude slices must be equal length; the output slice
@@ -63,7 +63,7 @@ extern "C" {
 /// - `c = 2 × atan2(√a, √(1−a))`
 /// - `d = R × c`
 ///
-/// Where φ = latitude, λ = longitude, R = Earth's radius (6335 km).
+/// Where φ = latitude, λ = longitude, R = Earth's radius of 6335 km.
 /// Inputs are in radians, outputs in meters.
 pub trait Haversine: Sized {
     /// Compute the great-circle distance for paired coordinates.
@@ -267,7 +267,7 @@ mod tests {
     #[test]
     fn geospatial() {
         // New York → Los Angeles
-        // Haversine uses NK_EARTH_MEDIATORIAL_RADIUS (6,335,439m) → ~3,913,778m
+        // Haversine uses NK_EARTH_MEDIATORIAL_RADIUS of 6,335,439m → ~3,913,778m
         // Vincenty uses the WGS-84 ellipsoid → ~3,944,422m
         let hav_expected = 3_914_000.0;
         let vin_expected = 3_944_000.0;

@@ -6,19 +6,27 @@
 //! ## Modules
 //!
 //! - [`types`]: Mixed-precision scalar types (`f16`, `bf16`, FP8, packed integers) and [`FloatLike`] trait
-//! - [`spatial`]: Dot products, angular (cosine), and Euclidean distances
-//! - [`each`]: Elementwise operations and trigonometry
-//! - [`reduce`]: Statistical reductions (moments, min/max)
-//! - [`set`]: Binary set similarity (Hamming, Jaccard)
-//! - [`probability`]: Probability divergences (KL, JS)
-//! - [`curved`]: Curved metric spaces (Bilinear, Mahalanobis)
-//! - [`mesh`]: Mesh alignment (Kabsch, Umeyama, RMSD)
-//! - [`geospatial`]: Geospatial distances (Haversine, Vincenty)
+//! - [`dot`]: Real and complex dot products
+//! - [`spatial`]: Angular (cosine) and Euclidean distances
+//! - [`each`]: Elementwise operations — scale, sum, blend, FMA
+//! - [`trigonometry`]: Elementwise trigonometry — sin, cos, atan, RoPE
+//! - [`reduce`]: Statistical reductions — moments, min/max
+//! - [`scalar`]: Scalar math primitives — square root, reciprocal square root
+//! - [`set`]: Binary set similarity — Hamming, Jaccard
+//! - [`probability`]: Probability divergences — KL, JS
+//! - [`curved`]: Curved metric spaces — Bilinear, Mahalanobis
+//! - [`mesh`]: Mesh alignment — Kabsch, Umeyama, RMSD
+//! - [`geospatial`]: Geospatial distances — Haversine, Vincenty
 //! - [`sparse`]: Sparse set operations
-//! - [`cast`]: Type casting between scalar formats
+//! - [`mod@cast`]: Type casting between scalar formats
 //! - [`capabilities`]: Runtime SIMD feature detection
-//! - [`matrix`]: Batch matrix operations (GEMM, packed spatial distances)
+//! - [`dots`]: Batch matrix multiplication (GEMM) over pre-packed matrices
+//! - [`spatials`]: Batched spatial distances — angular, Euclidean — over pre-packed matrices
+//! - [`sets`]: Batched binary/set metrics — Hamming, Jaccard — over pre-packed matrices
+//! - [`maxsim`]: Late-interaction MaxSim scoring over pre-packed matrices
+//! - [`attention`]: Ragged scaled-dot-product attention with a packed KV-cache
 //! - [`tensor`]: N-dimensional tensors with elementwise/reduction operations
+//! - [`vector`]: Strided 1-D vector views
 //!
 //! ## Implemented operations include:
 //!
@@ -26,7 +34,7 @@
 //! * Hamming and Jaccard binary distances.
 //! * Kullback-Leibler divergence and Jensen-Shannon distance.
 //! * Elementwise scale, sum, blend, and FMA operations.
-//! * Trigonometric functions (sin, cos, atan).
+//! * Trigonometric functions — sin, cos, atan.
 //! * Type casting between all scalar formats.
 //! * Matrix multiplication with pre-packing (GEMM).
 //!
@@ -69,37 +77,38 @@
 //!
 //! ## Traits
 //!
-//! The `SpatialSimilarity` trait (combining `Dot`, `Angular`, `Euclidean`) covers:
+//! The `SpatialSimilarity` trait, combining `Dot`, `Angular`, `Euclidean`, covers:
 //!
 //! - `dot(a, b)`: Computes dot product between two slices.
 //! - `angular(a, b)` / `cosine(a, b)`: Computes angular distance (1 − cosine similarity).
 //! - `sqeuclidean(a, b)`: Computes squared Euclidean distance.
 //! - `euclidean(a, b)`: Computes Euclidean distance.
 //!
-//! The `BinarySimilarity` trait (combining `Hamming`, `Jaccard`) covers:
+//! The `BinarySimilarity` trait, combining `Hamming`, `Jaccard`, covers:
 //!
 //! - `hamming(a, b)`: Computes Hamming distance between two slices.
 //! - `jaccard(a, b)`: Computes Jaccard distance between two slices.
 //!
-//! The `ProbabilitySimilarity` trait (combining `KullbackLeibler`, `JensenShannon`) covers:
+//! The `ProbabilitySimilarity` trait, combining `KullbackLeibler`, `JensenShannon`, covers:
 //!
 //! - `jensenshannon(a, b)`: Computes Jensen-Shannon distance.
 //! - `kullbackleibler(a, b)`: Computes Kullback-Leibler divergence.
 //!
-//! The elementwise traits (including `EachScale`, `EachSum`, `EachBlend`, `EachFMA`) covers:
+//! The elementwise traits, including `EachScale`, `EachSum`, `EachBlend`, `EachFMA`, cover:
 //!
 //! - `scale(a, alpha, beta, result)`: Element-wise `result[i] = α × a[i] + β`.
 //! - `sum(a, b, result)`: Element-wise `result[i] = a[i] + b[i]`.
 //! - `blend(a, b, alpha, beta, result)`: Blend `result[i] = α × a[i] + β × b[i]`.
 //! - `fma(a, b, c, alpha, beta, result)`: Fused multiply-add `result[i] = α × a[i] × b[i] + β × c[i]`.
 //!
-//! The `Trigonometry` trait (combining `TrigSin`, `TrigCos`, `TrigAtan`) covers:
+//! The `Trigonometry` trait, combining `TrigSin`, `TrigCos`, `TrigAtan`, covers:
 //!
 //! - `sin(input, result)`: Element-wise sine.
 //! - `cos(input, result)`: Element-wise cosine.
 //! - `atan(input, result)`: Element-wise arctangent.
 //!
-//! Additional traits: `VDot`, `Roots`, `SparseIntersect`, `SparseDot`.
+//! Additional traits: `VDot` for complex dot products, `Roots` for scalar square root and
+//! reciprocal square root, and `SparseDot` / `SparseIntersect` for sparse set operations.
 //!
 #![allow(non_camel_case_types)]
 #![allow(clippy::too_many_arguments)]
@@ -114,19 +123,23 @@ pub mod attention;
 pub mod capabilities;
 pub mod cast;
 pub mod curved;
+pub mod dot;
 pub mod each;
 pub mod geospatial;
 pub mod maxsim;
 pub mod mesh;
 pub mod probability;
 pub mod reduce;
+pub mod scalar;
 pub mod set;
 pub mod sparse;
 pub mod spatial;
 pub mod trigonometry;
 
 // Containers
-pub mod matrix;
+pub mod dots;
+pub mod sets;
+pub mod spatials;
 pub mod tensor;
 pub mod types;
 pub mod vector;
@@ -134,11 +147,15 @@ pub mod vector;
 // Re-export scalar types at crate root
 pub use types::{
     bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, is_close, u1x8, u4x2, DimMut, DimRef,
-    FloatConvertible, FloatLike, NumberLike, Roots, StorageElement, Ue4m3, Ue8m0,
+    FloatConvertible, FloatLike, NumberLike, StorageElement, Ue4m3, Ue8m0,
 };
 
-// Re-export spatial traits
-pub use spatial::{Angular, Dot, Euclidean, SpatialSimilarity, VDot};
+// Re-export scalar-math traits
+pub use scalar::Roots;
+
+// Re-export dot / spatial traits
+pub use dot::{Dot, VDot};
+pub use spatial::{Angular, Euclidean, SpatialSimilarity};
 
 // Re-export set traits
 pub use set::{BinarySimilarity, Hamming, Jaccard};
@@ -149,7 +166,7 @@ pub use probability::{JensenShannon, KullbackLeibler, ProbabilitySimilarity};
 // Re-export elementwise and trig traits
 pub use each::{AllCloseOps, BlendOps, EachBlend, EachFMA, EachScale, EachSum, EachSwiglu, FmaOps, ScaleOps, SumOps};
 
-pub use reduce::{BitwiseReductions, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, ReduceRmsNorm, Reductions};
+pub use reduce::{BitwiseReductionsOps, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, ReduceRmsNorm, Reductions};
 pub use trigonometry::{TrigAtan, TrigAtanOps, TrigCos, TrigCosOps, TrigRope, TrigSin, TrigSinOps, Trigonometry};
 
 // Re-export curved metric traits
@@ -183,38 +200,53 @@ pub use tensor::{
     TensorViewDims, TensorViewIterator, DEFAULT_MAX_RANK, SIMD_ALIGNMENT,
 };
 
-// Re-export matrix types
+// Re-export batched GEMM types
 #[cfg(feature = "parallel")]
 #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-pub use matrix::DotsPackedParallelOps;
-pub use matrix::{
-    Angulars, Dots, DotsPackedOps, Euclideans, Hammings, Jaccards, PackedMatrix, SymmetricAngulars, SymmetricDots,
-    SymmetricEuclideans, SymmetricHammings, SymmetricJaccards,
+pub use dots::DotsPackedParallelOps;
+pub use dots::{Dots, DotsPackedMatrix, DotsPackedOps, SymmetricDotsOps};
+
+// Re-export batched spatial-distance types
+pub use spatials::{
+    Angulars, AngularsPackedOps, Euclideans, EuclideansPackedOps, SymmetricAngularsOps, SymmetricEuclideansOps,
 };
+#[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
+pub use spatials::{AngularsPackedParallelOps, EuclideansPackedParallelOps};
+
+// Re-export batched binary/set-metric types
+pub use sets::{Hammings, HammingsPackedOps, Jaccards, JaccardsPackedOps, SymmetricHammingsOps, SymmetricJaccardsOps};
+#[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
+pub use sets::{HammingsPackedParallelOps, JaccardsPackedParallelOps};
 
 // Re-export vector types
 pub use vector::{Vector, VectorIndex, VectorIterator, VectorSpan, VectorSpanIterator, VectorView, VectorViewIterator};
 
 // Re-export maxsim types
 // Re-export attention types
-pub use attention::{Attention, AttentionKeyValueCache};
+pub use attention::{Attention, AttentionPackedCache};
 
-pub use maxsim::{MaxSim, MaxSimPackOps, MaxSimPackedMatrix};
+pub use maxsim::{MaxSim, MaxSimPackedMatrix, MaxSimPackedOps};
 
 /// Prelude: `use numkong::prelude::*;` brings the core containers and every extension trait into
 /// scope, so the `.try_*` / `.dots_packed` / `.mean` methods light up without importing each trait
 /// by name.
 pub mod prelude {
     pub use crate::{
-        AllCloseOps, BitwiseReductions, BlendOps, CastOps, DenseToScaledOps, DotsPackedOps, EachSwiglu, FmaOps, Matrix,
-        MaxSimPackOps, MinMaxOps, MomentsOps, PackedMatrix, ReduceRmsNorm, Reductions, ScaleOps, ScaledTensor, SumOps,
-        Tensor, TensorMut, TensorRef, TensorSpan, TensorView, TrigAtanOps, TrigCosOps, TrigRope, TrigSinOps, Vector,
+        AllCloseOps, AngularsPackedOps, BitwiseReductionsOps, BlendOps, CastOps, DenseToScaledOps, DotsPackedMatrix,
+        DotsPackedOps, EachSwiglu, EuclideansPackedOps, FmaOps, HammingsPackedOps, JaccardsPackedOps, Matrix,
+        MaxSimPackedOps, MinMaxOps, MomentsOps, ReduceRmsNorm, Reductions, ScaleOps, ScaledTensor, SumOps, Tensor,
+        TensorMut, TensorRef, TensorSpan, TensorView, TrigAtanOps, TrigCosOps, TrigRope, TrigSinOps, Vector,
         VectorSpan, VectorView,
     };
 
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-    pub use crate::DotsPackedParallelOps;
+    pub use crate::{
+        AngularsPackedParallelOps, DotsPackedParallelOps, EuclideansPackedParallelOps, HammingsPackedParallelOps,
+        JaccardsPackedParallelOps,
+    };
 }
 
 // region: Tests
@@ -271,7 +303,7 @@ mod tests {
         let values = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.5)).unwrap();
         let offsets = [0u32, 10, 24];
 
-        let kv = AttentionKeyValueCache::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
+        let kv = AttentionPackedCache::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
         assert_eq!(kv.segments(), 2);
         assert_eq!(kv.kv_heads(), kv_heads);
         assert_eq!(kv.depth(), head_dim);
@@ -294,8 +326,7 @@ mod tests {
         let small_off = [0u32, 4, 10];
         let big_off = [0u32, 10, 24];
 
-        let mut kv =
-            AttentionKeyValueCache::try_pack(&small.view(), &small.view(), head_dim, &small_off, None).unwrap();
+        let mut kv = AttentionPackedCache::try_pack(&small.view(), &small.view(), head_dim, &small_off, None).unwrap();
         let cap0 = kv.capacity();
         assert!(cap0 > 0);
 
@@ -305,7 +336,7 @@ mod tests {
         assert_eq!(kv.capacity(), cap0, "same-size repack must reuse the buffer");
         assert_eq!(kv.tokens(), 10);
 
-        // Larger geometry -> capacity grows (never shrinks).
+        // Larger geometry -> capacity grows, never shrinks.
         kv.try_pack_into(&big.view(), &big.view(), head_dim, &big_off, None)
             .unwrap();
         assert!(kv.capacity() >= cap0, "grow must not shrink capacity");
@@ -339,7 +370,7 @@ mod tests {
 
         let keys = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.125)).unwrap();
         let values = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.75)).unwrap();
-        let kv = AttentionKeyValueCache::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
+        let kv = AttentionPackedCache::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
 
         let sequential = kv.try_attention(&keys.view(), &offsets, None).unwrap();
         let topology = fu::Topology::new().unwrap();
@@ -355,12 +386,76 @@ mod tests {
         }
     }
 
+    /// Exercises the Wave 2 attention surface: the `packed_size` query, the `pack` / `attention` /
+    /// `attention_parallel` panic wrappers, and the allocating `try_pack_parallel` /
+    /// `try_attention_parallel`. Parallel packing must reproduce the serial blob byte-for-byte,
+    /// and every compute path must agree bit-for-bit.
+    #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
+    #[test]
+    fn attention_capabilities_symmetry() {
+        capabilities::configure_thread();
+        let (kv_heads, head_dim) = (4usize, 64usize);
+        let lengths = [7u32, 250, 0, 33, 129]; // ragged mix incl. a PAD segment
+        let mut offsets = vec![0u32];
+        for length in lengths {
+            offsets.push(offsets.last().unwrap() + length);
+        }
+        let tokens = *offsets.last().unwrap() as usize;
+
+        let keys = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.125)).unwrap();
+        let values = Tensor::<bf16>::try_full(&[tokens, kv_heads * head_dim], bf16::from_f32(0.75)).unwrap();
+
+        // The infallible `packed_size` query must predict the produced blob size exactly.
+        let seg_lengths: Vec<u32> = offsets.windows(2).map(|p| p[1] - p[0]).collect();
+        let predicted = AttentionPackedCache::<bf16>::packed_size(kv_heads, head_dim, &seg_lengths);
+
+        // Serial pack via the panicking `pack` wrapper.
+        let kv_serial = AttentionPackedCache::pack(&keys.view(), &values.view(), head_dim, &offsets, None);
+        assert_eq!(
+            kv_serial.as_bytes().len(),
+            predicted,
+            "packed_size must predict the blob size"
+        );
+
+        // Parallel pack must yield a byte-identical blob.
+        let topology = fu::Topology::new().unwrap();
+        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
+        let kv_parallel =
+            AttentionPackedCache::try_pack_parallel(&keys.view(), &values.view(), head_dim, &offsets, None, &mut pool)
+                .unwrap();
+        assert_eq!(
+            kv_serial.as_bytes(),
+            kv_parallel.as_bytes(),
+            "parallel pack must match serial pack"
+        );
+
+        // Panic-wrapper `attention`, allocating `try_attention_parallel`, and panic-wrapper
+        // `attention_parallel` must all agree bit-for-bit.
+        let serial = kv_serial.attention(&keys.view(), &offsets, None);
+        let par_alloc = kv_parallel
+            .try_attention_parallel(&keys.view(), &offsets, None, &mut pool)
+            .unwrap();
+        let par_panic = kv_parallel.attention_parallel(&keys.view(), &offsets, None, &mut pool);
+        for (index, (a, b)) in serial.as_slice().iter().zip(par_alloc.as_slice()).enumerate() {
+            assert!(
+                a.to_bits() == b.to_bits(),
+                "try_attention_parallel mismatch at {index}: {a} vs {b}"
+            );
+        }
+        assert_eq!(
+            par_alloc.as_slice(),
+            par_panic.as_slice(),
+            "attention_parallel must match try_attention_parallel"
+        );
+    }
+
     #[test]
     fn tensor_dots_smoke() {
         capabilities::configure_thread();
         let queries = Tensor::<f32>::try_full(&[2, 4], 1.0).unwrap();
         let targets = Tensor::<f32>::try_full(&[3, 4], 1.0).unwrap();
-        let packed_targets = PackedMatrix::try_pack(&targets).unwrap();
+        let packed_targets = DotsPackedMatrix::try_pack(&targets).unwrap();
         let products = queries.dots_packed(&packed_targets);
         assert_eq!(products.shape(), &[2, 3]);
         assert!((products.as_slice()[0] - 4.0).abs() < 0.01);
@@ -396,7 +491,7 @@ mod wasm_runtime_tests {
     }
 
     /// Test that WASI WASM module can be loaded and executed with Wasmtime
-    /// This validates the dual-path capability detection (EM_ASM vs WASI imports)
+    /// This validates the dual-path capability detection — EM_ASM vs WASI imports
     #[test]
     fn wasi_with_wasmtime() -> wasmtime::Result<()> {
         // Check if WASI build exists
@@ -420,15 +515,15 @@ mod wasm_runtime_tests {
         let engine = Engine::new(&config)?;
         let mut linker = Linker::new(&engine);
 
-        // Create WASI context (Wasmtime 41+ API)
+        // Create WASI context — Wasmtime 41+ API
         // Don't inherit_args() — cargo's test filter args would confuse the WASM test binary.
         let wasi = WasiCtx::builder().inherit_stdio().inherit_env().build_p1();
         let mut store = Store::new(&engine, wasi);
 
-        // Add WASI support (Wasmtime 41+ requires p1 module)
+        // Add WASI support — Wasmtime 41+ requires p1 module
         wasmtime_wasi::p1::add_to_linker_sync(&mut linker, |s| s)?;
 
-        // Provide capability detection imports (required for WASI build)
+        // Provide capability detection imports — required for WASI build
         // These functions are called from nk_capabilities_v128relaxed_() in C code
         linker.func_wrap("env", "nk_has_v128", || -> i32 {
             // Return 1 (true) - assume SIMD128 is available in Wasmtime
@@ -479,7 +574,7 @@ mod wasm_runtime_tests {
         println!("Instantiating WASM module...");
         let instance = linker.instantiate(&mut store, &module)?;
 
-        // Get _start entry point (WASI convention; exit code comes via proc_exit trap)
+        // Get _start entry point — WASI convention; exit code comes via proc_exit trap
         let start = instance.get_typed_func::<(), ()>(&mut store, "_start")?;
 
         // Run tests — _start calls exit(0) which triggers proc_exit(0).

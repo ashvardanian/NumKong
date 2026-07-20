@@ -9,8 +9,8 @@ use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef};
 use crate::types::{bf16, e4m3, f16, StorageElement};
 
 /// Precision of the RoPE `cos`/`sin` rotation coefficients — always `f32`, deliberately decoupled
-/// from the rotated element dtype (BF16/E4M3 inputs rotate through f32 angles, since a lower-precision
-/// angle would corrupt the rotation). Mirrors the C `nk_rope_angle_t` typedef and the `rope_angle_t`
+/// from the rotated element dtype — BF16/E4M3 inputs rotate through f32 angles, since a lower-precision
+/// angle would corrupt the rotation. Mirrors the C `nk_rope_angle_t` typedef and the `rope_angle_t`
 /// element-trait alias in `types.hpp`.
 pub type RopeAngle = f32;
 
@@ -68,8 +68,8 @@ pub trait TrigRope: Sized + StorageElement {
     /// Rotates a 2D `[rows, heads * 2 * half_dim]` tensor in place using the `[rows, half_dim]`
     /// `cos`/`sin` angle grids (row `r` at `r * half_dim`), shared across heads.
     ///
-    /// The row stride is read from the tensor, so `x` may be a non-contiguous sub-span (e.g. the Q
-    /// or K column-section of a fused QKV buffer). Returns `Err` on a shape mismatch.
+    /// The row stride is read from the tensor, so `x` may be a non-contiguous sub-span, for example the Q
+    /// or K column-section of a fused QKV buffer. Returns `Err` on a shape mismatch.
     fn rope_into<XMut, const RX: usize>(
         x: &mut XMut,
         cos: &[RopeAngle],
@@ -515,17 +515,17 @@ pub trait TrigAtanOps<Scalar: Clone + TrigAtan, const MAX_RANK: usize>: TensorRe
 impl<Scalar: Clone + TrigAtan, const R: usize, C: TensorRef<Scalar, R> + ?Sized> TrigAtanOps<Scalar, R> for C {}
 
 impl<Scalar: Clone + TrigSin, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise sine in-place (infallible — self vs self always matches).
+    /// Element-wise sine in-place — infallible, self vs self always matches.
     pub fn sin_inplace(&mut self) { self.span().sin_inplace(); }
 }
 
 impl<Scalar: Clone + TrigCos, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise cosine in-place (infallible — self vs self always matches).
+    /// Element-wise cosine in-place — infallible, self vs self always matches.
     pub fn cos_inplace(&mut self) { self.span().cos_inplace(); }
 }
 
 impl<Scalar: Clone + TrigAtan, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise arctangent in-place (infallible — self vs self always matches).
+    /// Element-wise arctangent in-place — infallible, self vs self always matches.
     pub fn atan_inplace(&mut self) { self.span().atan_inplace(); }
 }
 
@@ -592,7 +592,7 @@ mod tests {
     fn rope_strided_section() {
         use crate::tensor::{SliceRange, Tensor};
         // Rotate the left `[rows, width]` column-section of a `[rows, 2*width]` buffer in place
-        // (row stride 2*width, not width) — the Q/K-section-of-a-fused-QKV case.
+        // with row stride 2*width, not width — the Q/K-section-of-a-fused-QKV case.
         let (rows, heads, half_dim) = (3, 2, 4);
         let width = heads * 2 * half_dim; // 16
         let full = 2 * width;

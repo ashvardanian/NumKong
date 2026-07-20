@@ -57,13 +57,13 @@ pub(crate) mod dtype {
     pub(crate) const U16: u32 = 1 << 7;
     pub(crate) const U8: u32 = 1 << 6;
 
-    // Block-scaled element / scale dtype codes (matching `nk_dtype_t`).
+    // Block-scaled element / scale dtype codes, matching `nk_dtype_t`.
     // Consumed by `crate::block_scaled` to build format descriptors.
     pub(crate) const E2M1: u32 = 1 << 24;
     pub(crate) const UE8M0: u32 = 1 << 25;
     pub(crate) const UE4M3: u32 = 1 << 26;
 
-    /// Sentinel for "no dtype" (plain buffers, absent scale / tensor-scale).
+    /// Sentinel for "no dtype" — plain buffers, absent scale / tensor-scale.
     pub(crate) const UNKNOWN: u32 = 0;
 }
 
@@ -168,7 +168,7 @@ impl CastDtype for u64 {
 ///
 /// # Arguments
 /// * `source` - Source slice of elements to cast
-/// * `dest` - Destination slice to receive cast elements (must be same length as source)
+/// * `dest` - Destination slice to receive cast elements; must be same length as source
 ///
 /// # Returns
 /// * `Some(())` if successful
@@ -209,7 +209,7 @@ pub trait CastOps<Source: Clone + CastDtype, const MAX_RANK: usize>: TensorRef<S
     }
 
     /// Cast into a pre-allocated sink. The destination may be a `&mut Tensor<...>`
-    /// or a `&mut TensorSpan<...>` (any [`TensorMut`]); a strided sub-span works too.
+    /// or a `&mut TensorSpan<...>`, any [`TensorMut`]; a strided sub-span works too.
     fn try_cast_into<Destination, OutputTensor>(&self, out: &mut OutputTensor) -> Result<(), TensorError>
     where
         Destination: Clone + CastDtype,
@@ -309,7 +309,7 @@ fn dtype_bits(code: u32) -> usize {
 }
 
 /// `#[repr(C)]` mirror of `nk_scalar_buffer_t` — a 16-byte union. The only field the
-/// block-scaled kernel reads or writes is the leading `f32` (NVFP4 per-tensor multiplier).
+/// block-scaled kernel reads or writes is the leading `f32` — the NVFP4 per-tensor multiplier.
 #[repr(C, align(16))]
 #[derive(Clone, Copy)]
 pub(crate) struct ScalarBuffer {
@@ -339,11 +339,11 @@ impl ScalarBuffer {
 /// `Scale` for the per-block scale bytes. There are no `macro_rules!` here — every format
 /// is an explicit `impl`.
 pub trait BlockScaledFormat {
-    /// Storage scalar of the `elements` tensor (e.g. [`e2m1x2`], `e4m3`, `i8`).
+    /// Storage scalar of the `elements` tensor, e.g. [`e2m1x2`], `e4m3`, `i8`.
     type Element: StorageElement + Clone;
     /// Storage scalar of the `block_scales` tensor ([`Ue4m3`] or [`Ue8m0`]).
     type Scale: StorageElement + Clone;
-    /// Logical elements per block (quantization is on the last axis).
+    /// Logical elements per block; quantization is on the last axis.
     const BLOCK_SIZE: usize;
     /// Whether this format carries a per-tensor f32 multiplier (`tensor_scale`).
     const HAS_TENSOR_SCALE: bool;
@@ -585,7 +585,7 @@ pub trait DenseToScaledOps<const MAX_RANK: usize>: TensorRef<f32, MAX_RANK> {
 
 impl<const R: usize, C: TensorRef<f32, R> + ?Sized> DenseToScaledOps<R> for C {}
 
-/// Decode / materialize: a [`ScaledTensorView`] → a dense `Tensor<T>` (e.g. `f32`).
+/// Decode / materialize: a [`ScaledTensorView`] → a dense `Tensor<T>`, e.g. `f32`.
 /// Transcode: a [`ScaledTensorView`] → another [`ScaledTensor`].
 impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
     /// Materialize this block-scaled view into a dense `Tensor<T>` of the same shape.
@@ -787,7 +787,7 @@ mod tests {
 
     use crate::tensor::Tensor;
 
-    /// Sample matrix: 2 rows × 32 columns (two NVFP4 blocks of 16 per row, one MX block of 32).
+    /// Sample matrix: 2 rows × 32 columns — two NVFP4 blocks of 16 per row, one MX block of 32.
     fn sample_matrix() -> (Vec<f32>, [usize; 2]) {
         let cols = 32usize;
         let rows = 2usize;
@@ -803,7 +803,7 @@ mod tests {
     }
 
     /// Encode then decode `sample_matrix` through format `F`; assert the dense round-trip error
-    /// stays within `rel_bound` × amax (the per-format element resolution).
+    /// stays within `rel_bound` × amax — the per-format element resolution.
     fn check_roundtrip<F: BlockScaledFormat>(rel_bound: f32) {
         let (data, shape) = sample_matrix();
         let dense = Tensor::<f32>::try_from_slice(&data, &shape).unwrap();
@@ -836,7 +836,7 @@ mod tests {
     #[test]
     fn degenerate_blocks() {
         let block = Mxfp8E4m3::BLOCK_SIZE;
-        // An all-zero block has zero amax → zero scale → all-zero decode (no division by zero / NaN).
+        // An all-zero block has zero amax → zero scale → all-zero decode — no division by zero / NaN.
         let zeros = Tensor::<f32>::try_zeros(&[1, block]).unwrap();
         let scaled = zeros.view().try_cast_to_scaled::<Mxfp8E4m3>().unwrap();
         let decoded = scaled.view().try_cast::<f32>().unwrap();
@@ -925,8 +925,8 @@ mod tests {
 
     #[test]
     fn transcode_equals_decode_then_encode() {
-        // Transcoding a block-scaled tensor must equal decoding it to dense and re-encoding (the
-        // kernel does exactly that). Destination is MX (no per-tensor scale) so it's byte-exact.
+        // Transcoding a block-scaled tensor must equal decoding it to dense and re-encoding — the
+        // kernel does exactly that. Destination is MX, with no per-tensor scale, so it's byte-exact.
         let (data, shape) = sample_matrix();
         let dense = Tensor::<f32>::try_from_slice(&data, &shape).unwrap();
         let nvfp4 = dense.view().try_cast_to_scaled::<Nvfp4>().unwrap();
@@ -953,7 +953,7 @@ mod tests {
 
     #[test]
     fn rank1_vector_roundtrips() {
-        // A bare 1-D vector (no leading axis): the verbs block the last axis only.
+        // A bare 1-D vector, no leading axis: the verbs block the last axis only.
         let cols = 32usize;
         let data: Vec<f32> = (0..cols).map(|c| (c as f32 - 16.0) * 0.25).collect();
         let dense = Tensor::<f32>::try_from_slice(&data, &[cols]).unwrap();
@@ -1027,8 +1027,8 @@ mod tests {
         assert_eq!(plain.elements_size(64), 256); // 64 * 32 bits / 8
     }
 
-    /// Reinterpret a slice of single-byte storage elements as raw bytes (block-scaled elements and
-    /// scales are all one byte wide), so the comparison works regardless of the element newtype.
+    /// Reinterpret a slice of single-byte storage elements as raw bytes — block-scaled elements and
+    /// scales are all one byte wide — so the comparison works regardless of the element newtype.
     fn raw_bytes<T>(slice: &[T]) -> &[u8] {
         assert_eq!(
             core::mem::size_of::<T>(),

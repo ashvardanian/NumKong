@@ -8,17 +8,17 @@
 //! # Sorted-Index Assumption
 //!
 //! Every sparse routine in this module assumes that the index arrays are **strictly
-//! ascending** (sorted with no duplicates) — for example `[1, 3, 5, 7]`. The
+//! ascending**, sorted with no duplicates — for example `[1, 3, 5, 7]`. The
 //! underlying SIMD kernels use galloping / merge-style advancement that is only
-//! correct on sorted input; feeding unsorted indices silently produces wrong results
-//! (typically an undercounted intersection).
+//! correct on sorted input; feeding unsorted indices silently produces wrong results,
+//! typically an undercounted intersection.
 //!
 //! For [`SparseDot`], the paired `weights` slice must mirror the index layout: entry
 //! `weights[i]` is the weight at `indices[i]`. The dot product sums
 //! `a_weights[i] × b_weights[j]` over all pairs `i, j` where
 //! `a_indices[i] == b_indices[j]` — i.e., the intersection's co-indexed weights.
 //!
-//! Callers with unsorted sparse vectors should sort (e.g., via `slice::sort_unstable`)
+//! Callers with unsorted sparse vectors should sort, for example via `slice::sort_unstable`,
 //! and deduplicate before calling these kernels.
 
 use crate::types::bf16;

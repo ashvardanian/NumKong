@@ -7,7 +7,7 @@
 //!   - [`EachSum`]: Elementwise addition of two vectors
 //!   - [`EachBlend`]: Weighted blend of two vectors
 //!   - [`EachFMA`]: Fused multiply-add (a * alpha + b * beta)
-//! - Tensor-shaped extension traits (auto-implemented on every [`crate::tensor::TensorRef`]):
+//! - Tensor-shaped extension traits, auto-implemented on every [`crate::tensor::TensorRef`]:
 //!   - [`ScaleOps`], [`SumOps`], [`BlendOps`], [`FmaOps`]: Tensor wrappers around the slice traits
 //!   - [`AllCloseOps`]: Tolerance-based equality for any [`crate::tensor::TensorRef`]
 //!
@@ -20,7 +20,7 @@
 //!
 //! Because the output buffer is always a separate `&mut [Self]`, a caller who
 //! wants in-place update must explicitly alias the output to one of the inputs
-//! (for example by passing the same slot for both):
+//! for example by passing the same slot for both:
 //!
 //! ```ignore
 //! // Functionally equivalent to `x *= 2.0`.
@@ -254,7 +254,7 @@ extern "C" {
         r: *mut u64,
     );
 
-    // Complex elementwise operations (interleaved real/imag layout, n = number of complex pairs)
+    // Complex elementwise operations — interleaved real/imag layout, n = number of complex pairs
     fn nk_each_sum_f32c(a: *const f32, b: *const f32, n: usize, result: *mut f32);
     fn nk_each_sum_f64c(a: *const f64, b: *const f64, n: usize, result: *mut f64);
     fn nk_each_scale_f32c(a: *const f32, n: usize, alpha: *const f32, beta: *const f32, result: *mut f32);
@@ -395,8 +395,8 @@ where
     Some(())
 }
 
-// In-place complex fallbacks: read-modify-write through a single `&mut` (sound — no
-// aliased `&[T]` over the same storage). `data` is both the `a` operand and the result.
+// In-place complex fallbacks: read-modify-write through a single `&mut` — sound, with no
+// aliased `&[T]` over the same storage. `data` is both the `a` operand and the result.
 
 fn complex_each_sum_inplace_fallback<Scalar>(data: &mut [Scalar], other: &[Scalar]) -> Option<()>
 where
@@ -451,8 +451,8 @@ where
     if data.len() != b.len() {
         return None;
     }
-    // In-place fused multiply-add matches `each_fma` with the `c` operand bound to `a`
-    // (the same storage) — exactly how out-of-place `mul_tensor` wires `c = self`.
+    // In-place fused multiply-add matches `each_fma` with the `c` operand bound to `a`,
+    // the same storage — exactly how out-of-place `mul_tensor` wires `c = self`.
     for (out, right) in data.iter_mut().zip(b.iter()) {
         let value = *out;
         *out = alpha * value * *right + beta * value;
@@ -462,7 +462,7 @@ where
 
 // region: Scale
 
-/// Applies an **element-wise affine transform** (scale and shift).
+/// Applies an **element-wise affine transform** — scale and shift.
 ///
 /// rᵢ = α × aᵢ + β
 ///
@@ -2748,13 +2748,13 @@ impl<Scalar: Clone + EachScale, const MAX_RANK: usize> Tensor<Scalar, Global, MA
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
-    /// Element-wise add scalar in-place (infallible — self vs self always matches).
+    /// Element-wise add scalar in-place — infallible, self vs self always matches.
     pub fn add_scalar_inplace(&mut self, scalar: Scalar::Scalar) { self.span().add_scalar_inplace(scalar); }
 
-    /// Element-wise subtract scalar in-place (infallible — self vs self always matches).
+    /// Element-wise subtract scalar in-place — infallible, self vs self always matches.
     pub fn sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) { self.span().sub_scalar_inplace(scalar); }
 
-    /// Element-wise multiply scalar in-place (infallible — self vs self always matches).
+    /// Element-wise multiply scalar in-place — infallible, self vs self always matches.
     pub fn mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) { self.span().mul_scalar_inplace(scalar); }
 }
 
@@ -2933,7 +2933,7 @@ pub trait EachSwiglu: Sized + StorageElement {
     /// Fused SwiGLU of 2D `[rows, cols]` tensors: `y = silu(input_scale*gate) * (input_scale*up)`.
     ///
     /// Strides are read from the tensors, so `gate`, `up`, and `y` may be independent strided
-    /// sub-spans (e.g. the two column halves of a `[rows, 2*cols]` gate|up buffer). `up = None`
+    /// sub-spans, for example the two column halves of a `[rows, 2*cols]` gate|up buffer. `up = None`
     /// reduces to plain SiLU. Returns `Err` on a shape mismatch.
     fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
         gate: &GIn,
@@ -3462,7 +3462,7 @@ mod tests {
 
     // endregion
 
-    // region: in-place == out-of-place (TensorSpan ownership of in-place)
+    // region: in-place == out-of-place — TensorSpan ownership of in-place
 
     #[test]
     fn inplace_scale_matches_out_of_place() {
@@ -3592,7 +3592,7 @@ mod tests {
     #[test]
     fn swiglu_gate_up_halves() {
         use crate::tensor::{SliceRange, Tensor};
-        // gate|up are the two strided column halves of one `[rows, 2*cols]` buffer (row stride 2*cols).
+        // gate|up are the two strided column halves of one `[rows, 2*cols]` buffer with row stride 2*cols.
         let rows = 3;
         let cols = 8;
         let buf: Vec<f32> = (0..rows * 2 * cols).map(|i| ((i % 11) as f32 - 5.0) * 0.3).collect();

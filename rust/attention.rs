@@ -2,14 +2,14 @@
 //!
 //! The attention family operates on ragged batches: a directory of variable-length
 //! segments shares one packed KV-cache blob, and every `(segment, head)` pair is an
-//! independent task. Packing rearranges K and V into a backend-opaque layout (AMX
-//! tiles on Sapphire Rapids, dtype-preserving planes on the AVX tiers), so the hot
+//! independent task. Packing rearranges K and V into a backend-opaque layout — AMX
+//! tiles on Sapphire Rapids, dtype-preserving planes on the AVX tiers — so the hot
 //! kernel streams data in its native format.
 //!
 //! # Typical flow
 //!
-//! 1. Pack the K/V token matrices once per layer with [`AttentionKeyValueCache::try_pack`].
-//! 2. Call [`AttentionKeyValueCache::try_attention`] with the query tokens and the
+//! 1. Pack the K/V token matrices once per layer with [`AttentionPackedCache::try_pack`].
+//! 2. Call [`AttentionPackedCache::try_attention`] with the query tokens and the
 //!    cumulative `query_offsets`; `arange` offsets turn the call into a batched
 //!    single-query pool over the same packed cache.
 //!
@@ -21,7 +21,7 @@
 //! exercise the same code path.
 //!
 //! ```rust,no_run
-//! use numkong::{bf16, AttentionKeyValueCache, Tensor};
+//! use numkong::{bf16, AttentionPackedCache, Tensor};
 //!
 //! let tokens = 128;
 //! let (kv_heads, depth) = (8, 128);
@@ -29,7 +29,7 @@
 //! let values = keys.try_clone().unwrap();
 //! let offsets = [0u32, tokens as u32];
 //!
-//! let kv = AttentionKeyValueCache::try_pack(&keys.view(), &values.view(), depth, &offsets, None).unwrap();
+//! let kv = AttentionPackedCache::try_pack(&keys.view(), &values.view(), depth, &offsets, None).unwrap();
 //! let outputs = kv.try_attention(&keys.view(), &offsets, None).unwrap();
 //! ```
 
@@ -39,8 +39,8 @@ extern crate alloc;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
+use crate::scalar::Roots;
 use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorMut, TensorRef, SIMD_ALIGNMENT};
-use crate::types::Roots;
 use crate::types::{bf16, e4m3, StorageElement};
 
 #[cfg(feature = "parallel")]
@@ -176,7 +176,7 @@ pub trait Attention: StorageElement + Clone {
     ///   covering every token addressed by `segment_offsets` + `segment_lengths`
     /// - `key_value_packed` must have at least `attention_packed_size(..)` bytes
     /// - a window with `first_task > 0` requires the header already initialized by a
-    ///   prior (or concurrent) window covering task 0
+    ///   prior or concurrent window covering task 0
     #[allow(clippy::too_many_arguments)]
     unsafe fn attention_pack(
         keys: *const Self,
@@ -442,13 +442,13 @@ impl Attention for i8 {
 
 // endregion: Attention trait
 
-// region: AttentionKeyValueCache
+// region: AttentionPackedCache
 
 /// Pre-packed ragged KV-cache for scaled-dot-product attention.
 /// Owns the backend-opaque blob plus the geometry needed to validate query batches:
 /// segment count, KV head count, head width, and total token count.
 #[derive(Debug)]
-pub struct AttentionKeyValueCache<Scalar: Attention, Alloc: Allocator = Global> {
+pub struct AttentionPackedCache<Scalar: Attention, Alloc: Allocator = Global> {
     data: NonNull<u8>,
     /// Bytes of live packed content.
     size: usize,
@@ -462,11 +462,11 @@ pub struct AttentionKeyValueCache<Scalar: Attention, Alloc: Allocator = Global> 
     _marker: PhantomData<Scalar>,
 }
 
-// Safety: AttentionKeyValueCache owns its data and is just bytes
-unsafe impl<Scalar: Attention + Send, Alloc: Allocator + Send> Send for AttentionKeyValueCache<Scalar, Alloc> {}
-unsafe impl<Scalar: Attention + Sync, Alloc: Allocator + Sync> Sync for AttentionKeyValueCache<Scalar, Alloc> {}
+// Safety: AttentionPackedCache owns its data and is just bytes
+unsafe impl<Scalar: Attention + Send, Alloc: Allocator + Send> Send for AttentionPackedCache<Scalar, Alloc> {}
+unsafe impl<Scalar: Attention + Sync, Alloc: Allocator + Sync> Sync for AttentionPackedCache<Scalar, Alloc> {}
 
-impl<Scalar: Attention, Alloc: Allocator> Drop for AttentionKeyValueCache<Scalar, Alloc> {
+impl<Scalar: Attention, Alloc: Allocator> Drop for AttentionPackedCache<Scalar, Alloc> {
     fn drop(&mut self) {
         if self.capacity > 0 {
             unsafe {
@@ -477,7 +477,7 @@ impl<Scalar: Attention, Alloc: Allocator> Drop for AttentionKeyValueCache<Scalar
     }
 }
 
-impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionKeyValueCache<Scalar, Alloc> {
+impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedCache<Scalar, Alloc> {
     /// Try to clone this packed KV-cache, returning an error on allocation failure.
     pub fn try_clone(&self) -> Result<Self, TensorError> {
         let data = if self.size == 0 {
@@ -503,11 +503,8 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionKeyValueCache<Scalar,
     }
 }
 
-impl<Scalar: Attention, Alloc: Allocator + Clone> Clone for AttentionKeyValueCache<Scalar, Alloc> {
-    fn clone(&self) -> Self {
-        self.try_clone()
-            .expect("AttentionKeyValueCache clone allocation failed")
-    }
+impl<Scalar: Attention, Alloc: Allocator + Clone> Clone for AttentionPackedCache<Scalar, Alloc> {
+    fn clone(&self) -> Self { self.try_clone().expect("AttentionPackedCache clone allocation failed") }
 }
 
 /// Validates a `[tokens, heads * depth]` token-matrix view against a head width.
@@ -572,13 +569,12 @@ fn validate_offsets(offsets: &[u32], tokens: usize) -> Result<usize, TensorError
     Ok(offsets.len() - 1)
 }
 
-impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> {
-    /// Pack ragged K/V token matrices into a KV-cache blob using a custom allocator.
-    /// `k` and `v` are `[tokens, kv_heads * depth]` views (rows may be strided
-    /// interior slices of a fused QKV buffer). `segment_offsets` holds cumulative token
-    /// offsets (`segments + 1` entries); `segment_lengths` defaults to the adjacent
-    /// offset differences — the self-attention geometry.
-    /// An empty cache owning no allocation; fill it with [`try_pack_into`](Self::try_pack_into).
+impl<Scalar: Attention, Alloc: Allocator> AttentionPackedCache<Scalar, Alloc> {
+    /// An empty cache that owns no allocation, holding only the given allocator.
+    ///
+    /// Nothing is packed yet: every geometry field reads zero and [`as_bytes`](Self::as_bytes)
+    /// is empty until the first [`try_pack_into`](Self::try_pack_into), which allocates on demand
+    /// and can then be re-run each decode step to reuse the buffer.
     pub fn empty_in(alloc: Alloc) -> Self {
         Self {
             data: NonNull::dangling(),
@@ -593,7 +589,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
         }
     }
 
-    /// Pack `keys`/`values` into a freshly allocated cache (via the given allocator).
+    /// Pack `keys`/`values` into a freshly allocated cache using the given allocator.
     pub fn try_pack_in<KIn, VIn, const MAX_RANK: usize>(
         keys: &KIn,
         values: &VIn,
@@ -612,7 +608,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
     }
 
     /// Repack `keys`/`values` into this cache's existing blob, reusing the allocation when the
-    /// packed size fits `capacity` and reallocating (via the stored allocator) only when it must
+    /// packed size fits `capacity` and reallocating through the stored allocator only when it must
     /// grow. The decode-loop path: allocate the cache once at layer-init, then refresh it every
     /// forward step with no further allocation. Packing overwrites, so a grow discards the old
     /// contents rather than copying them.
@@ -700,7 +696,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
     }
 
     /// Grow the backing allocation to at least `needed` bytes. Frees the old buffer without copying
-    /// (the caller repacks, overwriting the contents).
+    /// — the caller repacks, overwriting the contents.
     fn grow_to(&mut self, needed: usize) -> Result<(), TensorError> {
         let new_data = if needed == 0 {
             NonNull::dangling()
@@ -721,7 +717,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
     }
 
     /// Ragged attention into a caller-provided `f32` output tensor of the same
-    /// logical shape as `q` (`[tokens, heads * depth]`, contiguous rows).
+    /// logical shape as `q` — `[tokens, heads * depth]`, contiguous rows.
     pub fn try_attention_into<QIn, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
         &self,
         queries: &QIn,
@@ -774,6 +770,36 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
         Ok(())
     }
 
+    /// Bytes a packed cache needs for the given ragged geometry — the infallible size query
+    /// mirroring [`Dots::dots_packed_size`](crate::Dots::dots_packed_size). `segment_lengths`
+    /// carries one token count per segment, so its length is the segment count. Useful for
+    /// pre-sizing an external buffer before packing, without constructing a cache.
+    pub fn packed_size(key_value_head_count: usize, depth: usize, segment_lengths: &[u32]) -> usize {
+        Scalar::attention_packed_size(key_value_head_count, depth, segment_lengths, segment_lengths.len())
+    }
+
+    /// Read the geometry of an externally-produced packed KV blob straight from its self-describing
+    /// header, returning `(kv_heads, depth, segments)`, or `None` if the slice is too short to hold
+    /// one. Unlike the dots packed matrix, the attention blob records its own shape, so no
+    /// caller-supplied dimensions are needed.
+    ///
+    /// The three leading `u32` fields of the C `nk_attention_packed_header_t` are read directly; the
+    /// C accessors are header-inline and export no linkable symbol, so this reads the bytes in Rust.
+    pub fn shape_of(packed: &[u8]) -> Option<(usize, usize, usize)> {
+        if packed.len() < 12 {
+            return None;
+        }
+        let field = |offset: usize| {
+            u32::from_ne_bytes([
+                packed[offset],
+                packed[offset + 1],
+                packed[offset + 2],
+                packed[offset + 3],
+            ]) as usize
+        };
+        Some((field(0), field(4), field(8)))
+    }
+
     /// Returns the number of ragged segments in the packed cache.
     pub fn segments(&self) -> usize { self.segment_count }
 
@@ -807,7 +833,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
 }
 
 // Convenience methods using the Global allocator
-impl<Scalar: Attention> AttentionKeyValueCache<Scalar, Global> {
+impl<Scalar: Attention> AttentionPackedCache<Scalar, Global> {
     /// Pack ragged K/V token matrices using the global allocator.
     pub fn try_pack<KIn, VIn, const MAX_RANK: usize>(
         keys: &KIn,
@@ -821,6 +847,21 @@ impl<Scalar: Attention> AttentionKeyValueCache<Scalar, Global> {
         VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         Self::try_pack_in(keys, values, depth, segment_offsets, segment_lengths, Global)
+    }
+
+    /// Convenience method that panics on error.
+    pub fn pack<KIn, VIn, const MAX_RANK: usize>(
+        keys: &KIn,
+        values: &VIn,
+        depth: usize,
+        segment_offsets: &[u32],
+        segment_lengths: Option<&[u32]>,
+    ) -> Self
+    where
+        KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        Self::try_pack(keys, values, depth, segment_offsets, segment_lengths).expect("attention pack failed")
     }
 
     /// Ragged attention allocating a fresh `f32` output tensor.
@@ -838,11 +879,25 @@ impl<Scalar: Attention> AttentionKeyValueCache<Scalar, Global> {
         self.try_attention_into(queries, query_offsets, scale, &mut output)?;
         Ok(output)
     }
+
+    /// Convenience method that panics on error.
+    pub fn attention<QIn, const MAX_RANK: usize>(
+        &self,
+        queries: &QIn,
+        query_offsets: &[u32],
+        scale: Option<f32>,
+    ) -> Tensor<f32>
+    where
+        QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        self.try_attention(queries, query_offsets, scale)
+            .expect("attention failed")
+    }
 }
 
 #[cfg(feature = "parallel")]
 #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> {
+impl<Scalar: Attention, Alloc: Allocator> AttentionPackedCache<Scalar, Alloc> {
     /// Ragged attention parallelized over the `(segment, head)` task grid with a
     /// ForkUnion thread pool; each worker computes a contiguous task window.
     pub fn try_attention_parallel_into<QIn, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
@@ -893,7 +948,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
         // GQA-sibling heads stay adjacent in task order, preserving packed-KV reuse.
         let total_tasks = segment_count * head_count;
         pool.for_n_dynamic(total_tasks, move |prong| {
-            // Configure the worker for AMX and other thread-local SIMD state (idempotent).
+            // Configure the worker for AMX and other thread-local SIMD state — idempotent.
             crate::capabilities::configure_thread();
             unsafe {
                 Scalar::attention_packed(
@@ -915,6 +970,184 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionKeyValueCache<Scalar, Alloc> 
 
         Ok(())
     }
+
+    /// Ragged attention parallelized over the task grid, allocating a fresh `f32` output tensor
+    /// of shape `[tokens, heads * depth]`. The allocating twin of
+    /// [`try_attention_parallel_into`](Self::try_attention_parallel_into).
+    pub fn try_attention_parallel<QIn, const MAX_RANK: usize>(
+        &self,
+        queries: &QIn,
+        query_offsets: &[u32],
+        scale: Option<f32>,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<Tensor<f32>, TensorError>
+    where
+        QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        let (q_tokens, head_count, _) = validate_token_view(queries, self.depth)?;
+        let mut output = Tensor::<f32>::try_full(&[q_tokens, head_count * self.depth], 0.0)?;
+        self.try_attention_parallel_into(queries, query_offsets, scale, &mut output, pool)?;
+        Ok(output)
+    }
+
+    /// Convenience method that panics on error.
+    pub fn attention_parallel<QIn, const MAX_RANK: usize>(
+        &self,
+        queries: &QIn,
+        query_offsets: &[u32],
+        scale: Option<f32>,
+        pool: &mut fu::ThreadPool,
+    ) -> Tensor<f32>
+    where
+        QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        self.try_attention_parallel(queries, query_offsets, scale, pool)
+            .expect("parallel attention failed")
+    }
+
+    /// Pack ragged K/V token matrices into this cache in parallel over the `(segment, kv_head)`
+    /// task grid with a ForkUnion thread pool. Sizing and any (re)allocation run serially up
+    /// front; only the per-task packing fans out. Like [`try_pack_into`](Self::try_pack_into),
+    /// packing overwrites, so a grow discards the old contents rather than copying them.
+    pub fn try_pack_parallel_into<KIn, VIn, const MAX_RANK: usize>(
+        &mut self,
+        keys: &KIn,
+        values: &VIn,
+        depth: usize,
+        segment_offsets: &[u32],
+        segment_lengths: Option<&[u32]>,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<(), TensorError>
+    where
+        KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        let (k_tokens, key_value_head_count, key_stride_bytes) = validate_token_view(keys, depth)?;
+        let (v_tokens, v_heads, value_stride_bytes) = validate_token_view(values, depth)?;
+        if k_tokens != v_tokens || key_value_head_count != v_heads {
+            return Err(TensorError::DimensionMismatch {
+                expected: k_tokens,
+                got: v_tokens,
+            });
+        }
+        let segment_count = validate_offsets(segment_offsets, k_tokens)?;
+
+        #[cfg(feature = "alloc")]
+        let mut lengths_storage;
+        let segment_lengths = match segment_lengths {
+            Some(lengths) => {
+                if lengths.len() != segment_count {
+                    return Err(TensorError::DimensionMismatch {
+                        expected: segment_count,
+                        got: lengths.len(),
+                    });
+                }
+                lengths
+            }
+            #[cfg(feature = "alloc")]
+            None => {
+                lengths_storage = alloc::vec::Vec::with_capacity(segment_count);
+                for pair in segment_offsets.windows(2) {
+                    lengths_storage.push(pair[1] - pair[0]);
+                }
+                &lengths_storage[..]
+            }
+            #[cfg(not(feature = "alloc"))]
+            None => {
+                return Err(TensorError::InvalidShape {
+                    axis: 0,
+                    size: 0,
+                    reason: "segment_lengths must be supplied without the `alloc` feature",
+                })
+            }
+        };
+
+        let size = Scalar::attention_packed_size(key_value_head_count, depth, segment_lengths, segment_count);
+        if size > self.capacity {
+            self.grow_to(size)?;
+        }
+        if size > 0 {
+            let keys_ptr = fu::SyncConstPtr::new(keys.as_ptr());
+            let values_ptr = fu::SyncConstPtr::new(values.as_ptr());
+            let offsets_ptr = fu::SyncConstPtr::new(segment_offsets.as_ptr());
+            let lengths_ptr = fu::SyncConstPtr::new(segment_lengths.as_ptr());
+            let packed_ptr = fu::SyncMutPtr::new(self.data.as_ptr());
+
+            // Same `(segment, kv_head)` grid the C packer windows over; task 0 writes the header —
+            // see the `attention_pack` safety note — and dynamic scheduling keeps GQA-sibling heads
+            // adjacent to preserve locality.
+            let total_tasks = segment_count * key_value_head_count;
+            pool.for_n_dynamic(total_tasks, move |prong| {
+                crate::capabilities::configure_thread();
+                unsafe {
+                    Scalar::attention_pack(
+                        keys_ptr.as_ptr(),
+                        values_ptr.as_ptr(),
+                        key_value_head_count,
+                        depth,
+                        offsets_ptr.as_ptr(),
+                        lengths_ptr.as_ptr(),
+                        segment_count,
+                        key_stride_bytes,
+                        value_stride_bytes,
+                        packed_ptr.as_ptr(),
+                        prong.task_index,
+                        1,
+                    );
+                }
+            }); // executes and synchronizes on drop
+        }
+
+        self.size = size;
+        self.key_value_head_count = key_value_head_count;
+        self.depth = depth;
+        self.segment_count = segment_count;
+        self.total_tokens = *segment_offsets.last().unwrap() as usize;
+        Ok(())
+    }
 }
 
-// endregion: AttentionKeyValueCache
+#[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
+impl<Scalar: Attention> AttentionPackedCache<Scalar, Global> {
+    /// Pack ragged K/V token matrices in parallel using the global allocator. The allocating
+    /// twin of [`try_pack_parallel_into`](Self::try_pack_parallel_into).
+    pub fn try_pack_parallel<KIn, VIn, const MAX_RANK: usize>(
+        keys: &KIn,
+        values: &VIn,
+        depth: usize,
+        segment_offsets: &[u32],
+        segment_lengths: Option<&[u32]>,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<Self, TensorError>
+    where
+        KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        let mut cache = Self::empty_in(Global);
+        cache.try_pack_parallel_into(keys, values, depth, segment_offsets, segment_lengths, pool)?;
+        Ok(cache)
+    }
+}
+
+// endregion: AttentionPackedCache
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shape_of_matches_packed_cache() {
+        crate::capabilities::configure_thread();
+        let (tokens, kv_heads, depth) = (6usize, 2usize, 8usize);
+        let keys = Tensor::<bf16>::try_full(&[tokens, kv_heads * depth], bf16::from_f32(0.1)).unwrap();
+        let values = keys.try_clone().unwrap();
+        let offsets = [0u32, tokens as u32]; // one ragged segment
+        let cache = AttentionPackedCache::try_pack(&keys.view(), &values.view(), depth, &offsets, None).unwrap();
+
+        // shape_of reads the C-written header; it must agree with the cache's own getters.
+        let read = AttentionPackedCache::<bf16>::shape_of(cache.as_bytes()).unwrap();
+        assert_eq!(read, (cache.kv_heads(), cache.depth(), cache.segments()));
+        assert_eq!(AttentionPackedCache::<bf16>::shape_of(&[]), None);
+    }
+}

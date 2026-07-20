@@ -6,12 +6,12 @@
 //!   - [`ReduceMoments`]: Sum and sum-of-squares over a strided slice
 //!   - [`ReduceMinMax`]: Minimum and maximum over a strided slice
 //!   - [`Reductions`]: Blanket trait combining `ReduceMoments + ReduceMinMax`
-//! - Tensor-shaped extension traits (auto-implemented on every [`crate::tensor::TensorRef`]):
+//! - Tensor-shaped extension traits, auto-implemented on every [`crate::tensor::TensorRef`]:
 //!   - [`MomentsOps`]: Per-axis and full-tensor moments / sums / norms
 //!   - [`MinMaxOps`]: Per-axis and full-tensor min / max / argmin / argmax
-//!   - [`BitwiseReductions`]: `popcount` / `any_set` / `none_set` / `all_set` for `u1x8` tensors;
+//!   - [`BitwiseReductionsOps`]: `popcount` / `any_set` / `none_set` / `all_set` for `u1x8` tensors;
 //!     `Vector<u1x8>` / `VectorView<u1x8>` / `VectorSpan<u1x8>` expose the same method names as
-//!     concrete impls (defined in [`crate::vector`]) until a `VectorRef` trait exists
+//!     concrete impls defined in [`crate::vector`] until a `VectorRef` trait exists
 //! - [`SumSqToF64`]: Helper bound used by `MomentsOps::try_norm_*` to convert sum-of-squares to f64
 
 use crate::tensor::{
@@ -253,7 +253,7 @@ extern "C" {
     );
 }
 
-/// Compute first and second moments (sum and sum-of-squares) with stride support.
+/// Compute first and second moments — sum and sum-of-squares — with stride support.
 ///
 /// Returns `(sum, sum_of_squares)` for all elements in a slice, with optional striding.
 /// The output types may be wider than the input to avoid overflow.
@@ -262,7 +262,7 @@ pub trait ReduceMoments: StorageElement {
     type SumOutput: StorageElement;
     /// Type for the sum-of-squares output.
     type SumSqOutput: StorageElement;
-    /// Compute `(sum, sum_of_squares)` for `data` with the given stride (in bytes).
+    /// Compute `(sum, sum_of_squares)` for `data` with the given stride in bytes.
     /// Use `stride_bytes = size_of::<Self>()` for contiguous data.
     ///
     /// Reads `data.len()` logical elements starting at `data.as_ptr()`, advancing by
@@ -465,7 +465,7 @@ impl ReduceMoments for u1x8 {
 /// Find minimum and maximum values with their indices, with stride support.
 ///
 /// Returns `Some((min_value, min_index, max_value, max_index))` for all elements in a slice,
-/// or `None` if all elements are NaN (for NaN-masking formats).
+/// or `None` if all elements are NaN, for NaN-masking formats.
 /// The output value type matches the logical reduced scalar type.
 pub trait ReduceMinMax: StorageElement {
     /// Output type for the min/max values — matches the C layer's native type.
@@ -840,8 +840,8 @@ impl<Scalar: ReduceMoments + ReduceMinMax> Reductions for Scalar {}
 /// [`u1x8::reduce_moments`] on each rank-1 contiguous lane.
 ///
 /// At rank ≤ 1 the view's logical bit count divides cleanly into a contiguous
-/// storage slice (sub-byte stride is always one byte per `u1x8`, so rank-1 is
-/// trivially contiguous). At higher ranks we recurse on the leading axis via
+/// storage slice — sub-byte stride is always one byte per `u1x8`, so rank-1 is
+/// trivially contiguous. At higher ranks we recurse on the leading axis via
 /// the `TensorRef`-supplied structural accessors so that matrices and higher-rank
 /// tensors of bits work without flattening first. Non-contiguous outer strides
 /// fall out of the recursion naturally — only the leaf storage slice has to be
@@ -884,7 +884,7 @@ where
 /// Method names use the `_set` suffix to leave room for a future generic
 /// `any` / `none` / `all` over arbitrary scalar predicates and to avoid
 /// colliding with the `all` slice marker exported from [`crate::vector`].
-pub trait BitwiseReductions<const MAX_RANK: usize>: TensorRef<u1x8, MAX_RANK> {
+pub trait BitwiseReductionsOps<const MAX_RANK: usize>: TensorRef<u1x8, MAX_RANK> {
     /// Number of set bits across the entire tensor.
     fn popcount(&self) -> u64 { popcount_via_tensor_ref::<_, MAX_RANK>(self) }
 
@@ -898,7 +898,7 @@ pub trait BitwiseReductions<const MAX_RANK: usize>: TensorRef<u1x8, MAX_RANK> {
     fn all_set(&self) -> bool { self.popcount() == self.numel() as u64 }
 }
 
-impl<Container, const MAX_RANK: usize> BitwiseReductions<MAX_RANK> for Container where
+impl<Container, const MAX_RANK: usize> BitwiseReductionsOps<MAX_RANK> for Container where
     Container: TensorRef<u1x8, MAX_RANK> + ?Sized
 {
 }
@@ -1132,7 +1132,7 @@ mod tests {
 
     #[test]
     fn moments_reduction() {
-        // Float types — SumOutput/SumSqOutput are FloatLike (f32 or f64)
+        // Float types — SumOutput/SumSqOutput are FloatLike, either f32 or f64
         let input_values = &[1.0, 2.0, 3.0, 4.0, 5.0];
         check_reduce_moments::<f64>(input_values);
         check_reduce_moments::<f32>(input_values);
@@ -1276,7 +1276,7 @@ mod tests {
 
     // endregion
 
-    // region: BitwiseReductions across containers
+    // region: BitwiseReductionsOps across containers
 
     #[test]
     fn bitwise_popcount_across_tensor_shapes() {
@@ -1330,7 +1330,7 @@ mod tests {
     #[test]
     fn bitwise_reductions_on_vector_containers() {
         use crate::vector::{Vector, VectorSpan, VectorView};
-        // Three set bytes (24 bits), one zero byte → popcount = 24.
+        // Three set bytes — 24 bits — one zero byte → popcount = 24.
         let mut storage = [u1x8(0xFFu8), u1x8(0xFFu8), u1x8(0x00u8), u1x8(0xFFu8)];
         let mut vector = Vector::<u1x8>::try_zeros(32).unwrap();
         for (slot, value) in vector.as_mut_slice().iter_mut().zip(storage.iter()) {
@@ -1353,7 +1353,7 @@ mod tests {
         assert!(span.any_set());
     }
 
-    // endregion: BitwiseReductions across containers
+    // endregion: BitwiseReductionsOps across containers
 
     // region: tensor-shaped MomentsOps / MinMaxOps wrappers
 
@@ -1468,8 +1468,8 @@ mod tests {
 pub trait ReduceRmsNorm: Sized + StorageElement {
     /// Grouped RMSNorm of a 2D `[rows, groups * cols]` tensor into `y` of the same shape.
     ///
-    /// Row strides are read from the tensors, so `x` and `y` may be non-contiguous sub-spans
-    /// (e.g. a strided section of a fused activation buffer). `gamma` is an optional per-column
+    /// Row strides are read from the tensors, so `x` and `y` may be non-contiguous sub-spans,
+    /// for example a strided section of a fused activation buffer. `gamma` is an optional per-column
     /// gain of length `cols` (`None` = unit scale). Returns `Err` on a shape mismatch.
     fn rmsnorm_into<XIn, YOut, const RX: usize, const RY: usize>(
         x: &XIn,

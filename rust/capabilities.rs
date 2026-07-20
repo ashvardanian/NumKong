@@ -18,7 +18,7 @@
 //! - [`enable`], [`disable`], [`restrict`]: Narrow what dispatch may select
 //! - [`configure_thread`]: Enable optimal SIMD settings for the current thread
 //! - [`uses_runtime_dispatch`]: Check if the library selects kernels at runtime
-//! - [`cap`]: Constants for individual capability bits (NEON, SKYLAKE, etc.)
+//! - [`cap`]: Constants for individual capability bits — NEON, SKYLAKE, etc.
 
 #[link(name = "numkong")]
 extern "C" {
@@ -88,7 +88,7 @@ pub fn configure_thread() -> bool {
 /// Returns `true` if the library uses runtime dispatch for function selection.
 pub fn uses_runtime_dispatch() -> bool { unsafe { nk_uses_runtime_dispatch() != 0 } }
 
-/// Capability bit masks in chronological order (by first commercial silicon).
+/// Capability bit masks in chronological order, by first commercial silicon.
 pub mod cap {
     pub const SERIAL: u64 = 1 << 0; // Always: Fallback
     pub const NEON: u64 = 1 << 1; // ARM NEON

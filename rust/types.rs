@@ -1,8 +1,8 @@
 //! Scalar types and conversion trait for mixed-precision computing.
 //!
 //! This module defines **15+ numeric types** spanning 1-bit packed storage to
-//! 128-bit complex. All of them implement [`StorageElement`] (for containers) and
-//! [`NumberLike`] (for conversion to / from `f32` / `f64`), so generic code can
+//! 128-bit complex. All of them implement [`StorageElement`] for containers and
+//! [`NumberLike`] for conversion to / from `f32` / `f64`, so generic code can
 //! treat them uniformly.
 //!
 //! ## IEEE / Brain Floats
@@ -42,13 +42,6 @@
 
 #[link(name = "numkong")]
 extern "C" {
-    // Scalar square-root / reciprocal-square-root (backing the `Roots` trait).
-    fn nk_f32_sqrt(x: f32) -> f32;
-    fn nk_f32_rsqrt(x: f32) -> f32;
-    fn nk_f64_sqrt(x: f64) -> f64;
-    fn nk_f64_rsqrt(x: f64) -> f64;
-    fn nk_f16_sqrt(x: u16) -> u16;
-    fn nk_f16_rsqrt(x: u16) -> u16;
     fn nk_f32_to_f16(src: *const f32, dest: *mut u16);
     fn nk_f16_to_f32(src: *const u16, dest: *mut f32);
     fn nk_f32_to_bf16(src: *const f32, dest: *mut u16);
@@ -61,33 +54,6 @@ extern "C" {
     fn nk_e2m3_to_f32(src: *const u8, dest: *mut f32);
     fn nk_f32_to_e3m2(src: *const f32, dest: *mut u8);
     fn nk_e3m2_to_f32(src: *const u8, dest: *mut f32);
-}
-
-/// Scalar square-root and reciprocal-square-root operations backed by NumKong's exported kernels.
-///
-/// Unlike `f32::sqrt` / `f64::sqrt`, this routes into the hand-tuned NumKong C kernels; on ISAs with
-/// a dedicated reciprocal-sqrt (`vrsqrte` on NEON, `vrsqrt14` on AVX-512) `rsqrt` uses a single
-/// Newton refinement to ~1 ULP — roughly 2-4× faster than computing `1.0 / sqrt(x)` explicitly.
-pub trait Roots: Sized {
-    /// Non-negative square root of `self`, routed through NumKong's runtime-dispatched kernel.
-    fn sqrt(self) -> Self;
-    /// Reciprocal square root `1 / sqrt(self)` as a single primitive op where the hardware allows.
-    fn rsqrt(self) -> Self;
-}
-
-impl Roots for f32 {
-    fn sqrt(self) -> Self { unsafe { nk_f32_sqrt(self) } }
-    fn rsqrt(self) -> Self { unsafe { nk_f32_rsqrt(self) } }
-}
-
-impl Roots for f64 {
-    fn sqrt(self) -> Self { unsafe { nk_f64_sqrt(self) } }
-    fn rsqrt(self) -> Self { unsafe { nk_f64_rsqrt(self) } }
-}
-
-impl Roots for f16 {
-    fn sqrt(self) -> Self { f16(unsafe { nk_f16_sqrt(self.0) }) }
-    fn rsqrt(self) -> Self { f16(unsafe { nk_f16_rsqrt(self.0) }) }
 }
 
 /// Compatibility function for pre 1.85 Rust versions lacking `f32::abs`.
@@ -522,7 +488,7 @@ impl e4m3 {
     #[inline(always)]
     pub fn is_nan(self) -> bool { (self.0 & 0x7F) == 0x7F }
 
-    /// Returns true if this value is ±∞. Always false for E4M3 (no infinities).
+    /// Returns true if this value is ±∞. Always false for E4M3 — no infinities.
     #[inline(always)]
     pub fn is_infinite(self) -> bool { false }
 
@@ -803,7 +769,7 @@ impl core::cmp::PartialOrd for e5m2 {
 
 // region: e2m3 Type
 
-/// 6-bit E2M3 micro-float (padded to 8-bit storage).
+/// 6-bit E2M3 micro-float, padded to 8-bit storage.
 ///
 /// Layout: sign(1) + exponent(2) + mantissa(3), bias=1.
 /// Range: ±7.5, no infinities. Only 64 total codes; 18 (28.1%) fall in [−1, +1].
@@ -973,7 +939,7 @@ impl core::cmp::PartialOrd for e2m3 {
 
 // region: e3m2 Type
 
-/// 6-bit E3M2 micro-float (padded to 8-bit storage).
+/// 6-bit E3M2 micro-float, padded to 8-bit storage.
 ///
 /// Layout: sign(1) + exponent(3) + mantissa(2), bias=3.
 /// Range: ±28, supports infinities. Only 64 total codes; 26 (40.6%) fall in [−1, +1].
@@ -1147,7 +1113,7 @@ impl core::cmp::PartialOrd for e3m2 {
 
 // region: Block-Scale Bytes (Ue4m3, Ue8m0)
 
-/// NVFP4 per-block scale byte: an unsigned E4M3 magnitude (sign bit forced to 0).
+/// NVFP4 per-block scale byte: an unsigned E4M3 magnitude with the sign bit forced to 0.
 ///
 /// Stores one scale per 16-element NVFP4 block. Layout matches `nk_ue4m3_t` (1 byte).
 /// Decodes to a positive `f32` multiplier; `from_f32` takes the absolute value.
@@ -1165,10 +1131,10 @@ impl core::cmp::PartialOrd for e3m2 {
 pub struct Ue4m3(pub u8);
 
 impl Ue4m3 {
-    /// The all-zero byte (decodes to 0.0).
+    /// The all-zero byte — decodes to 0.0.
     pub const ZERO: Self = Ue4m3(0x00);
 
-    /// Encodes an `f32` magnitude into a UE4M3 scale byte (absolute value, round-to-nearest).
+    /// Encodes an `f32` magnitude into a UE4M3 scale byte — absolute value, round-to-nearest.
     ///
     /// UE4M3 is E4M3 with the sign bit forced to 0, so this reuses the linkable E4M3 encoder
     /// on `|value|` and masks off the sign. NaN maps to the E4M3 NaN code (`0x7F`).
@@ -1218,8 +1184,8 @@ pub struct Ue8m0(pub u8);
 impl Ue8m0 {
     /// Encodes an `f32` magnitude into a UE8M0 scale byte.
     ///
-    /// Rounds the magnitude to the NEAREST power of two (round-to-nearest in log2 space, the
-    /// OCP MX convention; the split point is the geometric midpoint √2·2ᵉ). NaN → `0xFF`
+    /// Rounds the magnitude to the NEAREST power of two — round-to-nearest in log2 space, the
+    /// OCP MX convention; the split point is the geometric midpoint √2·2ᵉ. NaN → `0xFF`
     /// (block-NaN sentinel), zero/subnormal → `0x00`, overflow/±∞ → `0xFE`.
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
@@ -1335,7 +1301,7 @@ impl From<e3m2> for f32 {
 
 // region: u1x8 Type
 
-/// Packed 8-bit bit-vector (8 booleans in one byte).
+/// Packed 8-bit bit-vector — 8 booleans in one byte.
 ///
 /// Layout: 8 bits packed into one byte, LSB = dimension 0.
 /// Used for Hamming distance and Jaccard similarity via popcount.
@@ -1568,7 +1534,7 @@ impl i4x2 {
         i4x2(((low_sat as u8) & 0x0F) | (((high_sat as u8) & 0x0F) << 4))
     }
 
-    /// Extract to two i8 values (sign-extended from 4 bits).
+    /// Extract to two i8 values, sign-extended from 4 bits.
     #[inline(always)]
     pub const fn to_i8s(self) -> (i8, i8) {
         let low = (self.0 & 0x0F) as i8;
@@ -1617,9 +1583,9 @@ pub trait NumberLike: StorageElement {
     fn from_f32(v: f32) -> Self;
     /// Convert from this type to f32.
     fn to_f32(self) -> f32;
-    /// Convert from f64 to this type (default: via f32 roundtrip).
+    /// Convert from f64 to this type — by default via an f32 roundtrip.
     fn from_f64(v: f64) -> Self { Self::from_f32(v as f32) }
-    /// Convert from this type to f64 (default: via f32 roundtrip).
+    /// Convert from this type to f64 — by default via an f32 roundtrip.
     fn to_f64(self) -> f64 { self.to_f32() as f64 }
 
     fn abs(self) -> Self { Self::from_f32(f32_abs_compat(self.to_f32())) }
@@ -2119,7 +2085,7 @@ impl<Scalar: ComplexComponent> complex<Scalar> {
     pub fn norm_sqr(self) -> Scalar::Norm { self.re.norm_component() + self.im.norm_component() }
 }
 
-/// Half-precision (32-bit) complex number — two [`f16`] components. Kernel outputs widened to f32c.
+/// Half-precision (32-bit) complex number — two [`struct@f16`] components. Kernel outputs widened to f32c.
 pub type f16c = complex<f16>;
 /// BFloat16 (32-bit) complex number — two [`bf16`] components. Kernel outputs widened to f32c.
 pub type bf16c = complex<bf16>;
@@ -2259,7 +2225,7 @@ impl<Scalar: ComplexComponent> FloatConvertible for complex<Scalar> {
 ///
 /// For normal scalar types (`dimensions_per_value() == 1`), `DimScalar = Self` and
 /// `Unpacked = [Self; 1]`. For packed sub-byte types, `DimScalar` is the natural
-/// scalar type for individual sub-dimensions (e.g., `i8` for `i4x2`).
+/// scalar type for individual sub-dimensions, such as `i8` for `i4x2`.
 pub trait FloatConvertible: NumberLike {
     /// Scalar type for individual sub-dimensions.
     type DimScalar: Copy + Default + NumberLike;
@@ -2630,6 +2596,46 @@ pub(crate) fn assert_close(actual: f64, expected: f64, atol: f64, rtol: f64, msg
     );
 }
 
+/// One-time SIMD thread setup shared by the batched dots/spatials/sets tests.
+#[cfg(test)]
+static PACKED_TEST_INIT: std::sync::Once = std::sync::Once::new();
+
+/// Configure the current thread's SIMD features once per test process.
+#[cfg(test)]
+pub(crate) fn init_thread() {
+    PACKED_TEST_INIT.call_once(|| {
+        crate::capabilities::configure_thread();
+    });
+}
+
+/// Standard `(height, width, depth)` problem sizes swept by the batched tests.
+#[cfg(test)]
+pub(crate) const DIMS: &[(usize, usize, usize)] = &[(1, 1, 1), (1, 8, 3), (3, 1, 7), (7, 5, 3), (33, 17, 65)];
+
+/// Round `depth` up to the nearest multiple of `Scalar::dimensions_per_value()`.
+#[cfg(test)]
+pub(crate) fn align_depth<Scalar: StorageElement>(depth: usize) -> usize {
+    let dims_per_value = Scalar::dimensions_per_value();
+    depth.div_ceil(dims_per_value) * dims_per_value
+}
+
+/// Compare only the upper-triangle elements of two NxN buffers; symmetric kernels
+/// do not write the lower triangle.
+#[cfg(test)]
+pub(crate) fn assert_upper_triangle_eq<X: Copy + PartialEq + core::fmt::Debug>(
+    left: &[X],
+    right: &[X],
+    n: usize,
+    tag: &str,
+) {
+    for i in 0..n {
+        for j in i..n {
+            let index = i * n + j;
+            assert_eq!(left[index], right[index], "{tag}[{i},{j}]");
+        }
+    }
+}
+
 #[cfg(test)]
 impl TestableType for f32 {
     fn atol() -> f64 { 1e-4 }
@@ -2983,7 +2989,7 @@ mod tests {
 
     #[test]
     fn is_close_nan_inf() {
-        // NaN is never close to anything (including itself).
+        // NaN is never close to anything, including itself.
         assert!(!is_close(f64::NAN, f64::NAN, 1e-6, 1e-6));
         assert!(!is_close(f64::NAN, 0.0, 1e-6, 1e-6));
         // INF - INF = NaN, so same-sign infinities are not "close" either.

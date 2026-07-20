@@ -3,7 +3,7 @@
 //! This module provides:
 //!
 //! - [`KullbackLeibler`]: KL divergence between two distributions
-//! - [`JensenShannon`]: Jensen-Shannon distance (symmetric metric)
+//! - [`JensenShannon`]: Jensen-Shannon distance — a symmetric metric
 //! - [`ProbabilitySimilarity`]: Blanket trait combining `KullbackLeibler + JensenShannon`
 
 use crate::types::{bf16, f16};
