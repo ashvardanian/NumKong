@@ -414,6 +414,11 @@ class PackedMatrix:
         """Size of the packed buffer in bytes."""
         ...
 
+    @property
+    def shape(self) -> tuple[int, int]:
+        """Dimensions (width, depth) read from the packed buffer header."""
+        ...
+
     @classmethod
     def pack_size(
         cls,
@@ -450,6 +455,11 @@ class MaxSimPackedMatrix:
     @property
     def nbytes(self) -> int:
         """Size of the packed buffer in bytes."""
+        ...
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        """Dimensions (vectors, depth) read from the packed buffer header."""
         ...
 
     @classmethod
@@ -1160,6 +1170,7 @@ def attention_packed(
 ) -> Tensor:
     """Compute ragged scaled-dot-product attention against a packed KV-cache."""
     ...
+
 def maxsim(
     queries: _BufferType, documents: _BufferType, /, dtype: _FloatTypeName | _MiniFloatType | None = None
 ) -> float: ...
