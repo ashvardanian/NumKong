@@ -37,10 +37,9 @@
 extern crate alloc;
 
 use core::marker::PhantomData;
-use core::ptr::NonNull;
 
 use crate::scalar::Roots;
-use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorMut, TensorRef, SIMD_ALIGNMENT};
+use crate::tensor::{Allocator, Global, PackedBuffer, Tensor, TensorError, TensorMut, TensorRef};
 use crate::types::{bf16, e4m3, StorageElement};
 
 #[cfg(feature = "parallel")]
@@ -456,16 +455,11 @@ impl Attention for i8 {
 /// segment count, KV head count, head width, and total token count.
 #[derive(Debug)]
 pub struct AttentionPackedMatrix<Scalar: Attention, Alloc: Allocator = Global> {
-    data: NonNull<u8>,
-    /// Bytes of live packed content.
-    size: usize,
-    /// Bytes actually allocated (>= size); lets `try_pack_into` reuse the buffer across steps.
-    capacity: usize,
+    buffer: PackedBuffer<Alloc>,
     heads: usize,
     depth: usize,
     segment_count: usize,
     total_tokens: usize,
-    alloc: Alloc,
     _marker: PhantomData<Scalar>,
 }
 
@@ -473,36 +467,15 @@ pub struct AttentionPackedMatrix<Scalar: Attention, Alloc: Allocator = Global> {
 unsafe impl<Scalar: Attention + Send, Alloc: Allocator + Send> Send for AttentionPackedMatrix<Scalar, Alloc> {}
 unsafe impl<Scalar: Attention + Sync, Alloc: Allocator + Sync> Sync for AttentionPackedMatrix<Scalar, Alloc> {}
 
-impl<Scalar: Attention, Alloc: Allocator> Drop for AttentionPackedMatrix<Scalar, Alloc> {
-    fn drop(&mut self) {
-        if self.capacity == 0 {
-            return;
-        }
-        unsafe { crate::tensor::dealloc_aligned(&self.alloc, self.data, self.capacity) };
-    }
-}
-
 impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, Alloc> {
     /// Try to clone this packed KV-cache, returning an error on allocation failure.
     pub fn try_clone(&self) -> Result<Self, TensorError> {
-        let data = if self.size == 0 {
-            NonNull::dangling()
-        } else {
-            let layout = core::alloc::Layout::from_size_align(self.size, SIMD_ALIGNMENT)
-                .map_err(|_| TensorError::AllocationFailed)?;
-            let ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
-            unsafe { core::ptr::copy_nonoverlapping(self.data.as_ptr(), ptr.as_ptr(), self.size) };
-            ptr
-        };
         Ok(Self {
-            data,
-            size: self.size,
-            capacity: self.size,
+            buffer: self.buffer.try_clone()?,
             heads: self.heads,
             depth: self.depth,
             segment_count: self.segment_count,
             total_tokens: self.total_tokens,
-            alloc: self.alloc.clone(),
             _marker: PhantomData,
         })
     }
@@ -606,14 +579,11 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     /// and can then be re-run each decode step to reuse the buffer.
     pub fn empty_in(alloc: Alloc) -> Self {
         Self {
-            data: NonNull::dangling(),
-            size: 0,
-            capacity: 0,
+            buffer: PackedBuffer::empty_in(alloc),
             heads: 0,
             depth: 0,
             segment_count: 0,
             total_tokens: 0,
-            alloc,
             _marker: PhantomData,
         }
     }
@@ -687,10 +657,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         };
 
         let size = Scalar::attention_pack_size(heads, depth, segment_lengths, segment_count);
-        if size > self.capacity {
-            self.grow_to(size)?;
-        }
-        self.size = size;
+        let destination = self.buffer.reset_for_pack(size)?;
         self.heads = heads;
         self.depth = depth;
         self.segment_count = segment_count;
@@ -712,32 +679,11 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                 segment_count,
                 keys_stride_bytes,
                 values_stride_bytes,
-                self.data.as_ptr(),
+                destination,
                 0,
                 0,
             );
         }
-        Ok(())
-    }
-
-    /// Grow the backing allocation to at least `needed` bytes. Frees the old buffer without copying
-    /// — the caller repacks, overwriting the contents.
-    fn grow_to(&mut self, needed: usize) -> Result<(), TensorError> {
-        let new_data = if needed == 0 {
-            NonNull::dangling()
-        } else {
-            let layout = core::alloc::Layout::from_size_align(needed, SIMD_ALIGNMENT)
-                .map_err(|_| TensorError::AllocationFailed)?;
-            self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?
-        };
-        if self.capacity > 0 {
-            unsafe {
-                let old = core::alloc::Layout::from_size_align_unchecked(self.capacity, SIMD_ALIGNMENT);
-                self.alloc.deallocate(self.data, old);
-            }
-        }
-        self.data = new_data;
-        self.capacity = needed;
         Ok(())
     }
 
@@ -779,7 +725,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         unsafe {
             Scalar::attention_packed(
                 queries.as_ptr(),
-                self.data.as_ptr(),
+                self.buffer.as_ptr(),
                 output.as_mut_ptr(),
                 query_head_count,
                 self.heads,
@@ -809,13 +755,38 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     /// caller-supplied dimensions are needed.
     ///
     /// Reads through the C `nk_attention_packed_shape_<dtype>` accessor for this cache's scalar type.
-    pub fn shape(packed: &[u8]) -> Option<(usize, usize, usize)> {
+    pub fn peek_shape(packed: &[u8]) -> Option<(usize, usize, usize)> {
         if packed.len() < 12 {
             return None;
         }
         // Safety: the length check guarantees the header prefix the accessor reads is present.
         Some(unsafe { Scalar::attention_packed_shape(packed.as_ptr()) })
     }
+
+    /// Adopt an externally-produced packed KV blob by copying `bytes` into a container-owned
+    /// allocation. The attention blob is self-describing, so `(heads, depth, segments)` are read
+    /// back from its header; [`tokens`](Self::tokens) reports `0` for an adopted blob because the
+    /// total token count is not part of the queryable header.
+    ///
+    /// # Safety
+    /// `bytes` must be a valid attention packing for `Scalar`, produced by this build's packer;
+    /// anything else makes a later `try_attention` read out of bounds.
+    pub unsafe fn from_packed_bytes_in(bytes: &[u8], alloc: Alloc) -> Result<Self, TensorError> {
+        let (heads, depth, segment_count) = Self::peek_shape(bytes).ok_or(TensorError::InvalidShape {
+            axis: 0,
+            size: bytes.len(),
+            reason: "packed KV blob too short for a header",
+        })?;
+        let mut cache = Self::empty_in(alloc);
+        cache.buffer.fill_from_bytes(bytes)?;
+        cache.heads = heads;
+        cache.depth = depth;
+        cache.segment_count = segment_count;
+        Ok(cache)
+    }
+
+    /// Returns the shape `(heads, depth, segments)` of the packed cache.
+    pub fn shape(&self) -> (usize, usize, usize) { (self.heads, self.depth, self.segment_count) }
 
     /// Returns the number of ragged segments in the packed cache.
     pub fn segments(&self) -> usize { self.segment_count }
@@ -830,23 +801,23 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     pub fn tokens(&self) -> usize { self.total_tokens }
 
     /// Bytes currently allocated for the packed blob (>= the live packed size).
-    pub fn capacity(&self) -> usize { self.capacity }
+    pub fn capacity(&self) -> usize { self.buffer.capacity() }
 
     /// Reset to logically empty, keeping the allocation so the next `try_pack_into` reuses it.
     pub fn clear(&mut self) {
-        self.size = 0;
+        self.buffer.clear();
         self.segment_count = 0;
         self.total_tokens = 0;
     }
 
     /// Returns a reference to the allocator.
-    pub fn allocator(&self) -> &Alloc { &self.alloc }
+    pub fn allocator(&self) -> &Alloc { self.buffer.allocator() }
 
     /// Returns the packed data buffer.
-    pub fn as_bytes(&self) -> &[u8] { unsafe { core::slice::from_raw_parts(self.data.as_ptr(), self.size) } }
+    pub fn as_bytes(&self) -> &[u8] { self.buffer.as_bytes() }
 
     /// Returns a pointer to the packed data.
-    pub fn as_ptr(&self) -> *const u8 { self.data.as_ptr() }
+    pub fn as_ptr(&self) -> *const u8 { self.buffer.as_ptr() }
 }
 
 // Convenience methods using the Global allocator
@@ -866,21 +837,6 @@ impl<Scalar: Attention> AttentionPackedMatrix<Scalar, Global> {
         Self::try_pack_in(keys, values, depth, segment_offsets, segment_lengths, Global)
     }
 
-    /// Convenience method that panics on error.
-    pub fn pack<KIn, VIn, const MAX_RANK: usize>(
-        keys: &KIn,
-        values: &VIn,
-        depth: usize,
-        segment_offsets: &[u32],
-        segment_lengths: Option<&[u32]>,
-    ) -> Self
-    where
-        KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
-        VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
-    {
-        Self::try_pack(keys, values, depth, segment_offsets, segment_lengths).expect("attention pack failed")
-    }
-
     /// Ragged attention allocating a fresh `f32` output tensor.
     pub fn try_attention<QIn, const MAX_RANK: usize>(
         &self,
@@ -895,20 +851,6 @@ impl<Scalar: Attention> AttentionPackedMatrix<Scalar, Global> {
         let mut output = Tensor::<f32>::try_full(&[query_tokens, query_head_count * self.depth], 0.0)?;
         self.try_attention_into(queries, query_offsets, scale, &mut output)?;
         Ok(output)
-    }
-
-    /// Convenience method that panics on error.
-    pub fn attention<QIn, const MAX_RANK: usize>(
-        &self,
-        queries: &QIn,
-        query_offsets: &[u32],
-        scale: Option<f32>,
-    ) -> Tensor<f32>
-    where
-        QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
-    {
-        self.try_attention(queries, query_offsets, scale)
-            .expect("attention failed")
     }
 }
 
@@ -954,7 +896,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         let output_stride_bytes = output.stride_bytes(0) as usize;
 
         let q_ptr = fu::SyncConstPtr::new(queries.as_ptr());
-        let kv_ptr = fu::SyncConstPtr::new(self.data.as_ptr());
+        let kv_ptr = fu::SyncConstPtr::new(self.buffer.as_ptr());
         let out_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
         let offsets_ptr = fu::SyncConstPtr::new(query_offsets.as_ptr());
         let (heads, depth) = (self.heads, self.depth);
@@ -1005,21 +947,6 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         let mut output = Tensor::<f32>::try_full(&[query_tokens, query_head_count * self.depth], 0.0)?;
         self.try_attention_parallel_into(queries, query_offsets, scale, &mut output, pool)?;
         Ok(output)
-    }
-
-    /// Convenience method that panics on error.
-    pub fn attention_parallel<QIn, const MAX_RANK: usize>(
-        &self,
-        queries: &QIn,
-        query_offsets: &[u32],
-        scale: Option<f32>,
-        pool: &mut fu::ThreadPool,
-    ) -> Tensor<f32>
-    where
-        QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
-    {
-        self.try_attention_parallel(queries, query_offsets, scale, pool)
-            .expect("parallel attention failed")
     }
 
     /// Pack ragged K/V token matrices into this cache in parallel over the `(segment, kv_head)`
@@ -1073,10 +1000,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         };
 
         let size = Scalar::attention_pack_size(heads, depth, segment_lengths, segment_count);
-        if size > self.capacity {
-            self.grow_to(size)?;
-        }
-        self.size = size;
+        let destination = self.buffer.reset_for_pack(size)?;
         self.heads = heads;
         self.depth = depth;
         self.segment_count = segment_count;
@@ -1100,7 +1024,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                 segment_count,
                 keys_stride_bytes,
                 values_stride_bytes,
-                self.data.as_ptr(),
+                destination,
                 0,
                 1,
             );
@@ -1116,7 +1040,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         let values_ptr = fu::SyncConstPtr::new(values.as_ptr());
         let offsets_ptr = fu::SyncConstPtr::new(segment_offsets.as_ptr());
         let lengths_ptr = fu::SyncConstPtr::new(segment_lengths.as_ptr());
-        let packed_ptr = fu::SyncMutPtr::new(self.data.as_ptr());
+        let packed_ptr = fu::SyncMutPtr::new(destination);
         pool.for_n_dynamic(total_tasks - 1, move |prong| {
             crate::capabilities::configure_thread();
             unsafe {
@@ -1168,6 +1092,7 @@ impl<Scalar: Attention> AttentionPackedMatrix<Scalar, Global> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::SIMD_ALIGNMENT;
 
     #[test]
     fn shape_matches_packed_cache() {
@@ -1178,10 +1103,26 @@ mod tests {
         let offsets = [0u32, tokens as u32]; // one ragged segment
         let cache = AttentionPackedMatrix::try_pack(&keys.view(), &values.view(), depth, &offsets, None).unwrap();
 
-        // shape reads the C-written header; it must agree with the cache's own getters.
-        let read = AttentionPackedMatrix::<bf16>::shape(cache.as_bytes()).unwrap();
+        // peek_shape reads the C-written header; it must agree with the cache's own getters and
+        // its instance `shape()`.
+        let read = AttentionPackedMatrix::<bf16>::peek_shape(cache.as_bytes()).unwrap();
         assert_eq!(read, (cache.heads(), cache.depth(), cache.segments()));
-        assert_eq!(AttentionPackedMatrix::<bf16>::shape(&[]), None);
+        assert_eq!(cache.shape(), read);
+        assert_eq!(AttentionPackedMatrix::<bf16>::peek_shape(&[]), None);
+    }
+
+    #[test]
+    fn from_packed_bytes_roundtrips() {
+        crate::capabilities::configure_thread();
+        let (tokens, heads, depth) = (6usize, 2usize, 8usize);
+        let keys = Tensor::<bf16>::try_full(&[tokens, heads * depth], bf16::from_f32(0.1)).unwrap();
+        let values = keys.try_clone().unwrap();
+        let offsets = [0u32, tokens as u32];
+        let cache = AttentionPackedMatrix::try_pack(&keys.view(), &values.view(), depth, &offsets, None).unwrap();
+
+        let adopted = unsafe { AttentionPackedMatrix::<bf16>::from_packed_bytes_in(cache.as_bytes(), Global) }.unwrap();
+        assert_eq!(adopted.shape(), cache.shape());
+        assert_eq!(adopted.as_bytes(), cache.as_bytes());
     }
 
     #[test]

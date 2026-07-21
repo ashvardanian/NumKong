@@ -169,6 +169,118 @@ unsafe impl Allocator for Global {
 
 // endregion: Constants and Allocator
 
+// region: PackedBuffer
+
+/// A `SIMD_ALIGNMENT`-aligned owning byte buffer shared by the packed-matrix containers.
+///
+/// The dots, maxsim, and attention packed containers each wrap a single byte blob produced
+/// by the C `*_pack` FFI. `PackedBuffer` factors the allocation, reuse, and teardown of that
+/// blob into one place — it owns `(data, size, capacity, alloc)` and every container holds one
+/// as a private field, exactly as [`alloc::vec::Vec`] holds a `RawVec`. `size` is the live
+/// packed length and `capacity` the allocated length (`capacity >= size`); a `capacity == 0`
+/// buffer owns no allocation and holds a dangling pointer.
+///
+/// Two growth policies live here:
+/// - [`reset_for_pack`](Self::reset_for_pack) makes room for a fresh pack and discards the old
+///   contents — packing overwrites every byte, so nothing is preserved.
+/// - [`try_reserve`](Self::try_reserve) pre-grows the allocation while preserving the live bytes,
+///   so a caller can hoist the allocation out of a decode loop and every later pack reuses it with
+///   a stable pointer.
+#[derive(Debug)]
+pub(crate) struct PackedBuffer<Alloc: Allocator = Global> {
+    data: NonNull<u8>,
+    size: usize,
+    capacity: usize,
+    alloc: Alloc,
+}
+
+impl<Alloc: Allocator> PackedBuffer<Alloc> {
+    /// An empty buffer owning no allocation; fill it with [`reset_for_pack`](Self::reset_for_pack).
+    pub(crate) fn empty_in(alloc: Alloc) -> Self {
+        Self {
+            data: NonNull::dangling(),
+            size: 0,
+            capacity: 0,
+            alloc,
+        }
+    }
+
+    /// Bytes currently allocated (`>= size`).
+    pub(crate) fn capacity(&self) -> usize { self.capacity }
+
+    /// Reference to the stored allocator.
+    pub(crate) fn allocator(&self) -> &Alloc { &self.alloc }
+
+    /// Pointer to the packed data.
+    pub(crate) fn as_ptr(&self) -> *const u8 { self.data.as_ptr() }
+
+    /// The live packed bytes.
+    pub(crate) fn as_bytes(&self) -> &[u8] { unsafe { core::slice::from_raw_parts(self.data.as_ptr(), self.size) } }
+
+    /// Reset to logically empty, keeping the allocation for the next pack.
+    pub(crate) fn clear(&mut self) { self.size = 0; }
+
+    /// Make room for a fresh `needed`-byte pack, reusing the allocation when it already fits and
+    /// reallocating — discarding the old contents, since packing overwrites — only when it must grow.
+    /// Marks the live size and returns the writable base pointer.
+    pub(crate) fn reset_for_pack(&mut self, needed: usize) -> Result<*mut u8, TensorError> {
+        if needed > self.capacity {
+            self.grow_to(needed)?;
+        }
+        self.size = needed;
+        Ok(self.data.as_ptr())
+    }
+
+    /// Adopt an externally-produced blob by copying `bytes` into a size-exact allocation.
+    pub(crate) fn fill_from_bytes(&mut self, bytes: &[u8]) -> Result<(), TensorError> {
+        if bytes.len() > self.capacity {
+            self.grow_to(bytes.len())?;
+        }
+        if !bytes.is_empty() {
+            unsafe { core::ptr::copy_nonoverlapping(bytes.as_ptr(), self.data.as_ptr(), bytes.len()) };
+        }
+        self.size = bytes.len();
+        Ok(())
+    }
+
+    /// Grow to exactly `needed` bytes — dealloc old, alloc new; contents are discarded.
+    fn grow_to(&mut self, needed: usize) -> Result<(), TensorError> {
+        let new_data = if needed == 0 {
+            NonNull::dangling()
+        } else {
+            let layout = core::alloc::Layout::from_size_align(needed, SIMD_ALIGNMENT)
+                .map_err(|_| TensorError::AllocationFailed)?;
+            self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?
+        };
+        if self.capacity > 0 {
+            unsafe { dealloc_aligned(&self.alloc, self.data, self.capacity) };
+        }
+        self.data = new_data;
+        self.capacity = needed;
+        Ok(())
+    }
+}
+
+impl<Alloc: Allocator + Clone> PackedBuffer<Alloc> {
+    /// Copy the live bytes into a fresh size-exact buffer on the same allocator.
+    pub(crate) fn try_clone(&self) -> Result<Self, TensorError> {
+        let mut cloned = Self::empty_in(self.alloc.clone());
+        cloned.fill_from_bytes(self.as_bytes())?;
+        Ok(cloned)
+    }
+}
+
+impl<Alloc: Allocator> Drop for PackedBuffer<Alloc> {
+    fn drop(&mut self) {
+        if self.capacity == 0 {
+            return;
+        }
+        unsafe { dealloc_aligned(&self.alloc, self.data, self.capacity) };
+    }
+}
+
+// endregion: PackedBuffer
+
 // region: Error Types
 
 /// Error type for Tensor operations.

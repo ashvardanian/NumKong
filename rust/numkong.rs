@@ -227,7 +227,7 @@ pub use vector::{Vector, VectorIndex, VectorIterator, VectorSpan, VectorSpanIter
 // Re-export attention types
 pub use attention::{Attention, AttentionPackedMatrix};
 
-pub use maxsim::{MaxSim, MaxSimPackedMatrix, MaxSimPackedOps};
+pub use maxsim::{MaxSim, MaxSimPackedMatrix};
 
 /// Prelude: `use numkong::prelude::*;` brings the core containers and every extension trait into
 /// scope, so the `.try_*` / `.dots_packed` / `.mean` methods light up without importing each trait
@@ -236,9 +236,8 @@ pub mod prelude {
     pub use crate::{
         AllCloseOps, AngularsPackedOps, BitwiseReductionsOps, BlendOps, CastOps, DenseToScaledOps, DotsPackedMatrix,
         DotsPackedOps, EachSwiglu, EuclideansPackedOps, FmaOps, HammingsPackedOps, JaccardsPackedOps, Matrix,
-        MaxSimPackedOps, MinMaxOps, MomentsOps, ReduceRmsNorm, Reductions, ScaleOps, ScaledTensor, SumOps, Tensor,
-        TensorMut, TensorRef, TensorSpan, TensorView, TrigAtanOps, TrigCosOps, TrigRope, TrigSinOps, Vector,
-        VectorSpan, VectorView,
+        MinMaxOps, MomentsOps, ReduceRmsNorm, Reductions, ScaleOps, ScaledTensor, SumOps, Tensor, TensorMut, TensorRef,
+        TensorSpan, TensorView, TrigAtanOps, TrigCosOps, TrigRope, TrigSinOps, Vector, VectorSpan, VectorView,
     };
 
     #[cfg(feature = "parallel")]
@@ -291,7 +290,7 @@ mod tests {
         let docs_packed = MaxSimPackedMatrix::try_pack(&docs_view).unwrap();
         assert_eq!(queries_packed.shape(), (4, 16));
         assert_eq!(docs_packed.shape(), (8, 16));
-        let score = queries_packed.score(&docs_packed);
+        let score = queries_packed.try_score(&docs_packed).unwrap();
         assert!(score.is_finite(), "MaxSim score must be finite, got {score}");
     }
 
@@ -410,8 +409,9 @@ mod tests {
         let seg_lengths: Vec<u32> = offsets.windows(2).map(|p| p[1] - p[0]).collect();
         let predicted = AttentionPackedMatrix::<bf16>::pack_size(heads, head_dim, &seg_lengths);
 
-        // Serial pack via the panicking `pack` wrapper.
-        let kv_serial = AttentionPackedMatrix::pack(&keys.view(), &values.view(), head_dim, &offsets, None);
+        // Serial pack via the typed constructor.
+        let kv_serial =
+            AttentionPackedMatrix::try_pack(&keys.view(), &values.view(), head_dim, &offsets, None).unwrap();
         assert_eq!(
             kv_serial.as_bytes().len(),
             predicted,
@@ -430,24 +430,17 @@ mod tests {
             "parallel pack must match serial pack"
         );
 
-        // Panic-wrapper `attention`, allocating `try_attention_parallel`, and panic-wrapper
-        // `attention_parallel` must all agree bit-for-bit.
-        let serial = kv_serial.attention(&keys.view(), &offsets, None);
+        // Serial and parallel attention must agree bit-for-bit.
+        let serial = kv_serial.try_attention(&keys.view(), &offsets, None).unwrap();
         let par_alloc = kv_parallel
             .try_attention_parallel(&keys.view(), &offsets, None, &mut pool)
             .unwrap();
-        let par_panic = kv_parallel.attention_parallel(&keys.view(), &offsets, None, &mut pool);
         for (index, (a, b)) in serial.as_slice().iter().zip(par_alloc.as_slice()).enumerate() {
             assert!(
                 a.to_bits() == b.to_bits(),
                 "try_attention_parallel mismatch at {index}: {a} vs {b}"
             );
         }
-        assert_eq!(
-            par_alloc.as_slice(),
-            par_panic.as_slice(),
-            "attention_parallel must match try_attention_parallel"
-        );
     }
 
     #[test]

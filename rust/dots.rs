@@ -13,9 +13,8 @@
 extern crate alloc;
 
 use core::marker::PhantomData;
-use core::ptr::NonNull;
 
-use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorMut, TensorRef, TensorView, SIMD_ALIGNMENT};
+use crate::tensor::{Allocator, Global, PackedBuffer, Tensor, TensorError, TensorMut, TensorRef, TensorView};
 use crate::types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2, StorageElement};
 
 #[cfg(feature = "parallel")]
@@ -1116,18 +1115,11 @@ impl Dots for u1x8 {
 /// ```
 #[derive(Debug)]
 pub struct DotsPackedMatrix<Scalar: Dots, Alloc: Allocator = Global> {
-    /// Raw pointer to packed data buffer.
-    data: NonNull<u8>,
-    /// Bytes of live packed content.
-    size: usize,
-    /// Bytes actually allocated (>= size); lets `try_pack_into` reuse the buffer.
-    capacity: usize,
+    buffer: PackedBuffer<Alloc>,
     /// Output columns (B width).
     width: usize,
     /// Inner dimension (depth).
     depth: usize,
-    /// Allocator instance.
-    alloc: Alloc,
     _marker: PhantomData<Scalar>,
 }
 
@@ -1135,43 +1127,13 @@ pub struct DotsPackedMatrix<Scalar: Dots, Alloc: Allocator = Global> {
 unsafe impl<Scalar: Dots + Send, Alloc: Allocator + Send> Send for DotsPackedMatrix<Scalar, Alloc> {}
 unsafe impl<Scalar: Dots + Sync, Alloc: Allocator + Sync> Sync for DotsPackedMatrix<Scalar, Alloc> {}
 
-impl<Scalar: Dots, Alloc: Allocator> Drop for DotsPackedMatrix<Scalar, Alloc> {
-    fn drop(&mut self) {
-        if self.capacity == 0 {
-            return;
-        }
-        unsafe { crate::tensor::dealloc_aligned(&self.alloc, self.data, self.capacity) };
-    }
-}
-
 impl<Scalar: Dots, Alloc: Allocator + Clone> DotsPackedMatrix<Scalar, Alloc> {
     /// Try to clone this packed matrix, returning an error on allocation failure.
     pub fn try_clone(&self) -> Result<Self, TensorError> {
-        if self.size == 0 {
-            return Ok(Self {
-                data: NonNull::dangling(),
-                size: 0,
-                capacity: 0,
-                width: self.width,
-                depth: self.depth,
-                alloc: self.alloc.clone(),
-                _marker: PhantomData,
-            });
-        }
-
-        let layout = core::alloc::Layout::from_size_align(self.size, SIMD_ALIGNMENT)
-            .map_err(|_| TensorError::AllocationFailed)?;
-        let ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
-        unsafe {
-            core::ptr::copy_nonoverlapping(self.data.as_ptr(), ptr.as_ptr(), self.size);
-        }
         Ok(Self {
-            data: ptr,
-            size: self.size,
-            capacity: self.size,
+            buffer: self.buffer.try_clone()?,
             width: self.width,
             depth: self.depth,
-            alloc: self.alloc.clone(),
             _marker: PhantomData,
         })
     }
@@ -1188,12 +1150,9 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     /// Fill it with [`try_pack_into`](Self::try_pack_into).
     pub fn empty_in(alloc: Alloc) -> Self {
         Self {
-            data: NonNull::dangling(),
-            size: 0,
-            capacity: 0,
+            buffer: PackedBuffer::empty_in(alloc),
             width: 0,
             depth: 0,
-            alloc,
             _marker: PhantomData,
         }
     }
@@ -1229,40 +1188,14 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         }
         let (width, depth) = (b.shape()[0], b.shape()[1]);
         let size = Scalar::dots_pack_size(width, depth);
-        if size > self.capacity {
-            self.grow_to(size)?;
-        }
+        // The packer zero-fills its header reserved words and panel padding, so it owns every
+        // byte of the blob — no pre-zeroing needed here.
+        let destination = self.buffer.reset_for_pack(size)?;
         if size > 0 {
-            // The packer zero-fills its header reserved words and panel padding, so it owns every
-            // byte of the blob — no pre-zeroing needed here.
-            unsafe {
-                Scalar::dots_pack(b.as_ptr(), width, depth, b.stride_bytes(0) as usize, self.data.as_ptr());
-            }
+            unsafe { Scalar::dots_pack(b.as_ptr(), width, depth, b.stride_bytes(0) as usize, destination) };
         }
-        self.size = size;
         self.width = width;
         self.depth = depth;
-        Ok(())
-    }
-
-    /// Grow the backing allocation to at least `needed` bytes — dealloc old, alloc new; the caller
-    /// repacks, so contents need not be preserved.
-    fn grow_to(&mut self, needed: usize) -> Result<(), TensorError> {
-        let new_data = if needed == 0 {
-            NonNull::dangling()
-        } else {
-            let layout = core::alloc::Layout::from_size_align(needed, SIMD_ALIGNMENT)
-                .map_err(|_| TensorError::AllocationFailed)?;
-            self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?
-        };
-        if self.capacity > 0 {
-            unsafe {
-                let old = core::alloc::Layout::from_size_align_unchecked(self.capacity, SIMD_ALIGNMENT);
-                self.alloc.deallocate(self.data, old);
-            }
-        }
-        self.data = new_data;
-        self.capacity = needed;
         Ok(())
     }
 
@@ -1295,7 +1228,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     }
 
     /// Returns a reference to the allocator.
-    pub fn allocator(&self) -> &Alloc { &self.alloc }
+    pub fn allocator(&self) -> &Alloc { self.buffer.allocator() }
 
     /// Returns the shape (width, depth) of the original B matrix.
     pub fn shape(&self) -> (usize, usize) { (self.width, self.depth) }
@@ -1321,25 +1254,23 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         alloc: Alloc,
     ) -> Result<Self, TensorError> {
         let mut packed = Self::empty_in(alloc);
-        packed.grow_to(bytes.len())?;
-        core::ptr::copy_nonoverlapping(bytes.as_ptr(), packed.data.as_ptr(), bytes.len());
-        packed.size = bytes.len();
+        packed.buffer.fill_from_bytes(bytes)?;
         packed.width = width;
         packed.depth = depth;
         Ok(packed)
     }
 
     /// Bytes currently allocated (>= the live packed size).
-    pub fn capacity(&self) -> usize { self.capacity }
+    pub fn capacity(&self) -> usize { self.buffer.capacity() }
 
     /// Reset to logically empty, keeping the allocation so the next `try_pack_into` reuses it.
-    pub fn clear(&mut self) { self.size = 0; }
+    pub fn clear(&mut self) { self.buffer.clear(); }
 
     /// Returns the packed data buffer.
-    pub fn as_bytes(&self) -> &[u8] { unsafe { core::slice::from_raw_parts(self.data.as_ptr(), self.size) } }
+    pub fn as_bytes(&self) -> &[u8] { self.buffer.as_bytes() }
 
     /// Returns a pointer to the packed data.
-    pub fn as_ptr(&self) -> *const u8 { self.data.as_ptr() }
+    pub fn as_ptr(&self) -> *const u8 { self.buffer.as_ptr() }
 }
 
 // Convenience methods using Global allocator
@@ -1362,22 +1293,6 @@ impl<Scalar: Dots> DotsPackedMatrix<Scalar, Global> {
         B: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         Self::try_pack_transposed_in(b, Global)
-    }
-
-    /// Convenience constructor that panics on error.
-    pub fn pack<B, const MAX_RANK: usize>(b: &B) -> Self
-    where
-        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
-    {
-        Self::try_pack(b).expect("DotsPackedMatrix::pack failed")
-    }
-
-    /// Convenience constructor that panics on error.
-    pub fn pack_transposed<B, const MAX_RANK: usize>(b: &B) -> Self
-    where
-        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
-    {
-        Self::try_pack_transposed(b).expect("DotsPackedMatrix::pack_transposed failed")
     }
 }
 
@@ -2003,6 +1918,7 @@ impl<Scalar: Dots, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symmetric
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::SIMD_ALIGNMENT;
     use crate::types::{align_depth, assert_upper_triangle_eq, init_thread, FloatLike, NumberLike, TestableType, DIMS};
 
     fn check_dots_packed<Scalar: TestableType + Dots>()
