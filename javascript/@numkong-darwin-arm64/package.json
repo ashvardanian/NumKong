@@ -1,6 +1,6 @@
 {
   "name": "@numkong/darwin-arm64",
-  "version": "7.7.0",
+  "version": "7.7.1",
   "description": "macOS arm64 native binary for NumKong",
   "repository": {
     "type": "git",

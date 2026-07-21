@@ -99,7 +99,7 @@ endif ()
 #
 project(
     numkong
-    VERSION 7.7.0
+    VERSION 7.7.1
     LANGUAGES C CXX
     DESCRIPTION "Portable mixed-precision BLAS-like vector math library for x86 and ARM"
     HOMEPAGE_URL "https://github.com/ashvardanian/NumKong"

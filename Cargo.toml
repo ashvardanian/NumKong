@@ -19,7 +19,7 @@ name = "numkong"
 readme = "rust/README.md"
 repository = "https://github.com/ashvardanian/NumKong"
 rust-version = "1.73" # `usize::div_ceil` (used for sub-byte / block-scaled size math)
-version = "7.7.0"
+version = "7.7.1"
 
 [lib]
 name = "numkong"

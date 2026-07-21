@@ -96,7 +96,7 @@
 
 #define NK_VERSION_MAJOR 7
 #define NK_VERSION_MINOR 7
-#define NK_VERSION_PATCH 0
+#define NK_VERSION_PATCH 1
 
 /**
  *  @brief  Removes compile-time dispatching, and replaces it with runtime dispatching.

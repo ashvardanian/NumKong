@@ -3,7 +3,7 @@ title: "NumKong: Portable mixed-precision math, linear-algebra, & retrieval libr
 message: "If you use this software, please cite it as below."
 type: software
 license: Apache-2.0
-version: 7.7.0
+version: 7.7.1
 repository-code: https://github.com/ashvardanian/NumKong
 url: https://ashvardanian.com/posts/numkong/
 doi: 10.5281/zenodo.21480520
