@@ -298,6 +298,12 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
         Ok(())
     }
 
+    /// Pre-grow the buffer to hold `vector_count` vectors of `depth`, so a later `try_pack_into` that fits
+    /// stays allocation-free with a stable pointer — hoist this out of a decode loop.
+    pub fn try_reserve(&mut self, vector_count: usize, depth: usize) -> Result<(), TensorError> {
+        self.buffer.try_reserve(Scalar::maxsim_pack_size(vector_count, depth))
+    }
+
     /// Compute the MaxSim score — sum over queries of the max cosine to any document vector —
     /// against another packed matrix, treating `self` as the queries and `other` as the documents.
     ///
@@ -486,6 +492,31 @@ mod tests {
             check::<f32>(vector_count, depth, 1.0);
             check::<f16>(vector_count, depth, f16::from_f32(1.0));
             check::<bf16>(vector_count, depth, bf16::from_f32(1.0));
+        }
+    }
+
+    #[test]
+    fn reserve_then_pack_into_is_allocation_free() {
+        // Reserve for the largest geometry once, then repeatedly pack smaller inputs: the pointer
+        // must stay stable and capacity must not change — the decode-loop reuse contract.
+        crate::capabilities::configure_thread();
+        let (max_vector_count, depth) = (64usize, 32usize);
+        let mut packed = MaxSimPackedMatrix::<f32>::empty_in(Global);
+        packed.try_reserve(max_vector_count, depth).unwrap();
+        let reserved_capacity = packed.capacity();
+        let reserved_ptr = packed.as_ptr();
+        assert!(reserved_capacity >= <f32 as MaxSim>::maxsim_pack_size(max_vector_count, depth));
+
+        for vector_count in [8usize, 33, 64] {
+            let data = Tensor::<f32>::try_full(&[vector_count, depth], 1.0).unwrap();
+            packed.try_pack_into(&data).unwrap();
+            assert_eq!(packed.shape(), (vector_count, depth));
+            assert_eq!(
+                packed.capacity(),
+                reserved_capacity,
+                "reserved capacity must not change"
+            );
+            assert_eq!(packed.as_ptr(), reserved_ptr, "reserved pointer must stay stable");
         }
     }
 

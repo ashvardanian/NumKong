@@ -687,6 +687,19 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         Ok(())
     }
 
+    /// Pre-grow the cache to hold the given ragged geometry, so a later `try_pack_into` that fits
+    /// stays allocation-free with a stable pointer — allocate once at layer-init for the maximum
+    /// sequence length, then refresh every decode step with no further allocation. `segment_lengths`
+    /// carries one token count per segment.
+    pub fn try_reserve(&mut self, heads: usize, depth: usize, segment_lengths: &[u32]) -> Result<(), TensorError> {
+        self.buffer.try_reserve(Scalar::attention_pack_size(
+            heads,
+            depth,
+            segment_lengths,
+            segment_lengths.len(),
+        ))
+    }
+
     /// Ragged attention into a caller-provided `f32` output tensor of the same
     /// logical shape as `q` — `[tokens, heads * depth]`, contiguous rows.
     pub fn try_attention_into<QIn, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
@@ -1109,6 +1122,30 @@ mod tests {
         assert_eq!(read, (cache.heads(), cache.depth(), cache.segments()));
         assert_eq!(cache.shape(), read);
         assert_eq!(AttentionPackedMatrix::<bf16>::peek_shape(&[]), None);
+    }
+
+    #[test]
+    fn reserve_then_pack_into_is_allocation_free() {
+        crate::capabilities::configure_thread();
+        let (heads, depth) = (2usize, 8usize);
+        let max_lengths = [64u32];
+        let mut cache = AttentionPackedMatrix::<bf16>::empty_in(Global);
+        cache.try_reserve(heads, depth, &max_lengths).unwrap();
+        let reserved_capacity = cache.capacity();
+        let reserved_ptr = cache.as_ptr();
+        assert!(reserved_capacity >= AttentionPackedMatrix::<bf16>::pack_size(heads, depth, &max_lengths));
+
+        for tokens in [8usize, 33, 64] {
+            let keys = Tensor::<bf16>::try_full(&[tokens, heads * depth], bf16::from_f32(0.1)).unwrap();
+            let values = keys.try_clone().unwrap();
+            let offsets = [0u32, tokens as u32];
+            cache
+                .try_pack_into(&keys.view(), &values.view(), depth, &offsets, None)
+                .unwrap();
+            assert_eq!(cache.shape(), (heads, depth, 1));
+            assert_eq!(cache.capacity(), reserved_capacity, "reserved capacity must not change");
+            assert_eq!(cache.as_ptr(), reserved_ptr, "reserved pointer must stay stable");
+        }
     }
 
     #[test]

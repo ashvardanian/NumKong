@@ -1199,6 +1199,12 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         Ok(())
     }
 
+    /// Pre-grow the buffer to hold a width-by-depth B matrix, so a later `try_pack_into` that fits
+    /// stays allocation-free with a stable pointer — hoist this out of a repeated-pack loop.
+    pub fn try_reserve(&mut self, width: usize, depth: usize) -> Result<(), TensorError> {
+        self.buffer.try_reserve(Scalar::dots_pack_size(width, depth))
+    }
+
     /// Pack Bᵀ where B is (k × n) row-major, the standard GEMM layout, using a custom allocator.
     ///
     /// Materializes the transpose into a contiguous buffer, then packs normally.
@@ -2267,6 +2273,30 @@ mod tests {
         let a_data: Vec<f32> = (0..3 * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
         let a = Tensor::<f32>::from_slice(&a_data, &[3, depth]);
         assert_eq!(a.dots_packed(&packed).as_slice(), a.dots_packed(&adopted).as_slice());
+    }
+
+    #[test]
+    fn reserve_then_pack_into_is_allocation_free() {
+        init_thread();
+        let (max_width, depth) = (48usize, 16usize);
+        let mut packed = DotsPackedMatrix::<f32>::empty_in(Global);
+        packed.try_reserve(max_width, depth).unwrap();
+        let reserved_capacity = packed.capacity();
+        let reserved_ptr = packed.as_ptr();
+        assert!(reserved_capacity >= DotsPackedMatrix::<f32>::pack_size(max_width, depth));
+
+        for width in [4usize, 17, 48] {
+            let b_data: Vec<f32> = (0..width * depth).map(|i| i as f32 * 0.1).collect();
+            let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]);
+            packed.try_pack_into(&b).unwrap();
+            assert_eq!(packed.shape(), (width, depth));
+            assert_eq!(
+                packed.capacity(),
+                reserved_capacity,
+                "reserved capacity must not change"
+            );
+            assert_eq!(packed.as_ptr(), reserved_ptr, "reserved pointer must stay stable");
+        }
     }
 
     #[test]

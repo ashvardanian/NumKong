@@ -231,6 +231,26 @@ impl<Alloc: Allocator> PackedBuffer<Alloc> {
         Ok(self.data.as_ptr())
     }
 
+    /// Pre-grow the allocation to at least `needed` bytes, preserving the live bytes, so a later
+    /// `reset_for_pack` that fits stays allocation-free with a stable pointer. A no-op when it already fits.
+    pub(crate) fn try_reserve(&mut self, needed: usize) -> Result<(), TensorError> {
+        if needed <= self.capacity {
+            return Ok(());
+        }
+        let layout =
+            core::alloc::Layout::from_size_align(needed, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
+        let new_data = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
+        if self.size > 0 {
+            unsafe { core::ptr::copy_nonoverlapping(self.data.as_ptr(), new_data.as_ptr(), self.size) };
+        }
+        if self.capacity > 0 {
+            unsafe { dealloc_aligned(&self.alloc, self.data, self.capacity) };
+        }
+        self.data = new_data;
+        self.capacity = needed;
+        Ok(())
+    }
+
     /// Adopt an externally-produced blob by copying `bytes` into a size-exact allocation.
     pub(crate) fn fill_from_bytes(&mut self, bytes: &[u8]) -> Result<(), TensorError> {
         if bytes.len() > self.capacity {
