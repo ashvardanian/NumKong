@@ -1,20 +1,24 @@
 cff-version: 1.2.0
-title: "NumKong: 2000 Mixed Precision Kernels For All"
+title: "NumKong: Portable mixed-precision math, linear-algebra, & retrieval library with 2000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly"
 message: "If you use this software, please cite it as below."
 type: software
 license: Apache-2.0
 version: 7.7.0
 repository-code: https://github.com/ashvardanian/NumKong
 url: https://ashvardanian.com/posts/numkong/
+doi: 10.5281/zenodo.21480520
 abstract: >-
-  Portable mixed-precision math, linear-algebra, & retrieval library
-  with 2'000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly,
-  leveraging rare algebraic transforms with both 1D & 2D registers like AMX & SME,
-  covering 15+ numeric types from 4-bit integers & 6-bit floats to 128-bit complex numbers,
-  validated against 118-bit extended-precision baselines
-  with saturation, casting, & rounding edge-case coverage,
-  in a 5-100x smaller binary than other BLAS-like alternatives,
-  co-designed with Tensor abstractions in C++, Python, Rust, JavaScript, GoLang, & Swift.
+  Portable mixed-precision math, linear-algebra, & retrieval library with
+  2'000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly,
+  leveraging rare algebraic transforms with both 1D & 2D registers like AMX &
+  SME, covering 15+ numeric types from 4-bit integers & 6-bit floats through
+  block-scaled MXFP & NVFP4 micro-formats up to 128-bit complex numbers,
+  spanning dot products, spatial, sparse, & curved-space similarity, scaled
+  dot-product attention, late-interaction MaxSim retrieval, and fused RMSNorm,
+  SwiGLU, & RoPE kernels, validated against 118-bit extended-precision
+  baselines with saturation, casting, & rounding edge-case coverage, in a
+  5-100x smaller binary than other BLAS-like alternatives, co-designed with
+  Tensor abstractions in C++, Python, Rust, JavaScript, GoLang, & Swift.
 
 authors:
   - family-names: Vardanian

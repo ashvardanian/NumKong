@@ -568,6 +568,22 @@ Beyond the READMEs in this repository, there are several standalone articles cov
 - [Accelerating JavaScript arrays by 10x for Vector Search](https://ashvardanian.com/posts/javascript-ai-vector-search/)
 - [SciPy distances... up to 200x faster with AVX-512 & SVE](https://ashvardanian.com/posts/simsimd-faster-scipy/)
 
+## Citation
+
+If NumKong helps your research or product, please cite it:
+
+```bibtex
+@software{Vardanian_NumKong,
+  author = {Vardanian, Ash},
+  title = {{NumKong: Portable mixed-precision math, linear-algebra, \& retrieval library with 2000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, \& WebAssembly}},
+  doi = {10.5281/zenodo.21480520},
+  url = {https://github.com/ashvardanian/NumKong},
+  license = {Apache-2.0}
+}
+```
+
+A machine-readable [`CITATION.cff`](CITATION.cff) is provided at the repository root.
+
 ## License
 
 Feel free to use the project under Apache 2.0 or the Three-clause BSD license at your preference.
