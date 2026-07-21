@@ -268,22 +268,22 @@ void nk_error_attention_packed_shape_(void const *key_value_packed, nk_size_t *h
 
 void nk_error_attention_pack_(void const *k, void const *v, nk_size_t num_kv_heads, nk_size_t head_dim,
                               nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                              nk_size_t k_stride, nk_size_t v_stride, void *kv_packed, nk_size_t first_task,
-                              nk_size_t task_count) {
+                              nk_size_t k_stride, nk_size_t v_stride, void *key_value_packed, nk_size_t begin,
+                              nk_size_t end) {
     nk_unused_(k), nk_unused_(v), nk_unused_(num_kv_heads), nk_unused_(head_dim), nk_unused_(segment_offsets);
     nk_unused_(segment_lengths), nk_unused_(segment_count), nk_unused_(k_stride), nk_unused_(v_stride);
-    nk_unused_(kv_packed), nk_unused_(first_task), nk_unused_(task_count);
+    nk_unused_(key_value_packed), nk_unused_(begin), nk_unused_(end);
 }
 
-void nk_error_attention_packed_(void const *q, void const *kv_packed, void *output, nk_size_t num_heads,
+void nk_error_attention_packed_(void const *q, void const *key_value_packed, void *output, nk_size_t num_heads,
                                 nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets,
-                                nk_size_t q_stride, nk_size_t o_stride, nk_f32_t scale, nk_size_t first_task,
-                                nk_size_t task_count) {
+                                nk_size_t q_stride, nk_size_t o_stride, nk_f32_t scale, nk_size_t begin,
+                                nk_size_t end) {
     // The ragged output extent (query_offsets[segments] rows) lives behind the backend-private
     // packed header, so unlike the dense error handlers this one cannot poison the output.
-    nk_unused_(q), nk_unused_(kv_packed), nk_unused_(output), nk_unused_(num_heads), nk_unused_(num_kv_heads);
+    nk_unused_(q), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(num_heads), nk_unused_(num_kv_heads);
     nk_unused_(head_dim), nk_unused_(query_offsets), nk_unused_(q_stride), nk_unused_(o_stride), nk_unused_(scale);
-    nk_unused_(first_task), nk_unused_(task_count);
+    nk_unused_(begin), nk_unused_(end);
 }
 
 // Global dispatch table - 64-byte aligned for cache performance
@@ -442,6 +442,13 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
         nk_dispatch_table.api_name##_pack_##name(b, n, k, b_stride, b_packed);                              \
     }
 
+#define nk_dispatch_dots_pack_(name, input_type)                                                         \
+    NK_API_RUNTIME void nk_dots_pack_##name(nk_##input_type##_t const *b, nk_size_t n, nk_size_t k,      \
+                                            nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, \
+                                            nk_size_t columns_end) {                                     \
+        nk_dispatch_table.dots_pack_##name(b, n, k, b_stride, b_packed, columns_begin, columns_end);     \
+    }
+
 #define nk_dispatch_cross_packed_(api_name, name, input_type, accum_type, output_type)                                \
     NK_API_RUNTIME void nk_##api_name##_packed_##name(nk_##input_type##_t const *a, void const *b_packed,             \
                                                       nk_##output_type##_t *c, nk_size_t m, nk_size_t n, nk_size_t k, \
@@ -482,19 +489,19 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
     NK_API_RUNTIME void nk_attention_pack_##name(                                                                      \
         nk_##name##_t const *k, nk_##name##_t const *v, nk_size_t num_kv_heads, nk_size_t head_dim,                    \
         nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t k_stride, \
-        nk_size_t v_stride, void *kv_packed, nk_size_t first_task, nk_size_t task_count) {                             \
+        nk_size_t v_stride, void *key_value_packed, nk_size_t begin, nk_size_t end) {                                  \
         nk_dispatch_table.attention_pack_##name(k, v, num_kv_heads, head_dim, segment_offsets, segment_lengths,        \
-                                                segment_count, k_stride, v_stride, kv_packed, first_task, task_count); \
+                                                segment_count, k_stride, v_stride, key_value_packed, begin, end);      \
     }
 
-#define nk_dispatch_attention_packed_(name)                                                                            \
-    NK_API_RUNTIME void nk_attention_packed_##name(                                                                    \
-        nk_##name##_t const *q, void const *kv_packed, nk_f32_t *output, nk_size_t num_heads, nk_size_t num_kv_heads,  \
-        nk_size_t head_dim, nk_u32_t const *query_offsets, nk_size_t q_stride, nk_size_t o_stride, nk_f32_t scale,     \
-        nk_size_t first_task, nk_size_t task_count) {                                                                  \
-        nk_dispatch_table.attention_packed_##name((void const *)q, kv_packed, (void *)output, num_heads, num_kv_heads, \
-                                                  head_dim, query_offsets, q_stride, o_stride, scale, first_task,      \
-                                                  task_count);                                                         \
+#define nk_dispatch_attention_packed_(name)                                                                         \
+    NK_API_RUNTIME void nk_attention_packed_##name(                                                                 \
+        nk_##name##_t const *q, void const *key_value_packed, nk_f32_t *output, nk_size_t num_heads,                \
+        nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets, nk_size_t q_stride,              \
+        nk_size_t o_stride, nk_f32_t scale, nk_size_t begin, nk_size_t end) {                                       \
+        nk_dispatch_table.attention_packed_##name((void const *)q, key_value_packed, (void *)output, num_heads,     \
+                                                  num_kv_heads, head_dim, query_offsets, q_stride, o_stride, scale, \
+                                                  begin, end);                                                      \
     }
 
 // Dot products
@@ -780,22 +787,14 @@ nk_dispatch_cross_packed_shape_(dots, f64, f64, f64) nk_dispatch_cross_packed_sh
                                     nk_dispatch_cross_packed_shape_(dots, u1, u1x8, u32)
 
     // Dots packing
-    nk_dispatch_cross_pack_(dots, f64, f64, f64)
-nk_dispatch_cross_pack_(dots, f32, f32, f32)
-nk_dispatch_cross_pack_(dots, bf16, bf16, f32)
-nk_dispatch_cross_pack_(dots, f16, f16, f32)
-nk_dispatch_cross_pack_(dots, e5m2, e5m2, f32)
-nk_dispatch_cross_pack_(dots, e4m3, e4m3, f32)
-nk_dispatch_cross_pack_(dots, e3m2, e3m2, f32)
-nk_dispatch_cross_pack_(dots, e2m3, e2m3, f32)
-nk_dispatch_cross_pack_(dots, i8, i8, i32)
-nk_dispatch_cross_pack_(dots, i4, i4x2, i32)
-nk_dispatch_cross_pack_(dots, u8, u8, u32)
-nk_dispatch_cross_pack_(dots, u4, u4x2, u32)
-nk_dispatch_cross_pack_(dots, u1, u1x8, u32)
+    nk_dispatch_dots_pack_(f64, f64) nk_dispatch_dots_pack_(f32, f32) nk_dispatch_dots_pack_(bf16, bf16)
+        nk_dispatch_dots_pack_(f16, f16) nk_dispatch_dots_pack_(e5m2, e5m2) nk_dispatch_dots_pack_(e4m3, e4m3)
+            nk_dispatch_dots_pack_(e3m2, e3m2) nk_dispatch_dots_pack_(e2m3, e2m3) nk_dispatch_dots_pack_(i8, i8)
+                nk_dispatch_dots_pack_(i4, i4x2) nk_dispatch_dots_pack_(u8, u8) nk_dispatch_dots_pack_(u4, u4x2)
+                    nk_dispatch_dots_pack_(u1, u1x8)
 
-// Dots packed
-nk_dispatch_cross_packed_(dots, f64, f64, f64, f64)
+    // Dots packed
+    nk_dispatch_cross_packed_(dots, f64, f64, f64, f64)
 nk_dispatch_cross_packed_(dots, f32, f32, f32, f64)
 nk_dispatch_cross_packed_(dots, bf16, bf16, f32, f32)
 nk_dispatch_cross_packed_(dots, f16, f16, f32, f32)

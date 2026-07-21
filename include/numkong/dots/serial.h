@@ -306,7 +306,7 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                               compute_norm_fn, depth_simd_dimensions, dimensions_per_value)                           \
     NK_API_COMPTIME void nk_##api_name##_pack_##input_type_name##_##isa_suffix(                                       \
         nk_##input_value_type##_t const *b, nk_size_t column_count, nk_size_t depth, nk_size_t b_stride_in_bytes,     \
-        void *b_packed) {                                                                                             \
+        void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {                                             \
         nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);              \
         nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value);      \
         nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                      \
@@ -314,19 +314,21 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
             depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);             \
         nk_size_t const depth_in_values = nk_size_divide_round_up_(depth, dimensions_per_value);                      \
                                                                                                                       \
-        nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;                        \
-        header->column_count = (nk_u32_t)column_count;                                                                \
-        header->depth_dimensions = (nk_u32_t)depth;                                                                   \
-        header->depth_padded_values = (nk_u32_t)depth_values_padded;                                                  \
-        for (nk_size_t reserved_index = 0; reserved_index < 13; reserved_index++)                                     \
-            header->reserved[reserved_index] = 0;                                                                     \
+        if (columns_begin == 0) {                                                                                     \
+            nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;                    \
+            header->column_count = (nk_u32_t)column_count;                                                            \
+            header->depth_dimensions = (nk_u32_t)depth;                                                               \
+            header->depth_padded_values = (nk_u32_t)depth_values_padded;                                              \
+            for (nk_size_t reserved_index = 0; reserved_index < 13; reserved_index++)                                 \
+                header->reserved[reserved_index] = 0;                                                                 \
+        }                                                                                                             \
                                                                                                                       \
         nk_##packed_value_type##_t *packed = (nk_##packed_value_type##_t *)((char *)b_packed +                        \
                                                                             sizeof(nk_cross_packed_buffer_header_t)); \
         nk_size_t const full_chunks = depth_in_values / (simd_width);                                                 \
         nk_size_t const remainder = depth_in_values % (simd_width);                                                   \
                                                                                                                       \
-        for (nk_size_t column_index = 0; column_index < column_count; ++column_index) {                               \
+        for (nk_size_t column_index = columns_begin; column_index < columns_end; ++column_index) {                    \
             nk_##input_value_type##_t const *source_row =                                                             \
                 (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride_in_bytes);              \
             nk_##packed_value_type##_t *destination_row = packed + column_index * depth_values_padded;                \
@@ -345,7 +347,7 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                                                                                                                       \
         nk_size_t const total_values = column_count * depth_values_padded;                                            \
         nk_##norm_value_type##_t *norms = (nk_##norm_value_type##_t *)(packed + total_values);                        \
-        for (nk_size_t column_index = 0; column_index < column_count; ++column_index) {                               \
+        for (nk_size_t column_index = columns_begin; column_index < columns_end; ++column_index) {                    \
             nk_##input_value_type##_t const *source_row =                                                             \
                 (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride_in_bytes);              \
             norms[column_index] = compute_norm_fn(source_row, depth);                                                 \
@@ -385,7 +387,7 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                                           dimensions_per_value)                                                       \
     NK_API_COMPTIME void nk_##api_name##_pack_##input_type_name##_##isa_suffix(                                       \
         nk_##input_value_type##_t const *b, nk_size_t column_count, nk_size_t depth, nk_size_t b_stride_in_bytes,     \
-        void *b_packed) {                                                                                             \
+        void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {                                             \
         nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);              \
         nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value);      \
         nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                      \
@@ -393,19 +395,21 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
             depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);             \
         nk_size_t const depth_in_values = nk_size_divide_round_up_(depth, dimensions_per_value);                      \
                                                                                                                       \
-        nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;                        \
-        header->column_count = (nk_u32_t)column_count;                                                                \
-        header->depth_dimensions = (nk_u32_t)depth;                                                                   \
-        header->depth_padded_values = (nk_u32_t)depth_values_padded;                                                  \
-        for (nk_size_t reserved_index = 0; reserved_index < 13; reserved_index++)                                     \
-            header->reserved[reserved_index] = 0;                                                                     \
+        if (columns_begin == 0) {                                                                                     \
+            nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;                    \
+            header->column_count = (nk_u32_t)column_count;                                                            \
+            header->depth_dimensions = (nk_u32_t)depth;                                                               \
+            header->depth_padded_values = (nk_u32_t)depth_values_padded;                                              \
+            for (nk_size_t reserved_index = 0; reserved_index < 13; reserved_index++)                                 \
+                header->reserved[reserved_index] = 0;                                                                 \
+        }                                                                                                             \
                                                                                                                       \
         nk_##packed_value_type##_t *packed = (nk_##packed_value_type##_t *)((char *)b_packed +                        \
                                                                             sizeof(nk_cross_packed_buffer_header_t)); \
         nk_size_t const full_chunks = depth_in_values / (simd_width);                                                 \
         nk_size_t const remainder = depth_in_values % (simd_width);                                                   \
                                                                                                                       \
-        for (nk_size_t column_index = 0; column_index < column_count; ++column_index) {                               \
+        for (nk_size_t column_index = columns_begin; column_index < columns_end; ++column_index) {                    \
             nk_##input_value_type##_t const *source_row =                                                             \
                 (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride_in_bytes);              \
             nk_##packed_value_type##_t *destination_row = packed + column_index * depth_values_padded;                \
@@ -425,7 +429,7 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         nk_size_t const total_values = column_count * depth_values_padded;                                            \
         nk_##norm_value_type##_t *norms = (nk_##norm_value_type##_t *)(packed + total_values);                        \
         nk_##sum_value_type##_t *col_sums = (nk_##sum_value_type##_t *)(norms + column_count);                        \
-        for (nk_size_t column_index = 0; column_index < column_count; ++column_index) {                               \
+        for (nk_size_t column_index = columns_begin; column_index < columns_end; ++column_index) {                    \
             nk_##input_value_type##_t const *source_row =                                                             \
                 (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride_in_bytes);              \
             compute_moments_fn(source_row, depth, &col_sums[column_index], &norms[column_index]);                     \

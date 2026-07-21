@@ -899,7 +899,7 @@ NK_API_COMPTIME void nk_dots_packed_shape_bf16_sapphireamx(void const *b_packed,
 
 NK_API_COMPTIME void nk_dots_pack_bf16_sapphireamx(              //
     nk_bf16_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride_in_bytes, void *b_packed) {
+    nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
     // AMX BF16 tile dimensions: 16 rows × 32 columns (512 BF16 elements = 1KB)
     nk_size_t const tmm_rows = 16;
@@ -914,28 +914,34 @@ NK_API_COMPTIME void nk_dots_pack_bf16_sapphireamx(              //
     nk_size_t const column_remainder_count = column_count - column_tiles_count * tmm_rows;
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
-    // Write header with layout metadata
-    nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->columns = (nk_u32_t)column_count;
-    header->depth = (nk_u32_t)depth;
-    header->full_column_tiles = (nk_u32_t)column_tiles_count;
-    header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
-    header->column_remainder_count = (nk_u32_t)column_remainder_count;
-
-    // Compute memory region offsets
+    // Memory region offsets — every window needs these to locate its output regions.
     nk_size_t const tiles_offset = sizeof(nk_dots_amx_packed_header_t);
     nk_size_t const column_edge_offset = tiles_offset + total_tiles * tile_bytes;
-    header->column_edge_offset = (nk_u32_t)column_edge_offset;
+
+    // Only the window covering column 0 writes the shared header; later windows read it.
+    nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->columns = (nk_u32_t)column_count;
+        header->depth = (nk_u32_t)depth;
+        header->full_column_tiles = (nk_u32_t)column_tiles_count;
+        header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
+        header->column_remainder_count = (nk_u32_t)column_remainder_count;
+        header->column_edge_offset = (nk_u32_t)column_edge_offset;
+    }
 
     // Pointers to packed data regions
     nk_bf16_t *tiles_ptr = (nk_bf16_t *)((char *)b_packed + tiles_offset);
     nk_bf16_t *column_edge_ptr = (nk_bf16_t *)((char *)b_packed + column_edge_offset);
 
+    nk_size_t tile_column_begin = nk_size_divide_round_up_(columns_begin, tmm_rows);
+    nk_size_t tile_column_end = nk_size_divide_round_up_(columns_end, tmm_rows);
+    if (tile_column_end > column_tiles_count) tile_column_end = column_tiles_count;
+
     // Pack tiles using vectorized transposer: gather 16 strided rows into an aligned
     // temporary, transpose via SIMD, then copy the result to the packed buffer.
-    for (nk_size_t column_tile_idx = 0; column_tile_idx < column_tiles_count; column_tile_idx++) {
+    for (nk_size_t column_tile_idx = tile_column_begin; column_tile_idx < tile_column_end; column_tile_idx++) {
         for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles_count; depth_tile_idx++) {
 
             nk_size_t const tile_index = column_tile_idx * depth_tiles_count + depth_tile_idx;
@@ -970,9 +976,8 @@ NK_API_COMPTIME void nk_dots_pack_bf16_sapphireamx(              //
         }
     }
 
-    // Pack column-remainder rows in simple row-major format (for AVX-512 fallback)
-    if (column_remainder_count > 0) {
-        nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
+    nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
+    if (column_remainder_count > 0 && remainder_start_row >= columns_begin && remainder_start_row < columns_end) {
         for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++) {
             for (nk_size_t column_idx = 0; column_idx < depth; column_idx++) {
                 column_edge_ptr[row_idx * depth + column_idx] =
@@ -981,12 +986,13 @@ NK_API_COMPTIME void nk_dots_pack_bf16_sapphireamx(              //
         }
     }
 
-    // Compute and store per-column norms for angular/euclidean distance
+    // Compute and store per-column norms for angular/euclidean distance — one per column, so each
+    // window computes the norms of the columns it owns.
     nk_size_t norms_offset = column_edge_offset +
                              (column_remainder_count > 0 ? column_remainder_count * depth * sizeof(nk_bf16_t) : 0);
-    header->norms_byte_offset = (nk_u32_t)norms_offset;
+    if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
-    for (nk_size_t col = 0; col < column_count; col++)
+    for (nk_size_t col = columns_begin; col < columns_end; col++)
         norms[col] = nk_dots_reduce_sumsq_bf16_(b + col * b_stride_elements, depth);
 }
 
@@ -1444,7 +1450,7 @@ NK_API_COMPTIME void nk_dots_packed_shape_i8_sapphireamx(void const *b_packed, n
 
 NK_API_COMPTIME void nk_dots_pack_i8_sapphireamx(              //
     nk_i8_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride_in_bytes, void *b_packed) {
+    nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
     // AMX I8 tile dimensions: 16 rows × 64 columns (1024 I8 elements = 1KB)
     nk_size_t const tmm_rows = 16;
@@ -1460,18 +1466,20 @@ NK_API_COMPTIME void nk_dots_pack_i8_sapphireamx(              //
 
     // Write header with layout metadata
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->columns = (nk_u32_t)column_count;
-    header->depth = (nk_u32_t)depth;
-    header->full_column_tiles = (nk_u32_t)column_tiles_count;
-    header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
-    header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->columns = (nk_u32_t)column_count;
+        header->depth = (nk_u32_t)depth;
+        header->full_column_tiles = (nk_u32_t)column_tiles_count;
+        header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
+        header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    }
 
     // Compute memory region offsets
     nk_size_t const tiles_offset = sizeof(nk_dots_amx_packed_header_t);
     nk_size_t const column_edge_offset = tiles_offset + total_tiles * tile_bytes;
-    header->column_edge_offset = (nk_u32_t)column_edge_offset;
+    if (columns_begin == 0) header->column_edge_offset = (nk_u32_t)column_edge_offset;
 
     // Pointers to packed data regions
     nk_i8_t *tiles_ptr = (nk_i8_t *)((char *)b_packed + tiles_offset);
@@ -1480,7 +1488,9 @@ NK_API_COMPTIME void nk_dots_pack_i8_sapphireamx(              //
     // Pack tiles using vectorized transposer: gather 16 strided rows into an aligned
     // temporary, transpose via SIMD, then copy the result to the packed buffer.
     // Stack-local aligned tiles are needed because the packed buffer may not be 64-byte aligned.
-    for (nk_size_t column_tile_idx = 0; column_tile_idx < column_tiles_count; column_tile_idx++) {
+    for (nk_size_t column_tile_idx = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile_idx < column_tiles_count && column_tile_idx < nk_size_divide_round_up_(columns_end, 16);
+         column_tile_idx++) {
         for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles_count; depth_tile_idx++) {
 
             nk_size_t const tile_index = column_tile_idx * depth_tiles_count + depth_tile_idx;
@@ -1520,7 +1530,8 @@ NK_API_COMPTIME void nk_dots_pack_i8_sapphireamx(              //
     }
 
     // Pack column-remainder rows in simple row-major format (for AVX-512 fallback)
-    if (column_remainder_count > 0) {
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
         nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
         for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++) {
             for (nk_size_t column_idx = 0; column_idx < depth; column_idx++) {
@@ -1533,9 +1544,9 @@ NK_API_COMPTIME void nk_dots_pack_i8_sapphireamx(              //
     // Compute and store per-column norms for angular/euclidean distance
     nk_size_t norms_offset = column_edge_offset +
                              (column_remainder_count > 0 ? column_remainder_count * depth * sizeof(nk_i8_t) : 0);
-    header->norms_byte_offset = (nk_u32_t)norms_offset;
+    if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_u32_t *norms = (nk_u32_t *)((char *)b_packed + norms_offset);
-    for (nk_size_t col = 0; col < column_count; col++)
+    for (nk_size_t col = columns_begin; col < columns_end; col++)
         norms[col] = nk_dots_reduce_sumsq_i8_(b + col * b_stride_in_bytes, depth);
 }
 
@@ -2038,7 +2049,7 @@ NK_API_COMPTIME void nk_dots_packed_shape_u8_sapphireamx(void const *b_packed, n
 
 NK_API_COMPTIME void nk_dots_pack_u8_sapphireamx(              //
     nk_u8_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride_in_bytes, void *b_packed) {
+    nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 64;
@@ -2051,17 +2062,19 @@ NK_API_COMPTIME void nk_dots_pack_u8_sapphireamx(              //
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->columns = (nk_u32_t)column_count;
-    header->depth = (nk_u32_t)depth;
-    header->full_column_tiles = (nk_u32_t)column_tiles_count;
-    header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
-    header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->columns = (nk_u32_t)column_count;
+        header->depth = (nk_u32_t)depth;
+        header->full_column_tiles = (nk_u32_t)column_tiles_count;
+        header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
+        header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    }
 
     nk_size_t const tiles_offset = sizeof(nk_dots_amx_packed_header_t);
     nk_size_t const column_edge_offset = tiles_offset + total_tiles * tile_bytes;
-    header->column_edge_offset = (nk_u32_t)column_edge_offset;
+    if (columns_begin == 0) header->column_edge_offset = (nk_u32_t)column_edge_offset;
 
     nk_u8_t *tiles_ptr = (nk_u8_t *)((char *)b_packed + tiles_offset);
     nk_u8_t *column_edge_ptr = (nk_u8_t *)((char *)b_packed + column_edge_offset);
@@ -2069,7 +2082,9 @@ NK_API_COMPTIME void nk_dots_pack_u8_sapphireamx(              //
     // Pack tiles using vectorized transposer: gather 16 strided rows into an aligned
     // temporary, transpose via SIMD, then copy the result to the packed buffer.
     // Stack-local aligned tiles are needed because the packed buffer may not be 64-byte aligned.
-    for (nk_size_t column_tile_idx = 0; column_tile_idx < column_tiles_count; column_tile_idx++) {
+    for (nk_size_t column_tile_idx = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile_idx < column_tiles_count && column_tile_idx < nk_size_divide_round_up_(columns_end, 16);
+         column_tile_idx++) {
         for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles_count; depth_tile_idx++) {
 
             nk_size_t const tile_index = column_tile_idx * depth_tiles_count + depth_tile_idx;
@@ -2108,7 +2123,8 @@ NK_API_COMPTIME void nk_dots_pack_u8_sapphireamx(              //
         }
     }
 
-    if (column_remainder_count > 0) {
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
         nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
         for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++) {
             for (nk_size_t column_idx = 0; column_idx < depth; column_idx++) {
@@ -2121,9 +2137,9 @@ NK_API_COMPTIME void nk_dots_pack_u8_sapphireamx(              //
     // Compute and store per-column norms for angular/euclidean distance
     nk_size_t norms_offset = column_edge_offset +
                              (column_remainder_count > 0 ? column_remainder_count * depth * sizeof(nk_u8_t) : 0);
-    header->norms_byte_offset = (nk_u32_t)norms_offset;
+    if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_u32_t *norms = (nk_u32_t *)((char *)b_packed + norms_offset);
-    for (nk_size_t col = 0; col < column_count; col++)
+    for (nk_size_t col = columns_begin; col < columns_end; col++)
         norms[col] = nk_dots_reduce_sumsq_u8_(b + col * b_stride_in_bytes, depth);
 }
 
@@ -2519,7 +2535,7 @@ NK_API_COMPTIME void nk_dots_packed_shape_e4m3_sapphireamx(void const *b_packed,
 
 NK_API_COMPTIME void nk_dots_pack_e4m3_sapphireamx(              //
     nk_e4m3_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride_in_bytes, void *b_packed) {
+    nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 32; // Same depth granularity as BF16
@@ -2532,23 +2548,27 @@ NK_API_COMPTIME void nk_dots_pack_e4m3_sapphireamx(              //
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->columns = (nk_u32_t)column_count;
-    header->depth = (nk_u32_t)depth;
-    header->full_column_tiles = (nk_u32_t)column_tiles_count;
-    header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
-    header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->columns = (nk_u32_t)column_count;
+        header->depth = (nk_u32_t)depth;
+        header->full_column_tiles = (nk_u32_t)column_tiles_count;
+        header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
+        header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    }
 
     nk_size_t const tiles_offset = sizeof(nk_dots_amx_packed_header_t);
     nk_size_t const column_edge_offset = tiles_offset + total_tiles * tile_bytes;
-    header->column_edge_offset = (nk_u32_t)column_edge_offset;
+    if (columns_begin == 0) header->column_edge_offset = (nk_u32_t)column_edge_offset;
 
     nk_bf16_t *tiles_ptr = (nk_bf16_t *)((char *)b_packed + tiles_offset);
     nk_bf16_t *column_edge_ptr = (nk_bf16_t *)((char *)b_packed + column_edge_offset);
 
     // Pack tiles using vectorized convert + SIMD transpose
-    for (nk_size_t column_tile_idx = 0; column_tile_idx < column_tiles_count; column_tile_idx++) {
+    for (nk_size_t column_tile_idx = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile_idx < column_tiles_count && column_tile_idx < nk_size_divide_round_up_(columns_end, 16);
+         column_tile_idx++) {
         for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles_count; depth_tile_idx++) {
             nk_size_t const tile_index = column_tile_idx * depth_tiles_count + depth_tile_idx;
             nk_bf16_t *tile_output = tiles_ptr + tile_index * tile_elements;
@@ -2575,7 +2595,8 @@ NK_API_COMPTIME void nk_dots_pack_e4m3_sapphireamx(              //
     }
 
     // Pack column-remainder rows (convert E4M3 to BF16)
-    if (column_remainder_count > 0) {
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
         nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
         for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++) {
             for (nk_size_t column_idx = 0; column_idx < depth; column_idx += 32) {
@@ -2592,9 +2613,9 @@ NK_API_COMPTIME void nk_dots_pack_e4m3_sapphireamx(              //
     // Compute and store per-column norms for angular/euclidean distance
     nk_size_t norms_offset = column_edge_offset +
                              (column_remainder_count > 0 ? column_remainder_count * depth * sizeof(nk_bf16_t) : 0);
-    header->norms_byte_offset = (nk_u32_t)norms_offset;
+    if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
-    for (nk_size_t col = 0; col < column_count; col++)
+    for (nk_size_t col = columns_begin; col < columns_end; col++)
         norms[col] = nk_dots_reduce_sumsq_e4m3_(b + col * b_stride_in_bytes, depth);
 }
 
@@ -2812,7 +2833,7 @@ NK_API_COMPTIME void nk_dots_packed_shape_e5m2_sapphireamx(void const *b_packed,
 
 NK_API_COMPTIME void nk_dots_pack_e5m2_sapphireamx(              //
     nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride_in_bytes, void *b_packed) {
+    nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 32;
@@ -2825,23 +2846,27 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_sapphireamx(              //
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->columns = (nk_u32_t)column_count;
-    header->depth = (nk_u32_t)depth;
-    header->full_column_tiles = (nk_u32_t)column_tiles_count;
-    header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
-    header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->columns = (nk_u32_t)column_count;
+        header->depth = (nk_u32_t)depth;
+        header->full_column_tiles = (nk_u32_t)column_tiles_count;
+        header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
+        header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    }
 
     nk_size_t const tiles_offset = sizeof(nk_dots_amx_packed_header_t);
     nk_size_t const column_edge_offset = tiles_offset + total_tiles * tile_bytes;
-    header->column_edge_offset = (nk_u32_t)column_edge_offset;
+    if (columns_begin == 0) header->column_edge_offset = (nk_u32_t)column_edge_offset;
 
     nk_bf16_t *tiles_ptr = (nk_bf16_t *)((char *)b_packed + tiles_offset);
     nk_bf16_t *column_edge_ptr = (nk_bf16_t *)((char *)b_packed + column_edge_offset);
 
     // Pack tiles using vectorized convert + SIMD transpose
-    for (nk_size_t column_tile_idx = 0; column_tile_idx < column_tiles_count; column_tile_idx++) {
+    for (nk_size_t column_tile_idx = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile_idx < column_tiles_count && column_tile_idx < nk_size_divide_round_up_(columns_end, 16);
+         column_tile_idx++) {
         for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles_count; depth_tile_idx++) {
             nk_size_t const tile_index = column_tile_idx * depth_tiles_count + depth_tile_idx;
             nk_bf16_t *tile_output = tiles_ptr + tile_index * tile_elements;
@@ -2866,7 +2891,8 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_sapphireamx(              //
         }
     }
 
-    if (column_remainder_count > 0) {
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
         nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
         for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++) {
             for (nk_size_t column_idx = 0; column_idx < depth; column_idx += 32) {
@@ -2883,9 +2909,9 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_sapphireamx(              //
     // Compute and store per-column norms for angular/euclidean distance
     nk_size_t norms_offset = column_edge_offset +
                              (column_remainder_count > 0 ? column_remainder_count * depth * sizeof(nk_bf16_t) : 0);
-    header->norms_byte_offset = (nk_u32_t)norms_offset;
+    if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
-    for (nk_size_t col = 0; col < column_count; col++)
+    for (nk_size_t col = columns_begin; col < columns_end; col++)
         norms[col] = nk_dots_reduce_sumsq_e5m2_(b + col * b_stride_in_bytes, depth);
 }
 
@@ -3327,7 +3353,7 @@ NK_API_COMPTIME void nk_dots_packed_shape_e2m3_sapphireamx(void const *b_packed,
 
 NK_API_COMPTIME void nk_dots_pack_e2m3_sapphireamx(              //
     nk_e2m3_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride_in_bytes, void *b_packed) {
+    nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
     // AMX I8 tile dimensions: 16 rows x 64 columns (1024 I8 elements = 1KB)
     nk_size_t const tmm_rows = 16;
@@ -3341,23 +3367,27 @@ NK_API_COMPTIME void nk_dots_pack_e2m3_sapphireamx(              //
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->columns = (nk_u32_t)column_count;
-    header->depth = (nk_u32_t)depth;
-    header->full_column_tiles = (nk_u32_t)column_tiles_count;
-    header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
-    header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->columns = (nk_u32_t)column_count;
+        header->depth = (nk_u32_t)depth;
+        header->full_column_tiles = (nk_u32_t)column_tiles_count;
+        header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
+        header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    }
 
     nk_size_t const tiles_offset = sizeof(nk_dots_amx_packed_header_t);
     nk_size_t const column_edge_offset = tiles_offset + total_tiles * tile_bytes;
-    header->column_edge_offset = (nk_u32_t)column_edge_offset;
+    if (columns_begin == 0) header->column_edge_offset = (nk_u32_t)column_edge_offset;
 
     nk_i8_t *tiles_ptr = (nk_i8_t *)((char *)b_packed + tiles_offset);
     nk_i8_t *column_edge_ptr = (nk_i8_t *)((char *)b_packed + column_edge_offset);
 
     // Pack tiles using vectorized E2M3 → I8 conversion + SIMD transpose
-    for (nk_size_t column_tile_idx = 0; column_tile_idx < column_tiles_count; column_tile_idx++) {
+    for (nk_size_t column_tile_idx = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile_idx < column_tiles_count && column_tile_idx < nk_size_divide_round_up_(columns_end, 16);
+         column_tile_idx++) {
         for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles_count; depth_tile_idx++) {
             nk_size_t const tile_index = column_tile_idx * depth_tiles_count + depth_tile_idx;
             nk_i8_t *tile_output = tiles_ptr + tile_index * tile_elements;
@@ -3400,7 +3430,8 @@ NK_API_COMPTIME void nk_dots_pack_e2m3_sapphireamx(              //
         0,  2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26,  28,  30,  //
         32, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 88, 96, 104, 112, 120, //
     };
-    if (column_remainder_count > 0) {
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
         nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
         for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++) {
             for (nk_size_t column_idx = 0; column_idx < depth; column_idx++) {
@@ -3416,9 +3447,9 @@ NK_API_COMPTIME void nk_dots_pack_e2m3_sapphireamx(              //
     // Compute and store per-column norms for angular/euclidean distance
     nk_size_t norms_offset = column_edge_offset +
                              (column_remainder_count > 0 ? column_remainder_count * depth * sizeof(nk_i8_t) : 0);
-    header->norms_byte_offset = (nk_u32_t)norms_offset;
+    if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
-    for (nk_size_t col = 0; col < column_count; col++)
+    for (nk_size_t col = columns_begin; col < columns_end; col++)
         norms[col] = nk_dots_reduce_sumsq_e2m3_(b + col * b_stride_in_bytes, depth);
 }
 
@@ -3727,7 +3758,7 @@ NK_API_COMPTIME void nk_dots_packed_shape_e3m2_sapphireamx(void const *b_packed,
 
 NK_API_COMPTIME void nk_dots_pack_e3m2_sapphireamx(              //
     nk_e3m2_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride_in_bytes, void *b_packed) {
+    nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 32;
@@ -3740,23 +3771,27 @@ NK_API_COMPTIME void nk_dots_pack_e3m2_sapphireamx(              //
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->columns = (nk_u32_t)column_count;
-    header->depth = (nk_u32_t)depth;
-    header->full_column_tiles = (nk_u32_t)column_tiles_count;
-    header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
-    header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->columns = (nk_u32_t)column_count;
+        header->depth = (nk_u32_t)depth;
+        header->full_column_tiles = (nk_u32_t)column_tiles_count;
+        header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
+        header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    }
 
     nk_size_t const tiles_offset = sizeof(nk_dots_amx_packed_header_t);
     nk_size_t const column_edge_offset = tiles_offset + total_tiles * tile_bytes;
-    header->column_edge_offset = (nk_u32_t)column_edge_offset;
+    if (columns_begin == 0) header->column_edge_offset = (nk_u32_t)column_edge_offset;
 
     nk_bf16_t *tiles_ptr = (nk_bf16_t *)((char *)b_packed + tiles_offset);
     nk_bf16_t *column_edge_ptr = (nk_bf16_t *)((char *)b_packed + column_edge_offset);
 
     // Pack tiles using vectorized convert + SIMD transpose
-    for (nk_size_t column_tile_idx = 0; column_tile_idx < column_tiles_count; column_tile_idx++) {
+    for (nk_size_t column_tile_idx = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile_idx < column_tiles_count && column_tile_idx < nk_size_divide_round_up_(columns_end, 16);
+         column_tile_idx++) {
         for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles_count; depth_tile_idx++) {
             nk_size_t const tile_index = column_tile_idx * depth_tiles_count + depth_tile_idx;
             nk_bf16_t *tile_output = tiles_ptr + tile_index * tile_elements;
@@ -3781,7 +3816,8 @@ NK_API_COMPTIME void nk_dots_pack_e3m2_sapphireamx(              //
         }
     }
 
-    if (column_remainder_count > 0) {
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
         nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
         for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++) {
             for (nk_size_t column_idx = 0; column_idx < depth; column_idx += 32) {
@@ -3798,9 +3834,9 @@ NK_API_COMPTIME void nk_dots_pack_e3m2_sapphireamx(              //
     // Compute and store per-column norms for angular/euclidean distance
     nk_size_t norms_offset = column_edge_offset +
                              (column_remainder_count > 0 ? column_remainder_count * depth * sizeof(nk_bf16_t) : 0);
-    header->norms_byte_offset = (nk_u32_t)norms_offset;
+    if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
-    for (nk_size_t col = 0; col < column_count; col++)
+    for (nk_size_t col = columns_begin; col < columns_end; col++)
         norms[col] = nk_dots_reduce_sumsq_e3m2_(b + col * b_stride_in_bytes, depth);
 }
 

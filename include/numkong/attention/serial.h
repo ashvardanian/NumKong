@@ -8,7 +8,7 @@
  *
  *  Width-agnostic reference implementation of the ragged scaled-dot-product attention
  *  family: any `depth ≥ 1`, any segment lengths, GQA/MQA, the same base-2 softmax
- *  formulation and the same `(first_task, task_count)` windows over the segment × head
+ *  formulation and the same `(begin, end)` windows over the segment × head
  *  grid as the SIMD backends.
  *
  *  @section attention_serial_roles Roles in the Family
@@ -75,9 +75,9 @@ NK_HELPER_INLINE nk_size_t nk_attention_pack_directory_size_(nk_size_t segment_c
  */
 NK_HELPER_INLINE void nk_attention_pack_directory_(void *key_value_packed, nk_size_t key_value_head_count,
                                                    nk_size_t depth, nk_u32_t const *segment_lengths,
-                                                   nk_size_t segment_count, nk_size_t first_task,
+                                                   nk_size_t segment_count, nk_size_t begin,
                                                    nk_size_t position_multiple, nk_size_t unit_bytes) {
-    if (first_task != 0) return;
+    if (begin != 0) return;
     // Zero the whole directory — header plus the offsets table including its 64-byte-aligned tail —
     // so the packed blob is a pure function of its inputs, with no allocator garbage in the unwritten
     // slack. The per-segment payload planes are zero-filled by each backend, so this makes the pack
@@ -172,19 +172,19 @@ NK_HELPER_INLINE void nk_attention_pack_serial_(                                
     nk_size_t key_value_head_count, nk_size_t depth,                                                           //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
 
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 first_task, 1, depth * sizeof(nk_f32_t));
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
+                                 1, depth * sizeof(nk_f32_t));
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *payload_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count,
                         key_value_head_idx = task_idx % key_value_head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
@@ -210,21 +210,19 @@ NK_HELPER_INLINE void nk_attention_pack_serial_(                                
 NK_API_COMPTIME void nk_attention_pack_bf16_serial(                                                  //
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
-    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
-    nk_size_t task_count) {
+    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t begin, nk_size_t end) {
     nk_attention_pack_serial_(keys, values, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_, key_value_head_count,
                               depth, segment_offsets, segment_lengths, segment_count, key_stride_bytes,
-                              value_stride_bytes, key_value_packed, first_task, task_count);
+                              value_stride_bytes, key_value_packed, begin, end);
 }
 
 NK_API_COMPTIME void nk_attention_pack_e4m3_serial(                                                  //
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
-    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
-    nk_size_t task_count) {
+    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t begin, nk_size_t end) {
     nk_attention_pack_serial_(keys, values, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_, key_value_head_count,
                               depth, segment_offsets, segment_lengths, segment_count, key_stride_bytes,
-                              value_stride_bytes, key_value_packed, first_task, task_count);
+                              value_stride_bytes, key_value_packed, begin, end);
 }
 
 /**
@@ -241,7 +239,7 @@ NK_HELPER_INLINE void nk_attention_serial_(                                     
     void const *key_value_packed, nk_f32_t *output,                                                             //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     if (header->depth != depth || header->heads != key_value_head_count) return;
@@ -255,10 +253,10 @@ NK_HELPER_INLINE void nk_attention_serial_(                                     
     nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
 
     nk_size_t const total_tasks = segment_count * head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
         nk_size_t const row_count = query_offsets[segment_idx + 1] - query_offsets[segment_idx];
@@ -306,20 +304,20 @@ NK_API_COMPTIME void nk_attention_packed_bf16_serial(                           
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     nk_attention_serial_(queries, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_, key_value_packed, output,
                          head_count, key_value_head_count, depth, query_offsets, query_stride_bytes,
-                         output_stride_bytes, scale, first_task, task_count);
+                         output_stride_bytes, scale, begin, end);
 }
 
 NK_API_COMPTIME void nk_attention_packed_e4m3_serial(                                                           //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     nk_attention_serial_(queries, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_, key_value_packed, output,
                          head_count, key_value_head_count, depth, query_offsets, query_stride_bytes,
-                         output_stride_bytes, scale, first_task, task_count);
+                         output_stride_bytes, scale, begin, end);
 }
 
 NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_serial(nk_size_t key_value_head_count, nk_size_t depth,
@@ -339,19 +337,19 @@ NK_API_COMPTIME void nk_attention_pack_i8_serial(                               
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth,               //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
 
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 first_task, 1, depth);
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
+                                 1, depth);
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *payload_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count,
                         key_value_head_idx = task_idx % key_value_head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
@@ -378,7 +376,7 @@ NK_API_COMPTIME void nk_attention_packed_i8_serial(                             
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     if (header->depth != depth || header->heads != key_value_head_count) return;
@@ -392,10 +390,10 @@ NK_API_COMPTIME void nk_attention_packed_i8_serial(                             
     nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
 
     nk_size_t const total_tasks = segment_count * head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
         nk_size_t const row_count = query_offsets[segment_idx + 1] - query_offsets[segment_idx];

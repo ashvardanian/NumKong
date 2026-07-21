@@ -368,7 +368,10 @@ typedef nk_size_t (*nk_dots_pack_size_punned_t)(nk_size_t columns, nk_size_t dep
 typedef void (*nk_dots_packed_shape_punned_t)(void const *packed, nk_size_t *width, nk_size_t *depth);
 
 typedef void (*nk_dots_pack_punned_t)(void const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_bytes,
-                                      void *b_packed);
+                                      void *b_packed, nk_size_t columns_begin, nk_size_t columns_end);
+
+typedef void (*nk_maxsim_pack_punned_t)(void const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                        nk_size_t stride_bytes, void *packed);
 
 typedef void (*nk_dots_packed_punned_t)(void const *a, void const *b_packed, void *c, nk_size_t rows, nk_size_t columns,
                                         nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes);
@@ -417,11 +420,11 @@ typedef nk_size_t (*nk_attention_pack_size_punned_t)(nk_size_t num_kv_heads, nk_
 typedef void (*nk_attention_pack_punned_t)(void const *k, void const *v, nk_size_t num_kv_heads, nk_size_t head_dim,
                                            nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
                                            nk_size_t segment_count, nk_size_t k_stride_bytes, nk_size_t v_stride_bytes,
-                                           void *kv_packed, nk_size_t first_task, nk_size_t task_count);
-typedef void (*nk_attention_packed_punned_t)(void const *q, void const *kv_packed, void *output, nk_size_t num_heads,
-                                             nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets,
-                                             nk_size_t q_stride_bytes, nk_size_t o_stride_bytes, nk_f32_t scale,
-                                             nk_size_t first_task, nk_size_t task_count);
+                                           void *key_value_packed, nk_size_t begin, nk_size_t end);
+typedef void (*nk_attention_packed_punned_t)(void const *q, void const *key_value_packed, void *output,
+                                             nk_size_t num_heads, nk_size_t num_kv_heads, nk_size_t head_dim,
+                                             nk_u32_t const *query_offsets, nk_size_t q_stride_bytes,
+                                             nk_size_t o_stride_bytes, nk_f32_t scale, nk_size_t begin, nk_size_t end);
 
 typedef void (*nk_kernel_cast_punned_t)(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
                                         nk_dtype_t to_type);

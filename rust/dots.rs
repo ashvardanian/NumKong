@@ -25,7 +25,15 @@ extern "C" {
 
     fn nk_dots_pack_size_f32(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_f32(packed: *const u8, width: *mut usize, depth: *mut usize);
-    fn nk_dots_pack_f32(b: *const f32, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
+    fn nk_dots_pack_f32(
+        b: *const f32,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
     fn nk_dots_packed_f32(
         a: *const f32,
         packed: *const u8,
@@ -39,7 +47,15 @@ extern "C" {
 
     fn nk_dots_pack_size_f64(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_f64(packed: *const u8, width: *mut usize, depth: *mut usize);
-    fn nk_dots_pack_f64(b: *const f64, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
+    fn nk_dots_pack_f64(
+        b: *const f64,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
     fn nk_dots_packed_f64(
         a: *const f64,
         packed: *const u8,
@@ -53,7 +69,15 @@ extern "C" {
 
     fn nk_dots_pack_size_f16(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_f16(packed: *const u8, width: *mut usize, depth: *mut usize);
-    fn nk_dots_pack_f16(b: *const u16, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
+    fn nk_dots_pack_f16(
+        b: *const u16,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
     fn nk_dots_packed_f16(
         a: *const u16,
         packed: *const u8,
@@ -67,7 +91,15 @@ extern "C" {
 
     fn nk_dots_pack_size_bf16(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_bf16(packed: *const u8, width: *mut usize, depth: *mut usize);
-    fn nk_dots_pack_bf16(b: *const u16, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
+    fn nk_dots_pack_bf16(
+        b: *const u16,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
     fn nk_dots_packed_bf16(
         a: *const u16,
         packed: *const u8,
@@ -81,7 +113,15 @@ extern "C" {
 
     fn nk_dots_pack_size_i8(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_i8(packed: *const u8, width: *mut usize, depth: *mut usize);
-    fn nk_dots_pack_i8(b: *const i8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
+    fn nk_dots_pack_i8(
+        b: *const i8,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
     fn nk_dots_packed_i8(
         a: *const i8,
         packed: *const u8,
@@ -95,7 +135,15 @@ extern "C" {
 
     fn nk_dots_pack_size_u8(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_u8(packed: *const u8, width: *mut usize, depth: *mut usize);
-    fn nk_dots_pack_u8(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
+    fn nk_dots_pack_u8(
+        b: *const u8,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
     fn nk_dots_packed_u8(
         a: *const u8,
         packed: *const u8,
@@ -109,7 +157,15 @@ extern "C" {
 
     fn nk_dots_pack_size_e4m3(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_e4m3(packed: *const u8, width: *mut usize, depth: *mut usize);
-    fn nk_dots_pack_e4m3(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
+    fn nk_dots_pack_e4m3(
+        b: *const u8,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
     fn nk_dots_packed_e4m3(
         a: *const u8,
         packed: *const u8,
@@ -123,7 +179,15 @@ extern "C" {
 
     fn nk_dots_pack_size_e5m2(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_e5m2(packed: *const u8, width: *mut usize, depth: *mut usize);
-    fn nk_dots_pack_e5m2(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
+    fn nk_dots_pack_e5m2(
+        b: *const u8,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
     fn nk_dots_packed_e5m2(
         a: *const u8,
         packed: *const u8,
@@ -137,7 +201,15 @@ extern "C" {
 
     fn nk_dots_pack_size_e2m3(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_e2m3(packed: *const u8, width: *mut usize, depth: *mut usize);
-    fn nk_dots_pack_e2m3(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
+    fn nk_dots_pack_e2m3(
+        b: *const u8,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
     fn nk_dots_packed_e2m3(
         a: *const u8,
         packed: *const u8,
@@ -151,7 +223,15 @@ extern "C" {
 
     fn nk_dots_pack_size_e3m2(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_e3m2(packed: *const u8, width: *mut usize, depth: *mut usize);
-    fn nk_dots_pack_e3m2(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
+    fn nk_dots_pack_e3m2(
+        b: *const u8,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
     fn nk_dots_packed_e3m2(
         a: *const u8,
         packed: *const u8,
@@ -165,7 +245,15 @@ extern "C" {
 
     fn nk_dots_pack_size_u4(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_u4(packed: *const u8, width: *mut usize, depth: *mut usize);
-    fn nk_dots_pack_u4(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
+    fn nk_dots_pack_u4(
+        b: *const u8,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
     fn nk_dots_packed_u4(
         a: *const u8,
         packed: *const u8,
@@ -179,7 +267,15 @@ extern "C" {
 
     fn nk_dots_pack_size_i4(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_i4(packed: *const u8, width: *mut usize, depth: *mut usize);
-    fn nk_dots_pack_i4(b: *const u8, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
+    fn nk_dots_pack_i4(
+        b: *const u8,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
     fn nk_dots_packed_i4(
         a: *const u8,
         packed: *const u8,
@@ -315,7 +411,15 @@ extern "C" {
 
     fn nk_dots_pack_size_u1(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_u1(packed: *const u8, width: *mut usize, depth: *mut usize);
-    fn nk_dots_pack_u1(q: *const u8, width: usize, depth: usize, q_stride: usize, q_packed: *mut u8);
+    fn nk_dots_pack_u1(
+        q: *const u8,
+        width: usize,
+        depth: usize,
+        q_stride: usize,
+        q_packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
     fn nk_dots_packed_u1(
         a: *const u8,
         packed: *const u8,
@@ -396,7 +500,15 @@ pub trait Dots: StorageElement + private::Sealed {
     /// # Safety
     /// - `b` must point to valid memory for `width * depth` elements
     /// - `packed` must point to a buffer of at least `dots_pack_size(width, depth)` bytes
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8);
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
 
     /// Computes C = A × Bᵀ using packed B.
     ///
@@ -447,8 +559,16 @@ impl Dots for f32 {
         (width, depth)
     }
 
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
-        nk_dots_pack_f32(b, width, depth, b_stride, packed)
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_f32(b, width, depth, b_stride, packed, columns_begin, columns_end)
     }
 
     unsafe fn dots_packed(
@@ -497,8 +617,16 @@ impl Dots for f64 {
         (width, depth)
     }
 
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
-        nk_dots_pack_f64(b, width, depth, b_stride, packed)
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_f64(b, width, depth, b_stride, packed, columns_begin, columns_end)
     }
 
     unsafe fn dots_packed(
@@ -547,8 +675,24 @@ impl Dots for f16 {
         (width, depth)
     }
 
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
-        nk_dots_pack_f16(b as *const u16, width, depth, b_stride, packed)
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_f16(
+            b as *const u16,
+            width,
+            depth,
+            b_stride,
+            packed,
+            columns_begin,
+            columns_end,
+        )
     }
 
     unsafe fn dots_packed(
@@ -597,8 +741,24 @@ impl Dots for bf16 {
         (width, depth)
     }
 
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
-        nk_dots_pack_bf16(b as *const u16, width, depth, b_stride, packed)
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_bf16(
+            b as *const u16,
+            width,
+            depth,
+            b_stride,
+            packed,
+            columns_begin,
+            columns_end,
+        )
     }
 
     unsafe fn dots_packed(
@@ -647,8 +807,16 @@ impl Dots for i8 {
         (width, depth)
     }
 
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
-        nk_dots_pack_i8(b, width, depth, b_stride, packed)
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_i8(b, width, depth, b_stride, packed, columns_begin, columns_end)
     }
 
     unsafe fn dots_packed(
@@ -697,8 +865,16 @@ impl Dots for u8 {
         (width, depth)
     }
 
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
-        nk_dots_pack_u8(b, width, depth, b_stride, packed)
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_u8(b, width, depth, b_stride, packed, columns_begin, columns_end)
     }
 
     unsafe fn dots_packed(
@@ -747,8 +923,24 @@ impl Dots for e4m3 {
         (width, depth)
     }
 
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
-        nk_dots_pack_e4m3(b as *const u8, width, depth, b_stride, packed)
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_e4m3(
+            b as *const u8,
+            width,
+            depth,
+            b_stride,
+            packed,
+            columns_begin,
+            columns_end,
+        )
     }
 
     unsafe fn dots_packed(
@@ -797,8 +989,24 @@ impl Dots for e5m2 {
         (width, depth)
     }
 
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
-        nk_dots_pack_e5m2(b as *const u8, width, depth, b_stride, packed)
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_e5m2(
+            b as *const u8,
+            width,
+            depth,
+            b_stride,
+            packed,
+            columns_begin,
+            columns_end,
+        )
     }
 
     unsafe fn dots_packed(
@@ -847,8 +1055,24 @@ impl Dots for e2m3 {
         (width, depth)
     }
 
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
-        nk_dots_pack_e2m3(b as *const u8, width, depth, b_stride, packed)
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_e2m3(
+            b as *const u8,
+            width,
+            depth,
+            b_stride,
+            packed,
+            columns_begin,
+            columns_end,
+        )
     }
 
     unsafe fn dots_packed(
@@ -897,8 +1121,24 @@ impl Dots for e3m2 {
         (width, depth)
     }
 
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
-        nk_dots_pack_e3m2(b as *const u8, width, depth, b_stride, packed)
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_e3m2(
+            b as *const u8,
+            width,
+            depth,
+            b_stride,
+            packed,
+            columns_begin,
+            columns_end,
+        )
     }
 
     unsafe fn dots_packed(
@@ -947,8 +1187,24 @@ impl Dots for u4x2 {
         (width, depth)
     }
 
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
-        nk_dots_pack_u4(b as *const u8, width, depth, b_stride, packed)
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_u4(
+            b as *const u8,
+            width,
+            depth,
+            b_stride,
+            packed,
+            columns_begin,
+            columns_end,
+        )
     }
 
     unsafe fn dots_packed(
@@ -997,8 +1253,24 @@ impl Dots for i4x2 {
         (width, depth)
     }
 
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
-        nk_dots_pack_i4(b as *const u8, width, depth, b_stride, packed)
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_i4(
+            b as *const u8,
+            width,
+            depth,
+            b_stride,
+            packed,
+            columns_begin,
+            columns_end,
+        )
     }
 
     unsafe fn dots_packed(
@@ -1047,8 +1319,24 @@ impl Dots for u1x8 {
         (width, depth)
     }
 
-    unsafe fn dots_pack(b: *const Self, width: usize, depth: usize, b_stride: usize, packed: *mut u8) {
-        nk_dots_pack_u1(b as *const u8, width, depth, b_stride, packed)
+    unsafe fn dots_pack(
+        b: *const Self,
+        width: usize,
+        depth: usize,
+        b_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_u1(
+            b as *const u8,
+            width,
+            depth,
+            b_stride,
+            packed,
+            columns_begin,
+            columns_end,
+        )
     }
 
     unsafe fn dots_packed(
@@ -1157,9 +1445,9 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         }
     }
 
-    pub fn try_pack_in<B, const MAX_RANK: usize>(b: &B, alloc: Alloc) -> Result<Self, TensorError>
+    pub fn try_pack_in<Matrix, const MAX_RANK: usize>(b: &Matrix, alloc: Alloc) -> Result<Self, TensorError>
     where
-        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let mut packed = Self::empty_in(alloc);
         packed.try_pack_into(b)?;
@@ -1170,9 +1458,9 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     /// fits `capacity` and reallocating through the stored allocator only when it must grow. A
     /// steady-state loop over same-shaped operands then allocates at most once. `b` must be 2D
     /// with contiguous rows.
-    pub fn try_pack_into<B, const MAX_RANK: usize>(&mut self, b: &B) -> Result<(), TensorError>
+    pub fn try_pack_into<Matrix, const MAX_RANK: usize>(&mut self, b: &Matrix) -> Result<(), TensorError>
     where
-        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         if b.ndim() != 2 {
             return Err(TensorError::DimensionMismatch {
@@ -1192,7 +1480,17 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         // byte of the blob — no pre-zeroing needed here.
         let destination = self.buffer.reset_for_pack(size)?;
         if size > 0 {
-            unsafe { Scalar::dots_pack(b.as_ptr(), width, depth, b.stride_bytes(0) as usize, destination) };
+            unsafe {
+                Scalar::dots_pack(
+                    b.as_ptr(),
+                    width,
+                    depth,
+                    b.stride_bytes(0) as usize,
+                    destination,
+                    0,
+                    width,
+                )
+            };
         }
         self.width = width;
         self.depth = depth;
@@ -1205,6 +1503,60 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         self.buffer.try_reserve(Scalar::dots_pack_size(width, depth))
     }
 
+    /// Repack `b` into this matrix's buffer in parallel, splitting the columns across a ForkUnion
+    /// thread pool. Column ranges partition `[0, width)` contiguously, so every packed tile is
+    /// written exactly once and the range covering column 0 writes the shared header. Like
+    /// [`try_pack_into`](Self::try_pack_into), packing overwrites, so a grow discards the old contents.
+    #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
+    pub fn try_pack_parallel_into<Matrix, const MAX_RANK: usize>(
+        &mut self,
+        b: &Matrix,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<(), TensorError>
+    where
+        Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        if b.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: b.ndim(),
+            });
+        }
+        if !b.has_contiguous_rows() {
+            return Err(TensorError::NonContiguousRows);
+        }
+        let (width, depth) = (b.shape()[0], b.shape()[1]);
+        let stride = b.stride_bytes(0) as usize;
+        let size = Scalar::dots_pack_size(width, depth);
+        let destination = self.buffer.reset_for_pack(size)?;
+        self.width = width;
+        self.depth = depth;
+        if size == 0 {
+            return Ok(());
+        }
+        // for_slices partitions [0, width) into one contiguous column range per thread, so every
+        // packed tile is written exactly once and the slice starting at column 0 writes the header.
+        let b_ptr = fu::SyncConstPtr::new(b.as_ptr());
+        let destination_ptr = fu::SyncMutPtr::new(destination);
+        pool.for_slices(width, move |prong, count| {
+            crate::capabilities::configure_thread();
+            let columns_begin = prong.task_index;
+            unsafe {
+                Scalar::dots_pack(
+                    b_ptr.as_ptr(),
+                    width,
+                    depth,
+                    stride,
+                    destination_ptr.as_ptr(),
+                    columns_begin,
+                    columns_begin + count,
+                )
+            };
+        }); // executes and synchronizes on drop
+        Ok(())
+    }
+
     /// Pack Bᵀ where B is (k × n) row-major, the standard GEMM layout, using a custom allocator.
     ///
     /// Materializes the transpose into a contiguous buffer, then packs normally.
@@ -1214,9 +1566,9 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     /// - b is not 2D
     /// - b is a sub-byte type — transpose unsupported
     /// - allocation fails
-    pub fn try_pack_transposed_in<B, const MAX_RANK: usize>(b: &B, alloc: Alloc) -> Result<Self, TensorError>
+    pub fn try_pack_transposed_in<Matrix, const MAX_RANK: usize>(b: &Matrix, alloc: Alloc) -> Result<Self, TensorError>
     where
-        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         if b.ndim() != 2 {
             return Err(TensorError::DimensionMismatch {
@@ -1284,9 +1636,9 @@ impl<Scalar: Dots> DotsPackedMatrix<Scalar, Global> {
     /// Pack B matrix where B is (n × k) row-major using the global allocator.
     ///
     /// Result computes: C = A × Bᵀ
-    pub fn try_pack<B, const MAX_RANK: usize>(b: &B) -> Result<Self, TensorError>
+    pub fn try_pack<Matrix, const MAX_RANK: usize>(b: &Matrix) -> Result<Self, TensorError>
     where
-        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         Self::try_pack_in(b, Global)
     }
@@ -1294,11 +1646,27 @@ impl<Scalar: Dots> DotsPackedMatrix<Scalar, Global> {
     /// Pack Bᵀ where B is (k × n) row-major, the standard GEMM layout, using the global allocator.
     ///
     /// Result computes: C = A × B
-    pub fn try_pack_transposed<B, const MAX_RANK: usize>(b: &B) -> Result<Self, TensorError>
+    pub fn try_pack_transposed<Matrix, const MAX_RANK: usize>(b: &Matrix) -> Result<Self, TensorError>
     where
-        B: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         Self::try_pack_transposed_in(b, Global)
+    }
+
+    /// Pack `b` in parallel using the global allocator. The allocating twin of
+    /// [`try_pack_parallel_into`](Self::try_pack_parallel_into).
+    #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
+    pub fn try_pack_parallel<Matrix, const MAX_RANK: usize>(
+        b: &Matrix,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<Self, TensorError>
+    where
+        Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        let mut packed = Self::empty_in(Global);
+        packed.try_pack_parallel_into(b, pool)?;
+        Ok(packed)
     }
 }
 
@@ -2341,7 +2709,7 @@ mod tests {
                 let base = backing.as_mut_ptr();
                 let packed = unsafe { base.add(base.align_offset(SIMD_ALIGNMENT)) };
                 unsafe {
-                    <Scalar as Dots>::dots_pack(b_ptr, width, depth, b_stride, packed);
+                    <Scalar as Dots>::dots_pack(b_ptr, width, depth, b_stride, packed, 0, width);
                     core::slice::from_raw_parts(packed, size).to_vec()
                 }
             };
@@ -2358,5 +2726,35 @@ mod tests {
         check::<bf16>();
         check::<i8>();
         check::<u8>();
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn parallel_pack_matches_serial() {
+        // The column-split parallel pack must produce a byte-identical blob to the serial pack.
+        // Odd widths cross tile and remainder boundaries on the AMX backends; a skipped or
+        // double-written column range leaves the blob differing from the serial reference.
+        fn check<Scalar: TestableType + Dots>(width: usize) {
+            let depth = align_depth::<Scalar>(20usize);
+            let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
+            let serial = DotsPackedMatrix::try_pack(&b).unwrap();
+            let topology = fu::Topology::new().unwrap();
+            let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
+            let parallel = DotsPackedMatrix::try_pack_parallel(&b, &mut pool).unwrap();
+            assert_eq!(
+                serial.as_bytes(),
+                parallel.as_bytes(),
+                "parallel pack != serial: {} width={width}",
+                core::any::type_name::<Scalar>()
+            );
+        }
+        init_thread();
+        for &width in &[1usize, 17, 33, 48, 65] {
+            check::<f32>(width);
+            check::<f16>(width);
+            check::<bf16>(width);
+            check::<i8>(width);
+            check::<u8>(width);
+        }
     }
 }

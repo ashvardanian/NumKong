@@ -8,7 +8,7 @@
  *
  *  FlashAttention-style panel sweep on the SME outer-product engine, mirroring the
  *  `sapphireamx` skeleton with the shared packed header, segment directory, base-2
- *  streaming softmax, and `(first_task, task_count)` windows — but restructured around
+ *  streaming softmax, and `(begin, end)` windows — but restructured around
  *  three Arm-specific properties measured on Apple M5:
  *
  *  1. Streaming mode is entered once per public call and never left: matrix work runs
@@ -201,7 +201,7 @@ __arm_new("za") static void nk_attention_pack_b16_sme_streaming_(               
     nk_size_t key_value_head_count,                                                    //
     nk_size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, //
-    void *key_value_packed, nk_size_t first_task, nk_size_t task_count) NK_STREAMING_ {
+    void *key_value_packed, nk_size_t begin, nk_size_t end) NK_STREAMING_ {
 
     nk_size_t const tile_dimension = svcntw();
     nk_size_t const vector_elements = svcnth();
@@ -213,12 +213,12 @@ __arm_new("za") static void nk_attention_pack_b16_sme_streaming_(               
     char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count,
                         key_value_head_idx = task_idx % key_value_head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
@@ -312,20 +312,20 @@ NK_API_COMPTIME void nk_attention_pack_bf16_sme(                                
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                 //
     nk_size_t segment_count,                                                          //
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_sme_k_ || nk_sme_cntw_() > nk_attention_max_tile_sme_k_) {
         nk_attention_pack_bf16_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
-                                      task_count);
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
+                                      end);
         return;
     }
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 first_task, nk_sme_cnth_(),
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
+                                 nk_sme_cnth_(),
                                  nk_size_round_up_to_multiple_(depth, nk_sme_cntw_()) * sizeof(nk_u16_t));
     nk_sme_start_streaming_();
     nk_attention_pack_b16_sme_streaming_(keys, values, sizeof(nk_bf16_t), key_value_head_count, depth, segment_offsets,
                                          segment_lengths, segment_count, key_stride_bytes, value_stride_bytes,
-                                         key_value_packed, first_task, task_count);
+                                         key_value_packed, begin, end);
     nk_sme_stop_streaming_();
 }
 
@@ -347,20 +347,20 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_sme(                                
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                 //
     nk_size_t segment_count,                                                          //
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_sme_k_ || nk_sme_cntw_() > nk_attention_max_tile_sme_k_) {
         nk_attention_pack_e4m3_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
-                                      task_count);
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
+                                      end);
         return;
     }
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 first_task, nk_sme_cnth_(),
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
+                                 nk_sme_cnth_(),
                                  nk_size_round_up_to_multiple_(depth, nk_sme_cntw_()) * sizeof(nk_u16_t));
     nk_sme_start_streaming_();
     nk_attention_pack_b16_sme_streaming_(keys, values, sizeof(nk_e4m3_t), key_value_head_count, depth, segment_offsets,
                                          segment_lengths, segment_count, key_stride_bytes, value_stride_bytes,
-                                         key_value_packed, first_task, task_count);
+                                         key_value_packed, begin, end);
     nk_sme_stop_streaming_();
 }
 
@@ -388,7 +388,7 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
     void const *queries, nk_size_t element_bytes, void const *key_value_packed, nk_f32_t *output,               //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) NK_STREAMING_ {
+    nk_size_t begin, nk_size_t end) NK_STREAMING_ {
 
     nk_size_t const tile_dimension = svcntw();
     nk_size_t const vector_elements = svcnth();
@@ -410,8 +410,8 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
     nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x·log₂e)
 
     nk_size_t const total_tasks = segment_count * head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
     // Scratch sized for SVL ≤ 512 (tile dimension ≤ 16) and depth ≤ 256; the entry points
     // route larger shapes to serial. Queries live in lanes throughout, so the output
@@ -426,7 +426,7 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
     svbool_t const predicate_all_b16x = svptrue_b16();
     svfloat32_t const scale2_f32x = svdup_f32(scale2);
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
         nk_size_t const row_count = query_offsets[segment_idx + 1] - query_offsets[segment_idx];
@@ -751,17 +751,16 @@ NK_API_COMPTIME void nk_attention_packed_bf16_sme(                              
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
     nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_sme_k_ || nk_sme_cntw_() > nk_attention_max_tile_sme_k_) {
         nk_attention_packed_bf16_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
-                                        task_count);
+                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
         return;
     }
     nk_sme_start_streaming_();
     nk_attention_packed_b16_sme_streaming_(queries, sizeof(nk_bf16_t), key_value_packed, output, head_count,
                                            key_value_head_count, depth, query_offsets, query_stride_bytes,
-                                           output_stride_bytes, scale, first_task, task_count);
+                                           output_stride_bytes, scale, begin, end);
     nk_sme_stop_streaming_();
 }
 
@@ -770,17 +769,16 @@ NK_API_COMPTIME void nk_attention_packed_e4m3_sme(                              
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
     nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_sme_k_ || nk_sme_cntw_() > nk_attention_max_tile_sme_k_) {
         nk_attention_packed_e4m3_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
-                                        task_count);
+                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
         return;
     }
     nk_sme_start_streaming_();
     nk_attention_packed_b16_sme_streaming_(queries, sizeof(nk_e4m3_t), key_value_packed, output, head_count,
                                            key_value_head_count, depth, query_offsets, query_stride_bytes,
-                                           output_stride_bytes, scale, first_task, task_count);
+                                           output_stride_bytes, scale, begin, end);
     nk_sme_stop_streaming_();
 }
 
@@ -822,7 +820,7 @@ __arm_new("za") static void nk_attention_pack_i8_sme_streaming_(                
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count,        //
     nk_size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, //
-    void *key_value_packed, nk_size_t first_task, nk_size_t task_count) NK_STREAMING_ {
+    void *key_value_packed, nk_size_t begin, nk_size_t end) NK_STREAMING_ {
 
     nk_size_t const tile_dimension = svcntw();
     nk_size_t const vector_bytes = svcntb();
@@ -835,12 +833,12 @@ __arm_new("za") static void nk_attention_pack_i8_sme_streaming_(                
     char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count,
                         key_value_head_idx = task_idx % key_value_head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
@@ -931,19 +929,18 @@ NK_API_COMPTIME void nk_attention_pack_i8_sme(                                  
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                 //
     nk_size_t segment_count,                                                          //
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_sme_k_ || nk_sme_cntw_() > nk_attention_max_tile_sme_k_) {
         nk_attention_pack_i8_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                    segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
-                                    task_count);
+                                    segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
         return;
     }
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 first_task, nk_sme_cnth_(), nk_size_round_up_to_multiple_(depth, nk_sme_cntw_()));
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
+                                 nk_sme_cnth_(), nk_size_round_up_to_multiple_(depth, nk_sme_cntw_()));
     nk_sme_start_streaming_();
     nk_attention_pack_i8_sme_streaming_(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                        segment_count, key_stride_bytes, value_stride_bytes, key_value_packed,
-                                        first_task, task_count);
+                                        segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
+                                        end);
     nk_sme_stop_streaming_();
 }
 
@@ -961,7 +958,7 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) NK_STREAMING_ {
+    nk_size_t begin, nk_size_t end) NK_STREAMING_ {
 
     nk_size_t const tile_dimension = svcntw();
     nk_size_t const vector_bytes = svcntb();
@@ -983,8 +980,8 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
     nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x·log₂e)
 
     nk_size_t const total_tasks = segment_count * head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
     nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
     nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t·255 + 0.5 < 1)
@@ -999,7 +996,7 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
     svbool_t const predicate_all_b8x = svptrue_b8();
     svfloat32_t const scale2_f32x = svdup_f32(scale2);
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
         nk_size_t const row_count = query_offsets[segment_idx + 1] - query_offsets[segment_idx];
@@ -1309,17 +1306,15 @@ NK_API_COMPTIME void nk_attention_packed_i8_sme(                                
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
     nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_sme_k_ || nk_sme_cntw_() > nk_attention_max_tile_sme_k_) {
         nk_attention_packed_i8_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                      query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
-                                      task_count);
+                                      query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
         return;
     }
     nk_sme_start_streaming_();
     nk_attention_packed_i8_sme_streaming_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                          query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
-                                          task_count);
+                                          query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
     nk_sme_stop_streaming_();
 }
 

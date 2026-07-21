@@ -133,23 +133,22 @@ NK_API_COMPTIME void nk_attention_packed_shape_e4m3_diamondamx(void const *key_v
 NK_HELPER_INLINE void nk_attention_pack_quad_diamondamx_(                                        //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
-    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
-    nk_size_t task_count) {
+    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t begin, nk_size_t end) {
 
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
     nk_size_t const depth_blocks = depth_padded / 64;
     nk_size_t const channel_tiles = depth_padded / 16;
     nk_size_t const tile_bytes = 1024;
 
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 first_task, 64, depth_padded);
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
+                                 64, depth_padded);
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *tile_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *tiles_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
     __m512i const quad_interleave_index_u8x64 = _mm512_setr_epi32( //
         0x30201000, 0x31211101, 0x32221202, 0x33231303,            //
@@ -157,7 +156,7 @@ NK_HELPER_INLINE void nk_attention_pack_quad_diamondamx_(                       
         0x38281808, 0x39291909, 0x3A2A1A0A, 0x3B2B1B0B,            //
         0x3C2C1C0C, 0x3D2D1D0D, 0x3E2E1E0E, 0x3F2F1F0F);
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count, h = task_idx % key_value_head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
         if (position_count == 0) continue;
@@ -232,17 +231,16 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_diamondamx( //
     nk_e4m3_t const *keys, nk_e4m3_t const *values,     //
     nk_size_t key_value_head_count, nk_size_t depth,    //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
-    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
-    nk_size_t task_count) {
+    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_diamondamx_k_) {
         nk_attention_pack_e4m3_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
-                                      task_count);
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
+                                      end);
         return;
     }
     nk_attention_pack_quad_diamondamx_((nk_i8_t const *)keys, (nk_i8_t const *)values, key_value_head_count, depth,
                                        segment_offsets, segment_lengths, segment_count, key_stride_bytes,
-                                       value_stride_bytes, key_value_packed, first_task, task_count);
+                                       value_stride_bytes, key_value_packed, begin, end);
 }
 
 /** @brief Row maxima over the live columns of an FP32 score panel; padded columns excluded. */
@@ -495,11 +493,10 @@ NK_API_COMPTIME void nk_attention_packed_e4m3_diamondamx(                       
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
     nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_diamondamx_k_) {
         nk_attention_packed_e4m3_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
-                                        task_count);
+                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
         return;
     }
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
@@ -514,8 +511,8 @@ NK_API_COMPTIME void nk_attention_packed_e4m3_diamondamx(                       
     nk_f32_t const scale2 = scale * NK_F32_LOG2E_;
 
     nk_size_t const total_tasks = segment_count * head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
     nk_amx_tile_configure_sapphireamx_();
     nk_attention_scratch_e4m3_diamondamx_t_ scratch;
@@ -524,7 +521,7 @@ NK_API_COMPTIME void nk_attention_packed_e4m3_diamondamx(                       
         for (nk_size_t i = 0; i < 32 * nk_attention_max_depth_diamondamx_k_; i += 16)
             _mm512_store_ps(&scratch.o_acc[row_block_idx][i], zero_f32x16);
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment = task_idx / head_count, head_idx = task_idx % head_count;
         nk_size_t const position_count = segment_lengths[segment];
         nk_size_t const row_count = query_offsets[segment + 1] - query_offsets[segment];

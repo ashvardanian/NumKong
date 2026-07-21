@@ -41,7 +41,7 @@
  *  pass interior pointers and `3 × hidden × sizeof(scalar)` strides, no copies.
  *
  *  Both packing and attention take a task window over the flat `segment × head` grid
- *  (`first_task`, `task_count`, with `task_count == 0` meaning "through the end"), so a
+ *  (`begin`, `end`, with `end == 0` meaning "through the end"), so a
  *  parallel caller distributes tasks across threads — one thread per physical core,
  *  longest segments first — without any second entry point. Tasks touch disjoint outputs;
  *  packing tasks write disjoint tile blocks (the tiny header/directory bytes are written
@@ -247,7 +247,7 @@ NK_HELPER_INLINE void nk_attention_pack_sapphireamx_(                           
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                     //
     nk_size_t segment_count,                                                              //
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed,     //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
 
     nk_size_t const tile_elements = 512;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 32);
@@ -255,22 +255,22 @@ NK_HELPER_INLINE void nk_attention_pack_sapphireamx_(                           
     nk_size_t const dim_tiles = depth_padded / 16;
 
     // Header + directory: deterministic from the arguments, safe to rewrite from any task.
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 first_task, 32, depth_padded * sizeof(nk_bf16_t));
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
+                                 32, depth_padded * sizeof(nk_bf16_t));
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *tile_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *tiles_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
     __m256i const interleave_index_u16x16 = _mm256_setr_epi16( //
         0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23);
     __m256i const interleave_index_high_u16x16 = _mm256_setr_epi16( //
         8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31);
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count,
                         key_value_head_idx = task_idx % key_value_head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
@@ -349,17 +349,17 @@ NK_API_COMPTIME void nk_attention_pack_bf16_sapphireamx(                        
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                 //
     nk_size_t segment_count,                                                          //
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_sapphireamx_k_) {
         nk_attention_pack_bf16_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
-                                      task_count);
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
+                                      end);
         return;
     }
     nk_attention_pack_sapphireamx_(keys, values, sizeof(nk_bf16_t), &nk_attention_gather_bf16_sapphireamx_,
                                    &nk_attention_v_rows_bf16_sapphireamx_, key_value_head_count, depth, segment_offsets,
                                    segment_lengths, segment_count, key_stride_bytes, value_stride_bytes,
-                                   key_value_packed, first_task, task_count);
+                                   key_value_packed, begin, end);
 }
 
 NK_API_COMPTIME void nk_attention_pack_e4m3_sapphireamx(                              //
@@ -368,17 +368,17 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_sapphireamx(                        
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                 //
     nk_size_t segment_count,                                                          //
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_sapphireamx_k_) {
         nk_attention_pack_e4m3_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
-                                      task_count);
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
+                                      end);
         return;
     }
     nk_attention_pack_sapphireamx_(keys, values, sizeof(nk_e4m3_t), &nk_attention_gather_e4m3_sapphireamx_,
                                    &nk_attention_v_rows_e4m3_sapphireamx_, key_value_head_count, depth, segment_offsets,
                                    segment_lengths, segment_count, key_stride_bytes, value_stride_bytes,
-                                   key_value_packed, first_task, task_count);
+                                   key_value_packed, begin, end);
 }
 
 /** @brief Per-call scratch: score/weight panels, output accumulators, packed Q tiles. */
@@ -670,7 +670,7 @@ NK_HELPER_INLINE void nk_attention_packed_sapphireamx_(                         
     void const *key_value_packed, nk_f32_t *output,                                                             //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     if (header->depth != depth || header->heads != key_value_head_count) return;
@@ -684,8 +684,8 @@ NK_HELPER_INLINE void nk_attention_packed_sapphireamx_(                         
     nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x·log₂e)
 
     nk_size_t const total_tasks = segment_count * head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
     nk_amx_tile_configure_sapphireamx_();
     nk_attention_scratch_sapphireamx_t scratch;
@@ -698,7 +698,7 @@ NK_HELPER_INLINE void nk_attention_packed_sapphireamx_(                         
         for (nk_size_t i = 0; i < 32 * nk_attention_max_depth_sapphireamx_k_; i += 16)
             _mm512_store_ps(&scratch.o_acc[row_block_idx][i], zero_f32x16);
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment = task_idx / head_count, head = task_idx % head_count;
         nk_size_t const position_count = segment_lengths[segment];
         nk_size_t const row_count = query_offsets[segment + 1] - query_offsets[segment];
@@ -723,16 +723,15 @@ NK_API_COMPTIME void nk_attention_packed_bf16_sapphireamx(                      
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
     nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_sapphireamx_k_) {
         nk_attention_packed_bf16_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
-                                        task_count);
+                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
         return;
     }
     nk_attention_packed_sapphireamx_(queries, sizeof(nk_bf16_t), &nk_attention_gather_bf16_sapphireamx_,
                                      key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
-                                     query_stride_bytes, output_stride_bytes, scale, first_task, task_count);
+                                     query_stride_bytes, output_stride_bytes, scale, begin, end);
 }
 
 NK_API_COMPTIME void nk_attention_packed_e4m3_sapphireamx(                       //
@@ -740,16 +739,15 @@ NK_API_COMPTIME void nk_attention_packed_e4m3_sapphireamx(                      
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
     nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_sapphireamx_k_) {
         nk_attention_packed_e4m3_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
-                                        task_count);
+                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
         return;
     }
     nk_attention_packed_sapphireamx_(queries, sizeof(nk_e4m3_t), &nk_attention_gather_e4m3_sapphireamx_,
                                      key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
-                                     query_stride_bytes, output_stride_bytes, scale, first_task, task_count);
+                                     query_stride_bytes, output_stride_bytes, scale, begin, end);
 }
 
 NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
@@ -778,11 +776,10 @@ NK_API_COMPTIME void nk_attention_pack_i8_sapphireamx(                          
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                 //
     nk_size_t segment_count,                                                          //
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_sapphireamx_k_) {
         nk_attention_pack_i8_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                    segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
-                                    task_count);
+                                    segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
         return;
     }
 
@@ -791,15 +788,15 @@ NK_API_COMPTIME void nk_attention_pack_i8_sapphireamx(                          
     nk_size_t const dim_tiles = depth_padded / 16;
     nk_size_t const tile_bytes = 1024;
 
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 first_task, 64, depth_padded);
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
+                                 64, depth_padded);
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *tile_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *tiles_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
     // Output byte 4·col+q of each depth-group row comes from input byte q·16+col: one VPERMB
     // interleaves four 16-channel V rows into the quad layout TDPBUSD's B operand consumes.
@@ -810,7 +807,7 @@ NK_API_COMPTIME void nk_attention_pack_i8_sapphireamx(                          
         0x38281808, 0x39291909, 0x3A2A1A0A, 0x3B2B1B0B,            //
         0x3C2C1C0C, 0x3D2D1D0D, 0x3E2E1E0E, 0x3F2F1F0F);
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count,
                         key_value_head_idx = task_idx % key_value_head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
@@ -1211,11 +1208,10 @@ NK_API_COMPTIME void nk_attention_packed_i8_sapphireamx(                        
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
     nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_sapphireamx_k_) {
         nk_attention_packed_i8_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                      query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
-                                      task_count);
+                                      query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
         return;
     }
 
@@ -1231,8 +1227,8 @@ NK_API_COMPTIME void nk_attention_packed_i8_sapphireamx(                        
     nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x·log₂e)
 
     nk_size_t const total_tasks = segment_count * head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
     nk_amx_tile_configure_sapphireamx_();
     nk_attention_scratch_i8_sapphireamx_t_ scratch;
@@ -1245,7 +1241,7 @@ NK_API_COMPTIME void nk_attention_packed_i8_sapphireamx(                        
         for (nk_size_t i = 0; i < 32 * nk_attention_max_depth_sapphireamx_k_; i += 16)
             _mm512_store_ps(&scratch.o_acc[row_block_idx][i], zero_f32x16);
 
-    for (nk_size_t task_idx = first_task; task_idx < first_task + task_count; task_idx++) {
+    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
         nk_size_t const segment = task_idx / head_count, head = task_idx % head_count;
         nk_size_t const position_count = segment_lengths[segment];
         nk_size_t const row_count = query_offsets[segment + 1] - query_offsets[segment];

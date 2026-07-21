@@ -66,8 +66,8 @@ extern "C" {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     );
     fn nk_attention_packed_bf16(
         queries: *const bf16,
@@ -80,8 +80,8 @@ extern "C" {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     );
 
     fn nk_attention_pack_size_e4m3(
@@ -101,8 +101,8 @@ extern "C" {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     );
     fn nk_attention_packed_e4m3(
         queries: *const e4m3,
@@ -115,8 +115,8 @@ extern "C" {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     );
 
     fn nk_attention_pack_size_i8(
@@ -136,8 +136,8 @@ extern "C" {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     );
     fn nk_attention_packed_i8(
         queries: *const i8,
@@ -150,8 +150,8 @@ extern "C" {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     );
 
     fn nk_attention_packed_shape_bf16(packed: *const u8, heads: *mut usize, depth: *mut usize, segments: *mut usize);
@@ -178,7 +178,7 @@ pub trait Attention: StorageElement + Clone {
     /// - `k` / `v` must point to token matrices with `key_stride_bytes` / `value_stride_bytes` byte rows
     ///   covering every token addressed by `segment_offsets` + `segment_lengths`
     /// - `key_value_packed` must have at least `attention_pack_size(..)` bytes
-    /// - a window with `first_task > 0` requires the header already initialized by a
+    /// - a window with `begin > 0` requires the header already initialized by a
     ///   prior or concurrent window covering task 0
     #[allow(clippy::too_many_arguments)]
     unsafe fn attention_pack(
@@ -192,8 +192,8 @@ pub trait Attention: StorageElement + Clone {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     );
 
     /// Compute a window of the `(segment, head)` attention task grid.
@@ -213,8 +213,8 @@ pub trait Attention: StorageElement + Clone {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     );
 }
 
@@ -240,8 +240,8 @@ impl Attention for bf16 {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     ) {
         unsafe {
             nk_attention_pack_bf16(
@@ -255,8 +255,8 @@ impl Attention for bf16 {
                 key_stride_bytes,
                 value_stride_bytes,
                 key_value_packed,
-                first_task,
-                task_count,
+                begin,
+                end,
             )
         }
     }
@@ -272,8 +272,8 @@ impl Attention for bf16 {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     ) {
         unsafe {
             nk_attention_packed_bf16(
@@ -287,8 +287,8 @@ impl Attention for bf16 {
                 query_stride_bytes,
                 output_stride_bytes,
                 scale,
-                first_task,
-                task_count,
+                begin,
+                end,
             )
         }
     }
@@ -316,8 +316,8 @@ impl Attention for e4m3 {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     ) {
         unsafe {
             nk_attention_pack_e4m3(
@@ -331,8 +331,8 @@ impl Attention for e4m3 {
                 key_stride_bytes,
                 value_stride_bytes,
                 key_value_packed,
-                first_task,
-                task_count,
+                begin,
+                end,
             )
         }
     }
@@ -348,8 +348,8 @@ impl Attention for e4m3 {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     ) {
         unsafe {
             nk_attention_packed_e4m3(
@@ -363,8 +363,8 @@ impl Attention for e4m3 {
                 query_stride_bytes,
                 output_stride_bytes,
                 scale,
-                first_task,
-                task_count,
+                begin,
+                end,
             )
         }
     }
@@ -392,8 +392,8 @@ impl Attention for i8 {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     ) {
         unsafe {
             nk_attention_pack_i8(
@@ -407,8 +407,8 @@ impl Attention for i8 {
                 key_stride_bytes,
                 value_stride_bytes,
                 key_value_packed,
-                first_task,
-                task_count,
+                begin,
+                end,
             )
         }
     }
@@ -424,8 +424,8 @@ impl Attention for i8 {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        first_task: usize,
-        task_count: usize,
+        begin: usize,
+        end: usize,
     ) {
         unsafe {
             nk_attention_packed_i8(
@@ -439,8 +439,8 @@ impl Attention for i8 {
                 query_stride_bytes,
                 output_stride_bytes,
                 scale,
-                first_task,
-                task_count,
+                begin,
+                end,
             )
         }
     }
@@ -681,7 +681,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                 values_stride_bytes,
                 destination,
                 0,
-                0,
+                segment_count * heads,
             );
         }
         Ok(())
@@ -748,7 +748,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                 output.stride_bytes(0) as usize,
                 scale,
                 0,
-                0,
+                segment_count * query_head_count,
             );
         }
         Ok(())
@@ -935,7 +935,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                     output_stride_bytes,
                     scale,
                     prong.task_index,
-                    1,
+                    prong.task_index + 1,
                 );
             }
         }); // executes and synchronizes on drop
@@ -1069,7 +1069,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                     values_stride_bytes,
                     packed_ptr.as_ptr(),
                     prong.task_index + 1,
-                    1,
+                    prong.task_index + 2,
                 );
             }
         }); // executes and synchronizes on drop
@@ -1198,7 +1198,7 @@ mod tests {
                     values_stride,
                     packed,
                     0,
-                    0,
+                    segment_count * heads,
                 );
                 core::slice::from_raw_parts(packed, size).to_vec()
             }

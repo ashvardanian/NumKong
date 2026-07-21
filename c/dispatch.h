@@ -419,9 +419,9 @@ typedef struct {
     nk_dots_packed_shape_punned_t maxsim_packed_shape_bf16;
     nk_dots_packed_shape_punned_t maxsim_packed_shape_f16;
     // MaxSim pack
-    nk_dots_pack_punned_t maxsim_pack_f32;
-    nk_dots_pack_punned_t maxsim_pack_bf16;
-    nk_dots_pack_punned_t maxsim_pack_f16;
+    nk_maxsim_pack_punned_t maxsim_pack_f32;
+    nk_maxsim_pack_punned_t maxsim_pack_bf16;
+    nk_maxsim_pack_punned_t maxsim_pack_f16;
     // MaxSim packed
     nk_maxsim_packed_punned_t maxsim_packed_f32;
     nk_maxsim_packed_punned_t maxsim_packed_bf16;

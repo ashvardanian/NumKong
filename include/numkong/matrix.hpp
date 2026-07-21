@@ -77,29 +77,41 @@ NK_API_COMPTIME void dots_pack(in_type_ const *b, size_t row_count, size_t depth
     constexpr bool simd = allow_simd_ == prefer_simd_k;
 
     if constexpr (std::is_same_v<in_type_, f64_t> && simd)
-        nk_dots_pack_f64(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed);
+        nk_dots_pack_f64(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
+                         row_count);
     else if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_dots_pack_f32(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed);
+        nk_dots_pack_f32(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
+                         row_count);
     else if constexpr (std::is_same_v<in_type_, f16_t> && simd)
-        nk_dots_pack_f16(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed);
+        nk_dots_pack_f16(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
+                         row_count);
     else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_dots_pack_bf16(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed);
+        nk_dots_pack_bf16(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
+                          row_count);
     else if constexpr (std::is_same_v<in_type_, i8_t> && simd)
-        nk_dots_pack_i8(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed);
+        nk_dots_pack_i8(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
+                        row_count);
     else if constexpr (std::is_same_v<in_type_, u8_t> && simd)
-        nk_dots_pack_u8(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed);
+        nk_dots_pack_u8(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
+                        row_count);
     else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd)
-        nk_dots_pack_e4m3(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed);
+        nk_dots_pack_e4m3(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
+                          row_count);
     else if constexpr (std::is_same_v<in_type_, e5m2_t> && simd)
-        nk_dots_pack_e5m2(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed);
+        nk_dots_pack_e5m2(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
+                          row_count);
     else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd)
-        nk_dots_pack_e2m3(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed);
+        nk_dots_pack_e2m3(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
+                          row_count);
     else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd)
-        nk_dots_pack_e3m2(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed);
+        nk_dots_pack_e3m2(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
+                          row_count);
     else if constexpr (std::is_same_v<in_type_, u4x2_t> && simd)
-        nk_dots_pack_u4(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed);
+        nk_dots_pack_u4(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
+                        row_count);
     else if constexpr (std::is_same_v<in_type_, i4x2_t> && simd)
-        nk_dots_pack_i4(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed);
+        nk_dots_pack_i4(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
+                        row_count);
     else {
         // Persist the pointer to the original B matrix and its stride
         char *b_packed_bytes = reinterpret_cast<char *>(b_packed);

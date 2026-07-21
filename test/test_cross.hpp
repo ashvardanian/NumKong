@@ -57,7 +57,7 @@ error_stats_t test_dots_packed(typename scalar_type_::dots_pack_size_kernel_t pa
         fill_random(generator, b);
 
         // Run kernel being tested
-        pack_fn(b.raw_values_data(), n, k, b_stride, b_packed.raw_values_data());
+        pack_fn(b.raw_values_data(), n, k, b_stride, b_packed.raw_values_data(), 0, n);
         dots_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k, a_stride, c_stride);
 
         // Compute reference using nk:: template
@@ -148,7 +148,7 @@ error_stats_t test_attention_packed(typename scalar_type_::attention_pack_size_k
             // Run kernel being tested: pack once, then attention through per-task windows
             pack_fn(keys.raw_values_data(), values.raw_values_data(), key_value_head_count, depth, offsets.data(),
                     lengths.data(), lengths.size(), key_value_stride_bytes, key_value_stride_bytes,
-                    key_value_packed.raw_values_data(), 0, 0);
+                    key_value_packed.raw_values_data(), 0, static_cast<std::size_t>(-1));
             auto output = make_vector<result_t>(tokens * queries_row_width);
             for (std::size_t task_idx = 0; task_idx < lengths.size() * head_count; task_idx++)
                 attention_fn(queries.raw_values_data(), key_value_packed.raw_values_data(), output.raw_values_data(),
@@ -208,7 +208,7 @@ error_stats_t test_hammings_packed(typename scalar_type_::hammings_pack_size_ker
         fill_random(generator, b);
 
         // Run kernel being tested
-        pack_fn(b.raw_values_data(), n, k, b_stride, b_packed.raw_values_data());
+        pack_fn(b.raw_values_data(), n, k, b_stride, b_packed.raw_values_data(), 0, n);
         hammings_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k, a_stride, c_stride);
 
         // Compute reference using C++ template with no_simd_k
@@ -294,7 +294,7 @@ error_stats_t test_jaccards_packed(typename scalar_type_::jaccards_pack_size_ker
         fill_random(generator, b);
 
         // Run kernel being tested
-        pack_fn(b.raw_values_data(), n, k, b_stride, b_packed.raw_values_data());
+        pack_fn(b.raw_values_data(), n, k, b_stride, b_packed.raw_values_data(), 0, n);
         jaccards_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k, a_stride, c_stride);
 
         // Compute reference using C++ template with no_simd_k
@@ -385,7 +385,7 @@ error_stats_t test_angulars_packed(typename scalar_type_::dots_pack_size_kernel_
         fill_random(generator, b);
 
         // Run kernel being tested
-        pack_fn(b.raw_values_data(), n, k, b_stride, b_packed.raw_values_data());
+        pack_fn(b.raw_values_data(), n, k, b_stride, b_packed.raw_values_data(), 0, n);
         angulars_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k, a_stride, c_stride);
 
         // Reference: compute dot products in reference precision
@@ -456,7 +456,7 @@ error_stats_t test_euclideans_packed(typename scalar_type_::dots_pack_size_kerne
         fill_random(generator, b);
 
         // Run kernel being tested
-        pack_fn(b.raw_values_data(), n, k, b_stride, b_packed.raw_values_data());
+        pack_fn(b.raw_values_data(), n, k, b_stride, b_packed.raw_values_data(), 0, n);
         euclideans_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k, a_stride,
                       c_stride);
 

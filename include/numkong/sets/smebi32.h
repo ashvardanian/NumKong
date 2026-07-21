@@ -130,7 +130,8 @@ NK_API_COMPTIME void nk_dots_packed_shape_u1_smebi32(void const *b_packed, nk_si
 }
 
 NK_API_COMPTIME void nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t row_count, nk_size_t depth_bits,
-                                             nk_size_t b_stride_in_bytes, void *b_packed) {
+                                             nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                             nk_size_t columns_end) {
     nk_size_t const svl_bytes = nk_smebi32_svl_bytes_();
     nk_size_t const tile_dim = nk_smebi32_tile_dim_();        // 16 rows per tile
     nk_size_t const depth_tile_size = nk_smebi32_tile_dim_(); // 16 u32 per depth tile
@@ -145,22 +146,31 @@ NK_API_COMPTIME void nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t row_c
     nk_size_t const total_tiles = row_tile_count * depth_tile_count;
     nk_size_t const data_size = total_tiles * tile_elements * sizeof(nk_u32_t);
 
+    nk_size_t const norms_offset = sizeof(nk_sets_smebi32_packed_header_t) + data_size;
     nk_sets_smebi32_packed_header_t *header = (nk_sets_smebi32_packed_header_t *)b_packed;
-    header->row_tile_count = (nk_u32_t)row_tile_count;
-    header->depth_tile_count = (nk_u32_t)depth_tile_count;
-    header->rows = (nk_u32_t)row_count;
-    header->depth_bits = (nk_u32_t)depth_bits;
-    header->svl_bytes = (nk_u32_t)svl_bytes;
-    header->norms_offset = (nk_u32_t)(sizeof(nk_sets_smebi32_packed_header_t) + data_size);
+    if (columns_begin == 0) {
+        header->row_tile_count = (nk_u32_t)row_tile_count;
+        header->depth_tile_count = (nk_u32_t)depth_tile_count;
+        header->rows = (nk_u32_t)row_count;
+        header->depth_bits = (nk_u32_t)depth_bits;
+        header->svl_bytes = (nk_u32_t)svl_bytes;
+        header->norms_offset = (nk_u32_t)norms_offset;
+    }
 
     nk_u32_t *tiles_ptr = (nk_u32_t *)((char *)b_packed + sizeof(nk_sets_smebi32_packed_header_t));
-    nk_u32_t *norms_ptr = (nk_u32_t *)((char *)b_packed + header->norms_offset);
+    nk_u32_t *norms_ptr = (nk_u32_t *)((char *)b_packed + norms_offset);
 
-    // Zero-initialize all tiles (partial tiles stay zero-padded for predicated loads)
-    for (nk_size_t i = 0; i < total_tiles * tile_elements; i++) tiles_ptr[i] = 0;
+    nk_size_t const row_tile_begin = nk_size_divide_round_up_(columns_begin, tile_dim);
+    nk_size_t row_tile_end = nk_size_divide_round_up_(columns_end, tile_dim);
+    if (row_tile_end > row_tile_count) row_tile_end = row_tile_count;
+
+    // Zero-initialize tiles owned by this window (partial tiles stay zero-padded for predicated loads)
+    for (nk_size_t i = row_tile_begin * depth_tile_count * tile_elements;
+         i < row_tile_end * depth_tile_count * tile_elements; i++)
+        tiles_ptr[i] = 0;
 
     // Pack tiles: column-major u32 within each tile for efficient SVE loads
-    for (nk_size_t row_tile = 0; row_tile < row_tile_count; row_tile++) {
+    for (nk_size_t row_tile = row_tile_begin; row_tile < row_tile_end; row_tile++) {
         for (nk_size_t depth_tile = 0; depth_tile < depth_tile_count; depth_tile++) {
             nk_size_t const tile_index = row_tile * depth_tile_count + depth_tile;
             nk_u32_t *tile_output = tiles_ptr + tile_index * tile_elements;
@@ -193,7 +203,7 @@ NK_API_COMPTIME void nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t row_c
     }
 
     // Compute per-row population counts
-    for (nk_size_t row = 0; row < row_count; row++) {
+    for (nk_size_t row = columns_begin; row < columns_end; row++) {
         nk_u1x8_t const *src_row = (nk_u1x8_t const *)((char const *)b + row * b_stride_in_bytes);
         nk_u64_t nk_local_sum_, nk_local_sumsq_;
         nk_reduce_moments_u1_neon(src_row, depth_bytes * 8, sizeof(nk_u1x8_t), &nk_local_sum_, &nk_local_sumsq_);

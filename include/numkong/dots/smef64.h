@@ -95,7 +95,8 @@ NK_API_COMPTIME void nk_dots_packed_shape_f32_smef64(void const *b_packed, nk_si
 }
 
 NK_API_COMPTIME void nk_dots_pack_f32_smef64(nk_f32_t const *b, nk_size_t columns, nk_size_t depth,
-                                             nk_size_t b_stride_in_bytes, void *b_packed) {
+                                             nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                             nk_size_t columns_end) {
 
     nk_size_t const tile_dimension = nk_sme_cntd_();                  // rows per `ZA64` tile (8 for SVL=512)
     nk_size_t const depth_tile_size = nk_sme_cntw_();                 // `f32` depth elements per tile (16 for SVL=512)
@@ -105,25 +106,31 @@ NK_API_COMPTIME void nk_dots_pack_f32_smef64(nk_f32_t const *b, nk_size_t column
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
     nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth, depth_tile_size);
     nk_size_t const total_tiles = column_tile_count * depth_tile_count;
+    nk_size_t const tile_column_begin = nk_size_divide_round_up_(columns_begin, tile_dimension);
+    nk_size_t tile_column_end = nk_size_divide_round_up_(columns_end, tile_dimension);
+    if (tile_column_end > column_tile_count) tile_column_end = column_tile_count;
 
     // Store actual dimensions and tile counts in header
     nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
-    header->column_tile_count = (nk_u32_t)column_tile_count;
-    header->depth_tile_count = (nk_u32_t)depth_tile_count;
-    header->columns = (nk_u32_t)columns;
-    header->depth = (nk_u32_t)depth;
-    header->svl_bytes = (nk_u32_t)nk_sme_cntb_(); // streaming vector length in bytes
+    if (columns_begin == 0) {
+        header->column_tile_count = (nk_u32_t)column_tile_count;
+        header->depth_tile_count = (nk_u32_t)depth_tile_count;
+        header->columns = (nk_u32_t)columns;
+        header->depth = (nk_u32_t)depth;
+        header->svl_bytes = (nk_u32_t)nk_sme_cntb_(); // streaming vector length in bytes
+    }
 
     nk_f32_t *tiles = (nk_f32_t *)((char *)b_packed + sizeof(nk_dots_sme_packed_header_t));
 
     // Zero-initialize all tiles (handles partial tile padding)
-    nk_size_t const total_elements = total_tiles * tile_elements;
-    for (nk_size_t i = 0; i < total_elements; i++) tiles[i] = 0.0f;
+    for (nk_size_t i = tile_column_begin * depth_tile_count * tile_elements;
+         i < tile_column_end * depth_tile_count * tile_elements; i++)
+        tiles[i] = 0.0f;
 
     // Pack data into tiles with depth-major layout within each tile:
     // dst_idx = depth_idx * tile_dimension + column_idx
     // This allows loading one B vector per depth step: svld1(b_tile + k * tile_dimension)
-    for (nk_size_t column_tile_idx = 0; column_tile_idx < column_tile_count; column_tile_idx++) {
+    for (nk_size_t column_tile_idx = tile_column_begin; column_tile_idx < tile_column_end; column_tile_idx++) {
         for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tile_count; depth_tile_idx++) {
             nk_size_t const tile_index = column_tile_idx * depth_tile_count + depth_tile_idx;
             nk_f32_t *tile_output = tiles + tile_index * tile_elements;
@@ -151,9 +158,10 @@ NK_API_COMPTIME void nk_dots_pack_f32_smef64(nk_f32_t const *b, nk_size_t column
 
     // Compute per-column squared norms and store after packed data
     nk_size_t const data_size = total_tiles * tile_elements * sizeof(nk_f32_t);
-    header->norms_offset = (nk_u32_t)(sizeof(nk_dots_sme_packed_header_t) + data_size);
-    nk_f64_t *norms_ptr = (nk_f64_t *)((char *)b_packed + header->norms_offset);
-    for (nk_size_t col = 0; col < columns; col++) {
+    nk_size_t const norms_offset = sizeof(nk_dots_sme_packed_header_t) + data_size;
+    if (columns_begin == 0) header->norms_offset = (nk_u32_t)norms_offset;
+    nk_f64_t *norms_ptr = (nk_f64_t *)((char *)b_packed + norms_offset);
+    for (nk_size_t col = columns_begin; col < columns_end; col++) {
         nk_f32_t const *col_data = (nk_f32_t const *)((char const *)b + col * b_stride_in_bytes);
         norms_ptr[col] = nk_dots_reduce_sumsq_f32_(col_data, depth);
     }
@@ -969,7 +977,8 @@ NK_API_COMPTIME void nk_dots_packed_shape_f64_smef64(void const *b_packed, nk_si
 }
 
 NK_API_COMPTIME void nk_dots_pack_f64_smef64(nk_f64_t const *b, nk_size_t columns, nk_size_t depth,
-                                             nk_size_t b_stride_in_bytes, void *b_packed) {
+                                             nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                             nk_size_t columns_end) {
 
     nk_size_t const b_stride_elements = b_stride_in_bytes / sizeof(nk_f64_t);
 
@@ -981,25 +990,31 @@ NK_API_COMPTIME void nk_dots_pack_f64_smef64(nk_f64_t const *b, nk_size_t column
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
     nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth, depth_tile_size);
     nk_size_t const total_tiles = column_tile_count * depth_tile_count;
+    nk_size_t const tile_column_begin = nk_size_divide_round_up_(columns_begin, tile_dimension);
+    nk_size_t tile_column_end = nk_size_divide_round_up_(columns_end, tile_dimension);
+    if (tile_column_end > column_tile_count) tile_column_end = column_tile_count;
 
     // Write single header
     nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
-    header->column_tile_count = (nk_u32_t)column_tile_count;
-    header->depth_tile_count = (nk_u32_t)depth_tile_count;
-    header->columns = (nk_u32_t)columns;
-    header->depth = (nk_u32_t)depth;
-    header->svl_bytes = (nk_u32_t)nk_sme_cntb_();
+    if (columns_begin == 0) {
+        header->column_tile_count = (nk_u32_t)column_tile_count;
+        header->depth_tile_count = (nk_u32_t)depth_tile_count;
+        header->columns = (nk_u32_t)columns;
+        header->depth = (nk_u32_t)depth;
+        header->svl_bytes = (nk_u32_t)nk_sme_cntb_();
+    }
 
     nk_f32_t *tiles = (nk_f32_t *)((char *)b_packed + sizeof(nk_dots_sme_packed_header_t));
 
     // Zero-initialize all tiles (handles partial tile padding)
-    nk_size_t const total_elements = total_tiles * interleaved_tile_elements;
-    for (nk_size_t i = 0; i < total_elements; i++) tiles[i] = 0.0f;
+    for (nk_size_t i = tile_column_begin * depth_tile_count * interleaved_tile_elements;
+         i < tile_column_end * depth_tile_count * interleaved_tile_elements; i++)
+        tiles[i] = 0.0f;
 
     // Inline tiling + 3-way mantissa-mask split with interleaved slice layout.
     // Per depth step depth_idx, 3 slices are stored contiguously:
     //   tiles[tile_output + depth_idx * interleaved_stride + slice * tile_dimension + column_idx]
-    for (nk_size_t column_tile_idx = 0; column_tile_idx < column_tile_count; column_tile_idx++) {
+    for (nk_size_t column_tile_idx = tile_column_begin; column_tile_idx < tile_column_end; column_tile_idx++) {
         for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tile_count; depth_tile_idx++) {
             nk_f32_t *tile_output = tiles +
                                     (column_tile_idx * depth_tile_count + depth_tile_idx) * interleaved_tile_elements;
@@ -1026,9 +1041,10 @@ NK_API_COMPTIME void nk_dots_pack_f64_smef64(nk_f64_t const *b, nk_size_t column
 
     // Compute per-column squared norms and store after packed data
     nk_size_t const data_size = total_tiles * interleaved_tile_elements * sizeof(nk_f32_t);
-    header->norms_offset = (nk_u32_t)(sizeof(nk_dots_sme_packed_header_t) + data_size);
-    nk_f64_t *norms_ptr = (nk_f64_t *)((char *)b_packed + header->norms_offset);
-    for (nk_size_t col = 0; col < columns; col++) {
+    nk_size_t const norms_offset = sizeof(nk_dots_sme_packed_header_t) + data_size;
+    if (columns_begin == 0) header->norms_offset = (nk_u32_t)norms_offset;
+    nk_f64_t *norms_ptr = (nk_f64_t *)((char *)b_packed + norms_offset);
+    for (nk_size_t col = columns_begin; col < columns_end; col++) {
         nk_f64_t const *col_data = (nk_f64_t const *)((char const *)b + col * b_stride_in_bytes);
         norms_ptr[col] = nk_dots_reduce_sumsq_f64_(col_data, depth);
     }

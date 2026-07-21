@@ -243,20 +243,20 @@ NK_HELPER_INLINE void nk_attention_pack_skylake_(                               
     nk_size_t key_value_head_count, nk_size_t depth,                                                           //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
 
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 first_task, 1, depth_padded * sizeof(nk_bf16_t));
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
+                                 1, depth_padded * sizeof(nk_bf16_t));
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *payload_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
-    for (nk_size_t task_index = first_task; task_index < first_task + task_count; task_index++) {
+    for (nk_size_t task_index = begin; task_index < end; task_index++) {
         nk_size_t const segment_index = task_index / key_value_head_count,
                         key_value_head_index = task_index % key_value_head_count;
         nk_size_t const position_count = segment_lengths[segment_index];
@@ -279,33 +279,31 @@ NK_HELPER_INLINE void nk_attention_pack_skylake_(                               
 NK_API_COMPTIME void nk_attention_pack_bf16_skylake(                                                 //
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
-    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
-    nk_size_t task_count) {
+    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_skylake_k_) {
         nk_attention_pack_bf16_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
-                                      task_count);
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
+                                      end);
         return;
     }
     nk_attention_pack_skylake_(keys, values, sizeof(nk_bf16_t), &nk_attention_narrow_bf16_skylake_,
                                key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                               key_stride_bytes, value_stride_bytes, key_value_packed, first_task, task_count);
+                               key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
 }
 
 NK_API_COMPTIME void nk_attention_pack_e4m3_skylake(                                                 //
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
-    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t first_task,
-    nk_size_t task_count) {
+    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_skylake_k_) {
         nk_attention_pack_e4m3_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, first_task,
-                                      task_count);
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
+                                      end);
         return;
     }
     nk_attention_pack_skylake_(keys, values, sizeof(nk_e4m3_t), &nk_attention_narrow_e4m3_skylake_,
                                key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                               key_stride_bytes, value_stride_bytes, key_value_packed, first_task, task_count);
+                               key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
 }
 
 /**
@@ -318,7 +316,7 @@ NK_HELPER_INLINE void nk_attention_packed_skylake_(                             
     void const *key_value_packed, nk_f32_t *output,                                                             //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     if (header->depth != depth || header->heads != key_value_head_count) return;
@@ -335,8 +333,8 @@ NK_HELPER_INLINE void nk_attention_packed_skylake_(                             
     nk_size_t const panel_width = nk_attention_panel_skylake_k_;
 
     nk_size_t const total_tasks = segment_count * head_count;
-    if (first_task >= total_tasks) return;
-    if (task_count == 0 || first_task + task_count > total_tasks) task_count = total_tasks - first_task;
+    if (begin >= total_tasks) return;
+    if (end > total_tasks) end = total_tasks;
 
     NK_ALIGN64 nk_f32_t query_row[nk_attention_max_depth_skylake_k_];
     NK_ALIGN64 nk_f32_t output_row[nk_attention_max_depth_skylake_k_];
@@ -344,7 +342,7 @@ NK_HELPER_INLINE void nk_attention_packed_skylake_(                             
     nk_size_t const depth_full = depth & ~(nk_size_t)15;
     __mmask16 const depth_tail_m16 = (__mmask16)((1u << (depth - depth_full)) - 1);
 
-    for (nk_size_t task_index = first_task; task_index < first_task + task_count; task_index++) {
+    for (nk_size_t task_index = begin; task_index < end; task_index++) {
         nk_size_t const segment_index = task_index / head_count, head_index = task_index % head_count;
         nk_size_t const position_count = segment_lengths[segment_index];
         nk_size_t const row_count = query_offsets[segment_index + 1] - query_offsets[segment_index];
@@ -439,17 +437,16 @@ NK_API_COMPTIME void nk_attention_packed_bf16_skylake(                          
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
     nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_skylake_k_) {
         nk_attention_packed_bf16_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
-                                        task_count);
+                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
         return;
     }
     nk_attention_packed_skylake_(queries, sizeof(nk_bf16_t), &nk_attention_widen_bf16_skylake_,
                                  &nk_attention_load_bf16x16_skylake_, key_value_packed, output, head_count,
                                  key_value_head_count, depth, query_offsets, query_stride_bytes, output_stride_bytes,
-                                 scale, first_task, task_count);
+                                 scale, begin, end);
 }
 
 NK_API_COMPTIME void nk_attention_packed_e4m3_skylake(                           //
@@ -457,17 +454,16 @@ NK_API_COMPTIME void nk_attention_packed_e4m3_skylake(                          
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
     nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t first_task, nk_size_t task_count) {
+    nk_size_t begin, nk_size_t end) {
     if (depth > nk_attention_max_depth_skylake_k_) {
         nk_attention_packed_e4m3_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, first_task,
-                                        task_count);
+                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
         return;
     }
     nk_attention_packed_skylake_(queries, sizeof(nk_e4m3_t), &nk_attention_widen_e4m3_skylake_,
                                  &nk_attention_load_f16x16_skylake_, key_value_packed, output, head_count,
                                  key_value_head_count, depth, query_offsets, query_stride_bytes, output_stride_bytes,
-                                 scale, first_task, task_count);
+                                 scale, begin, end);
 }
 
 #if defined(__clang__)

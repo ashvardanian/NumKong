@@ -236,7 +236,7 @@ NK_API_COMPTIME void nk_dots_packed_shape_f16_graniteamx(void const *b_packed, n
 
 NK_API_COMPTIME void nk_dots_pack_f16_graniteamx(               //
     nk_f16_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride_in_bytes, void *b_packed) {
+    nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
     // AMX FP16 tile dimensions: 16 rows × 32 columns (512 FP16 elements = 1KB)
     nk_size_t const tmm_rows = 16;
@@ -253,18 +253,20 @@ NK_API_COMPTIME void nk_dots_pack_f16_graniteamx(               //
 
     // Write header with layout metadata
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->columns = (nk_u32_t)column_count;
-    header->depth = (nk_u32_t)depth;
-    header->full_column_tiles = (nk_u32_t)column_tiles_count;
-    header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
-    header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->columns = (nk_u32_t)column_count;
+        header->depth = (nk_u32_t)depth;
+        header->full_column_tiles = (nk_u32_t)column_tiles_count;
+        header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
+        header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    }
 
     // Compute memory region offsets
     nk_size_t const tiles_offset = sizeof(nk_dots_amx_packed_header_t);
     nk_size_t const column_edge_offset = tiles_offset + total_tiles * tile_bytes;
-    header->column_edge_offset = (nk_u32_t)column_edge_offset;
+    if (columns_begin == 0) header->column_edge_offset = (nk_u32_t)column_edge_offset;
 
     // Pointers to packed data regions
     nk_f16_t *tiles_ptr = (nk_f16_t *)((char *)b_packed + tiles_offset);
@@ -272,7 +274,9 @@ NK_API_COMPTIME void nk_dots_pack_f16_graniteamx(               //
 
     // Pack tiles: gather 16 strided rows into aligned temporary, transpose via SIMD, copy to packed buffer.
     // FP16 has the same 16-bit pair-interleaved layout as BF16, so reuse the BF16 transpose.
-    for (nk_size_t column_tile_idx = 0; column_tile_idx < column_tiles_count; column_tile_idx++) {
+    for (nk_size_t column_tile_idx = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile_idx < column_tiles_count && column_tile_idx < nk_size_divide_round_up_(columns_end, 16);
+         column_tile_idx++) {
         for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles_count; depth_tile_idx++) {
 
             nk_size_t const tile_index = column_tile_idx * depth_tiles_count + depth_tile_idx;
@@ -309,7 +313,8 @@ NK_API_COMPTIME void nk_dots_pack_f16_graniteamx(               //
     }
 
     // Pack column-remainder rows using vectorized masked copies
-    if (column_remainder_count > 0) {
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
         nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
         for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++) {
             nk_f16_t const *src_row = b + (remainder_start_row + row_idx) * b_stride_elements;
@@ -329,9 +334,9 @@ NK_API_COMPTIME void nk_dots_pack_f16_graniteamx(               //
     // Compute and store per-column norms for angular/euclidean distance
     nk_size_t norms_offset = column_edge_offset +
                              (column_remainder_count > 0 ? column_remainder_count * depth * sizeof(nk_f16_t) : 0);
-    header->norms_byte_offset = (nk_u32_t)norms_offset;
+    if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
-    for (nk_size_t col = 0; col < column_count; col++)
+    for (nk_size_t col = columns_begin; col < columns_end; col++)
         norms[col] = nk_dots_reduce_sumsq_f16_(b + col * b_stride_elements, depth);
 }
 
@@ -792,7 +797,7 @@ NK_API_COMPTIME void nk_dots_packed_shape_e5m2_graniteamx(void const *b_packed, 
 
 NK_API_COMPTIME void nk_dots_pack_e5m2_graniteamx(               //
     nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride_in_bytes, void *b_packed) {
+    nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 32;
@@ -806,24 +811,28 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_graniteamx(               //
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->columns = (nk_u32_t)column_count;
-    header->depth = (nk_u32_t)depth;
-    header->full_column_tiles = (nk_u32_t)column_tiles_count;
-    header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
-    header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->columns = (nk_u32_t)column_count;
+        header->depth = (nk_u32_t)depth;
+        header->full_column_tiles = (nk_u32_t)column_tiles_count;
+        header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
+        header->column_remainder_count = (nk_u32_t)column_remainder_count;
+    }
 
     nk_size_t const tiles_offset = sizeof(nk_dots_amx_packed_header_t);
     nk_size_t const column_edge_offset = tiles_offset + total_tiles * tile_bytes;
-    header->column_edge_offset = (nk_u32_t)column_edge_offset;
+    if (columns_begin == 0) header->column_edge_offset = (nk_u32_t)column_edge_offset;
 
     nk_f16_t *tiles_ptr = (nk_f16_t *)((char *)b_packed + tiles_offset);
     nk_f16_t *column_edge_ptr = (nk_f16_t *)((char *)b_packed + column_edge_offset);
 
     // Pack tiles: widen-and-gather 16 strided E5M2 rows into an F16-aligned source tile,
     // then transpose via the shared BF16/F16 transposer (same 16-bit lane layout).
-    for (nk_size_t column_tile_idx = 0; column_tile_idx < column_tiles_count; column_tile_idx++) {
+    for (nk_size_t column_tile_idx = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile_idx < column_tiles_count && column_tile_idx < nk_size_divide_round_up_(columns_end, 16);
+         column_tile_idx++) {
         for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles_count; depth_tile_idx++) {
 
             nk_size_t const tile_index = column_tile_idx * depth_tiles_count + depth_tile_idx;
@@ -852,7 +861,8 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_graniteamx(               //
     }
 
     // Column-remainder: widen and store row-major (depth contiguous per column)
-    if (column_remainder_count > 0) {
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
         nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
         for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++) {
             nk_e5m2_t const *src_row = b + (remainder_start_row + row_idx) * b_stride_elements;
@@ -876,9 +886,9 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_graniteamx(               //
 
     nk_size_t norms_offset = column_edge_offset +
                              (column_remainder_count > 0 ? column_remainder_count * depth * sizeof(nk_f16_t) : 0);
-    header->norms_byte_offset = (nk_u32_t)norms_offset;
+    if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
-    for (nk_size_t col = 0; col < column_count; col++)
+    for (nk_size_t col = columns_begin; col < columns_end; col++)
         norms[col] = nk_dots_reduce_sumsq_e5m2_(b + col * b_stride_elements, depth);
 }
 

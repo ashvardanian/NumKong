@@ -496,7 +496,7 @@ NK_API_COMPTIME void nk_maxsim_pack_bf16_sme(                                   
 
     // Delegate tile interleaving and squared norms computation to dots pack.
     // Both headers are 64 bytes with identical layout for the first 6 fields.
-    nk_dots_pack_bf16_sme(vectors, columns, depth, stride_in_bytes, packed);
+    nk_dots_pack_bf16_sme(vectors, columns, depth, stride_in_bytes, packed, 0, columns);
 
     // Set maxsim-specific header fields (overlaps dots reserved area)
     nk_maxsim_sme_packed_header_t *header = (nk_maxsim_sme_packed_header_t *)packed;
@@ -519,7 +519,7 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_sme(                                    
 
     // Delegate tile interleaving and squared norms computation to dots pack.
     // Both headers are 64 bytes with identical layout for the first 6 fields.
-    nk_dots_pack_f16_sme(vectors, columns, depth, stride_in_bytes, packed);
+    nk_dots_pack_f16_sme(vectors, columns, depth, stride_in_bytes, packed, 0, columns);
 
     // Set maxsim-specific header fields (overlaps dots reserved area)
     nk_maxsim_sme_packed_header_t *header = (nk_maxsim_sme_packed_header_t *)packed;

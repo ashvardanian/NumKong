@@ -96,24 +96,27 @@ NK_API_COMPTIME void nk_dots_packed_shape_f32_rvv(void const *b_packed, nk_size_
 }
 
 NK_API_COMPTIME void nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column_count, nk_size_t depth,
-                                          nk_size_t b_stride_in_bytes, void *b_packed) {
+                                          nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                          nk_size_t columns_end) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->column_count = (nk_u32_t)column_count;
-    header->depth_dimensions = (nk_u32_t)depth;
-    header->depth_padded_values = (nk_u32_t)depth_padded;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->column_count = (nk_u32_t)column_count;
+        header->depth_dimensions = (nk_u32_t)depth;
+        header->depth_padded_values = (nk_u32_t)depth_padded;
+    }
 
     nk_f32_t *packed = (nk_f32_t *)((char *)b_packed + sizeof(nk_cross_packed_buffer_header_t));
     nk_size_t total = column_count * depth_padded;
     {
-        nk_u8_t *zero_ptr = (nk_u8_t *)packed;
-        nk_size_t total_bytes = total * sizeof(nk_f32_t);
+        nk_u8_t *zero_ptr = (nk_u8_t *)(packed + columns_begin * depth_padded);
+        nk_size_t total_bytes = (columns_end - columns_begin) * depth_padded * sizeof(nk_f32_t);
         for (nk_size_t i = 0; i < total_bytes;) {
             nk_size_t vector_length = __riscv_vsetvl_e8m8(total_bytes - i);
             __riscv_vse8_v_u8m8(zero_ptr + i, __riscv_vmv_v_x_u8m8(0, vector_length), vector_length);
@@ -121,7 +124,7 @@ NK_API_COMPTIME void nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column_co
         }
     }
 
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_f32_t const *src = (nk_f32_t const *)((char const *)b + column * b_stride_in_bytes);
         nk_f32_t *dst = packed + column * depth_padded;
         for (nk_size_t k = 0; k < depth;) {
@@ -133,7 +136,7 @@ NK_API_COMPTIME void nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column_co
 
     // Append per-column norms after packed data
     nk_f64_t *norms = (nk_f64_t *)(packed + total);
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_f32_t const *src = (nk_f32_t const *)((char const *)b + column * b_stride_in_bytes);
         norms[column] = nk_dots_reduce_sumsq_f32_(src, depth);
     }
@@ -308,24 +311,27 @@ NK_API_COMPTIME void nk_dots_packed_shape_f64_rvv(void const *b_packed, nk_size_
 }
 
 NK_API_COMPTIME void nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column_count, nk_size_t depth,
-                                          nk_size_t b_stride_in_bytes, void *b_packed) {
+                                          nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                          nk_size_t columns_end) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f64_t);
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->column_count = (nk_u32_t)column_count;
-    header->depth_dimensions = (nk_u32_t)depth;
-    header->depth_padded_values = (nk_u32_t)depth_padded;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->column_count = (nk_u32_t)column_count;
+        header->depth_dimensions = (nk_u32_t)depth;
+        header->depth_padded_values = (nk_u32_t)depth_padded;
+    }
 
     nk_f64_t *packed = (nk_f64_t *)((char *)b_packed + sizeof(nk_cross_packed_buffer_header_t));
     nk_size_t total = column_count * depth_padded;
     {
-        nk_u8_t *zero_ptr = (nk_u8_t *)packed;
-        nk_size_t total_bytes = total * sizeof(nk_f64_t);
+        nk_u8_t *zero_ptr = (nk_u8_t *)(packed + columns_begin * depth_padded);
+        nk_size_t total_bytes = (columns_end - columns_begin) * depth_padded * sizeof(nk_f64_t);
         for (nk_size_t i = 0; i < total_bytes;) {
             nk_size_t vector_length = __riscv_vsetvl_e8m8(total_bytes - i);
             __riscv_vse8_v_u8m8(zero_ptr + i, __riscv_vmv_v_x_u8m8(0, vector_length), vector_length);
@@ -333,7 +339,7 @@ NK_API_COMPTIME void nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column_co
         }
     }
 
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_f64_t const *src = (nk_f64_t const *)((char const *)b + column * b_stride_in_bytes);
         nk_f64_t *dst = packed + column * depth_padded;
         for (nk_size_t k = 0; k < depth;) {
@@ -345,7 +351,7 @@ NK_API_COMPTIME void nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column_co
 
     // Append per-column norms after packed data
     nk_f64_t *norms = (nk_f64_t *)(packed + total);
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_f64_t const *src = (nk_f64_t const *)((char const *)b + column * b_stride_in_bytes);
         norms[column] = nk_dots_reduce_sumsq_f64_(src, depth);
     }
@@ -561,24 +567,27 @@ NK_API_COMPTIME void nk_dots_packed_shape_e2m3_rvv(void const *b_packed, nk_size
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
 NK_API_COMPTIME void nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t column_count, nk_size_t depth,
-                                           nk_size_t b_stride_in_bytes, void *b_packed) {
+                                           nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                           nk_size_t columns_end) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_i8_t);
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->column_count = (nk_u32_t)column_count;
-    header->depth_dimensions = (nk_u32_t)depth;
-    header->depth_padded_values = (nk_u32_t)depth_padded;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->column_count = (nk_u32_t)column_count;
+        header->depth_dimensions = (nk_u32_t)depth;
+        header->depth_padded_values = (nk_u32_t)depth_padded;
+    }
 
     nk_i8_t *packed = (nk_i8_t *)((char *)b_packed + sizeof(nk_cross_packed_buffer_header_t));
     nk_size_t total = column_count * depth_padded;
     {
-        nk_u8_t *zero_ptr = (nk_u8_t *)packed;
-        nk_size_t total_bytes = total * sizeof(nk_i8_t);
+        nk_u8_t *zero_ptr = (nk_u8_t *)(packed + columns_begin * depth_padded);
+        nk_size_t total_bytes = (columns_end - columns_begin) * depth_padded * sizeof(nk_i8_t);
         for (nk_size_t i = 0; i < total_bytes;) {
             nk_size_t vector_length = __riscv_vsetvl_e8m8(total_bytes - i);
             __riscv_vse8_v_u8m8(zero_ptr + i, __riscv_vmv_v_x_u8m8(0, vector_length), vector_length);
@@ -586,7 +595,7 @@ NK_API_COMPTIME void nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t column_
         }
     }
 
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride_in_bytes);
         nk_i8_t *dst = packed + column * depth_padded;
         for (nk_size_t k = 0; k < depth; ++k) dst[k] = nk_e2m3_to_i8_rvv_(src[k]);
@@ -594,7 +603,7 @@ NK_API_COMPTIME void nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t column_
 
     // Append per-column norms after packed data
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_e2m3_t const *src = (nk_e2m3_t const *)((char const *)b + column * b_stride_in_bytes);
         norms[column] = nk_dots_reduce_sumsq_e2m3_(src, depth);
     }
@@ -865,24 +874,27 @@ NK_API_COMPTIME void nk_dots_packed_shape_e3m2_rvv(void const *b_packed, nk_size
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
 NK_API_COMPTIME void nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t column_count, nk_size_t depth,
-                                           nk_size_t b_stride_in_bytes, void *b_packed) {
+                                           nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                           nk_size_t columns_end) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e16m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_i16_t);
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->column_count = (nk_u32_t)column_count;
-    header->depth_dimensions = (nk_u32_t)depth;
-    header->depth_padded_values = (nk_u32_t)depth_padded;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->column_count = (nk_u32_t)column_count;
+        header->depth_dimensions = (nk_u32_t)depth;
+        header->depth_padded_values = (nk_u32_t)depth_padded;
+    }
 
     nk_i16_t *packed = (nk_i16_t *)((char *)b_packed + sizeof(nk_cross_packed_buffer_header_t));
     nk_size_t total = column_count * depth_padded;
     {
-        nk_u8_t *zero_ptr = (nk_u8_t *)packed;
-        nk_size_t total_bytes = total * sizeof(nk_i16_t);
+        nk_u8_t *zero_ptr = (nk_u8_t *)(packed + columns_begin * depth_padded);
+        nk_size_t total_bytes = (columns_end - columns_begin) * depth_padded * sizeof(nk_i16_t);
         for (nk_size_t i = 0; i < total_bytes;) {
             nk_size_t vector_length = __riscv_vsetvl_e8m8(total_bytes - i);
             __riscv_vse8_v_u8m8(zero_ptr + i, __riscv_vmv_v_x_u8m8(0, vector_length), vector_length);
@@ -890,7 +902,7 @@ NK_API_COMPTIME void nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t column_
         }
     }
 
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride_in_bytes);
         nk_i16_t *dst = packed + column * depth_padded;
         for (nk_size_t k = 0; k < depth; ++k) dst[k] = nk_e3m2_to_i16_rvv_(src[k]);
@@ -898,7 +910,7 @@ NK_API_COMPTIME void nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t column_
 
     // Append per-column norms after packed data
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_e3m2_t const *src = (nk_e3m2_t const *)((char const *)b + column * b_stride_in_bytes);
         norms[column] = nk_dots_reduce_sumsq_e3m2_(src, depth);
     }
@@ -1146,24 +1158,27 @@ NK_API_COMPTIME void nk_dots_packed_shape_bf16_rvv(void const *b_packed, nk_size
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
 NK_API_COMPTIME void nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t column_count, nk_size_t depth,
-                                           nk_size_t b_stride_in_bytes, void *b_packed) {
+                                           nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                           nk_size_t columns_end) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->column_count = (nk_u32_t)column_count;
-    header->depth_dimensions = (nk_u32_t)depth;
-    header->depth_padded_values = (nk_u32_t)depth_padded;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->column_count = (nk_u32_t)column_count;
+        header->depth_dimensions = (nk_u32_t)depth;
+        header->depth_padded_values = (nk_u32_t)depth_padded;
+    }
 
     nk_f32_t *packed = (nk_f32_t *)((char *)b_packed + sizeof(nk_cross_packed_buffer_header_t));
     nk_size_t total = column_count * depth_padded;
     {
-        nk_u8_t *zero_ptr = (nk_u8_t *)packed;
-        nk_size_t total_bytes = total * sizeof(nk_f32_t);
+        nk_u8_t *zero_ptr = (nk_u8_t *)(packed + columns_begin * depth_padded);
+        nk_size_t total_bytes = (columns_end - columns_begin) * depth_padded * sizeof(nk_f32_t);
         for (nk_size_t i = 0; i < total_bytes;) {
             nk_size_t vector_length = __riscv_vsetvl_e8m8(total_bytes - i);
             __riscv_vse8_v_u8m8(zero_ptr + i, __riscv_vmv_v_x_u8m8(0, vector_length), vector_length);
@@ -1171,7 +1186,7 @@ NK_API_COMPTIME void nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t column_
         }
     }
 
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_u16_t const *src = (nk_u16_t const *)((char const *)b + column * b_stride_in_bytes);
         nk_f32_t *dst = packed + column * depth_padded;
         for (nk_size_t k = 0; k < depth; ++k) {
@@ -1186,7 +1201,7 @@ NK_API_COMPTIME void nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t column_
 
     // Append per-column norms after packed data
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_bf16_t const *src = (nk_bf16_t const *)((char const *)b + column * b_stride_in_bytes);
         norms[column] = nk_dots_reduce_sumsq_bf16_(src, depth);
     }
@@ -1384,24 +1399,27 @@ NK_API_COMPTIME void nk_dots_packed_shape_f16_rvv(void const *b_packed, nk_size_
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
 NK_API_COMPTIME void nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t column_count, nk_size_t depth,
-                                          nk_size_t b_stride_in_bytes, void *b_packed) {
+                                          nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                          nk_size_t columns_end) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->column_count = (nk_u32_t)column_count;
-    header->depth_dimensions = (nk_u32_t)depth;
-    header->depth_padded_values = (nk_u32_t)depth_padded;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->column_count = (nk_u32_t)column_count;
+        header->depth_dimensions = (nk_u32_t)depth;
+        header->depth_padded_values = (nk_u32_t)depth_padded;
+    }
 
     nk_f32_t *packed = (nk_f32_t *)((char *)b_packed + sizeof(nk_cross_packed_buffer_header_t));
     nk_size_t total = column_count * depth_padded;
     {
-        nk_u8_t *zero_ptr = (nk_u8_t *)packed;
-        nk_size_t total_bytes = total * sizeof(nk_f32_t);
+        nk_u8_t *zero_ptr = (nk_u8_t *)(packed + columns_begin * depth_padded);
+        nk_size_t total_bytes = (columns_end - columns_begin) * depth_padded * sizeof(nk_f32_t);
         for (nk_size_t i = 0; i < total_bytes;) {
             nk_size_t vector_length = __riscv_vsetvl_e8m8(total_bytes - i);
             __riscv_vse8_v_u8m8(zero_ptr + i, __riscv_vmv_v_x_u8m8(0, vector_length), vector_length);
@@ -1409,7 +1427,7 @@ NK_API_COMPTIME void nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t column_co
         }
     }
 
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_f16_t const *src = (nk_f16_t const *)((char const *)b + column * b_stride_in_bytes);
         nk_f32_t *dst = packed + column * depth_padded;
         for (nk_size_t k = 0; k < depth; ++k) nk_f16_to_f32_serial(&src[k], &dst[k]);
@@ -1417,7 +1435,7 @@ NK_API_COMPTIME void nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t column_co
 
     // Append per-column norms after packed data
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_f16_t const *src = (nk_f16_t const *)((char const *)b + column * b_stride_in_bytes);
         norms[column] = nk_dots_reduce_sumsq_f16_(src, depth);
     }
@@ -1615,24 +1633,27 @@ NK_API_COMPTIME void nk_dots_packed_shape_i8_rvv(void const *b_packed, nk_size_t
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
 NK_API_COMPTIME void nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_count, nk_size_t depth,
-                                         nk_size_t b_stride_in_bytes, void *b_packed) {
+                                         nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                         nk_size_t columns_end) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_i8_t);
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->column_count = (nk_u32_t)column_count;
-    header->depth_dimensions = (nk_u32_t)depth;
-    header->depth_padded_values = (nk_u32_t)depth_padded;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->column_count = (nk_u32_t)column_count;
+        header->depth_dimensions = (nk_u32_t)depth;
+        header->depth_padded_values = (nk_u32_t)depth_padded;
+    }
 
     nk_i8_t *packed = (nk_i8_t *)((char *)b_packed + sizeof(nk_cross_packed_buffer_header_t));
     nk_size_t total = column_count * depth_padded;
     {
-        nk_u8_t *zero_ptr = (nk_u8_t *)packed;
-        nk_size_t total_bytes = total * sizeof(nk_i8_t);
+        nk_u8_t *zero_ptr = (nk_u8_t *)(packed + columns_begin * depth_padded);
+        nk_size_t total_bytes = (columns_end - columns_begin) * depth_padded * sizeof(nk_i8_t);
         for (nk_size_t i = 0; i < total_bytes;) {
             nk_size_t vector_length = __riscv_vsetvl_e8m8(total_bytes - i);
             __riscv_vse8_v_u8m8(zero_ptr + i, __riscv_vmv_v_x_u8m8(0, vector_length), vector_length);
@@ -1640,7 +1661,7 @@ NK_API_COMPTIME void nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_coun
         }
     }
 
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_i8_t const *src = (nk_i8_t const *)((char const *)b + column * b_stride_in_bytes);
         nk_i8_t *dst = packed + column * depth_padded;
         for (nk_size_t k = 0; k < depth;) {
@@ -1653,7 +1674,7 @@ NK_API_COMPTIME void nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_coun
 
     // Append per-column norms after packed data
     nk_u32_t *norms = (nk_u32_t *)(packed + total);
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_i8_t const *src = (nk_i8_t const *)((char const *)b + column * b_stride_in_bytes);
         norms[column] = nk_dots_reduce_sumsq_i8_(src, depth);
     }
@@ -1850,24 +1871,27 @@ NK_API_COMPTIME void nk_dots_packed_shape_u8_rvv(void const *b_packed, nk_size_t
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
 NK_API_COMPTIME void nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_count, nk_size_t depth,
-                                         nk_size_t b_stride_in_bytes, void *b_packed) {
+                                         nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                         nk_size_t columns_end) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_u8_t);
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->column_count = (nk_u32_t)column_count;
-    header->depth_dimensions = (nk_u32_t)depth;
-    header->depth_padded_values = (nk_u32_t)depth_padded;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->column_count = (nk_u32_t)column_count;
+        header->depth_dimensions = (nk_u32_t)depth;
+        header->depth_padded_values = (nk_u32_t)depth_padded;
+    }
 
     nk_u8_t *packed = (nk_u8_t *)((char *)b_packed + sizeof(nk_cross_packed_buffer_header_t));
     nk_size_t total = column_count * depth_padded;
     {
-        nk_u8_t *zero_ptr = (nk_u8_t *)packed;
-        nk_size_t total_bytes = total * sizeof(nk_u8_t);
+        nk_u8_t *zero_ptr = (nk_u8_t *)(packed + columns_begin * depth_padded);
+        nk_size_t total_bytes = (columns_end - columns_begin) * depth_padded * sizeof(nk_u8_t);
         for (nk_size_t i = 0; i < total_bytes;) {
             nk_size_t vector_length = __riscv_vsetvl_e8m8(total_bytes - i);
             __riscv_vse8_v_u8m8(zero_ptr + i, __riscv_vmv_v_x_u8m8(0, vector_length), vector_length);
@@ -1875,7 +1899,7 @@ NK_API_COMPTIME void nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_coun
         }
     }
 
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride_in_bytes);
         nk_u8_t *dst = packed + column * depth_padded;
         for (nk_size_t k = 0; k < depth;) {
@@ -1887,7 +1911,7 @@ NK_API_COMPTIME void nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_coun
 
     // Append per-column norms after packed data
     nk_u32_t *norms = (nk_u32_t *)(packed + total);
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride_in_bytes);
         norms[column] = nk_dots_reduce_sumsq_u8_(src, depth);
     }
@@ -2118,24 +2142,27 @@ NK_API_COMPTIME void nk_dots_packed_shape_e4m3_rvv(void const *b_packed, nk_size
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
 NK_API_COMPTIME void nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t column_count, nk_size_t depth,
-                                           nk_size_t b_stride_in_bytes, void *b_packed) {
+                                           nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                           nk_size_t columns_end) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->column_count = (nk_u32_t)column_count;
-    header->depth_dimensions = (nk_u32_t)depth;
-    header->depth_padded_values = (nk_u32_t)depth_padded;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->column_count = (nk_u32_t)column_count;
+        header->depth_dimensions = (nk_u32_t)depth;
+        header->depth_padded_values = (nk_u32_t)depth_padded;
+    }
 
     nk_f32_t *packed = (nk_f32_t *)((char *)b_packed + sizeof(nk_cross_packed_buffer_header_t));
     nk_size_t total = column_count * depth_padded;
     {
-        nk_u8_t *zero_ptr = (nk_u8_t *)packed;
-        nk_size_t total_bytes = total * sizeof(nk_f32_t);
+        nk_u8_t *zero_ptr = (nk_u8_t *)(packed + columns_begin * depth_padded);
+        nk_size_t total_bytes = (columns_end - columns_begin) * depth_padded * sizeof(nk_f32_t);
         for (nk_size_t i = 0; i < total_bytes;) {
             nk_size_t vector_length = __riscv_vsetvl_e8m8(total_bytes - i);
             __riscv_vse8_v_u8m8(zero_ptr + i, __riscv_vmv_v_x_u8m8(0, vector_length), vector_length);
@@ -2143,7 +2170,7 @@ NK_API_COMPTIME void nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t column_
         }
     }
 
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_e4m3_t const *src = (nk_e4m3_t const *)((char const *)b + column * b_stride_in_bytes);
         nk_f32_t *dst = packed + column * depth_padded;
         for (nk_size_t k = 0; k < depth; ++k) nk_e4m3_to_f32_serial(&src[k], &dst[k]);
@@ -2151,7 +2178,7 @@ NK_API_COMPTIME void nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t column_
 
     // Append per-column norms after packed data
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_e4m3_t const *src = (nk_e4m3_t const *)((char const *)b + column * b_stride_in_bytes);
         norms[column] = nk_dots_reduce_sumsq_e4m3_(src, depth);
     }
@@ -2427,24 +2454,27 @@ NK_API_COMPTIME void nk_dots_packed_shape_e5m2_rvv(void const *b_packed, nk_size
  *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
  */
 NK_API_COMPTIME void nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth,
-                                           nk_size_t b_stride_in_bytes, void *b_packed) {
+                                           nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                           nk_size_t columns_end) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
     nk_size_t stride_bytes = depth_padded * sizeof(nk_f32_t);
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) depth_padded += max_vector_length;
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
-    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-        ((nk_u32_t *)header)[word_index] = 0;
-    header->column_count = (nk_u32_t)column_count;
-    header->depth_dimensions = (nk_u32_t)depth;
-    header->depth_padded_values = (nk_u32_t)depth_padded;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->column_count = (nk_u32_t)column_count;
+        header->depth_dimensions = (nk_u32_t)depth;
+        header->depth_padded_values = (nk_u32_t)depth_padded;
+    }
 
     nk_f32_t *packed = (nk_f32_t *)((char *)b_packed + sizeof(nk_cross_packed_buffer_header_t));
     nk_size_t total = column_count * depth_padded;
     {
-        nk_u8_t *zero_ptr = (nk_u8_t *)packed;
-        nk_size_t total_bytes = total * sizeof(nk_f32_t);
+        nk_u8_t *zero_ptr = (nk_u8_t *)(packed + columns_begin * depth_padded);
+        nk_size_t total_bytes = (columns_end - columns_begin) * depth_padded * sizeof(nk_f32_t);
         for (nk_size_t i = 0; i < total_bytes;) {
             nk_size_t vector_length = __riscv_vsetvl_e8m8(total_bytes - i);
             __riscv_vse8_v_u8m8(zero_ptr + i, __riscv_vmv_v_x_u8m8(0, vector_length), vector_length);
@@ -2452,7 +2482,7 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t column_
         }
     }
 
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_e5m2_t const *src = (nk_e5m2_t const *)((char const *)b + column * b_stride_in_bytes);
         nk_f32_t *dst = packed + column * depth_padded;
         for (nk_size_t k = 0; k < depth; ++k) nk_e5m2_to_f32_serial(&src[k], &dst[k]);
@@ -2460,7 +2490,7 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t column_
 
     // Append per-column norms after packed data
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
-    for (nk_size_t column = 0; column < column_count; ++column) {
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_e5m2_t const *src = (nk_e5m2_t const *)((char const *)b + column * b_stride_in_bytes);
         norms[column] = nk_dots_reduce_sumsq_e5m2_(src, depth);
     }

@@ -1,7 +1,7 @@
 # Ragged Scaled-Dot-Product Attention in NumKong
 
 NumKong implements FlashAttention-style scaled-dot-product attention __(SDPA)__ over ragged batches with a pre-packed KV-cache, as the fused core of Transformer inference on CPUs.
-Every backend shares one public triple — `pack_size` to size the cache, `pack` to rearrange K/V into a backend-opaque layout, and `packed` to compute attention against it — with `(first_task, task_count)` windows over the segment × head grid for embarrassingly parallel execution.
+Every backend shares one public triple — `pack_size` to size the cache, `pack` to rearrange K/V into a backend-opaque layout, and `packed` to compute attention against it — with `(begin, end)` half-open windows over the segment × head grid for embarrassingly parallel execution.
 
 For a single segment and head, the operation is the classic softmax attention:
 

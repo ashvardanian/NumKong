@@ -15,7 +15,7 @@ using namespace nk;
 
 template <typename scalar_type_>
 error_stats_t test_maxsim_packed(typename scalar_type_::dots_pack_size_kernel_t packed_size_fn,
-                                 typename scalar_type_::dots_pack_kernel_t pack_fn,
+                                 typename scalar_type_::maxsim_pack_kernel_t pack_fn,
                                  typename scalar_type_::maxsim_packed_kernel_t maxsim_fn) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::maxsim_result_t;
