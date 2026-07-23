@@ -25,6 +25,8 @@
 //! - **FP8 variants** — `e4m3` / `e5m2` / `e2m3` / `e3m2` — all accumulate in `f32`.
 //! - **4-bit packed** `i4x2` / `u4x2` behave like `i8` / `u8` but compute over
 //!   double the element count because each byte holds two logical values.
+//! - **1-bit packed** `u1x8` counts bit coincidences over eight logical values
+//!   per byte into a `u32`, so a 4096-bit embedding cannot saturate its result.
 //!
 //! This widening is the reason quantised retrieval pipelines — for example BFloat16 or
 //! INT8 embeddings in vector search — can rely on NumKong without post-hoc rescaling.
@@ -42,7 +44,7 @@
 //! assert_eq!(exact, 20_480_000);
 //! ```
 
-use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u4x2, StorageElement};
+use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2, StorageElement};
 
 #[link(name = "numkong")]
 extern "C" {
@@ -69,9 +71,10 @@ extern "C" {
     fn nk_vdot_f32c(a: *const f32, b: *const f32, c: usize, d: *mut f64);
     fn nk_vdot_f64c(a: *const f64, b: *const f64, c: usize, d: *mut f64);
 
-    // 4-bit integer kernels
+    // Sub-byte integer kernels
     fn nk_dot_i4(a: *const u8, b: *const u8, n: usize, result: *mut i32);
     fn nk_dot_u4(a: *const u8, b: *const u8, n: usize, result: *mut u32);
+    fn nk_dot_u1(a: *const u8, b: *const u8, n: usize, result: *mut u32);
 }
 
 // region: Dot
@@ -83,7 +86,11 @@ extern "C" {
 /// Range: unbounded. Returns `None` if lengths differ.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`,
-/// `e4m3`, `e5m2`, `e2m3`, `e3m2`, `i4x2`, `u4x2`.
+/// `e4m3`, `e5m2`, `e2m3`, `e3m2`, `i4x2`, `u4x2`, `u1x8`.
+///
+/// On `u1x8` this is the binary inner product — the number of positions where
+/// both bits are set — which is the intersection count that Tanimoto similarity
+/// divides by the union. Use [`crate::Jaccard`] when you want that ratio.
 ///
 /// # Example
 /// ```
@@ -261,6 +268,19 @@ impl Dot for u4x2 {
     }
 }
 
+impl Dot for u1x8 {
+    type Output = u32;
+    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
+        if a.len() != b.len() {
+            return None;
+        }
+        let mut result: Self::Output = 0;
+        let n = a.len() * 8; // Each u1x8 contains 8 bits
+        unsafe { nk_dot_u1(a.as_ptr() as *const u8, b.as_ptr() as *const u8, n, &mut result) };
+        Some(result)
+    }
+}
+
 impl Dot for f16c {
     type Output = f32c;
     fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
@@ -383,6 +403,7 @@ impl VDot for e2m3 {}
 impl VDot for e3m2 {}
 impl VDot for i4x2 {}
 impl VDot for u4x2 {}
+impl VDot for u1x8 {}
 
 impl VDot for f16c {
     fn vdot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
@@ -475,8 +496,8 @@ mod tests {
     use super::*;
     use crate::curved::Bilinear;
     use crate::types::{
-        assert_close, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u4x2, FloatLike, NumberLike,
-        StorageElement, TestableType,
+        assert_close, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2, FloatLike,
+        NumberLike, StorageElement, TestableType,
     };
 
     /// Test a two-input metric: convert f32 inputs to Scalar, call `op`, compare to `expected`.
@@ -522,6 +543,21 @@ mod tests {
         check_dot::<e3m2>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0], 32.0);
         check_dot::<i4x2>(&[1.0, 2.0, 3.0], &[1.0, 1.0, 1.0], 12.0);
         check_dot::<u4x2>(&[1.0, 2.0, 3.0], &[1.0, 1.0, 1.0], 12.0);
+    }
+
+    /// `u1x8` sits outside `check_dot`, which needs a float-convertible scalar,
+    /// so the bit-packed inner product is checked against hand-counted overlaps.
+    #[test]
+    fn dot_u1x8() {
+        // 0b1111_0000 & 0b1100_1100 → 2 bits; 0b1010_1010 & 0b0101_0101 → 0 bits.
+        let left = vec![u1x8(0b1111_0000), u1x8(0b1010_1010)];
+        let right = vec![u1x8(0b1100_1100), u1x8(0b0101_0101)];
+        assert_eq!(u1x8::dot(&left, &right).unwrap(), 2);
+        assert_eq!(u1x8::vdot(&left, &right).unwrap(), 2);
+
+        // Self-overlap equals the population count, and length mismatch is rejected.
+        assert_eq!(u1x8::dot(&left, &left).unwrap(), 8);
+        assert!(u1x8::dot(&left, &right[..1]).is_none());
     }
 
     // endregion

@@ -226,13 +226,16 @@ Packed-binary metrics work on packed words instead of boolean slices.
 That is the right model once the workload is "semantic hash" rather than "array of booleans".
 
 ```rust
-use numkong::{Hamming, Jaccard, u1x8};
+use numkong::{Dot, Hamming, Jaccard, u1x8};
 
 let a = [u1x8(0b10101010), u1x8(0b11110000)];
 let b = [u1x8(0b10101110), u1x8(0b11000000)];
 let hamming = u1x8::hamming(&a, &b).unwrap();
 let jaccard = u1x8::jaccard(&a, &b).unwrap();
+let overlap = u1x8::dot(&a, &b).unwrap(); // set bits in common
 ```
+
+`Dot` on `u1x8` is the intersection count Jaccard normalises, so a ranking pass can skip the division.
 
 Integer set Jaccard works on sorted arrays of integer identifiers.
 

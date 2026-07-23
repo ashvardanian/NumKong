@@ -1011,7 +1011,9 @@ impl<Scalar: Jaccards, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symme
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{align_depth, assert_upper_triangle_eq, init_thread, DIMS};
+    #[cfg(feature = "parallel")]
+    use crate::types::{align_depth, DIMS};
+    use crate::types::{assert_upper_triangle_eq, init_thread};
 
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]

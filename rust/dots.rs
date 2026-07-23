@@ -460,7 +460,8 @@ extern "C" {
 /// every subsequent query. The accumulator type is intentionally widened to
 /// avoid precision loss — `f32 × f32 → f64`, `f16 × f16 → f32`,
 /// `i8 × i8 → i32`, `u8 × u8 → u32`, and so on; see each impl's
-/// [`Dots::Accumulator`].
+/// [`Dots::Accumulator`]. On `u1x8` the multiply degenerates to a bitwise AND
+/// and the accumulator counts set bits into a `u32`.
 mod private {
     /// Sealed supertrait for the batch-operation trait family.
     ///
@@ -2053,8 +2054,8 @@ where
 ///
 /// For a symmetric matrix, cumulative work up to row r is: r*(2n - r + 1)/2
 /// Solving r*(2n - r + 1)/2 = work using quadratic formula gives exact row.
-#[cfg(feature = "std")]
-#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+#[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 #[inline]
 pub(crate) fn compute_thread_rows(thread_index: usize, num_threads: usize, n: usize) -> (usize, usize) {
     let total_work = n * (n + 1) / 2;
@@ -2487,6 +2488,7 @@ mod tests {
         check_dots_packed::<u8>();
         check_dots_packed::<i4x2>();
         check_dots_packed::<u4x2>();
+        check_dots_packed::<u1x8>();
     }
 
     #[test]
@@ -2602,6 +2604,7 @@ mod tests {
         check_dots_symmetric::<u8>();
         check_dots_symmetric::<i4x2>();
         check_dots_symmetric::<u4x2>();
+        check_dots_symmetric::<u1x8>();
     }
 
     #[test]
