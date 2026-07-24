@@ -125,6 +125,7 @@ option(NK_BUILD_SHARED_TEST "Compile shared-library tests, requires NK_BUILD_SHA
 option(NK_WASI_HOSTED "Import capability probes from WASI host environment" OFF)
 
 option(NK_MARCH_NATIVE "Build with -march=native (host-tuned, not portable)" OFF)
+option(NK_ENABLE_ASAN "Enable AddressSanitizer in Debug builds" ${NK_IS_MAIN_PROJECT_})
 
 # `add_test()` entries are only generated when testing is enabled.
 if (NK_BUILD_TEST OR NK_BUILD_SHARED_TEST OR NK_BUILD_CUDA_TEST)
@@ -204,18 +205,18 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "Windows" OR WIN32)
 endif ()
 
 # Global compiler flags for debug and release
-include(CheckCXXSourceCompiles)
-set(CMAKE_REQUIRED_FLAGS "-fsanitize=address")
-check_cxx_source_compiles("int main(){return 0;}" NK_HAS_ASAN_)
-unset(CMAKE_REQUIRED_FLAGS)
+if (NK_ENABLE_ASAN)
+    include(CheckCXXSourceCompiles)
+    set(CMAKE_REQUIRED_FLAGS "-fsanitize=address")
+    check_cxx_source_compiles("int main(){return 0;}" NK_HAS_ASAN_)
+    unset(CMAKE_REQUIRED_FLAGS)
 
-if (NK_HAS_ASAN_)
-    set(CMAKE_CXX_FLAGS_DEBUG "-g -fsanitize=address")
-    set(CMAKE_C_FLAGS_DEBUG "-g -fsanitize=address")
-else ()
-    set(CMAKE_CXX_FLAGS_DEBUG "-g")
-    set(CMAKE_C_FLAGS_DEBUG "-g")
-    message(STATUS "AddressSanitizer not available, Debug builds without ASAN")
+    if (NK_HAS_ASAN_)
+        set(CMAKE_CXX_FLAGS_DEBUG "-g -fsanitize=address")
+        set(CMAKE_C_FLAGS_DEBUG "-g -fsanitize=address")
+    else ()
+        message(STATUS "AddressSanitizer not available, Debug builds without ASAN")
+    endif ()
 endif ()
 
 if (MSVC)
