@@ -306,7 +306,7 @@ void measure_attention(                                                         
 
     auto key_value_packed = make_vector<char>(packed_size_fn(head_count, depth, key_value_lengths, 1));
     pack_fn(keys.raw_values_data(), values.raw_values_data(), head_count, depth, key_value_offsets, key_value_lengths,
-            1, row_stride_bytes, row_stride_bytes, key_value_packed.raw_values_data(), 0, 0);
+            1, row_stride_bytes, row_stride_bytes, key_value_packed.raw_values_data(), 0, head_count);
 
     std::size_t iterations = 0;
     for (auto _ : state) {

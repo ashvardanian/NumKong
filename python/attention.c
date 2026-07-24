@@ -327,7 +327,7 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
 #pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads(thread_count)
         for (task_index = 1; task_index < task_count; task_index++)
             pack_fn(k_buffer.buf, v_buffer.buf, heads, depth, segment_offsets, segment_lengths, segment_count, k_stride,
-                    v_stride, packed->start, (nk_size_t)task_index, 1);
+                    v_stride, packed->start, (nk_size_t)task_index, (nk_size_t)task_index + 1);
         PyEval_RestoreThread(save);
     }
 
@@ -491,7 +491,7 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
 #pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads(thread_count)
         for (task_index = 0; task_index < task_count; task_index++)
             kernel(q_buffer.buf, kv->start, (nk_f32_t *)result->data, num_heads, kv->heads, kv->depth, query_offsets,
-                   q_stride, o_stride, scale, (nk_size_t)task_index, 1);
+                   q_stride, o_stride, scale, (nk_size_t)task_index, (nk_size_t)task_index + 1);
         PyEval_RestoreThread(save);
     }
 
