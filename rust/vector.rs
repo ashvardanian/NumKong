@@ -53,7 +53,7 @@ extern crate alloc;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use crate::tensor::{Allocator, CopyFrom, Fill, Global, Tensor, TensorError, SIMD_ALIGNMENT};
+use crate::tensor::{layout_for, Allocator, CopyFrom, Fill, Global, Tensor, TensorError};
 use crate::types::{DimMut, DimRef, FloatConvertible, NumberLike, StorageElement};
 
 // region: VectorIndex — Signed Indexing
@@ -493,7 +493,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     ///
     /// # Safety
     /// - `data` must point to an allocation obtained from `alloc`, aligned to
-    ///   [`SIMD_ALIGNMENT`], whose backing buffer is sized for the storage count
+    ///   [`crate::SIMD_ALIGNMENT`], whose backing buffer is sized for the storage count
     ///   implied by `dims` (`dims_to_values::<Scalar>(dims)` slots of `Scalar`).
     /// - The caller must not free the memory — this vector takes ownership.
     pub unsafe fn from_raw_parts(data: NonNull<Scalar>, dims: usize, alloc: Alloc) -> Self {
@@ -516,11 +516,9 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
                 alloc,
             });
         }
-        let size = storage_count * core::mem::size_of::<Scalar>();
-        let layout =
-            core::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
+        let layout = layout_for::<Scalar>(storage_count)?;
         let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
-        unsafe { core::ptr::write_bytes(ptr.as_ptr(), 0, size) };
+        unsafe { core::ptr::write_bytes(ptr.as_ptr(), 0, layout.size()) };
         Ok(Self {
             data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) },
             dims,
@@ -565,9 +563,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
                 alloc,
             });
         }
-        let size = storage_count * core::mem::size_of::<Scalar>();
-        let layout =
-            core::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
+        let layout = layout_for::<Scalar>(storage_count)?;
         let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         Ok(Self {
             data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) },
@@ -662,9 +658,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         if needed <= self.capacity {
             return Ok(());
         }
-        let size = needed * core::mem::size_of::<Scalar>();
-        let layout =
-            core::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
+        let layout = layout_for::<Scalar>(needed)?;
         let new_ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         let live = dims_to_values::<Scalar>(self.dims);
         if live > 0 {
@@ -678,8 +672,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
             }
         }
         if self.capacity > 0 {
-            let old_size = self.capacity * core::mem::size_of::<Scalar>();
-            let old_layout = core::alloc::Layout::from_size_align(old_size, SIMD_ALIGNMENT).unwrap();
+            let old_layout = layout_for::<Scalar>(self.capacity).expect("capacity was sized by a successful layout");
             // SAFETY: `self.data` was allocated with `old_layout` (capacity slots).
             unsafe {
                 self.alloc
@@ -947,12 +940,10 @@ impl<Scalar: StorageElement + Clone, Alloc: Allocator + Clone> Vector<Scalar, Al
                 alloc: self.alloc.clone(),
             });
         }
-        let size = storage_count * core::mem::size_of::<Scalar>();
-        let layout =
-            core::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
+        let layout = layout_for::<Scalar>(storage_count)?;
         let ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         unsafe {
-            core::ptr::copy_nonoverlapping(self.data.as_ptr() as *const u8, ptr.as_ptr(), size);
+            core::ptr::copy_nonoverlapping(self.data.as_ptr() as *const u8, ptr.as_ptr(), layout.size());
         }
         Ok(Self {
             data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) },

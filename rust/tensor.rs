@@ -81,6 +81,38 @@ pub const DEFAULT_MAX_RANK: usize = 8;
 /// Alignment for SIMD-friendly allocations — 64 bytes for AVX-512.
 pub const SIMD_ALIGNMENT: usize = 64;
 
+/// The [`SIMD_ALIGNMENT`]-aligned layout holding `count` storage values of `Scalar`.
+///
+/// Every owned allocation in the crate is sized here, so the value-count-to-byte-count multiply
+/// is checked in one place. A `count` that overflows describes an allocation no allocator could
+/// ever satisfy, so it reports [`TensorError::AllocationFailed`] rather than wrapping into a
+/// small request that the caller would then write past the end of.
+pub(crate) fn layout_for<Scalar>(count: usize) -> Result<core::alloc::Layout, TensorError> {
+    let bytes = count
+        .checked_mul(core::mem::size_of::<Scalar>())
+        .ok_or(TensorError::AllocationFailed)?;
+    layout_for_bytes(bytes)
+}
+
+/// The byte-granular twin of [`layout_for`], for the packed buffers whose size the C ABI reports
+/// in bytes rather than in typed slots.
+pub(crate) fn layout_for_bytes(bytes: usize) -> Result<core::alloc::Layout, TensorError> {
+    core::alloc::Layout::from_size_align(bytes, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)
+}
+
+/// The logical element count of `shape`, reporting [`TensorError::AllocationFailed`] on overflow.
+///
+/// A wrapped product would leave the stored shape and the derived element count disagreeing, so
+/// the per-axis stride arithmetic would index outside the allocation. The empty product of a
+/// rank-0 shape is 1 — a rank-0 tensor holds one element.
+pub(crate) fn shape_product(shape: &[usize]) -> Result<usize, TensorError> {
+    let mut total: usize = 1;
+    for &extent in shape {
+        total = total.checked_mul(extent).ok_or(TensorError::AllocationFailed)?;
+    }
+    Ok(total)
+}
+
 /// Frees a `SIMD_ALIGNMENT`-aligned allocation of `byte_len` bytes through `alloc`.
 ///
 /// # Safety
@@ -167,6 +199,27 @@ unsafe impl Allocator for Global {
     }
 }
 
+/// Every `allocator-api2` allocator is one of ours: the blanket bridge that lets
+/// `Tensor` and the packed containers take an arena, a pool, or `allocator_api2`'s
+/// own `Global` directly, with no adapter type at the call site. The `Layout`
+/// carries the alignment contract - an allocator honoring it honors
+/// [`SIMD_ALIGNMENT`] too. The one cost is coherence: no type may implement this
+/// trait directly *and* `allocator_api2::alloc::Allocator`; [`Global`] here stays
+/// outside that ecosystem, which is what keeps the pair disjoint.
+unsafe impl<A: allocator_api2::alloc::Allocator> Allocator for A {
+    #[inline]
+    fn allocate(&self, layout: core::alloc::Layout) -> Option<NonNull<u8>> {
+        allocator_api2::alloc::Allocator::allocate(self, layout)
+            .ok()
+            .map(NonNull::cast)
+    }
+
+    #[inline]
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: core::alloc::Layout) {
+        allocator_api2::alloc::Allocator::deallocate(self, ptr, layout)
+    }
+}
+
 // endregion: Constants and Allocator
 
 // region: PackedBuffer
@@ -237,8 +290,7 @@ impl<Alloc: Allocator> PackedBuffer<Alloc> {
         if needed <= self.capacity {
             return Ok(());
         }
-        let layout =
-            core::alloc::Layout::from_size_align(needed, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
+        let layout = layout_for_bytes(needed)?;
         let new_data = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         if self.size > 0 {
             unsafe { core::ptr::copy_nonoverlapping(self.data.as_ptr(), new_data.as_ptr(), self.size) };
@@ -268,8 +320,7 @@ impl<Alloc: Allocator> PackedBuffer<Alloc> {
         let new_data = if needed == 0 {
             NonNull::dangling()
         } else {
-            let layout = core::alloc::Layout::from_size_align(needed, SIMD_ALIGNMENT)
-                .map_err(|_| TensorError::AllocationFailed)?;
+            let layout = layout_for_bytes(needed)?;
             self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?
         };
         if self.capacity > 0 {
@@ -491,7 +542,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             return Err(TensorError::TooManyRanks { got: shape.len() });
         }
 
-        let total: usize = shape.iter().product();
+        let total: usize = shape_product(shape)?;
         if total == 0 && !shape.is_empty() {
             if let Some(i) = shape.iter().position(|&d| d == 0) {
                 return Err(TensorError::InvalidShape {
@@ -520,9 +571,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         let data = if storage_count == 0 {
             NonNull::dangling()
         } else {
-            let layout =
-                core::alloc::Layout::from_size_align(storage_count * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
-                    .map_err(|_| TensorError::AllocationFailed)?;
+            let layout = layout_for::<Scalar>(storage_count)?;
             let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
             // Initialize all storage elements
             unsafe {
@@ -581,7 +630,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             return Err(TensorError::TooManyRanks { got: shape.len() });
         }
 
-        let total: usize = shape.iter().product();
+        let total: usize = shape_product(shape)?;
         if total == 0 && !shape.is_empty() {
             if let Some(i) = shape.iter().position(|&d| d == 0) {
                 return Err(TensorError::InvalidShape {
@@ -609,9 +658,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         let data = if storage_count == 0 {
             NonNull::dangling()
         } else {
-            let layout =
-                core::alloc::Layout::from_size_align(storage_count * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
-                    .map_err(|_| TensorError::AllocationFailed)?;
+            let layout = layout_for::<Scalar>(storage_count)?;
             let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
             unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) }
         };
@@ -642,7 +689,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             return Err(TensorError::TooManyRanks { got: shape.len() });
         }
 
-        let total: usize = shape.iter().product();
+        let total: usize = shape_product(shape)?;
         let dims_per_value = Scalar::dimensions_per_value();
         if dims_per_value > 1 && !shape.is_empty() && shape[shape.len() - 1] % dims_per_value != 0 {
             return Err(TensorError::InvalidShape {
@@ -668,9 +715,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         let ptr = if expected_storage == 0 {
             NonNull::dangling()
         } else {
-            let layout =
-                core::alloc::Layout::from_size_align(expected_storage * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
-                    .map_err(|_| TensorError::AllocationFailed)?;
+            let layout = layout_for::<Scalar>(expected_storage)?;
             let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
             // Clone all storage elements
             unsafe {
@@ -709,7 +754,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         Scalar: FloatConvertible,
         Alloc: Clone,
     {
-        let total: usize = shape.iter().product();
+        let total: usize = shape_product(shape)?;
         if scalars.len() != total {
             return Err(TensorError::ShapeMismatch {
                 axis: 0,
@@ -740,7 +785,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         Scalar: FloatConvertible,
         Alloc: Clone,
     {
-        let total: usize = shape.iter().product();
+        let total: usize = shape_product(shape)?;
         if dim_values.len() != total {
             return Err(TensorError::ShapeMismatch {
                 axis: 0,
@@ -868,7 +913,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
                 reason: "innermost dimension must be divisible by dimensions_per_value()",
             });
         }
-        let total: usize = shape.iter().product();
+        let total: usize = shape_product(shape)?;
         Ok(if dims_per_value == 1 {
             total
         } else {
@@ -914,9 +959,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         if needed <= self.capacity {
             return Ok(());
         }
-        let size = needed * core::mem::size_of::<Scalar>();
-        let layout =
-            core::alloc::Layout::from_size_align(size, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)?;
+        let layout = layout_for::<Scalar>(needed)?;
         let new_ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
         let live = self.numel() / Scalar::dimensions_per_value();
         if live > 0 {
@@ -930,9 +973,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             }
         }
         if self.capacity > 0 {
-            let old_layout =
-                core::alloc::Layout::from_size_align(self.capacity * core::mem::size_of::<Scalar>(), SIMD_ALIGNMENT)
-                    .unwrap();
+            let old_layout = layout_for::<Scalar>(self.capacity).expect("capacity was sized by a successful layout");
             // SAFETY: `self.data` was allocated with `old_layout` (capacity slots).
             unsafe {
                 self.alloc
@@ -4394,7 +4435,7 @@ fn reshape_layout<Scalar, const R: usize>(
     if new_shape.len() > R {
         return Err(TensorError::TooManyRanks { got: new_shape.len() });
     }
-    let new_len: usize = new_shape.iter().product();
+    let new_len: usize = shape_product(new_shape)?;
     if new_len != len {
         return Err(TensorError::ShapeMismatch {
             axis: 0,
@@ -6725,6 +6766,32 @@ mod tests {
         let cloned = arr.clone();
         assert_eq!(cloned.shape(), arr.shape());
         assert_eq!(cloned.as_slice(), arr.as_slice());
+    }
+
+    #[test]
+    fn allocation_size_overflow_is_an_error() {
+        // 2^62 `f32` slots is 2^64 bytes: the byte count wraps to zero on a 64-bit target, so an
+        // unchecked multiply produced a zero-sized layout, a dangling pointer, and a constructor
+        // that then wrote 2^62 elements through it.
+        assert_eq!(
+            Tensor::<f32>::try_full(&[1_usize << 62, 1], 1.0).unwrap_err(),
+            TensorError::AllocationFailed
+        );
+        assert_eq!(
+            Vector::<f32>::try_zeros(usize::MAX).unwrap_err(),
+            TensorError::AllocationFailed
+        );
+        // The shape product wraps before any byte count is involved, which would leave the stored
+        // shape and the derived element count disagreeing.
+        assert_eq!(
+            Tensor::<u8>::try_zeros(&[1_usize << 33, 1_usize << 33, 4]).unwrap_err(),
+            TensorError::AllocationFailed
+        );
+        // A tensor that merely does not fit in memory still reports the same error, not a panic.
+        assert_eq!(
+            Tensor::<f32>::try_zeros(&[1_usize << 40]).unwrap_err(),
+            TensorError::AllocationFailed
+        );
     }
 
     #[test]
