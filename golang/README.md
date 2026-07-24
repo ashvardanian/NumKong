@@ -448,7 +448,8 @@ For one-off parallel work without a pool, you can still use `ConfigureThread` di
 
 ```go
 go func() {
-	defer nk.ConfigureThread()() // lock thread + configure SIMD; defer unlocks
+	unlock := nk.ConfigureThread() // lock thread + configure SIMD
+	defer unlock()                 // release the OS thread on return
 	nk.DotsPackedF32(queries, dbPacked, results, height)
 }()
 ```
@@ -459,12 +460,13 @@ go func() {
 Goroutines can migrate between OS threads, so thread-local state (AMX tiles) would be lost without pinning.
 
 ```go
-defer nk.ConfigureThread()()                // auto-detect, lock thread, defer unlock
-defer nk.ConfigureThreadWith(caps)()        // explicit capability mask variant
-caps := nk.CapabilitiesAvailable()          // what can actually run here
+unlock := nk.ConfigureThread()          // auto-detect capabilities, lock thread
+// or: unlock := nk.ConfigureThreadWith(caps) // narrow to an explicit capability mask
+defer unlock()                          // release the OS thread on return
+caps := nk.CapabilitiesAvailable()      // what can actually run here
 ```
 
-Idiomatic usage is `defer nk.ConfigureThread()()` — the first `()` calls `ConfigureThread` (which locks the thread and returns the unlock function), the second `()` is deferred and calls the unlock function when the surrounding function returns.
+`ConfigureThread` returns the unlock function, so capture it and defer the call: `unlock := nk.ConfigureThread(); defer unlock()`.
 
 `ConfigureThreadWith` lets you narrow the enabled feature set.
 The package also exposes capability bit constants, like `CapSerial`, `CapNeon`, `CapHaswell`, `CapSkylake`, `CapSapphire`, `CapSapphireAmx`, and `CapSme`.

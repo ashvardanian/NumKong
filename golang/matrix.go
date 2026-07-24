@@ -15,8 +15,8 @@ import (
 
 // WorkerPool is a pool of goroutines pinned to OS threads with pre-configured
 // SIMD state. Create with NewWorkerPool, reuse across batch calls, and Close
-// when done. Each worker calls ConfigureThread once at startup — SIMD state
-// persists for the pool's lifetime.
+// when done. Each worker locks its OS thread and configures SIMD state once at
+// startup — the state persists for the pool's lifetime.
 type WorkerPool struct {
 	tasks []chan func()
 	done  sync.WaitGroup
