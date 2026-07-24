@@ -61,7 +61,7 @@ func NewPackedMatrixF64(b []float64, width, depth int) PackedMatrix {
 		(*C.nk_f64_t)(&b[0]),
 		C.nk_size_t(width), C.nk_size_t(depth),
 		C.nk_size_t(depth*8),
-		unsafe.Pointer(&data[0]))
+		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(width))
 	return PackedMatrix{data: data, width: width, depth: depth, dtype: "f64"}
 }
 
@@ -77,7 +77,7 @@ func NewPackedMatrixF32(b []float32, width, depth int) PackedMatrix {
 		(*C.nk_f32_t)(&b[0]),
 		C.nk_size_t(width), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
-		unsafe.Pointer(&data[0]))
+		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(width))
 	return PackedMatrix{data: data, width: width, depth: depth, dtype: "f32"}
 }
 
@@ -93,7 +93,7 @@ func NewPackedMatrixI8(b []int8, width, depth int) PackedMatrix {
 		(*C.nk_i8_t)(&b[0]),
 		C.nk_size_t(width), C.nk_size_t(depth),
 		C.nk_size_t(depth),
-		unsafe.Pointer(&data[0]))
+		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(width))
 	return PackedMatrix{data: data, width: width, depth: depth, dtype: "i8"}
 }
 
@@ -109,7 +109,7 @@ func NewPackedMatrixU8(b []uint8, width, depth int) PackedMatrix {
 		(*C.nk_u8_t)(&b[0]),
 		C.nk_size_t(width), C.nk_size_t(depth),
 		C.nk_size_t(depth),
-		unsafe.Pointer(&data[0]))
+		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(width))
 	return PackedMatrix{data: data, width: width, depth: depth, dtype: "u8"}
 }
 
@@ -127,6 +127,6 @@ func NewPackedMatrixU1(b []byte, width, depth int) PackedMatrix {
 		(*C.nk_u1x8_t)(&b[0]),
 		C.nk_size_t(width), C.nk_size_t(depth),
 		C.nk_size_t(bytesPerVec),
-		unsafe.Pointer(&data[0]))
+		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(width))
 	return PackedMatrix{data: data, width: width, depth: depth, dtype: "u1"}
 }

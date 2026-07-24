@@ -239,6 +239,8 @@ NK_API_RUNTIME void nk_dots_packed_shape_u1(void const *b_packed, nk_size_t *wid
  *  @param[in] depth The number of columns in B.
  *  @param[in] b_stride The row stride in bytes for B.
  *  @param[out] b_packed The output packed buffer from nk_dots_pack_size_bf16.
+ *  @param[in] columns_begin First output column to pack; 0 for a full pack.
+ *  @param[in] columns_end One past the last output column to pack; @p width for a full pack.
  */
 NK_API_RUNTIME void nk_dots_pack_bf16(nk_bf16_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
                                       void *b_packed, nk_size_t columns_begin, nk_size_t columns_end);

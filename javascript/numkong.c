@@ -541,7 +541,8 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
         napi_throw_error(env, NULL, "dots_pack not available for this dtype");
         return NULL;
     }
-    pack_fn(data, (nk_size_t)width, (nk_size_t)depth, (nk_size_t)stride_bytes, packed_data);
+    pack_fn(data, (nk_size_t)width, (nk_size_t)depth, (nk_size_t)stride_bytes, packed_data, (nk_size_t)0,
+            (nk_size_t)width);
 
     // Return object { buffer, width, depth, byteLength }
     napi_value result_obj;

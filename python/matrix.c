@@ -808,7 +808,7 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
 
     {
         PyThreadState *save = PyEval_SaveThread();
-        pack_fn(b_buffer.buf, width, depth, row_stride, packed->start);
+        pack_fn(b_buffer.buf, width, depth, row_stride, packed->start, 0, width);
         PyEval_RestoreThread(save);
     }
 

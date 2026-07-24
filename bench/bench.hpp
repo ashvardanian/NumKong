@@ -242,7 +242,7 @@ void measure_dots_packed(                                                       
         s.c = make_vector<output_t>(m * n);
         nk::fill_uniform(generator, s.a.values_data(), s.a.size_values());
         nk::fill_uniform(generator, s.b.values_data(), s.b.size_values());
-        pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data());
+        pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data(), 0, n);
     }
 
     std::size_t iterations = 0;
@@ -381,7 +381,7 @@ void measure_angulars_packed(                                                   
         s.c = make_vector<output_t>(m * n);
         nk::fill_uniform(generator, s.a.values_data(), s.a.size_values());
         nk::fill_uniform(generator, s.b.values_data(), s.b.size_values());
-        pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data());
+        pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data(), 0, n);
     }
 
     std::size_t iterations = 0;
@@ -443,7 +443,7 @@ void measure_euclideans_packed(                                                 
         s.c = make_vector<output_t>(m * n);
         nk::fill_uniform(generator, s.a.values_data(), s.a.size_values());
         nk::fill_uniform(generator, s.b.values_data(), s.b.size_values());
-        pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data());
+        pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data(), 0, n);
     }
 
     std::size_t iterations = 0;
@@ -666,7 +666,7 @@ void measure_hammings_packed(                                                   
         s.c = make_vector<output_t>(m * n);
         nk::fill_uniform(generator, s.a.values_data(), s.a.size_values());
         nk::fill_uniform(generator, s.b.values_data(), s.b.size_values());
-        pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data());
+        pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data(), 0, n);
     }
 
     std::size_t iterations = 0;
@@ -785,7 +785,7 @@ void measure_jaccards_packed(                                                   
         s.c.resize(m * n, 0);
         nk::fill_uniform(generator, s.a.values_data(), s.a.size_values());
         nk::fill_uniform(generator, s.b.values_data(), s.b.size_values());
-        pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data());
+        pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data(), 0, n);
     }
 
     std::size_t iterations = 0;

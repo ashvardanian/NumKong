@@ -282,7 +282,7 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
     packed->vectors = vectors;
     packed->depth = depth;
 
-    nk_dots_pack_punned_t pack_fn = NULL;
+    nk_maxsim_pack_punned_t pack_fn = NULL;
     cap = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_maxsim_pack_k, target_dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
     if (!pack_fn || !cap) {
@@ -525,7 +525,7 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
             goto cleanup;
         }
 
-        nk_dots_pack_punned_t pack_fn = NULL;
+        nk_maxsim_pack_punned_t pack_fn = NULL;
         cap = nk_cap_serial_k;
         nk_find_kernel_punned(nk_kernel_maxsim_pack_k, target_dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
         if (!pack_fn || !cap) {

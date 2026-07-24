@@ -15,7 +15,7 @@ template <nk_dtype_t input_dtype_>
 void measure_maxsim_packed(                                                            //
     bm::State &state,                                                                  //
     typename nk::type_for<input_dtype_>::type::dots_pack_size_kernel_t packed_size_fn, //
-    typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,             //
+    typename nk::type_for<input_dtype_>::type::maxsim_pack_kernel_t pack_fn,           //
     typename nk::type_for<input_dtype_>::type::maxsim_packed_kernel_t maxsim_fn,       //
     std::size_t query_count, std::size_t document_count, std::size_t depth) {
 
@@ -64,7 +64,7 @@ void measure_maxsim_packed(                                                     
 template <nk_dtype_t input_dtype_>
 void run_maxsim_packed(std::string name, //
                        typename nk::type_for<input_dtype_>::type::dots_pack_size_kernel_t packed_size_fn,
-                       typename nk::type_for<input_dtype_>::type::dots_pack_kernel_t pack_fn,
+                       typename nk::type_for<input_dtype_>::type::maxsim_pack_kernel_t pack_fn,
                        typename nk::type_for<input_dtype_>::type::maxsim_packed_kernel_t maxsim_fn) {
     std::size_t query_count = bench_config.matrix_height;
     std::size_t document_count = bench_config.matrix_width;

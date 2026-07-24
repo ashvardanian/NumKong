@@ -692,7 +692,7 @@ static int cdist_batch_packed(                                               //
     void *b_packed = malloc(packed_size);
     if (!b_packed) return -1;
 
-    pack_fn(b_start, b_count, dimensions, b_stride, b_packed);
+    pack_fn(b_start, b_count, dimensions, b_stride, b_packed, 0, b_count);
 #if defined(NK_USE_OPENMP)
     // Resolve 0 → all cores; num_threads() clause, not omp_set_num_threads() —
     // see the note at `cdist_batch_symmetric`.

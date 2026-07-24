@@ -598,7 +598,7 @@ extension Float32: NumKongDotsMatrixElement {
     public static func _nk_dots_pack(
         _ b: UnsafePointer<Float32>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
-        nk_dots_pack_f32(b, UInt64(n), UInt64(k), UInt64(bStride), packed)
+        nk_dots_pack_f32(b, UInt64(n), UInt64(k), UInt64(bStride), packed, 0, UInt64(n))
     }
 
     public static func _nk_dots_packed(
@@ -676,7 +676,7 @@ extension Float64: NumKongDotsMatrixElement {
     public static func _nk_dots_pack(
         _ b: UnsafePointer<Float64>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
-        nk_dots_pack_f64(b, UInt64(n), UInt64(k), UInt64(bStride), packed)
+        nk_dots_pack_f64(b, UInt64(n), UInt64(k), UInt64(bStride), packed, 0, UInt64(n))
     }
 
     public static func _nk_dots_packed(
@@ -754,7 +754,7 @@ extension Int8: NumKongDotsMatrixElement {
     public static func _nk_dots_pack(
         _ b: UnsafePointer<Int8>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
-        nk_dots_pack_i8(b, UInt64(n), UInt64(k), UInt64(bStride), packed)
+        nk_dots_pack_i8(b, UInt64(n), UInt64(k), UInt64(bStride), packed, 0, UInt64(n))
     }
 
     public static func _nk_dots_packed(
@@ -832,7 +832,7 @@ extension UInt8: NumKongDotsMatrixElement {
     public static func _nk_dots_pack(
         _ b: UnsafePointer<UInt8>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
-        nk_dots_pack_u8(b, UInt64(n), UInt64(k), UInt64(bStride), packed)
+        nk_dots_pack_u8(b, UInt64(n), UInt64(k), UInt64(bStride), packed, 0, UInt64(n))
     }
 
     public static func _nk_dots_packed(
@@ -913,7 +913,7 @@ extension Float16: NumKongDotsMatrixElement {
         _ b: UnsafePointer<Float16>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_f16_t.self)
-        nk_dots_pack_f16(cPtr, UInt64(n), UInt64(k), UInt64(bStride), packed)
+        nk_dots_pack_f16(cPtr, UInt64(n), UInt64(k), UInt64(bStride), packed, 0, UInt64(n))
     }
 
     public static func _nk_dots_packed(
@@ -1000,7 +1000,7 @@ extension BFloat16: NumKongDotsMatrixElement {
         _ b: UnsafePointer<BFloat16>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_bf16_t.self)
-        nk_dots_pack_bf16(cPtr, UInt64(n), UInt64(k), UInt64(bStride), packed)
+        nk_dots_pack_bf16(cPtr, UInt64(n), UInt64(k), UInt64(bStride), packed, 0, UInt64(n))
     }
 
     public static func _nk_dots_packed(
@@ -1083,7 +1083,7 @@ extension E4M3: NumKongDotsMatrixElement {
         _ b: UnsafePointer<E4M3>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_e4m3_t.self)
-        nk_dots_pack_e4m3(cPtr, UInt64(n), UInt64(k), UInt64(bStride), packed)
+        nk_dots_pack_e4m3(cPtr, UInt64(n), UInt64(k), UInt64(bStride), packed, 0, UInt64(n))
     }
 
     public static func _nk_dots_packed(
@@ -1166,7 +1166,7 @@ extension E5M2: NumKongDotsMatrixElement {
         _ b: UnsafePointer<E5M2>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_e5m2_t.self)
-        nk_dots_pack_e5m2(cPtr, UInt64(n), UInt64(k), UInt64(bStride), packed)
+        nk_dots_pack_e5m2(cPtr, UInt64(n), UInt64(k), UInt64(bStride), packed, 0, UInt64(n))
     }
 
     public static func _nk_dots_packed(
@@ -1249,7 +1249,7 @@ extension E2M3: NumKongDotsMatrixElement {
         _ b: UnsafePointer<E2M3>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_e2m3_t.self)
-        nk_dots_pack_e2m3(cPtr, UInt64(n), UInt64(k), UInt64(bStride), packed)
+        nk_dots_pack_e2m3(cPtr, UInt64(n), UInt64(k), UInt64(bStride), packed, 0, UInt64(n))
     }
 
     public static func _nk_dots_packed(
@@ -1332,7 +1332,7 @@ extension E3M2: NumKongDotsMatrixElement {
         _ b: UnsafePointer<E3M2>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_e3m2_t.self)
-        nk_dots_pack_e3m2(cPtr, UInt64(n), UInt64(k), UInt64(bStride), packed)
+        nk_dots_pack_e3m2(cPtr, UInt64(n), UInt64(k), UInt64(bStride), packed, 0, UInt64(n))
     }
 
     public static func _nk_dots_packed(
@@ -1417,7 +1417,7 @@ extension U1x8: NumKongDotsMatrixElement {
         _ b: UnsafePointer<U1x8>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
     ) {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_u1x8_t.self)
-        nk_dots_pack_u1(cPtr, UInt64(n), UInt64(k * 8), UInt64(bStride), packed)
+        nk_dots_pack_u1(cPtr, UInt64(n), UInt64(k * 8), UInt64(bStride), packed, 0, UInt64(n))
     }
 
     public static func _nk_dots_packed(
