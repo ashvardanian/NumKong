@@ -23,18 +23,18 @@ extern "C" {
 
     // Batched angular distances
     fn nk_angulars_packed_f32(
-        a: *const f32,
+        queries: *const f32,
         packed: *const u8,
-        c: *mut f64,
+        output: *mut f64,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_angulars_symmetric_f32(
         vectors: *const f32,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f64,
@@ -43,18 +43,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_angulars_packed_f64(
-        a: *const f64,
+        queries: *const f64,
         packed: *const u8,
-        c: *mut f64,
+        output: *mut f64,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_angulars_symmetric_f64(
         vectors: *const f64,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f64,
@@ -63,18 +63,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_angulars_packed_f16(
-        a: *const u16,
+        queries: *const u16,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_angulars_symmetric_f16(
         vectors: *const u16,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -83,18 +83,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_angulars_packed_bf16(
-        a: *const u16,
+        queries: *const u16,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_angulars_symmetric_bf16(
         vectors: *const u16,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -103,18 +103,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_angulars_packed_i8(
-        a: *const i8,
+        queries: *const i8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_angulars_symmetric_i8(
         vectors: *const i8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -123,18 +123,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_angulars_packed_u8(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_angulars_symmetric_u8(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -143,18 +143,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_angulars_packed_e4m3(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_angulars_symmetric_e4m3(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -163,18 +163,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_angulars_packed_e5m2(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_angulars_symmetric_e5m2(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -183,18 +183,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_angulars_packed_e2m3(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_angulars_symmetric_e2m3(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -203,18 +203,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_angulars_packed_e3m2(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_angulars_symmetric_e3m2(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -223,18 +223,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_angulars_packed_i4(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_angulars_symmetric_i4(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -243,18 +243,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_angulars_packed_u4(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_angulars_symmetric_u4(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -265,18 +265,18 @@ extern "C" {
 
     // Batched euclidean distances
     fn nk_euclideans_packed_f32(
-        a: *const f32,
+        queries: *const f32,
         packed: *const u8,
-        c: *mut f64,
+        output: *mut f64,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_euclideans_symmetric_f32(
         vectors: *const f32,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f64,
@@ -285,18 +285,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_euclideans_packed_f64(
-        a: *const f64,
+        queries: *const f64,
         packed: *const u8,
-        c: *mut f64,
+        output: *mut f64,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_euclideans_symmetric_f64(
         vectors: *const f64,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f64,
@@ -305,18 +305,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_euclideans_packed_f16(
-        a: *const u16,
+        queries: *const u16,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_euclideans_symmetric_f16(
         vectors: *const u16,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -325,18 +325,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_euclideans_packed_bf16(
-        a: *const u16,
+        queries: *const u16,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_euclideans_symmetric_bf16(
         vectors: *const u16,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -345,18 +345,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_euclideans_packed_i8(
-        a: *const i8,
+        queries: *const i8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_euclideans_symmetric_i8(
         vectors: *const i8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -365,18 +365,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_euclideans_packed_u8(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_euclideans_symmetric_u8(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -385,18 +385,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_euclideans_packed_e4m3(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_euclideans_symmetric_e4m3(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -405,18 +405,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_euclideans_packed_e5m2(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_euclideans_symmetric_e5m2(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -425,18 +425,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_euclideans_packed_e2m3(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_euclideans_symmetric_e2m3(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -445,18 +445,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_euclideans_packed_e3m2(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_euclideans_symmetric_e3m2(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -465,18 +465,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_euclideans_packed_i4(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_euclideans_symmetric_i4(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -485,18 +485,18 @@ extern "C" {
         row_count: usize,
     );
     fn nk_euclideans_packed_u4(
-        a: *const u8,
+        queries: *const u8,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
     fn nk_euclideans_symmetric_u4(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -534,24 +534,24 @@ pub trait Angulars: Dots {
     /// - `packed` must be a buffer previously filled by `Dots::dots_pack`
     /// - `c` must point to valid memory for `height * width` result elements with given stride
     unsafe fn angulars_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
 
     /// Computes symmetric angular distance matrix.
     ///
     /// # Safety
-    /// - `vectors` must point to valid memory for `n_vectors * depth` elements
-    /// - `result` must point to valid memory for `n_vectors * n_vectors` result elements
+    /// - `vectors` must point to valid memory for `vector_count * depth` elements
+    /// - `result` must point to valid memory for `vector_count * vector_count` result elements
     unsafe fn angulars_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -586,24 +586,24 @@ pub trait Euclideans: Dots {
     /// - `packed` must be a buffer previously filled by `Dots::dots_pack`
     /// - `c` must point to valid memory for `height * width` result elements with given stride
     unsafe fn euclideans_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     );
 
     /// Computes symmetric euclidean distance matrix.
     ///
     /// # Safety
-    /// - `vectors` must point to valid memory for `n_vectors * depth` elements
-    /// - `result` must point to valid memory for `n_vectors * n_vectors` result elements
+    /// - `vectors` must point to valid memory for `vector_count * depth` elements
+    /// - `result` must point to valid memory for `vector_count * vector_count` result elements
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -617,21 +617,30 @@ impl Angulars for f32 {
     type SpatialResult = f64;
 
     unsafe fn angulars_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_angulars_packed_f32(a, packed, c, height, width, depth, a_stride, c_stride)
+        nk_angulars_packed_f32(
+            queries,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn angulars_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -641,7 +650,7 @@ impl Angulars for f32 {
     ) {
         nk_angulars_symmetric_f32(
             vectors,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -656,21 +665,30 @@ impl Euclideans for f32 {
     type SpatialResult = f64;
 
     unsafe fn euclideans_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_euclideans_packed_f32(a, packed, c, height, width, depth, a_stride, c_stride)
+        nk_euclideans_packed_f32(
+            queries,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -680,7 +698,7 @@ impl Euclideans for f32 {
     ) {
         nk_euclideans_symmetric_f32(
             vectors,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -695,21 +713,30 @@ impl Angulars for f64 {
     type SpatialResult = f64;
 
     unsafe fn angulars_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_angulars_packed_f64(a, packed, c, height, width, depth, a_stride, c_stride)
+        nk_angulars_packed_f64(
+            queries,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn angulars_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -719,7 +746,7 @@ impl Angulars for f64 {
     ) {
         nk_angulars_symmetric_f64(
             vectors,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -734,21 +761,30 @@ impl Euclideans for f64 {
     type SpatialResult = f64;
 
     unsafe fn euclideans_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_euclideans_packed_f64(a, packed, c, height, width, depth, a_stride, c_stride)
+        nk_euclideans_packed_f64(
+            queries,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -758,7 +794,7 @@ impl Euclideans for f64 {
     ) {
         nk_euclideans_symmetric_f64(
             vectors,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -773,21 +809,30 @@ impl Angulars for f16 {
     type SpatialResult = f32;
 
     unsafe fn angulars_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_angulars_packed_f16(a as *const u16, packed, c, height, width, depth, a_stride, c_stride)
+        nk_angulars_packed_f16(
+            queries as *const u16,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn angulars_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -797,7 +842,7 @@ impl Angulars for f16 {
     ) {
         nk_angulars_symmetric_f16(
             vectors as *const u16,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -812,21 +857,30 @@ impl Euclideans for f16 {
     type SpatialResult = f32;
 
     unsafe fn euclideans_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_euclideans_packed_f16(a as *const u16, packed, c, height, width, depth, a_stride, c_stride)
+        nk_euclideans_packed_f16(
+            queries as *const u16,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -836,7 +890,7 @@ impl Euclideans for f16 {
     ) {
         nk_euclideans_symmetric_f16(
             vectors as *const u16,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -851,21 +905,30 @@ impl Angulars for bf16 {
     type SpatialResult = f32;
 
     unsafe fn angulars_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_angulars_packed_bf16(a as *const u16, packed, c, height, width, depth, a_stride, c_stride)
+        nk_angulars_packed_bf16(
+            queries as *const u16,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn angulars_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -875,7 +938,7 @@ impl Angulars for bf16 {
     ) {
         nk_angulars_symmetric_bf16(
             vectors as *const u16,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -890,21 +953,30 @@ impl Euclideans for bf16 {
     type SpatialResult = f32;
 
     unsafe fn euclideans_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_euclideans_packed_bf16(a as *const u16, packed, c, height, width, depth, a_stride, c_stride)
+        nk_euclideans_packed_bf16(
+            queries as *const u16,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -914,7 +986,7 @@ impl Euclideans for bf16 {
     ) {
         nk_euclideans_symmetric_bf16(
             vectors as *const u16,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -929,21 +1001,30 @@ impl Angulars for i8 {
     type SpatialResult = f32;
 
     unsafe fn angulars_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_angulars_packed_i8(a, packed, c, height, width, depth, a_stride, c_stride)
+        nk_angulars_packed_i8(
+            queries,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn angulars_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -953,7 +1034,7 @@ impl Angulars for i8 {
     ) {
         nk_angulars_symmetric_i8(
             vectors,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -968,21 +1049,30 @@ impl Euclideans for i8 {
     type SpatialResult = f32;
 
     unsafe fn euclideans_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_euclideans_packed_i8(a, packed, c, height, width, depth, a_stride, c_stride)
+        nk_euclideans_packed_i8(
+            queries,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -992,7 +1082,7 @@ impl Euclideans for i8 {
     ) {
         nk_euclideans_symmetric_i8(
             vectors,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1007,21 +1097,30 @@ impl Angulars for u8 {
     type SpatialResult = f32;
 
     unsafe fn angulars_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_angulars_packed_u8(a, packed, c, height, width, depth, a_stride, c_stride)
+        nk_angulars_packed_u8(
+            queries,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn angulars_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -1031,7 +1130,7 @@ impl Angulars for u8 {
     ) {
         nk_angulars_symmetric_u8(
             vectors,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1046,21 +1145,30 @@ impl Euclideans for u8 {
     type SpatialResult = f32;
 
     unsafe fn euclideans_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_euclideans_packed_u8(a, packed, c, height, width, depth, a_stride, c_stride)
+        nk_euclideans_packed_u8(
+            queries,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -1070,7 +1178,7 @@ impl Euclideans for u8 {
     ) {
         nk_euclideans_symmetric_u8(
             vectors,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1085,21 +1193,30 @@ impl Angulars for e4m3 {
     type SpatialResult = f32;
 
     unsafe fn angulars_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_angulars_packed_e4m3(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
+        nk_angulars_packed_e4m3(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn angulars_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -1109,7 +1226,7 @@ impl Angulars for e4m3 {
     ) {
         nk_angulars_symmetric_e4m3(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1124,21 +1241,30 @@ impl Euclideans for e4m3 {
     type SpatialResult = f32;
 
     unsafe fn euclideans_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_euclideans_packed_e4m3(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
+        nk_euclideans_packed_e4m3(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -1148,7 +1274,7 @@ impl Euclideans for e4m3 {
     ) {
         nk_euclideans_symmetric_e4m3(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1163,21 +1289,30 @@ impl Angulars for e5m2 {
     type SpatialResult = f32;
 
     unsafe fn angulars_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_angulars_packed_e5m2(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
+        nk_angulars_packed_e5m2(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn angulars_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -1187,7 +1322,7 @@ impl Angulars for e5m2 {
     ) {
         nk_angulars_symmetric_e5m2(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1202,21 +1337,30 @@ impl Euclideans for e5m2 {
     type SpatialResult = f32;
 
     unsafe fn euclideans_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_euclideans_packed_e5m2(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
+        nk_euclideans_packed_e5m2(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -1226,7 +1370,7 @@ impl Euclideans for e5m2 {
     ) {
         nk_euclideans_symmetric_e5m2(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1241,21 +1385,30 @@ impl Angulars for e2m3 {
     type SpatialResult = f32;
 
     unsafe fn angulars_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_angulars_packed_e2m3(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
+        nk_angulars_packed_e2m3(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn angulars_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -1265,7 +1418,7 @@ impl Angulars for e2m3 {
     ) {
         nk_angulars_symmetric_e2m3(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1280,21 +1433,30 @@ impl Euclideans for e2m3 {
     type SpatialResult = f32;
 
     unsafe fn euclideans_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_euclideans_packed_e2m3(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
+        nk_euclideans_packed_e2m3(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -1304,7 +1466,7 @@ impl Euclideans for e2m3 {
     ) {
         nk_euclideans_symmetric_e2m3(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1319,21 +1481,30 @@ impl Angulars for e3m2 {
     type SpatialResult = f32;
 
     unsafe fn angulars_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_angulars_packed_e3m2(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
+        nk_angulars_packed_e3m2(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn angulars_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -1343,7 +1514,7 @@ impl Angulars for e3m2 {
     ) {
         nk_angulars_symmetric_e3m2(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1358,21 +1529,30 @@ impl Euclideans for e3m2 {
     type SpatialResult = f32;
 
     unsafe fn euclideans_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut Self::SpatialResult,
+        output: *mut Self::SpatialResult,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_euclideans_packed_e3m2(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
+        nk_euclideans_packed_e3m2(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
 
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::SpatialResult,
@@ -1382,7 +1562,7 @@ impl Euclideans for e3m2 {
     ) {
         nk_euclideans_symmetric_e3m2(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1397,20 +1577,29 @@ impl Euclideans for e3m2 {
 impl Angulars for u4x2 {
     type SpatialResult = f32;
     unsafe fn angulars_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_angulars_packed_u4(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
+        nk_angulars_packed_u4(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
     unsafe fn angulars_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -1420,7 +1609,7 @@ impl Angulars for u4x2 {
     ) {
         nk_angulars_symmetric_u4(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1433,20 +1622,29 @@ impl Angulars for u4x2 {
 impl Euclideans for u4x2 {
     type SpatialResult = f32;
     unsafe fn euclideans_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_euclideans_packed_u4(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
+        nk_euclideans_packed_u4(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -1456,7 +1654,7 @@ impl Euclideans for u4x2 {
     ) {
         nk_euclideans_symmetric_u4(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1469,20 +1667,29 @@ impl Euclideans for u4x2 {
 impl Angulars for i4x2 {
     type SpatialResult = f32;
     unsafe fn angulars_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_angulars_packed_i4(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
+        nk_angulars_packed_i4(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
     unsafe fn angulars_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -1492,7 +1699,7 @@ impl Angulars for i4x2 {
     ) {
         nk_angulars_symmetric_i4(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1505,20 +1712,29 @@ impl Angulars for i4x2 {
 impl Euclideans for i4x2 {
     type SpatialResult = f32;
     unsafe fn euclideans_packed(
-        a: *const Self,
+        queries: *const Self,
         packed: *const u8,
-        c: *mut f32,
+        output: *mut f32,
         height: usize,
         width: usize,
         depth: usize,
-        a_stride: usize,
-        c_stride: usize,
+        query_stride: usize,
+        output_stride: usize,
     ) {
-        nk_euclideans_packed_i4(a as *const u8, packed, c, height, width, depth, a_stride, c_stride)
+        nk_euclideans_packed_i4(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
     }
     unsafe fn euclideans_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut f32,
@@ -1528,7 +1744,7 @@ impl Euclideans for i4x2 {
     ) {
         nk_euclideans_symmetric_i4(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -1547,31 +1763,31 @@ impl<Scalar: Angulars, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
     /// Computes angular distances between rows of self and packed B matrix.
     pub fn try_angulars_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::SpatialResult, Alloc, MAX_RANK>, TensorError> {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        let mut c = Tensor::try_full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        let mut output = Tensor::try_full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
         unsafe {
             Scalar::angulars_packed(
                 self.as_ptr(),
-                packed_b.as_ptr(),
-                c.as_mut_ptr(),
+                packed_right.as_ptr(),
+                output.as_mut_ptr(),
                 height,
                 width,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.stride_bytes(0) as usize,
+                output.stride_bytes(0) as usize,
             );
         }
-        Ok(c)
+        Ok(output)
     }
 
     /// Convenience method that panics on error.
     pub fn angulars_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Tensor<Scalar::SpatialResult, Alloc, MAX_RANK> {
-        self.try_angulars_packed(packed_b).expect("angulars_packed failed")
+        self.try_angulars_packed(packed_right).expect("angulars_packed failed")
     }
 }
 
@@ -1579,31 +1795,32 @@ impl<Scalar: Euclideans, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor
     /// Computes euclidean distances between rows of self and packed B matrix.
     pub fn try_euclideans_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::SpatialResult, Alloc, MAX_RANK>, TensorError> {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        let mut c = Tensor::try_full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        let mut output = Tensor::try_full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
         unsafe {
             Scalar::euclideans_packed(
                 self.as_ptr(),
-                packed_b.as_ptr(),
-                c.as_mut_ptr(),
+                packed_right.as_ptr(),
+                output.as_mut_ptr(),
                 height,
                 width,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.stride_bytes(0) as usize,
+                output.stride_bytes(0) as usize,
             );
         }
-        Ok(c)
+        Ok(output)
     }
 
     /// Convenience method that panics on error.
     pub fn euclideans_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Tensor<Scalar::SpatialResult, Alloc, MAX_RANK> {
-        self.try_euclideans_packed(packed_b).expect("euclideans_packed failed")
+        self.try_euclideans_packed(packed_right)
+            .expect("euclideans_packed failed")
     }
 }
 
@@ -1620,9 +1837,9 @@ where
         &self,
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
-        let (n_vectors, _) = validate_symmetric_input(self)?;
+        let (vector_count, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
-            &[n_vectors, n_vectors],
+            &[vector_count, vector_count],
             Scalar::SpatialResult::default(),
         )?;
         self.try_angulars_symmetric_parallel_into(&mut result, pool)?;
@@ -1633,27 +1850,27 @@ where
     /// Only the upper triangle is written.
     pub fn try_angulars_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        c: &mut OutputTensor,
+        output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
+        let (vector_count, depth) = validate_symmetric_input(self)?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, vector_count, vector_count)?;
         let num_threads = pool.threads_count().max(1);
         let vectors_ptr = fu::SyncConstPtr::new(self.as_ptr());
-        let result_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
+        let result_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
         let stride = self.stride_bytes(0) as usize;
-        let result_stride = c.stride_bytes(0) as usize;
+        let result_stride = output.stride_bytes(0) as usize;
 
         pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
-            let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, n_vectors);
+            let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 Scalar::angulars_symmetric(
                     vectors_ptr.as_ptr(),
-                    n_vectors,
+                    vector_count,
                     depth,
                     stride,
                     result_ptr.as_ptr(),
@@ -1688,9 +1905,9 @@ where
         &self,
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
-        let (n_vectors, _) = validate_symmetric_input(self)?;
+        let (vector_count, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
-            &[n_vectors, n_vectors],
+            &[vector_count, vector_count],
             Scalar::SpatialResult::default(),
         )?;
         self.try_euclideans_symmetric_parallel_into(&mut result, pool)?;
@@ -1701,27 +1918,27 @@ where
     /// Only the upper triangle is written.
     pub fn try_euclideans_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        c: &mut OutputTensor,
+        output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
+        let (vector_count, depth) = validate_symmetric_input(self)?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, vector_count, vector_count)?;
         let num_threads = pool.threads_count().max(1);
         let vectors_ptr = fu::SyncConstPtr::new(self.as_ptr());
-        let result_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
+        let result_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
         let stride = self.stride_bytes(0) as usize;
-        let result_stride = c.stride_bytes(0) as usize;
+        let result_stride = output.stride_bytes(0) as usize;
 
         pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
-            let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, n_vectors);
+            let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 Scalar::euclideans_symmetric(
                     vectors_ptr.as_ptr(),
-                    n_vectors,
+                    vector_count,
                     depth,
                     stride,
                     result_ptr.as_ptr(),
@@ -1756,10 +1973,10 @@ where
 /// owned copy. The allocating entry point returns a globally allocated result, since a
 /// bare view carries no allocator of its own.
 pub trait AngularsPackedOps<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    /// Angular distances: C = angular(self, packed_bᵀ)
+    /// Angular distances: C = angular(self, packed_rightᵀ)
     ///
     /// self must be 2D (m × k) with contiguous rows.
-    /// packed_b contains B (n × k) packed.
+    /// packed_right contains B (n × k) packed.
     /// Returns C (m × n) using the global allocator.
     ///
     /// Returns `Err` if:
@@ -1769,34 +1986,34 @@ pub trait AngularsPackedOps<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<
     /// - output allocation fails
     fn try_angulars_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        let mut c = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        let mut output = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
             &[height, width],
             Scalar::SpatialResult::default(),
         )?;
         unsafe {
             Scalar::angulars_packed(
                 self.as_ptr(),
-                packed_b.as_ptr(),
-                c.as_mut_ptr(),
+                packed_right.as_ptr(),
+                output.as_mut_ptr(),
                 height,
                 width,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.stride_bytes(0) as usize,
+                output.stride_bytes(0) as usize,
             );
         }
-        Ok(c)
+        Ok(output)
     }
 
     /// Convenience method that panics on error.
     fn angulars_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
-        self.try_angulars_packed(packed_b).expect("angulars_packed failed")
+        self.try_angulars_packed(packed_right).expect("angulars_packed failed")
     }
 
     /// Angular distances into an existing output, avoiding allocation.
@@ -1806,25 +2023,25 @@ pub trait AngularsPackedOps<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<
     /// kernel overwrites `c` — it need not be pre-initialized.
     fn try_angulars_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
-        c: &mut OutputTensor,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        output: &mut OutputTensor,
     ) -> Result<(), TensorError>
     where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, height, width)?;
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, height, width)?;
         unsafe {
             Scalar::angulars_packed(
                 self.as_ptr(),
-                packed_b.as_ptr(),
-                c.as_mut_ptr(),
+                packed_right.as_ptr(),
+                output.as_mut_ptr(),
                 height,
                 width,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.stride_bytes(0) as usize,
+                output.stride_bytes(0) as usize,
             );
         }
         Ok(())
@@ -1852,7 +2069,7 @@ where
     /// Distributes rows of A across threads; each computes its portion of C.
     ///
     /// # Arguments
-    /// * `packed_b` - Pre-packed B matrix from `DotsPackedMatrix::try_pack[_transposed]`
+    /// * `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::try_pack[_transposed]`
     /// * `c` - Pre-allocated output tensor (m × n)
     /// * `pool` - Pre-constructed thread pool
     ///
@@ -1870,27 +2087,27 @@ where
     /// let a = Tensor::<f32>::try_full(&[1024, 512], 1.0).unwrap();
     /// let b = Tensor::<f32>::try_full(&[256, 512], 1.0).unwrap();
     /// let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
-    /// let mut c = Tensor::<f32>::try_full(&[1024, 256], 0.0).unwrap();
-    /// a.try_angulars_packed_parallel_into(&b_packed, &mut c, &mut pool).unwrap();
+    /// let mut output = Tensor::<f32>::try_full(&[1024, 256], 0.0).unwrap();
+    /// a.try_angulars_packed_parallel_into(&b_packed, &mut output, &mut pool).unwrap();
     /// ```
     fn try_angulars_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
-        c: &mut OutputTensor,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, height, width)?;
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, height, width)?;
 
-        let a_ptr = fu::SyncConstPtr::new(self.as_ptr());
-        let c_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
-        let packed_ptr = fu::SyncConstPtr::new(packed_b.as_ptr());
-        let a_stride = self.stride_bytes(0) as usize;
-        let c_stride = c.stride_bytes(0) as usize;
+        let queries_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let output_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
+        let packed_ptr = fu::SyncConstPtr::new(packed_right.as_ptr());
+        let query_stride = self.stride_bytes(0) as usize;
+        let output_stride = output.stride_bytes(0) as usize;
         let num_threads = pool.threads_count().max(1);
         let rows_per_thread = height.div_ceil(num_threads);
 
@@ -1902,8 +2119,9 @@ where
             }
             let row_end = (row_start + rows_per_thread).min(height);
             unsafe {
-                let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
-                let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut Scalar::SpatialResult;
+                let a_row = (queries_ptr.as_ptr() as *const u8).add(row_start * query_stride) as *const Scalar;
+                let c_row =
+                    (output_ptr.as_ptr() as *mut u8).add(row_start * output_stride) as *mut Scalar::SpatialResult;
                 Scalar::angulars_packed(
                     a_row,
                     packed_ptr.as_ptr(),
@@ -1911,8 +2129,8 @@ where
                     row_end - row_start,
                     width,
                     depth,
-                    a_stride,
-                    c_stride,
+                    query_stride,
+                    output_stride,
                 );
             }
         });
@@ -1922,26 +2140,26 @@ where
     /// Parallel angular distances with allocation.
     fn try_angulars_packed_parallel<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
-        let (width, _) = packed_b.shape();
-        let mut c = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
+        let (width, _) = packed_right.shape();
+        let mut output = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
             &[height, width],
             Scalar::SpatialResult::default(),
         )?;
-        self.try_angulars_packed_parallel_into(packed_b, &mut c, pool)?;
-        Ok(c)
+        self.try_angulars_packed_parallel_into(packed_right, &mut output, pool)?;
+        Ok(output)
     }
 
     /// Convenience method that panics on error.
     fn angulars_packed_parallel<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fu::ThreadPool,
     ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
-        self.try_angulars_packed_parallel(packed_b, pool)
+        self.try_angulars_packed_parallel(packed_right, pool)
             .expect("parallel angulars_packed failed")
     }
 }
@@ -1968,10 +2186,10 @@ where
 /// owned copy. The allocating entry point returns a globally allocated result, since a
 /// bare view carries no allocator of its own.
 pub trait EuclideansPackedOps<Scalar: Euclideans, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    /// Euclidean distances: C = euclidean(self, packed_bᵀ)
+    /// Euclidean distances: C = euclidean(self, packed_rightᵀ)
     ///
     /// self must be 2D (m × k) with contiguous rows.
-    /// packed_b contains B (n × k) packed.
+    /// packed_right contains B (n × k) packed.
     /// Returns C (m × n) using the global allocator.
     ///
     /// Returns `Err` if:
@@ -1981,34 +2199,35 @@ pub trait EuclideansPackedOps<Scalar: Euclideans, const MAX_RANK: usize>: Tensor
     /// - output allocation fails
     fn try_euclideans_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        let mut c = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        let mut output = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
             &[height, width],
             Scalar::SpatialResult::default(),
         )?;
         unsafe {
             Scalar::euclideans_packed(
                 self.as_ptr(),
-                packed_b.as_ptr(),
-                c.as_mut_ptr(),
+                packed_right.as_ptr(),
+                output.as_mut_ptr(),
                 height,
                 width,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.stride_bytes(0) as usize,
+                output.stride_bytes(0) as usize,
             );
         }
-        Ok(c)
+        Ok(output)
     }
 
     /// Convenience method that panics on error.
     fn euclideans_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
-        self.try_euclideans_packed(packed_b).expect("euclideans_packed failed")
+        self.try_euclideans_packed(packed_right)
+            .expect("euclideans_packed failed")
     }
 
     /// Euclidean distances into an existing output, avoiding allocation.
@@ -2018,25 +2237,25 @@ pub trait EuclideansPackedOps<Scalar: Euclideans, const MAX_RANK: usize>: Tensor
     /// kernel overwrites `c` — it need not be pre-initialized.
     fn try_euclideans_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
-        c: &mut OutputTensor,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        output: &mut OutputTensor,
     ) -> Result<(), TensorError>
     where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, height, width)?;
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, height, width)?;
         unsafe {
             Scalar::euclideans_packed(
                 self.as_ptr(),
-                packed_b.as_ptr(),
-                c.as_mut_ptr(),
+                packed_right.as_ptr(),
+                output.as_mut_ptr(),
                 height,
                 width,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.stride_bytes(0) as usize,
+                output.stride_bytes(0) as usize,
             );
         }
         Ok(())
@@ -2064,7 +2283,7 @@ where
     /// Distributes rows of A across threads; each computes its portion of C.
     ///
     /// # Arguments
-    /// * `packed_b` - Pre-packed B matrix from `DotsPackedMatrix::try_pack[_transposed]`
+    /// * `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::try_pack[_transposed]`
     /// * `c` - Pre-allocated output tensor (m × n)
     /// * `pool` - Pre-constructed thread pool
     ///
@@ -2082,27 +2301,27 @@ where
     /// let a = Tensor::<f32>::try_full(&[1024, 512], 1.0).unwrap();
     /// let b = Tensor::<f32>::try_full(&[256, 512], 1.0).unwrap();
     /// let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
-    /// let mut c = Tensor::<f32>::try_full(&[1024, 256], 0.0).unwrap();
-    /// a.try_euclideans_packed_parallel_into(&b_packed, &mut c, &mut pool).unwrap();
+    /// let mut output = Tensor::<f32>::try_full(&[1024, 256], 0.0).unwrap();
+    /// a.try_euclideans_packed_parallel_into(&b_packed, &mut output, &mut pool).unwrap();
     /// ```
     fn try_euclideans_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
-        c: &mut OutputTensor,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, height, width)?;
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, height, width)?;
 
-        let a_ptr = fu::SyncConstPtr::new(self.as_ptr());
-        let c_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
-        let packed_ptr = fu::SyncConstPtr::new(packed_b.as_ptr());
-        let a_stride = self.stride_bytes(0) as usize;
-        let c_stride = c.stride_bytes(0) as usize;
+        let queries_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let output_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
+        let packed_ptr = fu::SyncConstPtr::new(packed_right.as_ptr());
+        let query_stride = self.stride_bytes(0) as usize;
+        let output_stride = output.stride_bytes(0) as usize;
         let num_threads = pool.threads_count().max(1);
         let rows_per_thread = height.div_ceil(num_threads);
 
@@ -2114,8 +2333,9 @@ where
             }
             let row_end = (row_start + rows_per_thread).min(height);
             unsafe {
-                let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
-                let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut Scalar::SpatialResult;
+                let a_row = (queries_ptr.as_ptr() as *const u8).add(row_start * query_stride) as *const Scalar;
+                let c_row =
+                    (output_ptr.as_ptr() as *mut u8).add(row_start * output_stride) as *mut Scalar::SpatialResult;
                 Scalar::euclideans_packed(
                     a_row,
                     packed_ptr.as_ptr(),
@@ -2123,8 +2343,8 @@ where
                     row_end - row_start,
                     width,
                     depth,
-                    a_stride,
-                    c_stride,
+                    query_stride,
+                    output_stride,
                 );
             }
         });
@@ -2134,26 +2354,26 @@ where
     /// Parallel euclidean distances with allocation.
     fn try_euclideans_packed_parallel<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
-        let (width, _) = packed_b.shape();
-        let mut c = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
+        let (width, _) = packed_right.shape();
+        let mut output = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
             &[height, width],
             Scalar::SpatialResult::default(),
         )?;
-        self.try_euclideans_packed_parallel_into(packed_b, &mut c, pool)?;
-        Ok(c)
+        self.try_euclideans_packed_parallel_into(packed_right, &mut output, pool)?;
+        Ok(output)
     }
 
     /// Convenience method that panics on error.
     fn euclideans_packed_parallel<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fu::ThreadPool,
     ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
-        self.try_euclideans_packed_parallel(packed_b, pool)
+        self.try_euclideans_packed_parallel(packed_right, pool)
             .expect("parallel euclideans_packed failed")
     }
 }
@@ -2171,12 +2391,12 @@ where
 // endregion: Euclideans Packed Ops
 
 // region: TensorView
-impl<'a, Scalar: Angulars, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
+impl<'queries, Scalar: Angulars, const MAX_RANK: usize> TensorView<'queries, Scalar, MAX_RANK> {
     /// Computes symmetric angular distance matrix for a set of vectors.
     pub fn try_angulars_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
-        let (n_vectors, _) = validate_symmetric_input(self)?;
+        let (vector_count, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
-            &[n_vectors, n_vectors],
+            &[vector_count, vector_count],
             Scalar::SpatialResult::default(),
         )?;
         self.try_angulars_symmetric_into(&mut result)?;
@@ -2187,35 +2407,35 @@ impl<'a, Scalar: Angulars, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RAN
     /// Only the upper triangle is written.
     pub fn try_angulars_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        c: &mut OutputTensor,
+        output: &mut OutputTensor,
     ) -> Result<(), TensorError>
     where
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
+        let (vector_count, depth) = validate_symmetric_input(self)?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, vector_count, vector_count)?;
         unsafe {
             Scalar::angulars_symmetric(
                 self.as_ptr(),
-                n_vectors,
+                vector_count,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.as_mut_ptr(),
-                c.stride_bytes(0) as usize,
+                output.as_mut_ptr(),
+                output.stride_bytes(0) as usize,
                 0,
-                n_vectors,
+                vector_count,
             );
         }
         Ok(())
     }
 }
 
-impl<'a, Scalar: Euclideans, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
+impl<'queries, Scalar: Euclideans, const MAX_RANK: usize> TensorView<'queries, Scalar, MAX_RANK> {
     /// Computes symmetric euclidean distance matrix for a set of vectors.
     pub fn try_euclideans_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
-        let (n_vectors, _) = validate_symmetric_input(self)?;
+        let (vector_count, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
-            &[n_vectors, n_vectors],
+            &[vector_count, vector_count],
             Scalar::SpatialResult::default(),
         )?;
         self.try_euclideans_symmetric_into(&mut result)?;
@@ -2226,23 +2446,23 @@ impl<'a, Scalar: Euclideans, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_R
     /// Only the upper triangle is written.
     pub fn try_euclideans_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        c: &mut OutputTensor,
+        output: &mut OutputTensor,
     ) -> Result<(), TensorError>
     where
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
+        let (vector_count, depth) = validate_symmetric_input(self)?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, vector_count, vector_count)?;
         unsafe {
             Scalar::euclideans_symmetric(
                 self.as_ptr(),
-                n_vectors,
+                vector_count,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.as_mut_ptr(),
-                c.stride_bytes(0) as usize,
+                output.as_mut_ptr(),
+                output.stride_bytes(0) as usize,
                 0,
-                n_vectors,
+                vector_count,
             );
         }
         Ok(())
@@ -2259,11 +2479,14 @@ pub trait SymmetricAngularsOps<Scalar: Angulars, const MAX_RANK: usize>: TensorR
 
     /// Writes the symmetric angular-distance matrix into pre-allocated output.
     /// Only the upper triangle is written.
-    fn try_angulars_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, c: &mut Out) -> Result<(), TensorError>
+    fn try_angulars_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
+        &self,
+        output: &mut Out,
+    ) -> Result<(), TensorError>
     where
         Out: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        self.view().try_angulars_symmetric_into(c)
+        self.view().try_angulars_symmetric_into(output)
     }
 }
 
@@ -2277,7 +2500,7 @@ impl<Scalar: Angulars, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symme
 /// Blanket-implemented for every `TensorRef<Scalar, R>`, which means
 /// `vectors.try_euclideans_symmetric()` compiles whether `vectors` is an
 /// owned [`Tensor`] or a borrowed view. The kernel only writes the upper
-/// triangle (including the diagonal) — the lower triangle is left alone and
+/// triangle (including the diagonal) — the lower triangle is queries alone and
 /// callers should mirror it themselves if required.
 ///
 /// Prefer this trait when working through a generic `TensorRef`; reach for
@@ -2290,11 +2513,14 @@ pub trait SymmetricEuclideansOps<Scalar: Euclideans, const MAX_RANK: usize>: Ten
 
     /// Writes the symmetric euclidean-distance matrix into pre-allocated output.
     /// Only the upper triangle is written.
-    fn try_euclideans_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, c: &mut Out) -> Result<(), TensorError>
+    fn try_euclideans_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
+        &self,
+        output: &mut Out,
+    ) -> Result<(), TensorError>
     where
         Out: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        self.view().try_euclideans_symmetric_into(c)
+        self.view().try_euclideans_symmetric_into(output)
     }
 }
 
@@ -2320,9 +2546,9 @@ mod tests {
             let a = Tensor::<Scalar>::try_full(&[height, depth], Scalar::one()).unwrap();
             let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
             let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
-            let c = a.angulars_packed(&b_packed);
-            assert_eq!(c.shape(), &[height, width], "shape @ ({height},{width},{depth})");
-            for (i, &v) in c.as_slice().iter().enumerate() {
+            let output = a.angulars_packed(&b_packed);
+            assert_eq!(output.shape(), &[height, width], "shape @ ({height},{width},{depth})");
+            for (i, &v) in output.as_slice().iter().enumerate() {
                 assert!(
                     v.to_f64().abs() <= tol,
                     "({height},{width},{depth})[{i}]: {} vs 0.0 (tol={tol})",
@@ -2333,7 +2559,7 @@ mod tests {
                 Tensor::<Scalar::SpatialResult>::try_full(&[height, width], Scalar::SpatialResult::default()).unwrap();
             a.try_angulars_packed_into(&b_packed, &mut into_tensor).unwrap();
             assert_eq!(
-                c.as_slice(),
+                output.as_slice(),
                 into_tensor.as_slice(),
                 "_into(Tensor) @ ({height},{width},{depth})"
             );
@@ -2342,7 +2568,7 @@ mod tests {
             a.try_angulars_packed_into(&b_packed, &mut into_span_buf.span())
                 .unwrap();
             assert_eq!(
-                c.as_slice(),
+                output.as_slice(),
                 into_span_buf.as_slice(),
                 "_into(span) @ ({height},{width},{depth})"
             );
@@ -2360,9 +2586,9 @@ mod tests {
             let a = Tensor::<Scalar>::try_full(&[height, depth], Scalar::one()).unwrap();
             let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
             let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
-            let c = a.euclideans_packed(&b_packed);
-            assert_eq!(c.shape(), &[height, width], "shape @ ({height},{width},{depth})");
-            for (i, &v) in c.as_slice().iter().enumerate() {
+            let output = a.euclideans_packed(&b_packed);
+            assert_eq!(output.shape(), &[height, width], "shape @ ({height},{width},{depth})");
+            for (i, &v) in output.as_slice().iter().enumerate() {
                 assert!(
                     v.to_f64().abs() <= tol,
                     "({height},{width},{depth})[{i}]: {} vs 0.0 (tol={tol})",
@@ -2373,7 +2599,7 @@ mod tests {
                 Tensor::<Scalar::SpatialResult>::try_full(&[height, width], Scalar::SpatialResult::default()).unwrap();
             a.try_euclideans_packed_into(&b_packed, &mut into_tensor).unwrap();
             assert_eq!(
-                c.as_slice(),
+                output.as_slice(),
                 into_tensor.as_slice(),
                 "_into(Tensor) @ ({height},{width},{depth})"
             );
@@ -2382,7 +2608,7 @@ mod tests {
             a.try_euclideans_packed_into(&b_packed, &mut into_span_buf.span())
                 .unwrap();
             assert_eq!(
-                c.as_slice(),
+                output.as_slice(),
                 into_span_buf.as_slice(),
                 "_into(span) @ ({height},{width},{depth})"
             );

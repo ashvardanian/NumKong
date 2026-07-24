@@ -95,151 +95,193 @@ extern "C" {
 /// # Example
 /// ```
 /// use numkong::Dot;
-/// let a = vec![1.0_f32, 2.0, 3.0];
-/// let b = vec![4.0_f32, 5.0, 6.0];
-/// let result = f32::dot(&a, &b).unwrap();
+/// let first = vec![1.0_f32, 2.0, 3.0];
+/// let second = vec![4.0_f32, 5.0, 6.0];
+/// let result = f32::dot(&first, &second).unwrap();
 /// assert!((result - 32.0).abs() < 1e-5);
 /// ```
 pub trait Dot: StorageElement {
     type Output;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output>;
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output>;
 
     /// Alias for `dot`.
-    fn inner(a: &[Self], b: &[Self]) -> Option<Self::Output> { Self::dot(a, b) }
+    fn inner(first: &[Self], second: &[Self]) -> Option<Self::Output> { Self::dot(first, second) }
 }
 
 impl Dot for f64 {
     type Output = f64;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_dot_f64(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe { nk_dot_f64(first.as_ptr(), second.as_ptr(), first.len(), &mut result) };
         Some(result)
     }
 }
 
 impl Dot for f32 {
     type Output = f64;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_dot_f32(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe { nk_dot_f32(first.as_ptr(), second.as_ptr(), first.len(), &mut result) };
         Some(result)
     }
 }
 
 impl Dot for f16 {
     type Output = f32;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_dot_f16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
+        unsafe {
+            nk_dot_f16(
+                first.as_ptr() as *const u16,
+                second.as_ptr() as *const u16,
+                first.len(),
+                &mut result,
+            )
+        };
         Some(result)
     }
 }
 
 impl Dot for bf16 {
     type Output = f32;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_dot_bf16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
+        unsafe {
+            nk_dot_bf16(
+                first.as_ptr() as *const u16,
+                second.as_ptr() as *const u16,
+                first.len(),
+                &mut result,
+            )
+        };
         Some(result)
     }
 }
 
 impl Dot for i8 {
     type Output = i32;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result: Self::Output = 0;
-        unsafe { nk_dot_i8(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe { nk_dot_i8(first.as_ptr(), second.as_ptr(), first.len(), &mut result) };
         Some(result)
     }
 }
 
 impl Dot for u8 {
     type Output = u32;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result: Self::Output = 0;
-        unsafe { nk_dot_u8(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe { nk_dot_u8(first.as_ptr(), second.as_ptr(), first.len(), &mut result) };
         Some(result)
     }
 }
 
 impl Dot for e4m3 {
     type Output = f32;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_dot_e4m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_dot_e4m3(
+                first.as_ptr() as *const u8,
+                second.as_ptr() as *const u8,
+                first.len(),
+                &mut result,
+            )
+        };
         Some(result)
     }
 }
 
 impl Dot for e5m2 {
     type Output = f32;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_dot_e5m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_dot_e5m2(
+                first.as_ptr() as *const u8,
+                second.as_ptr() as *const u8,
+                first.len(),
+                &mut result,
+            )
+        };
         Some(result)
     }
 }
 
 impl Dot for e2m3 {
     type Output = f32;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_dot_e2m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_dot_e2m3(
+                first.as_ptr() as *const u8,
+                second.as_ptr() as *const u8,
+                first.len(),
+                &mut result,
+            )
+        };
         Some(result)
     }
 }
 
 impl Dot for e3m2 {
     type Output = f32;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_dot_e3m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_dot_e3m2(
+                first.as_ptr() as *const u8,
+                second.as_ptr() as *const u8,
+                first.len(),
+                &mut result,
+            )
+        };
         Some(result)
     }
 }
 
 impl Dot for i4x2 {
     type Output = i32;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result: Self::Output = 0;
-        let element_count = a.len() * 2; // Each i4x2 contains 2 elements
+        let element_count = first.len() * 2; // Each i4x2 contains 2 elements
         unsafe {
             nk_dot_i4(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
+                first.as_ptr() as *const u8,
+                second.as_ptr() as *const u8,
                 element_count,
                 &mut result,
             )
@@ -250,16 +292,16 @@ impl Dot for i4x2 {
 
 impl Dot for u4x2 {
     type Output = u32;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result: Self::Output = 0;
-        let element_count = a.len() * 2; // Each u4x2 contains 2 elements
+        let element_count = first.len() * 2; // Each u4x2 contains 2 elements
         unsafe {
             nk_dot_u4(
-                a.as_ptr() as *const u8,
-                b.as_ptr() as *const u8,
+                first.as_ptr() as *const u8,
+                second.as_ptr() as *const u8,
                 element_count,
                 &mut result,
             )
@@ -270,29 +312,36 @@ impl Dot for u4x2 {
 
 impl Dot for u1x8 {
     type Output = u32;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result: Self::Output = 0;
-        let n = a.len() * 8; // Each u1x8 contains 8 bits
-        unsafe { nk_dot_u1(a.as_ptr() as *const u8, b.as_ptr() as *const u8, n, &mut result) };
+        let n = first.len() * 8; // Each u1x8 contains 8 bits
+        unsafe {
+            nk_dot_u1(
+                first.as_ptr() as *const u8,
+                second.as_ptr() as *const u8,
+                n,
+                &mut result,
+            )
+        };
         Some(result)
     }
 }
 
 impl Dot for f16c {
     type Output = f32c;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result = [0.0f32; 2];
         unsafe {
             nk_dot_f16c(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
+                first.as_ptr() as *const u16,
+                second.as_ptr() as *const u16,
+                first.len(),
                 result.as_mut_ptr(),
             )
         };
@@ -305,16 +354,16 @@ impl Dot for f16c {
 
 impl Dot for bf16c {
     type Output = f32c;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result = [0.0f32; 2];
         unsafe {
             nk_dot_bf16c(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
+                first.as_ptr() as *const u16,
+                second.as_ptr() as *const u16,
+                first.len(),
                 result.as_mut_ptr(),
             )
         };
@@ -327,16 +376,16 @@ impl Dot for bf16c {
 
 impl Dot for f32c {
     type Output = f64c;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result = [0.0f64; 2];
         unsafe {
             nk_dot_f32c(
-                a.as_ptr() as *const f32,
-                b.as_ptr() as *const f32,
-                a.len(),
+                first.as_ptr() as *const f32,
+                second.as_ptr() as *const f32,
+                first.len(),
                 result.as_mut_ptr(),
             )
         };
@@ -349,16 +398,16 @@ impl Dot for f32c {
 
 impl Dot for f64c {
     type Output = f64c;
-    fn dot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result = [0.0f64; 2];
         unsafe {
             nk_dot_f64c(
-                a.as_ptr() as *const f64,
-                b.as_ptr() as *const f64,
-                a.len(),
+                first.as_ptr() as *const f64,
+                second.as_ptr() as *const f64,
+                first.len(),
                 result.as_mut_ptr(),
             )
         };
@@ -388,7 +437,7 @@ pub trait VDot: Dot {
     /// Hermitian inner product. On real-valued types this falls back to `Dot::dot`;
     /// on complex types it returns `∑ᵢ conj(aᵢ) × bᵢ` computed in the widened
     /// accumulator described by `Dot::Output`.
-    fn vdot(a: &[Self], b: &[Self]) -> Option<Self::Output> { Self::dot(a, b) }
+    fn vdot(first: &[Self], second: &[Self]) -> Option<Self::Output> { Self::dot(first, second) }
 }
 
 impl VDot for f64 {}
@@ -406,16 +455,16 @@ impl VDot for u4x2 {}
 impl VDot for u1x8 {}
 
 impl VDot for f16c {
-    fn vdot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn vdot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result = [0.0f32; 2];
         unsafe {
             nk_vdot_f16c(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
+                first.as_ptr() as *const u16,
+                second.as_ptr() as *const u16,
+                first.len(),
                 result.as_mut_ptr(),
             )
         };
@@ -427,16 +476,16 @@ impl VDot for f16c {
 }
 
 impl VDot for bf16c {
-    fn vdot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn vdot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result = [0.0f32; 2];
         unsafe {
             nk_vdot_bf16c(
-                a.as_ptr() as *const u16,
-                b.as_ptr() as *const u16,
-                a.len(),
+                first.as_ptr() as *const u16,
+                second.as_ptr() as *const u16,
+                first.len(),
                 result.as_mut_ptr(),
             )
         };
@@ -448,16 +497,16 @@ impl VDot for bf16c {
 }
 
 impl VDot for f32c {
-    fn vdot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn vdot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result = [0.0f64; 2];
         unsafe {
             nk_vdot_f32c(
-                a.as_ptr() as *const f32,
-                b.as_ptr() as *const f32,
-                a.len(),
+                first.as_ptr() as *const f32,
+                second.as_ptr() as *const f32,
+                first.len(),
                 result.as_mut_ptr(),
             )
         };
@@ -469,16 +518,16 @@ impl VDot for f32c {
 }
 
 impl VDot for f64c {
-    fn vdot(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
+    fn vdot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
+        if first.len() != second.len() {
             return None;
         }
         let mut result = [0.0f64; 2];
         unsafe {
             nk_vdot_f64c(
-                a.as_ptr() as *const f64,
-                b.as_ptr() as *const f64,
-                a.len(),
+                first.as_ptr() as *const f64,
+                second.as_ptr() as *const f64,
+                first.len(),
                 result.as_mut_ptr(),
             )
         };
@@ -507,9 +556,9 @@ mod tests {
         R: FloatLike,
         F: FnOnce(&[Scalar], &[Scalar]) -> Option<R>,
     {
-        let a: Vec<Scalar> = a_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
-        let b: Vec<Scalar> = b_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
-        let result = op(&a, &b).unwrap().to_f64();
+        let first: Vec<Scalar> = a_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
+        let second: Vec<Scalar> = b_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
+        let result = op(&first, &second).unwrap().to_f64();
         assert_close(
             result,
             expected,
@@ -624,8 +673,8 @@ mod tests {
 
     /// Test a complex two-input operation with real + imaginary expected outputs.
     fn check_complex<Scalar, R, F>(
-        a: &[(f32, f32)],
-        b: &[(f32, f32)],
+        first: &[(f32, f32)],
+        second: &[(f32, f32)],
         op: F,
         expected_re: f64,
         expected_im: f64,
@@ -635,8 +684,8 @@ mod tests {
         R: ComplexValue,
         F: FnOnce(&[Scalar], &[Scalar]) -> Option<R>,
     {
-        let a_t: Vec<Scalar> = a.iter().map(|&(re, im)| Scalar::from_real_imag(re, im)).collect();
-        let b_t: Vec<Scalar> = b.iter().map(|&(re, im)| Scalar::from_real_imag(re, im)).collect();
+        let a_t: Vec<Scalar> = first.iter().map(|&(re, im)| Scalar::from_real_imag(re, im)).collect();
+        let b_t: Vec<Scalar> = second.iter().map(|&(re, im)| Scalar::from_real_imag(re, im)).collect();
         let result = op(&a_t, &b_t).unwrap();
         let tol = Scalar::atol() + Scalar::rtol() * expected_re.abs().max(expected_im.abs());
         assert_close(
@@ -694,15 +743,15 @@ mod tests {
         Scalar: ComplexSample,
         <Scalar as Bilinear>::Output: ComplexValue,
     {
-        let mut a = vec![Scalar::zero(); element_count];
-        let mut b = vec![Scalar::zero(); element_count];
-        a[0] = Scalar::one();
-        b[0] = Scalar::one();
+        let mut first = vec![Scalar::zero(); element_count];
+        let mut second = vec![Scalar::zero(); element_count];
+        first[0] = Scalar::one();
+        second[0] = Scalar::one();
         let mut c = vec![Scalar::zero(); element_count * element_count];
         for i in 0..element_count {
             c[i * element_count + i] = Scalar::one();
         }
-        let result = Scalar::bilinear(&a, &b, &c).unwrap();
+        let result = Scalar::bilinear(&first, &second, &c).unwrap();
         let tol = Scalar::atol() + Scalar::rtol();
         assert_close(
             result.real(),
@@ -723,20 +772,20 @@ mod tests {
     #[test]
     fn complex_dot_vdot_bilinear() {
         // [1+2i, 3+4i] · [5+6i, 7+8i]
-        let a = &[1.0_f32, 2.0, 3.0, 4.0];
-        let b = &[5.0_f32, 6.0, 7.0, 8.0];
+        let first = &[1.0_f32, 2.0, 3.0, 4.0];
+        let second = &[5.0_f32, 6.0, 7.0, 8.0];
 
         // dot: (-18, 68)
-        check_complex_dot::<f64c>(a, b, -18.0, 68.0);
-        check_complex_dot::<f32c>(a, b, -18.0, 68.0);
-        check_complex_dot::<f16c>(a, b, -18.0, 68.0);
-        check_complex_dot::<bf16c>(a, b, -18.0, 68.0);
+        check_complex_dot::<f64c>(first, second, -18.0, 68.0);
+        check_complex_dot::<f32c>(first, second, -18.0, 68.0);
+        check_complex_dot::<f16c>(first, second, -18.0, 68.0);
+        check_complex_dot::<bf16c>(first, second, -18.0, 68.0);
 
         // vdot (conjugate): (70, -8)
-        check_complex_vdot::<f64c>(a, b, 70.0, -8.0);
-        check_complex_vdot::<f32c>(a, b, 70.0, -8.0);
-        check_complex_vdot::<f16c>(a, b, 70.0, -8.0);
-        check_complex_vdot::<bf16c>(a, b, 70.0, -8.0);
+        check_complex_vdot::<f64c>(first, second, 70.0, -8.0);
+        check_complex_vdot::<f32c>(first, second, 70.0, -8.0);
+        check_complex_vdot::<f16c>(first, second, 70.0, -8.0);
+        check_complex_vdot::<bf16c>(first, second, 70.0, -8.0);
 
         // bilinear: identity matrix, unit vector → (1, 0)
         check_complex_bilinear_identity::<f64c>(4);
@@ -760,9 +809,9 @@ mod tests {
         // dot([d,d,d], [d,d,d]) = 3 * d * d
         // F32 dot accumulates in F64 internally, so the result is precise.
         let expected = 3.0 * (d as f64) * (d as f64);
-        let a = [d, d, d];
-        let b = [d, d, d];
-        let result = f32::dot(&a, &b).unwrap();
+        let first = [d, d, d];
+        let second = [d, d, d];
+        let result = f32::dot(&first, &second).unwrap();
         assert_close(result as f64, expected, 1e-50, 1e-6, "dot<f32> denormal");
     }
 
@@ -771,9 +820,9 @@ mod tests {
         // Largest f64 denormal: exp=0, mantissa all-ones → ≈ 2.225e-308
         let d = f64::from_bits(0x000F_FFFF_FFFF_FFFF);
         let expected = 3.0 * d * d;
-        let a = [d, d, d];
-        let b = [d, d, d];
-        let result = f64::dot(&a, &b).unwrap();
+        let first = [d, d, d];
+        let second = [d, d, d];
+        let result = f64::dot(&first, &second).unwrap();
         // F64 dot uses Neumaier compensation; the product d*d underflows to 0 in f64
         // since d ≈ 2.2e-308, d*d ≈ 5e-616, which is below f64 min denormal ~5e-324.
         // So expected = 0.0 and result should also be 0.0 — the key test is that

@@ -51,8 +51,8 @@ extern "C" {
     fn nk_maxsim_pack_size_f32(vectors: usize, depth: usize) -> usize;
     fn nk_maxsim_pack_f32(data: *const f32, vectors: usize, depth: usize, stride: usize, packed: *mut u8);
     fn nk_maxsim_packed_f32(
-        q: *const u8,
-        d: *const u8,
+        queries: *const u8,
+        documents: *const u8,
         query_count: usize,
         document_count: usize,
         depth: usize,
@@ -62,8 +62,8 @@ extern "C" {
     fn nk_maxsim_pack_size_f16(vectors: usize, depth: usize) -> usize;
     fn nk_maxsim_pack_f16(data: *const f16, vectors: usize, depth: usize, stride: usize, packed: *mut u8);
     fn nk_maxsim_packed_f16(
-        q: *const u8,
-        d: *const u8,
+        queries: *const u8,
+        documents: *const u8,
         query_count: usize,
         document_count: usize,
         depth: usize,
@@ -73,8 +73,8 @@ extern "C" {
     fn nk_maxsim_pack_size_bf16(vectors: usize, depth: usize) -> usize;
     fn nk_maxsim_pack_bf16(data: *const bf16, vectors: usize, depth: usize, stride: usize, packed: *mut u8);
     fn nk_maxsim_packed_bf16(
-        q: *const u8,
-        d: *const u8,
+        queries: *const u8,
+        documents: *const u8,
         query_count: usize,
         document_count: usize,
         depth: usize,
@@ -116,8 +116,8 @@ pub trait MaxSim: StorageElement + Clone {
     /// - Both buffers must have been produced by `maxsim_pack` with matching depth
     /// - `result` must point to valid, writable memory for `Self::Score`
     unsafe fn maxsim_packed(
-        q: *const u8,
-        d: *const u8,
+        queries: *const u8,
+        documents: *const u8,
         query_count: usize,
         document_count: usize,
         depth: usize,
@@ -145,14 +145,14 @@ impl MaxSim for f32 {
     }
 
     unsafe fn maxsim_packed(
-        q: *const u8,
-        d: *const u8,
+        queries: *const u8,
+        documents: *const u8,
         query_count: usize,
         document_count: usize,
         depth: usize,
         result: *mut Self::Score,
     ) {
-        nk_maxsim_packed_f32(q, d, query_count, document_count, depth, result)
+        nk_maxsim_packed_f32(queries, documents, query_count, document_count, depth, result)
     }
 }
 
@@ -172,14 +172,14 @@ impl MaxSim for f16 {
     }
 
     unsafe fn maxsim_packed(
-        q: *const u8,
-        d: *const u8,
+        queries: *const u8,
+        documents: *const u8,
         query_count: usize,
         document_count: usize,
         depth: usize,
         result: *mut Self::Score,
     ) {
-        nk_maxsim_packed_f16(q, d, query_count, document_count, depth, result)
+        nk_maxsim_packed_f16(queries, documents, query_count, document_count, depth, result)
     }
 }
 
@@ -199,14 +199,14 @@ impl MaxSim for bf16 {
     }
 
     unsafe fn maxsim_packed(
-        q: *const u8,
-        d: *const u8,
+        queries: *const u8,
+        documents: *const u8,
         query_count: usize,
         document_count: usize,
         depth: usize,
         result: *mut Self::Score,
     ) {
-        nk_maxsim_packed_bf16(q, d, query_count, document_count, depth, result)
+        nk_maxsim_packed_bf16(queries, documents, query_count, document_count, depth, result)
     }
 }
 

@@ -1540,7 +1540,7 @@ impl<const N: usize> SliceSpec for &[SliceRange; N] {
     }
 }
 
-impl<A0: SliceArg> SliceSpec for (A0,) {
+impl<Axis0: SliceArg> SliceSpec for (Axis0,) {
     fn apply_layout<const MAX_RANK: usize>(
         self,
         shape: &[usize; MAX_RANK],
@@ -1557,16 +1557,27 @@ impl<A0: SliceArg> SliceSpec for (A0,) {
         if ndim != 1 {
             return Err(TensorError::DimensionMismatch { expected: 1, got: ndim });
         }
-        let mut s = [0usize; MAX_RANK];
-        let mut st = [0isize; MAX_RANK];
-        let (mut nd, mut off) = (0usize, 0isize);
-        self.0.apply(shape[0], strides[0], &mut s, &mut st, &mut nd, &mut off)?;
-        let len = if nd == 0 { 1 } else { s[..nd].iter().product() };
-        Ok((s, st, nd, off, len))
+        let mut sliced_shape = [0usize; MAX_RANK];
+        let mut sliced_strides = [0isize; MAX_RANK];
+        let (mut sliced_ndim, mut byte_offset) = (0usize, 0isize);
+        self.0.apply(
+            shape[0],
+            strides[0],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        let len = if sliced_ndim == 0 {
+            1
+        } else {
+            sliced_shape[..sliced_ndim].iter().product()
+        };
+        Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
 
-impl<A0: SliceArg, A1: SliceArg> SliceSpec for (A0, A1) {
+impl<Axis0: SliceArg, Axis1: SliceArg> SliceSpec for (Axis0, Axis1) {
     fn apply_layout<const MAX_RANK: usize>(
         self,
         shape: &[usize; MAX_RANK],
@@ -1583,17 +1594,35 @@ impl<A0: SliceArg, A1: SliceArg> SliceSpec for (A0, A1) {
         if ndim != 2 {
             return Err(TensorError::DimensionMismatch { expected: 2, got: ndim });
         }
-        let mut s = [0usize; MAX_RANK];
-        let mut st = [0isize; MAX_RANK];
-        let (mut nd, mut off) = (0usize, 0isize);
-        self.0.apply(shape[0], strides[0], &mut s, &mut st, &mut nd, &mut off)?;
-        self.1.apply(shape[1], strides[1], &mut s, &mut st, &mut nd, &mut off)?;
-        let len = if nd == 0 { 1 } else { s[..nd].iter().product() };
-        Ok((s, st, nd, off, len))
+        let mut sliced_shape = [0usize; MAX_RANK];
+        let mut sliced_strides = [0isize; MAX_RANK];
+        let (mut sliced_ndim, mut byte_offset) = (0usize, 0isize);
+        self.0.apply(
+            shape[0],
+            strides[0],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.1.apply(
+            shape[1],
+            strides[1],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        let len = if sliced_ndim == 0 {
+            1
+        } else {
+            sliced_shape[..sliced_ndim].iter().product()
+        };
+        Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
 
-impl<A0: SliceArg, A1: SliceArg, A2: SliceArg> SliceSpec for (A0, A1, A2) {
+impl<Axis0: SliceArg, Axis1: SliceArg, Axis2: SliceArg> SliceSpec for (Axis0, Axis1, Axis2) {
     fn apply_layout<const MAX_RANK: usize>(
         self,
         shape: &[usize; MAX_RANK],
@@ -1610,18 +1639,43 @@ impl<A0: SliceArg, A1: SliceArg, A2: SliceArg> SliceSpec for (A0, A1, A2) {
         if ndim != 3 {
             return Err(TensorError::DimensionMismatch { expected: 3, got: ndim });
         }
-        let mut s = [0usize; MAX_RANK];
-        let mut st = [0isize; MAX_RANK];
-        let (mut nd, mut off) = (0usize, 0isize);
-        self.0.apply(shape[0], strides[0], &mut s, &mut st, &mut nd, &mut off)?;
-        self.1.apply(shape[1], strides[1], &mut s, &mut st, &mut nd, &mut off)?;
-        self.2.apply(shape[2], strides[2], &mut s, &mut st, &mut nd, &mut off)?;
-        let len = if nd == 0 { 1 } else { s[..nd].iter().product() };
-        Ok((s, st, nd, off, len))
+        let mut sliced_shape = [0usize; MAX_RANK];
+        let mut sliced_strides = [0isize; MAX_RANK];
+        let (mut sliced_ndim, mut byte_offset) = (0usize, 0isize);
+        self.0.apply(
+            shape[0],
+            strides[0],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.1.apply(
+            shape[1],
+            strides[1],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.2.apply(
+            shape[2],
+            strides[2],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        let len = if sliced_ndim == 0 {
+            1
+        } else {
+            sliced_shape[..sliced_ndim].iter().product()
+        };
+        Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
 
-impl<A0: SliceArg, A1: SliceArg, A2: SliceArg, A3: SliceArg> SliceSpec for (A0, A1, A2, A3) {
+impl<Axis0: SliceArg, Axis1: SliceArg, Axis2: SliceArg, Axis3: SliceArg> SliceSpec for (Axis0, Axis1, Axis2, Axis3) {
     fn apply_layout<const MAX_RANK: usize>(
         self,
         shape: &[usize; MAX_RANK],
@@ -1638,19 +1692,53 @@ impl<A0: SliceArg, A1: SliceArg, A2: SliceArg, A3: SliceArg> SliceSpec for (A0, 
         if ndim != 4 {
             return Err(TensorError::DimensionMismatch { expected: 4, got: ndim });
         }
-        let mut s = [0usize; MAX_RANK];
-        let mut st = [0isize; MAX_RANK];
-        let (mut nd, mut off) = (0usize, 0isize);
-        self.0.apply(shape[0], strides[0], &mut s, &mut st, &mut nd, &mut off)?;
-        self.1.apply(shape[1], strides[1], &mut s, &mut st, &mut nd, &mut off)?;
-        self.2.apply(shape[2], strides[2], &mut s, &mut st, &mut nd, &mut off)?;
-        self.3.apply(shape[3], strides[3], &mut s, &mut st, &mut nd, &mut off)?;
-        let len = if nd == 0 { 1 } else { s[..nd].iter().product() };
-        Ok((s, st, nd, off, len))
+        let mut sliced_shape = [0usize; MAX_RANK];
+        let mut sliced_strides = [0isize; MAX_RANK];
+        let (mut sliced_ndim, mut byte_offset) = (0usize, 0isize);
+        self.0.apply(
+            shape[0],
+            strides[0],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.1.apply(
+            shape[1],
+            strides[1],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.2.apply(
+            shape[2],
+            strides[2],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.3.apply(
+            shape[3],
+            strides[3],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        let len = if sliced_ndim == 0 {
+            1
+        } else {
+            sliced_shape[..sliced_ndim].iter().product()
+        };
+        Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
 
-impl<A0: SliceArg, A1: SliceArg, A2: SliceArg, A3: SliceArg, A4: SliceArg> SliceSpec for (A0, A1, A2, A3, A4) {
+impl<Axis0: SliceArg, Axis1: SliceArg, Axis2: SliceArg, Axis3: SliceArg, Axis4: SliceArg> SliceSpec
+    for (Axis0, Axis1, Axis2, Axis3, Axis4)
+{
     fn apply_layout<const MAX_RANK: usize>(
         self,
         shape: &[usize; MAX_RANK],
@@ -1667,21 +1755,60 @@ impl<A0: SliceArg, A1: SliceArg, A2: SliceArg, A3: SliceArg, A4: SliceArg> Slice
         if ndim != 5 {
             return Err(TensorError::DimensionMismatch { expected: 5, got: ndim });
         }
-        let mut s = [0usize; MAX_RANK];
-        let mut st = [0isize; MAX_RANK];
-        let (mut nd, mut off) = (0usize, 0isize);
-        self.0.apply(shape[0], strides[0], &mut s, &mut st, &mut nd, &mut off)?;
-        self.1.apply(shape[1], strides[1], &mut s, &mut st, &mut nd, &mut off)?;
-        self.2.apply(shape[2], strides[2], &mut s, &mut st, &mut nd, &mut off)?;
-        self.3.apply(shape[3], strides[3], &mut s, &mut st, &mut nd, &mut off)?;
-        self.4.apply(shape[4], strides[4], &mut s, &mut st, &mut nd, &mut off)?;
-        let len = if nd == 0 { 1 } else { s[..nd].iter().product() };
-        Ok((s, st, nd, off, len))
+        let mut sliced_shape = [0usize; MAX_RANK];
+        let mut sliced_strides = [0isize; MAX_RANK];
+        let (mut sliced_ndim, mut byte_offset) = (0usize, 0isize);
+        self.0.apply(
+            shape[0],
+            strides[0],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.1.apply(
+            shape[1],
+            strides[1],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.2.apply(
+            shape[2],
+            strides[2],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.3.apply(
+            shape[3],
+            strides[3],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.4.apply(
+            shape[4],
+            strides[4],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        let len = if sliced_ndim == 0 {
+            1
+        } else {
+            sliced_shape[..sliced_ndim].iter().product()
+        };
+        Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
 
-impl<A0: SliceArg, A1: SliceArg, A2: SliceArg, A3: SliceArg, A4: SliceArg, A5: SliceArg> SliceSpec
-    for (A0, A1, A2, A3, A4, A5)
+impl<Axis0: SliceArg, Axis1: SliceArg, Axis2: SliceArg, Axis3: SliceArg, Axis4: SliceArg, Axis5: SliceArg> SliceSpec
+    for (Axis0, Axis1, Axis2, Axis3, Axis4, Axis5)
 {
     fn apply_layout<const MAX_RANK: usize>(
         self,
@@ -1699,22 +1826,75 @@ impl<A0: SliceArg, A1: SliceArg, A2: SliceArg, A3: SliceArg, A4: SliceArg, A5: S
         if ndim != 6 {
             return Err(TensorError::DimensionMismatch { expected: 6, got: ndim });
         }
-        let mut s = [0usize; MAX_RANK];
-        let mut st = [0isize; MAX_RANK];
-        let (mut nd, mut off) = (0usize, 0isize);
-        self.0.apply(shape[0], strides[0], &mut s, &mut st, &mut nd, &mut off)?;
-        self.1.apply(shape[1], strides[1], &mut s, &mut st, &mut nd, &mut off)?;
-        self.2.apply(shape[2], strides[2], &mut s, &mut st, &mut nd, &mut off)?;
-        self.3.apply(shape[3], strides[3], &mut s, &mut st, &mut nd, &mut off)?;
-        self.4.apply(shape[4], strides[4], &mut s, &mut st, &mut nd, &mut off)?;
-        self.5.apply(shape[5], strides[5], &mut s, &mut st, &mut nd, &mut off)?;
-        let len = if nd == 0 { 1 } else { s[..nd].iter().product() };
-        Ok((s, st, nd, off, len))
+        let mut sliced_shape = [0usize; MAX_RANK];
+        let mut sliced_strides = [0isize; MAX_RANK];
+        let (mut sliced_ndim, mut byte_offset) = (0usize, 0isize);
+        self.0.apply(
+            shape[0],
+            strides[0],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.1.apply(
+            shape[1],
+            strides[1],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.2.apply(
+            shape[2],
+            strides[2],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.3.apply(
+            shape[3],
+            strides[3],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.4.apply(
+            shape[4],
+            strides[4],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.5.apply(
+            shape[5],
+            strides[5],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        let len = if sliced_ndim == 0 {
+            1
+        } else {
+            sliced_shape[..sliced_ndim].iter().product()
+        };
+        Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
 
-impl<A0: SliceArg, A1: SliceArg, A2: SliceArg, A3: SliceArg, A4: SliceArg, A5: SliceArg, A6: SliceArg> SliceSpec
-    for (A0, A1, A2, A3, A4, A5, A6)
+impl<
+        Axis0: SliceArg,
+        Axis1: SliceArg,
+        Axis2: SliceArg,
+        Axis3: SliceArg,
+        Axis4: SliceArg,
+        Axis5: SliceArg,
+        Axis6: SliceArg,
+    > SliceSpec for (Axis0, Axis1, Axis2, Axis3, Axis4, Axis5, Axis6)
 {
     fn apply_layout<const MAX_RANK: usize>(
         self,
@@ -1732,31 +1912,84 @@ impl<A0: SliceArg, A1: SliceArg, A2: SliceArg, A3: SliceArg, A4: SliceArg, A5: S
         if ndim != 7 {
             return Err(TensorError::DimensionMismatch { expected: 7, got: ndim });
         }
-        let mut s = [0usize; MAX_RANK];
-        let mut st = [0isize; MAX_RANK];
-        let (mut nd, mut off) = (0usize, 0isize);
-        self.0.apply(shape[0], strides[0], &mut s, &mut st, &mut nd, &mut off)?;
-        self.1.apply(shape[1], strides[1], &mut s, &mut st, &mut nd, &mut off)?;
-        self.2.apply(shape[2], strides[2], &mut s, &mut st, &mut nd, &mut off)?;
-        self.3.apply(shape[3], strides[3], &mut s, &mut st, &mut nd, &mut off)?;
-        self.4.apply(shape[4], strides[4], &mut s, &mut st, &mut nd, &mut off)?;
-        self.5.apply(shape[5], strides[5], &mut s, &mut st, &mut nd, &mut off)?;
-        self.6.apply(shape[6], strides[6], &mut s, &mut st, &mut nd, &mut off)?;
-        let len = if nd == 0 { 1 } else { s[..nd].iter().product() };
-        Ok((s, st, nd, off, len))
+        let mut sliced_shape = [0usize; MAX_RANK];
+        let mut sliced_strides = [0isize; MAX_RANK];
+        let (mut sliced_ndim, mut byte_offset) = (0usize, 0isize);
+        self.0.apply(
+            shape[0],
+            strides[0],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.1.apply(
+            shape[1],
+            strides[1],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.2.apply(
+            shape[2],
+            strides[2],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.3.apply(
+            shape[3],
+            strides[3],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.4.apply(
+            shape[4],
+            strides[4],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.5.apply(
+            shape[5],
+            strides[5],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.6.apply(
+            shape[6],
+            strides[6],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        let len = if sliced_ndim == 0 {
+            1
+        } else {
+            sliced_shape[..sliced_ndim].iter().product()
+        };
+        Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
 
 impl<
-        A0: SliceArg,
-        A1: SliceArg,
-        A2: SliceArg,
-        A3: SliceArg,
-        A4: SliceArg,
-        A5: SliceArg,
-        A6: SliceArg,
-        A7: SliceArg,
-    > SliceSpec for (A0, A1, A2, A3, A4, A5, A6, A7)
+        Axis0: SliceArg,
+        Axis1: SliceArg,
+        Axis2: SliceArg,
+        Axis3: SliceArg,
+        Axis4: SliceArg,
+        Axis5: SliceArg,
+        Axis6: SliceArg,
+        Axis7: SliceArg,
+    > SliceSpec for (Axis0, Axis1, Axis2, Axis3, Axis4, Axis5, Axis6, Axis7)
 {
     fn apply_layout<const MAX_RANK: usize>(
         self,
@@ -1774,19 +2007,79 @@ impl<
         if ndim != 8 {
             return Err(TensorError::DimensionMismatch { expected: 8, got: ndim });
         }
-        let mut s = [0usize; MAX_RANK];
-        let mut st = [0isize; MAX_RANK];
-        let (mut nd, mut off) = (0usize, 0isize);
-        self.0.apply(shape[0], strides[0], &mut s, &mut st, &mut nd, &mut off)?;
-        self.1.apply(shape[1], strides[1], &mut s, &mut st, &mut nd, &mut off)?;
-        self.2.apply(shape[2], strides[2], &mut s, &mut st, &mut nd, &mut off)?;
-        self.3.apply(shape[3], strides[3], &mut s, &mut st, &mut nd, &mut off)?;
-        self.4.apply(shape[4], strides[4], &mut s, &mut st, &mut nd, &mut off)?;
-        self.5.apply(shape[5], strides[5], &mut s, &mut st, &mut nd, &mut off)?;
-        self.6.apply(shape[6], strides[6], &mut s, &mut st, &mut nd, &mut off)?;
-        self.7.apply(shape[7], strides[7], &mut s, &mut st, &mut nd, &mut off)?;
-        let len = if nd == 0 { 1 } else { s[..nd].iter().product() };
-        Ok((s, st, nd, off, len))
+        let mut sliced_shape = [0usize; MAX_RANK];
+        let mut sliced_strides = [0isize; MAX_RANK];
+        let (mut sliced_ndim, mut byte_offset) = (0usize, 0isize);
+        self.0.apply(
+            shape[0],
+            strides[0],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.1.apply(
+            shape[1],
+            strides[1],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.2.apply(
+            shape[2],
+            strides[2],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.3.apply(
+            shape[3],
+            strides[3],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.4.apply(
+            shape[4],
+            strides[4],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.5.apply(
+            shape[5],
+            strides[5],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.6.apply(
+            shape[6],
+            strides[6],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        self.7.apply(
+            shape[7],
+            strides[7],
+            &mut sliced_shape,
+            &mut sliced_strides,
+            &mut sliced_ndim,
+            &mut byte_offset,
+        )?;
+        let len = if sliced_ndim == 0 {
+            1
+        } else {
+            sliced_shape[..sliced_ndim].iter().product()
+        };
+        Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
 
@@ -2062,14 +2355,14 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorView<'a, Scalar, M
             "shape and strides must have the same length"
         );
         let ndim = shape.len();
-        let mut s = [0usize; MAX_RANK];
-        let mut st = [0isize; MAX_RANK];
-        s[..ndim].copy_from_slice(shape);
-        st[..ndim].copy_from_slice(strides_bytes);
+        let mut shape_storage = [0usize; MAX_RANK];
+        let mut stride_storage = [0isize; MAX_RANK];
+        shape_storage[..ndim].copy_from_slice(shape);
+        stride_storage[..ndim].copy_from_slice(strides_bytes);
         Self {
             data,
-            shape: s,
-            strides: st,
+            shape: shape_storage,
+            strides: stride_storage,
             ndim,
             _marker: PhantomData,
         }
@@ -2355,14 +2648,14 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorSpan<'a, Scalar, M
             "shape and strides must have the same length"
         );
         let ndim = shape.len();
-        let mut s = [0usize; MAX_RANK];
-        let mut st = [0isize; MAX_RANK];
-        s[..ndim].copy_from_slice(shape);
-        st[..ndim].copy_from_slice(strides_bytes);
+        let mut shape_storage = [0usize; MAX_RANK];
+        let mut stride_storage = [0isize; MAX_RANK];
+        shape_storage[..ndim].copy_from_slice(shape);
+        stride_storage[..ndim].copy_from_slice(strides_bytes);
         Self {
             data,
-            shape: s,
-            strides: st,
+            shape: shape_storage,
+            strides: stride_storage,
             ndim,
             _marker: PhantomData,
         }
@@ -5882,16 +6175,16 @@ where
     /// Returns a new array with the FMA result.
     pub fn fma<const B_MAX_RANK: usize, const C_MAX_RANK: usize>(
         &self,
-        b: &Tensor<Scalar, Global, B_MAX_RANK>,
-        c: &Tensor<Scalar, Global, C_MAX_RANK>,
+        multiplier: &Tensor<Scalar, Global, B_MAX_RANK>,
+        addend: &Tensor<Scalar, Global, C_MAX_RANK>,
         alpha: Scalar::Scalar,
         beta: Scalar::Scalar,
     ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
-        validate_same_shape(self.shape(), b.shape())?;
-        validate_same_shape(self.shape(), c.shape())?;
-        let b_view = rebind_view_rank::<Scalar, MAX_RANK, B_MAX_RANK>(&b.view())?;
-        let c_view = rebind_view_rank::<Scalar, MAX_RANK, C_MAX_RANK>(&c.view())?;
-        self.view().try_fma_tensors(&b_view, &c_view, alpha, beta)
+        validate_same_shape(self.shape(), multiplier.shape())?;
+        validate_same_shape(self.shape(), addend.shape())?;
+        let multiplier_view = rebind_view_rank::<Scalar, MAX_RANK, B_MAX_RANK>(&multiplier.view())?;
+        let addend_view = rebind_view_rank::<Scalar, MAX_RANK, C_MAX_RANK>(&addend.view())?;
+        self.view().try_fma_tensors(&multiplier_view, &addend_view, alpha, beta)
     }
 }
 

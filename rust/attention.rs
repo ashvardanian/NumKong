@@ -641,16 +641,16 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     }
 
     /// Pack `keys`/`values` into a freshly allocated cache using the given allocator.
-    pub fn try_pack_in<KIn, VIn, const MAX_RANK: usize>(
-        keys: &KIn,
-        values: &VIn,
+    pub fn try_pack_in<KeysTensor, ValuesTensor, const MAX_RANK: usize>(
+        keys: &KeysTensor,
+        values: &ValuesTensor,
         depth: usize,
         segment_offsets: &[u32],
         alloc: Alloc,
     ) -> Result<Self, TensorError>
     where
-        KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
-        VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        KeysTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        ValuesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let mut cache = Self::empty_in(alloc);
         cache.try_pack_into(keys, values, depth, segment_offsets)?;
@@ -666,16 +666,16 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     /// Per-segment token counts are derived from `segment_offsets` into storage this cache owns on
     /// its own allocator, reused by every later pack, so the derivation costs no allocation after
     /// the first call.
-    pub fn try_pack_into<KIn, VIn, const MAX_RANK: usize>(
+    pub fn try_pack_into<KeysTensor, ValuesTensor, const MAX_RANK: usize>(
         &mut self,
-        keys: &KIn,
-        values: &VIn,
+        keys: &KeysTensor,
+        values: &ValuesTensor,
         depth: usize,
         segment_offsets: &[u32],
     ) -> Result<(), TensorError>
     where
-        KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
-        VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        KeysTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        ValuesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let Some(PackPlan {
             heads,
@@ -721,15 +721,15 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
 
     /// Ragged attention into a caller-provided `f32` output tensor of the same
     /// logical shape as `q` — `[tokens, heads * depth]`, contiguous rows.
-    pub fn try_attention_into<QIn, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
+    pub fn try_attention_into<QueriesTensor, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
         &self,
-        queries: &QIn,
+        queries: &QueriesTensor,
         query_offsets: &[u32],
         scale: Option<f32>,
         output: &mut OutTensor,
     ) -> Result<(), TensorError>
     where
-        QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        QueriesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutTensor: TensorMut<f32, OUT_MAX_RANK> + ?Sized,
     {
         let QueryPlan {
@@ -839,28 +839,28 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
 // Convenience methods using the Global allocator
 impl<Scalar: Attention> AttentionPackedMatrix<Scalar, Global> {
     /// Pack ragged K/V token matrices using the global allocator.
-    pub fn try_pack<KIn, VIn, const MAX_RANK: usize>(
-        keys: &KIn,
-        values: &VIn,
+    pub fn try_pack<KeysTensor, ValuesTensor, const MAX_RANK: usize>(
+        keys: &KeysTensor,
+        values: &ValuesTensor,
         depth: usize,
         segment_offsets: &[u32],
     ) -> Result<Self, TensorError>
     where
-        KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
-        VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        KeysTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        ValuesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         Self::try_pack_in(keys, values, depth, segment_offsets, Global)
     }
 
     /// Ragged attention allocating a fresh `f32` output tensor.
-    pub fn try_attention<QIn, const MAX_RANK: usize>(
+    pub fn try_attention<QueriesTensor, const MAX_RANK: usize>(
         &self,
-        queries: &QIn,
+        queries: &QueriesTensor,
         query_offsets: &[u32],
         scale: Option<f32>,
     ) -> Result<Tensor<f32>, TensorError>
     where
-        QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        QueriesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let (query_tokens, query_head_count, _) = validate_token_view(queries, self.depth)?;
         let mut output = Tensor::<f32>::try_full(&[query_tokens, query_head_count * self.depth], 0.0)?;
@@ -875,16 +875,16 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     /// Shared by the serial and parallel packs, which differ only in how they fan the task grid
     /// out afterwards. Returns `None` when the geometry packs to nothing, so the caller returns
     /// early rather than handing a zero-length blob to the kernel.
-    fn prepare_pack<KIn, VIn, const MAX_RANK: usize>(
+    fn prepare_pack<KeysTensor, ValuesTensor, const MAX_RANK: usize>(
         &mut self,
-        keys: &KIn,
-        values: &VIn,
+        keys: &KeysTensor,
+        values: &ValuesTensor,
         depth: usize,
         segment_offsets: &[u32],
     ) -> Result<Option<PackPlan>, TensorError>
     where
-        KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
-        VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        KeysTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        ValuesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let (tokens, heads, keys_stride_bytes, values_stride_bytes) = validate_attention_views(keys, values, depth)?;
         let segment_count = validate_offsets(segment_offsets, tokens)?;
@@ -913,15 +913,15 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     ///
     /// Shared by the serial and parallel query paths, which differ only in how they fan the
     /// `(segment, head)` grid out afterwards.
-    fn prepare_query<QIn, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
+    fn prepare_query<QueriesTensor, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
         &self,
-        queries: &QIn,
+        queries: &QueriesTensor,
         output: &OutTensor,
         query_offsets: &[u32],
         scale: Option<f32>,
     ) -> Result<QueryPlan, TensorError>
     where
-        QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        QueriesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutTensor: TensorMut<f32, OUT_MAX_RANK> + ?Sized,
     {
         let (query_tokens, query_head_count, query_stride_bytes) = validate_token_view(queries, self.depth)?;
@@ -959,16 +959,16 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
 impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     /// Ragged attention parallelized over the `(segment, head)` task grid with a
     /// ForkUnion thread pool; each worker computes a contiguous task window.
-    pub fn try_attention_parallel_into<QIn, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
+    pub fn try_attention_parallel_into<QueriesTensor, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
         &self,
-        queries: &QIn,
+        queries: &QueriesTensor,
         query_offsets: &[u32],
         scale: Option<f32>,
         output: &mut OutTensor,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
-        QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        QueriesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutTensor: TensorMut<f32, OUT_MAX_RANK> + ?Sized,
     {
         let QueryPlan {
@@ -1017,15 +1017,15 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     /// Ragged attention parallelized over the task grid, allocating a fresh `f32` output tensor
     /// of shape `[tokens, heads * depth]`. The allocating twin of
     /// [`try_attention_parallel_into`](Self::try_attention_parallel_into).
-    pub fn try_attention_parallel<QIn, const MAX_RANK: usize>(
+    pub fn try_attention_parallel<QueriesTensor, const MAX_RANK: usize>(
         &self,
-        queries: &QIn,
+        queries: &QueriesTensor,
         query_offsets: &[u32],
         scale: Option<f32>,
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<f32>, TensorError>
     where
-        QIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        QueriesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let (query_tokens, query_head_count, _) = validate_token_view(queries, self.depth)?;
         let mut output = Tensor::<f32>::try_full(&[query_tokens, query_head_count * self.depth], 0.0)?;
@@ -1037,17 +1037,17 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     /// task grid with a ForkUnion thread pool. Sizing and any (re)allocation run serially up
     /// front; only the per-task packing fans out. Like [`try_pack_into`](Self::try_pack_into),
     /// packing overwrites, so a grow discards the old contents rather than copying them.
-    pub fn try_pack_parallel_into<KIn, VIn, const MAX_RANK: usize>(
+    pub fn try_pack_parallel_into<KeysTensor, ValuesTensor, const MAX_RANK: usize>(
         &mut self,
-        keys: &KIn,
-        values: &VIn,
+        keys: &KeysTensor,
+        values: &ValuesTensor,
         depth: usize,
         segment_offsets: &[u32],
         pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
-        KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
-        VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        KeysTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        ValuesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let Some(PackPlan {
             heads,
@@ -1121,16 +1121,16 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
 impl<Scalar: Attention> AttentionPackedMatrix<Scalar, Global> {
     /// Pack ragged K/V token matrices in parallel using the global allocator. The allocating
     /// twin of [`try_pack_parallel_into`](Self::try_pack_parallel_into).
-    pub fn try_pack_parallel<KIn, VIn, const MAX_RANK: usize>(
-        keys: &KIn,
-        values: &VIn,
+    pub fn try_pack_parallel<KeysTensor, ValuesTensor, const MAX_RANK: usize>(
+        keys: &KeysTensor,
+        values: &ValuesTensor,
         depth: usize,
         segment_offsets: &[u32],
         pool: &mut fu::ThreadPool,
     ) -> Result<Self, TensorError>
     where
-        KIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
-        VIn: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        KeysTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        ValuesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let mut cache = Self::empty_in(Global);
         cache.try_pack_parallel_into(keys, values, depth, segment_offsets, pool)?;

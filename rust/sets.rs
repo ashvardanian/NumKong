@@ -22,8 +22,8 @@ use crate::dots::{validate_matrix_output, validate_packed_input, validate_symmet
 extern "C" {
 
     fn nk_hammings_packed_u1(
-        a: *const u8,
-        q_packed: *const u8,
+        queries: *const u8,
+        packed: *const u8,
         result: *mut u32,
         height: usize,
         width: usize,
@@ -33,7 +33,7 @@ extern "C" {
     );
     fn nk_hammings_symmetric_u1(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         d: usize,
         stride: usize,
         result: *mut u32,
@@ -43,8 +43,8 @@ extern "C" {
     );
 
     fn nk_jaccards_packed_u1(
-        v: *const u8,
-        q_packed: *const u8,
+        queries: *const u8,
+        packed: *const u8,
         result: *mut f32,
         height: usize,
         width: usize,
@@ -54,7 +54,7 @@ extern "C" {
     );
     fn nk_jaccards_symmetric_u1(
         vectors: *const u8,
-        n_vectors: usize,
+        vector_count: usize,
         d: usize,
         stride: usize,
         result: *mut f32,
@@ -85,11 +85,11 @@ pub trait Hammings: Dots {
     ///
     /// # Safety
     /// - `a` must point to valid memory for the values matrix
-    /// - `q_packed` must be a buffer previously filled by `Dots::dots_pack`
+    /// - `packed` must be a buffer previously filled by `Dots::dots_pack`
     /// - `result` must point to valid memory for `height * width` u32 elements
     unsafe fn hammings_packed(
-        a: *const Self,
-        q_packed: *const u8,
+        queries: *const Self,
+        packed: *const u8,
         result: *mut u32,
         height: usize,
         width: usize,
@@ -102,10 +102,10 @@ pub trait Hammings: Dots {
     ///
     /// # Safety
     /// - `vectors` must point to valid memory for the input matrix
-    /// - `result` must point to valid memory for `n_vectors * n_vectors` u32 elements
+    /// - `result` must point to valid memory for `vector_count * vector_count` u32 elements
     unsafe fn hammings_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut u32,
@@ -117,8 +117,8 @@ pub trait Hammings: Dots {
 
 impl Hammings for u1x8 {
     unsafe fn hammings_packed(
-        a: *const Self,
-        q_packed: *const u8,
+        queries: *const Self,
+        packed: *const u8,
         result: *mut u32,
         height: usize,
         width: usize,
@@ -127,8 +127,8 @@ impl Hammings for u1x8 {
         r_stride: usize,
     ) {
         nk_hammings_packed_u1(
-            a as *const u8,
-            q_packed,
+            queries as *const u8,
+            packed,
             result,
             height,
             width,
@@ -140,7 +140,7 @@ impl Hammings for u1x8 {
 
     unsafe fn hammings_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut u32,
@@ -150,7 +150,7 @@ impl Hammings for u1x8 {
     ) {
         nk_hammings_symmetric_u1(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -186,11 +186,11 @@ pub trait Jaccards: Dots {
     ///
     /// # Safety
     /// - `a` must point to valid memory for the values matrix
-    /// - `q_packed` must be a buffer previously filled by `Dots::dots_pack`
+    /// - `packed` must be a buffer previously filled by `Dots::dots_pack`
     /// - `result` must point to valid memory for `height * width` elements
     unsafe fn jaccards_packed(
-        a: *const Self,
-        q_packed: *const u8,
+        queries: *const Self,
+        packed: *const u8,
         result: *mut Self::JaccardResult,
         height: usize,
         width: usize,
@@ -203,10 +203,10 @@ pub trait Jaccards: Dots {
     ///
     /// # Safety
     /// - `vectors` must point to valid memory for the input matrix
-    /// - `result` must point to valid memory for `n_vectors * n_vectors` elements
+    /// - `result` must point to valid memory for `vector_count * vector_count` elements
     unsafe fn jaccards_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::JaccardResult,
@@ -220,8 +220,8 @@ impl Jaccards for u1x8 {
     type JaccardResult = f32;
 
     unsafe fn jaccards_packed(
-        a: *const Self,
-        q_packed: *const u8,
+        queries: *const Self,
+        packed: *const u8,
         result: *mut Self::JaccardResult,
         height: usize,
         width: usize,
@@ -230,8 +230,8 @@ impl Jaccards for u1x8 {
         r_stride: usize,
     ) {
         nk_jaccards_packed_u1(
-            a as *const u8,
-            q_packed,
+            queries as *const u8,
+            packed,
             result,
             height,
             width,
@@ -243,7 +243,7 @@ impl Jaccards for u1x8 {
 
     unsafe fn jaccards_symmetric(
         vectors: *const Self,
-        n_vectors: usize,
+        vector_count: usize,
         depth: usize,
         stride: usize,
         result: *mut Self::JaccardResult,
@@ -253,7 +253,7 @@ impl Jaccards for u1x8 {
     ) {
         nk_jaccards_symmetric_u1(
             vectors as *const u8,
-            n_vectors,
+            vector_count,
             depth,
             stride,
             result,
@@ -272,31 +272,31 @@ impl<Scalar: Hammings, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
     /// Computes Hamming distances between rows of self and packed B matrix.
     pub fn try_hammings_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<u32, Alloc, MAX_RANK>, TensorError> {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        let mut c = Tensor::try_full_in(&[height, width], u32::default(), self.alloc.clone())?;
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        let mut output = Tensor::try_full_in(&[height, width], u32::default(), self.alloc.clone())?;
         unsafe {
             Scalar::hammings_packed(
                 self.as_ptr(),
-                packed_b.as_ptr(),
-                c.as_mut_ptr(),
+                packed_right.as_ptr(),
+                output.as_mut_ptr(),
                 height,
                 width,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.stride_bytes(0) as usize,
+                output.stride_bytes(0) as usize,
             );
         }
-        Ok(c)
+        Ok(output)
     }
 
     /// Convenience method that panics on error.
     pub fn hammings_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Tensor<u32, Alloc, MAX_RANK> {
-        self.try_hammings_packed(packed_b).expect("hammings_packed failed")
+        self.try_hammings_packed(packed_right).expect("hammings_packed failed")
     }
 }
 
@@ -308,10 +308,10 @@ impl<Scalar: Hammings, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
 /// allocating entry point returns a globally allocated result, since a bare view carries no
 /// allocator of its own.
 pub trait HammingsPackedOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    /// Hamming distances: C = self × packed_bᵀ
+    /// Hamming distances: C = self × packed_rightᵀ
     ///
     /// self must be 2D (m × k) with contiguous rows.
-    /// packed_b contains B (n × k) packed.
+    /// packed_right contains B (n × k) packed.
     /// Returns C (m × n) using the global allocator.
     ///
     /// Returns `Err` if:
@@ -321,31 +321,31 @@ pub trait HammingsPackedOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<
     /// - output allocation fails
     fn try_hammings_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<u32, Global, MAX_RANK>, TensorError> {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        let mut c = Tensor::<u32, Global, MAX_RANK>::try_full(&[height, width], u32::default())?;
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        let mut output = Tensor::<u32, Global, MAX_RANK>::try_full(&[height, width], u32::default())?;
         unsafe {
             Scalar::hammings_packed(
                 self.as_ptr(),
-                packed_b.as_ptr(),
-                c.as_mut_ptr(),
+                packed_right.as_ptr(),
+                output.as_mut_ptr(),
                 height,
                 width,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.stride_bytes(0) as usize,
+                output.stride_bytes(0) as usize,
             );
         }
-        Ok(c)
+        Ok(output)
     }
 
     /// Convenience method that panics on error.
     fn hammings_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Tensor<u32, Global, MAX_RANK> {
-        self.try_hammings_packed(packed_b).expect("hammings_packed failed")
+        self.try_hammings_packed(packed_right).expect("hammings_packed failed")
     }
 
     /// Hamming distances into an existing output, avoiding allocation.
@@ -355,25 +355,25 @@ pub trait HammingsPackedOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<
     /// kernel overwrites `c` — it need not be pre-initialized.
     fn try_hammings_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
-        c: &mut OutputTensor,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        output: &mut OutputTensor,
     ) -> Result<(), TensorError>
     where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<u32, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        validate_matrix_output::<u32, _, OUTPUT_MAX_RANK>(c, height, width)?;
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<u32, _, OUTPUT_MAX_RANK>(output, height, width)?;
         unsafe {
             Scalar::hammings_packed(
                 self.as_ptr(),
-                packed_b.as_ptr(),
-                c.as_mut_ptr(),
+                packed_right.as_ptr(),
+                output.as_mut_ptr(),
                 height,
                 width,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.stride_bytes(0) as usize,
+                output.stride_bytes(0) as usize,
             );
         }
         Ok(())
@@ -389,31 +389,31 @@ impl<Scalar: Jaccards, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
     /// Computes Jaccard distances between rows of self and packed B matrix.
     pub fn try_jaccards_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::JaccardResult, Alloc, MAX_RANK>, TensorError> {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        let mut c = Tensor::try_full_in(&[height, width], Scalar::JaccardResult::default(), self.alloc.clone())?;
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        let mut output = Tensor::try_full_in(&[height, width], Scalar::JaccardResult::default(), self.alloc.clone())?;
         unsafe {
             Scalar::jaccards_packed(
                 self.as_ptr(),
-                packed_b.as_ptr(),
-                c.as_mut_ptr(),
+                packed_right.as_ptr(),
+                output.as_mut_ptr(),
                 height,
                 width,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.stride_bytes(0) as usize,
+                output.stride_bytes(0) as usize,
             );
         }
-        Ok(c)
+        Ok(output)
     }
 
     /// Convenience method that panics on error.
     pub fn jaccards_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Tensor<Scalar::JaccardResult, Alloc, MAX_RANK> {
-        self.try_jaccards_packed(packed_b).expect("jaccards_packed failed")
+        self.try_jaccards_packed(packed_right).expect("jaccards_packed failed")
     }
 }
 
@@ -425,10 +425,10 @@ impl<Scalar: Jaccards, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
 /// allocating entry point returns a globally allocated result, since a bare view carries no
 /// allocator of its own.
 pub trait JaccardsPackedOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    /// Jaccard distances: C = self × packed_bᵀ
+    /// Jaccard distances: C = self × packed_rightᵀ
     ///
     /// self must be 2D (m × k) with contiguous rows.
-    /// packed_b contains B (n × k) packed.
+    /// packed_right contains B (n × k) packed.
     /// Returns C (m × n) using the global allocator.
     ///
     /// Returns `Err` if:
@@ -438,34 +438,34 @@ pub trait JaccardsPackedOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<
     /// - output allocation fails
     fn try_jaccards_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::JaccardResult, Global, MAX_RANK>, TensorError> {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        let mut c = Tensor::<Scalar::JaccardResult, Global, MAX_RANK>::try_full(
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        let mut output = Tensor::<Scalar::JaccardResult, Global, MAX_RANK>::try_full(
             &[height, width],
             Scalar::JaccardResult::default(),
         )?;
         unsafe {
             Scalar::jaccards_packed(
                 self.as_ptr(),
-                packed_b.as_ptr(),
-                c.as_mut_ptr(),
+                packed_right.as_ptr(),
+                output.as_mut_ptr(),
                 height,
                 width,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.stride_bytes(0) as usize,
+                output.stride_bytes(0) as usize,
             );
         }
-        Ok(c)
+        Ok(output)
     }
 
     /// Convenience method that panics on error.
     fn jaccards_packed<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Tensor<Scalar::JaccardResult, Global, MAX_RANK> {
-        self.try_jaccards_packed(packed_b).expect("jaccards_packed failed")
+        self.try_jaccards_packed(packed_right).expect("jaccards_packed failed")
     }
 
     /// Jaccard distances into an existing output, avoiding allocation.
@@ -475,25 +475,25 @@ pub trait JaccardsPackedOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<
     /// kernel overwrites `c` — it need not be pre-initialized.
     fn try_jaccards_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
-        c: &mut OutputTensor,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        output: &mut OutputTensor,
     ) -> Result<(), TensorError>
     where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(c, height, width)?;
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(output, height, width)?;
         unsafe {
             Scalar::jaccards_packed(
                 self.as_ptr(),
-                packed_b.as_ptr(),
-                c.as_mut_ptr(),
+                packed_right.as_ptr(),
+                output.as_mut_ptr(),
                 height,
                 width,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.stride_bytes(0) as usize,
+                output.stride_bytes(0) as usize,
             );
         }
         Ok(())
@@ -523,22 +523,22 @@ where
     /// The kernel overwrites `c`; callers need not pre-initialize.
     fn try_hammings_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
-        c: &mut OutputTensor,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<u32, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        validate_matrix_output::<u32, _, OUTPUT_MAX_RANK>(c, height, width)?;
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<u32, _, OUTPUT_MAX_RANK>(output, height, width)?;
 
-        let a_ptr = fu::SyncConstPtr::new(self.as_ptr());
-        let c_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
-        let packed_ptr = fu::SyncConstPtr::new(packed_b.as_ptr());
-        let a_stride = self.stride_bytes(0) as usize;
-        let c_stride = c.stride_bytes(0) as usize;
+        let queries_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let output_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
+        let packed_ptr = fu::SyncConstPtr::new(packed_right.as_ptr());
+        let query_stride = self.stride_bytes(0) as usize;
+        let output_stride = output.stride_bytes(0) as usize;
         let num_threads = pool.threads_count().max(1);
         let rows_per_thread = height.div_ceil(num_threads);
 
@@ -550,8 +550,8 @@ where
             }
             let row_end = (row_start + rows_per_thread).min(height);
             unsafe {
-                let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
-                let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut u32;
+                let a_row = (queries_ptr.as_ptr() as *const u8).add(row_start * query_stride) as *const Scalar;
+                let c_row = (output_ptr.as_ptr() as *mut u8).add(row_start * output_stride) as *mut u32;
                 Scalar::hammings_packed(
                     a_row,
                     packed_ptr.as_ptr(),
@@ -559,8 +559,8 @@ where
                     row_end - row_start,
                     width,
                     depth,
-                    a_stride,
-                    c_stride,
+                    query_stride,
+                    output_stride,
                 );
             }
         });
@@ -570,23 +570,23 @@ where
     /// Parallel Hamming distances with allocation.
     fn try_hammings_packed_parallel<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<u32, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
-        let (width, _) = packed_b.shape();
-        let mut c = Tensor::<u32, Global, MAX_RANK>::try_full(&[height, width], 0u32)?;
-        self.try_hammings_packed_parallel_into(packed_b, &mut c, pool)?;
-        Ok(c)
+        let (width, _) = packed_right.shape();
+        let mut output = Tensor::<u32, Global, MAX_RANK>::try_full(&[height, width], 0u32)?;
+        self.try_hammings_packed_parallel_into(packed_right, &mut output, pool)?;
+        Ok(output)
     }
 
     /// Convenience method that panics on error.
     fn hammings_packed_parallel<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fu::ThreadPool,
     ) -> Tensor<u32, Global, MAX_RANK> {
-        self.try_hammings_packed_parallel(packed_b, pool)
+        self.try_hammings_packed_parallel(packed_right, pool)
             .expect("parallel hammings_packed failed")
     }
 }
@@ -611,8 +611,8 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
         &self,
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<u32, Global, MAX_RANK>, TensorError> {
-        let (n_vectors, _) = validate_symmetric_input(self)?;
-        let mut result = Tensor::<u32, Global, MAX_RANK>::try_full(&[n_vectors, n_vectors], 0u32)?;
+        let (vector_count, _) = validate_symmetric_input(self)?;
+        let mut result = Tensor::<u32, Global, MAX_RANK>::try_full(&[vector_count, vector_count], 0u32)?;
         self.try_hammings_symmetric_parallel_into(&mut result, pool)?;
         Ok(result)
     }
@@ -621,27 +621,27 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
     /// Only the upper triangle is written.
     pub fn try_hammings_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        c: &mut OutputTensor,
+        output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         OutputTensor: TensorMut<u32, OUTPUT_MAX_RANK>,
     {
-        let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<u32, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
+        let (vector_count, depth) = validate_symmetric_input(self)?;
+        validate_matrix_output::<u32, _, OUTPUT_MAX_RANK>(output, vector_count, vector_count)?;
         let num_threads = pool.threads_count().max(1);
         let vectors_ptr = fu::SyncConstPtr::new(self.as_ptr());
-        let result_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
+        let result_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
         let stride = self.stride_bytes(0) as usize;
-        let result_stride = c.stride_bytes(0) as usize;
+        let result_stride = output.stride_bytes(0) as usize;
 
         pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
-            let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, n_vectors);
+            let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 Scalar::hammings_symmetric(
                     vectors_ptr.as_ptr(),
-                    n_vectors,
+                    vector_count,
                     depth,
                     stride,
                     result_ptr.as_ptr(),
@@ -676,22 +676,22 @@ where
     /// The kernel overwrites `c`; callers need not pre-initialize.
     fn try_jaccards_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
-        c: &mut OutputTensor,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_b)?;
-        validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(c, height, width)?;
+        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(output, height, width)?;
 
-        let a_ptr = fu::SyncConstPtr::new(self.as_ptr());
-        let c_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
-        let packed_ptr = fu::SyncConstPtr::new(packed_b.as_ptr());
-        let a_stride = self.stride_bytes(0) as usize;
-        let c_stride = c.stride_bytes(0) as usize;
+        let queries_ptr = fu::SyncConstPtr::new(self.as_ptr());
+        let output_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
+        let packed_ptr = fu::SyncConstPtr::new(packed_right.as_ptr());
+        let query_stride = self.stride_bytes(0) as usize;
+        let output_stride = output.stride_bytes(0) as usize;
         let num_threads = pool.threads_count().max(1);
         let rows_per_thread = height.div_ceil(num_threads);
 
@@ -703,8 +703,9 @@ where
             }
             let row_end = (row_start + rows_per_thread).min(height);
             unsafe {
-                let a_row = (a_ptr.as_ptr() as *const u8).add(row_start * a_stride) as *const Scalar;
-                let c_row = (c_ptr.as_ptr() as *mut u8).add(row_start * c_stride) as *mut Scalar::JaccardResult;
+                let a_row = (queries_ptr.as_ptr() as *const u8).add(row_start * query_stride) as *const Scalar;
+                let c_row =
+                    (output_ptr.as_ptr() as *mut u8).add(row_start * output_stride) as *mut Scalar::JaccardResult;
                 Scalar::jaccards_packed(
                     a_row,
                     packed_ptr.as_ptr(),
@@ -712,8 +713,8 @@ where
                     row_end - row_start,
                     width,
                     depth,
-                    a_stride,
-                    c_stride,
+                    query_stride,
+                    output_stride,
                 );
             }
         });
@@ -723,26 +724,26 @@ where
     /// Parallel Jaccard distances with allocation.
     fn try_jaccards_packed_parallel<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::JaccardResult, Global, MAX_RANK>, TensorError> {
         let height = self.shape()[0];
-        let (width, _) = packed_b.shape();
-        let mut c = Tensor::<Scalar::JaccardResult, Global, MAX_RANK>::try_full(
+        let (width, _) = packed_right.shape();
+        let mut output = Tensor::<Scalar::JaccardResult, Global, MAX_RANK>::try_full(
             &[height, width],
             Scalar::JaccardResult::default(),
         )?;
-        self.try_jaccards_packed_parallel_into(packed_b, &mut c, pool)?;
-        Ok(c)
+        self.try_jaccards_packed_parallel_into(packed_right, &mut output, pool)?;
+        Ok(output)
     }
 
     /// Convenience method that panics on error.
     fn jaccards_packed_parallel<PackedAlloc: Allocator>(
         &self,
-        packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
+        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fu::ThreadPool,
     ) -> Tensor<Scalar::JaccardResult, Global, MAX_RANK> {
-        self.try_jaccards_packed_parallel(packed_b, pool)
+        self.try_jaccards_packed_parallel(packed_right, pool)
             .expect("parallel jaccards_packed failed")
     }
 }
@@ -770,9 +771,9 @@ where
         &self,
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::JaccardResult, Global, MAX_RANK>, TensorError> {
-        let (n_vectors, _) = validate_symmetric_input(self)?;
+        let (vector_count, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::JaccardResult, Global, MAX_RANK>::try_full(
-            &[n_vectors, n_vectors],
+            &[vector_count, vector_count],
             Scalar::JaccardResult::default(),
         )?;
         self.try_jaccards_symmetric_parallel_into(&mut result, pool)?;
@@ -783,27 +784,27 @@ where
     /// Only the upper triangle is written.
     pub fn try_jaccards_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        c: &mut OutputTensor,
+        output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), TensorError>
     where
         OutputTensor: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
     {
-        let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
+        let (vector_count, depth) = validate_symmetric_input(self)?;
+        validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(output, vector_count, vector_count)?;
         let num_threads = pool.threads_count().max(1);
         let vectors_ptr = fu::SyncConstPtr::new(self.as_ptr());
-        let result_ptr = fu::SyncMutPtr::new(c.as_mut_ptr());
+        let result_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
         let stride = self.stride_bytes(0) as usize;
-        let result_stride = c.stride_bytes(0) as usize;
+        let result_stride = output.stride_bytes(0) as usize;
 
         pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread();
-            let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, n_vectors);
+            let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 Scalar::jaccards_symmetric(
                     vectors_ptr.as_ptr(),
-                    n_vectors,
+                    vector_count,
                     depth,
                     stride,
                     result_ptr.as_ptr(),
@@ -829,11 +830,11 @@ where
 // endregion: Parallel Hammings/Jaccards
 
 // region: TensorView
-impl<'a, Scalar: Hammings, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
+impl<'queries, Scalar: Hammings, const MAX_RANK: usize> TensorView<'queries, Scalar, MAX_RANK> {
     /// Computes symmetric Hamming distance matrix for a set of binary vectors.
     pub fn try_hammings_symmetric(&self) -> Result<Tensor<u32, Global, MAX_RANK>, TensorError> {
-        let (n_vectors, _) = validate_symmetric_input(self)?;
-        let mut result = Tensor::<u32, Global, MAX_RANK>::try_full(&[n_vectors, n_vectors], u32::default())?;
+        let (vector_count, _) = validate_symmetric_input(self)?;
+        let mut result = Tensor::<u32, Global, MAX_RANK>::try_full(&[vector_count, vector_count], u32::default())?;
         self.try_hammings_symmetric_into(&mut result)?;
         Ok(result)
     }
@@ -842,35 +843,35 @@ impl<'a, Scalar: Hammings, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RAN
     /// Only the upper triangle is written.
     pub fn try_hammings_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        c: &mut OutputTensor,
+        output: &mut OutputTensor,
     ) -> Result<(), TensorError>
     where
         OutputTensor: TensorMut<u32, OUTPUT_MAX_RANK>,
     {
-        let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<u32, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
+        let (vector_count, depth) = validate_symmetric_input(self)?;
+        validate_matrix_output::<u32, _, OUTPUT_MAX_RANK>(output, vector_count, vector_count)?;
         unsafe {
             Scalar::hammings_symmetric(
                 self.as_ptr(),
-                n_vectors,
+                vector_count,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.as_mut_ptr(),
-                c.stride_bytes(0) as usize,
+                output.as_mut_ptr(),
+                output.stride_bytes(0) as usize,
                 0,
-                n_vectors,
+                vector_count,
             );
         }
         Ok(())
     }
 }
 
-impl<'a, Scalar: Jaccards, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
+impl<'queries, Scalar: Jaccards, const MAX_RANK: usize> TensorView<'queries, Scalar, MAX_RANK> {
     /// Computes symmetric Jaccard distance matrix for a set of binary vectors.
     pub fn try_jaccards_symmetric(&self) -> Result<Tensor<Scalar::JaccardResult, Global, MAX_RANK>, TensorError> {
-        let (n_vectors, _) = validate_symmetric_input(self)?;
+        let (vector_count, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::<Scalar::JaccardResult, Global, MAX_RANK>::try_full(
-            &[n_vectors, n_vectors],
+            &[vector_count, vector_count],
             Scalar::JaccardResult::default(),
         )?;
         self.try_jaccards_symmetric_into(&mut result)?;
@@ -881,23 +882,23 @@ impl<'a, Scalar: Jaccards, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RAN
     /// Only the upper triangle is written.
     pub fn try_jaccards_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
-        c: &mut OutputTensor,
+        output: &mut OutputTensor,
     ) -> Result<(), TensorError>
     where
         OutputTensor: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
     {
-        let (n_vectors, depth) = validate_symmetric_input(self)?;
-        validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(c, n_vectors, n_vectors)?;
+        let (vector_count, depth) = validate_symmetric_input(self)?;
+        validate_matrix_output::<Scalar::JaccardResult, _, OUTPUT_MAX_RANK>(output, vector_count, vector_count)?;
         unsafe {
             Scalar::jaccards_symmetric(
                 self.as_ptr(),
-                n_vectors,
+                vector_count,
                 depth,
                 self.stride_bytes(0) as usize,
-                c.as_mut_ptr(),
-                c.stride_bytes(0) as usize,
+                output.as_mut_ptr(),
+                output.stride_bytes(0) as usize,
                 0,
-                n_vectors,
+                vector_count,
             );
         }
         Ok(())
@@ -925,11 +926,14 @@ pub trait SymmetricHammingsOps<Scalar: Hammings, const MAX_RANK: usize>: TensorR
 
     /// Writes the symmetric Hamming-distance matrix into pre-allocated output.
     /// Only the upper triangle is written.
-    fn try_hammings_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, c: &mut Out) -> Result<(), TensorError>
+    fn try_hammings_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
+        &self,
+        output: &mut Out,
+    ) -> Result<(), TensorError>
     where
         Out: TensorMut<u32, OUTPUT_MAX_RANK>,
     {
-        self.view().try_hammings_symmetric_into(c)
+        self.view().try_hammings_symmetric_into(output)
     }
 }
 
@@ -956,11 +960,14 @@ pub trait SymmetricJaccardsOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorR
 
     /// Writes the symmetric Jaccard-distance matrix into pre-allocated output.
     /// Only the upper triangle is written.
-    fn try_jaccards_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, c: &mut Out) -> Result<(), TensorError>
+    fn try_jaccards_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
+        &self,
+        output: &mut Out,
+    ) -> Result<(), TensorError>
     where
         Out: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
     {
-        self.view().try_jaccards_symmetric_into(c)
+        self.view().try_jaccards_symmetric_into(output)
     }
 }
 
@@ -1149,9 +1156,9 @@ mod tests {
         let b = Tensor::<u1x8>::try_full(&[16, 64], u1x8(0xFF)).unwrap();
         let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
 
-        let c = a.dots_packed(&b_packed);
-        assert_eq!(c.shape(), &[4, 16]);
-        assert_eq!(c.as_slice()[0], 64);
+        let output = a.dots_packed(&b_packed);
+        assert_eq!(output.shape(), &[4, 16]);
+        assert_eq!(output.as_slice()[0], 64);
 
         let c_h = a.hammings_packed(&b_packed);
         assert_eq!(c_h.shape(), &[4, 16]);
