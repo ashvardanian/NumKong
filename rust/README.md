@@ -316,7 +316,7 @@ The container model is unusual enough that it needs direct documentation.
 - `Matrix<T>` is a rank-2 alias over `Tensor<T, _, 2>`.
 
 The allocator story is explicit.
-`Tensor` and `PackedMatrix` default to `Global`.
+`Tensor` and `PackedMatrix` are generic over `allocator_api2::alloc::Allocator` and default to `numkong::Global`, which forwards to the system heap.
 The underlying layout uses `SIMD_ALIGNMENT == 64` for owned allocations.
 That does _not_ mean callers must align their source buffers manually.
 It means owned outputs and packed payloads are allocated in a SIMD-friendly way when the crate owns them.
@@ -687,12 +687,12 @@ let strides = [64 * 4, 4]; // row-major f32
 let matrix = unsafe { TensorView::<f32>::from_raw_parts(embeddings_ptr, &shape, &strides) };
 ```
 
-Owned containers accept any allocator.
+Owned containers accept any [`allocator-api2`](https://docs.rs/allocator-api2) allocator — the ecosystem's stable stand-in for the unstable `core::alloc::Allocator`.
 A CUDA unified memory allocator looks like this:
 
 ```rust
-use std::alloc::{Allocator, AllocError, Layout};
-use std::ptr::NonNull;
+use allocator_api2::alloc::{AllocError, Allocator, Layout};
+use core::ptr::NonNull;
 use numkong::Vector;
 
 struct CudaAllocator;
@@ -709,6 +709,14 @@ unsafe impl Allocator for CudaAllocator {
 }
 
 let queries = Vector::<f32, CudaAllocator>::try_zeros_in(1024, CudaAllocator).unwrap();
+```
+
+`allocator-api2` also implements the trait for `&A`, so an allocator that is not `Clone` — a bump arena holding a cursor, say — goes in by reference and the container borrows it:
+
+```rust
+let arena = BumpArena::new();
+let queries = Vector::<f32, _>::try_zeros_in(1024, &arena).unwrap();
+let keys = Vector::<f32, _>::try_zeros_in(1024, &arena).unwrap();
 ```
 
 The trait-based scalar API works on any `&[T]` — `Vec`, mmap, arena, or pinned buffer:

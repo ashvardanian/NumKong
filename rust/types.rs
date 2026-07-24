@@ -1572,6 +1572,70 @@ pub trait StorageElement: Sized + Copy + Clone + Default + core::fmt::Debug {
     /// Number of logical dimensions packed into one storage value.
     /// Default: 1 for all normal types. Override for sub-byte packed types.
     fn dimensions_per_value() -> usize { 1 }
+
+    /// Storage values needed to hold `dims` logical dimensions.
+    ///
+    /// Rounds up: a `u1x8` vector of 9 dimensions occupies two bytes, the second only one-eighth
+    /// used. This is the conversion between the two counts a packed container tracks, and every
+    /// bounds check that guards a storage offset must be written in these units — a check counting
+    /// dimensions paired with an offset counting storage values is how an index eight times too
+    /// large passes as in-range.
+    #[inline]
+    fn dims_to_values(dims: usize) -> usize { dims.div_ceil(Self::dimensions_per_value()) }
+
+    /// Split a logical dimension index into the storage value holding it and its position inside.
+    ///
+    /// The counterpart to [`dims_to_values`](Self::dims_to_values), for the callers
+    /// that must reach an individual dimension rather than count them. Pair it with
+    /// [`Packable::unpack`] to read the dimension out, or with [`DimMut`] to write one back.
+    #[inline]
+    fn locate_dim(dim_index: usize) -> DimLocation {
+        let dims_per_value = Self::dimensions_per_value();
+        DimLocation {
+            value_index: dim_index / dims_per_value,
+            sub_index: dim_index % dims_per_value,
+        }
+    }
+}
+
+/// Where one logical dimension lives inside packed storage.
+///
+/// Produced by [`StorageElement::locate_dim`]. For the full-byte types both fields degenerate
+/// — `value_index` is the dimension index and `sub_index` is always zero — so code written against
+/// this stays correct for every scalar without branching on the packing factor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DimLocation {
+    /// Index of the storage value holding the dimension.
+    pub value_index: usize,
+    /// Position of the dimension within that storage value.
+    pub sub_index: usize,
+}
+
+impl DimLocation {
+    /// Read this dimension out of the storage value at `slot`.
+    ///
+    /// # Safety
+    /// `slot` must point at the storage value this location addresses — for a contiguous buffer
+    /// that is `base.add(self.value_index)`, and for a strided one the corresponding stride step.
+    #[inline]
+    pub unsafe fn read_from<Scalar: FloatConvertible>(self, slot: *const Scalar) -> Scalar::DimScalar {
+        unsafe { *slot }.unpack().as_ref()[self.sub_index]
+    }
+
+    /// Write `value` into this dimension, leaving the others sharing the storage value untouched.
+    ///
+    /// Sub-byte dimensions cannot be addressed individually, so a write is a read-modify-write of
+    /// the whole storage value. Doing it here rather than at each call site is what keeps a caller
+    /// from clobbering the neighbours that share the byte.
+    ///
+    /// # Safety
+    /// `slot` must point at the storage value this location addresses, and be writable.
+    #[inline]
+    pub unsafe fn write_into<Scalar: FloatConvertible>(self, slot: *mut Scalar, value: Scalar::DimScalar) {
+        let mut unpacked = unsafe { *slot }.unpack();
+        unpacked.as_mut()[self.sub_index] = value;
+        unsafe { slot.write(Scalar::pack(unpacked)) };
+    }
 }
 
 /// Trait for types that support conversion to/from f32 with classification and constants.

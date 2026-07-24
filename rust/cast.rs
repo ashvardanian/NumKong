@@ -492,6 +492,9 @@ fn blocked_scales_shape_into(shape: &[usize], block_size: usize, out: &mut [usiz
             reason: "last axis must be divisible by the format block size",
         });
     }
+    if shape.len() > out.len() {
+        return Err(TensorError::TooManyRanks { got: shape.len() });
+    }
     out[..shape.len()].copy_from_slice(shape);
     out[shape.len() - 1] = last_extent / block_size;
     Ok(shape.len())
@@ -576,7 +579,7 @@ pub trait DenseToScaledOps<const MAX_RANK: usize>: TensorRef<f32, MAX_RANK> {
             &F::descriptor(),
             count,
         );
-        Ok(ScaledTensor::from_parts(elements, block_scales, tensor_scale))
+        ScaledTensor::try_from_parts(elements, block_scales, tensor_scale)
     }
 }
 
@@ -639,7 +642,7 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
             &G::descriptor(),
             count,
         );
-        Ok(ScaledTensor::from_parts(elements, block_scales, tensor_scale))
+        ScaledTensor::try_from_parts(elements, block_scales, tensor_scale)
     }
 }
 

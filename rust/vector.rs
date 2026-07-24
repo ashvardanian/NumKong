@@ -50,7 +50,7 @@
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use crate::tensor::{alloc_block, layout_for, Allocator, CopyFrom, Fill, Global, Tensor, TensorError};
+use crate::tensor::{alloc_block, alloc_filled, layout_for, Allocator, CopyFrom, Fill, Global, Tensor, TensorError};
 use crate::types::{DimMut, DimRef, FloatConvertible, NumberLike, StorageElement};
 
 // region: VectorIndex — Signed Indexing
@@ -448,10 +448,10 @@ pub struct Vector<Scalar: StorageElement, Alloc: Allocator = Global> {
     /// Pointer to the allocated buffer, typed as `Scalar` for alignment.
     data: NonNull<Scalar>,
     /// Number of logical dimensions. Storage size is derived as
-    /// `dims_to_values::<Scalar>(self.dims)`.
+    /// `Scalar::dims_to_values(self.dims)`.
     dims: usize,
     /// Allocated storage-value capacity (`Scalar` slots) — the ceiling `try_resize` honors and the
-    /// count `Drop` frees. Always `>= dims_to_values::<Scalar>(self.dims)`.
+    /// count `Drop` frees. Always `>= Scalar::dims_to_values(self.dims)`.
     capacity: usize,
     /// Allocator instance.
     alloc: Alloc,
@@ -472,33 +472,39 @@ impl<Scalar: StorageElement, Alloc: Allocator> Drop for Vector<Scalar, Alloc> {
     }
 }
 
-/// Convert dimension count to value count for `Scalar`.
-///
-/// For sub-byte types where `dimensions_per_value() > 1`, this is a ceiling
-/// division via [`usize::div_ceil`].
-#[inline]
-fn dims_to_values<Scalar: StorageElement>(dims: usize) -> usize { dims.div_ceil(Scalar::dimensions_per_value()) }
-
 impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// Construct a vector from raw parts, taking ownership of the allocation.
     ///
     /// # Safety
     /// - `data` must point to an allocation obtained from `alloc`, aligned to
     ///   [`crate::SIMD_ALIGNMENT`], whose backing buffer is sized for the storage count
-    ///   implied by `dims` (`dims_to_values::<Scalar>(dims)` slots of `Scalar`).
+    ///   implied by `dims` (`Scalar::dims_to_values(dims)` slots of `Scalar`).
     /// - The caller must not free the memory — this vector takes ownership.
-    pub unsafe fn from_raw_parts(data: NonNull<Scalar>, dims: usize, alloc: Alloc) -> Self {
+    pub unsafe fn from_raw_parts_in(data: NonNull<Scalar>, dims: usize, alloc: Alloc) -> Self {
         Self {
             data,
             dims,
-            capacity: dims_to_values::<Scalar>(dims),
+            capacity: Scalar::dims_to_values(dims),
+            alloc,
+        }
+    }
+
+    /// An empty vector that owns no allocation, holding only the given allocator.
+    ///
+    /// Cannot fail, because nothing is allocated until the first
+    /// [`try_reserve`](Self::try_reserve) or [`try_resize`](Self::try_resize).
+    pub fn empty_in(alloc: Alloc) -> Self {
+        Self {
+            data: NonNull::dangling(),
+            dims: 0,
+            capacity: 0,
             alloc,
         }
     }
 
     /// Try to create a zero-initialized vector with the given number of dimensions.
     pub fn try_zeros_in(dims: usize, alloc: Alloc) -> Result<Self, TensorError> {
-        let storage_count = dims_to_values::<Scalar>(dims);
+        let storage_count = Scalar::dims_to_values(dims);
         if storage_count == 0 {
             return Ok(Self {
                 data: NonNull::dangling(),
@@ -507,14 +513,11 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
                 alloc,
             });
         }
-        let layout = layout_for::<Scalar>(storage_count)?;
-        let (ptr, actual_bytes) = alloc_block(&alloc, layout)?;
-        let capacity = actual_bytes / core::mem::size_of::<Scalar>();
-        unsafe { core::ptr::write_bytes(ptr.as_ptr(), 0, layout.size()) };
+        let (data, actual_bytes) = alloc_filled(&alloc, storage_count, Scalar::default())?;
         Ok(Self {
-            data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) },
+            data,
             dims,
-            capacity,
+            capacity: actual_bytes / core::mem::size_of::<Scalar>(),
             alloc,
         })
     }
@@ -522,7 +525,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// Try to create a vector filled with `value`.
     pub fn try_full_in(dims: usize, value: Scalar, alloc: Alloc) -> Result<Self, TensorError> {
         let v = Self::try_zeros_in(dims, alloc)?;
-        let storage_count = dims_to_values::<Scalar>(v.dims);
+        let storage_count = Scalar::dims_to_values(v.dims);
         if storage_count > 0 {
             let ptr = v.data.as_ptr();
             for i in 0..storage_count {
@@ -546,7 +549,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// The returned vector's contents are uninitialized. Reading from it before
     /// writing is undefined behavior.
     pub unsafe fn try_empty_in(dims: usize, alloc: Alloc) -> Result<Self, TensorError> {
-        let storage_count = dims_to_values::<Scalar>(dims);
+        let storage_count = Scalar::dims_to_values(dims);
         if storage_count == 0 {
             return Ok(Self {
                 data: NonNull::dangling(),
@@ -606,7 +609,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
     /// Number of underlying storage values (`Scalar` instances).
     #[inline]
-    pub fn size_values(&self) -> usize { dims_to_values::<Scalar>(self.dims) }
+    pub fn size_values(&self) -> usize { Scalar::dims_to_values(self.dims) }
 
     /// Returns true if the vector has zero dimensions.
     #[inline]
@@ -631,7 +634,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// ```
     #[inline]
     pub fn try_resize(&mut self, new_dims: usize) -> Result<(), TensorError> {
-        let needed = dims_to_values::<Scalar>(new_dims);
+        let needed = Scalar::dims_to_values(new_dims);
         if needed > self.capacity {
             return Err(TensorError::CapacityExceeded {
                 requested: needed,
@@ -647,33 +650,25 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// [`try_resize`](Self::try_resize) it MAY move storage, invalidating any raw pointer captured
     /// outside the borrow system. Returns [`TensorError::AllocationFailed`] on failure, unchanged.
     pub fn try_reserve(&mut self, new_dims: usize) -> Result<(), TensorError> {
-        let needed = dims_to_values::<Scalar>(new_dims);
+        let needed = Scalar::dims_to_values(new_dims);
         if needed <= self.capacity {
             return Ok(());
         }
-        let layout = layout_for::<Scalar>(needed)?;
-        let (new_ptr, actual_bytes) = alloc_block(&self.alloc, layout)?;
-        let live = dims_to_values::<Scalar>(self.dims);
-        if live > 0 {
-            // SAFETY: `new_ptr` holds `needed >= live` slots; `self.data` holds the live elements.
-            unsafe {
-                core::ptr::copy_nonoverlapping(
-                    self.data.as_ptr() as *const u8,
-                    new_ptr.as_ptr(),
-                    live * core::mem::size_of::<Scalar>(),
-                );
+        let new_layout = layout_for::<Scalar>(needed)?;
+        // Hand the move to the allocator rather than always allocate-copy-free: an arena can
+        // extend its most recent block in place. `grow` preserves the live elements for us.
+        let block = match self.capacity {
+            0 => self.alloc.allocate(new_layout),
+            current => {
+                let old_layout = layout_for::<Scalar>(current)?;
+                // SAFETY: `self.data` is currently allocated from `self.alloc` with `old_layout`,
+                // and `needed > current` makes the new layout the larger of the two.
+                unsafe { self.alloc.grow(self.data.cast(), old_layout, new_layout) }
             }
         }
-        if self.capacity > 0 {
-            let old_layout = layout_for::<Scalar>(self.capacity).expect("capacity was sized by a successful layout");
-            // SAFETY: `self.data` was allocated with `old_layout` (capacity slots).
-            unsafe {
-                self.alloc
-                    .deallocate(NonNull::new_unchecked(self.data.as_ptr() as *mut u8), old_layout);
-            }
-        }
-        self.data = unsafe { NonNull::new_unchecked(new_ptr.as_ptr() as *mut Scalar) };
-        self.capacity = actual_bytes / core::mem::size_of::<Scalar>();
+        .map_err(|_| TensorError::AllocationFailed)?;
+        self.data = block.cast();
+        self.capacity = block.len() / core::mem::size_of::<Scalar>();
         Ok(())
     }
 
@@ -691,7 +686,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
     /// Size in bytes.
     #[inline]
-    pub fn size_bytes(&self) -> usize { dims_to_values::<Scalar>(self.dims) * core::mem::size_of::<Scalar>() }
+    pub fn size_bytes(&self) -> usize { Scalar::dims_to_values(self.dims) * core::mem::size_of::<Scalar>() }
 
     /// Create an immutable view of this vector.
     #[inline]
@@ -743,12 +738,9 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
             index: 0,
             size: self.dims,
         })?;
-        let dims_per_value = Scalar::dimensions_per_value();
-        let value_index = i / dims_per_value;
-        let sub_index = i % dims_per_value;
-        // SAFETY: value_index < dims_to_values(self.dims), implied by the bounds check above
-        let packed = unsafe { *self.data.as_ptr().add(value_index) };
-        Ok(packed.unpack().as_ref()[sub_index])
+        let location = Scalar::locate_dim(i);
+        // SAFETY: `i < self.dims` from the bounds check above, so the located value is in storage.
+        Ok(unsafe { location.read_from(self.data.as_ptr().add(location.value_index)) })
     }
 
     /// Try to set the logical dimension at `index`.
@@ -780,14 +772,9 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
             index: 0,
             size: self.dims,
         })?;
-        let dims_per_value = Scalar::dimensions_per_value();
-        let value_index = i / dims_per_value;
-        let sub_index = i % dims_per_value;
-        // SAFETY: value_index < dims_to_values(self.dims), implied by the bounds check above
-        let ptr = unsafe { self.data.as_ptr().add(value_index) };
-        let mut unpacked = unsafe { *ptr }.unpack();
-        unpacked.as_mut()[sub_index] = value;
-        unsafe { ptr.write(Scalar::pack(unpacked)) };
+        let location = Scalar::locate_dim(i);
+        // SAFETY: `i < self.dims` from the bounds check above, so the located value is in storage.
+        unsafe { location.write_into(self.data.as_ptr().add(location.value_index), value) };
         Ok(())
     }
 
@@ -795,14 +782,14 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// the packed storage values, not the logical dimensions.
     #[inline]
     pub fn as_slice(&self) -> &[Scalar] {
-        let storage_count = dims_to_values::<Scalar>(self.dims);
+        let storage_count = Scalar::dims_to_values(self.dims);
         unsafe { core::slice::from_raw_parts(self.data.as_ptr(), storage_count) }
     }
 
     /// Get a mutable slice of the underlying storage values.
     #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [Scalar] {
-        let storage_count = dims_to_values::<Scalar>(self.dims);
+        let storage_count = Scalar::dims_to_values(self.dims);
         unsafe { core::slice::from_raw_parts_mut(self.data.as_ptr(), storage_count) }
     }
 
@@ -844,7 +831,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         let alloc = unsafe { core::ptr::read(&self.alloc) };
         core::mem::forget(self);
         // SAFETY: storage size derived from `shape[0]` matches the original allocation.
-        let tensor = unsafe { Tensor::from_raw_parts(data, shape, strides, 1, alloc) };
+        let tensor = unsafe { Tensor::from_raw_parts_in(data, shape, strides, 1, alloc) };
         Ok(tensor)
     }
 }
@@ -924,7 +911,7 @@ impl<AnyIndex: VectorIndex, Scalar: StorageElement, Alloc: Allocator> core::ops:
 impl<Scalar: StorageElement + Clone, Alloc: Allocator + Clone> Vector<Scalar, Alloc> {
     /// Try to clone this vector, returning an error on allocation failure.
     pub fn try_clone(&self) -> Result<Self, TensorError> {
-        let storage_count = dims_to_values::<Scalar>(self.dims);
+        let storage_count = Scalar::dims_to_values(self.dims);
         if storage_count == 0 {
             return Ok(Self {
                 data: NonNull::dangling(),
@@ -1062,12 +1049,12 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
             index: 0,
             size: self.dims,
         })?;
-        let dims_per_value = Scalar::dimensions_per_value();
-        let value_index = i / dims_per_value;
-        let sub_index = i % dims_per_value;
+        let location = Scalar::locate_dim(i);
         // SAFETY: stride * value_index stays within allocation
-        let ptr = unsafe { (self.data as *const u8).offset(self.stride_bytes * value_index as isize) as *const Scalar };
-        Ok(unsafe { *ptr }.unpack().as_ref()[sub_index])
+        let ptr = unsafe {
+            (self.data as *const u8).offset(self.stride_bytes * location.value_index as isize) as *const Scalar
+        };
+        Ok(unsafe { location.read_from(ptr) })
     }
 
     /// Create a reversed view by negating the stride and pointing to the last element.
@@ -1258,14 +1245,11 @@ impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
             index: 0,
             size: self.dims,
         })?;
-        let dims_per_value = Scalar::dimensions_per_value();
-        let value_index = i / dims_per_value;
-        let sub_index = i % dims_per_value;
+        let location = Scalar::locate_dim(i);
         // SAFETY: stride * value_index stays within allocation
-        let ptr = unsafe { (self.data as *mut u8).offset(self.stride_bytes * value_index as isize) as *mut Scalar };
-        let mut unpacked = unsafe { *ptr }.unpack();
-        unpacked.as_mut()[sub_index] = value;
-        unsafe { ptr.write(Scalar::pack(unpacked)) };
+        let ptr =
+            unsafe { (self.data as *mut u8).offset(self.stride_bytes * location.value_index as isize) as *mut Scalar };
+        unsafe { location.write_into(ptr, value) };
         Ok(())
     }
 
@@ -1427,7 +1411,7 @@ impl<'a> VectorSpan<'a, u1x8> {
 
 impl<Scalar: StorageElement, Alloc: Allocator> Fill<Scalar> for Vector<Scalar, Alloc> {
     fn fill_zeros(&mut self) {
-        let storage_count = dims_to_values::<Scalar>(self.dims);
+        let storage_count = Scalar::dims_to_values(self.dims);
         if storage_count == 0 {
             return;
         }
@@ -1438,7 +1422,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Fill<Scalar> for Vector<Scalar, A
 
     fn fill(&mut self, value: Scalar) {
         self.fill_zeros();
-        let storage_count = dims_to_values::<Scalar>(self.dims);
+        let storage_count = Scalar::dims_to_values(self.dims);
         if storage_count == 0 {
             return;
         }
@@ -1470,7 +1454,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Fill<Scalar> for Vector<Scalar, A
 
 impl<Scalar: StorageElement, Alloc: Allocator> CopyFrom<&[Scalar]> for Vector<Scalar, Alloc> {
     fn copy_from(&mut self, source: &[Scalar]) -> Result<(), TensorError> {
-        let storage_count = dims_to_values::<Scalar>(self.dims);
+        let storage_count = Scalar::dims_to_values(self.dims);
         if source.len() != storage_count {
             return Err(TensorError::ShapeMismatch {
                 axis: 0,
@@ -1615,12 +1599,12 @@ impl<'a, Scalar: FloatConvertible> Iterator for VectorViewIterator<'a, Scalar> {
         if self.front >= self.back {
             return None;
         }
-        let dims_per_value = Scalar::dimensions_per_value();
-        let value_index = self.front / dims_per_value;
-        let sub_index = self.front % dims_per_value;
+        let location = Scalar::locate_dim(self.front);
         // SAFETY: value_index < values, stride * value_index within allocation
-        let ptr = unsafe { (self.data as *const u8).offset(self.stride_bytes * value_index as isize) as *const Scalar };
-        let scalar = unsafe { *ptr }.unpack().as_ref()[sub_index];
+        let ptr = unsafe {
+            (self.data as *const u8).offset(self.stride_bytes * location.value_index as isize) as *const Scalar
+        };
+        let scalar = unsafe { location.read_from(ptr) };
         self.front += 1;
         Some(DimRef::new(scalar))
     }
@@ -1642,11 +1626,11 @@ impl<'a, Scalar: FloatConvertible> DoubleEndedIterator for VectorViewIterator<'a
             return None;
         }
         self.back -= 1;
-        let dims_per_value = Scalar::dimensions_per_value();
-        let value_index = self.back / dims_per_value;
-        let sub_index = self.back % dims_per_value;
-        let ptr = unsafe { (self.data as *const u8).offset(self.stride_bytes * value_index as isize) as *const Scalar };
-        Some(DimRef::new(unsafe { *ptr }.unpack().as_ref()[sub_index]))
+        let location = Scalar::locate_dim(self.back);
+        let ptr = unsafe {
+            (self.data as *const u8).offset(self.stride_bytes * location.value_index as isize) as *const Scalar
+        };
+        Some(DimRef::new(unsafe { location.read_from(ptr) }))
     }
 }
 
@@ -1671,13 +1655,12 @@ impl<'a, Scalar: FloatConvertible> Iterator for VectorSpanIterator<'a, Scalar> {
         if self.front >= self.back {
             return None;
         }
-        let dims_per_value = Scalar::dimensions_per_value();
-        let value_index = self.front / dims_per_value;
-        let sub_index = self.front % dims_per_value;
-        let ptr = unsafe { (self.data as *mut u8).offset(self.stride_bytes * value_index as isize) as *mut Scalar };
-        let scalar = unsafe { *ptr }.unpack().as_ref()[sub_index];
+        let location = Scalar::locate_dim(self.front);
+        let ptr =
+            unsafe { (self.data as *mut u8).offset(self.stride_bytes * location.value_index as isize) as *mut Scalar };
+        let scalar = unsafe { location.read_from(ptr) };
         self.front += 1;
-        Some(unsafe { DimMut::new(ptr, sub_index, scalar) })
+        Some(unsafe { DimMut::new(ptr, location.sub_index, scalar) })
     }
 
     #[inline]
@@ -1697,12 +1680,11 @@ impl<'a, Scalar: FloatConvertible> DoubleEndedIterator for VectorSpanIterator<'a
             return None;
         }
         self.back -= 1;
-        let dims_per_value = Scalar::dimensions_per_value();
-        let value_index = self.back / dims_per_value;
-        let sub_index = self.back % dims_per_value;
-        let ptr = unsafe { (self.data as *mut u8).offset(self.stride_bytes * value_index as isize) as *mut Scalar };
-        let scalar = unsafe { *ptr }.unpack().as_ref()[sub_index];
-        Some(unsafe { DimMut::new(ptr, sub_index, scalar) })
+        let location = Scalar::locate_dim(self.back);
+        let ptr =
+            unsafe { (self.data as *mut u8).offset(self.stride_bytes * location.value_index as isize) as *mut Scalar };
+        let scalar = unsafe { location.read_from(ptr) };
+        Some(unsafe { DimMut::new(ptr, location.sub_index, scalar) })
     }
 }
 
