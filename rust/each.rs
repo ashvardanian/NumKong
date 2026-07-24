@@ -2947,6 +2947,90 @@ pub trait EachSwiglu: Sized + StorageElement {
         YOut: TensorMut<Self, RY> + ?Sized;
 }
 
+/// Geometry a fused SwiGLU kernel needs once its operands are validated.
+///
+/// `up_ptr` stays typed as the scalar; each backend casts it to the shape its `extern "C"` entry
+/// point expects, which is where a representation cast belongs.
+struct SwigluPlan<Scalar> {
+    rows: usize,
+    cols: usize,
+    gate_stride: usize,
+    y_stride: usize,
+    up_ptr: *const Scalar,
+    up_stride: usize,
+}
+
+/// Validate a SwiGLU's operands and resolve the kernel geometry.
+///
+/// `None` means there is nothing to compute. The optional `up` projection is checked against the
+/// gate's shape only when present, so the fused two-input and the gate-only forms share one path.
+fn validate_swiglu<Scalar, GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
+    gate: &GIn,
+    up: Option<&UIn>,
+    y: &YOut,
+) -> Result<Option<SwigluPlan<Scalar>>, TensorError>
+where
+    Scalar: StorageElement,
+    GIn: TensorRef<Scalar, RG> + ?Sized,
+    UIn: TensorRef<Scalar, RU> + ?Sized,
+    YOut: TensorRef<Scalar, RY> + ?Sized,
+{
+    if gate.ndim() != 2 {
+        return Err(TensorError::DimensionMismatch {
+            expected: 2,
+            got: gate.ndim(),
+        });
+    }
+    if y.ndim() != 2 {
+        return Err(TensorError::DimensionMismatch {
+            expected: 2,
+            got: y.ndim(),
+        });
+    }
+    if gate.shape() != y.shape() {
+        let axis = if gate.shape()[0] != y.shape()[0] { 0 } else { 1 };
+        return Err(TensorError::ShapeMismatch {
+            axis,
+            expected: gate.shape()[axis],
+            got: y.shape()[axis],
+        });
+    }
+    let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
+    if rows == 0 || cols == 0 {
+        return Ok(None);
+    }
+    let gate_stride = gate.stride_bytes(0) as usize;
+    let y_stride = y.stride_bytes(0) as usize;
+    let (up_ptr, up_stride) = match up {
+        Some(u) => {
+            if u.ndim() != 2 {
+                return Err(TensorError::DimensionMismatch {
+                    expected: 2,
+                    got: u.ndim(),
+                });
+            }
+            if u.shape() != gate.shape() {
+                let axis = if u.shape()[0] != gate.shape()[0] { 0 } else { 1 };
+                return Err(TensorError::ShapeMismatch {
+                    axis,
+                    expected: gate.shape()[axis],
+                    got: u.shape()[axis],
+                });
+            }
+            (u.as_ptr(), u.stride_bytes(0) as usize)
+        }
+        None => (core::ptr::null(), 0usize),
+    };
+    Ok(Some(SwigluPlan {
+        rows,
+        cols,
+        gate_stride,
+        y_stride,
+        up_ptr,
+        up_stride,
+    }))
+}
+
 impl EachSwiglu for f32 {
     fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
         gate: &GIn,
@@ -2959,51 +3043,16 @@ impl EachSwiglu for f32 {
         UIn: TensorRef<Self, RU> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        if gate.ndim() != 2 {
-            return Err(TensorError::DimensionMismatch {
-                expected: 2,
-                got: gate.ndim(),
-            });
-        }
-        if y.ndim() != 2 {
-            return Err(TensorError::DimensionMismatch {
-                expected: 2,
-                got: y.ndim(),
-            });
-        }
-        if gate.shape() != y.shape() {
-            let axis = if gate.shape()[0] != y.shape()[0] { 0 } else { 1 };
-            return Err(TensorError::ShapeMismatch {
-                axis,
-                expected: gate.shape()[axis],
-                got: y.shape()[axis],
-            });
-        }
-        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
-        if rows == 0 || cols == 0 {
+        let Some(SwigluPlan {
+            rows,
+            cols,
+            gate_stride,
+            y_stride,
+            up_ptr,
+            up_stride,
+        }) = validate_swiglu(gate, up, y)?
+        else {
             return Ok(());
-        }
-        let gate_stride = gate.stride_bytes(0) as usize;
-        let y_stride = y.stride_bytes(0) as usize;
-        let (up_ptr, up_stride) = match up {
-            Some(u) => {
-                if u.ndim() != 2 {
-                    return Err(TensorError::DimensionMismatch {
-                        expected: 2,
-                        got: u.ndim(),
-                    });
-                }
-                if u.shape() != gate.shape() {
-                    let axis = if u.shape()[0] != gate.shape()[0] { 0 } else { 1 };
-                    return Err(TensorError::ShapeMismatch {
-                        axis,
-                        expected: gate.shape()[axis],
-                        got: u.shape()[axis],
-                    });
-                }
-                (u.as_ptr(), u.stride_bytes(0) as usize)
-            }
-            None => (core::ptr::null(), 0usize),
         };
         unsafe {
             nk_each_swiglu_f32(
@@ -3034,56 +3083,21 @@ impl EachSwiglu for bf16 {
         UIn: TensorRef<Self, RU> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        if gate.ndim() != 2 {
-            return Err(TensorError::DimensionMismatch {
-                expected: 2,
-                got: gate.ndim(),
-            });
-        }
-        if y.ndim() != 2 {
-            return Err(TensorError::DimensionMismatch {
-                expected: 2,
-                got: y.ndim(),
-            });
-        }
-        if gate.shape() != y.shape() {
-            let axis = if gate.shape()[0] != y.shape()[0] { 0 } else { 1 };
-            return Err(TensorError::ShapeMismatch {
-                axis,
-                expected: gate.shape()[axis],
-                got: y.shape()[axis],
-            });
-        }
-        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
-        if rows == 0 || cols == 0 {
+        let Some(SwigluPlan {
+            rows,
+            cols,
+            gate_stride,
+            y_stride,
+            up_ptr,
+            up_stride,
+        }) = validate_swiglu(gate, up, y)?
+        else {
             return Ok(());
-        }
-        let gate_stride = gate.stride_bytes(0) as usize;
-        let y_stride = y.stride_bytes(0) as usize;
-        let (up_ptr, up_stride) = match up {
-            Some(u) => {
-                if u.ndim() != 2 {
-                    return Err(TensorError::DimensionMismatch {
-                        expected: 2,
-                        got: u.ndim(),
-                    });
-                }
-                if u.shape() != gate.shape() {
-                    let axis = if u.shape()[0] != gate.shape()[0] { 0 } else { 1 };
-                    return Err(TensorError::ShapeMismatch {
-                        axis,
-                        expected: gate.shape()[axis],
-                        got: u.shape()[axis],
-                    });
-                }
-                (u.as_ptr() as *const u16, u.stride_bytes(0) as usize)
-            }
-            None => (core::ptr::null(), 0usize),
         };
         unsafe {
             nk_each_swiglu_bf16(
                 gate.as_ptr() as *const u16,
-                up_ptr,
+                up_ptr as *const u16,
                 y.as_mut_ptr() as *mut u16,
                 rows,
                 cols,
@@ -3109,56 +3123,21 @@ impl EachSwiglu for e4m3 {
         UIn: TensorRef<Self, RU> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        if gate.ndim() != 2 {
-            return Err(TensorError::DimensionMismatch {
-                expected: 2,
-                got: gate.ndim(),
-            });
-        }
-        if y.ndim() != 2 {
-            return Err(TensorError::DimensionMismatch {
-                expected: 2,
-                got: y.ndim(),
-            });
-        }
-        if gate.shape() != y.shape() {
-            let axis = if gate.shape()[0] != y.shape()[0] { 0 } else { 1 };
-            return Err(TensorError::ShapeMismatch {
-                axis,
-                expected: gate.shape()[axis],
-                got: y.shape()[axis],
-            });
-        }
-        let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
-        if rows == 0 || cols == 0 {
+        let Some(SwigluPlan {
+            rows,
+            cols,
+            gate_stride,
+            y_stride,
+            up_ptr,
+            up_stride,
+        }) = validate_swiglu(gate, up, y)?
+        else {
             return Ok(());
-        }
-        let gate_stride = gate.stride_bytes(0) as usize;
-        let y_stride = y.stride_bytes(0) as usize;
-        let (up_ptr, up_stride) = match up {
-            Some(u) => {
-                if u.ndim() != 2 {
-                    return Err(TensorError::DimensionMismatch {
-                        expected: 2,
-                        got: u.ndim(),
-                    });
-                }
-                if u.shape() != gate.shape() {
-                    let axis = if u.shape()[0] != gate.shape()[0] { 0 } else { 1 };
-                    return Err(TensorError::ShapeMismatch {
-                        axis,
-                        expected: gate.shape()[axis],
-                        got: u.shape()[axis],
-                    });
-                }
-                (u.as_ptr() as *const u8, u.stride_bytes(0) as usize)
-            }
-            None => (core::ptr::null(), 0usize),
         };
         unsafe {
             nk_each_swiglu_e4m3(
                 gate.as_ptr() as *const u8,
-                up_ptr,
+                up_ptr as *const u8,
                 y.as_mut_ptr() as *mut u8,
                 rows,
                 cols,
