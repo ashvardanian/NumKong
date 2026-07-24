@@ -274,24 +274,7 @@ impl<Scalar: Hammings, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
         &self,
         packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<u32, Alloc, MAX_RANK>, TensorError> {
-        if self.ndim() != 2 {
-            return Err(TensorError::DimensionMismatch {
-                expected: 2,
-                got: self.ndim(),
-            });
-        }
-        if !self.has_contiguous_rows() {
-            return Err(TensorError::NonContiguousRows);
-        }
-        let (height, depth) = (self.shape()[0], self.shape()[1]);
-        let (width, packed_depth) = packed_b.shape();
-        if depth != packed_depth {
-            return Err(TensorError::ShapeMismatch {
-                axis: 1,
-                expected: packed_depth,
-                got: depth,
-            });
-        }
+        let (height, width, depth) = validate_packed_input(self, packed_b)?;
         let mut c = Tensor::try_full_in(&[height, width], u32::default(), self.alloc.clone())?;
         unsafe {
             Scalar::hammings_packed(
@@ -408,24 +391,7 @@ impl<Scalar: Jaccards, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
         &self,
         packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::JaccardResult, Alloc, MAX_RANK>, TensorError> {
-        if self.ndim() != 2 {
-            return Err(TensorError::DimensionMismatch {
-                expected: 2,
-                got: self.ndim(),
-            });
-        }
-        if !self.has_contiguous_rows() {
-            return Err(TensorError::NonContiguousRows);
-        }
-        let (height, depth) = (self.shape()[0], self.shape()[1]);
-        let (width, packed_depth) = packed_b.shape();
-        if depth != packed_depth {
-            return Err(TensorError::ShapeMismatch {
-                axis: 1,
-                expected: packed_depth,
-                got: depth,
-            });
-        }
+        let (height, width, depth) = validate_packed_input(self, packed_b)?;
         let mut c = Tensor::try_full_in(&[height, width], Scalar::JaccardResult::default(), self.alloc.clone())?;
         unsafe {
             Scalar::jaccards_packed(

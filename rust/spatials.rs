@@ -1549,24 +1549,7 @@ impl<Scalar: Angulars, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
         &self,
         packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::SpatialResult, Alloc, MAX_RANK>, TensorError> {
-        if self.ndim() != 2 {
-            return Err(TensorError::DimensionMismatch {
-                expected: 2,
-                got: self.ndim(),
-            });
-        }
-        if !self.has_contiguous_rows() {
-            return Err(TensorError::NonContiguousRows);
-        }
-        let (height, depth) = (self.shape()[0], self.shape()[1]);
-        let (width, packed_depth) = packed_b.shape();
-        if depth != packed_depth {
-            return Err(TensorError::ShapeMismatch {
-                axis: 1,
-                expected: packed_depth,
-                got: depth,
-            });
-        }
+        let (height, width, depth) = validate_packed_input(self, packed_b)?;
         let mut c = Tensor::try_full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
         unsafe {
             Scalar::angulars_packed(
@@ -1598,24 +1581,7 @@ impl<Scalar: Euclideans, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor
         &self,
         packed_b: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::SpatialResult, Alloc, MAX_RANK>, TensorError> {
-        if self.ndim() != 2 {
-            return Err(TensorError::DimensionMismatch {
-                expected: 2,
-                got: self.ndim(),
-            });
-        }
-        if !self.has_contiguous_rows() {
-            return Err(TensorError::NonContiguousRows);
-        }
-        let (height, depth) = (self.shape()[0], self.shape()[1]);
-        let (width, packed_depth) = packed_b.shape();
-        if depth != packed_depth {
-            return Err(TensorError::ShapeMismatch {
-                axis: 1,
-                expected: packed_depth,
-                got: depth,
-            });
-        }
+        let (height, width, depth) = validate_packed_input(self, packed_b)?;
         let mut c = Tensor::try_full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
         unsafe {
             Scalar::euclideans_packed(
