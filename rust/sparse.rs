@@ -207,6 +207,8 @@ pub trait SparseDot: Sized {
     /// Computes sparse dot product.
     ///
     /// Returns the sum of `a_weights[i] × b_weights[j]` for all pairs where `a_indices[i] == b_indices[j]`.
+    /// A sparse vector carries one weight per index, so a weights slice shorter than its index
+    /// slice describes no vector at all and yields the default rather than reading past its end.
     fn sparse_dot(
         a_indices: &[Self],
         b_indices: &[Self],
@@ -220,6 +222,10 @@ impl SparseDot for u16 {
     type Output = f32;
 
     fn sparse_dot(a_indices: &[Self], b_indices: &[Self], a_weights: &[bf16], b_weights: &[bf16]) -> Self::Output {
+        // The index lengths below bound the kernel's reads of BOTH arrays of each vector.
+        if a_weights.len() < a_indices.len() || b_weights.len() < b_indices.len() {
+            return Self::Output::default();
+        }
         let mut product: f32 = 0.0;
         unsafe {
             nk_sparse_dot_u16bf16(
@@ -241,6 +247,10 @@ impl SparseDot for u32 {
     type Output = f64;
 
     fn sparse_dot(a_indices: &[Self], b_indices: &[Self], a_weights: &[f32], b_weights: &[f32]) -> Self::Output {
+        // The index lengths below bound the kernel's reads of BOTH arrays of each vector.
+        if a_weights.len() < a_indices.len() || b_weights.len() < b_indices.len() {
+            return Self::Output::default();
+        }
         let mut product: f64 = 0.0;
         unsafe {
             nk_sparse_dot_u32f32(
@@ -474,6 +484,26 @@ mod tests {
         // Disjoint sets → 0
         let result = u32::sparse_dot(&[1, 2], &[3, 4], &[1.0, 1.0], &[1.0, 1.0]);
         assert!(result.abs() < 0.01, "sparse_dot disjoint: {result}");
+    }
+
+    #[test]
+    fn sparse_dot_rejects_short_weights() {
+        // The index lengths bound the kernel's reads of both arrays, so a weights slice shorter
+        // than its index slice used to be read past its end.
+        let indices: [u32; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
+        assert_eq!(u32::sparse_dot(&indices, &indices, &[1.0], &[1.0]), 0.0);
+        assert_eq!(
+            u16::sparse_dot(
+                &[1_u16, 2, 3],
+                &[1_u16, 2, 3],
+                &[bf16::from_f32(1.0)],
+                &[bf16::from_f32(1.0)]
+            ),
+            0.0
+        );
+        // Matching lengths still compute: three shared indices, unit weights.
+        let ones = [1.0_f32; 8];
+        assert_eq!(u32::sparse_dot(&indices, &indices, &ones, &ones), 8.0);
     }
 
     // endregion
