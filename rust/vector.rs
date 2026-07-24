@@ -47,13 +47,10 @@
 //! assert_eq!(v.try_get(1_usize).unwrap(), 0);
 //! ```
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use crate::tensor::{layout_for, Allocator, CopyFrom, Fill, Global, Tensor, TensorError};
+use crate::tensor::{alloc_block, layout_for, Allocator, CopyFrom, Fill, Global, Tensor, TensorError};
 use crate::types::{DimMut, DimRef, FloatConvertible, NumberLike, StorageElement};
 
 // region: VectorIndex — Signed Indexing
@@ -465,19 +462,13 @@ unsafe impl<Scalar: StorageElement + Sync, Alloc: Allocator + Sync> Sync for Vec
 
 impl<Scalar: StorageElement, Alloc: Allocator> Drop for Vector<Scalar, Alloc> {
     fn drop(&mut self) {
-        let storage_count = self.capacity;
-        if storage_count == 0 {
+        if self.capacity == 0 {
             return;
         }
-        // SAFETY: data was allocated with this layout in try_zeros_in,
-        // and storage_count > 0 guarantees the pointer is non-dangling.
-        unsafe {
-            crate::tensor::dealloc_aligned(
-                &self.alloc,
-                NonNull::new_unchecked(self.data.as_ptr() as *mut u8),
-                storage_count * core::mem::size_of::<Scalar>(),
-            );
-        }
+        // `capacity` came from a layout that succeeded, so rebuilding it cannot fail; a non-zero
+        // capacity guarantees the pointer is a live allocation rather than the dangling sentinel.
+        let layout = layout_for::<Scalar>(self.capacity).expect("capacity was sized by a successful layout");
+        unsafe { self.alloc.deallocate(self.data.cast(), layout) };
     }
 }
 
@@ -517,12 +508,13 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
             });
         }
         let layout = layout_for::<Scalar>(storage_count)?;
-        let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
+        let (ptr, actual_bytes) = alloc_block(&alloc, layout)?;
+        let capacity = actual_bytes / core::mem::size_of::<Scalar>();
         unsafe { core::ptr::write_bytes(ptr.as_ptr(), 0, layout.size()) };
         Ok(Self {
             data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) },
             dims,
-            capacity: storage_count,
+            capacity,
             alloc,
         })
     }
@@ -564,11 +556,12 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
             });
         }
         let layout = layout_for::<Scalar>(storage_count)?;
-        let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
+        let (ptr, actual_bytes) = alloc_block(&alloc, layout)?;
+        let capacity = actual_bytes / core::mem::size_of::<Scalar>();
         Ok(Self {
             data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) },
             dims,
-            capacity: storage_count,
+            capacity,
             alloc,
         })
     }
@@ -659,7 +652,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
             return Ok(());
         }
         let layout = layout_for::<Scalar>(needed)?;
-        let new_ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
+        let (new_ptr, actual_bytes) = alloc_block(&self.alloc, layout)?;
         let live = dims_to_values::<Scalar>(self.dims);
         if live > 0 {
             // SAFETY: `new_ptr` holds `needed >= live` slots; `self.data` holds the live elements.
@@ -680,7 +673,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
             }
         }
         self.data = unsafe { NonNull::new_unchecked(new_ptr.as_ptr() as *mut Scalar) };
-        self.capacity = needed;
+        self.capacity = actual_bytes / core::mem::size_of::<Scalar>();
         Ok(())
     }
 
@@ -941,14 +934,15 @@ impl<Scalar: StorageElement + Clone, Alloc: Allocator + Clone> Vector<Scalar, Al
             });
         }
         let layout = layout_for::<Scalar>(storage_count)?;
-        let ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
+        let (ptr, actual_bytes) = alloc_block(&self.alloc, layout)?;
+        let capacity = actual_bytes / core::mem::size_of::<Scalar>();
         unsafe {
             core::ptr::copy_nonoverlapping(self.data.as_ptr() as *const u8, ptr.as_ptr(), layout.size());
         }
         Ok(Self {
             data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) },
             dims: self.dims,
-            capacity: storage_count,
+            capacity,
             alloc: self.alloc.clone(),
         })
     }

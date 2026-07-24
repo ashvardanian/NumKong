@@ -39,9 +39,6 @@
 //! let score = queries_packed.try_score(&docs_packed).unwrap();
 //! ```
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
 use core::marker::PhantomData;
 
 use crate::tensor::{Allocator, Global, PackedBuffer, TensorError, TensorRef};

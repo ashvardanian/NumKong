@@ -21,19 +21,29 @@
 //!
 //! # Custom allocators
 //!
-//! [`Tensor`] is generic over any type that implements the [`Allocator`] trait.
-//! The default [`Global`] allocator forwards to the system allocator, but arena
-//! allocators, pool allocators, or pinned-memory allocators can be plugged in
-//! via the `try_*_in` constructors:
+//! [`Tensor`] is generic over [`allocator_api2::alloc::Allocator`], the ecosystem's stable
+//! stand-in for the unstable `core::alloc::Allocator`. Any allocator written against that trait —
+//! a bump arena, a pool, a pinned-memory allocator — plugs into the `try_*_in` constructors with
+//! no adapter, and because `allocator-api2` also implements the trait for `&A`, an arena that is
+//! not `Clone` goes in by reference. [`Global`], the default, forwards to the system heap.
 //!
-//! ```rust,ignore
-//! use numkong::tensor::{Tensor, Allocator};
+//! ```rust
+//! use allocator_api2::alloc::{AllocError, Allocator, Layout};
+//! use core::ptr::NonNull;
+//! use numkong::{Global, Tensor};
 //!
-//! struct MyArena { /* ... */ }
-//! unsafe impl Allocator for MyArena { /* ... */ }
+//! struct MyArena;
+//! unsafe impl Allocator for MyArena {
+//!     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
+//!         Global.allocate(layout)
+//!     }
+//!     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
+//!         unsafe { Global.deallocate(ptr, layout) }
+//!     }
+//! }
 //!
-//! let arena = MyArena::new();
-//! let tensor = Tensor::<f32, _>::try_full_in(&[1024, 1024], 0.0, arena).unwrap();
+//! let arena = MyArena;
+//! let owned = Tensor::<f32, _>::try_full_in(&[1024, 1024], 0.0, &arena).unwrap();
 //! ```
 //!
 //! # Slicing and views
@@ -59,6 +69,8 @@
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
+
+pub use allocator_api2::alloc::{AllocError, Allocator};
 
 use core::marker::PhantomData;
 use core::ops::{Index, IndexMut};
@@ -113,76 +125,35 @@ pub(crate) fn shape_product(shape: &[usize]) -> Result<usize, TensorError> {
     Ok(total)
 }
 
-/// Frees a `SIMD_ALIGNMENT`-aligned allocation of `byte_len` bytes through `alloc`.
+/// The default allocator, forwarding to the heap registered with `#[global_allocator]`.
 ///
-/// # Safety
-/// - `data` must have been allocated by `alloc` with `byte_len` bytes at `SIMD_ALIGNMENT`.
-/// - Call only when `byte_len > 0`; the caller owns the empty-allocation guard.
-pub(crate) unsafe fn dealloc_aligned<A: Allocator>(alloc: &A, data: NonNull<u8>, byte_len: usize) {
-    let layout = core::alloc::Layout::from_size_align_unchecked(byte_len, SIMD_ALIGNMENT);
-    alloc.deallocate(data, layout);
-}
-
-/// Memory allocator trait for custom allocation strategies.
+/// The [`Allocator`] trait itself comes from `allocator-api2`, so an arena, a pool, or a
+/// pinned-memory allocator written against that trait — including by reference, since it provides
+/// `impl Allocator for &A` — drops into [`Tensor`] and the packed containers with no adapter.
+/// This type only names the default.
 ///
-/// Implement this trait to use custom allocators (arena, pool, etc.) with
-/// [`Tensor`] and [`crate::dots::DotsPackedMatrix`].
-///
-/// # Safety
-///
-/// Implementations must ensure:
-/// - `allocate` returns a valid, properly aligned pointer on success
-/// - `deallocate` is called with the same `Layout` used in `allocate`
-/// - The returned memory is not aliased
-pub unsafe trait Allocator {
-    /// Allocates memory with the given layout.
-    ///
-    /// # Contract
-    ///
-    /// On success returns `Some(ptr)` where `ptr` satisfies the requested
-    /// size and alignment — at least [`SIMD_ALIGNMENT`] when called from
-    /// [`Tensor`] constructors. Returns `None` when the allocator cannot
-    /// fulfil the request — typical causes are out-of-memory conditions or
-    /// an alignment the backing allocator cannot provide. Callers must
-    /// propagate this `None` as [`TensorError::AllocationFailed`].
-    fn allocate(&self, layout: core::alloc::Layout) -> Option<NonNull<u8>>;
-
-    /// Deallocates memory previously allocated with `allocate`.
-    ///
-    /// # Safety
-    ///
-    /// - `ptr` must have been returned by a previous call to `allocate` on
-    ///   the *same* allocator instance, or an allocator that shares its
-    ///   backing storage.
-    /// - `layout` must match the `Layout` used at allocation time: same
-    ///   size and same alignment.
-    /// - The memory must not be accessed after deallocation.
-    /// - `ptr` must not be deallocated twice.
-    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: core::alloc::Layout);
-}
-
-/// Global allocator using the system allocator.
+/// Without the `alloc` feature there is no heap to forward to and every request fails. That is a
+/// supported configuration rather than a broken one: the borrowed API — the scalar traits over
+/// `&[T]`, the `*_into` verbs writing into caller-provided spans, and the `from_raw_parts` views —
+/// never allocates, so only the owning containers become unusable.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Global;
 
 unsafe impl Allocator for Global {
     #[inline]
-    fn allocate(&self, layout: core::alloc::Layout) -> Option<NonNull<u8>> {
+    fn allocate(&self, layout: core::alloc::Layout) -> Result<NonNull<[u8]>, AllocError> {
         if layout.size() == 0 {
-            return Some(NonNull::dangling());
+            return Ok(NonNull::slice_from_raw_parts(NonNull::dangling(), 0));
         }
-        // The global heap is only reachable with the `alloc` crate; without it, `Global`
-        // exists but cannot allocate — bring a custom `Allocator`, or use the borrowed/`_into` API.
         #[cfg(feature = "alloc")]
         {
-            unsafe {
-                let ptr = alloc::alloc::alloc(layout);
-                NonNull::new(ptr)
-            }
+            // SAFETY: `layout` is non-zero in size, checked directly above.
+            let ptr = NonNull::new(unsafe { alloc::alloc::alloc(layout) }).ok_or(AllocError)?;
+            Ok(NonNull::slice_from_raw_parts(ptr, layout.size()))
         }
         #[cfg(not(feature = "alloc"))]
         {
-            None
+            Err(AllocError)
         }
     }
 
@@ -190,34 +161,26 @@ unsafe impl Allocator for Global {
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: core::alloc::Layout) {
         #[cfg(feature = "alloc")]
         if layout.size() > 0 {
-            unsafe {
-                alloc::alloc::dealloc(ptr.as_ptr(), layout);
-            }
+            // SAFETY: the caller guarantees `ptr` came from this allocator with a fitting `layout`.
+            unsafe { alloc::alloc::dealloc(ptr.as_ptr(), layout) };
         }
         #[cfg(not(feature = "alloc"))]
         let _ = (ptr, layout);
     }
 }
 
-/// Every `allocator-api2` allocator is one of ours: the blanket bridge that lets
-/// `Tensor` and the packed containers take an arena, a pool, or `allocator_api2`'s
-/// own `Global` directly, with no adapter type at the call site. The `Layout`
-/// carries the alignment contract - an allocator honoring it honors
-/// [`SIMD_ALIGNMENT`] too. The one cost is coherence: no type may implement this
-/// trait directly *and* `allocator_api2::alloc::Allocator`; [`Global`] here stays
-/// outside that ecosystem, which is what keeps the pair disjoint.
-unsafe impl<A: allocator_api2::alloc::Allocator> Allocator for A {
-    #[inline]
-    fn allocate(&self, layout: core::alloc::Layout) -> Option<NonNull<u8>> {
-        allocator_api2::alloc::Allocator::allocate(self, layout)
-            .ok()
-            .map(NonNull::cast)
-    }
-
-    #[inline]
-    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: core::alloc::Layout) {
-        allocator_api2::alloc::Allocator::deallocate(self, ptr, layout)
-    }
+/// Allocate `layout` and report the block's *actual* size, which an arena or a pool may round up
+/// past the request.
+///
+/// Callers record that size as their capacity, so the slack an allocator already handed over is
+/// usable rather than discarded. Deallocating with a layout sized anywhere between the request and
+/// the reported size is permitted — see the "Memory fitting" contract on [`Allocator`].
+pub(crate) fn alloc_block<A: Allocator>(
+    alloc: &A,
+    layout: core::alloc::Layout,
+) -> Result<(NonNull<u8>, usize), TensorError> {
+    let block = alloc.allocate(layout).map_err(|_| TensorError::AllocationFailed)?;
+    Ok((block.cast(), block.len()))
 }
 
 // endregion: Constants and Allocator
@@ -291,15 +254,15 @@ impl<Alloc: Allocator> PackedBuffer<Alloc> {
             return Ok(());
         }
         let layout = layout_for_bytes(needed)?;
-        let new_data = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
+        let (new_data, actual) = alloc_block(&self.alloc, layout)?;
         if self.size > 0 {
             unsafe { core::ptr::copy_nonoverlapping(self.data.as_ptr(), new_data.as_ptr(), self.size) };
         }
         if self.capacity > 0 {
-            unsafe { dealloc_aligned(&self.alloc, self.data, self.capacity) };
+            unsafe { self.dealloc_current() };
         }
         self.data = new_data;
-        self.capacity = needed;
+        self.capacity = actual;
         Ok(())
     }
 
@@ -317,18 +280,26 @@ impl<Alloc: Allocator> PackedBuffer<Alloc> {
 
     /// Grow to exactly `needed` bytes — dealloc old, alloc new; contents are discarded.
     fn grow_to(&mut self, needed: usize) -> Result<(), TensorError> {
-        let new_data = if needed == 0 {
-            NonNull::dangling()
+        let (new_data, actual) = if needed == 0 {
+            (NonNull::dangling(), 0)
         } else {
-            let layout = layout_for_bytes(needed)?;
-            self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?
+            alloc_block(&self.alloc, layout_for_bytes(needed)?)?
         };
         if self.capacity > 0 {
-            unsafe { dealloc_aligned(&self.alloc, self.data, self.capacity) };
+            unsafe { self.dealloc_current() };
         }
         self.data = new_data;
-        self.capacity = needed;
+        self.capacity = actual;
         Ok(())
+    }
+
+    /// Release the buffer's current allocation. Call only while `capacity > 0`.
+    ///
+    /// # Safety
+    /// The buffer must own a live allocation — the `capacity == 0` case holds a dangling pointer.
+    unsafe fn dealloc_current(&self) {
+        let layout = layout_for_bytes(self.capacity).expect("capacity was sized by a successful layout");
+        self.alloc.deallocate(self.data, layout);
     }
 }
 
@@ -346,7 +317,7 @@ impl<Alloc: Allocator> Drop for PackedBuffer<Alloc> {
         if self.capacity == 0 {
             return;
         }
-        unsafe { dealloc_aligned(&self.alloc, self.data, self.capacity) };
+        unsafe { self.dealloc_current() };
     }
 }
 
@@ -498,19 +469,10 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Drop for T
         if self.capacity == 0 {
             return;
         }
-        let total: usize = self.shape[..self.ndim].iter().product();
-        let live_count = total / Scalar::dimensions_per_value();
-        unsafe {
-            // Drop only the live (initialized) elements; the buffer may hold spare capacity slots.
-            if live_count > 0 {
-                core::ptr::drop_in_place(core::ptr::slice_from_raw_parts_mut(self.data.as_ptr(), live_count));
-            }
-            dealloc_aligned(
-                &self.alloc,
-                NonNull::new_unchecked(self.data.as_ptr() as *mut u8),
-                self.capacity * core::mem::size_of::<Scalar>(),
-            );
-        }
+        // `StorageElement: Copy`, so there is nothing to drop in place — only the block to free.
+        // `capacity` came from a layout that succeeded, so rebuilding it cannot fail.
+        let layout = layout_for::<Scalar>(self.capacity).expect("capacity was sized by a successful layout");
+        unsafe { self.alloc.deallocate(self.data.cast(), layout) };
     }
 }
 
@@ -568,18 +530,21 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         };
 
         // Allocate SIMD-aligned raw buffer using our allocator
-        let data = if storage_count == 0 {
-            NonNull::dangling()
+        let (data, capacity) = if storage_count == 0 {
+            (NonNull::dangling(), 0)
         } else {
             let layout = layout_for::<Scalar>(storage_count)?;
-            let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
+            let (block, actual_bytes) = alloc_block(&alloc, layout)?;
             // Initialize all storage elements
             unsafe {
-                let ptr = ptr.as_ptr() as *mut Scalar;
+                let ptr = block.as_ptr() as *mut Scalar;
                 for i in 0..storage_count {
                     core::ptr::write(ptr.add(i), value);
                 }
-                NonNull::new_unchecked(ptr)
+                (
+                    NonNull::new_unchecked(ptr),
+                    actual_bytes / core::mem::size_of::<Scalar>(),
+                )
             }
         };
 
@@ -595,7 +560,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             shape: shape_arr,
             strides: strides_arr,
             ndim: shape.len(),
-            capacity: storage_count,
+            capacity,
             alloc,
         })
     }
@@ -655,12 +620,13 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             total / dims_per_value
         };
 
-        let data = if storage_count == 0 {
-            NonNull::dangling()
+        let (data, capacity) = if storage_count == 0 {
+            (NonNull::dangling(), 0)
         } else {
             let layout = layout_for::<Scalar>(storage_count)?;
-            let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
-            unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) }
+            let (block, actual_bytes) = alloc_block(&alloc, layout)?;
+            let data = unsafe { NonNull::new_unchecked(block.as_ptr() as *mut Scalar) };
+            (data, actual_bytes / core::mem::size_of::<Scalar>())
         };
 
         let mut shape_arr = [0usize; MAX_RANK];
@@ -674,7 +640,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             shape: shape_arr,
             strides: strides_arr,
             ndim: shape.len(),
-            capacity: storage_count,
+            capacity,
             alloc,
         })
     }
@@ -712,18 +678,21 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         }
 
         // Allocate SIMD-aligned buffer and copy using our allocator
-        let ptr = if expected_storage == 0 {
-            NonNull::dangling()
+        let (ptr, capacity) = if expected_storage == 0 {
+            (NonNull::dangling(), 0)
         } else {
             let layout = layout_for::<Scalar>(expected_storage)?;
-            let ptr = alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
+            let (block, actual_bytes) = alloc_block(&alloc, layout)?;
             // Clone all storage elements
             unsafe {
-                let ptr = ptr.as_ptr() as *mut Scalar;
+                let ptr = block.as_ptr() as *mut Scalar;
                 for (i, item) in data[..expected_storage].iter().enumerate() {
                     core::ptr::write(ptr.add(i), *item);
                 }
-                NonNull::new_unchecked(ptr)
+                (
+                    NonNull::new_unchecked(ptr),
+                    actual_bytes / core::mem::size_of::<Scalar>(),
+                )
             }
         };
 
@@ -738,7 +707,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             shape: shape_arr,
             strides: strides_arr,
             ndim: shape.len(),
-            capacity: expected_storage,
+            capacity,
             alloc,
         })
     }
@@ -960,7 +929,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             return Ok(());
         }
         let layout = layout_for::<Scalar>(needed)?;
-        let new_ptr = self.alloc.allocate(layout).ok_or(TensorError::AllocationFailed)?;
+        let (new_ptr, actual_bytes) = alloc_block(&self.alloc, layout)?;
         let live = self.numel() / Scalar::dimensions_per_value();
         if live > 0 {
             // SAFETY: `new_ptr` holds `needed >= live` slots; `self.data` holds the live elements.
@@ -981,7 +950,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             }
         }
         self.data = unsafe { NonNull::new_unchecked(new_ptr.as_ptr() as *mut Scalar) };
-        self.capacity = needed;
+        self.capacity = actual_bytes / core::mem::size_of::<Scalar>();
         Ok(())
     }
 
@@ -6766,6 +6735,51 @@ mod tests {
         let cloned = arr.clone();
         assert_eq!(cloned.shape(), arr.shape());
         assert_eq!(cloned.as_slice(), arr.as_slice());
+    }
+
+    #[test]
+    fn tensors_accept_any_allocator_api2_allocator() {
+        use allocator_api2::alloc::AllocError;
+        use core::sync::atomic::{AtomicUsize, Ordering};
+
+        // Deliberately not `Clone`, so it can only reach a container by reference — the case the
+        // in-house trait could not express, because a blanket bridge forecloses `impl for &A`.
+        struct Counting {
+            live_bytes: AtomicUsize,
+        }
+        unsafe impl Allocator for Counting {
+            fn allocate(&self, layout: core::alloc::Layout) -> Result<NonNull<[u8]>, AllocError> {
+                self.live_bytes.fetch_add(layout.size(), Ordering::Relaxed);
+                Global.allocate(layout)
+            }
+            unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: core::alloc::Layout) {
+                self.live_bytes.fetch_sub(layout.size(), Ordering::Relaxed);
+                unsafe { Global.deallocate(ptr, layout) };
+            }
+        }
+
+        let arena = Counting {
+            live_bytes: AtomicUsize::new(0),
+        };
+        {
+            let borrowed = Tensor::<f32, _>::try_full_in(&[64, 64], 2.0, &arena).unwrap();
+            assert_eq!(borrowed.numel(), 64 * 64);
+            assert_eq!(arena.live_bytes.load(Ordering::Relaxed), 64 * 64 * 4);
+        }
+        // Every byte the container took is handed back through the same allocator.
+        assert_eq!(arena.live_bytes.load(Ordering::Relaxed), 0);
+
+        // By value works too, and so does the default.
+        let owned = Tensor::<f32, _>::try_full_in(
+            &[4, 4],
+            3.0,
+            Counting {
+                live_bytes: AtomicUsize::new(0),
+            },
+        )
+        .unwrap();
+        assert_eq!(owned.numel(), 16);
+        assert_eq!(Tensor::<f32>::try_full(&[4, 4], 1.0).unwrap().numel(), 16);
     }
 
     #[test]

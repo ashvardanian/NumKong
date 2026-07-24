@@ -7,9 +7,6 @@
 //! - [`CastOps`]: Tensor-shaped extension trait — auto-implemented on every
 //!   [`crate::tensor::TensorRef`] so any container can do `tensor.try_cast::<Destination>()`
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
 use core::ffi::c_void;
 

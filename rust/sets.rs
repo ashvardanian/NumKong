@@ -8,9 +8,6 @@
 //! - [`SymmetricHammingsOps`] / [`SymmetricJaccardsOps`]: self-metric upper triangle
 //!
 //! The right-hand operand is a [`DotsPackedMatrix`] from the [`crate::dots`] module.
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
 use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorMut, TensorRef, TensorView};
 use crate::types::{u1x8, StorageElement};
 

@@ -9,9 +9,6 @@
 //!
 //! The `spatials` (angular/euclidean) and `sets` (hamming/jaccard) modules build on the
 //! `DotsPackedMatrix` and validators re-exported here.
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
 use core::marker::PhantomData;
 
 use crate::tensor::{Allocator, Global, PackedBuffer, Tensor, TensorError, TensorMut, TensorRef, TensorView};

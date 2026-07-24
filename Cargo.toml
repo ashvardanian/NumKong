@@ -46,6 +46,15 @@ std = ["alloc"]
 wasm-runtime = []
 
 [dependencies]
+# The `Allocator` trait every owning container is generic over - the ecosystem's stable stand-in
+# for the unstable `core::alloc::Allocator`. An arena, a pool, or a pinned-memory allocator
+# written against it slots into `Tensor` and the packed containers with no adapter, and its
+# `impl Allocator for &A` lets a non-`Clone` arena go in by reference. `default-features = false`
+# takes the trait alone: the crate's `alloc` feature would add a `Box`/`Vec`/`RawVec`
+# reimplementation an order of magnitude larger than the trait, only to supply a `Global` that
+# this crate defines itself in a dozen lines - and that would force the `alloc` crate on the
+# heapless targets `--no-default-features` exists to serve.
+allocator-api2 = {version = "0.4", default-features = false}
 forkunion = {version = "3.0", optional = true}
 
 [dev-dependencies]

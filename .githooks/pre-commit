@@ -115,10 +115,14 @@ if command -v git-clang-format > /dev/null 2>&1 && command -v clang-format > /de
 fi
 
 # Rust — the crate must stay rustfmt-clean (respects rustfmt.toml). Whole-file check; skips without cargo.
-if command -v cargo > /dev/null 2>&1; then
+# `rustfmt.toml` sets `unstable_features` and `fn_single_line`, which stable rustfmt drops with a
+# warning rather than an error — so a stable `cargo fmt` reflows the whole tree and a stable
+# `--check` fails on files nobody touched. Prefer nightly, and skip the gate when it is absent
+# instead of enforcing a formatting the repository does not use.
+if command -v cargo > /dev/null 2>&1 && cargo +nightly fmt --version > /dev/null 2>&1; then
     if git diff --cached --name-only --diff-filter=ACM -- '*.rs' | grep -q .; then
-        if ! cargo fmt --check > /dev/null 2>&1; then
-            echo "pre-commit: staged Rust changes are not rustfmt clean — run: cargo fmt"
+        if ! cargo +nightly fmt --check > /dev/null 2>&1; then
+            echo "pre-commit: staged Rust changes are not rustfmt clean — run: cargo +nightly fmt"
             failed=1
         fi
     fi
@@ -287,7 +291,11 @@ while IFS= read -r file; do
     # Prose uses a single space between sentences: a period/question/exclamation followed by two-plus
     # spaces and a capital is the double-space habit. Added lines only; a line carrying an inline
     # `nk-nolint: spacing` comment is skipped (e.g. a deliberately column-aligned table).
+    # The leading comment marker is stripped before matching: the `!` of a `//!` doc comment is
+    # otherwise a sentence terminator, so every indented capitalised line inside a `//!` example
+    # read as the double-space habit.
     double_space=$(printf '%s\n' "$added" | grep -v 'nk-nolint: spacing' |
+        sed -E 's,^\+,,; s,^[[:space:]]*(//[/!]?|#|\*),,' |
         grep -nE '[.!?]  +[A-Z]' || true)
     if [ -n "$double_space" ]; then
         echo "pre-commit: $file double-spaces between sentences — use a single space after . ! ?:"
