@@ -8,10 +8,13 @@
 #define NK_DISPATCH_H
 
 #define NK_RUNTIME_DISPATCH 1
-#define NK_NATIVE_F16       0
-#define NK_NATIVE_BF16      0
 
-/*  NK_TARGET_* defines are set by the build system:
+/*  `NK_NATIVE_F16` and `NK_NATIVE_BF16` are deliberately not pinned here. These are the only
+ *  translation units that define `nk_f16_sqrt` and friends, so pinning them made the library
+ *  disagree with the bindings that call it — `python/*.c` do not include this header and honoured
+ *  the build system instead. `types.h` defaults both to 0 for everyone.
+ *
+ *  NK_TARGET_* defines are set by the build system:
  *  - Python: setup.py
  *  - Rust: build.rs
  *  - Node.js: binding.gyp

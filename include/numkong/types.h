@@ -148,6 +148,15 @@
 #define nk_has_builtin_(x) 0
 #endif
 
+// True when the compiler reserves `x` as a type keyword rather than treating it as a plain
+// identifier. Clang-only; the wrapper is what lets `#if` mention it on GCC, where the preprocessor
+// would still have to parse `__is_identifier(...)` even behind a `defined()` guard.
+#if defined(__is_identifier)
+#define nk_is_keyword_(x) (!__is_identifier(x))
+#else
+#define nk_is_keyword_(x) 0
+#endif
+
 // Allow SIMD kernels to redirect small inputs to serial implementations.
 // Enabled by default for production use. Tests and benchmarks may disable
 // this to isolate SIMD path behavior on small inputs.
@@ -1220,40 +1229,43 @@ NK_API_COMPTIME nk_size_t nk_dimensions_per_value(nk_dtype_t dtype) {
  *  Layout: sign(1) + exponent(5) + mantissa(10), bias=15.
  *  Range: ±65 504, epsilon at 1.0 ≈ 9.77×10⁻⁴. 30 722 of 63 488 finite values (48.4%) in [−1, +1].
  *
- *  - GCC or Clang on 64-bit Arm: `__fp16`, may require `-mfp16-format` option.
- *  - GCC or Clang on 64-bit x86: `_Float16`.
- *  - Default: `unsigned short`.
+ *  - `unsigned short` by default, on every compiler and architecture.
+ *  - `NK_NATIVE_F16=1`: `__fp16` on Arm, `_Float16` elsewhere.
+ *
+ *  The type crosses the exported ABI by value — `nk_f16_sqrt`, `nk_f16_order` — and a native half
+ *  is passed in a different register class than `unsigned short`. Deriving it from `-march`, as
+ *  this once did, let each consumer reach its own answer: Swift's header import sees a native half
+ *  on Apple silicon while the C sources it links were built `unsigned short`, and `rust/scalar.rs`
+ *  binds `u16` outright. Enabling it is a decision for a whole build, never for one translation
+ *  unit, so the default cannot depend on flags.
  */
-#if !defined(NK_NATIVE_F16) || NK_NATIVE_F16
-#if (defined(__GNUC__) || defined(__clang__)) && (defined(__ARM_ARCH) || defined(__aarch64__)) && \
-    (defined(__ARM_FP16_FORMAT_IEEE))
-#undef NK_NATIVE_F16
-#define NK_NATIVE_F16 1
-typedef __fp16 nk_f16_t;
-#elif ((defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(__i386__)) && \
-       (defined(__AVX512FP16__)))
-typedef _Float16 nk_f16_t;
-#undef NK_NATIVE_F16
-#define NK_NATIVE_F16 1
-#else // Unknown compiler or architecture
-#undef NK_NATIVE_F16
+#if !defined(NK_NATIVE_F16)
 #define NK_NATIVE_F16 0
-#endif // Unknown compiler or architecture
-#endif // !NK_NATIVE_F16
+#endif
 
-#if !NK_NATIVE_F16
+#if NK_NATIVE_F16
+#if defined(__ARM_FP16_FORMAT_IEEE)
+typedef __fp16 nk_f16_t;
+// `__FLT16_MAX__` covers GCC 12+ and Clang; `nk_is_keyword_` catches any Clang that predates it.
+// Between them no compiler-version test is needed, which matters because Apple Clang's
+// `__clang_major__` does not track upstream LLVM.
+#elif defined(__FLT16_MAX__) || nk_is_keyword_(_Float16)
+typedef _Float16 nk_f16_t;
+#else
+#error "NK_NATIVE_F16=1, but this compiler has no native half type"
+#endif
+#else
 typedef unsigned short nk_f16_t;
 #endif
 
-#if !defined(NK_NATIVE_BF16) || NK_NATIVE_BF16
 /** @brief BFloat16 (16-bit) float — truncated IEEE 754 single-precision.
  *
  *  Layout: sign(1) + exponent(8) + mantissa(7), bias=127.
  *  Same dynamic range as f32, epsilon ≈ 7.81×10⁻³.
  *  32 514 of 65 280 finite values (49.8%) in [−1, +1]. Wider range than f16 but lower precision.
  *
- *  - GCC or Clang: `__bf16`
- *  - Default: `unsigned short`.
+ *  - `unsigned short` by default, on every compiler and architecture.
+ *  - `NK_NATIVE_BF16=1`: `__bf16` on GCC and Clang. See `nk_f16_t` for why this is opt-in.
  *
  *  The compilers have added `__bf16` support in compliance with the x86-64 psABI spec.
  *  The motivation for this new special type is summed up as:
@@ -1272,17 +1284,20 @@ typedef unsigned short nk_f16_t;
  *  https://forums.developer.apple.com/forums/thread/726201
  *  https://www.phoronix.com/news/GCC-LLVM-bf16-BFloat16-Type
  */
-#if (defined(__GNUC__) || defined(__clang__)) && ((defined(__ARM_BF16_FORMAT_ALTERNATIVE)) || (defined(__AVX512BF16__)))
-#undef NK_NATIVE_BF16
-#define NK_NATIVE_BF16 1
-typedef __bf16 nk_bf16_t;
-#else // Unknown compiler or architecture
-#undef NK_NATIVE_BF16
+#if !defined(NK_NATIVE_BF16)
 #define NK_NATIVE_BF16 0
-#endif // Unknown compiler or architecture
-#endif // !NK_NATIVE_BF16
+#endif
 
-#if !NK_NATIVE_BF16
+#if NK_NATIVE_BF16
+// GCC 13+ is the first to define `__BFLT16_MAX__`; Clang defines no bf16 macro at all, so it is
+// caught by `nk_is_keyword_` instead. The AVX512BF16 feature macro is deliberately not consulted:
+// GCC 11 and 12 define it while rejecting `__bf16`, since it names instructions, not the type.
+#if defined(__ARM_BF16_FORMAT_ALTERNATIVE) || defined(__BFLT16_MAX__) || nk_is_keyword_(__bf16)
+typedef __bf16 nk_bf16_t;
+#else
+#error "NK_NATIVE_BF16=1, but this compiler has no native bfloat type"
+#endif
+#else
 typedef unsigned short nk_bf16_t;
 #endif
 
