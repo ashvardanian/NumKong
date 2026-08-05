@@ -412,60 +412,83 @@ void compute_contiguous_strides(size_t rank, Py_ssize_t const *shape, size_t ite
 }
 
 /**
- *  @brief Recursive stride walker for linearize_cast_into.
+ *  @brief Recursive stride walker shared by linearize_cast_into and cast_into_strided.
  *
- *  Walks non-contiguous outer dimensions recursively. Once only contiguous tail
- *  dimensions remain, processes the entire contiguous slice with memcpy or nk_cast.
+ *  Both sides carry explicit strides, matching each_scale_recursive. Walks the outer
+ *  dimensions that either side leaves unpacked; once only jointly contiguous tail
+ *  dimensions remain, converts the whole slice with one memcpy or nk_cast.
  */
-static void linearize_cast_recursive(                                         //
-    char const *src_data, nk_dtype_t src_dtype, char *dest_data,              //
-    nk_dtype_t dest_dtype, size_t src_element_size, size_t dest_element_size, //
-    Py_ssize_t const *shape, Py_ssize_t const *strides,                       //
+static void cast_strided_recursive(                                            //
+    char const *src_data, nk_dtype_t src_dtype, Py_ssize_t const *src_strides, //
+    char *dest_data, nk_dtype_t dest_dtype, Py_ssize_t const *dest_strides,    //
+    size_t element_size, Py_ssize_t const *shape,                              //
     size_t remaining_dims, size_t contiguous_tail_dims) {
 
-    // Base case: all remaining dimensions are contiguous — one operation
+    // Base case: both sides pack the remaining dimensions — one operation
     if (remaining_dims <= contiguous_tail_dims) {
         size_t slice_elements = 1;
-        for (size_t dim = 0; dim < remaining_dims; ++dim) slice_elements *= (size_t)shape[dim];
-        if (src_dtype == dest_dtype) memcpy(dest_data, src_data, slice_elements * src_element_size);
+        for (size_t dimension = 0; dimension < remaining_dims; ++dimension) slice_elements *= (size_t)shape[dimension];
+        if (src_dtype == dest_dtype) memcpy(dest_data, src_data, slice_elements * element_size);
         else nk_cast(src_data, src_dtype, (nk_size_t)slice_elements, dest_data, dest_dtype);
         return;
     }
 
-    // Recursive case: iterate outermost non-contiguous dimension
+    // Recursive case: iterate the outermost dimension that is not jointly packed
     size_t const dim_extent = (size_t)shape[0];
-    // Compute the contiguous dest stride for this level
-    size_t inner_elements = 1;
-    for (size_t dim = 1; dim < remaining_dims; ++dim) inner_elements *= (size_t)shape[dim];
-    size_t const dest_row_bytes = inner_elements * dest_element_size;
-
     for (size_t position = 0; position < dim_extent; ++position) {
-        linearize_cast_recursive(                                          //
-            src_data + (Py_ssize_t)position * strides[0], src_dtype,       //
-            dest_data + (Py_ssize_t)position * (Py_ssize_t)dest_row_bytes, //
-            dest_dtype, src_element_size, dest_element_size,               //
-            shape + 1, strides + 1,                                        //
+        Py_ssize_t const signed_position = (Py_ssize_t)position;
+        cast_strided_recursive(                                                      //
+            src_data + signed_position * src_strides[0], src_dtype, src_strides + 1, //
+            dest_data + signed_position * dest_strides[0], dest_dtype,               //
+            dest_strides + 1, element_size, shape + 1,                               //
             remaining_dims - 1, contiguous_tail_dims);
     }
+}
+
+/** @brief Count trailing dimensions that both stride arrays pack at their own element width. */
+static size_t jointly_contiguous_tail_dimensions(size_t rank, Py_ssize_t const *shape, Py_ssize_t const *src_strides,
+                                                 size_t src_element_size, Py_ssize_t const *dest_strides,
+                                                 size_t dest_element_size) {
+    size_t contiguous_tail_dims = 0;
+    Py_ssize_t expected_src_stride = (Py_ssize_t)src_element_size;
+    Py_ssize_t expected_dest_stride = (Py_ssize_t)dest_element_size;
+    for (size_t dimension = rank; dimension-- > 0;) {
+        if (src_strides[dimension] != expected_src_stride) break;
+        if (dest_strides[dimension] != expected_dest_stride) break;
+        expected_src_stride *= shape[dimension];
+        expected_dest_stride *= shape[dimension];
+        contiguous_tail_dims++;
+    }
+    return contiguous_tail_dims;
 }
 
 void linearize_cast_into(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype,
                          size_t rank, Py_ssize_t const *shape, Py_ssize_t const *strides, size_t total_elements) {
     nk_unused_(total_elements);
-    size_t src_element_size = nk_dtype_bytes_per_value(src_dtype);
-    size_t dest_element_size = nk_dtype_bytes_per_value(dest_dtype);
+    size_t const src_element_size = nk_dtype_bytes_per_value(src_dtype);
+    size_t const dest_element_size = nk_dtype_bytes_per_value(dest_dtype);
 
-    // Count how many trailing dims are contiguous in src
-    size_t contiguous_tail_dims = 0;
-    Py_ssize_t expected_stride = (Py_ssize_t)src_element_size;
-    for (size_t dim = rank; dim-- > 0;) {
-        if (strides[dim] != expected_stride) break;
-        expected_stride *= shape[dim];
-        contiguous_tail_dims++;
-    }
+    Py_ssize_t dense_dest_strides[NK_TENSOR_MAX_RANK];
+    compute_contiguous_strides(rank, shape, dest_element_size, dense_dest_strides);
+    size_t const contiguous_tail_dims = jointly_contiguous_tail_dimensions(rank, shape, strides, src_element_size,
+                                                                           dense_dest_strides, dest_element_size);
 
-    linearize_cast_recursive(src_data, src_dtype, dest_data, dest_dtype, src_element_size, dest_element_size, shape,
-                             strides, rank, contiguous_tail_dims);
+    cast_strided_recursive(src_data, src_dtype, strides, dest_data, dest_dtype, dense_dest_strides, dest_element_size,
+                           shape, rank, contiguous_tail_dims);
+}
+
+void cast_into_strided(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype, size_t rank,
+                       Py_ssize_t const *shape, Py_ssize_t const *dest_strides) {
+    size_t const src_element_size = nk_dtype_bytes_per_value(src_dtype);
+    size_t const dest_element_size = nk_dtype_bytes_per_value(dest_dtype);
+
+    Py_ssize_t dense_src_strides[NK_TENSOR_MAX_RANK];
+    compute_contiguous_strides(rank, shape, src_element_size, dense_src_strides);
+    size_t const contiguous_tail_dims = jointly_contiguous_tail_dimensions(
+        rank, shape, dense_src_strides, src_element_size, dest_strides, dest_element_size);
+
+    cast_strided_recursive(src_data, src_dtype, dense_src_strides, dest_data, dest_dtype, dest_strides,
+                           dest_element_size, shape, rank, contiguous_tail_dims);
 }
 
 char *ensure_contiguous_buffer(char const *src_data, nk_dtype_t src_dtype, nk_dtype_t target_dtype, size_t rank,

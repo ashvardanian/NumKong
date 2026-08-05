@@ -405,7 +405,7 @@ def test_add_multiply_noncontiguous(dtype: str, kernel, capability: str):
         if mismatch_count:
             collect_warnings(f"NumPy overflow in ({a.dtype} {operator} {b.dtype} -> {output_dtype})", stats)
 
-        # out= with nk.Tensor buffer (same-dtype only, to avoid cast complexity)
+        # out= with nk.Tensor buffer; differing dtypes are covered by test_strided_out_with_dtype_change
         if first_dtype == second_dtype == output_dtype and inplace_numkong.ndim == 1:
             out_nk = nk.zeros(inplace_numkong.shape, dtype=output_dtype)
             ret = simd_kernel(a, b, out=out_nk)
@@ -754,3 +754,76 @@ def test_blend_known(ndim: int, dtype: str, capability: str):
     result = list(nk.blend(a, b, alpha=2.0, beta=3.0))
     for i in range(ndim):
         assert abs(result[i] - expected) < NK_ATOL, f"blend[{i}] = {result[i]}, expected {expected}"
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("kernel", ["add", "multiply"])
+@pytest.mark.parametrize("second_is_scalar", [True, False], ids=["scalar_b", "array_b"])
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_strided_out_with_dtype_change(kernel: str, second_is_scalar: bool, capability: str):
+    """A strided `out` of a differing dtype must be scattered, not packed over its neighbours.
+
+    The scalar and array forms of `b` select different implementations, and each of
+    `add`/`multiply` has its own pair, so this covers all four writeback paths.
+    """
+    keep_one_capability(capability)
+    simd_kernel = getattr(nk, kernel)
+    first = np.arange(6, dtype=np.int16)
+    second = 5 if second_is_scalar else np.arange(6, dtype=np.int16)
+    expected = first + second if kernel == "add" else first * second
+
+    # Column 0 of a 2-column array: same shape as the input, stride of two float64s.
+    surrounding = np.zeros((6, 2), dtype=np.float64)
+    simd_kernel(first, second, out=surrounding[:, 0])
+    assert_allclose(surrounding[:, 0], expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert not surrounding[:, 1].any(), "writeback spilled into the neighbouring column"
+
+    # Reversed view exercises the negative-stride path.
+    reversed_out = np.zeros(6, dtype=np.float64)[::-1]
+    simd_kernel(first, second, out=reversed_out)
+    assert_allclose(reversed_out, expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+
+    # A packed `out` must still take the single bulk-cast path.
+    contiguous_out = np.zeros(6, dtype=np.float64)
+    simd_kernel(first, second, out=contiguous_out)
+    assert_allclose(contiguous_out, expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("kernel", ["add", "multiply"])
+def test_strided_out_multidimensional(kernel: str):
+    """Rank-2 and rank-3 outputs cover both a fully scattered tail and a partially packed one."""
+    simd_kernel = getattr(nk, kernel)
+
+    # Rank 2, innermost dimension strided: no contiguous tail at all.
+    first = np.arange(12, dtype=np.int16).reshape(3, 4)
+    expected = first + 2 if kernel == "add" else first * 2
+    surrounding = np.zeros((3, 4, 2), dtype=np.float64)
+    simd_kernel(first, 2, out=surrounding[:, :, 0])
+    assert_allclose(surrounding[:, :, 0], expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert not surrounding[:, :, 1].any(), "writeback spilled into the neighbouring column"
+
+    # Rank 3 with a packed innermost pair: recursion plus a bulk slice per row.
+    first = np.arange(24, dtype=np.int16).reshape(2, 6, 2)
+    expected = first + 3 if kernel == "add" else first * 3
+    surrounding = np.zeros((2, 6, 4), dtype=np.float64)
+    simd_kernel(first, 3, out=surrounding[:, :, 0:2])
+    assert_allclose(surrounding[:, :, 0:2], expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert not surrounding[:, :, 2:].any(), "writeback spilled past the requested columns"
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(
+    "dtype,distinct_values",
+    [pytest.param("uint4", 8, id="uint4"), pytest.param("int4", 8, id="int4"), pytest.param("uint1", 2, id="uint1")],
+)
+def test_packed_out_requires_contiguity(dtype: str, distinct_values: int):
+    """Sub-byte dtypes have no per-value byte stride, so only a packed `out` can be filled."""
+    first = np.arange(8, dtype=np.uint8) % distinct_values
+
+    packed_out = nk.zeros(first.shape, dtype=dtype)
+    nk.add(first, 0, out=packed_out)
+    assert_allclose(np.asarray(nk.astype(packed_out, "uint8")), first, atol=NK_ATOL, rtol=NK_RTOL)
+
+    with pytest.raises(ValueError, match="C-contiguous"):
+        nk.add(first[:4], 0, out=nk.zeros(first.shape, dtype=dtype)[::2])

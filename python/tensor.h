@@ -136,6 +136,15 @@ void linearize_cast_into(char const *src_data, nk_dtype_t src_dtype, char *dest_
                          size_t rank, Py_ssize_t const *shape, Py_ssize_t const *strides, size_t total_elements);
 
 /**
+ *  @brief Convert a dense source into an arbitrarily-strided destination — the mirror of
+ *         linearize_cast_into, for writing results back into a caller's non-contiguous buffer.
+ *
+ *  Collapses to a single nk_cast when the destination is fully packed. Zero allocations.
+ */
+void cast_into_strided(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype, size_t rank,
+                       Py_ssize_t const *shape, Py_ssize_t const *dest_strides);
+
+/**
  *  @brief Produce a contiguous buffer in the target dtype from arbitrary-strided input.
  *  @return Contiguous data pointer, or NULL on error. Caller must PyMem_Free if *needs_free is set.
  */
