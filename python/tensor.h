@@ -150,6 +150,17 @@ char *ensure_contiguous_buffer(char const *src_data, nk_dtype_t src_dtype, nk_dt
 int buffers_shapes_match(Py_buffer const *first, Py_buffer const *second);
 
 /**
+ *  @brief Validate a caller-supplied `out` buffer for an operation that writes it densely.
+ *
+ *  Requires the exact input shape, the expected dtype, C-contiguity — the layout
+ *  linearize_cast_into writes, as it derives destination offsets from shape alone —
+ *  writability, and no address overlap with @p input_buffer.
+ *
+ *  @return The output base pointer, or NULL on error with a Python exception set.
+ */
+char *validate_out_py_buffer(Py_buffer const *out_buffer, Py_buffer const *input_buffer, nk_dtype_t expected_dtype);
+
+/**
  *  @brief Compute the number of trailing contiguous dimensions shared across multiple buffers.
  */
 size_t shared_contiguous_tail_dimensions(Py_buffer const *buffers[], size_t num_buffers, size_t num_dims);
@@ -206,6 +217,7 @@ PyObject *api_full(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyOb
 PyObject *api_iota(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_diagonal(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_hash(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+PyObject *api_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 PyObject *api_moments(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_minmax(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
@@ -224,6 +236,7 @@ extern char const doc_full[];
 extern char const doc_iota[];
 extern char const doc_diagonal[];
 extern char const doc_hash[];
+extern char const doc_astype[];
 
 extern char const doc_reduce_moments[];
 extern char const doc_reduce_minmax[];
