@@ -116,12 +116,23 @@ def test_astype_accepts_ndarray_without_tensor_copy():
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_astype_writes_to_caller_owned_output():
-    """Top-level astype converts directly into a matching caller-owned buffer."""
+    """Top-level astype converts directly into a matching caller-owned buffer and returns it."""
     source = np.arange(12, dtype=np.float32).reshape(3, 4) + 0.75
     output = np.empty(source.shape, dtype=np.uint8)
 
-    assert nk.astype(source, "uint8", out=output) is None
+    assert nk.astype(source, "uint8", out=output) is output
     assert_allclose(output, source.astype(np.uint8))
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype", ["bfloat16", "uint4"])
+def test_astype_writes_to_tensor_output(dtype):
+    """A NumKong Tensor names dtypes NumPy cannot express, so it must be accepted as `out`."""
+    source = np.arange(8, dtype=np.uint8)
+    output = nk.empty(source.shape, dtype=dtype)
+
+    assert nk.astype(source, dtype, out=output) is output
+    np.testing.assert_array_equal(np.asarray(nk.astype(output, "uint8")), source)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -168,6 +179,11 @@ def test_astype_validates_output_shape_dtype_and_layout():
         nk.astype(source, "float32", out=np.empty(source.shape, dtype=np.float64))
     with pytest.raises(ValueError, match="C-contiguous"):
         nk.astype(source, "float32", out=np.empty((4, 3, 2), dtype=np.float32).transpose(2, 1, 0))
+
+    readonly = np.empty(source.shape, dtype=np.float32)
+    readonly.flags.writeable = False
+    with pytest.raises((ValueError, BufferError, TypeError)):
+        nk.astype(source, "float32", out=readonly)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")

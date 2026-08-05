@@ -144,20 +144,28 @@ nk.dot(a, b, dtype="bfloat16")  # works a bit slower
 
 ## Buffer-First Casting
 
-`nk.astype` converts a CPU buffer in one native pass. Unlike `nk.Tensor(a).astype(dtype)`, it does not first copy `a` into a NumKong `Tensor`. The input can have arbitrary rank and strides; the returned `Tensor` preserves its shape and is C-contiguous.
+`nk.astype` converts a CPU buffer in one native pass.
+Unlike `nk.Tensor(a).astype(dtype)`, it never stages `a` through an intermediate NumKong `Tensor`.
+The input may have arbitrary rank and strides, and the returned `Tensor` preserves its shape and is C-contiguous.
 
 ```python
 image_u8 = np.random.randint(0, 256, size=(1080, 1920, 3), dtype=np.uint8)
 image_f32 = nk.astype(image_u8, "float32")
 
-# Reuse a NumPy allocation. This writes in-place and returns None.
+# Reuse an existing allocation — writes in place and hands `out` back.
 out = np.empty(image_u8.shape, dtype=np.float32)
-nk.astype(image_u8, "float32", out=out)
+assert nk.astype(image_u8, "float32", out=out) is out
 ```
 
-`out` must be writable, C-contiguous, exactly the same shape as the input, and already have the requested dtype. It must not overlap the input. The native conversion runs without the GIL.
+Any writable buffer works as `out`, whether a NumPy array, a `memoryview`, or a NumKong `Tensor`.
+It must be C-contiguous, exactly the input shape, already of the requested dtype, and must not overlap the input.
+A NumKong `Tensor` is the way to name a dtype NumPy cannot express, such as `bfloat16`, `uint1`, `int4`, or `uint4`.
+The native conversion runs without the GIL.
 
-The conversion policy is NumKong's core policy: same-dtype conversion makes an independent copy; narrower floating formats use round-to-nearest, ties-to-even; and float-to-integer conversion rounds ties to even, saturates finite overflows and infinities, and maps `NaN` to zero. All NumKong dtype names are accepted as targets. For non-NumPy and packed formats such as `bfloat16`, `uint1`, `int4`, and `uint4`, use the returned `Tensor` or a matching NumKong `Tensor` as `out`.
+The conversion policy is NumKong's core policy.
+Same-dtype conversion makes an independent copy, and narrower floating formats use round-to-nearest, ties-to-even.
+Float-to-integer conversion rounds ties to even, saturates finite overflows and infinities, and maps `NaN` to zero.
+All NumKong dtype names are accepted as targets.
 
 ## Set Similarity
 

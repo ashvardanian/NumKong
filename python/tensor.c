@@ -39,6 +39,58 @@ int buffers_shapes_match(Py_buffer const *first, Py_buffer const *second) {
     return 1;
 }
 
+/**
+ *  @brief Conservatively report whether two strided buffers share any byte of address range.
+ *
+ *  Accumulates the per-dimension extents into signed minimum and maximum byte offsets, so a
+ *  reversed view with negative strides widens the range below its base pointer rather than above.
+ */
+static int py_buffers_may_overlap(Py_buffer const *first, Py_buffer const *second) {
+    if (!first->len || !second->len) return 0;
+
+    Py_ssize_t first_min_offset = 0, first_max_offset = 0;
+    for (int dimension = 0; dimension < first->ndim; ++dimension) {
+        Py_ssize_t const extent = (first->shape[dimension] - 1) * first->strides[dimension];
+        if (extent < 0) first_min_offset += extent;
+        else first_max_offset += extent;
+    }
+    Py_ssize_t second_min_offset = 0, second_max_offset = 0;
+    for (int dimension = 0; dimension < second->ndim; ++dimension) {
+        Py_ssize_t const extent = (second->shape[dimension] - 1) * second->strides[dimension];
+        if (extent < 0) second_min_offset += extent;
+        else second_max_offset += extent;
+    }
+
+    char const *first_begin = (char const *)first->buf + first_min_offset;
+    char const *first_end = (char const *)first->buf + first_max_offset + first->itemsize;
+    char const *second_begin = (char const *)second->buf + second_min_offset;
+    char const *second_end = (char const *)second->buf + second_max_offset + second->itemsize;
+    return first_begin < second_end && second_begin < first_end;
+}
+
+char *validate_out_py_buffer(Py_buffer const *out_buffer, Py_buffer const *input_buffer, nk_dtype_t expected_dtype) {
+    if (!buffers_shapes_match(input_buffer, out_buffer)) return NULL;
+    nk_dtype_t const out_dtype = resolve_nk_dtype_in_py_buffer(out_buffer);
+    if (out_dtype != expected_dtype) {
+        PyErr_Format(PyExc_TypeError, "out dtype '%s' does not match expected '%s'", nk_dtype_name(out_dtype),
+                     nk_dtype_name(expected_dtype));
+        return NULL;
+    }
+    if (!PyBuffer_IsContiguous(out_buffer, 'C')) {
+        PyErr_SetString(PyExc_ValueError, "out must be C-contiguous");
+        return NULL;
+    }
+    if (out_buffer->readonly) {
+        PyErr_SetString(PyExc_ValueError, "out must be writable");
+        return NULL;
+    }
+    if (py_buffers_may_overlap(input_buffer, out_buffer)) {
+        PyErr_SetString(PyExc_ValueError, "out must not overlap the input");
+        return NULL;
+    }
+    return (char *)out_buffer->buf;
+}
+
 size_t shared_contiguous_tail_dimensions(Py_buffer const *buffers[], size_t num_buffers, size_t num_dims) {
     size_t num_contiguous_dims = 0;
     for (size_t dimension = num_dims; dimension-- > 0;) {
@@ -1975,63 +2027,40 @@ PyObject *Tensor_astype(PyObject *self, PyObject *dtype_arg) {
 }
 
 char const doc_astype[] =                                                                  //
-    "Cast a buffer-protocol input to a NumKong dtype.\n\n"                               //
-    "Parameters:\n"                                                                       //
-    "    a: Input buffer with arbitrary rank and strides.\n"                            //
-    "    dtype: Target NumKong dtype name.\n\n"                                          //
-    "    out: Optional writable C-contiguous output buffer with the exact input shape\n" //
-    "        and requested dtype. It must not overlap `a`.\n\n"                          //
-    "Returns:\n"                                                                          //
-    "    Tensor: A new tensor with the input shape and requested dtype.\n\n"            //
-    "    None: If `out` is provided.\n\n"                                                 //
-    "Notes:\n"                                                                            //
-    "    Narrower floating formats round ties to even. Float-to-integer casts round\n"   //
-    "    ties to even, saturate overflow and infinity, and map NaN to zero.\n\n"        //
-    "Signature:\n"                                                                        //
-    "    >>> def astype(a, dtype, /, *, out=None) -> Optional[Tensor]: ...";
-
-/** @brief Conservatively report whether two strided buffers share any address range. */
-static int buffers_may_overlap(Py_buffer const *first, Py_buffer const *second) {
-    if (!first->len || !second->len) return 0;
-
-    Py_ssize_t first_min_offset = 0, first_max_offset = 0;
-    Py_ssize_t second_min_offset = 0, second_max_offset = 0;
-    for (int dim = 0; dim < first->ndim; ++dim) {
-        Py_ssize_t const offset = (first->shape[dim] - 1) * first->strides[dim];
-        if (offset < 0) first_min_offset += offset;
-        else first_max_offset += offset;
-    }
-    for (int dim = 0; dim < second->ndim; ++dim) {
-        Py_ssize_t const offset = (second->shape[dim] - 1) * second->strides[dim];
-        if (offset < 0) second_min_offset += offset;
-        else second_max_offset += offset;
-    }
-
-    uintptr_t const first_address = (uintptr_t)first->buf;
-    uintptr_t const second_address = (uintptr_t)second->buf;
-    uintptr_t const first_begin = first_address - (uintptr_t)(-first_min_offset);
-    uintptr_t const first_end = first_address + (uintptr_t)first_max_offset + (uintptr_t)first->itemsize;
-    uintptr_t const second_begin = second_address - (uintptr_t)(-second_min_offset);
-    uintptr_t const second_end = second_address + (uintptr_t)second_max_offset + (uintptr_t)second->itemsize;
-    return first_begin < second_end && second_begin < first_end;
-}
+    "Cast a buffer-protocol input to a NumKong dtype.\n\n"                                 //
+    "Parameters:\n"                                                                        //
+    "    a: Input buffer with arbitrary rank and strides.\n"                               //
+    "    dtype: Target NumKong dtype name.\n"                                              //
+    "    out: Optional writable C-contiguous output buffer with the exact input shape\n"   //
+    "        and requested dtype. It must not overlap `a`.\n\n"                            //
+    "Returns:\n"                                                                           //
+    "    Tensor: A new tensor with the input shape and requested dtype, or `out` itself\n" //
+    "        when provided.\n\n"                                                           //
+    "Notes:\n"                                                                             //
+    "    Unlike `Tensor(a).astype(dtype)`, the input is never staged through a Tensor.\n"  //
+    "    Narrower floating formats round ties to even. Float-to-integer casts round\n"     //
+    "    ties to even, saturate overflow and infinity, and map NaN to zero.\n\n"           //
+    "Signature:\n"                                                                         //
+    "    >>> def astype(a, dtype, /, *, out=None) -> Tensor: ...";
 
 PyObject *api_astype(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
-    if (nargs != 2 || (kwnames && PyTuple_GET_SIZE(kwnames) > 1)) {
-        PyErr_SetString(PyExc_TypeError, "astype(a, dtype, /, *, out=None)");
+    if (nargs != 2) {
+        PyErr_SetString(PyExc_TypeError, "astype(a, dtype, /, *, out=None) requires exactly two positional arguments");
         return NULL;
     }
 
     PyObject *out_obj = NULL;
-    if (kwnames && PyTuple_GET_SIZE(kwnames)) {
-        PyObject *name = PyTuple_GET_ITEM(kwnames, 0);
-        if (PyUnicode_CompareWithASCIIString(name, "out") != 0) {
+    Py_ssize_t const keyword_count = kwnames ? PyTuple_Size(kwnames) : 0;
+    for (Py_ssize_t i = 0; i < keyword_count; ++i) {
+        PyObject *name = PyTuple_GET_ITEM(kwnames, i);
+        if (PyUnicode_CompareWithASCIIString(name, "out") == 0) out_obj = args[nargs + i];
+        else {
             PyErr_Format(PyExc_TypeError, "astype() got an unexpected keyword argument '%S'", name);
             return NULL;
         }
-        out_obj = args[nargs];
     }
+    if (out_obj == Py_None) out_obj = NULL;
 
     PyObject *return_obj = NULL;
     Py_buffer input_buffer, out_buffer;
@@ -2064,23 +2093,10 @@ PyObject *api_astype(PyObject *self, PyObject *const *args, Py_ssize_t const nar
     else {
         if (!nk_get_buffer(out_obj, &out_buffer, PyBUF_STRIDES | PyBUF_FORMAT | PyBUF_WRITABLE, &out_backing))
             goto cleanup;
-        if (!buffers_shapes_match(&input_buffer, &out_buffer)) goto cleanup;
-        if (resolve_nk_dtype_in_py_buffer(&out_buffer) != output_dtype) {
-            PyErr_Format(PyExc_TypeError, "out has dtype '%s', expected '%s'", out_buffer.format,
-                         nk_dtype_to_pybuffer_typestr(output_dtype));
-            goto cleanup;
-        }
-        if (!PyBuffer_IsContiguous(&out_buffer, 'C')) {
-            PyErr_SetString(PyExc_ValueError, "out must be C-contiguous");
-            goto cleanup;
-        }
-        if (buffers_may_overlap(&input_buffer, &out_buffer)) {
-            PyErr_SetString(PyExc_ValueError, "a and out must not overlap");
-            goto cleanup;
-        }
-        result_data = out_buffer.buf;
-        return_obj = Py_None;
-        Py_INCREF(Py_None);
+        result_data = validate_out_py_buffer(&out_buffer, &input_buffer, output_dtype);
+        if (!result_data) goto cleanup;
+        return_obj = out_obj;
+        Py_INCREF(out_obj);
     }
 
     size_t total_elements = 1;

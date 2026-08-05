@@ -699,6 +699,16 @@ static int nk_get_buffer_via_array_interface(PyObject *obj, Py_buffer *buffer, n
         return 0;
     }
 
+    // The second element of the tuple, when present, marks the buffer as read-only.
+    int readonly = 0;
+    if (PyTuple_GET_SIZE(data_tuple) > 1) {
+        readonly = PyObject_IsTrue(PyTuple_GET_ITEM(data_tuple, 1));
+        if (readonly < 0) {
+            Py_DECREF(iface);
+            return 0;
+        }
+    }
+
     // Extract shape tuple.
     PyObject *shape_obj = PyDict_GetItemString(iface, "shape");
     if (!shape_obj || !PyTuple_Check(shape_obj)) {
@@ -782,6 +792,7 @@ static int nk_get_buffer_via_array_interface(PyObject *obj, Py_buffer *buffer, n
     // Populate the Py_buffer so callers can read shape/strides/itemsize uniformly.
     memset(buffer, 0, sizeof(*buffer));
     buffer->buf = data_ptr;
+    buffer->readonly = readonly;
     buffer->itemsize = itemsize;
     buffer->format = (char *)info->pybuffer_typestr;
     buffer->ndim = (int)rank;
@@ -796,7 +807,15 @@ static int nk_get_buffer_via_array_interface(PyObject *obj, Py_buffer *buffer, n
 int nk_get_buffer(PyObject *obj, Py_buffer *buffer, int flags, nk_buffer_backing_t *backing) {
     if (PyObject_GetBuffer(obj, buffer, flags) == 0) return 1;
     PyErr_Clear();
-    if (nk_get_buffer_via_array_interface(obj, buffer, backing)) return 1;
+    if (nk_get_buffer_via_array_interface(obj, buffer, backing)) {
+        // The fallback bypasses the flag checks PyObject_GetBuffer would have made.
+        if ((flags & PyBUF_WRITABLE) && buffer->readonly) {
+            PyBuffer_Release(buffer);
+            PyErr_SetString(PyExc_BufferError, "Object is not writable");
+            return 0;
+        }
+        return 1;
+    }
     if (!PyErr_Occurred())
         PyErr_SetString(PyExc_TypeError, "argument must support buffer protocol or __array_interface__");
     return 0;

@@ -785,12 +785,12 @@ def astype(
     /,
     *,
     out: _BufferType | None = None,
-) -> Tensor | None:
+) -> Tensor:
     """Cast an N-D buffer to ``dtype`` without first copying it into a Tensor.
 
     A supplied ``out`` must be writable, C-contiguous, have the exact input
-    shape and requested dtype, and must not overlap ``a``. The function returns
-    ``None`` after writing to ``out``; otherwise it returns a new Tensor.
+    shape and requested dtype, and must not overlap ``a``. Returns ``out`` when
+    provided, otherwise a new Tensor.
     """
     ...
 
