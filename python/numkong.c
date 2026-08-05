@@ -1103,6 +1103,7 @@ static PyMethodDef nk_methods[] = {
     {"iota", (PyCFunction)api_iota, METH_FASTCALL | METH_KEYWORDS, doc_iota},
     {"diagonal", (PyCFunction)api_diagonal, METH_FASTCALL | METH_KEYWORDS, doc_diagonal},
     {"hash", (PyCFunction)api_hash, METH_FASTCALL | METH_KEYWORDS, doc_hash},
+    {"astype", (PyCFunction)api_astype, METH_FASTCALL | METH_KEYWORDS, doc_astype},
 
     // Tensor reductions
     {"moments", (PyCFunction)api_moments, METH_FASTCALL | METH_KEYWORDS, doc_reduce_moments},

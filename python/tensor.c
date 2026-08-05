@@ -1974,6 +1974,129 @@ PyObject *Tensor_astype(PyObject *self, PyObject *dtype_arg) {
     return (PyObject *)result;
 }
 
+char const doc_astype[] =                                                                  //
+    "Cast a buffer-protocol input to a NumKong dtype.\n\n"                               //
+    "Parameters:\n"                                                                       //
+    "    a: Input buffer with arbitrary rank and strides.\n"                            //
+    "    dtype: Target NumKong dtype name.\n\n"                                          //
+    "    out: Optional writable C-contiguous output buffer with the exact input shape\n" //
+    "        and requested dtype. It must not overlap `a`.\n\n"                          //
+    "Returns:\n"                                                                          //
+    "    Tensor: A new tensor with the input shape and requested dtype.\n\n"            //
+    "    None: If `out` is provided.\n\n"                                                 //
+    "Notes:\n"                                                                            //
+    "    Narrower floating formats round ties to even. Float-to-integer casts round\n"   //
+    "    ties to even, saturate overflow and infinity, and map NaN to zero.\n\n"        //
+    "Signature:\n"                                                                        //
+    "    >>> def astype(a, dtype, /, *, out=None) -> Optional[Tensor]: ...";
+
+/** @brief Conservatively report whether two strided buffers share any address range. */
+static int buffers_may_overlap(Py_buffer const *first, Py_buffer const *second) {
+    if (!first->len || !second->len) return 0;
+
+    Py_ssize_t first_min_offset = 0, first_max_offset = 0;
+    Py_ssize_t second_min_offset = 0, second_max_offset = 0;
+    for (int dim = 0; dim < first->ndim; ++dim) {
+        Py_ssize_t const offset = (first->shape[dim] - 1) * first->strides[dim];
+        if (offset < 0) first_min_offset += offset;
+        else first_max_offset += offset;
+    }
+    for (int dim = 0; dim < second->ndim; ++dim) {
+        Py_ssize_t const offset = (second->shape[dim] - 1) * second->strides[dim];
+        if (offset < 0) second_min_offset += offset;
+        else second_max_offset += offset;
+    }
+
+    uintptr_t const first_address = (uintptr_t)first->buf;
+    uintptr_t const second_address = (uintptr_t)second->buf;
+    uintptr_t const first_begin = first_address - (uintptr_t)(-first_min_offset);
+    uintptr_t const first_end = first_address + (uintptr_t)first_max_offset + (uintptr_t)first->itemsize;
+    uintptr_t const second_begin = second_address - (uintptr_t)(-second_min_offset);
+    uintptr_t const second_end = second_address + (uintptr_t)second_max_offset + (uintptr_t)second->itemsize;
+    return first_begin < second_end && second_begin < first_end;
+}
+
+PyObject *api_astype(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
+    nk_unused_(self);
+    if (nargs != 2 || (kwnames && PyTuple_GET_SIZE(kwnames) > 1)) {
+        PyErr_SetString(PyExc_TypeError, "astype(a, dtype, /, *, out=None)");
+        return NULL;
+    }
+
+    PyObject *out_obj = NULL;
+    if (kwnames && PyTuple_GET_SIZE(kwnames)) {
+        PyObject *name = PyTuple_GET_ITEM(kwnames, 0);
+        if (PyUnicode_CompareWithASCIIString(name, "out") != 0) {
+            PyErr_Format(PyExc_TypeError, "astype() got an unexpected keyword argument '%S'", name);
+            return NULL;
+        }
+        out_obj = args[nargs];
+    }
+
+    PyObject *return_obj = NULL;
+    Py_buffer input_buffer, out_buffer;
+    nk_buffer_backing_t input_backing, out_backing;
+    memset(&input_buffer, 0, sizeof(input_buffer));
+    memset(&out_buffer, 0, sizeof(out_buffer));
+
+    if (!nk_get_buffer(args[0], &input_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &input_backing)) return NULL;
+    if (input_buffer.ndim > NK_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "Tensor rank %d exceeds maximum supported rank %d", input_buffer.ndim,
+                     NK_TENSOR_MAX_RANK);
+        goto cleanup;
+    }
+
+    nk_dtype_t const input_dtype = resolve_nk_dtype_in_py_buffer(&input_buffer);
+    if (input_dtype == nk_dtype_unknown_k) {
+        PyErr_Format(PyExc_TypeError, "Unsupported input dtype '%s'", input_buffer.format);
+        goto cleanup;
+    }
+    nk_dtype_t const output_dtype = py_object_to_nk_dtype(args[1]);
+    if (output_dtype == nk_dtype_unknown_k) goto cleanup;
+
+    char *result_data = NULL;
+    if (!out_obj) {
+        Tensor *result = Tensor_new(output_dtype, (size_t)input_buffer.ndim, input_buffer.shape);
+        if (!result) goto cleanup;
+        return_obj = (PyObject *)result;
+        result_data = result->data;
+    }
+    else {
+        if (!nk_get_buffer(out_obj, &out_buffer, PyBUF_STRIDES | PyBUF_FORMAT | PyBUF_WRITABLE, &out_backing))
+            goto cleanup;
+        if (!buffers_shapes_match(&input_buffer, &out_buffer)) goto cleanup;
+        if (resolve_nk_dtype_in_py_buffer(&out_buffer) != output_dtype) {
+            PyErr_Format(PyExc_TypeError, "out has dtype '%s', expected '%s'", out_buffer.format,
+                         nk_dtype_to_pybuffer_typestr(output_dtype));
+            goto cleanup;
+        }
+        if (!PyBuffer_IsContiguous(&out_buffer, 'C')) {
+            PyErr_SetString(PyExc_ValueError, "out must be C-contiguous");
+            goto cleanup;
+        }
+        if (buffers_may_overlap(&input_buffer, &out_buffer)) {
+            PyErr_SetString(PyExc_ValueError, "a and out must not overlap");
+            goto cleanup;
+        }
+        result_data = out_buffer.buf;
+        return_obj = Py_None;
+        Py_INCREF(Py_None);
+    }
+
+    size_t total_elements = 1;
+    for (int dim = 0; dim < input_buffer.ndim; ++dim) total_elements *= (size_t)input_buffer.shape[dim];
+
+    PyThreadState *gil = PyEval_SaveThread();
+    linearize_cast_into(input_buffer.buf, input_dtype, result_data, output_dtype, (size_t)input_buffer.ndim,
+                        input_buffer.shape, input_buffer.strides, total_elements);
+    PyEval_RestoreThread(gil);
+
+cleanup:
+    PyBuffer_Release(&input_buffer);
+    PyBuffer_Release(&out_buffer);
+    return return_obj;
+}
+
 char const doc_method___array__[] =                                                       //
     "Convert to a NumPy array.\n\n"                                                       //
     "Parameters:\n"                                                                       //

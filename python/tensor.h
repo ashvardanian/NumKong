@@ -206,6 +206,7 @@ PyObject *api_full(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyOb
 PyObject *api_iota(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_diagonal(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_hash(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+PyObject *api_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 PyObject *api_moments(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_minmax(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
@@ -224,6 +225,7 @@ extern char const doc_full[];
 extern char const doc_iota[];
 extern char const doc_diagonal[];
 extern char const doc_hash[];
+extern char const doc_astype[];
 
 extern char const doc_reduce_moments[];
 extern char const doc_reduce_minmax[];
