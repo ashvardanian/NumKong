@@ -65,16 +65,6 @@ jobs:
             sudo apt-get update
             gcc --version
 
-      # Apple Clang ships no `omp.h`; install Homebrew libomp so `pip install .`
-      # (which goes through setup.py and discovers libomp via `brew --prefix
-      # libomp`) resolves the OpenMP headers and the `-lomp` link. Unlike the
-      # wheel build in `pyproject.toml`'s `before-all`, this step does not go
-      # through `delocate-wheel`, so the bottle's deployment target doesn't
-      # matter — we just need the library present at build-and-load time.
-      - name: Install Brew Dependencies
-        if: ${{ matrix.os == 'macos-15' }}
-        run: brew install libomp
-
       - name: Build Locally on Ubuntu
         run: python -m pip install .
         if: ${{ matrix.os == 'ubuntu-24.04' }}

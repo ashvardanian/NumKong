@@ -8,6 +8,7 @@
             "sources": [
                 "javascript/numkong.c",
                 "c/numkong.c",
+                "c/parallel.c",
                 "c/dispatch_f64.c",
                 "c/dispatch_f32.c",
                 "c/dispatch_f16.c",
@@ -34,18 +35,17 @@
                 "c/dispatch_e3m2.c",
             ],
             "include_dirs": [
-                "include"
+                "include",
+                "c"
             ],
             "defines": [
                 "NK_NATIVE_F16=0",
                 "NK_NATIVE_BF16=0",
-                "NK_DYNAMIC_DISPATCH=1",
-                "NK_USE_OPENMP=1"
+                "NK_DYNAMIC_DISPATCH=1"
             ],
             "cflags": [
                 "-std=c11",
                 "-O3",
-                "-fopenmp",
                 "-Wno-unknown-pragmas",
                 "-Wno-maybe-uninitialized",
                 "-Wno-cast-function-type",
@@ -54,21 +54,29 @@
                 "-include",
                 "<(module_root_dir)/nk_probes.h",
             ],
-            "ldflags": [
-                "-fopenmp"
-            ],
             "msvs_settings": {
                 "VCCLCompilerTool": {
                     "ForcedIncludeFiles": [
                         "<(module_root_dir)/nk_probes.h"
                     ],
                     "AdditionalOptions": [
-                        "/Zc:preprocessor",
-                        "/openmp:llvm"
+                        "/Zc:preprocessor"
                     ],
                 },
             },
             "conditions": [
+                # Only this branch gets OpenMP; macOS and Windows use their own pools.
+                [
+                    "OS!='mac' and OS!='win'",
+                    {
+                        "cflags": [
+                            "-fopenmp"
+                        ],
+                        "ldflags": [
+                            "-fopenmp"
+                        ]
+                    }
+                ],
                 # Pin TU baseline to each arch's ABI floor; SIMD kernels use per-function pragmas.
                 # Keep per-arch table in sync with cmake/nk_compiler_flags.cmake, build.rs, setup.py.
                 [
@@ -129,24 +137,7 @@
                     "OS=='mac'",
                     {
                         "xcode_settings": {
-                            "MACOSX_DEPLOYMENT_TARGET": "11.0",
-                            # Apple Clang ships no `omp.h`; the CI step
-                            # `brew install libomp` makes it keg-only under
-                            # `/opt/homebrew/opt/libomp` (arm64) or
-                            # `/usr/local/opt/libomp` (x86_64). Clang silently
-                            # ignores `-I` / `-L` dirs that don't exist, so
-                            # listing both keeps the file arch-agnostic.
-                            "OTHER_CFLAGS": [
-                                "-Xpreprocessor",
-                                "-fopenmp",
-                                "-I/opt/homebrew/opt/libomp/include",
-                                "-I/usr/local/opt/libomp/include"
-                            ],
-                            "OTHER_LDFLAGS": [
-                                "-lomp",
-                                "-L/opt/homebrew/opt/libomp/lib",
-                                "-L/usr/local/opt/libomp/lib"
-                            ]
+                            "MACOSX_DEPLOYMENT_TARGET": "11.0"
                         }
                     }
                 ],

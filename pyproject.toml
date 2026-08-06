@@ -127,48 +127,7 @@ before-all = "apk add --update wget python3-dev"
 select = "*-musllinux*"
 
 [tool.cibuildwheel.macos]
-# Apple Clang ships no `omp.h` / `libomp`. `brew install libomp` alone is not
-# enough: the Homebrew bottle targets the runner's OS (e.g. macOS 26 on the
-# `macos-26` runner image), while the wheel targets `MACOSX_DEPLOYMENT_TARGET`
-# (typically 11.0), so `delocate-wheel` refuses to bundle it:
-#
-#     delocate.libsana.DelocationError: Library dependencies do not satisfy
-#     target MacOS version 11.0: libomp.dylib has a minimum target of 26.0
-#
-# So we install the brew keg first (for the symlinks `setup.py:darwin_settings`
-# reads via `brew --prefix libomp`), then overwrite `lib/` and `include/`
-# with a CMake build of LLVM's `openmp` pinned to the wheel's deployment
-# target. Once `delocate` bundles that into the wheel,
-# `python/numkong/__init__.py` sets `KMP_DUPLICATE_LIB_OK=TRUE` so the
-# bundled runtime coexists with NumPy/SciPy's OpenMP in the same process.
-before-all = [
-    """
-    set -euo pipefail
-    LLVM_VERSION=${LIBOMP_LLVM_VERSION:-20.1.0}
-    TARGET=${MACOSX_DEPLOYMENT_TARGET:-11.0}
-    brew install libomp
-    PREFIX=$(brew --prefix libomp)
-    work=$(mktemp -d)
-    cd "$work"
-    base=https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}
-    curl -fsSL -o openmp.tar.xz "${base}/openmp-${LLVM_VERSION}.src.tar.xz"
-    curl -fsSL -o cmake.tar.xz  "${base}/cmake-${LLVM_VERSION}.src.tar.xz"
-    tar -xf openmp.tar.xz
-    tar -xf cmake.tar.xz
-    mv "cmake-${LLVM_VERSION}.src" cmake
-    cd "openmp-${LLVM_VERSION}.src"
-    cmake -S . -B build \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_OSX_DEPLOYMENT_TARGET="${TARGET}" \
-        -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
-        -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
-        -DCMAKE_INSTALL_NAME_DIR="${PREFIX}/lib" \
-        -DLIBOMP_INSTALL_ALIASES=OFF \
-        -DOPENMP_ENABLE_LIBOMPTARGET=OFF
-    cmake --build build --parallel
-    cmake --install build
-    """,
-]
+# No `before-all`: nothing outside libSystem to link, so `delocate` bundles nothing.
 before-build = ["rm -rf {project}/build"]
 repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}"
 

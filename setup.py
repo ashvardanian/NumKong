@@ -288,7 +288,6 @@ def linux_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     ]
     macros: list[tuple[str, str]] = [
         ("NK_DYNAMIC_DISPATCH", "1"),
-        ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
     ]
@@ -301,30 +300,13 @@ def darwin_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     compile_args = [
         "-std=c11",
         "-O3",
-        "-Xpreprocessor",
-        "-fopenmp",
         "-w",  # Hush warnings
         *march_baseline_args(),
     ]
-    link_args: list[str] = ["-lomp"]
-    # Apple Clang ships no `omp.h` / `libomp`; point at the Homebrew-installed
-    # libomp so `#include <omp.h>` resolves and the linker finds `-lomp`.
-    # `delocate` bundles `libomp.dylib` into the wheel; at import time we set
-    # `KMP_DUPLICATE_LIB_OK=TRUE` (see `python/numkong/__init__.py`) so the
-    # bundled runtime coexists with any libomp that NumPy/SciPy already loaded.
-    try:
-        libomp_prefix = subprocess.run(
-            ["brew", "--prefix", "libomp"],
-            capture_output=True, text=True, timeout=10, check=True,
-        ).stdout.strip()
-    except (subprocess.SubprocessError, FileNotFoundError):
-        libomp_prefix = ""
-    if libomp_prefix and Path(libomp_prefix).exists():
-        compile_args.append(f"-I{libomp_prefix}/include")
-        link_args.append(f"-L{libomp_prefix}/lib")
+    link_args: list[str] = []
+    # No OpenMP: `libdispatch` in libSystem runs the tile pools.
     macros: list[tuple[str, str]] = [
         ("NK_DYNAMIC_DISPATCH", "1"),
-        ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
     ]
@@ -351,7 +333,6 @@ def freebsd_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     ]
     macros: list[tuple[str, str]] = [
         ("NK_DYNAMIC_DISPATCH", "1"),
-        ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
     ]
@@ -364,10 +345,6 @@ def windows_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     compile_args = [
         "/std:c11",
         "/O2",
-        # `/openmp:llvm` enables OpenMP 3.1+ on MSVC 2019 16.9+ so `size_t`
-        # (unsigned) parallel-for counters compile — the legacy `/openmp` is
-        # frozen at OpenMP 2.0 and rejects them with C3015.
-        "/openmp:llvm",
         # Dealing with MinGW linking errors
         # https://cibuildwheel.readthedocs.io/en/stable/faq/#windows-importerror-dll-load-failed-the-specific-module-could-not-be-found
         "/d2FH4-",
@@ -375,9 +352,9 @@ def windows_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
         *march_baseline_args(),  # MSVC: matches default; documents the contract
     ]
     link_args: list[str] = []
+    # No OpenMP: the kernel32 thread pool runs the tile pools.
     macros: list[tuple[str, str]] = [
         ("NK_DYNAMIC_DISPATCH", "1"),
-        ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
     ]
@@ -454,18 +431,17 @@ base_sources = [
     "python/numpy_interop.c",
     "python/dlpack_interop.c",
     "c/numkong.c",
+    "c/parallel.c",  # Shared with the Node addon; no CMake or Cargo build compiles it
 ]
 
 dispatch_sources = sorted(glob.glob("c/dispatch_*.c"))
 
 ext_modules = [
     Extension(
-        # Lives under the `numkong` package so `numkong/__init__.py` runs first
-        # — it sets `KMP_DUPLICATE_LIB_OK=TRUE` before the dynamic linker
-        # initializes the bundled libomp.
+        # Lives under the `numkong` package so `numkong/__init__.py` runs first.
         "numkong._numkong",
         sources=base_sources + dispatch_sources,
-        include_dirs=["include", "python"],
+        include_dirs=["include", "python", "c"],
         language="c",
         extra_compile_args=compile_args,
         extra_link_args=link_args,

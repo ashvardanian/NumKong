@@ -70,10 +70,6 @@ jobs:
           sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev
           sudo apt install -y gcc-14-aarch64-linux-gnu g++-14-aarch64-linux-gnu binutils-aarch64-linux-gnu
 
-      - name: Install System Dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: brew install libomp
-
       - name: Set Up MSVC ARM64 Cross-Compiler
         if: matrix.platform == 'win32-arm64'
         shell: pwsh
@@ -107,23 +103,6 @@ jobs:
       - name: Copy Binary to Platform Package
         shell: bash
         run: cp build/Release/numkong.node javascript/@numkong-${{ matrix.platform }}/numkong.node
-
-      # npm has no `delocate` equivalent: copy `libomp.dylib` next to the
-      # `.node`, rewrite the install name to `@loader_path/libomp.dylib`,
-      # then re-sign both (install_name_tool invalidates arm64 signatures).
-      - name: Bundle libomp (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          set -euo pipefail
-          pkg="javascript/@numkong-${{ matrix.platform }}"
-          libomp_src="$(brew --prefix libomp)/lib/libomp.dylib"
-          cp "$libomp_src" "$pkg/libomp.dylib"
-          chmod u+w "$pkg/libomp.dylib"
-          install_name_tool -id "@loader_path/libomp.dylib" "$pkg/libomp.dylib"
-          install_name_tool -change "$libomp_src" "@loader_path/libomp.dylib" "$pkg/numkong.node"
-          codesign --force --sign - "$pkg/libomp.dylib"
-          codesign --force --sign - "$pkg/numkong.node"
 
       - name: Upload Platform Package
         uses: actions/upload-artifact@v7

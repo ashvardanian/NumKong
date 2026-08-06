@@ -9,16 +9,11 @@
 
 #include <string.h> // `strcmp` function
 
-#if defined(NK_USE_OPENMP)
-#include <omp.h>
-#endif
-
 #include <node_api.h> // `napi_*` functions — N-API v6+ for BigInt (Node ≥ 10.20)
 
 #include <numkong/numkong.h> // `nk_*` functions — must be first to bring `_GNU_SOURCE`
 
-#define NK_PARALLEL_PACKED_TILE    64
-#define NK_PARALLEL_SYMMETRIC_TILE 32
+#include "parallel.h" // `nk_parallel_for_tiles`, tile sizes
 
 /** @brief Global variable that caches the CPU capabilities, and is computed just once, when the module is loaded. */
 nk_capability_t static_capabilities = nk_cap_serial_k;
@@ -484,6 +479,28 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     return result_obj;
 }
 
+/** @brief One tile of rows of C = A × Bᵀ with B pre-packed. */
+typedef struct packed_task_t {
+    nk_dots_packed_punned_t kernel;
+    char const *a;
+    void const *b_packed;
+    char *c;
+    nk_size_t rows;
+    nk_size_t columns;
+    nk_size_t depth;
+    nk_size_t a_stride_bytes;
+    nk_size_t c_stride_bytes;
+} packed_task_t;
+
+static void packed_tile_(nk_size_t tile_index, void *context) {
+    packed_task_t const *task = (packed_task_t const *)context;
+    nk_size_t const row = tile_index * NK_PARALLEL_PACKED_TILE;
+    nk_size_t const chunk = (row + NK_PARALLEL_PACKED_TILE <= task->rows) ? NK_PARALLEL_PACKED_TILE
+                                                                          : (task->rows - row);
+    task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes, chunk,
+                 task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes);
+}
+
 /**
  *  @brief Shared dispatcher for packed operations (dots, angulars, euclideans).
  *  Args: TypedArray a, ArrayBuffer packed, TypedArray result, numbers height/width/depth/aStride/resultStride, string
@@ -544,23 +561,17 @@ static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_ke
     uint32_t threads = 1;
     if (argc == 10) napi_get_value_uint32(env, args[9], &threads);
 
-#if defined(NK_USE_OPENMP)
-    if (threads == 0) threads = (uint32_t)omp_get_max_threads();
-    omp_set_num_threads((int)threads);
-#endif
-
-    // `int` loop counter pre-declared: MSVC's OpenMP stays at 2.0 canonical
-    // form, which forbids in-init declarations and rejects 64-bit iterators
-    // — either would trip C3015.
-    int const tile_count = (int)nk_size_divide_round_up_(height, NK_PARALLEL_PACKED_TILE);
-    int tile_idx;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
-    for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
-        nk_size_t row = (nk_size_t)tile_idx * NK_PARALLEL_PACKED_TILE;
-        nk_size_t chunk = (row + NK_PARALLEL_PACKED_TILE <= height) ? NK_PARALLEL_PACKED_TILE : (height - row);
-        kernel((char const *)a_data + row * a_stride, packed_data, (char *)result_data + row * result_stride, chunk,
-               (nk_size_t)width, (nk_size_t)depth, (nk_size_t)a_stride, (nk_size_t)result_stride);
-    }
+    packed_task_t task;
+    task.kernel = kernel;
+    task.a = a_data;
+    task.b_packed = packed_data;
+    task.c = result_data;
+    task.rows = height;
+    task.columns = width;
+    task.depth = depth;
+    task.a_stride_bytes = a_stride;
+    task.c_stride_bytes = result_stride;
+    nk_parallel_for_tiles(nk_size_divide_round_up_(height, NK_PARALLEL_PACKED_TILE), threads, packed_tile_, &task);
     return NULL;
 }
 
@@ -572,6 +583,29 @@ static napi_value api_angulars_packed(napi_env env, napi_callback_info info) {
 }
 static napi_value api_euclideans_packed(napi_env env, napi_callback_info info) {
     return api_packed_common(env, info, nk_kernel_euclideans_packed_k);
+}
+
+/** @brief One tile of rows of C = A × Aᵀ. */
+typedef struct symmetric_task_t {
+    nk_dots_symmetric_punned_t kernel;
+    void const *vectors;
+    void *result;
+    nk_size_t vectors_count;
+    nk_size_t depth;
+    nk_size_t stride_bytes;
+    nk_size_t result_stride_bytes;
+    nk_size_t row_start;
+    nk_size_t row_end;
+} symmetric_task_t;
+
+static void symmetric_tile_(nk_size_t tile_index, void *context) {
+    symmetric_task_t const *task = (symmetric_task_t const *)context;
+    nk_size_t const tile_start = task->row_start + tile_index * NK_PARALLEL_SYMMETRIC_TILE;
+    nk_size_t const tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= task->row_end)
+                                    ? NK_PARALLEL_SYMMETRIC_TILE
+                                    : (task->row_end - tile_start);
+    task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
+                 task->result_stride_bytes, tile_start, tile_rows);
 }
 
 /**
@@ -630,23 +664,19 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
     uint32_t threads = 1;
     if (argc == 10) napi_get_value_uint32(env, args[9], &threads);
 
-#if defined(NK_USE_OPENMP)
-    if (threads == 0) threads = (uint32_t)omp_get_max_threads();
-    omp_set_num_threads((int)threads);
-#endif
-
-    // `int` loop counter pre-declared: see note at `api_packed_common`.
-    int const tile_count = (int)nk_size_divide_round_up_(row_count, NK_PARALLEL_SYMMETRIC_TILE);
-    int tile_idx;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
-    for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
-        nk_size_t tile_start = (nk_size_t)row_start + (nk_size_t)tile_idx * NK_PARALLEL_SYMMETRIC_TILE;
-        nk_size_t tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= (nk_size_t)row_start + row_count)
-                                  ? NK_PARALLEL_SYMMETRIC_TILE
-                                  : ((nk_size_t)row_start + row_count - tile_start);
-        kernel(vectors_data, (nk_size_t)n_vectors, (nk_size_t)depth, (nk_size_t)vectors_stride, result_data,
-               (nk_size_t)result_stride, tile_start, tile_rows);
-    }
+    symmetric_task_t task;
+    task.kernel = kernel;
+    task.vectors = vectors_data;
+    task.result = result_data;
+    task.vectors_count = n_vectors;
+    task.depth = depth;
+    task.stride_bytes = vectors_stride;
+    task.result_stride_bytes = result_stride;
+    task.row_start = row_start;
+    // Widen before the sum so two `uint32_t` row bounds cannot wrap.
+    task.row_end = (nk_size_t)row_start + row_count;
+    nk_parallel_for_tiles(nk_size_divide_round_up_(row_count, NK_PARALLEL_SYMMETRIC_TILE), threads, symmetric_tile_,
+                          &task);
 
     return NULL;
 }
