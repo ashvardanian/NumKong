@@ -21,6 +21,10 @@
 #include "numkong/types.h"
 #include "numkong/maxsim/icelake.h" // `nk_maxsim_coarse_argmax_icelake_`
 #include "numkong/dot.h"            // `nk_dot_bf16`
+#include "numkong/cast/icelake.h"   // `nk_e5m2x32_to_bf16x32_icelake_`
+#include "numkong/dot/skylake.h"    // `nk_dot_through_f32_finalize_skylake_`
+#include "numkong/maxsim/serial.h"  // `nk_maxsim_packed_header_setup_`, `nk_maxsim_packed_size_`
+#include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {

@@ -56,6 +56,7 @@
 #include "numkong/spatial/neon.h"  // `nk_f64_sqrt_neon`
 #include "numkong/dots/sme.h"      // `nk_sme_zero_za64_tile_0_`
 #include "numkong/curved/serial.h" // `nk_bilinear_f64_serial`
+#include "numkong/dot/serial.h"    // `nk_dot_f16c_serial`, `nk_vdot_f16c_serial`
 
 #if defined(__cplusplus)
 extern "C" {

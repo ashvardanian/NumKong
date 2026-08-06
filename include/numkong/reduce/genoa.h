@@ -22,7 +22,8 @@
 #if NK_TARGET_GENOA
 
 #include "numkong/reduce/serial.h"
-#include "numkong/cast/icelake.h" // `nk_e4m3x32_to_bf16x32_icelake_` etc.
+#include "numkong/cast/icelake.h"   // `nk_e4m3x32_to_bf16x32_icelake_` etc.
+#include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {

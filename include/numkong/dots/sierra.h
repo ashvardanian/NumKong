@@ -16,9 +16,10 @@
 #if NK_TARGET_X8664_
 #if NK_TARGET_SIERRA
 
-#include "numkong/dot/sierra.h"  // Sierra-specific dot product helpers
-#include "numkong/dot/haswell.h" // Haswell partial load functions
-#include "numkong/dots/serial.h" // GEMM macro definitions
+#include "numkong/dot/sierra.h"     // Sierra-specific dot product helpers
+#include "numkong/dot/haswell.h"    // Haswell partial load functions
+#include "numkong/dots/serial.h"    // GEMM macro definitions
+#include "numkong/reduce/haswell.h" // `nk_reduce_add_i32x8_haswell_`
 
 #if defined(__cplusplus)
 extern "C" {

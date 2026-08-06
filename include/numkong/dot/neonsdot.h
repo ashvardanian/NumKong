@@ -100,6 +100,7 @@
 #if NK_TARGET_NEONSDOT
 
 #include "numkong/types.h"
+#include "numkong/cast/serial.h" // `nk_partial_load_b8x16_serial_`
 
 #if defined(__cplusplus)
 extern "C" {

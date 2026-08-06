@@ -40,6 +40,7 @@
 #include "numkong/types.h"
 #include "numkong/cast/neon.h"    // `nk_u16x8_splat_`
 #include "numkong/spatial/neon.h" // `nk_f32_sqrt_neon`
+#include "numkong/mesh/serial.h"  // `nk_det3x3_f32_`, `nk_svd3x3_f32_`
 
 #if defined(__cplusplus)
 extern "C" {

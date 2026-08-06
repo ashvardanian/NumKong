@@ -14,6 +14,7 @@
 
 #include "numkong/spatial/haswell.h"
 #include "numkong/dots/icelake.h"
+#include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {

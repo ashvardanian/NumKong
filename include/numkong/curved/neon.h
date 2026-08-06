@@ -29,6 +29,7 @@
 
 #include "numkong/types.h"
 #include "numkong/spatial/neon.h" // nk_f64_sqrt_neon
+#include "numkong/dot/serial.h"   // `nk_dot_f16c_serial`, `nk_vdot_f16c_serial`
 
 #if defined(__cplusplus)
 extern "C" {

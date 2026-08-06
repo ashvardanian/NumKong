@@ -30,6 +30,7 @@
 #include "numkong/dot.h"             // `nk_dot_f32`, `nk_dot_f16`
 #include "numkong/cast/haswell.h"    // `nk_f16_to_f32_haswell`
 #include "numkong/spatial/haswell.h" // `nk_f32_sqrt_haswell`
+#include "numkong/reduce/skylake.h"  // `nk_reduce_add_f32x16_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {

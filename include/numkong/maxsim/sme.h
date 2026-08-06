@@ -46,8 +46,9 @@
 #if NK_TARGET_ARM64_
 #if NK_TARGET_SME
 
-#include "numkong/dots/sme.h"   // `nk_dots_sme_packed_header_t`
-#include "numkong/reduce/sve.h" // `nk_svaddv_f64_`
+#include "numkong/dots/sme.h"    // `nk_dots_sme_packed_header_t`
+#include "numkong/reduce/sve.h"  // `nk_svaddv_f64_`
+#include "numkong/scalar/neon.h" // `nk_f64_rsqrt_neon`
 
 #if defined(__cplusplus)
 extern "C" {
