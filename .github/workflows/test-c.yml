@@ -121,9 +121,15 @@ jobs:
       - name: Set Up MSVC
         uses: microsoft/setup-msbuild@v3
 
+      # Newest CMake, so it recognizes whichever Visual Studio the image ships.
+      - name: Set Up CMake
+        uses: lukka/get-cmake@latest
+
+      # No explicit `-G`: CMake picks the newest installed Visual Studio, which the
+      # runner image bumps without notice. `-A` and `--config` work the same either way.
       - name: Build
         run: |
-          cmake -G "Visual Studio 17 2022" -A x64 `
+          cmake -A x64 `
             -DCMAKE_BUILD_TYPE=Release `
             -DNK_BUILD_TEST=ON `
             -DNK_BUILD_BENCH=OFF `
@@ -137,7 +143,7 @@ jobs:
 
       - name: Build Shared Library Test
         run: |
-          cmake -G "Visual Studio 17 2022" -A x64 `
+          cmake -A x64 `
             -DCMAKE_BUILD_TYPE=Release `
             -DNK_BUILD_SHARED=ON `
             -DNK_BUILD_SHARED_TEST=ON `
@@ -294,8 +300,10 @@ jobs:
           # Ubuntu 24.04 ships older LLVM in the default apt sources, but this
           # RISC-V validation needs Clang 23 for the portable `rv64gcv` baseline
           # while still compiling the richer RVV target-pragmas in our headers.
+          # The unversioned `llvm-toolchain-noble` suite rolls forward with every
+          # major, so it must be pinned or `clang-23` vanishes the day 24 lands.
           curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/llvm.gpg
-          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble main" | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-23 main" | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
           sudo apt-get update
           sudo apt-get install -y cmake clang-23 lld-23 llvm-23 gcc-riscv64-linux-gnu libc6-dev-riscv64-cross
 
@@ -389,8 +397,6 @@ jobs:
   test_x86_sde:
     name: Test x86 (Intel SDE)
     runs-on: ubuntu-24.04
-    env:
-      SDE_VERSION: sde-external-9.44.0-2024-08-22-lin
 
     steps:
       - name: Checkout
@@ -401,12 +407,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake build-essential
 
-      - name: Download Intel SDE
-        run: |
-          curl -fsSL -o sde.tar.xz \
-            "https://downloadmirror.intel.com/831748/${SDE_VERSION}.tar.xz"
-          tar -xf sde.tar.xz
-          echo "$(pwd)/${SDE_VERSION}" >> "$GITHUB_PATH"
+      # Intel rotates the numeric mirror ID per release and retires the old ones,
+      # so the download URL cannot be hardcoded. Exports `SDE_PATH`.
+      - name: Set Up Intel SDE
+        uses: petarpetrovt/setup-sde@v5.0
+        with:
+          sdeVersion: 10.8.0
 
       - name: Build with All x86 ISAs
         run: |
@@ -416,6 +422,6 @@ jobs:
           cmake --build build_sde --config Release --parallel
 
       - name: Test Under Granite Rapids Emulation
-        run: sde64 -gnr -- build_sde/nk_test
+        run: "$SDE_PATH/sde64 -gnr -- build_sde/nk_test"
         env:
           NK_BUDGET_SECS: 0
