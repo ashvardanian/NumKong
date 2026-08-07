@@ -82,18 +82,19 @@ def march_baseline_args() -> list[str]:
     NEON/SSE2/VSX. SIMD kernels use explicit intrinsics; unaffected. MSVC has no
     command-line vectorizer toggle. `NK_MARCH_NATIVE=1` opts out (non-MSVC).
 
-    Keep per-arch table in sync with cmake/nk_compiler_flags.cmake, build.rs, binding.gyp.
+    Keep per-arch table in sync with CMakeLists.txt, build.rs, binding.gyp.
     """
-    msvc = sys.platform == "win32"
-    if msvc:
+    if is_msvc():
         if is_64bit_x86():
             return ["/arch:SSE2"]
         if is_64bit_arm():
             return ["/arch:armv8.0"]
         return []
-    if os.environ.get("NK_MARCH_NATIVE") in ("1", "true", "TRUE"):
-        print("[NumKong] NK_MARCH_NATIVE=1: building -march=native, result will not run on older CPUs")
-        return ["-march=native"]
+    if os.environ.get("NK_MARCH_NATIVE") in ("1", "true", "TRUE") and not is_cross_compiling():
+        print("[NumKong] NK_MARCH_NATIVE=1: building host-tuned, result will not run on older CPUs")
+        # Apple Clang's `-march=native` advertises only a subset of host features
+        # (no SME/SME2/FP16_FML); `-mcpu=native` is the complete knob on macOS.
+        return ["-mcpu=native"] if sys.platform == "darwin" else ["-march=native"]
     no_vectorize = ["-fno-tree-vectorize", "-fno-tree-slp-vectorize"]
     # On macOS, `-arch arm64`/`-arch x86_64` already pins the ABI floor, and
     # universal2 wheels pass both `-arch` flags to a single clang invocation —
@@ -122,9 +123,26 @@ def is_wasm() -> bool:
     return "emscripten" in host or "wasm" in host
 
 
+def is_msvc() -> bool:
+    """MSVC, as opposed to a MinGW or clang-cl Python on the same platform.
+
+    Those report their compiler through `CC`; an MSVC build does not.
+    """
+    if sys.platform != "win32":
+        return False
+    return not (os.environ.get("CC") or sysconfig.get_config_var("CC"))
+
+
+def is_cross_compiling() -> bool:
+    """`-march=native` is meaningless when the build host is not the target."""
+    if os.environ.get("_PYTHON_HOST_PLATFORM"):
+        return True
+    return any(name.startswith("NK_TARGET_") and name.endswith("_") for name in os.environ)
+
+
 def detect_cc():
     """Detect the C compiler."""
-    if sys.platform == "win32":
+    if is_msvc():
         return ("cl.exe", True)
     cc = os.environ.get("CC") or sysconfig.get_config_var("CC") or "cc"
     return (cc.split()[0], False)

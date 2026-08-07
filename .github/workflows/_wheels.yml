@@ -16,6 +16,7 @@ jobs:
     name: Build Python Wheels (Linux x86)
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
     steps:
@@ -60,6 +61,7 @@ jobs:
     name: Build Python Wheels (Linux ARM)
     runs-on: ubuntu-24.04-arm
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
     steps:
@@ -119,6 +121,7 @@ jobs:
     name: Build Python Wheels (macOS x86)
     runs-on: macos-26
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
     steps:
@@ -163,6 +166,7 @@ jobs:
     name: Build Python Wheels (macOS ARM)
     runs-on: macos-26
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
     steps:
@@ -207,6 +211,7 @@ jobs:
     name: Build Python Wheels (Windows)
     runs-on: windows-2025
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
         architecture: [AMD64]
@@ -272,7 +277,9 @@ jobs:
   build_wheels_other:
     name: Build Python Wheels (Other Platforms)
     runs-on: ubuntu-24.04
+    timeout-minutes: 120
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
         architecture: [ppc64le, s390x, i686]
@@ -321,6 +328,7 @@ jobs:
     if: ${{ false }}
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
     steps:
@@ -364,7 +372,7 @@ jobs:
 
   build_sdist:
     name: Build Python Source Distribution
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v6

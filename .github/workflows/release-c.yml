@@ -104,13 +104,17 @@ jobs:
         run: git submodule update --init --recursive
       - name: Set Up MSVC
         uses: microsoft/setup-msbuild@v3
+      # Newest CMake, so it knows whichever Visual Studio the image ships.
+      - name: Set Up CMake
+        uses: lukka/get-cmake@latest
       - name: Get Version
         id: set_version
         shell: bash
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+      # No `-G`: let CMake pick the installed Visual Studio.
       - name: Build Shared Library
         run: |
-          cmake -G "Visual Studio 17 2022" -A ${{ matrix.cmake_arch }} `
+          cmake -A ${{ matrix.cmake_arch }} `
             -DCMAKE_BUILD_TYPE=Release `
             -DNK_BUILD_SHARED=ON `
             -DNK_BUILD_TEST=OFF `
@@ -268,17 +272,17 @@ jobs:
       AR: llvm-ar-20
       NM: llvm-nm-20
       RANLIB: llvm-ranlib-20
+      # Sysroot and triple share one release; upstream retires EOL trees.
+      FREEBSD_RELEASE: "14.4"
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: amd64
             freebsd_arch: amd64
-            target: x86_64-unknown-freebsd14.2
             processor: x86_64
           - arch: arm64
             freebsd_arch: arm64/aarch64
-            target: aarch64-unknown-freebsd14.2
             processor: aarch64
     steps:
       - name: Checkout Repository
@@ -299,7 +303,7 @@ jobs:
       - name: Download FreeBSD Sysroot
         run: |
           mkdir -p /tmp/freebsd-sysroot
-          curl -fsSL "https://download.freebsd.org/releases/${{ matrix.freebsd_arch }}/14.2-RELEASE/base.txz" \
+          curl -fsSL "https://download.freebsd.org/releases/${{ matrix.freebsd_arch }}/${{ env.FREEBSD_RELEASE }}-RELEASE/base.txz" \
             | tar -xJf - -C /tmp/freebsd-sysroot ./lib ./usr/lib ./usr/include
       - name: Build Shared Library
         run: |
@@ -308,8 +312,8 @@ jobs:
             -DCMAKE_SYSTEM_NAME=FreeBSD \
             -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.processor }} \
             -DCMAKE_SYSROOT=/tmp/freebsd-sysroot \
-            -DCMAKE_C_COMPILER_TARGET=${{ matrix.target }} \
-            -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target }} \
+            -DCMAKE_C_COMPILER_TARGET=${{ matrix.processor }}-unknown-freebsd${{ env.FREEBSD_RELEASE }} \
+            -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.processor }}-unknown-freebsd${{ env.FREEBSD_RELEASE }} \
             -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld-20" \
             -DNK_BUILD_SHARED=ON \
             -DNK_BUILD_TEST=OFF \
@@ -392,7 +396,7 @@ jobs:
         run: |
           curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key \
             | sudo gpg --dearmor -o /usr/share/keyrings/llvm.gpg
-          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble main" \
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-23 main" \
             | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
           sudo apt-get update
           sudo apt-get install -y cmake clang-23 lld-23 llvm-23 \

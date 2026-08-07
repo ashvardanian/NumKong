@@ -1,6 +1,8 @@
 {
     "variables": {
-        "openssl_fips": ""
+        "openssl_fips": "",
+        # `NK_MARCH_NATIVE=1` opts into a host-tuned, non-portable build, as in CMakeLists.txt.
+        "nk_march_native%": "<!(node -p \"['1','true','TRUE'].includes(process.env.NK_MARCH_NATIVE||'')?1:0\")"
     },
     "targets": [
         {
@@ -78,9 +80,11 @@
                     }
                 ],
                 # Pin TU baseline to each arch's ABI floor; SIMD kernels use per-function pragmas.
-                # Keep per-arch table in sync with cmake/nk_compiler_flags.cmake, build.rs, setup.py.
+                # Keep per-arch table in sync with CMakeLists.txt, build.rs, setup.py.
+                # macOS is excluded: `-arch` already pins the slice, and a per-arch `-march=`
+                # conflicts with the other slice of a universal build.
                 [
-                    "OS!='win' and target_arch=='arm64'",
+                    "nk_march_native==0 and OS!='win' and OS!='mac' and target_arch=='arm64'",
                     {
                         "cflags": [
                             "-march=armv8-a"
@@ -88,7 +92,7 @@
                     }
                 ],
                 [
-                    "OS!='win' and target_arch=='x64'",
+                    "nk_march_native==0 and OS!='win' and OS!='mac' and target_arch=='x64'",
                     {
                         "cflags": [
                             "-march=x86-64"
@@ -96,7 +100,7 @@
                     }
                 ],
                 [
-                    "OS!='win' and target_arch=='riscv64'",
+                    "nk_march_native==0 and OS!='win' and OS!='mac' and target_arch=='riscv64'",
                     {
                         "cflags": [
                             "-march=rv64gc"
@@ -104,7 +108,7 @@
                     }
                 ],
                 [
-                    "OS!='win' and target_arch=='ppc64'",
+                    "nk_march_native==0 and OS!='win' and OS!='mac' and target_arch=='ppc64'",
                     {
                         "cflags": [
                             "-mcpu=power8"
@@ -112,11 +116,19 @@
                     }
                 ],
                 [
-                    "OS!='win' and target_arch=='loong64'",
+                    "nk_march_native==0 and OS!='win' and OS!='mac' and target_arch=='loong64'",
                     {
                         "cflags": [
                             "-march=loongarch64",
                             "-mlasx"
+                        ]
+                    }
+                ],
+                [
+                    "nk_march_native==1 and OS!='win' and OS!='mac'",
+                    {
+                        "cflags": [
+                            "-march=native"
                         ]
                     }
                 ],
@@ -133,11 +145,24 @@
                         ]
                     }
                 ],
+                # gyp ignores `cflags` on the mac flavor, so every flag above must be
+                # repeated here or the addon builds unoptimized and without the probes.
                 [
                     "OS=='mac'",
                     {
                         "xcode_settings": {
-                            "MACOSX_DEPLOYMENT_TARGET": "11.0"
+                            "MACOSX_DEPLOYMENT_TARGET": "11.0",
+                            "OTHER_CFLAGS": [
+                                "-std=c11",
+                                "-O3",
+                                "-fno-tree-vectorize",
+                                "-fno-tree-slp-vectorize",
+                                "-Wno-unknown-pragmas",
+                                "-Wno-cast-function-type",
+                                "-Wno-switch",
+                                "-include",
+                                "<(module_root_dir)/nk_probes.h"
+                            ]
                         }
                     }
                 ],

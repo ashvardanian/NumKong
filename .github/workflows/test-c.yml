@@ -35,7 +35,7 @@ jobs:
 
       - name: Build Locally
         run: |
-          cmake -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_TEST=1 -D NK_BUILD_BENCH=1 -D NK_COMPARE_TO_BLAS=1 \
+          cmake -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_TEST=1 -D NK_BUILD_BENCH=1 -D NK_COMPARE_TO_BLAS=ON \
             -D CMAKE_C_COMPILER=gcc-14 -D CMAKE_CXX_COMPILER=g++-14 -B build_release
           cmake --build build_release --config Release
 
@@ -121,12 +121,11 @@ jobs:
       - name: Set Up MSVC
         uses: microsoft/setup-msbuild@v3
 
-      # Newest CMake, so it recognizes whichever Visual Studio the image ships.
+      # Newest CMake, so it knows whichever Visual Studio the image ships.
       - name: Set Up CMake
         uses: lukka/get-cmake@latest
 
-      # No explicit `-G`: CMake picks the newest installed Visual Studio, which the
-      # runner image bumps without notice. `-A` and `--config` work the same either way.
+      # No `-G`: let CMake pick the installed Visual Studio.
       - name: Build
         run: |
           cmake -A x64 `
@@ -300,8 +299,7 @@ jobs:
           # Ubuntu 24.04 ships older LLVM in the default apt sources, but this
           # RISC-V validation needs Clang 23 for the portable `rv64gcv` baseline
           # while still compiling the richer RVV target-pragmas in our headers.
-          # The unversioned `llvm-toolchain-noble` suite rolls forward with every
-          # major, so it must be pinned or `clang-23` vanishes the day 24 lands.
+          # Pin the suite: the unversioned one rolls forward and drops `clang-23`.
           curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/llvm.gpg
           echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-23 main" | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
           sudo apt-get update
@@ -325,6 +323,7 @@ jobs:
   test_loongarch:
     name: Test LoongArch (QEMU)
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -361,6 +360,7 @@ jobs:
   test_power:
     name: Test Power (QEMU)
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -397,6 +397,7 @@ jobs:
   test_x86_sde:
     name: Test x86 (Intel SDE)
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
 
     steps:
       - name: Checkout

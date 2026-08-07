@@ -4,6 +4,10 @@ on:
   pull_request:
     branches: ["main", "main-*"]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -14,7 +18,7 @@ env:
 jobs:
   versioning:
     name: Update Version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v6

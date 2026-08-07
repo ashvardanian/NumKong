@@ -36,12 +36,12 @@ jobs:
             cxx: clang++
             node-gyp-args: "--arch=x64"
           - platform: win32-x64
-            os: windows-latest
+            os: windows-2025
             cc: cl.exe
             cxx: cl.exe
             node-gyp-args: ""
           - platform: win32-arm64
-            os: windows-latest
+            os: windows-2025
             cc: cl.exe
             cxx: cl.exe
             node-gyp-args: "--arch=arm64"

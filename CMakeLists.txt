@@ -257,7 +257,11 @@ if (NK_MARCH_NATIVE AND NOT MSVC AND NOT CMAKE_CROSSCOMPILING)
 elseif (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
     # Clang and IntelLLVM accept the GCC spellings as aliases, so one pair covers all three compilers.
     add_compile_options(-fno-tree-vectorize -fno-tree-slp-vectorize)
-    if (NK_IS_64BIT_ARM_)
+    if (APPLE)
+        # `-arch` already pins the ABI floor per slice, and a universal build passes both
+        # to one clang invocation, where a per-arch `-march=` conflicts with the other slice.
+        # `CMAKE_SYSTEM_PROCESSOR` names the host, so it cannot pick the flag here.
+    elseif (NK_IS_64BIT_ARM_)
         add_compile_options(-march=armv8-a)
     elseif (NK_IS_64BIT_X86_)
         add_compile_options(-march=x86-64)
