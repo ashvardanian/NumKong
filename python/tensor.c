@@ -45,7 +45,7 @@ int buffers_shapes_match(Py_buffer const *first, Py_buffer const *second) {
  *  Accumulates the per-dimension extents into signed minimum and maximum byte offsets, so a
  *  reversed view with negative strides widens the range below its base pointer rather than above.
  */
-static int py_buffers_may_overlap(Py_buffer const *first, Py_buffer const *second) {
+int py_buffers_may_overlap(Py_buffer const *first, Py_buffer const *second) {
     if (!first->len || !second->len) return 0;
 
     Py_ssize_t first_min_offset = 0, first_max_offset = 0;
@@ -111,34 +111,108 @@ size_t shared_contiguous_tail_dimensions(Py_buffer const *buffers[], size_t num_
     return num_contiguous_dims;
 }
 
+typedef struct {
+    enum { each_sum_k, each_scale_k, each_blend_k, each_fma_k } kind;
+    union {
+        nk_each_sum_punned_t sum;
+        nk_each_scale_punned_t scale;
+        nk_each_blend_punned_t blend;
+        nk_each_fma_punned_t fma;
+    } kernel;
+    nk_scalar_buffer_t const *alpha, *beta;
+} each_operation_t;
+
+static void each_call_(each_operation_t const *op, char const *const inputs[], size_t n, char *out) {
+    switch (op->kind) {
+    case each_sum_k: op->kernel.sum(inputs[0], inputs[1], n, out); break;
+    case each_scale_k: op->kernel.scale(inputs[0], n, op->alpha, op->beta, out); break;
+    case each_blend_k: op->kernel.blend(inputs[0], inputs[1], n, op->alpha, op->beta, out); break;
+    case each_fma_k: op->kernel.fma(inputs[0], inputs[1], inputs[2], n, op->alpha, op->beta, out); break;
+    }
+}
+
+static void copy_strided_elements_(char *dest, Py_ssize_t dest_stride, char const *src, Py_ssize_t src_stride,
+                                   size_t count, size_t item_size) {
+#define COPY_EACH_(bytes)               \
+    for (size_t i = 0; i != count; ++i) \
+    memcpy(dest + (Py_ssize_t)i * dest_stride, src + (Py_ssize_t)i * src_stride, bytes)
+    switch (item_size) {
+    case 1: COPY_EACH_(1); break;
+    case 2: COPY_EACH_(2); break;
+    case 4: COPY_EACH_(4); break;
+    case 8: COPY_EACH_(8); break;
+    case 16: COPY_EACH_(16); break;
+    default: COPY_EACH_(item_size); break;
+    }
+#undef COPY_EACH_
+}
+
+// Gather only a strided inner slice, retaining SIMD kernels and bounded temporary storage.
+static void each_strided_(each_operation_t const *op, char const *inputs[], size_t inputs_count,
+                          Py_ssize_t const *strides[], char *out, Py_ssize_t out_stride, size_t n, size_t item_size) {
+    enum { batch_bytes = 1024 };
+    NK_ALIGN64 char gathered[3][batch_bytes + NK_TENSOR_PADDING_];
+    NK_ALIGN64 char scattered[batch_bytes + NK_TENSOR_PADDING_];
+    size_t capacity = batch_bytes / item_size;
+    for (size_t offset = 0; offset < n; offset += capacity) {
+        size_t count = n - offset < capacity ? n - offset : capacity;
+        char const *packed[3];
+        for (size_t j = 0; j != inputs_count; ++j) {
+            if (strides[j][0] == (Py_ssize_t)item_size) packed[j] = inputs[j] + offset * item_size;
+            else {
+                copy_strided_elements_(gathered[j], (Py_ssize_t)item_size,
+                                       inputs[j] + (Py_ssize_t)offset * strides[j][0], strides[j][0], count, item_size);
+                packed[j] = gathered[j];
+            }
+        }
+        char *dest = out_stride == (Py_ssize_t)item_size ? out + offset * item_size : scattered;
+        each_call_(op, packed, count, dest);
+        if (dest == scattered)
+            copy_strided_elements_(out + (Py_ssize_t)offset * out_stride, out_stride, scattered, (Py_ssize_t)item_size,
+                                   count, item_size);
+    }
+}
+
+static void each_walk_(each_operation_t const *op, char const *inputs[], size_t inputs_count,
+                       Py_ssize_t const *strides[], char *out, Py_ssize_t const *out_strides, Py_ssize_t const *shape,
+                       size_t rank, size_t contiguous_tail, size_t item_size) {
+    if (rank <= contiguous_tail) {
+        size_t n = 1;
+        for (size_t i = 0; i != rank; ++i) n *= (size_t)shape[i];
+        if (n) each_call_(op, inputs, n, out);
+        return;
+    }
+    if (rank == 1 && item_size && item_size <= 1024) {
+        each_strided_(op, inputs, inputs_count, strides, out, out_strides[0], (size_t)shape[0], item_size);
+        return;
+    }
+    Py_ssize_t const *inner_strides[3];
+    for (size_t j = 0; j != inputs_count; ++j) inner_strides[j] = strides[j] + 1;
+    for (Py_ssize_t i = 0; i < shape[0]; ++i) {
+        char const *inner[3];
+        for (size_t j = 0; j != inputs_count; ++j) inner[j] = inputs[j] + i * strides[j][0];
+        each_walk_(op, inner, inputs_count, inner_strides, out + i * out_strides[0], out_strides + 1, shape + 1,
+                   rank - 1, contiguous_tail, item_size);
+    }
+}
+
 void each_sum_recursive(                                           //
     nk_each_sum_punned_t kernel,                                   //
     char const *a_data, char const *b_data, char *result_data,     //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,          //
     Py_ssize_t const *b_strides, Py_ssize_t const *result_strides, //
-    size_t remaining_dims, size_t contiguous_tail_dims) {
-
-    // Base case: all remaining dimensions are contiguous — one kernel call
+    size_t remaining_dims, size_t contiguous_tail_dims, size_t item_size) {
     if (remaining_dims <= contiguous_tail_dims) {
-        size_t contiguous_elements = 1;
-        for (size_t dimension = 0; dimension < remaining_dims; ++dimension)
-            contiguous_elements *= (size_t)shape[dimension];
-        kernel(a_data, b_data, contiguous_elements, result_data);
+        size_t n = 1;
+        for (size_t i = 0; i != remaining_dims; ++i) n *= (size_t)shape[i];
+        if (n) kernel(a_data, b_data, n, result_data);
         return;
     }
-
-    // Iterate over the outermost non-contiguous dimension, then recurse
-    size_t const dim_extent = (size_t)shape[0];
-    for (size_t position = 0; position < dim_extent; ++position) {
-        Py_ssize_t const signed_position = (Py_ssize_t)position;
-        each_sum_recursive(kernel,                                            //
-                           a_data + signed_position * a_strides[0],           //
-                           b_data + signed_position * b_strides[0],           //
-                           result_data + signed_position * result_strides[0], //
-                           shape + 1, a_strides + 1,                          //
-                           b_strides + 1, result_strides + 1,                 //
-                           remaining_dims - 1, contiguous_tail_dims);
-    }
+    each_operation_t op = {.kind = each_sum_k, .kernel = {.sum = kernel}};
+    char const *inputs[] = {a_data, b_data};
+    Py_ssize_t const *strides[] = {a_strides, b_strides};
+    each_walk_(&op, inputs, 2, strides, result_data, result_strides, shape, remaining_dims, contiguous_tail_dims,
+               item_size);
 }
 
 void each_scale_recursive(                                           //
@@ -147,27 +221,18 @@ void each_scale_recursive(                                           //
     nk_scalar_buffer_t const *alpha, nk_scalar_buffer_t const *beta, //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,            //
     Py_ssize_t const *result_strides,                                //
-    size_t remaining_dims, size_t contiguous_tail_dims) {
-
+    size_t remaining_dims, size_t contiguous_tail_dims, size_t item_size) {
     if (remaining_dims <= contiguous_tail_dims) {
-        size_t contiguous_elements = 1;
-        for (size_t dimension = 0; dimension < remaining_dims; ++dimension)
-            contiguous_elements *= (size_t)shape[dimension];
-        kernel(a_data, contiguous_elements, alpha, beta, result_data);
+        size_t n = 1;
+        for (size_t i = 0; i != remaining_dims; ++i) n *= (size_t)shape[i];
+        if (n) kernel(a_data, n, alpha, beta, result_data);
         return;
     }
-
-    size_t const dim_extent = (size_t)shape[0];
-    for (size_t position = 0; position < dim_extent; ++position) {
-        Py_ssize_t const signed_position = (Py_ssize_t)position;
-        each_scale_recursive(kernel,                                            //
-                             a_data + signed_position * a_strides[0],           //
-                             result_data + signed_position * result_strides[0], //
-                             alpha, beta,                                       //
-                             shape + 1, a_strides + 1,                          //
-                             result_strides + 1,                                //
-                             remaining_dims - 1, contiguous_tail_dims);
-    }
+    each_operation_t op = {.kind = each_scale_k, .kernel = {.scale = kernel}, .alpha = alpha, .beta = beta};
+    char const *inputs[] = {a_data};
+    Py_ssize_t const *strides[] = {a_strides};
+    each_walk_(&op, inputs, 1, strides, result_data, result_strides, shape, remaining_dims, contiguous_tail_dims,
+               item_size);
 }
 
 void each_fma_recursive(                                                           //
@@ -177,30 +242,18 @@ void each_fma_recursive(                                                        
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,                          //
     Py_ssize_t const *b_strides, Py_ssize_t const *c_strides,                      //
     Py_ssize_t const *result_strides,                                              //
-    size_t remaining_dims, size_t contiguous_tail_dims) {
-
+    size_t remaining_dims, size_t contiguous_tail_dims, size_t item_size) {
     if (remaining_dims <= contiguous_tail_dims) {
-        size_t contiguous_elements = 1;
-        for (size_t dimension = 0; dimension < remaining_dims; ++dimension)
-            contiguous_elements *= (size_t)shape[dimension];
-        kernel(a_data, b_data, c_data, contiguous_elements, alpha, beta, result_data);
+        size_t n = 1;
+        for (size_t i = 0; i != remaining_dims; ++i) n *= (size_t)shape[i];
+        if (n) kernel(a_data, b_data, c_data, n, alpha, beta, result_data);
         return;
     }
-
-    size_t const dim_extent = (size_t)shape[0];
-    for (size_t position = 0; position < dim_extent; ++position) {
-        Py_ssize_t const signed_position = (Py_ssize_t)position;
-        each_fma_recursive(kernel,                                            //
-                           a_data + signed_position * a_strides[0],           //
-                           b_data + signed_position * b_strides[0],           //
-                           c_data + signed_position * c_strides[0],           //
-                           result_data + signed_position * result_strides[0], //
-                           alpha, beta,                                       //
-                           shape + 1, a_strides + 1,                          //
-                           b_strides + 1, c_strides + 1,                      //
-                           result_strides + 1,                                //
-                           remaining_dims - 1, contiguous_tail_dims);
-    }
+    each_operation_t op = {.kind = each_fma_k, .kernel = {.fma = kernel}, .alpha = alpha, .beta = beta};
+    char const *inputs[] = {a_data, b_data, c_data};
+    Py_ssize_t const *strides[] = {a_strides, b_strides, c_strides};
+    each_walk_(&op, inputs, 3, strides, result_data, result_strides, shape, remaining_dims, contiguous_tail_dims,
+               item_size);
 }
 
 void each_blend_recursive(                                           //
@@ -209,28 +262,18 @@ void each_blend_recursive(                                           //
     nk_scalar_buffer_t const *alpha, nk_scalar_buffer_t const *beta, //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,            //
     Py_ssize_t const *b_strides, Py_ssize_t const *result_strides,   //
-    size_t remaining_dims, size_t contiguous_tail_dims) {
-
+    size_t remaining_dims, size_t contiguous_tail_dims, size_t item_size) {
     if (remaining_dims <= contiguous_tail_dims) {
-        size_t contiguous_elements = 1;
-        for (size_t dimension = 0; dimension < remaining_dims; ++dimension)
-            contiguous_elements *= (size_t)shape[dimension];
-        kernel(a_data, b_data, contiguous_elements, alpha, beta, result_data);
+        size_t n = 1;
+        for (size_t i = 0; i != remaining_dims; ++i) n *= (size_t)shape[i];
+        if (n) kernel(a_data, b_data, n, alpha, beta, result_data);
         return;
     }
-
-    size_t const dim_extent = (size_t)shape[0];
-    for (size_t position = 0; position < dim_extent; ++position) {
-        Py_ssize_t const signed_position = (Py_ssize_t)position;
-        each_blend_recursive(kernel,                                            //
-                             a_data + signed_position * a_strides[0],           //
-                             b_data + signed_position * b_strides[0],           //
-                             result_data + signed_position * result_strides[0], //
-                             alpha, beta,                                       //
-                             shape + 1, a_strides + 1,                          //
-                             b_strides + 1, result_strides + 1,                 //
-                             remaining_dims - 1, contiguous_tail_dims);
-    }
+    each_operation_t op = {.kind = each_blend_k, .kernel = {.blend = kernel}, .alpha = alpha, .beta = beta};
+    char const *inputs[] = {a_data, b_data};
+    Py_ssize_t const *strides[] = {a_strides, b_strides};
+    each_walk_(&op, inputs, 2, strides, result_data, result_strides, shape, remaining_dims, contiguous_tail_dims,
+               item_size);
 }
 
 static int tensor_is_c_contig(Tensor *tensor, size_t item_size);
@@ -558,7 +601,7 @@ static PyObject *tensor_elementwise_scalar(Tensor *a, double alpha_value, double
     nk_scalar_buffer_from_f64(&beta_buf.f64, &beta_buf, scalar_dtype);
     PyThreadState *gil = PyEval_SaveThread();
     each_scale_recursive(kernel, a->data, r->data, &alpha_buf, &beta_buf, a->shape, a->strides, r_strides, a->rank,
-                         contiguous_tail);
+                         contiguous_tail, item_size);
     PyEval_RestoreThread(gil);
     return (PyObject *)r;
 }
@@ -611,7 +654,7 @@ static PyObject *Tensor_add(PyObject *self, PyObject *other) {
 
         PyThreadState *gil = PyEval_SaveThread();
         each_sum_recursive(kernel, a->data, b->data, r->data, a->shape, a->strides, b->strides, r_strides, a->rank,
-                           contiguous_tail);
+                           contiguous_tail, item_size);
         PyEval_RestoreThread(gil);
         return (PyObject *)r;
     }
@@ -678,7 +721,7 @@ static PyObject *Tensor_subtract(PyObject *self, PyObject *other) {
         nk_scalar_buffer_from_f64(&beta_buf.f64, &beta_buf, scalar_dtype);
         PyThreadState *gil = PyEval_SaveThread();
         each_blend_recursive(kernel, a->data, b->data, r->data, &alpha_buf, &beta_buf, a->shape, a->strides, b->strides,
-                             r_strides, a->rank, contiguous_tail);
+                             r_strides, a->rank, contiguous_tail, item_size);
         PyEval_RestoreThread(gil);
         return (PyObject *)r;
     }
@@ -748,7 +791,7 @@ static PyObject *Tensor_multiply(PyObject *self, PyObject *other) {
         nk_scalar_buffer_from_f64(&beta_buf.f64, &beta_buf, scalar_dtype);
         PyThreadState *gil = PyEval_SaveThread();
         each_fma_recursive(kernel, a->data, b->data, r->data, r->data, &alpha_buf, &beta_buf, a->shape, a->strides,
-                           b->strides, r_strides, r_strides, a->rank, contiguous_tail);
+                           b->strides, r_strides, r_strides, a->rank, contiguous_tail, item_size);
         PyEval_RestoreThread(gil);
         return (PyObject *)r;
     }
