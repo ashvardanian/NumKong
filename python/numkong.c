@@ -98,6 +98,7 @@
 #include "each.h"
 #include "mesh.h"
 #include "maxsim.h"
+#include "random.h"
 #include "numpy_interop.h"
 #include "dlpack_interop.h"
 
@@ -1212,6 +1213,7 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     if (PyType_Ready(&PackedMatrixType) < 0) return NULL;
     if (PyType_Ready(&MaxSimPackedMatrixType) < 0) return NULL;
     if (PyType_Ready(&MeshAlignmentResultType) < 0) return NULL;
+    if (PyType_Ready(&RandomGeneratorType) < 0) return NULL;
 
     m = PyModule_Create(&nk_module);
     if (m == NULL) return NULL;
@@ -1260,6 +1262,14 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     Py_INCREF(&MeshAlignmentResultType);
     if (PyModule_AddObject(m, "MeshAlignmentResult", (PyObject *)&MeshAlignmentResultType) < 0) {
         Py_XDECREF(&MeshAlignmentResultType);
+        Py_XDECREF(m);
+        return NULL;
+    }
+
+    // Register the stateful random generator type.
+    Py_INCREF(&RandomGeneratorType);
+    if (PyModule_AddObject(m, "Generator", (PyObject *)&RandomGeneratorType) < 0) {
+        Py_XDECREF(&RandomGeneratorType);
         Py_XDECREF(m);
         return NULL;
     }
