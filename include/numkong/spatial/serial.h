@@ -253,6 +253,12 @@ NK_PUBLIC void nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_s
     }
 }
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 /** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq × target_sumsq) for 4 pairs (serial). */
 NK_INTERNAL void nk_angular_through_f32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                          nk_b128_vec_t const *target_sumsqs_vec,
@@ -358,12 +364,6 @@ NK_INTERNAL void nk_euclidean_through_u32_from_dot_serial_(nk_b128_vec_t const *
         result_vec->f32s[i] = dist_sq > 0 ? nk_f32_sqrt_serial(dist_sq) : 0.0f;
     }
 }
-
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
-#endif
 
 #if defined(__cplusplus)
 } // extern "C"

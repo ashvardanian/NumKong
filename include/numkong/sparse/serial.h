@@ -16,7 +16,7 @@
 extern "C" {
 #endif
 
-#define nk_define_sparse_intersect_(input_type)                                                                      \
+#define nk_define_sparse_intersect_helpers_(input_type)                                                              \
     NK_INTERNAL nk_size_t nk_sparse_intersect_##input_type##_galloping_search_(                                      \
         nk_##input_type##_t const *array, nk_size_t start, nk_size_t length, nk_##input_type##_t val) {              \
         nk_size_t low = start;                                                                                       \
@@ -48,7 +48,9 @@ extern "C" {
             j += ai >= bj;                                                                                           \
         }                                                                                                            \
         return intersection_size;                                                                                    \
-    }                                                                                                                \
+    }
+
+#define nk_define_sparse_intersect_(input_type)                                                                      \
     NK_PUBLIC void nk_sparse_intersect_##input_type##_serial(                                                        \
         nk_##input_type##_t const *shorter, nk_##input_type##_t const *longer, nk_size_t shorter_length,             \
         nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count) {                                    \
@@ -103,7 +105,12 @@ extern "C" {
         *product = weights_product;                                                                        \
     }
 
-/*  Keep the serial instantiations below actually scalar, regardless of build type.
+nk_define_sparse_intersect_helpers_(u16)
+nk_define_sparse_intersect_helpers_(u32)
+nk_define_sparse_intersect_helpers_(u64)
+
+/*  Keep the serial instantiations below actually scalar, regardless of build type. The search helpers
+ *  above stay outside: they are `always_inline`, which clang refuses to combine with a pushed `noinline`.
  *  See dots/serial.h for rationale. */
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)

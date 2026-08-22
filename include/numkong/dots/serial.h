@@ -2434,10 +2434,12 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
  *  Without this, -O3 + LTO can vectorize or clone the serial kernels under AVX-512
  *  callers in dispatch_*.c, which wastes ~1 MB of binary and — more importantly —
  *  breaks the nk_*_serial-as-scalar-oracle contract that tests and the numerical-
- *  stability docs in this header rely on. */
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
+ *  stability docs in this header rely on.
+ *
+ *  Clang gets no blanket region here: one expansion of `nk_define_cross_packed_` /
+ *  `nk_define_cross_symmetric_` emits `always_inline` `_aligned_` fast paths next to the kernel, and
+ *  clang rejects `noinline` on those. `no-ipa-cp-clone` is the knob that stops the cloning anyway. */
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC push_options
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
@@ -2697,9 +2699,7 @@ nk_define_cross_packed_(dots, u1, serial, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot
 #endif
 #endif
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC pop_options
 #endif
 
