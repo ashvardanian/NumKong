@@ -1,7 +1,8 @@
 # Type Conversions in NumKong
 
-NumKong implements bidirectional type conversions between all supported numeric formats through Float32 as a hub type.
-Conversions cover IEEE 754 floats (Float16, Float32, Float64), brain float (BFloat16), Float8 formats (e4m3, e5m2, e2m3, e3m2), and integers (Int8–Int64, UInt8–UInt64, packed i4x2/u4x2).
+NumKong implements bidirectional type conversions between all supported numeric formats through a wider hub type: `u64` when both sides are unsigned integers, `i64` when both sides are integers and at least one is signed, and `f64c` for everything else.
+The SIMD backends use a narrower Float32 hub for the subset of types they cover.
+Conversions cover IEEE 754 floats (Float16, Float32, Float64), brain float (BFloat16), Float8 formats (e4m3, e5m2, e2m3, e3m2), and integers (Int8–Int64, UInt8–UInt64, packed i4x2/u4x2, packed u1x8).
 All conversions use round-to-nearest-even (RNE) for narrowing and exact widening where the target format has sufficient range and precision.
 
 BFloat16 relates to Float32 by truncation with rounding:
@@ -77,16 +78,17 @@ Packed sub-byte conversions:
 
 ### Lookup Tables for Mini-Floats
 
-`nk_e4m3_to_f32_serial`, `nk_e5m2_to_f32_serial`, `nk_e2m3_to_f32_serial`, `nk_e3m2_to_f32_serial` use 256-entry precomputed lookup tables — each 8-bit input indexes directly into a Float32 result array.
-The reverse direction (`nk_f32_to_e4m3_serial`) uses clamping + rounding: clamp to format range, multiply by scale, round-to-nearest, cast to UInt8.
-SIMD backends (`nk_cast_haswell`, `nk_cast_skylake`) use `VPGATHERDD` to perform 8 or 16 simultaneous table lookups from the same 256-entry table.
-AVX-512 gathers on Skylake achieve ~3cy throughput per 16-element lookup vs ~8cy on Haswell for 8-element gathers.
+`nk_e5m2_to_f32_serial` indexes a 128-entry table with the 7-bit magnitude, and `nk_e2m3_to_f32_serial` and `nk_e3m2_to_f32_serial` index 32-entry tables with their 5-bit magnitudes, OR-ing the sign bit back in afterwards.
+`nk_e4m3_to_f32_serial` needs no table: the exponent and mantissa fields map onto Float32 with a bias shift of 120, and only the subnormal and the single NaN encoding are special-cased.
+The reverse direction (`nk_f32_to_e4m3_serial`) is bit manipulation with RNE rounding: NaN and infinity are mapped explicitly, subnormals below 2⁻⁶ are rounded through a `× 512` scale, and normals get their 23-bit mantissa rounded down to 3 bits.
+The SIMD backends do not gather from these tables.
+On x86 the Float8 paths ride the F16C converters described below, and NEON looks up Float16 high bytes with `VQTBL4` over a 128-byte table in `nk_e4m3x16_to_f16x8x2_neon_` and its siblings.
 
 ### BFloat16 as Truncated Float32
 
 `nk_bf16_to_f32_serial` zero-extends by left-shifting 16 bits — exact, no rounding error, single-cycle on all platforms.
 `nk_f32_to_bf16_serial` right-shifts with round-to-nearest-even: adds a rounding bias of `0x7FFF + ((bits >> 16) & 1)` before truncating, matching the IEEE 754 RNE tie-breaking rule.
-NEON backend uses `vreinterpretq_u16_u8` + `vzip` for zero-extension; Haswell uses `VPSLLD` / `VPSRLD` shifts.
+NEON backend uses `vmovl_u16` + `vshlq_n_u32` for zero-extension; Haswell uses `VPSLLD` / `VPSRLD` shifts.
 
 ### F16C Hardware Conversion
 

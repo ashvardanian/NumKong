@@ -43,7 +43,7 @@ Packing handles internal layout itself.
 
 ## Ecosystem Comparison
 
-| Feature                      | NumKong                                                                                                                | Accelerate/vDSP                                                   | [MLX](https://github.com/ml-explore/mlx)                           |
+| Feature                      | NumKong                                                                                                                | Accelerate/vDSP                                                   | [MLX][mlx]                                                         |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------ |
 | Operation families           | dots, distances, binary, geospatial, MaxSim                                                                            | dots, distances, FFT, some BLAS                                   | matmul, elementwise, reductions, FFT                               |
 | Precision                    | BFloat16 through sub-byte — Float8, Float6, packed bits; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float32/Float64, limited Float16; no auto-widening; IEEE defaults | Float16/BFloat16/Float32; no Float8 or sub-byte; backend-dependent |
@@ -52,6 +52,8 @@ Packing handles internal layout itself.
 | Symmetric kernels, SYRK-like | `dots_symmetric`, `angulars_symmetric`, etc. skip duplicate pairs, up to 2x speedup                                    | `cblas_ssyrk` available for rank-k updates                        | no duplicate-pair skipping                                         |
 | Collection-based API         | works with any `RandomAccessCollection` conforming type                                                                | pointer-based vDSP functions                                      | `MLXArray`-based                                                   |
 | Memory model                 | caller-owned buffers; `Tensor`/`PackedMatrix` own their storage                                                        | caller-managed via `UnsafePointer`                                | graph-managed; implicit allocation and caching                     |
+
+[mlx]: https://github.com/ml-explore/mlx
 
 ## Installation
 
@@ -74,7 +76,7 @@ Then add the product to your target:
 )
 ```
 
-The root package manifest already exposes the `NumKong` and `CNumKong` targets.
+The root package manifest already exposes the `NumKong` and `CNumKongDispatch` library products.
 Xcode package integration uses the same URL.
 
 ## Collection-Based Dot Products
@@ -415,7 +417,7 @@ let haversine = haversine(aLat: libertyLat, aLon: libertyLon, bLat: bigBenLat, b
 
 The low-level `UnsafeBufferPointer` static methods on `Float64` and `Float32` remain available for zero-copy use cases.
 
-## Runtime Capabilities and Thread Configuration
+## Runtime Capabilities
 
 Capability detection is exposed directly for diagnostics and tests:
 

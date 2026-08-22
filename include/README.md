@@ -1,7 +1,7 @@
 # NumKong for C and C++
 
 NumKong's native SDK is the reference surface for the project.
-The plain C ABI exposes every kernel family directly: dot products, dense distances, binary metrics, probability divergences, geospatial solvers, curved-space kernels, sparse intersections, mesh alignment, packed matrix multiplication, symmetric self-similarity, and late-interaction scoring.
+The plain C ABI exposes every kernel family directly: dot products, dense distances, binary metrics, probability divergences, geospatial solvers, curved-space kernels, sparse intersections, mesh alignment, packed matrix multiplication, symmetric self-similarity, late-interaction scoring, elementwise arithmetic, reductions, type conversions, scalar math, and trigonometry.
 The ABI is stable, versioned, and callable from any language that can load a shared library.
 There is no runtime overhead: no hidden thread pool, no implicit allocation, no garbage collector interaction.
 The C++ layer stays thin, typed, allocator-aware, and close enough to inline through, adding type-level result promotion and owning containers without hiding the dispatch model or the mixed-precision policy.
@@ -43,7 +43,7 @@ Packing handles internal layout itself and does not require caller-side alignmen
 
 ## Ecosystem Comparison
 
-| Feature                      | NumKong                                                                                                                             | [OpenBLAS](https://github.com/OpenMathLib/OpenBLAS)               | [Eigen](https://gitlab.com/libeigen/eigen)                                              |
+| Feature                      | NumKong                                                                                                                             | [OpenBLAS][openblas]                                              | [Eigen][eigen]                                                                          |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | Operation families           | dots, distances, binary, probability, geospatial, curved, mesh, sparse, MaxSim, elementwise, reductions, cast, trig                 | dense linear algebra only                                         | dense LA, some reductions and elementwise                                               |
 | Precision                    | Sub-byte to Float64 dtypes; automatic widening per scalar type; Kahan-compensated summation; 0 ULP Float32/Float64 where applicable | Float32, Float64 only; same-type in/out; no compensated summation | Float16/BFloat16 partial; no Float8 or sub-byte; manual casts; no compensated summation |
@@ -52,6 +52,8 @@ Packing handles internal layout itself and does not require caller-side alignmen
 | Symmetric kernels, SYRK-like | skips duplicate pairs, up to 2x speedup for self-distance                                                                           | `SSYRK`/`DSYRK` for rank-k updates                                | `.selfadjointView` for rank-k updates                                                   |
 | Memory model                 | Caller-owned buffers; C++ adds `tensor<T,A>` with per-container allocators                                                          | Caller-managed buffers; no container abstraction                  | Lazy expression templates avoid most temporaries; `aligned_allocator` provided          |
 
+[openblas]: https://github.com/OpenMathLib/OpenBLAS
+[eigen]: https://gitlab.com/libeigen/eigen
 
 
 ## Installation
@@ -168,7 +170,7 @@ The higher-level templates use `result_type_ = typename in_type_::dot_result_t` 
 The fast typed overloads are constrained so that overriding the result type away from the native policy can disable the specialized path and fall back to the more generic one.
 
 When `__cpp_lib_format >= 202110L` for the C++23 `<format>` header support, all NumKong scalar types provide `std::formatter` specializations with similar format specs to the traditional `float`.
-For the BFloat16 type, the output for `nk::f16_t::from_f32(3.14f)` will look like:
+For the Float16 type, the output for `nk::f16_t::from_f32(3.14f)` will look like:
 
 | Format spec | Output example       | Description                            |
 | ----------- | -------------------- | -------------------------------------- |
@@ -189,10 +191,10 @@ They include real, complex, packed-binary, mini-float, and mixed-precision forms
 ```c
 nk_f32c_t a[384];
 nk_f32c_t b[384];
-nk_f32_t out[2] = {0, 0};
+nk_f64c_t out = {0, 0};         // widened f32c → f64c output
 
-nk_dot_f32c(a, b, 384, out);  // complex inner product
-nk_vdot_f32c(a, b, 384, out); // conjugated variant, like numpy.vdot
+nk_dot_f32c(a, b, 384, &out);   // complex inner product
+nk_vdot_f32c(a, b, 384, &out);  // conjugated variant, like numpy.vdot
 ```
 
 For quantized retrieval pipelines, the storage format often matters more than the nominal math family.
@@ -231,14 +233,17 @@ nk_hamming_u1(a, b, 128 * 8, &hamming);
 nk_jaccard_u1(a, b, 128 * 8, &jaccard);
 ```
 
-Integer set Jaccard works on sorted arrays of integer identifiers.
+`nk_jaccard_u32` is a dense word-wise kernel rather than a sorted-set operation.
+It walks two arrays of `n` 32-bit words position by position and returns `1 - matches / n`.
 
 ```c
-nk_u32_t set_a[] = {1, 3, 5, 7, 9}, set_b[] = {3, 5, 8, 9, 10};
-nk_f32_t jaccard_sets = 0;
-nk_jaccard_u32(set_a, set_b, 5, &jaccard_sets); // |A ∩ B| / |A ∪ B|
-assert(jaccard_sets > 0.0f && jaccard_sets < 1.0f && "|A ∩ B| / |A ∪ B| should be in (0, 1)");
+nk_u32_t a[] = {1, 3, 5, 7, 9}, b[] = {1, 3, 5, 8, 10};
+nk_f32_t jaccard_words = 0;
+nk_jaccard_u32(a, b, 5, &jaccard_words); // 1 - matches / n
+assert(jaccard_words > 0.0f && jaccard_words < 1.0f && "3 of 5 words match");
 ```
+
+Sorted arrays of integer identifiers are handled by the sparse kernels instead, described below.
 
 ## Probability Metrics
 
@@ -351,8 +356,8 @@ You can also use a more traditional syntax with member functions, also leveragin
 Similar to NumPy, but statically typed:
 
 ```cpp
-auto first_column = t[all, 1, slice];             // strided column view → {2, 5, 8}
-auto minimum_index = nk::argmin(first_column);    // index of the minimum in the second column
+auto second_column = t[all, 1, slice];            // strided column view → {2, 5, 8}
+auto minimum_index = nk::argmin(second_column);   // index of the minimum in the second column
 ```
 
 The view types are conceptually close to `std::mdspan` from C++23.
@@ -498,10 +503,11 @@ The native API covers `rmsd`, `kabsch`, and `umeyama`.
 nk_f32_t source[] = {0, 0, 0, 1, 0, 0, 0, 1, 0};
 nk_f32_t target[] = {0, 0, 0, 2, 0, 0, 0, 2, 0};
 nk_f32_t a_centroid[3], b_centroid[3], rotation[9];
-nk_f32_t scale = 0, rmsd = 0;
+nk_f32_t scale = 0;
+nk_f64_t rmsd = 0; // widened f32 → f64 output
 
 nk_umeyama_f32(source, target, 3, a_centroid, b_centroid, rotation, &scale, &rmsd);
-assert(rmsd < 1e-6f && "umeyama should recover exact alignment");
+assert(rmsd < 1e-6 && "umeyama should recover exact alignment");
 assert(scale > 1.99f && scale < 2.01f && "umeyama should recover 2x scale");
 ```
 
@@ -592,13 +598,14 @@ The main user-facing CMake options are:
 - `NK_BUILD_SHARED` builds a shared library, ON by default for standalone builds and OFF when included as a subdirectory.
 - `NK_BUILD_TEST` and `NK_BUILD_BENCH` enable precision tests and benchmarks respectively, both OFF by default.
 - `NK_DYNAMIC_DISPATCH=1` compiles all backends into one binary and selects at runtime via `nk_capabilities()`, recommended for shipping one binary across CPU generations.
+  It is a preprocessor definition rather than a CMake option, so pass it through the compiler flags.
 - `NK_COMPARE_TO_BLAS` and `NK_COMPARE_TO_MKL` link benchmarks against a system BLAS or Intel MKL, each accepting `AUTO`, `ON`, or `OFF` with `AUTO` as the default.
 
-The build enforces C99 for the C layer and C++23 for the C++ layer.
+The build enforces C99 for the C layer and C++20 for the C++ layer.
 
 ```sh
 cmake -B build -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_TEST=ON
-cmake -B build -D NK_DYNAMIC_DISPATCH=1 -D NK_BUILD_BENCH=ON -D NK_COMPARE_TO_MKL=ON
+cmake -B build -D CMAKE_C_FLAGS="-DNK_DYNAMIC_DISPATCH=1" -D NK_BUILD_BENCH=ON -D NK_COMPARE_TO_MKL=ON
 ```
 
 ## Cross-Compilation

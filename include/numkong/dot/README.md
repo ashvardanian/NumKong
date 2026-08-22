@@ -46,28 +46,28 @@ def vdot_complex(a: List[number], b: List[number]) -> Tuple[number, number]:
 
 Real and integer dot products:
 
-| Input Type | Output Type | Description                                    |
-| ---------- | ----------- | ---------------------------------------------- |
-| `f64`      | `f64`       | 64-bit IEEE 754 double precision               |
-| `f32`      | `f32`       | 32-bit IEEE 754 single precision               |
-| `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output |
-| `bf16`     | `f32`       | 16-bit brain float, widened output             |
-| `e4m3`     | `f32`       | 8-bit Float8: 4 exponent, 3 mantissa bits      |
-| `e5m2`     | `f32`       | 8-bit Float8: 5 exponent, 2 mantissa bits      |
-| `e2m3`     | `f32`       | 8-bit MX format: 2 exponent, 3 mantissa bits   |
-| `e3m2`     | `f32`       | 8-bit MX format: 3 exponent, 2 mantissa bits   |
-| `i8`       | `i32`       | 8-bit signed integers                          |
-| `u8`       | `u32`       | 8-bit unsigned integers                        |
-| `i4`       | `i32`       | 4-bit signed integers, packed nibble pairs     |
-| `u4`       | `u32`       | 4-bit unsigned integers, packed nibble pairs   |
-| `u1`       | `u32`       | 1-bit binary packed octets, popcount of AND    |
+| Input Type | Output Type | Description                                      |
+| ---------- | ----------- | ------------------------------------------------ |
+| `f64`      | `f64`       | 64-bit IEEE 754 double precision                 |
+| `f32`      | `f64`       | 32-bit IEEE 754 single precision, widened output |
+| `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output   |
+| `bf16`     | `f32`       | 16-bit brain float, widened output               |
+| `e4m3`     | `f32`       | 8-bit Float8: 4 exponent, 3 mantissa bits        |
+| `e5m2`     | `f32`       | 8-bit Float8: 5 exponent, 2 mantissa bits        |
+| `e2m3`     | `f32`       | 8-bit MX format: 2 exponent, 3 mantissa bits     |
+| `e3m2`     | `f32`       | 8-bit MX format: 3 exponent, 2 mantissa bits     |
+| `i8`       | `i32`       | 8-bit signed integers                            |
+| `u8`       | `u32`       | 8-bit unsigned integers                          |
+| `i4`       | `i32`       | 4-bit signed integers, packed nibble pairs       |
+| `u4`       | `u32`       | 4-bit unsigned integers, packed nibble pairs     |
+| `u1`       | `u32`       | 1-bit binary packed octets, popcount of AND      |
 
 Complex dot products (both `dot` and `vdot`):
 
 | Input Type | Output Type | Description                                |
 | ---------- | ----------- | ------------------------------------------ |
 | `f64c`     | `f64c`      | 64-bit complex pairs                       |
-| `f32c`     | `f32c`      | 32-bit complex pairs                       |
+| `f32c`     | `f64c`      | 32-bit complex pairs, widened output       |
 | `f16c`     | `f32c`      | 16-bit complex pairs, widened output       |
 | `bf16c`    | `f32c`      | 16-bit brain complex pairs, widened output |
 
@@ -330,8 +330,8 @@ Measured with Wasmtime v42 (Cranelift backend).
 | __f16c__                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dot_f16c_serial`      |      15.8 gb/s, 20.8 ulp |      13.0 gb/s, 64.1 ulp |      12.3 gb/s, 73.1 ulp |
 | `nk_vdot_f16c_serial`     |      15.8 gb/s, 24.8 ulp |      13.0 gb/s, 31.9 ulp |       12.3 gb/s, 137 ulp |
-| `nk_dot_f16c_neonhalf`    |       26.1 gb/s, 3.0 ulp |       18.4 gb/s, 6.5 ulp |      16.8 gb/s, 20.5 ulp |
-| `nk_vdot_f16c_neonhalf`   |      26.1 gb/s, 34.9 ulp |      18.5 gb/s, 40.7 ulp |      17.0 gb/s, 73.1 ulp |
+| `nk_dot_f16c_neon`        |       26.1 gb/s, 3.0 ulp |       18.4 gb/s, 6.5 ulp |      16.8 gb/s, 20.5 ulp |
+| `nk_vdot_f16c_neon`       |      26.1 gb/s, 34.9 ulp |      18.5 gb/s, 40.7 ulp |      17.0 gb/s, 73.1 ulp |
 | `nk_dot_f16c_neonfhm`     |       25.3 gb/s, 3.0 ulp |       17.1 gb/s, 6.5 ulp |      15.9 gb/s, 20.5 ulp |
 | `nk_vdot_f16c_neonfhm`    |      25.0 gb/s, 31.4 ulp |      17.0 gb/s, 38.6 ulp |      15.8 gb/s, 67.6 ulp |
 | __f64__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |

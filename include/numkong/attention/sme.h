@@ -162,8 +162,8 @@ typedef struct {
  *  Uses Cody-Waite range reduction + Horner polynomial (degree 4).
  *  Accuracy: ~0.1% relative error, acceptable for softmax normalization.
  *
- *  @param pg Active predicate
- *  @param x Input vector
+ *  @param predicate_b32x Active predicate
+ *  @param x_f32x Input vector
  *  @return exp(x) approximation
  */
 NK_INTERNAL svfloat32_t nk_exp_f32_sve_(svbool_t predicate_b32x, svfloat32_t x_f32x) __arm_streaming {

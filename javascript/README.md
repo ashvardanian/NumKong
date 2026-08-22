@@ -31,15 +31,18 @@ This binding stays centered on the vector families it actually exports.
 
 ## Ecosystem Comparison
 
-| Feature                      | NumKong                                                        | [mathjs](https://github.com/josdejong/mathjs) | [tensorflow.js](https://github.com/tensorflow/tfjs) |
-| ---------------------------- | -------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------- |
-| Operation families           | dots, distances, binary, probability, cast, packed, symmetric  | general arithmetic, matrix ops, statistics    | matmul, elementwise, reductions                     |
-| Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation | Float64 only; standard accuracy               | Float32 primarily; no sub-byte; standard accuracy   |
-| Runtime SIMD dispatch        | auto-selects best ISA per-thread across x86, ARM, RISC-V       | none; pure JS                                 | fixed at build time via WASM SIMD or WebGL          |
-| Packed matrix, GEMM-like     | `dotsPack` + `dotsPacked`; persistent packing; amortized       | `math.multiply` — no persistent packing       | `tf.matMul` — no persistent packing                 |
-| Symmetric kernels, SYRK-like | `dotsSymmetric`; upper triangle only; row-range partitioning   | no duplicate-pair skipping                    | no duplicate-pair skipping                          |
-| WASM fallback                | yes — portable, runs in browser without native addon           | yes — pure JS, no native required             | yes — also WebGL/WebGPU                             |
-| Bundle size                  | small                                                          | moderate                                      | large                                               |
+| Feature                      | NumKong                                                        | [mathjs][mathjs]                           | [tensorflow.js][tensorflow-js]                    |
+| ---------------------------- | -------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------- |
+| Operation families           | dots, distances, binary, probability, cast, packed, symmetric  | general arithmetic, matrix ops, statistics | matmul, elementwise, reductions                   |
+| Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation | Float64 only; standard accuracy            | Float32 primarily; no sub-byte; standard accuracy |
+| Runtime SIMD dispatch        | auto-selects best ISA per-thread across x86, ARM, RISC-V       | none; pure JS                              | fixed at build time via WASM SIMD or WebGL        |
+| Packed matrix, GEMM-like     | `dotsPack` + `dotsPacked`; persistent packing; amortized       | `math.multiply` — no persistent packing    | `tf.matMul` — no persistent packing               |
+| Symmetric kernels, SYRK-like | `dotsSymmetric`; upper triangle only; row-range partitioning   | no duplicate-pair skipping                 | no duplicate-pair skipping                        |
+| WASM fallback                | yes — portable, runs in browser without native addon           | yes — pure JS, no native required          | yes — also WebGL/WebGPU                           |
+| Bundle size                  | small                                                          | moderate                                   | large                                             |
+
+[mathjs]: https://github.com/josdejong/mathjs
+[tensorflow-js]: https://github.com/tensorflow/tfjs
 
 ## Installation
 
@@ -74,17 +77,16 @@ For self-hosted WASM, download the binaries from a [GitHub Release](https://gith
 
 ```html
 <script type="module">
-  import * as numkong from "./numkong-emscripten.js";
-  import NumKongModule from "./numkong.js";
-
-  const wasm = await NumKongModule();
-  numkong.initWasm(wasm);
+  import * as numkong from "./numkong.js";
 
   const a = new Float32Array([1, 2, 3]);
   const b = new Float32Array([4, 5, 6]);
   console.log(numkong.dot(a, b));
 </script>
 ```
+
+The release archive ships `numkong.js`, `numkong-emscripten.js`, and `numkong.wasm`.
+Only `numkong.js` is imported — it locates the other two next to itself and instantiates the module before any export is used.
 
 Or import the subpath from a bundler or Node.js (without the native addon):
 
@@ -186,11 +188,11 @@ console.log(a8.byteLength);
 
 If the underlying storage is a raw `Uint16Array` or `Uint8Array`, JS itself cannot know whether those bytes mean integers, `f16`, `bf16`, mini-floats, or packed bits.
 That is exactly when the `DType` tag becomes mandatory.
-You can also pass it to `cast` to convert many values between all supported types:
+`cast` converts many values between all supported types, naming both sides by their dtype string:
 
 ```ts
 numkong.cast(f32Source, "f32", bf16Dest, "bf16");
-numkong.cast(f32Source, "f32", bf16Dest, DType.E4M3);
+numkong.cast(f32Source, "f32", e4m3Dest, "e4m3");
 ```
 
 ## Vector Views and Owned Buffers

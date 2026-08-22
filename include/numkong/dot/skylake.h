@@ -145,8 +145,8 @@ NK_INTERNAL void nk_dot_through_f32_init_skylake_(nk_dot_through_f32_state_skyla
 
 /**
  *  @brief Fuses 32-bit multiplication and accumulation for low-precision dot-products.
- *  @sa nk_dot_f16x16_udpate_skylake, nk_dot_bf16x16_udpate_skylake
- *  @sa nk_dot_e4m3x16_udpate_skylake, nk_dot_e5m2x16_udpate_skylake
+ *  @sa nk_dot_f16x16_update_skylake, nk_dot_bf16x16_update_skylake
+ *  @sa nk_dot_e4m3x16_update_skylake, nk_dot_e5m2x16_update_skylake
  */
 NK_INTERNAL void nk_dot_through_f32_update_skylake_(nk_dot_through_f32_state_skylake_t_ *state, nk_b512_vec_t a,
                                                     nk_b512_vec_t b, nk_size_t depth_offset,
@@ -188,8 +188,8 @@ NK_INTERNAL void nk_dot_e5m2x64_update_skylake_(nk_dot_through_f32_state_skylake
 
 /**
  *  @brief Finalizes 4x low-precision dot-products placing them into 4x consecutive 32-bit slots.
- *  @sa nk_dot_f16x16_udpate_skylake, nk_dot_bf16x16_udpate_skylake
- *  @sa nk_dot_e4m3x16_udpate_skylake, nk_dot_e5m2x16_udpate_skylake
+ *  @sa nk_dot_f16x16_update_skylake, nk_dot_bf16x16_update_skylake
+ *  @sa nk_dot_e4m3x16_update_skylake, nk_dot_e5m2x16_update_skylake
  *
  *  The goal of this kernel is simple - compute 4x horizontal reductions, each involing 16x floats.
  *  The lack of vectorized horizontal instruction implies many consecutive shuffles producing a tree-like

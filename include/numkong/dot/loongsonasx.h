@@ -19,7 +19,7 @@
  *  @section dot_loongsonasx_stateful Stateful Streaming Logic
  *
  *  - nk_dot_f64x4 state with Dot2 stable dot-products,
- *  - nk_dot_f32x4 state with double-precision numerics,
+ *  - nk_dot_f32x8 state with double-precision numerics,
  *  - nk_dot_through_i32 state for 8-bit signed and unsigned integer inputs.
  */
 #ifndef NK_DOT_LOONGSONASX_H
@@ -348,7 +348,7 @@ NK_INTERNAL void nk_dot_f32x8_finalize_loongsonasx(                             
 
 /**
  *  @brief Internal helper state for dot-products of integer types, where 32-bit accumulation is enough.
- *  @sa nk_dot_i8x16_state_loongsonasx_t, nk_dot_u8x16_state_loongsonasx_t
+ *  @sa nk_dot_i8x32_state_loongsonasx_t, nk_dot_u8x32_state_loongsonasx_t
  */
 typedef struct nk_dot_through_i32_state_loongsonasx_t_ {
     __m256i sum_i32x8;
@@ -356,7 +356,7 @@ typedef struct nk_dot_through_i32_state_loongsonasx_t_ {
 
 /**
  *  @brief Initializes 32-bit accumulators for integer dot-products.
- *  @sa nk_dot_i8x16_update_loongsonasx, nk_dot_u8x16_update_loongsonasx
+ *  @sa nk_dot_i8x32_update_loongsonasx, nk_dot_u8x32_update_loongsonasx
  */
 NK_INTERNAL void nk_dot_through_i32_init_loongsonasx_(nk_dot_through_i32_state_loongsonasx_t_ *state) {
     state->sum_i32x8 = __lasx_xvreplgr2vr_w(0);
@@ -364,7 +364,7 @@ NK_INTERNAL void nk_dot_through_i32_init_loongsonasx_(nk_dot_through_i32_state_l
 
 /**
  *  @brief Finalizes 4x integer dot-products placing them into 4x consecutive 32-bit slots.
- *  @sa nk_dot_i8x16_update_loongsonasx, nk_dot_u8x16_update_loongsonasx
+ *  @sa nk_dot_i8x32_update_loongsonasx, nk_dot_u8x32_update_loongsonasx
  */
 NK_INTERNAL void nk_dot_through_i32_finalize_loongsonasx_(                                                          //
     nk_dot_through_i32_state_loongsonasx_t_ const *state_a, nk_dot_through_i32_state_loongsonasx_t_ const *state_b, //
@@ -474,7 +474,7 @@ NK_INTERNAL void nk_dot_through_f32_init_loongsonasx_(nk_dot_through_f32_state_l
 
 /**
  *  @brief Fuses 32-bit multiplication and accumulation for pre-converted f32 vectors.
- *  @sa nk_dot_bf16x8_update_loongsonasx
+ *  @sa nk_dot_bf16x16_update_loongsonasx
  */
 NK_INTERNAL void nk_dot_through_f32_update_loongsonasx_(nk_dot_through_f32_state_loongsonasx_t_ *state, nk_b256_vec_t a,
                                                         nk_b256_vec_t b, nk_size_t depth_offset,
@@ -486,7 +486,7 @@ NK_INTERNAL void nk_dot_through_f32_update_loongsonasx_(nk_dot_through_f32_state
 
 /**
  *  @brief Finalizes 4x low-precision dot-products placing them into 4x consecutive 32-bit slots.
- *  @sa nk_dot_bf16x8_finalize_loongsonasx
+ *  @sa nk_dot_bf16x16_finalize_loongsonasx
  *
  *  Computes 4x horizontal reductions, each involving 8x floats, using LASX interleave instructions.
  */

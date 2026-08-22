@@ -14,7 +14,7 @@
 
 #include "numkong/types.h"
 #include "numkong/spatial/haswell.h" // `nk_f32_sqrt_haswell`, `nk_f64_sqrt_haswell`
-#include "numkong/spatial/skylake.h" // `nk_f32_sqrt_skylake`, `nk_f64_sqrt_skylake`
+#include "numkong/spatial/skylake.h"
 
 #if defined(__cplusplus)
 extern "C" {

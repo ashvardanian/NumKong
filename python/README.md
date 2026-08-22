@@ -8,17 +8,20 @@ Low-precision dtypes (BFloat16, Float8, Float6, packed bits) flow through the sa
 
 ## Ecosystem Comparison
 
-| Feature                         | NumKong                                                                                                                      | [NumPy](https://github.com/numpy/numpy)/[SciPy](https://github.com/scipy/scipy) | [PyTorch](https://github.com/pytorch/pytorch)                               |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Operation families              | dots, distances, binary, probability, geospatial, curved, mesh, sparse, MaxSim, elementwise, reductions, cast, trig          | dots, distances, elementwise, reductions, some probability via `cdist`          | dots, distances, elementwise, reductions                                    |
-| Precision                       | BFloat16 through sub-byte — Float8, Float6, Int4, packed bits; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float16, partial BFloat16; no auto-widening; standard accuracy                  | Float16, BFloat16, partial Float8; explicit AMP required; standard accuracy |
-| Runtime SIMD dispatch           | auto-selects best ISA per-thread at runtime on x86, ARM, RISC-V                                                              | compile-time only                                                               | CPU: compile-time; CUDA: runtime                                            |
-| Packed matrix, GEMM-like        | pack once, reuse across query batches                                                                                        | `np.dot`/`@` — no persistent packing                                            | `torch.mm` — no persistent distance-oriented packing                        |
-| Symmetric kernels, SYRK-like    | skip duplicate pairs, up to 2x speedup for self-distance                                                                     | `pdist` computes one triangle; `cdist` recomputes both                          | `X @ X.T` recomputes both triangles                                         |
-| Output parameter `out=`         | Yes — all major entrypoints                                                                                                  | Yes — most `ufunc`s and functions; SciPy: some functions only                   | Yes for `torch.mm`, `torch.matmul`; No for `torch.cdist`                    |
-| Fast CPython calling convention | Yes — direct `METH_FASTCALL`                                                                                                 | Yes — `vectorcall` in 2.0+                                                      | No — tensor dispatch overhead                                               |
-| GIL release                     | batched, packed, and symmetric kernels                                                                                       | some ops only                                                                   | most ops                                                                    |
+| Feature                         | NumKong                                                                                                                      | [NumPy][numpy]/[SciPy][scipy]                                          | [PyTorch][pytorch]                                                          |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Operation families              | dots, distances, binary, probability, geospatial, curved, mesh, sparse, MaxSim, elementwise, reductions, cast, trig          | dots, distances, elementwise, reductions, some probability via `cdist` | dots, distances, elementwise, reductions                                    |
+| Precision                       | BFloat16 through sub-byte — Float8, Float6, Int4, packed bits; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float16, partial BFloat16; no auto-widening; standard accuracy         | Float16, BFloat16, partial Float8; explicit AMP required; standard accuracy |
+| Runtime SIMD dispatch           | auto-selects best ISA per-thread at runtime on x86, ARM, RISC-V                                                              | compile-time only                                                      | CPU: compile-time; CUDA: runtime                                            |
+| Packed matrix, GEMM-like        | pack once, reuse across query batches                                                                                        | `np.dot`/`@` — no persistent packing                                   | `torch.mm` — no persistent distance-oriented packing                        |
+| Symmetric kernels, SYRK-like    | skip duplicate pairs, up to 2x speedup for self-distance                                                                     | `pdist` computes one triangle; `cdist` recomputes both                 | `X @ X.T` recomputes both triangles                                         |
+| Output parameter `out=`         | Yes — all major entrypoints                                                                                                  | Yes — most `ufunc`s and functions; SciPy: some functions only          | Yes for `torch.mm`, `torch.matmul`; No for `torch.cdist`                    |
+| Fast CPython calling convention | Yes — direct `METH_FASTCALL`                                                                                                 | Yes — `vectorcall` in 2.0+                                             | No — tensor dispatch overhead                                               |
+| GIL release                     | batched, packed, and symmetric kernels                                                                                       | some ops only                                                          | most ops                                                                    |
 
+[numpy]: https://github.com/numpy/numpy
+[scipy]: https://github.com/scipy/scipy
+[pytorch]: https://github.com/pytorch/pytorch
 
 
 ## Quickstart
@@ -54,8 +57,9 @@ python -c "import numkong as nk; print(nk.get_capabilities())"
 
 ## Wheel Compatibility and Building from Source
 
-Pre-built wheels are available on PyPI for Linux (x86_64, aarch64, riscv64, plus i686, ppc64le, s390x), macOS (x86_64, arm64), and Windows (AMD64, ARM64).
-Python 3.9 through 3.14 is supported, including free-threading variants (3.13t, 3.14t).
+Pre-built wheels are available on PyPI for Linux (x86_64, aarch64, plus i686, ppc64le, s390x), macOS (x86_64, arm64), and Windows (AMD64, ARM64).
+RISC-V wheels are temporarily disabled until the official PyPA `riscv64` images ship a new enough LLVM.
+Python 3.10 through 3.14 is supported, including free-threading variants (3.13t, 3.14t).
 Every wheel is built with `NK_DYNAMIC_DISPATCH=1`, so a single wheel covers all CPU generations on a given architecture.
 
 When building from source, the compiler requirements depend on the platform.
@@ -64,7 +68,7 @@ RISC-V builds require Clang and LLD because GCC lacks `zvfh`, `zvfbfwma`, and `z
 On Windows, MSVC 19.44+ (Visual Studio 2022 17.14+) is recommended for full AVX-512 with FP16/BF16/VNNI.
 Build parallelism is controlled by `NK_BUILD_PARALLEL`, which defaults to `min(cpu_count, 4)` and should be lowered in memory-constrained containers.
 There is no OpenMP dependency.
-Python-side parallelism uses `concurrent.futures` with GIL-free kernels.
+Python-side parallelism uses the `threads=` argument on the GIL-free kernels, or `concurrent.futures` around them.
 
 ```sh
 NK_BUILD_PARALLEL=2 pip install . --no-build-isolation
@@ -392,7 +396,7 @@ assert np.asarray(pairwise).shape == (100, 100)
 assert np.asarray(all_pairs).shape == (100, 10_000)
 ```
 
-The intended large-scale parallel model for packed and symmetric kernels is external partitioning with row ranges, not a hidden `threads=` argument.
+`cdist` and the packed and symmetric kernels take a `threads=` argument, where `0` means every logical processor, and row ranges are still available for partitioning the work yourself.
 
 ## Elementwise Operations
 

@@ -895,7 +895,7 @@ nk_dot_e3m2_haswell_cycle:
 
 /**
  *  @brief Internal helper state for dot-products of low-precision types, where 32-bit accumulation is enough.
- *  @sa nk_dot_f16x8_state_haswell_t, nk_dot_bf16x8_state_haswell_t
+ *  @sa nk_dot_f16x8_state_haswell_t, nk_dot_bf16x16_state_haswell_t
  *  @sa nk_dot_e4m3x16_state_haswell_t, nk_dot_e5m2x16_state_haswell_t
  */
 typedef struct nk_dot_through_f32_state_haswell_t_ {
@@ -904,7 +904,7 @@ typedef struct nk_dot_through_f32_state_haswell_t_ {
 
 /**
  *  @brief Initializes 32-bit accumulators for low-precision dot-products.
- *  @sa nk_dot_f16x8_init_haswell, nk_dot_bf16x8_init_haswell
+ *  @sa nk_dot_f16x8_init_haswell, nk_dot_bf16x16_init_haswell
  *  @sa nk_dot_e4m3x16_init_haswell, nk_dot_e5m2x16_init_haswell
  */
 NK_INTERNAL void nk_dot_through_f32_init_haswell_(nk_dot_through_f32_state_haswell_t_ *state) {
@@ -913,7 +913,7 @@ NK_INTERNAL void nk_dot_through_f32_init_haswell_(nk_dot_through_f32_state_haswe
 
 /**
  *  @brief Fuses 32-bit multiplication and accumulation for low-precision dot-products.
- *  @sa nk_dot_f16x8_update_haswell, nk_dot_bf16x8_update_haswell
+ *  @sa nk_dot_f16x8_update_haswell, nk_dot_bf16x16_update_haswell
  *  @sa nk_dot_e4m3x16_update_haswell, nk_dot_e5m2x16_update_haswell
  */
 NK_INTERNAL void nk_dot_through_f32_update_haswell_(nk_dot_through_f32_state_haswell_t_ *state, nk_b256_vec_t a,
@@ -991,7 +991,7 @@ NK_INTERNAL void nk_dot_e4m3x32_update_haswell_(nk_dot_through_f32_state_haswell
 
 /**
  *  @brief Finalizes 4x low-precision dot-products placing them into 4x consecutive 32-bit slots.
- *  @sa nk_dot_f16x8_finalize_haswell, nk_dot_bf16x8_finalize_haswell
+ *  @sa nk_dot_f16x8_finalize_haswell, nk_dot_bf16x16_finalize_haswell
  *  @sa nk_dot_e4m3x16_finalize_haswell, nk_dot_e5m2x16_finalize_haswell
  *
  *  The goal of this kernel is simple - compute 4x horizontal reductions, each involving 8x floats.

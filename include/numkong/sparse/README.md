@@ -38,15 +38,15 @@ def sparse_dot(a_indices: np.ndarray, a_weights: np.ndarray,
 | `u16`      | `u64`       | 16-bit index intersection count              |
 | `u32`      | `u64`       | 32-bit index intersection count              |
 | `u64`      | `u64`       | 64-bit index intersection count              |
-| `u32+f32`  | `f32`       | Sparse dot with 32-bit indices, f32 weights  |
+| `u32+f32`  | `f64`       | Sparse dot with 32-bit indices, f32 weights  |
 | `u16+bf16` | `f32`       | Sparse dot with 16-bit indices, bf16 weights |
 
 ## Optimizations
 
 ### Adaptive Merge vs Galloping Search
 
-`nk_sparse_intersect_u32_serial` selects between linear merge and galloping (exponential) search based on length ratio: when `longer_length > 64 * shorter_length`, galloping search over the longer array is used.
-Linear merge advances two pointers in lockstep at $O(|A| + |B|)$ using branch-free conditional increments: `i += ai < bj; j += ai >= bj` — no branch misprediction penalty.
+`nk_sparse_intersect_u32_serial` selects between linear merge and galloping (exponential) search based on length ratio: when `longer_length >= 64 * shorter_length`, galloping search over the longer array is used.
+Linear merge advances two pointers in lockstep at $O(|A| + |B|)$ using branch-free conditional increments: `i += ai <= bj; j += ai >= bj` — no branch misprediction penalty.
 Galloping binary-searches the longer array for each element of the shorter at $O(|A| \cdot \log |B|)$: an exponential probe doubles the search range until the target is bracketed, then binary search narrows within.
 The crossover at 64x length ratio balances the per-element cost of binary search ($\log_2 |B|$ comparisons) against linear scan's single comparison per advance — the threshold was chosen empirically, as cache locality favors linear merge at moderate ratios.
 
@@ -56,7 +56,7 @@ The crossover at 64x length ratio balances the per-element cost of binary search
 The rotation approach uses `_mm512_shuffle_epi32` with permutation constants (`_MM_PERM_ADCB`, etc.) to cycle elements through comparison positions — contending for port 5 (~1cy per shuffle, ~3cy for `_mm512_alignr_epi32`).
 Match counts are extracted via `_mm_popcnt_u32` on the comparison masks, accumulating intersection size without materializing matched elements.
 Before each 16x16 comparison block, a fast overlap check (`a_max < b_min || b_max < a_min`) skips non-overlapping register loads entirely — critical for sparse workloads where most pairs have disjoint index ranges.
-No native `_mm512_2intersect_epi16` instruction exists in any x86 ISA — UInt16 intersection must convert indices to UInt32 before comparison, halving effective throughput.
+No native `_mm512_2intersect_epi16` instruction exists in any x86 ISA, so `nk_sparse_intersect_u16_icelake` runs the same rotate-and-compare pattern over 32 UInt16 lanes with `_mm512_alignr_epi32`.
 
 ### VP2INTERSECT on AMD Turin
 

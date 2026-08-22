@@ -46,7 +46,7 @@ You can inspect the runtime SIMD surface from Go.
 
 ## Ecosystem Comparison
 
-| Feature                      | NumKong                                                                                  | [GoNum](https://github.com/gonum/gonum)                  |
+| Feature                      | NumKong                                                                                  | [GoNum][gonum]                                           |
 | ---------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | Operation families           | dots, distances, binary, probability, geospatial, MaxSim                                 | dots, distances, some statistics                         |
 | Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float64 only; standard accuracy                          |
@@ -55,6 +55,8 @@ You can inspect the runtime SIMD surface from Go.
 | Symmetric kernels, SYRK-like | skips duplicate pairs, up to 2x speedup for self-distance                                | no duplicate-pair skipping                               |
 | Memory model                 | slice-based, caller-owned; cGo zero-copy pointer passing                                 | allocates internally in many functions                   |
 | Host-side parallelism        | reusable `WorkerPool` for packed and symmetric batch ops                                 | partial — gonum/optimize has some parallel support       |
+
+[gonum]: https://github.com/gonum/gonum
 
 ## Installation
 
@@ -69,7 +71,7 @@ The module path is `github.com/ashvardanian/NumKong`.
 The Go binding lives under `github.com/ashvardanian/NumKong/golang`.
 
 CGO must be enabled (the default).
-Any C11-capable compiler works: GCC, Clang, or MSVC.
+Any C99-capable compiler that cGo supports works: GCC or Clang, and MinGW-w64 on Windows.
 
 ## Dot Products
 

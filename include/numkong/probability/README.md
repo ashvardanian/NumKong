@@ -6,7 +6,7 @@ These are used in variational inference, topic modeling, and distribution compar
 Kullback-Leibler divergence from $P$ to $Q$:
 
 $$
-\text{KLD}(P \| Q) = \sum_{i=0}^{n-1} P(i) \log_2 \frac{P(i)}{Q(i)}
+\text{KLD}(P \| Q) = \sum_{i=0}^{n-1} P(i) \ln \frac{P(i)}{Q(i)}
 $$
 
 Jensen-Shannon distance is the square root of the symmetrized KLD through a mixture:
@@ -28,9 +28,8 @@ Reformulating as Python pseudocode:
 ```python
 import numpy as np
 
-def kld(p: np.ndarray, q: np.ndarray) -> float:
-    mask = p > 0
-    return np.sum(p[mask] * np.log2(p[mask] / q[mask]))
+def kld(p: np.ndarray, q: np.ndarray, eps: float = 1e-7) -> float:
+    return np.sum(p * np.log((p + eps) / (q + eps)))
 
 def jsd(p: np.ndarray, q: np.ndarray) -> float:
     m = (p + q) / 2
@@ -45,12 +44,12 @@ __Jensen-Shannon distance__ is commonly used in microbiome community comparison 
 
 ## Input & Output Types
 
-| Input Type | Output Type | Description                                    |
-| ---------- | ----------- | ---------------------------------------------- |
-| `f64`      | `f64`       | 64-bit IEEE 754 double precision               |
-| `f32`      | `f32`       | 32-bit IEEE 754 single precision               |
-| `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output |
-| `bf16`     | `f32`       | 16-bit brain float, widened output             |
+| Input Type | Output Type | Description                                      |
+| ---------- | ----------- | ------------------------------------------------ |
+| `f64`      | `f64`       | 64-bit IEEE 754 double precision                 |
+| `f32`      | `f64`       | 32-bit IEEE 754 single precision, widened output |
+| `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output   |
+| `bf16`     | `f32`       | 16-bit brain float, widened output               |
 
 ## Optimizations
 
@@ -61,24 +60,27 @@ The pipeline on Skylake is:
 
 ```
 exponent = VGETEXPPS(x)
-mantissa = VGETMANTPS(x, normalize_to_[1,2)) - 1
-log2(x) ≈ exponent + polynomial(mantissa)
+mantissa = VGETMANTPS(x, normalize_to_[1,2))
+s        = (mantissa - 1) / (mantissa + 1)
+log2(x)  ≈ exponent + (2/ln2) · s · (1 + s²/3 + s⁴/5 + s⁶/7 + s⁸/9)
 ```
 
 `VGETEXP` extracts the unbiased exponent as a float, while `VGETMANT` normalizes the mantissa to $[1, 2)$.
-A degree-4 minimax polynomial over the normalized mantissa completes the approximation.
+A five-term odd series in $s$ — the $\operatorname{atanh}$ expansion, which converges quickly because $s \in [0, 1/3]$ — completes the approximation.
 These instructions handle subnormals correctly without extra integer bit manipulation.
 
 `nk_kld_f32_neon`, `nk_jsd_f32_neon`, `nk_kld_f16_haswell`, `nk_jsd_f16_haswell` use integer bit extraction instead:
 
 ```
 exponent = (reinterpret_as_int(x) >> 23) - 127
-mantissa = reinterpret_as_float((reinterpret_as_int(x) & 0x7FFFFF) | 0x3F800000) - 1
-log2(x) ≈ exponent + c₁·m + c₂·m² + c₃·m³ + c₄·m⁴ + c₅·m⁵
+mantissa = reinterpret_as_float((reinterpret_as_int(x) & 0x7FFFFF) | 0x3F800000)
+log2(x) ≈ exponent + series_or_polynomial(mantissa)
 ```
 
 This approach reinterprets the float as an integer, shifts out the mantissa bits to obtain the exponent, then masks and recombines to produce a normalized mantissa in $[1, 2)$.
+The Haswell kernels then reuse the same $s$-series as Skylake, while the NEON kernels evaluate a degree-5 polynomial in the mantissa scaled by $m - 1$.
 It works on any ISA with integer-float reinterpretation and avoids the need for specialized exponent/mantissa instructions.
+The SIMD kernels scale the accumulated $\log_2$ sum by $\ln 2$ before returning, while the serial ones call a natural-log helper directly — either way the reported divergence is in nats, not bits.
 
 ### Kahan Compensated Summation for Float64
 

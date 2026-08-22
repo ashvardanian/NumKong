@@ -21,7 +21,7 @@ extern "C" {
 /**
  *  @brief Computes an approximate sine of the given angle in radians with @b 3-ULP error bound for [-2π, 2π].
  *  @see Based on @b `xfastsinf_u3500` in SLEEF library.
- *  @param[in] angle The input angle in radians.
+ *  @param[in] angle_radians The input angle in radians.
  *  @return The approximate sine of the input angle in [-1, 1] range.
  */
 NK_PUBLIC nk_f32_t nk_f32_sin(nk_f32_t const angle_radians) {
@@ -62,7 +62,7 @@ NK_PUBLIC nk_f32_t nk_f32_sin(nk_f32_t const angle_radians) {
 /**
  *  @brief Computes an approximate cosine of the given angle in radians with @b 3-ULP error bound for [-2π, 2π].
  *  @see Based on @b `xfastcosf_u3500` in SLEEF library.
- *  @param[in] angle The input angle in radians.
+ *  @param[in] angle_radians The input angle in radians.
  *  @return The approximate cosine of the input angle in [-1, 1] range.
  */
 NK_PUBLIC nk_f32_t nk_f32_cos(nk_f32_t const angle_radians) {
@@ -255,8 +255,8 @@ NK_PUBLIC nk_f32_t nk_f32_atan2(nk_f32_t const y_input, nk_f32_t const x_input) 
 /**
  *  @brief Computes the sine of the given angle in radians with @b 0-ULP error bound in [-2π, 2π].
  *  @see Based on @b `xsin` in SLEEF library.
- *  @param[in] angle The input angle in radians.
- *  @return The approximate cosine of the input angle.
+ *  @param[in] angle_radians The input angle in radians.
+ *  @return The approximate sine of the input angle.
  */
 NK_PUBLIC nk_f64_t nk_f64_sin(nk_f64_t const angle_radians) {
 
@@ -316,7 +316,7 @@ NK_PUBLIC nk_f64_t nk_f64_sin(nk_f64_t const angle_radians) {
 /**
  *  @brief Computes the cosine of the given angle in radians with @b 0-ULP error bound in [-2π, 2π].
  *  @see Based on @b `xcos` in SLEEF library.
- *  @param[in] angle The input angle in radians.
+ *  @param[in] angle_radians The input angle in radians.
  *  @return The approximate cosine of the input angle in [-1, 1] range.
  */
 NK_PUBLIC nk_f64_t nk_f64_cos(nk_f64_t const angle_radians) {
@@ -439,7 +439,7 @@ NK_PUBLIC nk_f64_t nk_f64_atan(nk_f64_t const input) {
  *  @see Based on @b `xatan2` in SLEEF library.
  *  @param  y_input The input sine value.
  *  @param  x_input The input cosine value.
- *  @return The arc-tangent of (y_input/x_input) in [-π/2, π/2] radians range.
+ *  @return The arc-tangent of (y_input/x_input) in [-π, π] radians range.
  */
 NK_PUBLIC nk_f64_t nk_f64_atan2(nk_f64_t const y_input, nk_f64_t const x_input) {
     // Polynomial coefficients for atan2 approximation

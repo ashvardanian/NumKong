@@ -953,7 +953,7 @@ NK_PUBLIC void nk_reduce_moments_f64_skylake(                          //
 NK_INTERNAL void nk_reduce_moments_i8_skylake_contiguous_( //
     nk_i8_t const *data_ptr, nk_size_t count,              //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-    // Sum: VPSADBW with XOR bias (same as nk_reduce_add_i8_skylake_contiguous_).
+    // Sum: VPSADBW with XOR bias.
     // Sumsq: widen i8→i16, VPMADDWD(x,x) → i32 (pairs of squares), accumulate i32.
     // i32 overflow safe: max per lane = (128² + 128²) * 65536 iters ≈ 2.1B = safe limit.
     // The dispatch recurses at (NK_U16_MAX+1)*64 elements → at most 65536 iterations here.
@@ -1147,7 +1147,7 @@ NK_PUBLIC void nk_reduce_minmax_i8_skylake(                           //
 NK_INTERNAL void nk_reduce_moments_u8_skylake_contiguous_( //
     nk_u8_t const *data_ptr, nk_size_t count,              //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-    // Sum: VPSADBW directly (same as nk_reduce_add_u8_skylake_contiguous_).
+    // Sum: VPSADBW directly.
     // Sumsq: widen u8→i16, VPMADDWD(x,x) → i32 (pairs of squares), accumulate i32.
     // i32 overflow safe: max per lane = (255² + 255²) * 1024 iters ≈ 133M < 2.1B.
     __m512i zero_u8x64 = _mm512_setzero_si512();
@@ -1697,7 +1697,7 @@ NK_PUBLIC void nk_reduce_minmax_u16_skylake(                           //
                                     max_index_ptr);
 }
 
-/** @brief Unsigned saturating add of two i64x8 vectors (3 uops). */
+/** @brief Unsigned saturating add of two u64x8 vectors (3 uops). */
 NK_INTERNAL __m512i nk_u64_sadd_epi64_skylake_(__m512i a, __m512i b) {
     __m512i result_u64x8 = _mm512_add_epi64(a, b);
     __mmask8 ovf = _mm512_cmp_epu64_mask(result_u64x8, a, _MM_CMPINT_LT);
@@ -3371,7 +3371,7 @@ NK_PUBLIC void nk_reduce_moments_u4_skylake(                            //
 NK_INTERNAL void nk_reduce_moments_u1_skylake_contiguous_( //
     nk_u1x8_t const *data_ptr, nk_size_t count,            //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-    // Sum = popcount via 4-bit LUT (same as nk_reduce_add_u1_skylake). Sumsq = sum for bits.
+    // Sum = popcount via 4-bit LUT. Sumsq = sum for bits.
     __m512i lut_i8x64 = _mm512_set_epi8(                //
         4, 3, 3, 2, 3, 2, 2, 1, 3, 2, 2, 1, 2, 1, 1, 0, //
         4, 3, 3, 2, 3, 2, 2, 1, 3, 2, 2, 1, 2, 1, 1, 0, //

@@ -53,36 +53,39 @@ def jaccard_words(a: np.ndarray, b: np.ndarray) -> float:
 
 ## Optimizations
 
-### Harley-Seal Carry-Save Adders for U1
+### Popcount Without Harley-Seal Carry-Save Adders
 
-`nk_hamming_u1_haswell`, `nk_jaccard_u1_haswell` amortize the cost of popcount by using Harley-Seal carry-save adder trees.
-Instead of computing popcount on every XOR/AND/OR result independently, three intermediate values are combined through a full-adder circuit:
+The textbook way to amortize population counts is a Harley-Seal carry-save adder tree, which folds three inputs through a full-adder circuit before any popcount is issued:
 
 ```
 ones  = a ^ b ^ c
 twos  = (a & b) | (c & (a ^ b))
 ```
 
-This circuit takes three popcount inputs and produces a ones and twos accumulator, where `twos` has double the weight of `ones`.
-By chaining two levels, a fours accumulator is also produced, so the actual `VPSHUFB`-based popcount is called only on the final accumulated ones, twos, and fours values.
-The total number of popcount operations is reduced by roughly a factor of three compared to computing popcount on every vector independently.
+Chaining levels yields `fours` and `eights` accumulators, each weighted by a power of two, so popcount runs on the accumulators instead of on every input vector — roughly a third of the calls.
+NumKong does not do this.
+The cycles-per-byte measurements in `set.h` put the crossover above 1 KB per vector: below it, loop and reduction overhead outweighs the saved popcounts, and the largest binary input benchmarked here is 4096 bits, or 512 bytes.
+Ice Lake and later expose `VPOPCNTQ` outright, and on Genoa it dual-issues on ports 0-1, so the popcount pressure that CSA trees relieve is largely absent on the hardware that could run them.
+
+AVX2 has no vector population count at all, so `nk_hamming_u1_haswell` and `nk_jaccard_u1_haswell` walk the packed octets 8 bytes at a time and call the scalar `POPCNT` through `_mm_popcnt_u64`.
+`nk_hamming_u1_neon` and `nk_jaccard_u1_neon` use the NEON `CNT` instruction instead, accumulating per-byte counts in a `uint8x16_t` for at most 31 iterations before widening, since 31 x 8 still fits in a byte.
 
 ### Native VPOPCNTQ on Ice Lake
 
 `nk_hamming_u1_icelake`, `nk_jaccard_u1_icelake` use `VPOPCNTQ` on 512-bit vectors, which directly produces per-quadword population counts for 8 quadwords at once.
-This single instruction replaces the entire nibble-LUT + Harley-Seal pipeline used on Haswell.
-The kernels batch 16 vectors before horizontal reduction to minimize `VPSADBW` overhead, accumulating the per-quadword counts into a running total via `VPADDQ`.
+Inputs of up to 256 bytes are fully unrolled into one, two, three, or four masked register pairs with no loop at all, since binary metrics are hard to speed up at tiny lengths.
+Longer inputs enter a loop that accumulates the per-quadword counts via `VPADDQ` and reduces once at the end.
 
 ### Jaccard via Precomputed Norms
 
-`nk_jaccard_u1_haswell`, `nk_jaccard_u1_icelake` exploit the identity $|A \cup B| = |A| + |B| - |A \cap B|$ to avoid computing both AND-popcount and OR-popcount in the inner loop.
-When vector norms (popcount of each vector) are precomputed and passed via the streaming API, only the intersection popcount is needed per pair, halving the work in the critical path.
+The streaming helpers `nk_jaccard_u1x64_finalize_haswell` and `nk_jaccard_u1x512_finalize_icelake` exploit the identity $|A \cup B| = |A| + |B| - |A \cap B|$ to avoid computing both AND-popcount and OR-popcount in the inner loop.
+The matching `update` step accumulates only the intersection popcount; `finalize` takes the query popcount and a vector of four target popcounts and recovers the union from them, halving the work in the critical path.
+Both finalizers replace the division by a reciprocal estimate — `RCPPS` on Haswell, `VRCP14PS` on Ice Lake — refined with one Newton-Raphson step.
 
-### Byte Hamming via VPSADBW
+### Byte Hamming via Compare Masks
 
-`nk_hamming_u8_haswell`, `nk_hamming_u8_icelake` compute byte-level Hamming distance using XOR to produce per-byte difference indicators, then `VPSADBW` against zero to horizontally sum the nonzero bytes.
-XOR produces 0 for equal bytes and nonzero for different ones, and `VPSADBW` sums the absolute values of byte differences within each 64-bit lane.
-Since XOR results are either 0 or nonzero (not necessarily 1), the kernel masks XOR output through `VPMIN` with a vector of ones to clamp each byte to 0 or 1 before feeding `VPSADBW`.
+`nk_hamming_u8_haswell` compares 32 bytes at a time with `VPCMPEQB`, extracts the per-byte sign bits of the two 128-bit halves with `VPMOVMSKB`, inverts the masks, and counts the set bits with scalar `POPCNT`.
+`nk_hamming_u8_icelake` does the same over 64 bytes with `VPCMPNEQB`, which writes the mismatch mask straight into a `__mmask64`, so no extract step is needed.
 
 ## Performance
 

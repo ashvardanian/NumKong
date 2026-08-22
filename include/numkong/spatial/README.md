@@ -43,20 +43,22 @@ def angular(a: np.ndarray, b: np.ndarray) -> float:
 
 ## Input & Output Types
 
-| Input Type | Output Type | Description                                    |
-| ---------- | ----------- | ---------------------------------------------- |
-| `f64`      | `f64`       | 64-bit IEEE 754 double precision               |
-| `f32`      | `f32`       | 32-bit IEEE 754 single precision               |
-| `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output |
-| `bf16`     | `f32`       | 16-bit brain float, widened output             |
-| `e5m2`     | `f32`       | 8-bit Float8: 5 exponent, 2 mantissa bits      |
-| `e4m3`     | `f32`       | 8-bit Float8: 4 exponent, 3 mantissa bits      |
-| `e3m2`     | `f32`       | 8-bit MX format: 3 exponent, 2 mantissa bits   |
-| `e2m3`     | `f32`       | 8-bit MX format: 2 exponent, 3 mantissa bits   |
-| `i8`       | `f32`       | 8-bit signed integers                          |
-| `u8`       | `f32`       | 8-bit unsigned integers                        |
-| `i4`       | `f32`       | 4-bit signed integers, packed nibble pairs     |
-| `u4`       | `f32`       | 4-bit unsigned integers, packed nibble pairs   |
+| Input Type | Output Type | Description                                      |
+| ---------- | ----------- | ------------------------------------------------ |
+| `f64`      | `f64`       | 64-bit IEEE 754 double precision                 |
+| `f32`      | `f64`       | 32-bit IEEE 754 single precision, widened output |
+| `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output   |
+| `bf16`     | `f32`       | 16-bit brain float, widened output               |
+| `e5m2`     | `f32`       | 8-bit Float8: 5 exponent, 2 mantissa bits        |
+| `e4m3`     | `f32`       | 8-bit Float8: 4 exponent, 3 mantissa bits        |
+| `e3m2`     | `f32`       | 8-bit MX format: 3 exponent, 2 mantissa bits     |
+| `e2m3`     | `f32`       | 8-bit MX format: 2 exponent, 3 mantissa bits     |
+| `i8`       | `f32`       | 8-bit signed integers                            |
+| `u8`       | `f32`       | 8-bit unsigned integers                          |
+| `i4`       | `f32`       | 4-bit signed integers, packed nibble pairs       |
+| `u4`       | `f32`       | 4-bit unsigned integers, packed nibble pairs     |
+
+The integer `nk_sqeuclidean_*` kernels are the exception: `i8`, `u8`, `i4`, and `u4` return an exact `u32` count of squared differences, while `nk_euclidean_*` and `nk_angular_*` return `f32`.
 
 ## Optimizations
 
@@ -69,12 +71,11 @@ The single-pass design is essential because reading two vectors of length $n$ on
 
 ### Reciprocal Square Root with Newton-Raphson Refinement
 
-`nk_angular_f32_haswell`, `nk_angular_f64_haswell`, `nk_angular_f32_neon`, `nk_angular_f64_neon` compute the final normalization via in-hardware reciprocal square root estimates refined by Newton-Raphson iteration.
+`nk_angular_f16_haswell`, `nk_angular_i8_haswell`, `nk_angular_e4m3_skylake`, `nk_angular_f32_neon`, `nk_angular_f64_neon` compute the final normalization via in-hardware reciprocal square root estimates refined by Newton-Raphson iteration.
 The iteration formula is $x_{n+1} = x_n \cdot (3 - d \cdot x_n^2) / 2$, where $d$ is the value whose reciprocal square root is needed.
-NEON `vrsqrte` + `vrsqrts` performs one refinement step, reaching roughly 22 bits of precision.
-Haswell `VRSQRT14` provides $2^{-14}$ relative error and one Newton-Raphson step doubles the precision to approximately 28 bits.
-Skylake `VRSQRT28` achieves $2^{-28}$ accuracy directly, eliminating the need for a refinement step entirely.
-This reciprocal square root is needed for both euclidean distance ($\sqrt{d}$ via $d \cdot \text{rsqrt}(d)$) and angular distance ($1/\sqrt{a^2} \cdot 1/\sqrt{b^2}$).
+NEON `vrsqrte_f32` + `vrsqrts_f32` runs two refinement steps for Float32, and `vrsqrteq_f64` + `vrsqrtsq_f64` runs three for Float64.
+Haswell `VRSQRTPS` starts from ~12 bits (1.5 x $2^{-12}$ relative error) and one Newton-Raphson step roughly doubles that; Skylake `VRSQRT14PS` starts from $2^{-14}$ and refines the same way.
+The Float32 and Float64 angular kernels on x86 do not take this path at all: they accumulate in Float64 and finish with an exact `VSQRTPD`, because a refined 14-bit estimate is still far short of a 52-bit mantissa.
 
 ### Absolute Differences for Integer Types
 
@@ -90,12 +91,12 @@ abs_diff = _mm256_or_si256(_mm256_subs_epu8(bias_a, bias_b), _mm256_subs_epu8(bi
 For unsigned `u8`, the same saturating subtract trick works without the XOR bias.
 The absolute differences are then zero-extended via `VPUNPCKLBW`/`VPUNPCKHBW` (1 cycle, cheaper than `VPMOVZXBW`) and squared+accumulated via `VPMADDWD`, which computes $d_i^2 + d_{i+1}^2$ in one instruction.
 
-### Masked Neumaier Compensation on Skylake
+### Masked Dot2 Compensation on Skylake
 
-`nk_sqeuclidean_f64_skylake` uses `VGETEXP`-based Neumaier TwoSum inside AVX-512 masked loops.
-The mask register tracks which lanes are active, handling tail elements when the vector length is not a multiple of the SIMD width.
-The compensation term accumulates the low-order rounding errors from each addition, and because the mask propagates through both the main sum and the compensation update, even the final partial iteration maintains full Neumaier accuracy.
-This avoids the need for a separate scalar tail loop that would otherwise lose the compensated error tracking.
+`nk_angular_f64_skylake` and `nk_angular_f64_haswell` run the Ogita-Rump-Oishi Dot2 error-free transformation on the cross-product accumulator, which is the only one of the three that can suffer cancellation; the two self-products $\|a\|^2$ and $\|b\|^2$ have no negative terms and use a plain FMA.
+Each step recovers the rounding error of both the product and the sum, and folds them into a separate compensation accumulator that is added back once at the end.
+Tail elements are handled by a masked load that zero-fills the inactive lanes, so the same compensated body runs on the final partial iteration — no scalar tail loop that would lose the error tracking.
+`nk_sqeuclidean_f64_skylake` needs none of this: squared differences are non-negative, so a plain `VFMADD231PD` chain suffices.
 
 ## Performance
 

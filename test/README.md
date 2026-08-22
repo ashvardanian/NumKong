@@ -70,10 +70,10 @@ Foreign flag mapping for muscle-memory compatibility:
 
 Each kernel is assigned a __comparison family__ that determines which error metrics are reported and what constitutes failure.
 Families are defined in `test.hpp` as `comparison_family_t`.
-All floating-point families report `max_abs`, `max_rel`, `mean_ulp`, `max_ulp`, and `exact` match counts; some also add `mean_abs` or `mean_rel`.
+All floating-point families report `max_abs`, `max_rel`, and `mean_ulp`; most also report `max_ulp` and `exact` match counts, and some substitute `mean_abs` or `mean_rel`.
 
 - __`exact_k`__ — integer and binary metrics: Hamming, Jaccard, set intersections, integer min/max.
-  Reports `max_dist`, `mean_dist`, `mismatch`, `exact`.
+  Reports `max_dist`, `mean_dist`, `max_abs`, `mismatch`, `exact`.
   Fails on any `max_dist > 0`.
 - __`narrow_arithmetic_k`__ — elementwise float ops: sum, scale, blend, fma, sin, cos, atan, cast.
   Fails on `max_ulp > NK_ULP_THRESHOLD_{F32,F16,BF16}`.
@@ -139,7 +139,7 @@ The toolchain files configure memory limits appropriate for each target:
 | ------ | -------------- | ---------- | ------------- | ------------------ |
 | wasm32 | 64 MB          | 2 GB       | 32-bit        | 3.1.27+            |
 | wasm64 | 256 MB         | 16 GB      | 64-bit        | 3.1.35+            |
-| WASI   | —              | 256 MB     | 32-bit        | —                  |
+| WASI   | —              | 2 GB       | 32-bit        | —                  |
 
 All three targets enable `-msimd128` and `-mrelaxed-simd` automatically.
 Stack size is 5 MB across all Emscripten targets.
@@ -156,7 +156,7 @@ For up-to-date engine support, see [WebAssembly Roadmap](https://webassembly.org
 
 ### Cross-Compilation
 
-NumKong ships 8 toolchain files in `cmake/` for cross-compiling to non-native targets.
+NumKong ships 11 toolchain files in `cmake/` for cross-compiling to non-native targets.
 Tests run transparently under QEMU via `CMAKE_CROSSCOMPILING_EMULATOR`.
 Set `NK_IN_QEMU=1` to relax half-precision accuracy thresholds under emulation.
 

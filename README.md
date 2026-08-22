@@ -68,12 +68,12 @@ A broader throughput comparison is maintained in [NumWars](https://github.com/as
 | Python   | `pip install`              | Linux, macOS, Windows          | [python/README.md](python/README.md)         |
 | Rust     | `cargo add`                | Linux, macOS, Windows          | [rust/README.md](rust/README.md)             |
 | JS       | `npm install` & `import`   | Node.js, Bun, Deno & browsers  | [javascript/README.md](javascript/README.md) |
-| Swift    | Swift Package Manager      | macOS, iOS, tvOS, watchOS      | [swift/README.md](swift/README.md)           |
+| Swift    | Swift Package Manager      | Apple platforms & Linux        | [swift/README.md](swift/README.md)           |
 | Go       | `go get`                   | Linux, macOS, Windows via cGo  | [golang/README.md](golang/README.md)         |
 
 ## What's Inside
 
-NumKong covers 17 numeric types — from 6-bit floats to 64-bit complex numbers — across dozens of operations and 30+ SIMD backends, with hardware-aware defaults: Arm prioritizes `f16`, x86 prioritizes `bf16`.
+NumKong covers 17 numeric types — from 6-bit floats to 128-bit complex numbers — across dozens of operations and 30+ SIMD backends, with hardware-aware defaults: Arm prioritizes `f16`, x86 prioritizes `bf16`.
 
 ### Language Bindings
 
@@ -215,7 +215,7 @@ The [GIL](https://docs.python.org/3/glossary.html#term-global-interpreter-lock) 
 import concurrent.futures, numkong as nk, numpy as np
 
 vectors, num_threads = np.random.randn(1000, 768).astype(np.float32), 4
-output = nk.zeros((1000, 1000), dtype="float32")
+output = nk.zeros((1000, 1000), dtype="float64")
 
 def compute_slice(t):
     start = t * (len(vectors) // num_threads)
@@ -320,7 +320,7 @@ Every such decision — saturation thresholds, Newton-Raphson iteration counts, 
 
 ### Calling Convention & Error Handling
 
-NumKong never throws exceptions, never sets `errno`, and never calls `setjmp`/`longjmp` — [exceptions bloat call sites with unwind tables](https://monkeywritescode.blogspot.com/p/c-exceptions-under-hood.html) and are invisible to C, Python, Rust, Swift, Go, and JavaScript FFI; `errno` is thread-local state whose [storage model varies across C runtimes](https://en.cppreference.com/w/c/error/errno).
+NumKong never throws exceptions, never sets `errno`, and never calls `setjmp`/`longjmp` on any kernel path — [exceptions bloat call sites with unwind tables](https://monkeywritescode.blogspot.com/p/c-exceptions-under-hood.html) and are invisible to C, Python, Rust, Swift, Go, and JavaScript FFI; `errno` is thread-local state whose [storage model varies across C runtimes](https://en.cppreference.com/w/c/error/errno).
 Instead, every function takes inputs as `const` pointers, writes outputs through caller-provided pointers, and returns `void`:
 
 ```c
@@ -352,7 +352,7 @@ nk_capability_t used = nk_cap_serial_k;
 nk_find_kernel_punned(
     nk_kernel_angular_k, nk_f32_k,            // what functionality? for which input type?
     nk_capabilities(),                        // which capabilities are viable?
-    (nk_kernel_punned_t *)&angular, &used);   // the kernel found and capabilties used!
+    (nk_kernel_punned_t *)&angular, &used);   // the kernel found and capabilities used!
 ```
 
 The first call to `nk_capabilities()` initializes the dispatch table; all subsequent calls are lock-free.
@@ -489,8 +489,8 @@ On Arm, NEON FHM extensions bring widening `FMLAL` dot-products for Float16 — 
 > On NEON+FP8DOT, E3M2 is first promoted to E5M2 and E2M3 to E4M3 before the hardware `FDOT` instruction.
 > Sierra Forest and Alder Lake use native `VPDPBSSD` (signed×signed) and `VPDPBUSD` (unsigned×signed) respectively for E2M3.
 
-E4M3 and E5M2 cannot use the integer path.
-E4M3 scaled by 16 reaches 7,680 — too large for Int8, barely fitting Int16 with a 128-entry table.
+E4M3 and E5M2 cannot use the same 32-entry LUT integer path.
+E4M3 scaled by 16 reaches 7,168 — too large for Int8, barely fitting Int16 with a 128-entry table.
 E5M2's range (±57,344) makes the scaled product exceed Int32 entirely.
 Without the integer path, E5M2 falls back to Float32 accumulation — where its [2-bit mantissa (only 4 values per binade)](https://developer.nvidia.com/blog/floating-point-8-an-introduction-to-efficient-lower-precision-ai-training/) creates a [catastrophic cancellation risk](https://www.ac.uma.es/arith2024/papers/Fused%20FP8%204-Way%20Dot%20Product%20with%20Scaling%20and%20FP32%20Accumulation.pdf) that E2M3's integer path avoids completely:
 
@@ -563,6 +563,20 @@ Beyond the READMEs in this repository, there are several standalone articles cov
 - [GCC Compiler vs Human - 119x Faster Assembly](https://ashvardanian.com/posts/gcc-12-vs-avx512fp16/)
 - [Accelerating JavaScript arrays by 10x for Vector Search](https://ashvardanian.com/posts/javascript-ai-vector-search/)
 - [SciPy distances... up to 200x faster with AVX-512 & SVE](https://ashvardanian.com/posts/simsimd-faster-scipy/)
+
+## Citation
+
+If NumKong helps your research or product, please cite it:
+
+```bibtex
+@software{Vardanian_NumKong,
+  author = {Vardanian, Ash},
+  title = {{NumKong: 2000 Mixed Precision Kernels For All}},
+  doi = {10.5281/zenodo.21480519},
+  url = {https://github.com/ashvardanian/NumKong},
+  license = {Apache-2.0}
+}
+```
 
 ## License
 

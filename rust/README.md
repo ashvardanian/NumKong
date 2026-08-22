@@ -42,7 +42,7 @@ The `parallel` feature is the intended native orchestration layer.
 
 ## Ecosystem Comparison
 
-| Feature                      | NumKong                                                                                                             | [nalgebra](https://github.com/dimforge/nalgebra)     | [ndarray](https://github.com/rust-ndarray/ndarray)   |
+| Feature                      | NumKong                                                                                                             | [nalgebra][nalgebra]                                 | [ndarray][ndarray]                                   |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------- |
 | Operation families           | dots, distances, binary, probability, geospatial, curved, mesh, sparse, MaxSim, elementwise, reductions, cast, trig | linear algebra, decompositions                       | general n-dimensional arithmetic                     |
 | Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation; 0 ULP in Float32/Float64                            | Float32/Float64 only; no widening; standard accuracy | Float32/Float64 only; no widening; standard accuracy |
@@ -51,6 +51,9 @@ The `parallel` feature is the intended native orchestration layer.
 | Symmetric kernels, SYRK-like | skip duplicate pairs, up to 2x speedup for self-distance                                                            | no duplicate-pair skipping                           | no duplicate-pair skipping                           |
 | Memory model                 | Caller-owned; `Tensor`/`PackedMatrix` support custom allocators                                                     | Heap-allocated matrices; custom storage trait        | Heap-allocated; no custom allocator support          |
 | Host-side parallelism        | row-range partitioning via reusable `ThreadPool`; no hidden threads                                                 | Rayon-based parallelism possible                     | Rayon-based parallelism possible                     |
+
+[nalgebra]: https://github.com/dimforge/nalgebra
+[ndarray]: https://github.com/rust-ndarray/ndarray
 
 NumKong validates `f16` and `bf16` interop against the `half` crate in its own test suite.
 That lets you move between ecosystem-standard half types and NumKong's kernel-facing wrappers without ambiguity.
@@ -235,7 +238,8 @@ assert!(jaccard_sets > 0.0 && jaccard_sets < 1.0); // |A ∩ B| / |A ∪ B|
 ```rust
 use numkong::{JensenShannon, KullbackLeibler};
 
-let p = [0.2_f32, 0.3, 0.5], q = [0.1_f32, 0.3, 0.6];
+let p = [0.2_f32, 0.3, 0.5];
+let q = [0.1_f32, 0.3, 0.6];
 let kl_forward = f32::kullbackleibler(&p, &q).unwrap();
 let kl_reverse = f32::kullbackleibler(&q, &p).unwrap();
 assert!(kl_forward != kl_reverse); // KLD is asymmetric
@@ -254,15 +258,19 @@ Outputs are meters.
 use numkong::{Haversine, Vincenty};
 
 // Statue of Liberty (40.6892°N, 74.0445°W) → Big Ben (51.5007°N, 0.1246°W)
-let liberty_lat = [0.7101605100_f64], liberty_lon = [-1.2923203180_f64];
-let big_ben_lat = [0.8988567821_f64], big_ben_lon = [-0.0021746802_f64];
+let liberty_lat = [0.7101605100_f64];
+let liberty_lon = [-1.2923203180_f64];
+let big_ben_lat = [0.8988567821_f64];
+let big_ben_lon = [-0.0021746802_f64];
 let mut distance = [0.0_f64; 1];
 f64::vincenty(&liberty_lat, &liberty_lon, &big_ben_lat, &big_ben_lon, &mut distance).unwrap();  // ≈ 5,589,857 m (ellipsoidal, baseline)
 f64::haversine(&liberty_lat, &liberty_lon, &big_ben_lat, &big_ben_lon, &mut distance).unwrap(); // ≈ 5,543,723 m (spherical, ~46 km less)
 
 // Vincenty in f32 — drifts ~2 m from f64
-let liberty_lat32 = [0.7101605100_f32], liberty_lon32 = [-1.2923203180_f32];
-let big_ben_lat32 = [0.8988567821_f32], big_ben_lon32 = [-0.0021746802_f32];
+let liberty_lat32 = [0.7101605100_f32];
+let liberty_lon32 = [-1.2923203180_f32];
+let big_ben_lat32 = [0.8988567821_f32];
+let big_ben_lon32 = [-0.0021746802_f32];
 let mut distance_f32 = [0.0_f32; 1];
 f32::vincenty(&liberty_lat32, &liberty_lon32, &big_ben_lat32, &big_ben_lon32, &mut distance_f32).unwrap(); // ≈ 5,589,859 m (+2 m drift)
 ```
@@ -466,12 +474,14 @@ Sparse helpers cover both sorted-index intersection and weighted sparse dot prod
 ```rust
 use numkong::{SparseIntersect, SparseDot};
 
-let a_idx = [1_u32, 3, 5, 7], b_idx = [3_u32, 4, 5, 8];
+let a_idx = [1_u32, 3, 5, 7];
+let b_idx = [3_u32, 4, 5, 8];
 let count = u32::sparse_intersection_size(&a_idx, &b_idx);
 assert_eq!(count, 2); // indices 3 and 5
 
-let a_weights = [1.0_f32, 2.0, 3.0, 4.0], b_weights = [5.0_f32, 6.0, 7.0, 8.0];
-let dot = u32::sparse_dot(&a_idx, &b_idx, &a_weights, &b_weights).unwrap();
+let a_weights = [1.0_f32, 2.0, 3.0, 4.0];
+let b_weights = [5.0_f32, 6.0, 7.0, 8.0];
+let dot = u32::sparse_dot(&a_idx, &b_idx, &a_weights, &b_weights);
 assert!(dot > 0.0); // weighted dot over shared indices
 ```
 
