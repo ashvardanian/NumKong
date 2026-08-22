@@ -21,11 +21,11 @@ jobs:
         python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Install cibuildwheel
@@ -66,7 +66,7 @@ jobs:
         python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Install Docker CE from Official Repository
@@ -87,7 +87,7 @@ jobs:
             sudo chmod 666 /var/run/docker.sock
             docker version
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Install cibuildwheel
@@ -126,13 +126,13 @@ jobs:
         python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Print Machine Specs
         run: sysctl hw.optional.arm hw.optional machdep.cpu || true
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Install cibuildwheel
@@ -171,13 +171,13 @@ jobs:
         python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Print Machine Specs
         run: sysctl hw.optional.arm hw.optional machdep.cpu || true
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Install cibuildwheel
@@ -232,7 +232,7 @@ jobs:
             architecture: ARM64
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Print Machine Specs
@@ -241,7 +241,7 @@ jobs:
           Get-CimInstance Win32_Processor | Format-List Name,Manufacturer,NumberOfCores,NumberOfLogicalProcessors,Description,Architecture
           Get-ComputerInfo | Format-List CsProcessors,OsArchitecture,WindowsVersion
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Set Up MSVC
@@ -285,11 +285,11 @@ jobs:
         architecture: [ppc64le, s390x, i686]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Set Up QEMU
@@ -333,11 +333,11 @@ jobs:
         python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Set Up QEMU
@@ -375,11 +375,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Set Up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Install Build Tools
