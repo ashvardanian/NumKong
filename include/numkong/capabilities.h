@@ -726,7 +726,7 @@ NK_PUBLIC nk_capability_t nk_capabilities_riscv64_(void) {
         if (syscall(258, pairs, 1, 0, (void *)0, 0) == 0) {
             if (pairs[0].value & (1ULL << 30)) caps |= nk_cap_rvvhalf_k;
             if (pairs[0].value & (1ULL << 54)) caps |= nk_cap_rvvbf16_k;
-            if (pairs[0].value & (1ULL << 48)) caps |= nk_cap_rvvbb_k; // Zvbb
+            if (pairs[0].value & (1ULL << 17)) caps |= nk_cap_rvvbb_k; // Zvbb
         }
     }
     return caps;
