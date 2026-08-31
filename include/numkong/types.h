@@ -463,30 +463,30 @@
 #endif // !defined(NK_TARGET_SMEBI32) || ...
 
 #if !defined(NK_TARGET_SMEHALF) || (NK_TARGET_SMEHALF && !NK_TARGET_ARM64_)
-#if defined(__ARM_FEATURE_SME_F16F16) || nk_has_builtin_(__builtin_sme_svmopa_za32_f16_m)
+#if defined(__ARM_FEATURE_SME_F16F16) || nk_has_builtin_(__builtin_sme_svmopa_za16_f16_m)
 #define NK_TARGET_SMEHALF 1
 #else
 #undef NK_TARGET_SMEHALF
 #define NK_TARGET_SMEHALF 0
-#endif // nk_has_builtin_(__builtin_sme_svmopa_za32_f16_m)
+#endif // nk_has_builtin_(__builtin_sme_svmopa_za16_f16_m)
 #endif // !defined(NK_TARGET_SMEHALF) || ...
 
 #if !defined(NK_TARGET_SMEBF16) || (NK_TARGET_SMEBF16 && !NK_TARGET_ARM64_)
-#if nk_has_builtin_(__builtin_sme_svmopa_za32_bf16_m)
+#if defined(__ARM_FEATURE_SME_B16B16) || nk_has_builtin_(__builtin_sme_svmopa_za16_bf16_m)
 #define NK_TARGET_SMEBF16 1
 #else
 #undef NK_TARGET_SMEBF16
 #define NK_TARGET_SMEBF16 0
-#endif // nk_has_builtin_(__builtin_sme_svmopa_za32_bf16_m)
+#endif // nk_has_builtin_(__builtin_sme_svmopa_za16_bf16_m)
 #endif // !defined(NK_TARGET_SMEBF16) || ...
 
 #if !defined(NK_TARGET_SMELUT2) || (NK_TARGET_SMELUT2 && !NK_TARGET_ARM64_)
-#if nk_has_builtin_(__builtin_sme_svluti2_lane_zt_u8)
+#if nk_has_builtin_(__builtin_sme_svluti4_zt_u8_x4)
 #define NK_TARGET_SMELUT2 1
 #else
 #undef NK_TARGET_SMELUT2
 #define NK_TARGET_SMELUT2 0
-#endif // nk_has_builtin_(__builtin_sme_svluti2_lane_zt_u8)
+#endif // nk_has_builtin_(__builtin_sme_svluti4_zt_u8_x4)
 #endif // !defined(NK_TARGET_SMELUT2) || ...
 
 // Compiling for Arm: NK_TARGET_SMEFA64 (FEAT_SME_FA64, full SVE2 in streaming mode)
@@ -1662,20 +1662,21 @@ NK_INTERNAL void nk_sme_stop_streaming_(void) { __asm__ __volatile__("smstop sm"
  */
 __attribute__((weak)) void __arm_tpidr2_save(void) {}
 __attribute__((weak)) void __arm_tpidr2_restore(void *blk) { nk_unused_(blk); }
-__attribute__((weak, target("+sme"))) void *__arm_sc_memset(void *d, int c, __SIZE_TYPE__ n) __arm_streaming_compatible {
+__attribute__((weak, target("+sme"))) void *__arm_sc_memset(void *d, int c,
+                                                            __SIZE_TYPE__ n) __arm_streaming_compatible {
     unsigned char *p = (unsigned char *)d;
     for (__SIZE_TYPE__ i = 0; i < n; i++) p[i] = (unsigned char)c;
     return d;
 }
 __attribute__((weak, target("+sme"))) void *__arm_sc_memcpy(void *d, void const *s,
-                                                           __SIZE_TYPE__ n) __arm_streaming_compatible {
+                                                            __SIZE_TYPE__ n) __arm_streaming_compatible {
     unsigned char *dp = (unsigned char *)d;
     unsigned char const *sp = (unsigned char const *)s;
     for (__SIZE_TYPE__ i = 0; i < n; i++) dp[i] = sp[i];
     return d;
 }
 __attribute__((weak, target("+sme"))) void *__arm_sc_memmove(void *d, void const *s,
-                                                            __SIZE_TYPE__ n) __arm_streaming_compatible {
+                                                             __SIZE_TYPE__ n) __arm_streaming_compatible {
     unsigned char *dp = (unsigned char *)d;
     unsigned char const *sp = (unsigned char const *)s;
     if (dp < sp) {

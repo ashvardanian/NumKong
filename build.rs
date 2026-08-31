@@ -240,7 +240,7 @@ const ARM_PROBES: &[IsaProbe] = &[
     IsaProbe {
         name: "NK_TARGET_SMELUT2",
         probe_file: "probes/arm_sme_lut2.c",
-        gcc_flags: &["-march=armv8-a+sme2+lut"],
+        gcc_flags: &["-march=armv8-a+sme2+sme-lutv2"],
         msvc_flags: &[],
     },
     IsaProbe {

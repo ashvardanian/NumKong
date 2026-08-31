@@ -566,30 +566,33 @@ NK_PUBLIC int nk_configure_thread_arm64_(nk_capability_t capabilities) {
 NK_PUBLIC nk_capability_t nk_capabilities_arm64_(void) {
 #if defined(NK_DEFINED_APPLE_)
     size_t size = sizeof(unsigned);
-    unsigned supports_neon = 0, supports_fp16 = 0, supports_fhm = 0, supports_bf16 = 0, supports_i8mm = 0;
+    unsigned supports_neon = 0, supports_fp16 = 0, supports_fhm = 0, supports_bf16 = 0, supports_dotprod = 0;
     unsigned supports_sme = 0, supports_sme2 = 0, supports_smef64 = 0, supports_smehalf = 0, supports_sme2p1 = 0,
-             supports_smebi32 = 0;
+             supports_smebi32 = 0, supports_smebf16 = 0;
     if (sysctlbyname("hw.optional.neon", &supports_neon, &size, NULL, 0) != 0) supports_neon = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_FP16", &supports_fp16, &size, NULL, 0) != 0) supports_fp16 = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_FHM", &supports_fhm, &size, NULL, 0) != 0) supports_fhm = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_BF16", &supports_bf16, &size, NULL, 0) != 0) supports_bf16 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_I8MM", &supports_i8mm, &size, NULL, 0) != 0) supports_i8mm = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_DotProd", &supports_dotprod, &size, NULL, 0) != 0) supports_dotprod = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_SME", &supports_sme, &size, NULL, 0) != 0) supports_sme = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_SME2", &supports_sme2, &size, NULL, 0) != 0) supports_sme2 = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_SME_F64F64", &supports_smef64, &size, NULL, 0) != 0) supports_smef64 = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_SME_F16F16", &supports_smehalf, &size, NULL, 0) != 0) supports_smehalf = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_SME2p1", &supports_sme2p1, &size, NULL, 0) != 0) supports_sme2p1 = 0;
     if (sysctlbyname("hw.optional.arm.SME_BI32I32", &supports_smebi32, &size, NULL, 0) != 0) supports_smebi32 = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_SME_B16B16", &supports_smebf16, &size, NULL, 0) != 0) supports_smebf16 = 0;
 
+    // macOS exposes no sysctl for FEAT_SME_FA64, FEAT_SME_LUTv2 or FP8 dot-products, so
+    // `smefa64`, `smelut2` and `neonfp8` stay unset here rather than being overlooked.
     return (nk_capability_t)((nk_cap_neon_k * (supports_neon)) |
                              (nk_cap_neonhalf_k * (supports_neon && supports_fp16)) |
                              (nk_cap_neonfhm_k * (supports_neon && supports_fhm)) |
                              (nk_cap_neonbfdot_k * (supports_neon && supports_bf16)) |
-                             (nk_cap_neonsdot_k * (supports_neon && supports_i8mm)) | (nk_cap_sme_k * (supports_sme)) |
-                             (nk_cap_sme2_k * (supports_sme2)) | (nk_cap_sme2p1_k * (supports_sme2p1)) |
-                             (nk_cap_smef64_k * (supports_smef64)) | (nk_cap_smehalf_k * (supports_smehalf)) |
-                             (nk_cap_smebf16_k * (supports_sme)) | (nk_cap_smebi32_k * (supports_smebi32)) |
-                             (nk_cap_serial_k));
+                             (nk_cap_neonsdot_k * (supports_neon && supports_dotprod)) |
+                             (nk_cap_sme_k * (supports_sme)) | (nk_cap_sme2_k * (supports_sme2)) |
+                             (nk_cap_sme2p1_k * (supports_sme2p1)) | (nk_cap_smef64_k * (supports_smef64)) |
+                             (nk_cap_smehalf_k * (supports_smehalf)) | (nk_cap_smebf16_k * (supports_smebf16)) |
+                             (nk_cap_smebi32_k * (supports_smebi32)) | (nk_cap_serial_k));
 
 #elif defined(NK_DEFINED_LINUX_) || defined(NK_DEFINED_FREEBSD_)
 
@@ -625,7 +628,6 @@ NK_PUBLIC nk_capability_t nk_capabilities_arm64_(void) {
     register unsigned long __isar1 __asm__("x0");
     __asm__ __volatile__(".inst 0xD5380620" : "=r"(__isar1)); // MRS x0, ID_AA64ISAR1_EL1
     id_aa64isar1_el1 = __isar1;
-    unsigned supports_i8mm = ((id_aa64isar1_el1 >> 52) & 0xF) >= 1;
     unsigned supports_bf16 = ((id_aa64isar1_el1 >> 44) & 0xF) >= 1;
 
     register unsigned long __pfr0 __asm__("x0");
@@ -671,25 +673,27 @@ NK_PUBLIC nk_capability_t nk_capabilities_arm64_(void) {
         supports_sme2p1 = sme_version >= 2;
         supports_smef64 = (id_aa64smfr0_el1 >> 48) & 0x1;
         supports_smehalf = (id_aa64smfr0_el1 >> 42) & 0x1;
-        supports_smebf16 = (id_aa64smfr0_el1 >> 44) & 0x1;
+        supports_smebf16 = (id_aa64smfr0_el1 >> 43) & 0x1;
         supports_smebi32 = (id_aa64smfr0_el1 >> 33) & 0x1;
+        supports_smelut2 = (id_aa64smfr0_el1 >> 60) & 0x1;
         supports_smefa64 = (id_aa64smfr0_el1 >> 63) & 0x1;
     }
 
-    return (
-        nk_capability_t)((nk_cap_neon_k * (supports_neon)) | (nk_cap_neonhalf_k * (supports_neon && supports_fp16)) |
-                         (nk_cap_neonfhm_k * (supports_neon && supports_fhm)) |
-                         (nk_cap_neonbfdot_k * (supports_neon && supports_bf16)) |
-                         (nk_cap_neonsdot_k * (supports_neon && supports_i8mm && supports_integer_dot_products)) |
-                         (nk_cap_neonfp8_k * (supports_neon && supports_fp8dot4)) | //
-                         (nk_cap_sve_k * (supports_sve)) | (nk_cap_svehalf_k * (supports_sve && supports_fp16)) |
-                         (nk_cap_svebfdot_k * (supports_sve && supports_svebfdot)) |
-                         (nk_cap_svesdot_k * (supports_sve && supports_svesdotmm)) | (nk_cap_sve2_k * (supports_sve2)) |
-                         (nk_cap_sve2p1_k * (supports_sve2p1)) | (nk_cap_sme_k * (supports_sme)) |
-                         (nk_cap_sme2_k * (supports_sme2)) | (nk_cap_sme2p1_k * (supports_sme2p1)) |
-                         (nk_cap_smef64_k * (supports_smef64)) | (nk_cap_smehalf_k * (supports_smehalf)) |
-                         (nk_cap_smebf16_k * (supports_smebf16)) | (nk_cap_smebi32_k * (supports_smebi32)) |
-                         (nk_cap_smefa64_k * (supports_smefa64)) | (nk_cap_serial_k));
+    return (nk_capability_t)((nk_cap_neon_k * (supports_neon)) |
+                             (nk_cap_neonhalf_k * (supports_neon && supports_fp16)) |
+                             (nk_cap_neonfhm_k * (supports_neon && supports_fhm)) |
+                             (nk_cap_neonbfdot_k * (supports_neon && supports_bf16)) |
+                             (nk_cap_neonsdot_k * (supports_neon && supports_integer_dot_products)) |
+                             (nk_cap_neonfp8_k * (supports_neon && supports_fp8dot4)) | //
+                             (nk_cap_sve_k * (supports_sve)) | (nk_cap_svehalf_k * (supports_sve && supports_fp16)) |
+                             (nk_cap_svebfdot_k * (supports_sve && supports_svebfdot)) |
+                             (nk_cap_svesdot_k * (supports_sve && supports_svesdotmm)) |
+                             (nk_cap_sve2_k * (supports_sve2)) | (nk_cap_sve2p1_k * (supports_sve2p1)) |
+                             (nk_cap_sme_k * (supports_sme)) | (nk_cap_sme2_k * (supports_sme2)) |
+                             (nk_cap_sme2p1_k * (supports_sme2p1)) | (nk_cap_smef64_k * (supports_smef64)) |
+                             (nk_cap_smehalf_k * (supports_smehalf)) | (nk_cap_smebf16_k * (supports_smebf16)) |
+                             (nk_cap_smebi32_k * (supports_smebi32)) | (nk_cap_smelut2_k * (supports_smelut2)) |
+                             (nk_cap_smefa64_k * (supports_smefa64)) | (nk_cap_serial_k));
 #elif defined(NK_DEFINED_WINDOWS_)
 
     unsigned supports_neon = 0, supports_dp = 0;

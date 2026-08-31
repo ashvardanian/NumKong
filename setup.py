@@ -223,7 +223,7 @@ PROBE_TABLE_ARM: ProbeTable = [
     ("SMEHALF", "probes/arm_sme_half.c", ["-march=armv8-a+sme+sme-f16f16"], []),
     ("SMEBF16", "probes/arm_sme_bf16.c", ["-march=armv8-a+sme2+sme-b16b16"], []),
     ("SMEBI32", "probes/arm_sme_bi32.c", ["-march=armv8-a+sme2"], []),
-    ("SMELUT2", "probes/arm_sme_lut2.c", ["-march=armv8-a+sme2+lut"], []),
+    ("SMELUT2", "probes/arm_sme_lut2.c", ["-march=armv8-a+sme2+sme-lutv2"], []),
     ("SMEFA64", "probes/arm_sme_fa64.c", ["-march=armv8-a+sme+sme-fa64"], []),
 ]
 
