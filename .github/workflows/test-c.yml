@@ -320,11 +320,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SYSROOT="$(riscv64-linux-gnu-gcc -print-sysroot)"
           cmake -B build_riscv \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
             -DLLVM_ROOT=/usr/lib/llvm-23 \
-            -DRISCV_SYSROOT="${SYSROOT}" \
             -DRISCV_MARCH=${{ matrix.march }} \
             -DNK_BUILD_TEST=ON \
             -DNK_BUILD_SHARED=ON
@@ -348,17 +346,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # `qemu` is spelled out because it is not derivable from the triple.
+          # No AArch64 leg: Debian's GCC 14 cross accepts `+sme` but its libgcc has no
+          # `__arm_tpidr2_save`, so the SME kernels compile and then fail to link.
           - name: LoongArch
-            processor: loongarch64
+            arch: loongarch64
+            prefix: LOONGARCH
             triple: loongarch64-linux-gnu
-            qemu: qemu-loongarch64
-            cpu: max
           - name: Power
-            processor: ppc64le
+            arch: ppc64le
+            prefix: PPC
             triple: powerpc64le-linux-gnu
-            qemu: qemu-ppc64le
-            cpu: power10
 
     steps:
       - name: Checkout
@@ -370,16 +367,13 @@ jobs:
           sudo apt-get install -y cmake qemu-user \
             gcc-14-${{ matrix.triple }} g++-14-${{ matrix.triple }}
 
+      # The toolchain file knows the processor, the emulator and the loader prefix; only the
+      # Debian compiler suffix has to be supplied here.
       - name: Configure
         run: |
-          SYSROOT="/usr/$(${{ matrix.triple }}-gcc-14 -dumpmachine)"
           cmake -B build_cross \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.processor }} \
-            -DCMAKE_C_COMPILER=${{ matrix.triple }}-gcc-14 \
-            -DCMAKE_CXX_COMPILER=${{ matrix.triple }}-g++-14 \
-            -DCMAKE_CROSSCOMPILING_EMULATOR="${{ matrix.qemu }};-L;${SYSROOT};-cpu;${{ matrix.cpu }}" \
-            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-${{ matrix.arch }}-gnu.cmake \
+            -D${{ matrix.prefix }}_COMPILER_SUFFIX=-14 \
             -DNK_BUILD_TEST=ON \
             -DNK_BUILD_SHARED=ON
 

@@ -612,9 +612,8 @@ cmake -B build -D CMAKE_C_FLAGS="-DNK_DYNAMIC_DISPATCH=1" -D NK_BUILD_BENCH=ON -
 
 Toolchain files for cross-compilation live in `cmake/`:
 
-- `cmake/toolchain-aarch64-gnu.cmake` for ARM64 Linux with the GNU toolchain.
-- `cmake/toolchain-riscv64-gnu.cmake` for RISC-V 64 Linux with the GNU toolchain.
-- `cmake/toolchain-android-arm64.cmake` for Android ARM64 via the NDK.
+- `cmake/toolchain-aarch64-gnu.cmake`, `toolchain-ppc64le-gnu.cmake`, `toolchain-loongarch64-gnu.cmake`, and `toolchain-riscv64-gnu.cmake` for Linux with the GNU cross toolchains.
+- `cmake/toolchain-android-arm64.cmake` and `toolchain-android-armv7.cmake` for Android via the NDK.
 - `cmake/toolchain-x86_64-llvm.cmake` and `cmake/toolchain-riscv64-llvm.cmake` for Clang/LLD builds.
 - `cmake/toolchain-wasm.cmake`, `toolchain-wasm64.cmake`, and `toolchain-wasi.cmake` for WebAssembly targets.
 

@@ -166,16 +166,14 @@ __ARM64 Linux__
 cmake -B build_arm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64-gnu.cmake \
       -DNK_BUILD_TEST=1
 cmake --build build_arm64 --parallel
-NK_IN_QEMU=1 ctest --test-dir build_arm64    # runs under qemu-aarch64 -cpu max
+NK_IN_QEMU=1 ctest --test-dir build_arm64 # runs under qemu-aarch64 -cpu max
 ```
 
-Default arch: `armv9-a+sve2+fp16+bf16+i8mm+dotprod+fp16fml`.
+The ISA floor is `armv8-a`; individual kernels are gated by the compile probes in `cmake/`.
 
 __RISC-V 64 with GCC__
 
 ```sh
-export RISCV_TOOLCHAIN_PATH=/path/to/riscv-gnu-toolchain    # optional
-# export RISCV_SYSROOT=/path/to/riscv-sysroot               # optional override
 cmake -B build_riscv -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-gnu.cmake \
       -DNK_BUILD_TEST=1
 cmake --build build_riscv --parallel
@@ -183,17 +181,19 @@ NK_IN_QEMU=1 ctest --test-dir build_riscv    # runs under qemu-riscv64 -cpu max
 ```
 
 Default arch: `rv64gcv_zvfh_zvfbfwma_zvbb`.
+Needs GCC 16 or newer for the RVV kernels.
 
 __RISC-V 64 with LLVM__
 
 ```sh
-export RISCV_SYSROOT=/path/to/riscv-sysroot
-export LLVM_ROOT=/path/to/llvm                           # optional
+export LLVM_ROOT=/path/to/llvm # optional
 cmake -B build_riscv_llvm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
       -DNK_BUILD_TEST=1
 cmake --build build_riscv_llvm --parallel
 NK_IN_QEMU=1 ctest --test-dir build_riscv_llvm
 ```
+
+Set `RISCV_SYSROOT` only for a self-contained toolchain; distribution cross packages need none.
 
 __Android ARM64__
 

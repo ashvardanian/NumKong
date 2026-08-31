@@ -457,11 +457,9 @@ jobs:
             gcc-riscv64-linux-gnu libc6-dev-riscv64-cross
       - name: Build Shared Library
         run: |
-          SYSROOT="$(riscv64-linux-gnu-gcc -print-sysroot)"
           cmake -B build_riscv \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
             -DLLVM_ROOT=/usr/lib/llvm-23 \
-            -DRISCV_SYSROOT="${SYSROOT}" \
             -DRISCV_MARCH=rv64gcv_zvfh_zvfbfwma_zvbb \
             -DCMAKE_BUILD_TYPE=Release \
             -DNK_BUILD_SHARED=ON \

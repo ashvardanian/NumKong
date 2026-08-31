@@ -92,21 +92,20 @@ NumKong ships 11 toolchain files in `cmake/`, each named `toolchain-<name>.cmake
 Tests and benchmarks run transparently under QEMU via `CMAKE_CROSSCOMPILING_EMULATOR`.
 Targets with a `qemu-*` emulator additionally require `qemu-user`.
 
-| Target                  | Toolchain         | Emulator                    | Prerequisites                  |
-| ----------------------- | ----------------- | --------------------------- | ------------------------------ |
-| ARM64 Linux             | `aarch64-gnu`     | `qemu-aarch64 -cpu max`     | `gcc-aarch64-linux-gnu`        |
-| RISC-V 64 GCC           | `riscv64-gnu`     | `qemu-riscv64 -cpu max`     | [`riscv-gnu-toolchain`][riscv] |
-| RISC-V 64 LLVM          | `riscv64-llvm`    | `qemu-riscv64 -cpu max`     | LLVM 17+, `RISCV_SYSROOT`      |
-| ppc64le Linux           | `ppc64le-gnu`     | `qemu-ppc64le -cpu power9`  | `gcc-powerpc64le-linux-gnu`    |
-| LoongArch 64            | `loongarch64-gnu` | `qemu-loongarch64 -cpu max` | `LOONGARCH_TOOLCHAIN_PATH`     |
-| Android ARM64           | `android-arm64`   | —                           | `ANDROID_NDK_ROOT`             |
-| Android ARMv7           | `android-armv7`   | —                           | `ANDROID_NDK_ROOT`             |
-| x86_64 on Apple Silicon | `x86_64-llvm`     | `arch -x86_64`              | Homebrew LLVM                  |
-| WASM Emscripten         | `wasm`            | Node.js                     | Emscripten 3.1.27+             |
-| WASM64 Memory64         | `wasm64`          | Node.js                     | Emscripten 3.1.35+             |
-| WASI                    | `wasi`            | Wasmtime / Wasmer           | WASI SDK 24+                   |
+| Target                  | Toolchain         | Emulator                    | Prerequisites                      |
+| ----------------------- | ----------------- | --------------------------- | ---------------------------------- |
+| ARM64 Linux             | `aarch64-gnu`     | `qemu-aarch64 -cpu max`     | `gcc-aarch64-linux-gnu`            |
+| RISC-V 64 LLVM          | `riscv64-llvm`    | `qemu-riscv64 -cpu max`     | Clang 17+, `gcc-riscv64-linux-gnu` |
+| RISC-V 64 GCC           | `riscv64-gnu`     | `qemu-riscv64 -cpu max`     | GCC 16+, `gcc-riscv64-linux-gnu`   |
+| ppc64le Linux           | `ppc64le-gnu`     | `qemu-ppc64le -cpu power10` | `gcc-powerpc64le-linux-gnu`        |
+| LoongArch 64            | `loongarch64-gnu` | `qemu-loongarch64 -cpu max` | `gcc-loongarch64-linux-gnu`        |
+| Android ARM64           | `android-arm64`   | —                           | `ANDROID_NDK_ROOT`                 |
+| Android ARMv7           | `android-armv7`   | —                           | `ANDROID_NDK_ROOT`                 |
+| x86_64 on Apple Silicon | `x86_64-llvm`     | `arch -x86_64`              | Homebrew LLVM                      |
+| WASM Emscripten         | `wasm`            | Node.js                     | Emscripten 3.1.27+                 |
+| WASM64 Memory64         | `wasm64`          | Node.js                     | Emscripten 3.1.35+                 |
+| WASI                    | `wasi`            | Wasmtime / Wasmer           | WASI SDK 24+                       |
 
-[riscv]: https://github.com/riscv-collab/riscv-gnu-toolchain/releases
 
 Set `NK_IN_QEMU=1` to relax half-precision accuracy thresholds under emulation.
 
@@ -119,7 +118,8 @@ cmake --build build_arm64 --parallel
 
 To build and run tests under emulation, see [test/README.md](test/README.md#cross-compilation).
 
-Default arch: `armv9-a+sve2+fp16+bf16+i8mm+dotprod+fp16fml`.
+The ISA floor is `armv8-a`; individual kernels are gated by the compile probes in `cmake/`.
+Use Clang: GCC 14 compiles the SME kernels but its `libgcc` has no `__arm_tpidr2_save`, so the link fails.
 
 __RISC-V 64 with GCC__
 
@@ -131,16 +131,19 @@ cmake --build build_riscv --parallel
 To build and run tests under emulation, see [test/README.md](test/README.md#cross-compilation).
 
 Default arch: `rv64gcv_zvfh_zvfbfwma_zvbb`.
+Needs GCC 16 or newer: the RVV kernels gate on `#pragma GCC target("arch=+v")`, which GCC implements for RISC-V only from 16, and 14 and 15 ignore it and then fail on the intrinsics.
+GCC 16 is not in Debian stable yet, so this currently needs it from `sid`.
 
 __RISC-V 64 with LLVM__
 
 ```sh
-export RISCV_SYSROOT=/path/to/riscv-sysroot
 cmake -B build_riscv_llvm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake
 cmake --build build_riscv_llvm --parallel
 ```
 
 To build and run tests under emulation, see [test/README.md](test/README.md#cross-compilation).
+
+Set `RISCV_SYSROOT` only for a self-contained toolchain; distribution cross packages need none.
 
 __Android ARM64__
 

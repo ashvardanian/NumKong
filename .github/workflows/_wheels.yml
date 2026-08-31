@@ -345,8 +345,8 @@ jobs:
 
   build_wheels_linux_riscv:
     name: Build Python Wheels (Linux RISC-V)
-    # Disabled: PyPA's riscv64 images ship GCC 14, which cannot compile our
-    # per-function RVV `#pragma GCC target` headers off an rv64gc baseline.
+    # Disabled: the RVV kernels gate on `#pragma GCC target("arch=+v")`, which GCC implements for
+    # RISC-V only from 16, and PyPA's riscv64 images ship neither that nor a new enough Clang.
     if: ${{ false }}
     runs-on: ubuntu-24.04
     strategy:

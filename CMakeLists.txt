@@ -39,7 +39,7 @@
 #
 # To cross-compile for RISC-V:
 #
-#     cmake -B build_riscv -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-gnu.cmake \
+#     cmake -B build_riscv -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
 #           -D NK_BUILD_TEST=ON
 #
 # To cross-compile for Android ARM64 (requires ANDROID_NDK_ROOT):
@@ -206,10 +206,16 @@ endif ()
 
 # Global compiler flags for debug and release
 if (NK_ENABLE_ASAN)
-    include(CheckCXXSourceCompiles)
-    set(CMAKE_REQUIRED_FLAGS "-fsanitize=address")
-    check_cxx_source_compiles("int main(){return 0;}" NK_HAS_ASAN_)
-    unset(CMAKE_REQUIRED_FLAGS)
+    if (MSVC)
+        # `cl.exe` reports an unknown `-f...` as warning D9002 and still exits 0, so the probe
+        # below would pass and then replace `/Zi /Ob0 /Od /RTC1` with flags it ignores.
+        set(NK_HAS_ASAN_ FALSE)
+    else ()
+        include(CheckCXXSourceCompiles)
+        set(CMAKE_REQUIRED_FLAGS "-fsanitize=address")
+        check_cxx_source_compiles("int main(){return 0;}" NK_HAS_ASAN_)
+        unset(CMAKE_REQUIRED_FLAGS)
+    endif ()
 
     if (NK_HAS_ASAN_)
         set(CMAKE_CXX_FLAGS_DEBUG "-g -fsanitize=address")
