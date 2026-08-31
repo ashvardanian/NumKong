@@ -340,48 +340,72 @@ jobs:
   test_qemu_cross:
     name: Test ${{ matrix.name }} (QEMU)
     runs-on: ubuntu-24.04
+    # Noble's GCC 14 cross ICEs folding SVE intrinsics under LTO; Trixie's builds the same tree.
+    container: debian:trixie
     timeout-minutes: 60
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          # No AArch64 leg: Debian's GCC 14 cross accepts `+sme` but its libgcc has no
-          # `__arm_tpidr2_save`, so the SME kernels compile and then fail to link.
+          # `sve-max-vq` is VL/128; the NEON leg needs `sve=off` or dispatch prefers SVE2.
+          - name: AArch64 NEON
+            arch: aarch64
+            prefix: AARCH64
+            triple: aarch64-linux-gnu
+            qemu_cpu: max,sve=off
+          - name: AArch64 SVE 128
+            arch: aarch64
+            prefix: AARCH64
+            triple: aarch64-linux-gnu
+            qemu_cpu: max,sve-max-vq=1
+          - name: AArch64 SVE 256
+            arch: aarch64
+            prefix: AARCH64
+            triple: aarch64-linux-gnu
+            qemu_cpu: max,sve-max-vq=2
+          - name: AArch64 SVE 512
+            arch: aarch64
+            prefix: AARCH64
+            triple: aarch64-linux-gnu
+            qemu_cpu: max,sve-max-vq=4
           - name: LoongArch
             arch: loongarch64
             prefix: LOONGARCH
             triple: loongarch64-linux-gnu
+            qemu_cpu: max
           - name: Power
             arch: ppc64le
             prefix: PPC
             triple: powerpc64le-linux-gnu
+            qemu_cpu: power10
 
     steps:
+      - name: Install Dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates cmake make g++ qemu-user \
+            gcc-14-${{ matrix.triple }} g++-14-${{ matrix.triple }}
+
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake qemu-user \
-            gcc-14-${{ matrix.triple }} g++-14-${{ matrix.triple }}
-
-      # The toolchain file knows the processor, the emulator and the loader prefix; only the
-      # Debian compiler suffix has to be supplied here.
-      - name: Configure
+      # The toolchain file knows the emulator and loader prefix; only these two vary.
+      - name: Configure (${{ matrix.qemu_cpu }})
         run: |
           cmake -B build_cross \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-${{ matrix.arch }}-gnu.cmake \
             -D${{ matrix.prefix }}_COMPILER_SUFFIX=-14 \
+            -D${{ matrix.prefix }}_QEMU_CPU=${{ matrix.qemu_cpu }} \
             -DNK_BUILD_TEST=ON \
             -DNK_BUILD_SHARED=ON
 
       - name: Build
         run: cmake --build build_cross --parallel
 
+      # `-V` so the ISA table lands in the log and shows which kernels dispatched.
       - name: Test
-        run: ctest --test-dir build_cross --output-on-failure --no-tests=error
+        run: ctest --test-dir build_cross -V --no-tests=error
         env:
           NK_IN_QEMU: 1
           NK_BUDGET_SECS: 0.1

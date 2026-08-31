@@ -345,9 +345,6 @@ jobs:
 
   build_wheels_linux_riscv:
     name: Build Python Wheels (Linux RISC-V)
-    # Disabled: the RVV kernels gate on `#pragma GCC target("arch=+v")`, which GCC implements for
-    # RISC-V only from 16, and PyPA's riscv64 images ship neither that nor a new enough Clang.
-    if: ${{ false }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -382,6 +379,10 @@ jobs:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
           CIBW_PLATFORM: linux
           CIBW_ARCHS: riscv64
+          # The image's GCC 14 ignores `#pragma GCC target` on RISC-V, which is how the RVV
+          # kernels opt in, so the wheels would carry none. Clang honours its own pragma.
+          CIBW_BEFORE_ALL: dnf -y install clang
+          CIBW_ENVIRONMENT: CC=clang CXX=clang++
           QEMU_CPU: max
           NK_REPETITIONS: 1
       - name: Upload Wheels
