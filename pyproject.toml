@@ -133,6 +133,9 @@ repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest
 
 [tool.cibuildwheel.windows]
 before-build = ["rd /s /q {project}\\build || echo Done"]
+# cibuildwheel 4 defaults this to `delvewheel`; we link only system DLLs.
+repair-wheel-command = ""
+
 
 # Windows-based OSes and PowerShell don't support the logical operators
 # In PowerShell we could write something like:

@@ -34,8 +34,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Update Git Submodules
-        run: git submodule update --init --recursive
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -100,8 +98,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Update Git Submodules
-        run: git submodule update --init --recursive
       - name: Set Up MSVC
         uses: microsoft/setup-msbuild@v3
       # Newest CMake, so it knows whichever Visual Studio the image ships.
@@ -146,8 +142,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Update Git Submodules
-        run: git submodule update --init --recursive
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -185,8 +179,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Update Git Submodules
-        run: git submodule update --init --recursive
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -219,8 +211,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Update Git Submodules
-        run: git submodule update --init --recursive
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -263,6 +253,64 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload ${{ github.event.release.tag_name }} numkong_wasm_*.tar.gz numkong_wasm_*.zip --clobber
 
+  # Separate job so a wasm64 failure cannot stop the wasm32 bundle.
+  create_wasm64_library:
+    name: Create WASM64 Library
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          ref: "main"
+      - name: Get Version
+        id: set_version
+        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+      - name: Install Emscripten
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 15
+          timeout_minutes: 180
+          command: |
+            rm -rf ~/emsdk
+            git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
+            (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
+      - name: Set Up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Build WASM64 Library
+        run: |
+          source ~/emsdk/emsdk_env.sh
+          cmake -B build_wasm64 \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNK_BUILD_SHARED=ON \
+            -DNK_BUILD_TEST=OFF \
+            -DNK_BUILD_BENCH=OFF
+          cmake --build build_wasm64 --config Release
+      # No test workflow covers wasm64, and its linker flags can produce a
+      # module that links but fails to instantiate.
+      - name: Smoke Test WASM64 Module
+        run: |
+          node --experimental-wasm-memory64 -e "
+            import('./build_wasm64/numkong64.js')
+              .then(m => m.default())
+              .then(M => console.log('capabilities:', M._nk_capabilities()))"
+
+      - name: Package WASM64 Release
+        run: |
+          cp LICENSE build_wasm64/
+          cd build_wasm64
+          tar -czf "../numkong_wasm64_${{ steps.set_version.outputs.version }}.tar.gz" \
+            numkong64.js numkong64.wasm LICENSE
+          zip -r "../numkong_wasm64_${{ steps.set_version.outputs.version }}.zip" \
+            numkong64.js numkong64.wasm LICENSE
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ github.event.release.tag_name }} numkong_wasm64_*.tar.gz numkong_wasm64_*.zip --clobber
+
   create_freebsd_library:
     name: Create Library for FreeBSD
     runs-on: ubuntu-24.04
@@ -289,8 +337,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Update Git Submodules
-        run: git submodule update --init --recursive
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -345,13 +391,23 @@ jobs:
             cxx: loongarch64-linux-gnu-g++-14
             pkg: gcc-14-loongarch64-linux-gnu g++-14-loongarch64-linux-gnu
             processor: loongarch64
+          - name: s390x
+            arch: s390x
+            cc: s390x-linux-gnu-gcc-14
+            cxx: s390x-linux-gnu-g++-14
+            pkg: gcc-14-s390x-linux-gnu g++-14-s390x-linux-gnu
+            processor: s390x
+          - name: armv7l
+            arch: armv7l
+            cc: arm-linux-gnueabihf-gcc-14
+            cxx: arm-linux-gnueabihf-g++-14
+            pkg: gcc-14-arm-linux-gnueabihf g++-14-arm-linux-gnueabihf
+            processor: arm
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Update Git Submodules
-        run: git submodule update --init --recursive
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -387,8 +443,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Update Git Submodules
-        run: git submodule update --init --recursive
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT

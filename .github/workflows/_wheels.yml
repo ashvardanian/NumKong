@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -34,7 +34,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=3.4'
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -44,7 +44,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: linux
           CIBW_ARCHS: x86_64
           NK_REPETITIONS: 1
@@ -63,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -96,7 +95,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=3.4'
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -106,7 +105,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: linux
           CIBW_ARCHS: aarch64
           NK_REPETITIONS: 1
@@ -123,7 +121,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -141,7 +139,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=3.4'
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -151,7 +149,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: macos
           CIBW_ARCHS: x86_64
           NK_REPETITIONS: 1
@@ -168,7 +165,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -186,7 +183,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=3.4'
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -196,7 +193,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: macos
           CIBW_ARCHS: arm64
           NK_REPETITIONS: 1
@@ -213,23 +209,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
-        architecture: [AMD64]
-        include:
-          - python-version: "310"
-            architecture: ARM64
-          - python-version: "311"
-            architecture: ARM64
-          - python-version: "312"
-            architecture: ARM64
-          - python-version: "313"
-            architecture: ARM64
-          - python-version: "313t"
-            architecture: ARM64
-          - python-version: "314"
-            architecture: ARM64
-          - python-version: "314t"
-            architecture: ARM64
+        python-version: ["310", "311", "312", "313", "314", "314t"]
+        architecture: [AMD64, ARM64]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -254,7 +235,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=3.4'
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -264,7 +245,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-win_${{ matrix.architecture }}
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: windows
           NK_REPETITIONS: 1
       - name: Upload Wheels
@@ -281,7 +261,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
         architecture: [ppc64le, s390x, i686]
     steps:
       - name: Checkout
@@ -300,7 +280,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=3.4'
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -310,7 +290,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: linux
           CIBW_ARCHS: ${{ matrix.architecture }}
           NK_REPETITIONS: 1
@@ -321,16 +300,59 @@ jobs:
           path: wheelhouse/*.whl
           overwrite: true
 
+  build_wheels_pyodide:
+    name: Build Python Wheels (Pyodide)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every non-prerelease Pyodide identifier cibuildwheel offers.
+        python-version: ["313", "314"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: Install Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install cibuildwheel
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 10
+          timeout_minutes: 180
+          command: python -m pip install 'cibuildwheel~=4.2'
+      - name: Build Wheels
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 2
+          retry_wait_seconds: 30
+          timeout_minutes: 180
+          command: cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_BUILD: cp${{ matrix.python-version }}-pyodide_wasm32
+          CIBW_PLATFORM: pyodide
+          NK_REPETITIONS: 1
+      - name: Upload Wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: cibw-wheels-pyodide-cp${{ matrix.python-version }}
+          path: wheelhouse/*.whl
+          overwrite: true
+
   build_wheels_linux_riscv:
     name: Build Python Wheels (Linux RISC-V)
-    # Temporarily disabled until the official PyPA riscv64 images expose a
-    # packaged LLVM 23 toolchain, or until we switch to custom images.
+    # Disabled: PyPA's riscv64 images ship GCC 14, which cannot compile our
+    # per-function RVV `#pragma GCC target` headers off an rv64gc baseline.
     if: ${{ false }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -348,7 +370,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=3.4'
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -358,7 +380,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading
           CIBW_PLATFORM: linux
           CIBW_ARCHS: riscv64
           QEMU_CPU: max

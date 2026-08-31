@@ -285,27 +285,38 @@ jobs:
         run: cargo build --target armv7-unknown-linux-gnueabihf --release
 
   test_riscv_llvm23:
-    name: Test RISC-V LLVM 23
+    name: Test RISC-V LLVM 23 (QEMU)
     runs-on: ubuntu-24.04
+    # Noble's qemu-user is 8.2, which predates `Zvbb`/`Zvfh` in `riscv_hwprobe`,
+    # so RVV would never dispatch and this job would pass on serial fallbacks.
+    # Trixie has qemu 10, and apt.llvm.org publishes Clang 23 for trixie.
+    container: debian:trixie
+    timeout-minutes: 90
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Second entry is what `release-c.yml` ships; CI must run what we publish.
+        march: [rv64gcv, rv64gcv_zvfh_zvfbfwma_zvbb]
 
     steps:
+      # `git` must precede `actions/checkout`, or it falls back to the tarball API.
+      - name: Install Dependencies
+        run: |
+          set -eux
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates curl gnupg \
+            cmake make qemu-user gcc-riscv64-linux-gnu g++-riscv64-linux-gnu libc6-dev-riscv64-cross
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/llvm.gpg
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/trixie/ llvm-toolchain-trixie-23 main" \
+            > /etc/apt/sources.list.d/llvm.list
+          apt-get update
+          apt-get install -y clang-23 lld-23 llvm-23
+
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ca-certificates curl gnupg
-          # Ubuntu 24.04 ships older LLVM in the default apt sources, but this
-          # RISC-V validation needs Clang 23 for the portable `rv64gcv` baseline
-          # while still compiling the richer RVV target-pragmas in our headers.
-          # Pin the suite: the unversioned one rolls forward and drops `clang-23`.
-          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/llvm.gpg
-          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-23 main" | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y cmake clang-23 lld-23 llvm-23 gcc-riscv64-linux-gnu libc6-dev-riscv64-cross
-
-      - name: Configure Portable RISC-V Library Build
+      - name: Configure (${{ matrix.march }})
         shell: bash
         run: |
           set -euo pipefail
@@ -314,53 +325,40 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
             -DLLVM_ROOT=/usr/lib/llvm-23 \
             -DRISCV_SYSROOT="${SYSROOT}" \
-            -DRISCV_MARCH=rv64gcv \
-            -DNK_BUILD_SHARED=ON
-
-      - name: Build Portable RISC-V Library
-        run: cmake --build build_riscv --parallel --target nk_shared
-
-  test_loongarch:
-    name: Test LoongArch (QEMU)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake qemu-user \
-            gcc-14-loongarch64-linux-gnu g++-14-loongarch64-linux-gnu
-
-      - name: Configure
-        run: |
-          SYSROOT="/usr/$(loongarch64-linux-gnu-gcc-14 -dumpmachine)"
-          cmake -B build_loongarch \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=loongarch64 \
-            -DCMAKE_C_COMPILER=loongarch64-linux-gnu-gcc-14 \
-            -DCMAKE_CXX_COMPILER=loongarch64-linux-gnu-g++-14 \
-            -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-loongarch64;-L;${SYSROOT};-cpu;max" \
-            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+            -DRISCV_MARCH=${{ matrix.march }} \
             -DNK_BUILD_TEST=ON \
             -DNK_BUILD_SHARED=ON
 
       - name: Build
-        run: cmake --build build_loongarch --parallel
+        run: cmake --build build_riscv --parallel
 
+      # `-V` so the ISA table lands in the log and shows which kernels dispatched.
       - name: Test
-        run: ctest --test-dir build_loongarch --output-on-failure
+        run: ctest --test-dir build_riscv -V --no-tests=error
         env:
           NK_IN_QEMU: 1
           NK_BUDGET_SECS: 0.1
 
-  test_power:
-    name: Test Power (QEMU)
+  test_qemu_cross:
+    name: Test ${{ matrix.name }} (QEMU)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `qemu` is spelled out because it is not derivable from the triple.
+          - name: LoongArch
+            processor: loongarch64
+            triple: loongarch64-linux-gnu
+            qemu: qemu-loongarch64
+            cpu: max
+          - name: Power
+            processor: ppc64le
+            triple: powerpc64le-linux-gnu
+            qemu: qemu-ppc64le
+            cpu: power10
 
     steps:
       - name: Checkout
@@ -370,26 +368,26 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake qemu-user \
-            gcc-14-powerpc64le-linux-gnu g++-14-powerpc64le-linux-gnu
+            gcc-14-${{ matrix.triple }} g++-14-${{ matrix.triple }}
 
       - name: Configure
         run: |
-          SYSROOT="/usr/$(powerpc64le-linux-gnu-gcc-14 -dumpmachine)"
-          cmake -B build_power \
+          SYSROOT="/usr/$(${{ matrix.triple }}-gcc-14 -dumpmachine)"
+          cmake -B build_cross \
             -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=ppc64le \
-            -DCMAKE_C_COMPILER=powerpc64le-linux-gnu-gcc-14 \
-            -DCMAKE_CXX_COMPILER=powerpc64le-linux-gnu-g++-14 \
-            -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-ppc64le;-L;${SYSROOT};-cpu;power10" \
+            -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.processor }} \
+            -DCMAKE_C_COMPILER=${{ matrix.triple }}-gcc-14 \
+            -DCMAKE_CXX_COMPILER=${{ matrix.triple }}-g++-14 \
+            -DCMAKE_CROSSCOMPILING_EMULATOR="${{ matrix.qemu }};-L;${SYSROOT};-cpu;${{ matrix.cpu }}" \
             -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
             -DNK_BUILD_TEST=ON \
             -DNK_BUILD_SHARED=ON
 
       - name: Build
-        run: cmake --build build_power --parallel
+        run: cmake --build build_cross --parallel
 
       - name: Test
-        run: ctest --test-dir build_power --output-on-failure
+        run: ctest --test-dir build_cross --output-on-failure --no-tests=error
         env:
           NK_IN_QEMU: 1
           NK_BUDGET_SECS: 0.1
