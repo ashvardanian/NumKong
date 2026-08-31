@@ -211,14 +211,11 @@ NK_PUBLIC void nk_sparse_intersect_u64_sve2(nk_u64_t const *a, nk_u64_t const *b
 NK_PUBLIC void nk_sparse_dot_u32f32_sve2(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
                                          nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
                                          nk_f64_t *product);
-#endif // NK_TARGET_SVE2
-
-#if NK_TARGET_SVE2 && NK_TARGET_SVEBFDOT
 /** @copydoc nk_sparse_dot_u16bf16 */
 NK_PUBLIC void nk_sparse_dot_u16bf16_sve2(nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights,
                                           nk_bf16_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
                                           nk_f32_t *product);
-#endif // NK_TARGET_SVE2 && NK_TARGET_SVEBFDOT
+#endif // NK_TARGET_SVE2
 
 #if NK_TARGET_ICELAKE
 /** @copydoc nk_sparse_intersect_u16 */
@@ -331,7 +328,7 @@ NK_PUBLIC void nk_sparse_intersect_u64(nk_u64_t const *a, nk_u64_t const *b, nk_
 NK_PUBLIC void nk_sparse_dot_u16bf16(nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights,
                                      nk_bf16_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
                                      nk_f32_t *product) {
-#if NK_TARGET_SVE2 && NK_TARGET_SVEBFDOT
+#if NK_TARGET_SVE2
     nk_sparse_dot_u16bf16_sve2(a, b, a_weights, b_weights, a_length, b_length, product);
 #elif NK_TARGET_TURIN
     nk_sparse_dot_u16bf16_turin(a, b, a_weights, b_weights, a_length, b_length, product);

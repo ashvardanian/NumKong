@@ -99,11 +99,8 @@ void test_sparse() {
     check("sparse_intersect_u32_sve2", test_intersect<u32_t>, nk_sparse_intersect_u32_sve2);
     check("sparse_intersect_u64_sve2", test_intersect<u64_t>, nk_sparse_intersect_u64_sve2);
     check("sparse_dot_u32f32_sve2", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_sve2);
-#endif // NK_TARGET_SVE2
-
-#if NK_TARGET_SVE2 && NK_TARGET_SVEBFDOT
     check("sparse_dot_u16bf16_sve2", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16_sve2);
-#endif // NK_TARGET_SVE2 && NK_TARGET_SVEBFDOT
+#endif // NK_TARGET_SVE2
 
 #if NK_TARGET_ICELAKE
     check("sparse_intersect_u16_icelake", test_intersect<u16_t>, nk_sparse_intersect_u16_icelake);
