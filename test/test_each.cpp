@@ -6,8 +6,8 @@
  */
 
 #include "test.hpp"
-#include "numkong/each.hpp"          // `nk::sum`, `nk::scale`, `nk::blend`, `nk::fma`
-#include "numkong/trigonometry.hpp"  // `nk::try_sin`, `nk::try_cos`, `nk::try_atan` wrappers
+#include "numkong/each.hpp"         // `nk::sum`, `nk::scale`, `nk::blend`, `nk::fma`
+#include "numkong/trigonometry.hpp" // `nk::try_sin`, `nk::try_cos`, `nk::try_atan` wrappers
 
 template <typename scalar_type_, typename generator_type_>
 typename scalar_type_::scale_t random_coef(generator_type_ &gen) {
@@ -33,7 +33,7 @@ error_stats_t test_sum(typename scalar_type_::sum_kernel_t kernel) {
     using scalar_t = scalar_type_;
 
     error_stats_t stats(nk::is_integral_dtype<scalar_t>() ? comparison_family_t::exact_k
-                                                          : comparison_family_t::narrow_arithmetic_k);
+                                                          : comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
     auto a = make_vector<scalar_t>(global_config.dense_dimensions),
          b = make_vector<scalar_t>(global_config.dense_dimensions);
@@ -63,7 +63,7 @@ error_stats_t test_scale(typename scalar_type_::scale_kernel_t kernel) {
     using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(nk::is_integral_dtype<scalar_t>() ? comparison_family_t::exact_k
-                                                          : comparison_family_t::narrow_arithmetic_k);
+                                                          : comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
     auto input = make_vector<scalar_t>(global_config.dense_dimensions);
     auto result = make_vector<scalar_t>(global_config.dense_dimensions),
@@ -93,7 +93,7 @@ error_stats_t test_blend(typename scalar_type_::blend_kernel_t kernel) {
     using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(nk::is_integral_dtype<scalar_t>() ? comparison_family_t::exact_k
-                                                          : comparison_family_t::narrow_arithmetic_k);
+                                                          : comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
     auto a = make_vector<scalar_t>(global_config.dense_dimensions),
          b = make_vector<scalar_t>(global_config.dense_dimensions);
@@ -126,7 +126,7 @@ error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
     using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(nk::is_integral_dtype<scalar_t>() ? comparison_family_t::exact_k
-                                                          : comparison_family_t::narrow_arithmetic_k);
+                                                          : comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
     auto a = make_vector<scalar_t>(global_config.dense_dimensions),
          b = make_vector<scalar_t>(global_config.dense_dimensions);
@@ -156,33 +156,49 @@ error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
  *  Runs allocating + into-span variants on a small zero tensor — just exercises the dispatch
  *  paths, not the numerical accuracy (the latter is covered by the kernel tests above).
  */
-template <typename value_type_>
-void test_tensor_trig_for_type() {
-    using tensor_t = nk::tensor<value_type_>;
-    auto a = tensor_t::try_zeros({4, 8});
-    auto out = tensor_t::try_zeros({4, 8});
-    auto av = a.view();
-
-    { [[maybe_unused]] auto r = nk::try_sin<value_type_>(av); }
-    { [[maybe_unused]] auto r = nk::try_cos<value_type_>(av); }
-    { [[maybe_unused]] auto r = nk::try_atan<value_type_>(av); }
-    { [[maybe_unused]] bool ok = nk::sin<value_type_>(av, out.span()); }
-    { [[maybe_unused]] bool ok = nk::cos<value_type_>(av, out.span()); }
-    { [[maybe_unused]] bool ok = nk::atan<value_type_>(av, out.span()); }
-}
-
 void test_each() {
-    error_stats_section_t check("Elementwise Operations");
+    error_stats_section_t check;
 
-    // Tensor-shaped trig wrappers (float-capable types).
-    test_tensor_trig_for_type<nk::f32_t>();
-    test_tensor_trig_for_type<nk::f64_t>();
-    test_tensor_trig_for_type<nk::f16_t>();
-    test_tensor_trig_for_type<nk::bf16_t>();
-    std::printf("  trig (4 types):               OK\n");
-
+    check.section("Elementwise Operations Serial", nk_cap_serial_k);
+    check("each_scale_f32_serial", test_scale<f32_t>, nk_each_scale_f32_serial);
+    check("each_sum_f32_serial", test_sum<f32_t>, nk_each_sum_f32_serial);
+    check("each_blend_f32_serial", test_blend<f32_t>, nk_each_blend_f32_serial);
+    check("each_fma_f32_serial", test_fma<f32_t>, nk_each_fma_f32_serial);
+    check("each_scale_e4m3_serial", test_scale<e4m3_t>, nk_each_scale_e4m3_serial);
+    check("each_scale_e5m2_serial", test_scale<e5m2_t>, nk_each_scale_e5m2_serial);
+    check("each_sum_e4m3_serial", test_sum<e4m3_t>, nk_each_sum_e4m3_serial);
+    check("each_sum_e5m2_serial", test_sum<e5m2_t>, nk_each_sum_e5m2_serial);
+    check("each_blend_e4m3_serial", test_blend<e4m3_t>, nk_each_blend_e4m3_serial);
+    check("each_blend_e5m2_serial", test_blend<e5m2_t>, nk_each_blend_e5m2_serial);
+    check("each_fma_e4m3_serial", test_fma<e4m3_t>, nk_each_fma_e4m3_serial);
+    check("each_fma_e5m2_serial", test_fma<e5m2_t>, nk_each_fma_e5m2_serial);
+    check("each_sum_f32c_serial", test_sum<f32c_t>, nk_each_sum_f32c_serial);
+    check("each_sum_f64c_serial", test_sum<f64c_t>, nk_each_sum_f64c_serial);
+    check("each_scale_f32c_serial", test_scale<f32c_t>, nk_each_scale_f32c_serial);
+    check("each_scale_f64c_serial", test_scale<f64c_t>, nk_each_scale_f64c_serial);
+    check("each_blend_f32c_serial", test_blend<f32c_t>, nk_each_blend_f32c_serial);
+    check("each_blend_f64c_serial", test_blend<f64c_t>, nk_each_blend_f64c_serial);
+    check("each_fma_f32c_serial", test_fma<f32c_t>, nk_each_fma_f32c_serial);
+    check("each_fma_f64c_serial", test_fma<f64c_t>, nk_each_fma_f64c_serial);
+    check("each_blend_f16_serial", test_blend<f16_t>, nk_each_blend_f16_serial);
+    check("each_blend_i8_serial", test_blend<i8_t>, nk_each_blend_i8_serial);
+    check("each_blend_u8_serial", test_blend<u8_t>, nk_each_blend_u8_serial);
+    check("each_fma_f16_serial", test_fma<f16_t>, nk_each_fma_f16_serial);
+    check("each_fma_i8_serial", test_fma<i8_t>, nk_each_fma_i8_serial);
+    check("each_fma_u8_serial", test_fma<u8_t>, nk_each_fma_u8_serial);
+    check("each_sum_f64_serial", test_sum<f64_t>, nk_each_sum_f64_serial);
+    check("each_scale_f64_serial", test_scale<f64_t>, nk_each_scale_f64_serial);
+    check("each_blend_f64_serial", test_blend<f64_t>, nk_each_blend_f64_serial);
+    check("each_fma_f64_serial", test_fma<f64_t>, nk_each_fma_f64_serial);
+    check("each_sum_bf16_serial", test_sum<bf16_t>, nk_each_sum_bf16_serial);
+    check("each_scale_bf16_serial", test_scale<bf16_t>, nk_each_scale_bf16_serial);
+    check("each_blend_bf16_serial", test_blend<bf16_t>, nk_each_blend_bf16_serial);
+    check("each_fma_bf16_serial", test_fma<bf16_t>, nk_each_fma_bf16_serial);
+    check("each_sum_f16_serial", test_sum<f16_t>, nk_each_sum_f16_serial);
+    check("each_scale_f16_serial", test_scale<f16_t>, nk_each_scale_f16_serial);
 
 #if NK_DYNAMIC_DISPATCH
+    check.section("Elementwise Operations Dynamic", nk_cap_serial_k);
     // Dynamic dispatch - only test the dispatcher itself
     check("each_scale_f32", test_scale<f32_t>, nk_each_scale_f32);
     check("each_sum_f32", test_sum<f32_t>, nk_each_sum_f32);
@@ -204,10 +220,12 @@ void test_each() {
     check("each_blend_f64c", test_blend<f64c_t>, nk_each_blend_f64c);
     check("each_fma_f32c", test_fma<f32c_t>, nk_each_fma_f32c);
     check("each_fma_f64c", test_fma<f64c_t>, nk_each_fma_f64c);
-#else
+#endif
+
     // Static compilation - test all available ISA variants
 
 #if NK_TARGET_NEON
+    check.section("Elementwise Operations NEON", nk_cap_neon_k);
     // f64
     check("each_sum_f64_neon", test_sum<f64_t>, nk_each_sum_f64_neon);
     check("each_scale_f64_neon", test_scale<f64_t>, nk_each_scale_f64_neon);
@@ -261,6 +279,7 @@ void test_each() {
 #endif // NK_TARGET_NEON
 
 #if NK_TARGET_NEONHALF
+    check.section("Elementwise Operations NEON HALF", nk_cap_neonhalf_k);
     check("each_scale_f16_neonhalf", test_scale<f16_t>, nk_each_scale_f16_neonhalf);
     check("each_sum_f16_neonhalf", test_sum<f16_t>, nk_each_sum_f16_neonhalf);
     check("each_blend_f16_neonhalf", test_blend<f16_t>, nk_each_blend_f16_neonhalf);
@@ -272,6 +291,7 @@ void test_each() {
 #endif // NK_TARGET_NEONHALF
 
 #if NK_TARGET_NEONBFDOT
+    check.section("Elementwise Operations NEON BF16", nk_cap_neonbfdot_k);
     check("each_scale_bf16_neonbfdot", test_scale<bf16_t>, nk_each_scale_bf16_neonbfdot);
     check("each_sum_bf16_neonbfdot", test_sum<bf16_t>, nk_each_sum_bf16_neonbfdot);
     check("each_blend_bf16_neonbfdot", test_blend<bf16_t>, nk_each_blend_bf16_neonbfdot);
@@ -279,6 +299,7 @@ void test_each() {
 #endif // NK_TARGET_NEONBFDOT
 
 #if NK_TARGET_HASWELL
+    check.section("Elementwise Operations Haswell", nk_cap_haswell_k);
     check("each_scale_f32_haswell", test_scale<f32_t>, nk_each_scale_f32_haswell);
     check("each_sum_f32_haswell", test_sum<f32_t>, nk_each_sum_f32_haswell);
     check("each_blend_f32_haswell", test_blend<f32_t>, nk_each_blend_f32_haswell);
@@ -319,6 +340,7 @@ void test_each() {
 #endif // NK_TARGET_HASWELL
 
 #if NK_TARGET_SKYLAKE
+    check.section("Elementwise Operations Skylake", nk_cap_skylake_k);
     check("each_scale_f32_skylake", test_scale<f32_t>, nk_each_scale_f32_skylake);
     check("each_sum_f32_skylake", test_sum<f32_t>, nk_each_sum_f32_skylake);
     check("each_blend_f32_skylake", test_blend<f32_t>, nk_each_blend_f32_skylake);
@@ -347,6 +369,7 @@ void test_each() {
 #endif // NK_TARGET_SKYLAKE
 
 #if NK_TARGET_ICELAKE
+    check.section("Elementwise Operations Ice Lake", nk_cap_icelake_k);
     check("each_sum_i8_icelake", test_sum<i8_t>, nk_each_sum_i8_icelake);
     check("each_sum_u8_icelake", test_sum<u8_t>, nk_each_sum_u8_icelake);
     check("each_sum_i16_icelake", test_sum<i16_t>, nk_each_sum_i16_icelake);
@@ -358,6 +381,7 @@ void test_each() {
 #endif // NK_TARGET_ICELAKE
 
 #if NK_TARGET_SAPPHIRE
+    check.section("Elementwise Operations Sapphire", nk_cap_sapphire_k);
     check("each_sum_f16_sapphire", test_sum<f16_t>, nk_each_sum_f16_sapphire);
     check("each_scale_u8_sapphire", test_scale<u8_t>, nk_each_scale_u8_sapphire);
     check("each_blend_u8_sapphire", test_blend<u8_t>, nk_each_blend_u8_sapphire);
@@ -367,6 +391,7 @@ void test_each() {
 #endif // NK_TARGET_SAPPHIRE
 
 #if NK_TARGET_RVV
+    check.section("Elementwise Operations RVV", nk_cap_rvv_k);
     check("each_sum_f64_rvv", test_sum<f64_t>, nk_each_sum_f64_rvv);
     check("each_scale_f64_rvv", test_scale<f64_t>, nk_each_scale_f64_rvv);
     check("each_blend_f64_rvv", test_blend<f64_t>, nk_each_blend_f64_rvv);
@@ -402,6 +427,7 @@ void test_each() {
 #endif // NK_TARGET_RVV
 
 #if NK_TARGET_V128RELAXED
+    check.section("Elementwise Operations V128 Relaxed", nk_cap_v128relaxed_k);
     check("each_sum_f32_v128relaxed", test_sum<f32_t>, nk_each_sum_f32_v128relaxed);
     check("each_scale_f32_v128relaxed", test_scale<f32_t>, nk_each_scale_f32_v128relaxed);
     check("each_blend_f32_v128relaxed", test_blend<f32_t>, nk_each_blend_f32_v128relaxed);
@@ -423,44 +449,4 @@ void test_each() {
     check("each_blend_u8_v128relaxed", test_blend<u8_t>, nk_each_blend_u8_v128relaxed);
     check("each_fma_u8_v128relaxed", test_fma<u8_t>, nk_each_fma_u8_v128relaxed);
 #endif // NK_TARGET_V128RELAXED
-
-    // Serial always runs - baseline test
-    check("each_scale_f32_serial", test_scale<f32_t>, nk_each_scale_f32_serial);
-    check("each_sum_f32_serial", test_sum<f32_t>, nk_each_sum_f32_serial);
-    check("each_blend_f32_serial", test_blend<f32_t>, nk_each_blend_f32_serial);
-    check("each_fma_f32_serial", test_fma<f32_t>, nk_each_fma_f32_serial);
-    check("each_scale_e4m3_serial", test_scale<e4m3_t>, nk_each_scale_e4m3_serial);
-    check("each_scale_e5m2_serial", test_scale<e5m2_t>, nk_each_scale_e5m2_serial);
-    check("each_sum_e4m3_serial", test_sum<e4m3_t>, nk_each_sum_e4m3_serial);
-    check("each_sum_e5m2_serial", test_sum<e5m2_t>, nk_each_sum_e5m2_serial);
-    check("each_blend_e4m3_serial", test_blend<e4m3_t>, nk_each_blend_e4m3_serial);
-    check("each_blend_e5m2_serial", test_blend<e5m2_t>, nk_each_blend_e5m2_serial);
-    check("each_fma_e4m3_serial", test_fma<e4m3_t>, nk_each_fma_e4m3_serial);
-    check("each_fma_e5m2_serial", test_fma<e5m2_t>, nk_each_fma_e5m2_serial);
-    check("each_sum_f32c_serial", test_sum<f32c_t>, nk_each_sum_f32c_serial);
-    check("each_sum_f64c_serial", test_sum<f64c_t>, nk_each_sum_f64c_serial);
-    check("each_scale_f32c_serial", test_scale<f32c_t>, nk_each_scale_f32c_serial);
-    check("each_scale_f64c_serial", test_scale<f64c_t>, nk_each_scale_f64c_serial);
-    check("each_blend_f32c_serial", test_blend<f32c_t>, nk_each_blend_f32c_serial);
-    check("each_blend_f64c_serial", test_blend<f64c_t>, nk_each_blend_f64c_serial);
-    check("each_fma_f32c_serial", test_fma<f32c_t>, nk_each_fma_f32c_serial);
-    check("each_fma_f64c_serial", test_fma<f64c_t>, nk_each_fma_f64c_serial);
-    check("each_blend_f16_serial", test_blend<f16_t>, nk_each_blend_f16_serial);
-    check("each_blend_i8_serial", test_blend<i8_t>, nk_each_blend_i8_serial);
-    check("each_blend_u8_serial", test_blend<u8_t>, nk_each_blend_u8_serial);
-    check("each_fma_f16_serial", test_fma<f16_t>, nk_each_fma_f16_serial);
-    check("each_fma_i8_serial", test_fma<i8_t>, nk_each_fma_i8_serial);
-    check("each_fma_u8_serial", test_fma<u8_t>, nk_each_fma_u8_serial);
-    check("each_sum_f64_serial", test_sum<f64_t>, nk_each_sum_f64_serial);
-    check("each_scale_f64_serial", test_scale<f64_t>, nk_each_scale_f64_serial);
-    check("each_blend_f64_serial", test_blend<f64_t>, nk_each_blend_f64_serial);
-    check("each_fma_f64_serial", test_fma<f64_t>, nk_each_fma_f64_serial);
-    check("each_sum_bf16_serial", test_sum<bf16_t>, nk_each_sum_bf16_serial);
-    check("each_scale_bf16_serial", test_scale<bf16_t>, nk_each_scale_bf16_serial);
-    check("each_blend_bf16_serial", test_blend<bf16_t>, nk_each_blend_bf16_serial);
-    check("each_fma_bf16_serial", test_fma<bf16_t>, nk_each_fma_bf16_serial);
-    check("each_sum_f16_serial", test_sum<f16_t>, nk_each_sum_f16_serial);
-    check("each_scale_f16_serial", test_scale<f16_t>, nk_each_scale_f16_serial);
-
-#endif // NK_DYNAMIC_DISPATCH
 }

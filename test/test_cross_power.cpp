@@ -10,6 +10,7 @@
 void test_cross_power() {
     [[maybe_unused]] error_stats_section_t check;
 #if NK_TARGET_POWERVSX
+    check.section("Cross Power VSX", nk_cap_powervsx_k);
     check("dots_packed_f64_powervsx", test_dots_packed<f64_t>, nk_dots_packed_size_f64_powervsx,
           nk_dots_pack_f64_powervsx, nk_dots_packed_f64_powervsx);
     check("dots_packed_f32_powervsx", test_dots_packed<f32_t>, nk_dots_packed_size_f32_powervsx,
@@ -69,5 +70,5 @@ void test_cross_power() {
     check("jaccards_packed_u1_powervsx", test_jaccards_packed<u1x8_t>, nk_dots_packed_size_u1_powervsx,
           nk_dots_pack_u1_powervsx, nk_jaccards_packed_u1_powervsx);
     check("jaccards_symmetric_u1_powervsx", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1_powervsx);
-#endif
+#endif // NK_TARGET_POWERVSX
 }

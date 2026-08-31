@@ -18,7 +18,7 @@ error_stats_t test_rmsd(typename scalar_type_::mesh_kernel_t kernel) {
     using metric_t = typename scalar_t::mesh_metric_t;
     using reference_t = reference_for<scalar_t>;
 
-    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
 
     std::size_t n = global_config.mesh_points;
@@ -51,7 +51,7 @@ error_stats_t test_kabsch(typename scalar_type_::mesh_kernel_t kernel) {
     using metric_t = typename scalar_t::mesh_metric_t;
     using reference_t = reference_for<scalar_t>;
 
-    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
 
     std::size_t n = global_config.mesh_points;
@@ -84,7 +84,7 @@ error_stats_t test_umeyama(typename scalar_type_::mesh_kernel_t kernel) {
     using metric_t = typename scalar_t::mesh_metric_t;
     using reference_t = reference_for<scalar_t>;
 
-    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
 
     std::size_t n = global_config.mesh_points;
@@ -108,18 +108,28 @@ error_stats_t test_umeyama(typename scalar_type_::mesh_kernel_t kernel) {
 }
 
 void test_mesh() {
-    error_stats_section_t check("Mesh Operations");
+    error_stats_section_t check;
+
+    check.section("Mesh Operations Serial", nk_cap_serial_k);
+    check("rmsd_f64_serial", test_rmsd<f64_t>, nk_rmsd_f64_serial);
+    check("rmsd_f32_serial", test_rmsd<f32_t>, nk_rmsd_f32_serial);
+    check("kabsch_f64_serial", test_kabsch<f64_t>, nk_kabsch_f64_serial);
+    check("kabsch_f32_serial", test_kabsch<f32_t>, nk_kabsch_f32_serial);
+    check("umeyama_f64_serial", test_umeyama<f64_t>, nk_umeyama_f64_serial);
+    check("umeyama_f32_serial", test_umeyama<f32_t>, nk_umeyama_f32_serial);
 
 #if NK_DYNAMIC_DISPATCH
+    check.section("Mesh Operations Dynamic", nk_cap_serial_k);
     check("rmsd_f64", test_rmsd<f64_t>, nk_rmsd_f64);
     check("rmsd_f32", test_rmsd<f32_t>, nk_rmsd_f32);
     check("kabsch_f64", test_kabsch<f64_t>, nk_kabsch_f64);
     check("kabsch_f32", test_kabsch<f32_t>, nk_kabsch_f32);
     check("umeyama_f64", test_umeyama<f64_t>, nk_umeyama_f64);
     check("umeyama_f32", test_umeyama<f32_t>, nk_umeyama_f32);
-#else
+#endif
 
 #if NK_TARGET_NEON
+    check.section("Mesh Operations NEON", nk_cap_neon_k);
     check("rmsd_f64_neon", test_rmsd<f64_t>, nk_rmsd_f64_neon);
     check("rmsd_f32_neon", test_rmsd<f32_t>, nk_rmsd_f32_neon);
     check("kabsch_f64_neon", test_kabsch<f64_t>, nk_kabsch_f64_neon);
@@ -132,18 +142,21 @@ void test_mesh() {
 #endif // NK_TARGET_NEON
 
 #if NK_TARGET_NEONBFDOT
+    check.section("Mesh Operations NEON BF16", nk_cap_neonbfdot_k);
     check("rmsd_bf16_neonbfdot", test_rmsd<bf16_t>, nk_rmsd_bf16_neonbfdot);
     check("kabsch_bf16_neonbfdot", test_kabsch<bf16_t>, nk_kabsch_bf16_neonbfdot);
     check("umeyama_bf16_neonbfdot", test_umeyama<bf16_t>, nk_umeyama_bf16_neonbfdot);
 #endif // NK_TARGET_NEONBFDOT
 
 #if NK_TARGET_NEONFHM
+    check.section("Mesh Operations NEON FHM", nk_cap_neonfhm_k);
     check("rmsd_f16_neonfhm", test_rmsd<f16_t>, nk_rmsd_f16_neonfhm);
     check("kabsch_f16_neonfhm", test_kabsch<f16_t>, nk_kabsch_f16_neonfhm);
     check("umeyama_f16_neonfhm", test_umeyama<f16_t>, nk_umeyama_f16_neonfhm);
 #endif // NK_TARGET_NEONFHM
 
 #if NK_TARGET_HASWELL
+    check.section("Mesh Operations Haswell", nk_cap_haswell_k);
     check("rmsd_f64_haswell", test_rmsd<f64_t>, nk_rmsd_f64_haswell);
     check("rmsd_f32_haswell", test_rmsd<f32_t>, nk_rmsd_f32_haswell);
     check("kabsch_f64_haswell", test_kabsch<f64_t>, nk_kabsch_f64_haswell);
@@ -159,6 +172,7 @@ void test_mesh() {
 #endif // NK_TARGET_HASWELL
 
 #if NK_TARGET_SKYLAKE
+    check.section("Mesh Operations Skylake", nk_cap_skylake_k);
     check("rmsd_f64_skylake", test_rmsd<f64_t>, nk_rmsd_f64_skylake);
     check("rmsd_f32_skylake", test_rmsd<f32_t>, nk_rmsd_f32_skylake);
     check("kabsch_f64_skylake", test_kabsch<f64_t>, nk_kabsch_f64_skylake);
@@ -174,12 +188,14 @@ void test_mesh() {
 #endif // NK_TARGET_SKYLAKE
 
 #if NK_TARGET_GENOA
+    check.section("Mesh Operations Genoa", nk_cap_genoa_k);
     check("rmsd_bf16_genoa", test_rmsd<bf16_t>, nk_rmsd_bf16_genoa);
     check("kabsch_bf16_genoa", test_kabsch<bf16_t>, nk_kabsch_bf16_genoa);
     check("umeyama_bf16_genoa", test_umeyama<bf16_t>, nk_umeyama_bf16_genoa);
 #endif // NK_TARGET_GENOA
 
 #if NK_TARGET_RVV
+    check.section("Mesh Operations RVV", nk_cap_rvv_k);
     check("rmsd_f64_rvv", test_rmsd<f64_t>, nk_rmsd_f64_rvv);
     check("rmsd_f32_rvv", test_rmsd<f32_t>, nk_rmsd_f32_rvv);
     check("rmsd_f16_rvv", test_rmsd<f16_t>, nk_rmsd_f16_rvv);
@@ -195,6 +211,7 @@ void test_mesh() {
 #endif // NK_TARGET_RVV
 
 #if NK_TARGET_V128RELAXED
+    check.section("Mesh Operations V128 Relaxed", nk_cap_v128relaxed_k);
     check("rmsd_f32_v128relaxed", test_rmsd<f32_t>, nk_rmsd_f32_v128relaxed);
     check("rmsd_f64_v128relaxed", test_rmsd<f64_t>, nk_rmsd_f64_v128relaxed);
     check("kabsch_f32_v128relaxed", test_kabsch<f32_t>, nk_kabsch_f32_v128relaxed);
@@ -202,14 +219,4 @@ void test_mesh() {
     check("umeyama_f32_v128relaxed", test_umeyama<f32_t>, nk_umeyama_f32_v128relaxed);
     check("umeyama_f64_v128relaxed", test_umeyama<f64_t>, nk_umeyama_f64_v128relaxed);
 #endif // NK_TARGET_V128RELAXED
-
-    // Serial always runs - baseline test
-    check("rmsd_f64_serial", test_rmsd<f64_t>, nk_rmsd_f64_serial);
-    check("rmsd_f32_serial", test_rmsd<f32_t>, nk_rmsd_f32_serial);
-    check("kabsch_f64_serial", test_kabsch<f64_t>, nk_kabsch_f64_serial);
-    check("kabsch_f32_serial", test_kabsch<f32_t>, nk_kabsch_f32_serial);
-    check("umeyama_f64_serial", test_umeyama<f64_t>, nk_umeyama_f64_serial);
-    check("umeyama_f32_serial", test_umeyama<f32_t>, nk_umeyama_f32_serial);
-
-#endif // NK_DYNAMIC_DISPATCH
 }

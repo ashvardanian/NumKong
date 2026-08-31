@@ -83,6 +83,7 @@
 #undef NK_NATIVE_BF16
 #define NK_NATIVE_BF16 0
 
+#include "numkong/capabilities.h" // `nk_capabilities`, `nk_capability_t`
 #include "numkong/types.hpp"
 #include "numkong/tensor.hpp"
 #include "numkong/dots.hpp"
@@ -152,11 +153,9 @@ template class nk::vector<std::complex<float>>;
 enum class random_distribution_kind_t { uniform_k, lognormal_k, cauchy_k };
 enum class comparison_family_t {
     exact_k,
-    narrow_arithmetic_k,
-    mixed_precision_reduction_k,
+    approximate_k,
     probability_k,
     geospatial_k,
-    external_baseline_k,
 };
 enum class comparison_failure_mode_t { exact_distance_k, ulp_threshold_k };
 
@@ -173,9 +172,7 @@ inline constexpr comparison_family_spec_t comparison_family_spec(comparison_fami
         return {comparison_failure_mode_t::ulp_threshold_k, {"max_abs", "mean_abs", "max_rel", "mean_rel", "mean_ulp"}};
     case comparison_family_t::geospatial_k:
         return {comparison_failure_mode_t::ulp_threshold_k, {"max_abs", "mean_abs", "max_rel", "mean_ulp", "max_ulp"}};
-    case comparison_family_t::narrow_arithmetic_k:
-    case comparison_family_t::mixed_precision_reduction_k:
-    case comparison_family_t::external_baseline_k:
+    case comparison_family_t::approximate_k:
         return {comparison_failure_mode_t::ulp_threshold_k, {"max_abs", "max_rel", "mean_ulp", "max_ulp", "exact"}};
     }
     return {comparison_failure_mode_t::ulp_threshold_k, {"max_abs", "max_rel", "mean_ulp", "max_ulp", "exact"}};
@@ -253,17 +250,31 @@ void print_stats_row(char const *kernel_name, error_stats_t const &stats) noexce
  */
 inline char const *volatile nk_test_current_kernel_ = nullptr;
 
+/** @brief `#if NK_TARGET_X` says the compiler could build a kernel; this says the CPU can run it. */
+inline bool isa_available(nk_capability_t cap) noexcept {
+    static nk_capability_t const caps = nk_capabilities();
+    return (caps & cap) != 0;
+}
+
 struct error_stats_section_t {
     char const *title = nullptr;
+    nk_capability_t required = nk_cap_serial_k;
+    std::optional<comparison_family_t> last_family = std::nullopt;
     bool emitted_any = false;
-    std::optional<comparison_family_t> last_family;
 
-    explicit error_stats_section_t(char const *title = nullptr) noexcept : title(title) {}
-    ~error_stats_section_t() = default;
+    error_stats_section_t() noexcept = default;
+
+    /** @brief Restart under a new heading, for kernels needing @p cap. */
+    void section(char const *heading, nk_capability_t cap) noexcept {
+        title = heading;
+        required = cap;
+        emitted_any = false;
+        last_family.reset();
+    }
 
     template <typename test_function_type_, typename... args_types_>
     void operator()(char const *kernel_name, test_function_type_ test_fn, args_types_ &&...args) {
-        if (!global_config.should_run(kernel_name)) return;
+        if (!isa_available(required) || !global_config.should_run(kernel_name)) return;
 
         nk_test_current_kernel_ = kernel_name;
         auto stats = test_fn(std::forward<args_types_>(args)...);
@@ -369,7 +380,7 @@ std::uint64_t integer_distance(scalar_type_ a, scalar_type_ b) noexcept {
  *  @brief Accumulator for error statistics across multiple test trials.
  */
 struct error_stats_t {
-    comparison_family_t family = comparison_family_t::narrow_arithmetic_k;
+    comparison_family_t family = comparison_family_t::approximate_k;
 
     nk_f64_t min_abs_err = std::numeric_limits<nk_f64_t>::max();
     nk_f64_t max_abs_err = 0;
@@ -386,9 +397,15 @@ struct error_stats_t {
     std::size_t count = 0;
     std::size_t exact_matches = 0;
     bool saw_floating_distance = false;
+    char const *first_failure = nullptr;
 
-    explicit error_stats_t(comparison_family_t family = comparison_family_t::narrow_arithmetic_k) noexcept
-        : family(family) {}
+    explicit error_stats_t(comparison_family_t family = comparison_family_t::approximate_k) noexcept : family(family) {}
+
+    /** @brief Record a boolean property; @p property names it in the report when it does not hold. */
+    void expect(bool held, char const *property) noexcept {
+        if (!held && !first_failure) first_failure = property;
+        accumulate(static_cast<int>(held), 1);
+    }
 
     template <typename actual_type_, typename expected_type_>
     void accumulate(actual_type_ actual, expected_type_ expected) noexcept {
@@ -503,13 +520,13 @@ inline void print_stats_row(char const *kernel_name, error_stats_t const &stats)
         std::printf("%-40s %12.2e %10.2e %12.2e %12.1f %10llu\n", kernel_name, stats.max_abs_err, stats.mean_abs_err(),
                     stats.max_rel_err, stats.mean_ulp(), static_cast<unsigned long long>(stats.max_ulp));
         break;
-    case comparison_family_t::narrow_arithmetic_k:
-    case comparison_family_t::mixed_precision_reduction_k:
-    case comparison_family_t::external_baseline_k:
+    case comparison_family_t::approximate_k:
         std::printf("%-40s %12.2e %10.2e %12.2e %12llu %10zu\n", kernel_name, stats.max_abs_err, stats.max_rel_err,
                     stats.mean_ulp(), static_cast<unsigned long long>(stats.max_ulp), stats.exact_matches);
         break;
     }
+    // The counters say how many properties failed; this says which one.
+    if (stats.first_failure && stats.mismatches()) std::printf("    first failure: %s\n", stats.first_failure);
     std::fflush(stdout);
 }
 

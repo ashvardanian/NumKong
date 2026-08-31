@@ -347,13 +347,13 @@ int main(int argc, char **argv) {
     print_isa("Diamond", NK_TARGET_DIAMOND, nk_cap_diamond_k, runtime_caps);
     // Arm
     print_isa("NEON", NK_TARGET_NEON, nk_cap_neon_k, runtime_caps);
-    print_isa("NEON F16", NK_TARGET_NEONHALF, nk_cap_neonhalf_k, runtime_caps);
+    print_isa("NEON HALF", NK_TARGET_NEONHALF, nk_cap_neonhalf_k, runtime_caps);
     print_isa("NEON BF16", NK_TARGET_NEONBFDOT, nk_cap_neonbfdot_k, runtime_caps);
     print_isa("NEON I8", NK_TARGET_NEONSDOT, nk_cap_neonsdot_k, runtime_caps);
     print_isa("NEON FHM", NK_TARGET_NEONFHM, nk_cap_neonfhm_k, runtime_caps);
     print_isa("NEON FP8", NK_TARGET_NEONFP8, nk_cap_neonfp8_k, runtime_caps);
     print_isa("SVE", NK_TARGET_SVE, nk_cap_sve_k, runtime_caps);
-    print_isa("SVE F16", NK_TARGET_SVEHALF, nk_cap_svehalf_k, runtime_caps);
+    print_isa("SVE HALF", NK_TARGET_SVEHALF, nk_cap_svehalf_k, runtime_caps);
     print_isa("SVE BF16", NK_TARGET_SVEBFDOT, nk_cap_svebfdot_k, runtime_caps);
     print_isa("SVE I8", NK_TARGET_SVESDOT, nk_cap_svesdot_k, runtime_caps);
     print_isa("SVE2", NK_TARGET_SVE2, nk_cap_sve2_k, runtime_caps);
@@ -362,7 +362,7 @@ int main(int argc, char **argv) {
     print_isa("SME2", NK_TARGET_SME2, nk_cap_sme2_k, runtime_caps);
     print_isa("SME2P1", NK_TARGET_SME2P1, nk_cap_sme2p1_k, runtime_caps);
     print_isa("SME F64", NK_TARGET_SMEF64, nk_cap_smef64_k, runtime_caps);
-    print_isa("SME F16", NK_TARGET_SMEHALF, nk_cap_smehalf_k, runtime_caps);
+    print_isa("SME HALF", NK_TARGET_SMEHALF, nk_cap_smehalf_k, runtime_caps);
     print_isa("SME BF16", NK_TARGET_SMEBF16, nk_cap_smebf16_k, runtime_caps);
     print_isa("SME BI32", NK_TARGET_SMEBI32, nk_cap_smebi32_k, runtime_caps);
     print_isa("SME FA64", NK_TARGET_SMEFA64, nk_cap_smefa64_k, runtime_caps);
@@ -417,9 +417,7 @@ int main(int argc, char **argv) {
     test_sparse();
     test_maxsim();
 
-    // Cross/batch tests (ISA-family files for parallel compilation)
-    std::puts("");
-    std::printf("Cross:\n");
+    // Cross/batch tests (ISA-family files for parallel compilation); each prints its own section
     test_cross_serial();
     test_cross_x86();
     test_cross_amx();

@@ -28,13 +28,17 @@ error_stats_t test_intersect(typename index_type_::sparse_intersect_kernel_t ker
         nk::fill_sorted_unique(generator, a.values_data(), a_length, index_t(dim * 4));
         nk::fill_sorted_unique(generator, b.values_data(), b_length, index_t(dim * 2));
 
-        nk_size_t count;
-        kernel(a.raw_values_data(), b.raw_values_data(), a_length, b_length, matched.raw_values_data(), &count);
+        // Same input twice: NEON has no compress-store, so it delegates the storing form to serial
+        // and only the counting form reaches its SIMD loop.
+        nk_size_t count, stored_count;
+        kernel(a.raw_values_data(), b.raw_values_data(), a_length, b_length, nullptr, &count);
+        kernel(a.raw_values_data(), b.raw_values_data(), a_length, b_length, matched.raw_values_data(), &stored_count);
 
         nk_size_t ref;
         nk::sparse_intersect<index_t, nk::no_simd_k>(a.values_data(), b.values_data(), a_length, b_length,
                                                      expected.values_data(), &ref);
         stats.accumulate(count, ref);
+        stats.accumulate(stored_count, ref);
         for (nk_size_t k = 0; k < ref; ++k) stats.accumulate(matched[k], expected[k]);
     }
     return stats;
@@ -53,7 +57,7 @@ error_stats_t test_sparse_dot(typename weight_type_::sparse_dot_kernel_t kernel)
     using index_t = typename weight_t::sparse_dot_index_t;
     using reference_t = reference_for<weight_t>;
 
-    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
     std::size_t dim = global_config.sparse_dimensions;
     auto a_idx = make_vector<index_t>(dim), b_idx = make_vector<index_t>(dim);
@@ -78,23 +82,33 @@ error_stats_t test_sparse_dot(typename weight_type_::sparse_dot_kernel_t kernel)
 }
 
 void test_sparse() {
-    error_stats_section_t check("Sparse Operations");
+    error_stats_section_t check;
+
+    check.section("Sparse Operations Serial", nk_cap_serial_k);
+    check("sparse_intersect_u16_serial", test_intersect<u16_t>, nk_sparse_intersect_u16_serial);
+    check("sparse_intersect_u32_serial", test_intersect<u32_t>, nk_sparse_intersect_u32_serial);
+    check("sparse_intersect_u64_serial", test_intersect<u64_t>, nk_sparse_intersect_u64_serial);
+    check("sparse_dot_u32f32_serial", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_serial);
+    check("sparse_dot_u16bf16_serial", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16_serial);
 
 #if NK_DYNAMIC_DISPATCH
+    check.section("Sparse Operations Dynamic", nk_cap_serial_k);
     check("sparse_intersect_u16", test_intersect<u16_t>, nk_sparse_intersect_u16);
     check("sparse_intersect_u32", test_intersect<u32_t>, nk_sparse_intersect_u32);
     check("sparse_intersect_u64", test_intersect<u64_t>, nk_sparse_intersect_u64);
     check("sparse_dot_u32f32", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32);
     check("sparse_dot_u16bf16", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16);
-#else
+#endif
 
 #if NK_TARGET_NEON
+    check.section("Sparse Operations NEON", nk_cap_neon_k);
     check("sparse_intersect_u16_neon", test_intersect<u16_t>, nk_sparse_intersect_u16_neon);
     check("sparse_intersect_u32_neon", test_intersect<u32_t>, nk_sparse_intersect_u32_neon);
     check("sparse_intersect_u64_neon", test_intersect<u64_t>, nk_sparse_intersect_u64_neon);
 #endif // NK_TARGET_NEON
 
 #if NK_TARGET_SVE2
+    check.section("Sparse Operations SVE2", nk_cap_sve2_k);
     check("sparse_intersect_u16_sve2", test_intersect<u16_t>, nk_sparse_intersect_u16_sve2);
     check("sparse_intersect_u32_sve2", test_intersect<u32_t>, nk_sparse_intersect_u32_sve2);
     check("sparse_intersect_u64_sve2", test_intersect<u64_t>, nk_sparse_intersect_u64_sve2);
@@ -103,6 +117,7 @@ void test_sparse() {
 #endif // NK_TARGET_SVE2
 
 #if NK_TARGET_ICELAKE
+    check.section("Sparse Operations Ice Lake", nk_cap_icelake_k);
     check("sparse_intersect_u16_icelake", test_intersect<u16_t>, nk_sparse_intersect_u16_icelake);
     check("sparse_intersect_u32_icelake", test_intersect<u32_t>, nk_sparse_intersect_u32_icelake);
     check("sparse_intersect_u64_icelake", test_intersect<u64_t>, nk_sparse_intersect_u64_icelake);
@@ -110,19 +125,11 @@ void test_sparse() {
 #endif // NK_TARGET_ICELAKE
 
 #if NK_TARGET_TURIN
+    check.section("Sparse Operations Turin", nk_cap_turin_k);
     check("sparse_intersect_u16_turin", test_intersect<u16_t>, nk_sparse_intersect_u16_turin);
     check("sparse_intersect_u32_turin", test_intersect<u32_t>, nk_sparse_intersect_u32_turin);
     check("sparse_intersect_u64_turin", test_intersect<u64_t>, nk_sparse_intersect_u64_turin);
     check("sparse_dot_u32f32_turin", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_turin);
     check("sparse_dot_u16bf16_turin", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16_turin);
 #endif // NK_TARGET_TURIN
-
-    // Serial always runs - baseline test
-    check("sparse_intersect_u16_serial", test_intersect<u16_t>, nk_sparse_intersect_u16_serial);
-    check("sparse_intersect_u32_serial", test_intersect<u32_t>, nk_sparse_intersect_u32_serial);
-    check("sparse_intersect_u64_serial", test_intersect<u64_t>, nk_sparse_intersect_u64_serial);
-    check("sparse_dot_u32f32_serial", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_serial);
-    check("sparse_dot_u16bf16_serial", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16_serial);
-
-#endif // NK_DYNAMIC_DISPATCH
 }

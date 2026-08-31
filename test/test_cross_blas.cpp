@@ -27,7 +27,7 @@ error_stats_t test_dots_unpacked(kernel_type_ dots_fn) {
     using result_t = accumulator_type_;
     using reference_t = reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::external_baseline_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
 
     std::size_t m = global_config.matrix_height, n = global_config.matrix_width, k = global_config.matrix_depth;
@@ -64,7 +64,7 @@ error_stats_t test_dots_unpacked_conjugated(kernel_type_ dots_fn) {
     using result_t = accumulator_type_;
     using reference_t = reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::external_baseline_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
 
     std::size_t m = global_config.matrix_height, n = global_config.matrix_width, k = global_config.matrix_depth;
@@ -269,7 +269,7 @@ error_stats_t test_dot_blas(typename scalar_type_::dot_kernel_t kernel) {
     using result_t = typename scalar_t::dot_result_t;
     using reference_t = reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::external_baseline_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
     auto a = make_vector<scalar_t>(global_config.dense_dimensions),
          b = make_vector<scalar_t>(global_config.dense_dimensions);
@@ -299,7 +299,7 @@ error_stats_t test_vdot_blas(typename scalar_type_::vdot_kernel_t kernel) {
     using result_t = typename scalar_t::vdot_result_t;
     using reference_t = reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::external_baseline_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
     auto a = make_vector<scalar_t>(global_config.dense_dimensions),
          b = make_vector<scalar_t>(global_config.dense_dimensions);
@@ -322,7 +322,8 @@ error_stats_t test_vdot_blas(typename scalar_type_::vdot_kernel_t kernel) {
 
 void test_cross_blas() {
 #if NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
-    error_stats_section_t check("External Baselines");
+    error_stats_section_t check;
+    check.section("Cross External Baselines", nk_cap_serial_k);
 
     // Single-vector dot product BLAS precision comparison
     check("dot_with_blas_f32", test_dot_blas<f32_t>, dot_f32_with_blas);

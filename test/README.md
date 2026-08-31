@@ -75,15 +75,12 @@ All floating-point families report `max_abs`, `max_rel`, and `mean_ulp`; most al
 - __`exact_k`__ — integer and binary metrics: Hamming, Jaccard, set intersections, integer min/max.
   Reports `max_dist`, `mean_dist`, `max_abs`, `mismatch`, `exact`.
   Fails on any `max_dist > 0`.
-- __`narrow_arithmetic_k`__ — elementwise float ops: sum, scale, blend, fma, sin, cos, atan, cast.
+- __`approximate_k`__ — everything measured against a ULP budget: elementwise float ops, reductions and dot products.
   Fails on `max_ulp > NK_ULP_THRESHOLD_{F32,F16,BF16}`.
-- __`mixed_precision_reduction_k`__ — reductions and dot products: dot, angular, euclidean, sqeuclidean, reduce_moments, reduce_minmax.
-  Wider tolerance than `narrow_arithmetic_k` due to accumulation error.
 - __`probability_k`__ — probability divergences: KL, Jensen-Shannon.
   Also reports `mean_abs` and `mean_rel`.
 - __`geospatial_k`__ — geographic distances: Haversine, Vincenty.
   Also reports `mean_abs`.
-- __`external_baseline_k`__ — cross-backend comparison against system BLAS — OpenBLAS, MKL, Accelerate.
 
 ### Reference Baselines
 

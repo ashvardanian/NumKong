@@ -31,7 +31,7 @@ error_stats_t test_dots_packed(typename scalar_type_::dots_packed_size_kernel_t 
     using result_t = typename scalar_t::dot_result_t;
     using reference_t = reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
 
     std::size_t m = global_config.matrix_height, n = global_config.matrix_width;
@@ -80,7 +80,7 @@ error_stats_t test_dots_symmetric(typename scalar_type_::dots_symmetric_kernel_t
     using result_t = typename scalar_t::dot_result_t;
     using reference_t = reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
 
     std::size_t n = global_config.matrix_height;
@@ -295,7 +295,7 @@ error_stats_t test_angulars_packed(typename scalar_type_::dots_packed_size_kerne
     using result_t = typename scalar_t::angular_result_t;
     using reference_t = reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
 
     std::size_t m = global_config.matrix_height, n = global_config.matrix_width;
@@ -366,7 +366,7 @@ error_stats_t test_euclideans_packed(typename scalar_type_::dots_packed_size_ker
     using result_t = typename scalar_t::euclidean_result_t;
     using reference_t = reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
 
     std::size_t m = global_config.matrix_height, n = global_config.matrix_width;
@@ -435,7 +435,7 @@ error_stats_t test_angulars_symmetric(typename scalar_type_::angulars_symmetric_
     using result_t = typename scalar_t::angular_result_t;
     using reference_t = reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
 
     std::size_t n = global_config.matrix_height;
@@ -492,7 +492,7 @@ error_stats_t test_euclideans_symmetric(typename scalar_type_::euclideans_symmet
     using result_t = typename scalar_t::euclidean_result_t;
     using reference_t = reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
 
     std::size_t n = global_config.matrix_height;

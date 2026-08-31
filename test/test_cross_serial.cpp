@@ -8,41 +8,8 @@
 #include "test_cross.hpp"
 
 void test_cross_serial() {
-    [[maybe_unused]] error_stats_section_t check;
-    // Dynamic-dispatch tests (auto-selected best ISA)
-#if NK_DYNAMIC_DISPATCH
-    check("dots_packed_f64", test_dots_packed<f64_t>, nk_dots_packed_size_f64, nk_dots_pack_f64, nk_dots_packed_f64);
-    check("dots_packed_f32", test_dots_packed<f32_t>, nk_dots_packed_size_f32, nk_dots_pack_f32, nk_dots_packed_f32);
-    check("dots_packed_f16", test_dots_packed<f16_t>, nk_dots_packed_size_f16, nk_dots_pack_f16, nk_dots_packed_f16);
-    check("dots_packed_bf16", test_dots_packed<bf16_t>, nk_dots_packed_size_bf16, nk_dots_pack_bf16,
-          nk_dots_packed_bf16);
-    check("dots_packed_i8", test_dots_packed<i8_t>, nk_dots_packed_size_i8, nk_dots_pack_i8, nk_dots_packed_i8);
-    check("dots_packed_i4", test_dots_packed<i4x2_t>, nk_dots_packed_size_i4, nk_dots_pack_i4, nk_dots_packed_i4);
-    check("dots_packed_u4", test_dots_packed<u4x2_t>, nk_dots_packed_size_u4, nk_dots_pack_u4, nk_dots_packed_u4);
-    check("dots_packed_u1", test_dots_packed<u1x8_t>, nk_dots_packed_size_u1, nk_dots_pack_u1, nk_dots_packed_u1);
-
-    check("dots_symmetric_f64", test_dots_symmetric<f64_t>, nk_dots_symmetric_f64);
-    check("dots_symmetric_f32", test_dots_symmetric<f32_t>, nk_dots_symmetric_f32);
-    check("dots_symmetric_f16", test_dots_symmetric<f16_t>, nk_dots_symmetric_f16);
-    check("dots_symmetric_bf16", test_dots_symmetric<bf16_t>, nk_dots_symmetric_bf16);
-    check("dots_symmetric_e4m3", test_dots_symmetric<e4m3_t>, nk_dots_symmetric_e4m3);
-    check("dots_symmetric_e5m2", test_dots_symmetric<e5m2_t>, nk_dots_symmetric_e5m2);
-    check("dots_symmetric_i8", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8);
-    check("dots_symmetric_u8", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8);
-    check("dots_symmetric_i4", test_dots_symmetric<i4x2_t>, nk_dots_symmetric_i4);
-    check("dots_symmetric_u4", test_dots_symmetric<u4x2_t>, nk_dots_symmetric_u4);
-    check("dots_symmetric_u1", test_dots_symmetric<u1x8_t>, nk_dots_symmetric_u1);
-
-    check("hammings_packed_u1", test_hammings_packed<u1x8_t>, nk_dots_packed_size_u1, nk_dots_pack_u1,
-          nk_hammings_packed_u1);
-    check("hammings_symmetric_u1", test_hammings_symmetric<u1x8_t>, nk_hammings_symmetric_u1);
-
-    check("jaccards_packed_u1", test_jaccards_packed<u1x8_t>, nk_dots_packed_size_u1, nk_dots_pack_u1,
-          nk_jaccards_packed_u1);
-    check("jaccards_symmetric_u1", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1);
-#endif
-
-    // Serial always runs - baseline tests
+    error_stats_section_t check;
+    check.section("Cross Serial", nk_cap_serial_k);
     check("dots_packed_f64_serial", test_dots_packed<f64_t>, nk_dots_packed_size_f64_serial, nk_dots_pack_f64_serial,
           nk_dots_packed_f64_serial);
     check("dots_packed_f32_serial", test_dots_packed<f32_t>, nk_dots_packed_size_f32_serial, nk_dots_pack_f32_serial,
@@ -178,4 +145,126 @@ void test_cross_serial() {
     check("euclideans_symmetric_u8_serial", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_serial);
     check("euclideans_symmetric_i4_serial", test_euclideans_symmetric<i4x2_t>, nk_euclideans_symmetric_i4_serial);
     check("euclideans_symmetric_u4_serial", test_euclideans_symmetric<u4x2_t>, nk_euclideans_symmetric_u4_serial);
+
+#if NK_DYNAMIC_DISPATCH
+    check.section("Cross Dynamic", nk_cap_serial_k);
+    check("dots_packed_f64", test_dots_packed<f64_t>, nk_dots_packed_size_f64, nk_dots_pack_f64, nk_dots_packed_f64);
+    check("dots_packed_f32", test_dots_packed<f32_t>, nk_dots_packed_size_f32, nk_dots_pack_f32, nk_dots_packed_f32);
+    check("dots_packed_f16", test_dots_packed<f16_t>, nk_dots_packed_size_f16, nk_dots_pack_f16, nk_dots_packed_f16);
+    check("dots_packed_bf16", test_dots_packed<bf16_t>, nk_dots_packed_size_bf16, nk_dots_pack_bf16,
+          nk_dots_packed_bf16);
+    check("dots_packed_i8", test_dots_packed<i8_t>, nk_dots_packed_size_i8, nk_dots_pack_i8, nk_dots_packed_i8);
+    check("dots_packed_i4", test_dots_packed<i4x2_t>, nk_dots_packed_size_i4, nk_dots_pack_i4, nk_dots_packed_i4);
+    check("dots_packed_u4", test_dots_packed<u4x2_t>, nk_dots_packed_size_u4, nk_dots_pack_u4, nk_dots_packed_u4);
+    check("dots_packed_u1", test_dots_packed<u1x8_t>, nk_dots_packed_size_u1, nk_dots_pack_u1, nk_dots_packed_u1);
+
+    check("dots_symmetric_f64", test_dots_symmetric<f64_t>, nk_dots_symmetric_f64);
+    check("dots_symmetric_f32", test_dots_symmetric<f32_t>, nk_dots_symmetric_f32);
+    check("dots_symmetric_f16", test_dots_symmetric<f16_t>, nk_dots_symmetric_f16);
+    check("dots_symmetric_bf16", test_dots_symmetric<bf16_t>, nk_dots_symmetric_bf16);
+    check("dots_symmetric_e4m3", test_dots_symmetric<e4m3_t>, nk_dots_symmetric_e4m3);
+    check("dots_symmetric_e5m2", test_dots_symmetric<e5m2_t>, nk_dots_symmetric_e5m2);
+    check("dots_symmetric_i8", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8);
+    check("dots_symmetric_u8", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8);
+    check("dots_symmetric_i4", test_dots_symmetric<i4x2_t>, nk_dots_symmetric_i4);
+    check("dots_symmetric_u4", test_dots_symmetric<u4x2_t>, nk_dots_symmetric_u4);
+    check("dots_symmetric_u1", test_dots_symmetric<u1x8_t>, nk_dots_symmetric_u1);
+
+    check("hammings_packed_u1", test_hammings_packed<u1x8_t>, nk_dots_packed_size_u1, nk_dots_pack_u1,
+          nk_hammings_packed_u1);
+    check("hammings_symmetric_u1", test_hammings_symmetric<u1x8_t>, nk_hammings_symmetric_u1);
+
+    check("jaccards_packed_u1", test_jaccards_packed<u1x8_t>, nk_dots_packed_size_u1, nk_dots_pack_u1,
+          nk_jaccards_packed_u1);
+    check("jaccards_symmetric_u1", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1);
+
+    check("dots_packed_e2m3", test_dots_packed<e2m3_t>, nk_dots_packed_size_e2m3, nk_dots_pack_e2m3,
+          nk_dots_packed_e2m3);
+    check("dots_packed_e3m2", test_dots_packed<e3m2_t>, nk_dots_packed_size_e3m2, nk_dots_pack_e3m2,
+          nk_dots_packed_e3m2);
+    check("dots_packed_e4m3", test_dots_packed<e4m3_t>, nk_dots_packed_size_e4m3, nk_dots_pack_e4m3,
+          nk_dots_packed_e4m3);
+    check("dots_packed_e5m2", test_dots_packed<e5m2_t>, nk_dots_packed_size_e5m2, nk_dots_pack_e5m2,
+          nk_dots_packed_e5m2);
+    check("dots_packed_u8", test_dots_packed<u8_t>, nk_dots_packed_size_u8, nk_dots_pack_u8, nk_dots_packed_u8);
+
+    check("dots_symmetric_e2m3", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3);
+    check("dots_symmetric_e3m2", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2);
+
+    check("angulars_packed_bf16", test_angulars_packed<bf16_t>, nk_dots_packed_size_bf16, nk_dots_pack_bf16,
+          nk_angulars_packed_bf16);
+    check("angulars_packed_e2m3", test_angulars_packed<e2m3_t>, nk_dots_packed_size_e2m3, nk_dots_pack_e2m3,
+          nk_angulars_packed_e2m3);
+    check("angulars_packed_e3m2", test_angulars_packed<e3m2_t>, nk_dots_packed_size_e3m2, nk_dots_pack_e3m2,
+          nk_angulars_packed_e3m2);
+    check("angulars_packed_e4m3", test_angulars_packed<e4m3_t>, nk_dots_packed_size_e4m3, nk_dots_pack_e4m3,
+          nk_angulars_packed_e4m3);
+    check("angulars_packed_e5m2", test_angulars_packed<e5m2_t>, nk_dots_packed_size_e5m2, nk_dots_pack_e5m2,
+          nk_angulars_packed_e5m2);
+    check("angulars_packed_f16", test_angulars_packed<f16_t>, nk_dots_packed_size_f16, nk_dots_pack_f16,
+          nk_angulars_packed_f16);
+    check("angulars_packed_f32", test_angulars_packed<f32_t>, nk_dots_packed_size_f32, nk_dots_pack_f32,
+          nk_angulars_packed_f32);
+    check("angulars_packed_f64", test_angulars_packed<f64_t>, nk_dots_packed_size_f64, nk_dots_pack_f64,
+          nk_angulars_packed_f64);
+    check("angulars_packed_i4", test_angulars_packed<i4x2_t>, nk_dots_packed_size_i4, nk_dots_pack_i4,
+          nk_angulars_packed_i4);
+    check("angulars_packed_i8", test_angulars_packed<i8_t>, nk_dots_packed_size_i8, nk_dots_pack_i8,
+          nk_angulars_packed_i8);
+    check("angulars_packed_u4", test_angulars_packed<u4x2_t>, nk_dots_packed_size_u4, nk_dots_pack_u4,
+          nk_angulars_packed_u4);
+    check("angulars_packed_u8", test_angulars_packed<u8_t>, nk_dots_packed_size_u8, nk_dots_pack_u8,
+          nk_angulars_packed_u8);
+
+    check("angulars_symmetric_bf16", test_angulars_symmetric<bf16_t>, nk_angulars_symmetric_bf16);
+    check("angulars_symmetric_e2m3", test_angulars_symmetric<e2m3_t>, nk_angulars_symmetric_e2m3);
+    check("angulars_symmetric_e3m2", test_angulars_symmetric<e3m2_t>, nk_angulars_symmetric_e3m2);
+    check("angulars_symmetric_e4m3", test_angulars_symmetric<e4m3_t>, nk_angulars_symmetric_e4m3);
+    check("angulars_symmetric_e5m2", test_angulars_symmetric<e5m2_t>, nk_angulars_symmetric_e5m2);
+    check("angulars_symmetric_f16", test_angulars_symmetric<f16_t>, nk_angulars_symmetric_f16);
+    check("angulars_symmetric_f32", test_angulars_symmetric<f32_t>, nk_angulars_symmetric_f32);
+    check("angulars_symmetric_f64", test_angulars_symmetric<f64_t>, nk_angulars_symmetric_f64);
+    check("angulars_symmetric_i4", test_angulars_symmetric<i4x2_t>, nk_angulars_symmetric_i4);
+    check("angulars_symmetric_i8", test_angulars_symmetric<i8_t>, nk_angulars_symmetric_i8);
+    check("angulars_symmetric_u4", test_angulars_symmetric<u4x2_t>, nk_angulars_symmetric_u4);
+    check("angulars_symmetric_u8", test_angulars_symmetric<u8_t>, nk_angulars_symmetric_u8);
+
+    check("euclideans_packed_bf16", test_euclideans_packed<bf16_t>, nk_dots_packed_size_bf16, nk_dots_pack_bf16,
+          nk_euclideans_packed_bf16);
+    check("euclideans_packed_e2m3", test_euclideans_packed<e2m3_t>, nk_dots_packed_size_e2m3, nk_dots_pack_e2m3,
+          nk_euclideans_packed_e2m3);
+    check("euclideans_packed_e3m2", test_euclideans_packed<e3m2_t>, nk_dots_packed_size_e3m2, nk_dots_pack_e3m2,
+          nk_euclideans_packed_e3m2);
+    check("euclideans_packed_e4m3", test_euclideans_packed<e4m3_t>, nk_dots_packed_size_e4m3, nk_dots_pack_e4m3,
+          nk_euclideans_packed_e4m3);
+    check("euclideans_packed_e5m2", test_euclideans_packed<e5m2_t>, nk_dots_packed_size_e5m2, nk_dots_pack_e5m2,
+          nk_euclideans_packed_e5m2);
+    check("euclideans_packed_f16", test_euclideans_packed<f16_t>, nk_dots_packed_size_f16, nk_dots_pack_f16,
+          nk_euclideans_packed_f16);
+    check("euclideans_packed_f32", test_euclideans_packed<f32_t>, nk_dots_packed_size_f32, nk_dots_pack_f32,
+          nk_euclideans_packed_f32);
+    check("euclideans_packed_f64", test_euclideans_packed<f64_t>, nk_dots_packed_size_f64, nk_dots_pack_f64,
+          nk_euclideans_packed_f64);
+    check("euclideans_packed_i4", test_euclideans_packed<i4x2_t>, nk_dots_packed_size_i4, nk_dots_pack_i4,
+          nk_euclideans_packed_i4);
+    check("euclideans_packed_i8", test_euclideans_packed<i8_t>, nk_dots_packed_size_i8, nk_dots_pack_i8,
+          nk_euclideans_packed_i8);
+    check("euclideans_packed_u4", test_euclideans_packed<u4x2_t>, nk_dots_packed_size_u4, nk_dots_pack_u4,
+          nk_euclideans_packed_u4);
+    check("euclideans_packed_u8", test_euclideans_packed<u8_t>, nk_dots_packed_size_u8, nk_dots_pack_u8,
+          nk_euclideans_packed_u8);
+
+    check("euclideans_symmetric_bf16", test_euclideans_symmetric<bf16_t>, nk_euclideans_symmetric_bf16);
+    check("euclideans_symmetric_e2m3", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3);
+    check("euclideans_symmetric_e3m2", test_euclideans_symmetric<e3m2_t>, nk_euclideans_symmetric_e3m2);
+    check("euclideans_symmetric_e4m3", test_euclideans_symmetric<e4m3_t>, nk_euclideans_symmetric_e4m3);
+    check("euclideans_symmetric_e5m2", test_euclideans_symmetric<e5m2_t>, nk_euclideans_symmetric_e5m2);
+    check("euclideans_symmetric_f16", test_euclideans_symmetric<f16_t>, nk_euclideans_symmetric_f16);
+    check("euclideans_symmetric_f32", test_euclideans_symmetric<f32_t>, nk_euclideans_symmetric_f32);
+    check("euclideans_symmetric_f64", test_euclideans_symmetric<f64_t>, nk_euclideans_symmetric_f64);
+    check("euclideans_symmetric_i4", test_euclideans_symmetric<i4x2_t>, nk_euclideans_symmetric_i4);
+    check("euclideans_symmetric_i8", test_euclideans_symmetric<i8_t>, nk_euclideans_symmetric_i8);
+    check("euclideans_symmetric_u4", test_euclideans_symmetric<u4x2_t>, nk_euclideans_symmetric_u4);
+    check("euclideans_symmetric_u8", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8);
+#endif
 }
