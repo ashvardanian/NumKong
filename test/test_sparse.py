@@ -7,7 +7,6 @@ Matches C++ suite: test_sparse.cpp.
 """
 
 import atexit
-import platform
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -31,7 +30,6 @@ from test_base import (
     assert_allclose,
     collect_errors,
     create_stats,
-    is_running_under_qemu,
     keep_one_capability,
     numpy_available,
     possible_capabilities,
@@ -90,15 +88,12 @@ def test_sparse_dot(capability: str):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("dtype", ["uint16", "uint32"])
+@pytest.mark.parametrize("dtype", ["uint16", "uint32", "uint64"])
 @pytest.mark.parametrize("first_length_bound", [10, 100, 1000])
 @pytest.mark.parametrize("second_length_bound", [10, 100, 1000])
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_intersect(dtype: str, first_length_bound: int, second_length_bound: int, capability: str):
     """Compares the nk.intersect() function with numpy.intersect1d."""
-    if is_running_under_qemu() and (platform.machine() == "aarch64" or platform.machine() == "arm64"):
-        pytest.skip("In QEMU `aarch64` emulation on `x86_64` the `intersect` function is not reliable")
-
     a_length = np.random.randint(1, first_length_bound)
     b_length = np.random.randint(1, second_length_bound)
     a = np.random.randint(first_length_bound * 2, size=a_length, dtype=dtype)

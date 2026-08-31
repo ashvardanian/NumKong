@@ -101,6 +101,9 @@ NK_PUBLIC void nk_sparse_intersect_u16_sve2( //
         nk_u64_t a_step = svcntp_b16(a_progress_b16x, a_mask_b16x);
         nk_u64_t b_step = svcntp_b16(b_progress_b16x, b_mask_b16x);
 
+        // `svmatch`/`svhistcnt` ignore the predicate on their second operand; replace the zero tail with a real member.
+        b_u16x = svsel_u16(b_progress_b16x, b_u16x, svdup_n_u16(b_max));
+
         // Compare `a_u16x` with each lane of `b_u16x`
         svbool_t equal_mask_b16x = svmatch_u16(a_progress_b16x, a_u16x, b_u16x);
         for (nk_size_t i = 1; i < lanes_count; i++) {
@@ -182,6 +185,9 @@ NK_PUBLIC void nk_sparse_intersect_u32_sve2( //
         svbool_t b_mask_b32x = svcmple_n_u32(b_progress_b32x, b_u32x, a_max);
         nk_u64_t a_step = svcntp_b32(a_progress_b32x, a_mask_b32x);
         nk_u64_t b_step = svcntp_b32(b_progress_b32x, b_mask_b32x);
+
+        // `svmatch`/`svhistcnt` ignore the predicate on their second operand; replace the zero tail with a real member.
+        b_u32x = svsel_u32(b_progress_b32x, b_u32x, svdup_n_u32(b_max));
 
         // Comparing `a_u32x` with each lane of `b_u32x` can't be done with `svmatch`,
         // the same way as in `nk_sparse_intersect_u16_sve2`, as that instruction is only
@@ -281,6 +287,9 @@ NK_PUBLIC void nk_sparse_intersect_u64_sve2( //
         nk_u64_t a_step = svcntp_b64(a_progress_b64x, a_mask_b64x);
         nk_u64_t b_step = svcntp_b64(b_progress_b64x, b_mask_b64x);
 
+        // `svmatch`/`svhistcnt` ignore the predicate on their second operand; replace the zero tail with a real member.
+        b_u64x = svsel_u64(b_progress_b64x, b_u64x, svdup_n_u64(b_max));
+
         // Use histogram instructions like `svhistcnt_u64_z` to compute intersection.
         // They compute the prefix-matching count, equivalent to the lower triangle
         // of the row-major intersection matrix.
@@ -354,6 +363,11 @@ NK_PUBLIC void nk_sparse_dot_u32f32_sve2(                 //
         svbool_t b_mask_b32x = svcmple_n_u32(b_progress_b32x, b_u32x, a_max);
         nk_u64_t a_step = svcntp_b32(a_progress_b32x, a_mask_b32x);
         nk_u64_t b_step = svcntp_b32(b_progress_b32x, b_mask_b32x);
+
+        // `svmatch`/`svhistcnt` ignore the predicate on their second operand; replace the zero tail with a real member.
+        // Each vector is the other's ungoverned second operand here.
+        a_u32x = svsel_u32(a_progress_b32x, a_u32x, svdup_n_u32(a_max));
+        b_u32x = svsel_u32(b_progress_b32x, b_u32x, svdup_n_u32(b_max));
 
         // Use histogram-based intersection (svmatch_u32 doesn't exist)
         svuint32_t hist_low_u32x = svhistcnt_u32_z(a_progress_b32x, a_u32x, b_u32x);
@@ -467,6 +481,9 @@ NK_PUBLIC void nk_sparse_dot_u16bf16_sve2(                  //
         svbool_t b_mask_b16x = svcmple_n_u16(b_progress_b16x, b_u16x, a_max);
         nk_u64_t a_step = svcntp_b16(a_progress_b16x, a_mask_b16x);
         nk_u64_t b_step = svcntp_b16(b_progress_b16x, b_mask_b16x);
+
+        // `svmatch`/`svhistcnt` ignore the predicate on their second operand; replace the zero tail with a real member.
+        b_u16x = svsel_u16(b_progress_b16x, b_u16x, svdup_n_u16(b_max));
 
         // Compare `a_u16x` with each lane of `b_u16x`
         svbfloat16_t a_weights_bf16x = svld1_bf16(a_progress_b16x, (__bf16 const *)a_weights + a_idx);
