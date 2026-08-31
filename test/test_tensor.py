@@ -885,7 +885,9 @@ def test_ndarray_sum_integer(dtype: str, shape):
         nk_dtype_conversion_info.min // 2, nk_dtype_conversion_info.max // 2, size=shape, dtype=dtype
     )
     nk_arr = make_nk(np_arr, dtype)
-    assert nk_arr.sum() == np_arr.sum()
+    # NumKong always accumulates in 64 bits; NumPy's default integer accumulator is C `long`,
+    # which is 32-bit under Emscripten, so it must be pinned or Pyodide compares against a wrap.
+    assert nk_arr.sum() == np_arr.sum(dtype=np.int64)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
