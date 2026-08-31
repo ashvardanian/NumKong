@@ -20,6 +20,7 @@ namespace ashvardanian::numkong {
  *  @brief Count intersection of two sorted index arrays
  *  @param[in] a,b Sorted index arrays (ascending, unique elements)
  *  @param[in] a_length,b_length Number of elements in each array
+ *  @param[out] result Optional buffer for the matched indices, at least `min(a_length, b_length)` long
  *  @param[out] count Output intersection count
  *
  *  @tparam index_type_ Index type (u16_t, u32_t, u64_t)
@@ -27,15 +28,16 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype index_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void sparse_intersect(index_type_ const *a, index_type_ const *b, std::size_t a_length, std::size_t b_length,
-                      nk_size_t *count) noexcept {
+                      index_type_ *result, nk_size_t *count) noexcept {
     constexpr bool simd = allow_simd_ == prefer_simd_k;
+    typename index_type_::raw_t *result_raw = result ? &result->raw_ : nullptr;
 
     if constexpr (std::is_same_v<index_type_, u16_t> && simd)
-        nk_sparse_intersect_u16(&a->raw_, &b->raw_, a_length, b_length, nullptr, count);
+        nk_sparse_intersect_u16(&a->raw_, &b->raw_, a_length, b_length, result_raw, count);
     else if constexpr (std::is_same_v<index_type_, u32_t> && simd)
-        nk_sparse_intersect_u32(&a->raw_, &b->raw_, a_length, b_length, nullptr, count);
+        nk_sparse_intersect_u32(&a->raw_, &b->raw_, a_length, b_length, result_raw, count);
     else if constexpr (std::is_same_v<index_type_, u64_t> && simd)
-        nk_sparse_intersect_u64(&a->raw_, &b->raw_, a_length, b_length, nullptr, count);
+        nk_sparse_intersect_u64(&a->raw_, &b->raw_, a_length, b_length, result_raw, count);
     // Scalar fallback
     else {
         nk_size_t c = 0;
@@ -43,7 +45,10 @@ void sparse_intersect(index_type_ const *a, index_type_ const *b, std::size_t a_
         while (i < a_length && j < b_length) {
             if (a[i] < b[j]) i++;
             else if (b[j] < a[i]) j++;
-            else c++, i++, j++;
+            else {
+                if (result) result[c] = a[i];
+                c++, i++, j++;
+            }
         }
         *count = c;
     }
@@ -97,7 +102,7 @@ namespace ashvardanian::numkong {
 
 template <numeric_dtype index_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void sparse_intersect(vector_view<index_type_> a, vector_view<index_type_> b, nk_size_t *count) noexcept {
-    sparse_intersect<index_type_, allow_simd_>(a.data(), b.data(), a.size(), b.size(), count);
+    sparse_intersect<index_type_, allow_simd_>(a.data(), b.data(), a.size(), b.size(), nullptr, count);
 }
 
 template <numeric_dtype index_type_, numeric_dtype weight_t,

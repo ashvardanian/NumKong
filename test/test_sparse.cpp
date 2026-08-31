@@ -18,17 +18,24 @@ error_stats_t test_intersect(typename index_type_::sparse_intersect_kernel_t ker
     std::mt19937 generator(global_config.seed);
     std::size_t dim = global_config.sparse_dimensions;
     auto a = make_vector<index_t>(dim), b = make_vector<index_t>(dim);
+    auto matched = make_vector<index_t>(dim), expected = make_vector<index_t>(dim);
 
     for (auto start = test_start_time(); within_time_budget(start);) {
-        nk::fill_sorted_unique(generator, a.values_data(), a.size_values(), index_t(dim * 4));
-        nk::fill_sorted_unique(generator, b.values_data(), b.size_values(), index_t(dim * 4));
+        // Every 8th case crosses the 64:1 ratio where the serial kernel switches to galloping
+        // search, and `a`'s wider range makes it overshoot `b`'s last element.
+        std::size_t b_length = 1 + generator() % dim;
+        std::size_t a_length = (generator() % 8) ? 1 + generator() % dim : 1 + b_length / 128;
+        nk::fill_sorted_unique(generator, a.values_data(), a_length, index_t(dim * 4));
+        nk::fill_sorted_unique(generator, b.values_data(), b_length, index_t(dim * 2));
 
         nk_size_t count;
-        kernel(a.raw_values_data(), b.raw_values_data(), dim, dim, nullptr, &count);
+        kernel(a.raw_values_data(), b.raw_values_data(), a_length, b_length, matched.raw_values_data(), &count);
 
         nk_size_t ref;
-        nk::sparse_intersect<index_t, nk::no_simd_k>(a.values_data(), b.values_data(), dim, dim, &ref);
+        nk::sparse_intersect<index_t, nk::no_simd_k>(a.values_data(), b.values_data(), a_length, b_length,
+                                                     expected.values_data(), &ref);
         stats.accumulate(count, ref);
+        for (nk_size_t k = 0; k < ref; ++k) stats.accumulate(matched[k], expected[k]);
     }
     return stats;
 }
@@ -87,13 +94,16 @@ void test_sparse() {
     check("sparse_intersect_u64_neon", test_intersect<u64_t>, nk_sparse_intersect_u64_neon);
 #endif // NK_TARGET_NEON
 
-#if NK_TARGET_SVE
+#if NK_TARGET_SVE2
     check("sparse_intersect_u16_sve2", test_intersect<u16_t>, nk_sparse_intersect_u16_sve2);
     check("sparse_intersect_u32_sve2", test_intersect<u32_t>, nk_sparse_intersect_u32_sve2);
     check("sparse_intersect_u64_sve2", test_intersect<u64_t>, nk_sparse_intersect_u64_sve2);
     check("sparse_dot_u32f32_sve2", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_sve2);
+#endif // NK_TARGET_SVE2
+
+#if NK_TARGET_SVE2 && NK_TARGET_SVEBFDOT
     check("sparse_dot_u16bf16_sve2", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16_sve2);
-#endif // NK_TARGET_SVE
+#endif // NK_TARGET_SVE2 && NK_TARGET_SVEBFDOT
 
 #if NK_TARGET_ICELAKE
     check("sparse_intersect_u16_icelake", test_intersect<u16_t>, nk_sparse_intersect_u16_icelake);
