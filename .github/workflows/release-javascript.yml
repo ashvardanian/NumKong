@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build_native:
-    name: Build ${{ matrix.platform }}
+    name: Build Native Package, ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
@@ -159,7 +159,7 @@ jobs:
           overwrite: true
 
   publish_platform_packages:
-    name: Publish Platform Packages
+    name: Publish Platform Package, ${{ matrix.platform }}
     needs: [build_native]
     if: always()
     runs-on: ubuntu-24.04

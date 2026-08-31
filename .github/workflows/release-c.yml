@@ -83,7 +83,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} *.so *.deb --clobber
 
   create_windows_dll_library:
-    name: Create DLL Library for Windows
+    name: Create Library for Windows
     runs-on: windows-2025
     strategy:
       fail-fast: false
@@ -131,7 +131,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} "numkong_windows_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.tar.gz" --clobber
 
   create_macos_dylib_library:
-    name: Create Library for macOS
+    name: Create Library for macOS, ${{ matrix.arch }}
     runs-on: macos-15
     strategy:
       fail-fast: false
@@ -164,7 +164,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} *.dylib *.zip --clobber
 
   create_android_library:
-    name: Create Android Libraries
+    name: Create Android Library
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -204,7 +204,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} *.zip --clobber
 
   create_wasm_library:
-    name: Create WASM Libraries
+    name: Create WASM Library
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
@@ -373,7 +373,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} *.so --clobber
 
   create_linux_exotic_library:
-    name: Create Library for Linux (${{ matrix.name }})
+    name: Create Library for Linux, ${{ matrix.name }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -436,7 +436,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} *.so --clobber
 
   create_linux_riscv_library:
-    name: Create Library for Linux (riscv64)
+    name: Create Library for Linux RISC-V
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository

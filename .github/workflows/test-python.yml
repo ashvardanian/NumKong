@@ -17,7 +17,7 @@ env:
 
 jobs:
   test_python:
-    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    name: Test Python, ${{ matrix.os }}, ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

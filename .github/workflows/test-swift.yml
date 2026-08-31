@@ -15,7 +15,7 @@ jobs:
   # Temporary workaround to run Swift tests on Linux
   # Based on: https://github.com/swift-actions/setup-swift/issues/591#issuecomment-1685710678
   test_ubuntu_swift:
-    name: Swift on Linux
+    name: Test Swift on Linux
     runs-on: ubuntu-24.04
     container: swift:6.2
     steps:
@@ -33,7 +33,7 @@ jobs:
         run: swift test --filter Test --parallel
 
   test_macos_swift:
-    name: Swift on macOS
+    name: Test Swift on macOS
     runs-on: macos-15
     steps:
       - name: Checkout

@@ -13,7 +13,7 @@ env:
 
 jobs:
   build_wheels_linux_x86:
-    name: Build Python Wheels (Linux x86)
+    name: Build Python Wheels for Linux x86, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -57,7 +57,7 @@ jobs:
   # These are maintained by Arm, not GitHub, so we need to include
   # extra steps, like installing Docker and starting the service
   build_wheels_linux_arm:
-    name: Build Python Wheels (Linux ARM)
+    name: Build Python Wheels for Linux ARM, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04-arm
     strategy:
       fail-fast: false
@@ -116,7 +116,7 @@ jobs:
           overwrite: true
 
   build_wheels_macos_x86:
-    name: Build Python Wheels (macOS x86)
+    name: Build Python Wheels for macOS x86, cp${{ matrix.python-version }}
     runs-on: macos-26
     strategy:
       fail-fast: false
@@ -160,7 +160,7 @@ jobs:
           overwrite: true
 
   build_wheels_macos_arm:
-    name: Build Python Wheels (macOS ARM)
+    name: Build Python Wheels for macOS ARM, cp${{ matrix.python-version }}
     runs-on: macos-26
     strategy:
       fail-fast: false
@@ -204,7 +204,7 @@ jobs:
           overwrite: true
 
   build_wheels_windows:
-    name: Build Python Wheels (Windows)
+    name: Build Python Wheels for Windows, ${{ matrix.architecture }}, cp${{ matrix.python-version }}
     runs-on: windows-2025
     strategy:
       fail-fast: false
@@ -255,7 +255,7 @@ jobs:
           overwrite: true
 
   build_wheels_other:
-    name: Build Python Wheels (Other Platforms)
+    name: Build Python Wheels for Linux, ${{ matrix.architecture }}, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
@@ -301,7 +301,7 @@ jobs:
           overwrite: true
 
   build_wheels_pyodide:
-    name: Build Python Wheels (Pyodide)
+    name: Build Python Wheels for Pyodide, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
@@ -344,7 +344,7 @@ jobs:
           overwrite: true
 
   build_wheels_linux_riscv:
-    name: Build Python Wheels (Linux RISC-V)
+    name: Build Python Wheels for Linux RISC-V, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false

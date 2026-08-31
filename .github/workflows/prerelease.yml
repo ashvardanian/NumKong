@@ -56,6 +56,6 @@ jobs:
           dry-run: "true"
 
   wheels:
-    name: Build Wheels
+    name: Build Python Wheels
     uses: ./.github/workflows/_wheels.yml
     secrets: inherit

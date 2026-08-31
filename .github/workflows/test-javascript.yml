@@ -106,7 +106,7 @@ jobs:
         run: NK_RUNTIME=emscripten node --test test/test-wasm.mjs
 
   test_wasm_emscripten64:
-    name: Test WASM64 via Emscripten (memory64)
+    name: Test WASM64 via Emscripten with memory64
     runs-on: ubuntu-24.04
 
     steps:
@@ -153,7 +153,7 @@ jobs:
         run: NK_RUNTIME=emscripten64 node --test test/test-wasm.mjs
 
   test_wasm_wasi:
-    name: Test WASM via WASI Node.js
+    name: Test WASM under WASI Node.js
     runs-on: ubuntu-24.04
 
     steps:
@@ -195,7 +195,7 @@ jobs:
         run: NK_RUNTIME=wasi-node node --test test/test-wasm.mjs
 
   test_wasm_browser:
-    name: Test WASM via Browser
+    name: Test WASM under Browser
     runs-on: ubuntu-24.04
 
     steps:
@@ -265,7 +265,7 @@ jobs:
           retention-days: 7
 
   test_wasm_wasmer:
-    name: Test WASM via Wasmer
+    name: Test WASM under Wasmer
     runs-on: ubuntu-24.04
 
     steps:
@@ -315,7 +315,7 @@ jobs:
           NK_BUDGET_SECS: 0.1
 
   test_wasm_wasmtime:
-    name: Test WASM via Wasmtime
+    name: Test WASM under Wasmtime
     runs-on: ubuntu-24.04
 
     steps:

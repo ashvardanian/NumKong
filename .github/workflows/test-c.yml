@@ -54,7 +54,7 @@ jobs:
         run: LD_LIBRARY_PATH=build_shared build_shared/nk_shared_test
 
   test_macos_homebrew_llvm:
-    name: Test macOS Homebrew LLVM
+    name: Test C on macOS with Homebrew LLVM
     runs-on: macos-15
 
     steps:
@@ -156,7 +156,7 @@ jobs:
           NK_BUDGET_SECS: 0.2
 
   test_android:
-    name: Test Android
+    name: Test C for Android ARM64
     runs-on: ubuntu-24.04
 
     steps:
@@ -205,7 +205,7 @@ jobs:
   # 32-bit ARM Android — catches AArch64-only intrinsics leaking into
   # NEON code paths, like float64x2_t which doesn't exist on ARMv7.
   test_android_armv7:
-    name: Test Android ARMv7
+    name: Test C for Android ARMv7
     runs-on: ubuntu-24.04
 
     steps:
@@ -244,7 +244,7 @@ jobs:
   # 32-bit ARM Linux — validates the same AArch32 code paths as Android ARMv7
   # but with the GNU toolchain instead of the NDK's Clang.
   test_armv7_linux:
-    name: Test ARMv7 Linux
+    name: Test C for Linux ARMv7
     runs-on: ubuntu-24.04
 
     steps:
@@ -285,7 +285,7 @@ jobs:
         run: cargo build --target armv7-unknown-linux-gnueabihf --release
 
   test_riscv_llvm23:
-    name: Test RISC-V LLVM 23 (QEMU)
+    name: Test RISC-V LLVM 23 under QEMU, ${{ matrix.march }}
     runs-on: ubuntu-24.04
     # Noble's qemu-user is 8.2, which predates `Zvbb`/`Zvfh` in `riscv_hwprobe`,
     # so RVV would never dispatch and this job would pass on serial fallbacks.
@@ -338,7 +338,7 @@ jobs:
           NK_BUDGET_SECS: 0.1
 
   test_qemu_cross:
-    name: Test ${{ matrix.name }} (QEMU)
+    name: Test C under QEMU, ${{ matrix.name }}
     runs-on: ubuntu-24.04
     # Noble's GCC 14 cross ICEs folding SVE intrinsics under LTO; Trixie's builds the same tree.
     container: debian:trixie
@@ -411,7 +411,7 @@ jobs:
           NK_BUDGET_SECS: 0.1
 
   test_x86_sde:
-    name: Test x86 (Intel SDE)
+    name: Test x86 under Intel SDE
     runs-on: ubuntu-24.04
     timeout-minutes: 90
 

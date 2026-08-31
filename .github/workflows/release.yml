@@ -54,7 +54,7 @@ jobs:
           github-token: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
 
   rebase:
-    name: Rebase Dev. Branch
+    name: Rebase Development Branch
     needs: versioning
     runs-on: ubuntu-24.04
     steps:

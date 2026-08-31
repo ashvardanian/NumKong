@@ -13,14 +13,14 @@ env:
 
 jobs:
   wheels:
-    name: Build Wheels
+    name: Build Python Wheels
     uses: ./.github/workflows/_wheels.yml
     with:
       ref: "main"
     secrets: inherit
 
   publish_python:
-    name: Publish Python
+    name: Publish Python Package to PyPI
     needs:
       - wheels
     # Run even if some build jobs fail (e.g., due to transient network issues)
