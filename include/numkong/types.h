@@ -1655,13 +1655,18 @@ NK_INTERNAL void nk_sme_stop_streaming_(void) { __asm__ __volatile__("smstop sm"
  *  - __arm_tpidr2_save / __arm_tpidr2_restore: lazy ZA save/restore protocol
  *    used in __arm_new("za") prologues. Always no-ops in NumKong because no
  *    NK_PUBLIC function carries ZA state (TPIDR2_EL0 is always null at entry).
+ *    `used` is load-bearing under LTO: the prologue call is synthesized by the
+ *    backend, long after IPA would drop these as unreferenced.
  *
  *  - __arm_sc_memset / __arm_sc_memcpy / __arm_sc_memmove: streaming-compatible
  *    memory routines the compiler may emit inside __arm_streaming functions.
- *    Apple Clang provides these in its runtime; upstream LLVM does not.
+ *    Apple Clang provides these in its runtime; upstream LLVM does not. GCC
+ *    needs no stub because it never emits calls to them — and must not get one,
+ *    as its `arm_sme.h` declares them with C++ linkage.
  */
-__attribute__((weak)) void __arm_tpidr2_save(void) {}
-__attribute__((weak)) void __arm_tpidr2_restore(void *blk) { nk_unused_(blk); }
+__attribute__((weak, used)) void __arm_tpidr2_save(void) {}
+__attribute__((weak, used)) void __arm_tpidr2_restore(void *blk) { nk_unused_(blk); }
+#if defined(__clang__) // GCC's `arm_sme.h` declares these with C++ linkage, which collides here
 __attribute__((weak, target("+sme"))) void *__arm_sc_memset(void *d, int c,
                                                             __SIZE_TYPE__ n) __arm_streaming_compatible {
     unsigned char *p = (unsigned char *)d;
@@ -1687,6 +1692,7 @@ __attribute__((weak, target("+sme"))) void *__arm_sc_memmove(void *d, void const
     }
     return d;
 }
+#endif
 #endif
 
 #ifdef __cplusplus
