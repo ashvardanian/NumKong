@@ -334,10 +334,8 @@ NK_INTERNAL void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, 
     uint32x4_t zero_union_mask = vceqq_f32(union_f32x4, vdupq_n_f32(0.0f));
     float32x4_t safe_union_f32x4 = vbslq_f32(zero_union_mask, one_f32x4, union_f32x4);
 
-    float32x4_t union_reciprocal_f32x4 = vrecpeq_f32(safe_union_f32x4);
-    union_reciprocal_f32x4 = vmulq_f32(union_reciprocal_f32x4, vrecpsq_f32(safe_union_f32x4, union_reciprocal_f32x4));
-
-    float32x4_t ratio_f32x4 = vmulq_f32(dot_f32x4, union_reciprocal_f32x4);
+    // Exact division rather than `vrecpeq_f32` — batched results must match the serial reference bit-for-bit.
+    float32x4_t ratio_f32x4 = vdivq_f32(dot_f32x4, safe_union_f32x4);
     float32x4_t jaccard_f32x4 = vsubq_f32(one_f32x4, ratio_f32x4);
     result_vec->f32x4 = vbslq_f32(zero_union_mask, vdupq_n_f32(0.0f), jaccard_f32x4);
 }

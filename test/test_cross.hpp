@@ -240,7 +240,6 @@ error_stats_t test_jaccards_packed(typename scalar_type_::jaccards_packed_size_k
         nk::jaccards_packed<scalar_t, result_t, nk::no_simd_k>(a.values_data(), b_packed_ref.raw_values_data(),
                                                                c_ref.values_data(), m, n, k, a_stride, c_stride);
 
-        // Jaccard distances are f32 — use approximate comparison
         for (std::size_t i = 0; i < m * n; i++) stats.accumulate(c[i], c_ref[i]);
     }
     return stats;
