@@ -34,7 +34,7 @@ test-command = """
     python -m pip install numpy --only-binary=:all: || (echo "Failed to install NumPy" && exit 0) &&
     python -m pip install scipy --only-binary=:all: || (echo "Failed to install SciPy" && exit 0) &&
     python -m pip install ml_dtypes --only-binary=:all: || (echo "Failed to install ml_dtypes" && exit 0) &&
-    python -c "import numkong; print(numkong.get_capabilities())" &&
+    python -X faulthandler -c "import numkong; print(numkong.get_capabilities())" &&
     PYTHONMALLOC=debug pytest {project}/test/ -s -x -Wd
 """
 
@@ -75,6 +75,13 @@ environment-pass = [
   "NK_TEST_VERBOSE",
 ]
 
+# The riscv64 images `cibuildwheel` pins carry `patchelf` 0.17, which corrupts the extension
+# while rewriting its RPATH — the entry point lands below `.text` and the import dies with
+# SIGILL. Dated tags keep the glibc 2.39 floor and only move `patchelf` to 0.19; the named
+# `manylinux_2_39` resolves back to the broken pin. Upgrading `patchelf` at repair works, uglier.
+manylinux-riscv64-image = "quay.io/pypa/manylinux_2_39_riscv64:2026.09.01-1"
+musllinux-riscv64-image = "quay.io/pypa/musllinux_1_2_riscv64:2026.09.01-1"
+
 [tool.cibuildwheel.environment]
 NK_BUILD_PARALLEL = "2"
 NK_IN_QEMU = "1"
@@ -103,13 +110,6 @@ manylinux-aarch64-image = "manylinux_2_28"
 manylinux-x86_64-image = "manylinux_2_28"
 musllinux-aarch64-image = "musllinux_1_2"
 musllinux-x86_64-image = "musllinux_1_2"
-# RISC-V wheel uploads are temporarily disabled.
-# The official PyPA riscv64 images currently provide LLVM 20 packages, while the
-# portable `rv64gcv` baseline plus richer RISC-V kernels now requires Clang 23.
-# Keep the image names here as comments until we have either custom images or a
-# packaged LLVM 23 path for both manylinux and musllinux.
-# manylinux-riscv64-image = "manylinux_2_39"
-# musllinux-riscv64-image = "musllinux_1_2"
 
 # On CentOS we have to use `yum`.
 # The healthy version would be: `apt-get update && apt-get install -y libc6-dev wget python3-dev`.
@@ -241,7 +241,7 @@ select = "*-pyodide*"
 test-command = """
     python -m pip install numpy --only-binary=:all: || (echo "Failed to install NumPy" && exit 0) &&
     python -m pip install scipy --only-binary=:all: || (echo "Failed to install SciPy" && exit 0) &&
-    python -c "import numkong; print(numkong.get_capabilities())" &&
+    python -X faulthandler -c "import numkong; print(numkong.get_capabilities())" &&
     PYTHONMALLOC=debug python -m pytest {project}/test/ -s -x -Wd
 """
 
