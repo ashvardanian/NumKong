@@ -694,6 +694,7 @@
  *  ARM Streaming attributes (require SME-capable compiler: GCC 14+, Clang 16+).
  *  NK_STREAMING_ marks functions that require streaming SVE mode (e.g. FCVTLT).
  *  NK_STREAMING_COMPATIBLE_ marks helpers callable from both streaming and non-streaming mode.
+ *  NK_STREAMING_OUTLINED_ replaces `static` where GCC would frame an inlined body by VL, spilling at SVL.
  */
 #if NK_TARGET_ARM64_ && NK_TARGET_SME
 #define NK_STREAMING_            __arm_streaming
@@ -701,6 +702,11 @@
 #else
 #define NK_STREAMING_
 #define NK_STREAMING_COMPATIBLE_
+#endif
+#if NK_TARGET_ARM64_ && NK_TARGET_SME && defined(__GNUC__) && !defined(__clang__)
+#define NK_STREAMING_OUTLINED_ __attribute__((noinline)) static
+#else
+#define NK_STREAMING_OUTLINED_ static
 #endif
 
 /**

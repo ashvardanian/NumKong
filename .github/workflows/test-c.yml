@@ -398,6 +398,7 @@ jobs:
             -D${{ matrix.prefix }}_COMPILER_SUFFIX=-14 \
             -D${{ matrix.prefix }}_QEMU_CPU=${{ matrix.qemu_cpu }} \
             -DNK_BUILD_TEST=ON \
+            -DNK_BUILD_SHARED_TEST=ON \
             -DNK_BUILD_SHARED=ON
 
       - name: Build

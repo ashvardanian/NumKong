@@ -54,6 +54,8 @@ macro (nk_isa_probe_ var_ msvc_arch_ gcc_flags_ probe_file_)
         set(CMAKE_REQUIRED_FLAGS "${msvc_arch_}")
         check_source_runs(C "${nk_probe_source_}" ${var_}_native)
     else ()
+        # Cross-compiling: nothing can execute the probe, so this records what the compiler can
+        # emit, not what the target runs. Binaries that must run elsewhere need `nk_shared`.
         set(${var_}_native ${${var_}_compiles})
     endif ()
 endmacro ()

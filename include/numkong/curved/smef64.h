@@ -200,7 +200,7 @@ NK_PUBLIC void nk_mahalanobis_f32_smef64( //
  *  @brief f64 bilinear: row-by-row streaming SVE with Dot2 compensation.
  *  4-row fast path shares b_f64x loads; 1-row tail for remainder.
  */
-static void nk_bilinear_f64_smef64_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_bilinear_f64_smef64_ssve_( //
     nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result) NK_STREAMING_ {
     svbool_t predicate_all_b64x = svptrue_b64();
     nk_f64_t outer_sum = 0.0, outer_comp = 0.0;
@@ -277,7 +277,7 @@ NK_PUBLIC void nk_bilinear_f64_smef64( //
  *  @brief f64 Mahalanobis: row-by-row streaming SVE with Dot2 compensation.
  *  4-row fast path shares (a−b) column vector; 1-row tail for remainder.
  */
-static nk_f64_t nk_mahalanobis_f64_smef64_ssve_( //
+NK_STREAMING_OUTLINED_ nk_f64_t nk_mahalanobis_f64_smef64_ssve_( //
     nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions) NK_STREAMING_ {
     svbool_t predicate_all_b64x = svptrue_b64();
     nk_f64_t outer_sum = 0.0, outer_comp = 0.0;
@@ -447,7 +447,7 @@ NK_PUBLIC void nk_bilinear_f32c_smef64( //
  *  @brief f64c bilinear: interleaved Dot2 with permute + deferred XOR sign-flip.
  *  2 accumulators instead of 4, halving inner loop work (~15 vs ~28 SVE ops).
  */
-static void nk_bilinear_f64c_smef64_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_bilinear_f64c_smef64_ssve_( //
     nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_f64c_t const *c_pairs, nk_size_t dimensions,
     nk_f64c_t *results) NK_STREAMING_ {
     svbool_t predicate_all_b64x = svptrue_b64();
