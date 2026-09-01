@@ -490,10 +490,6 @@ struct error_stats_t {
 };
 
 inline bool should_fail(char const *kernel_name, error_stats_t const &stats) noexcept {
-    // GCC 14 LoongArch tree-FRE miscompiles the serial f16→f32 conversion used by
-    // the test reference path. The LASX f16 kernels are verified correct independently.
-    if (global_config.running_in_qemu && std::strstr(kernel_name, "_f16")) return false;
-
     comparison_family_spec_t const spec = comparison_family_spec(stats.family);
     switch (spec.failure_mode) {
     case comparison_failure_mode_t::exact_distance_k:

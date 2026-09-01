@@ -54,8 +54,6 @@ jobs:
           path: wheelhouse/*.whl
           overwrite: true
 
-  # These are maintained by Arm, not GitHub, so we need to include
-  # extra steps, like installing Docker and starting the service
   build_wheels_linux_arm:
     name: Build Python Wheels for Linux ARM, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04-arm
@@ -68,23 +66,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - name: Install Docker CE from Official Repository
-        uses: nick-fields/retry@v4
-        with:
-          max_attempts: 3
-          retry_wait_seconds: 15
-          timeout_minutes: 180
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y ca-certificates curl gnupg lsb-release
-            sudo mkdir -p /etc/apt/keyrings
-            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-            sudo apt-get update
-            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-            sudo systemctl start docker
-            sudo chmod 666 /var/run/docker.sock
-            docker version
       - name: Install Python
         uses: actions/setup-python@v7
         with:
@@ -257,7 +238,6 @@ jobs:
   build_wheels_other:
     name: Build Python Wheels for Linux, ${{ matrix.architecture }}, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -292,6 +272,7 @@ jobs:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
           CIBW_PLATFORM: linux
           CIBW_ARCHS: ${{ matrix.architecture }}
+          NK_IN_QEMU: 1
           NK_REPETITIONS: 1
       - name: Upload Wheels
         uses: actions/upload-artifact@v7
@@ -303,7 +284,6 @@ jobs:
   build_wheels_pyodide:
     name: Build Python Wheels for Pyodide, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -379,11 +359,8 @@ jobs:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
           CIBW_PLATFORM: linux
           CIBW_ARCHS: riscv64
-          # The image's GCC 14 ignores `#pragma GCC target` on RISC-V, which is how the RVV
-          # kernels opt in, so the wheels would carry none. Clang honours its own pragma.
-          CIBW_BEFORE_ALL: dnf -y install clang
-          CIBW_ENVIRONMENT: CC=clang CXX=clang++
           QEMU_CPU: max
+          NK_IN_QEMU: 1
           NK_REPETITIONS: 1
       - name: Upload Wheels
         uses: actions/upload-artifact@v7

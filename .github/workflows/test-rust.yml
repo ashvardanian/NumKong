@@ -49,13 +49,13 @@ jobs:
       - name: Test with All Features
         run: cargo test --all-features
 
-      - name: Test No-Std Build (Check Only)
+      - name: Check No-Std Build
         run: cargo check --no-default-features
 
       - name: Test i686 Cross-Compilation Build
         run: cargo build --target i686-unknown-linux-gnu --features std
 
-      - name: Test i686 Cross-Compilation (No-Std)
+      - name: Cross-Compile No-Std for i686
         run: cargo build --target i686-unknown-linux-gnu --no-default-features
 
       # 32-bit ARM — catches AArch64-only intrinsics leaking into NEON paths
@@ -65,7 +65,7 @@ jobs:
           CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc-14
         run: cargo build --target armv7-unknown-linux-gnueabihf --features std
 
-      - name: Test ARMv7 Cross-Compilation (No-Std)
+      - name: Cross-Compile No-Std for ARMv7
         env:
           CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc-14
           CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc-14

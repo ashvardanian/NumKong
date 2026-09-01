@@ -301,7 +301,9 @@ jobs:
           cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasi.cmake -DNK_BUILD_TEST=ON
           cmake --build build-wasi
 
-      - name: Install Wasmer (HEAD for relaxed-SIMD support, not yet in stable)
+      # The run below needs `--enable-relaxed-simd`, which no released Wasmer supports yet,
+      # so build the CLI from the `main` branch instead of installing a tagged version.
+      - name: Install Wasmer from main
         uses: nick-fields/retry@v4
         with:
           max_attempts: 2

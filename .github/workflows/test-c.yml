@@ -85,7 +85,7 @@ jobs:
       # argv/env setup. If a SIGILL fires during probing (as on Apple M1 with
       # Homebrew LLVM), lldb captures the backtrace, faulting PC symbol, and
       # 8 instructions around it so the offender is visible in the job log.
-      - name: Smoke test under lldb (probing only)
+      - name: Smoke Test under lldb
         run: |
           DYLD_LIBRARY_PATH=build_brew_llvm \
             lldb --batch \
@@ -316,7 +316,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Configure (${{ matrix.march }})
+      - name: Configure for ${{ matrix.march }}
         shell: bash
         run: |
           set -euo pipefail
@@ -391,7 +391,7 @@ jobs:
         uses: actions/checkout@v7
 
       # The toolchain file knows the emulator and loader prefix; only these two vary.
-      - name: Configure (${{ matrix.qemu_cpu }})
+      - name: Configure for ${{ matrix.qemu_cpu }}
         run: |
           cmake -B build_cross \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-${{ matrix.arch }}-gnu.cmake \
@@ -419,11 +419,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential
 
       # Intel rotates the numeric mirror ID per release and retires the old ones,
       # so the download URL cannot be hardcoded. Exports `SDE_PATH`.

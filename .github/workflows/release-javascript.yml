@@ -61,7 +61,7 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install System Dependencies (Ubuntu)
+      - name: Install System Dependencies on Ubuntu
         if: runner.os == 'Linux'
         run: |
           sudo apt update
@@ -233,9 +233,6 @@ jobs:
         with:
           name: wasm-bundle
           path: wasm
-
-      - name: Install Build Tools
-        run: sudo apt-get install -y cmake build-essential
 
       - name: Install Node.js Dependencies
         uses: nick-fields/retry@v4

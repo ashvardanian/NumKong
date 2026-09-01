@@ -1,13 +1,12 @@
-# This file configures wheels compilation for `cibuilwheel` for NumKong CPython bindings.
+# This file configures wheels compilation for `cibuildwheel` for NumKong CPython bindings.
 # On a good day it will produce:
-#   - `manylinux` and `musllinux` vectorized wheels for Linux on x86_64, aarch64;
+#   - `manylinux` and `musllinux` vectorized wheels for Linux on x86_64, aarch64, riscv64;
 #   - `manylinux` and `musllinux` wheels for Linux on i686, ppc64le, s390x;
 #   - `macos` wheels for x86_64, arm64;
-#   - `windows` wheels for AMD64, ARM64.
-#   * for 5 Python versions from 3.10 to 3.14.
-#   * for 2 free-threading Python versions from 3.13 to 3.14.
+#   - `windows` wheels for AMD64, ARM64;
+#   - `pyodide` wheels for wasm32.
+#   * for Python 3.10 to 3.14, plus free-threading 3.14.
 #   * running thousands of fuzzy tests on each wheel.
-#   = meaning 12 platforms * 7 Python versions = 84 builds.
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = ["setuptools>=42"]
@@ -38,24 +37,17 @@ test-command = """
     PYTHONMALLOC=debug pytest {project}/test/ -s -x -Wd
 """
 
-# We need to build for all platforms:
-# - on Linux: x86_64, aarch64, i686
-# - on macOS: x86_64, arm64
-# - on Windows: AMD64, ARM64
+# Every CI job narrows this with `CIBW_ARCHS`; the full set stays for local runs.
 # https://cibuildwheel.readthedocs.io/en/stable/options/#archs
-#
-# Important to note, not all those platforms have recent images.
-# The `manylinux_2_28` seems to be missing for `i686`.
-# The `i686` is 32-bit x86, and `x86_64` is 64-bit x86.
 archs = ["all"]
 
-# Add "pp*" to skip PyPy builds, but they should work fine these days :)
-# https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-# https://cibuildwheel.readthedocs.io/en/stable/#what-does-it-do
-enable = [] # don't enable PyPy
-skip = [] # we also don't use any SIMD on: ["*s390x*", "*ppc64le*"]
+# https://cibuildwheel.readthedocs.io/en/stable/options/#enable
+enable = [] # no PyPy and no free-threading 3.13; 3.14t is on by default
+# Alpine's clang 20 can't see RVV intrinsics behind the per-function `target("arch=+v")` the
+# kernels use; clang 21 can, so the manylinux leg builds and the musllinux one doesn't.
+skip = ["*-musllinux_riscv64"] # we also don't use any SIMD on: ["*s390x*", "*ppc64le*"]
 
-# Testing half-precision math in QEMU is unreliable!
+# Forwarded from the job environment; `NK_IN_QEMU` shrinks the fuzzing dimensions on emulated runners.
 environment-pass = [
   "NK_IN_QEMU",
   "NK_SEED",
@@ -75,6 +67,15 @@ environment-pass = [
   "NK_TEST_VERBOSE",
 ]
 
+# Lock the glibc floor for the popular architectures. These match cibuildwheel's current defaults,
+# so a future default bump moves neither the floor nor the wheel tags without an edit here.
+# You can keep track of the most recent images on Quay:
+# - for `manylinux`: https://quay.io/search?q=manylinux
+# - for `musllinux`: https://quay.io/search?q=musllinux
+manylinux-aarch64-image = "manylinux_2_28"
+manylinux-x86_64-image = "manylinux_2_28"
+musllinux-aarch64-image = "musllinux_1_2"
+musllinux-x86_64-image = "musllinux_1_2"
 # The riscv64 images `cibuildwheel` pins carry `patchelf` 0.17, which corrupts the extension
 # while rewriting its RPATH — the entry point lands below `.text` and the import dies with
 # SIGILL. Dated tags keep the glibc 2.39 floor and only move `patchelf` to 0.19; the named
@@ -84,15 +85,17 @@ musllinux-riscv64-image = "quay.io/pypa/musllinux_1_2_riscv64:2026.09.01-1"
 
 [tool.cibuildwheel.environment]
 NK_BUILD_PARALLEL = "2"
-NK_IN_QEMU = "1"
 
 [tool.cibuildwheel.linux]
 before-build = ["rm -rf {project}/build"]
 repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
+# On CentOS we have to use `yum`, and `extras` fails to download on Arm instances.
+before-all = [
+  "yum update -y --disablerepo=extras --setopt=install_weak_deps=0 && yum install -y --disablerepo=extras glibc-devel wget python3-devel",
+]
 
 # Pin the platform tag on manylinux_2_28 architectures to avoid verbose
 # triple-tagged filenames (e.g., manylinux2014.manylinux_2_17.manylinux_2_28).
-# Other architectures (i686, ppc64le, s390x) use older images and keep the default.
 [[tool.cibuildwheel.overrides]]
 repair-wheel-command = "auditwheel repair --plat manylinux_2_28_x86_64 --only-plat -w {dest_dir} {wheel}"
 select = "*-manylinux*_x86_64"
@@ -100,24 +103,6 @@ select = "*-manylinux*_x86_64"
 [[tool.cibuildwheel.overrides]]
 repair-wheel-command = "auditwheel repair --plat manylinux_2_28_aarch64 --only-plat -w {dest_dir} {wheel}"
 select = "*-manylinux*_aarch64"
-
-# Use more recent images for the most popular SIMD-capable CPU architectures, to have access to newer compilers.
-# Otherwise, prepare yourself to all kinds of AVX-512 issues and other SIMD-related pain.
-# You can keep track of the most recent images on Quay:
-# - for `manylinux`: https://quay.io/search?q=manylinux
-# - for `musllinux`: https://quay.io/search?q=musllinux
-manylinux-aarch64-image = "manylinux_2_28"
-manylinux-x86_64-image = "manylinux_2_28"
-musllinux-aarch64-image = "musllinux_1_2"
-musllinux-x86_64-image = "musllinux_1_2"
-
-# On CentOS we have to use `yum`.
-# The healthy version would be: `apt-get update && apt-get install -y libc6-dev wget python3-dev`.
-# We can't even use direct YUM variant: `yum update -y && yum install -y glibc-devel wget python3-devel`
-# as downloading from `extras` fails on Arm instances!
-before-all = [
-  "yum update -y --disablerepo=extras --setopt=install_weak_deps=0 && yum install -y --disablerepo=extras glibc-devel wget python3-devel",
-]
 
 # With `musl` builds, we obviously don't need the `glibc` and can't use `yum`.
 # This may also be handy for using custom dependencies for different Python versions:
@@ -144,9 +129,10 @@ repair-wheel-command = ""
 [[tool.cibuildwheel.overrides]]
 select = "*win*"
 test-command = """
-    cmd /c "python -m pip install numpy & if errorlevel 1 echo Failed to install NumPy... Nothing can stop me, I'm all the way up! &
-    python -m pip install scipy & if errorlevel 1 echo Failed to install SciPy... Nothing can stop me, I'm all the way up! &
-    python -m pip install ml_dtypes & if errorlevel 1 echo Failed to install ml_dtypes... Nothing can stop me, I'm all the way up! &
+    cmd /c "python -m pip install numpy --only-binary=:all: & if errorlevel 1 echo Failed to install NumPy... Nothing can stop me, I'm all the way up! &
+    python -m pip install scipy --only-binary=:all: & if errorlevel 1 echo Failed to install SciPy... Nothing can stop me, I'm all the way up! &
+    python -m pip install ml_dtypes --only-binary=:all: & if errorlevel 1 echo Failed to install ml_dtypes... Nothing can stop me, I'm all the way up! &
+    python -X faulthandler -c "import numkong; print(numkong.get_capabilities())" &
     set PYTHONMALLOC=debug && pytest {project}/test/ -s -x -Wd"
 """
 
@@ -204,32 +190,18 @@ environment.NK_TARGET_X8664_ = "0"
 inherit.environment = "append"
 select = "*-macos*_arm64"
 
-# RISC-V 64-bit wheels are temporarily disabled.
-# Keep the old overrides commented out as a breadcrumb for re-enabling the
-# release path once an official LLVM 23 package source is available inside the
-# PyPA riscv64 images, or once we switch to custom images with LLVM 23 baked in.
-#
-# [[tool.cibuildwheel.overrides]]
-# before-all = "dnf update -y && dnf install -y glibc-devel wget python3-devel clang lld"
-# environment.CC = "clang"
-# environment.CXX = "clang++"
-# environment.LDFLAGS = "-fuse-ld=lld"
-# environment.NK_TARGET_ARM64_ = "0"
-# environment.NK_TARGET_RISCV64_ = "1"
-# environment.NK_TARGET_X8664_ = "0"
-# inherit.environment = "append"
-# select = "*-manylinux*_riscv64"
-#
-# [[tool.cibuildwheel.overrides]]
-# before-all = "apk add --update wget python3-dev clang lld"
-# environment.CC = "clang"
-# environment.CXX = "clang++"
-# environment.LDFLAGS = "-fuse-ld=lld"
-# environment.NK_TARGET_ARM64_ = "0"
-# environment.NK_TARGET_RISCV64_ = "1"
-# environment.NK_TARGET_X8664_ = "0"
-# inherit.environment = "append"
-# select = "*-musllinux*_riscv64"
+# RISC-V builds: the images' GCC 14 ignores `#pragma GCC target`, which is how the RVV kernels
+# opt in, so GCC wheels would carry none. Clang honours its own pragma.
+[[tool.cibuildwheel.overrides]]
+before-all = "dnf install -y glibc-devel wget python3-devel clang lld"
+environment.CC = "clang"
+environment.CXX = "clang++"
+environment.LDFLAGS = "-fuse-ld=lld"
+environment.NK_TARGET_ARM64_ = "0"
+environment.NK_TARGET_RISCV64_ = "1"
+environment.NK_TARGET_X8664_ = "0"
+inherit.environment = "append"
+select = "*-manylinux*_riscv64"
 
 # Pyodide / Emscripten WASM builds
 # The Pyodide venv creates Python-script entry points (like `pytest`) that can't

@@ -225,7 +225,7 @@ int main(int argc, char **argv) {
                 "  NK_FILTER=<regex>          Same as --filter\n"                                          //
                 "  NK_BUDGET_SECS=<seconds>   Time budget per kernel (default: 1)\n"                       //
                 "  NK_SEED=<int>              Random seed\n"                                               //
-                "  NK_IN_QEMU=1               Skip unreliable half-precision tests\n"                      //
+                "  NK_IN_QEMU=1               Shrink dimensions for emulated runs\n"                       //
                 "  NK_TEST_ASSERT=1           Same as --assert\n"                                          //
                 "  NK_TEST_VERBOSE=1          Same as --verbose\n"                                         //
                 "  NK_ULP_THRESHOLD_F32=N     ULP tolerance for f32\n"                                     //
