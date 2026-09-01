@@ -1,6 +1,6 @@
 {
   "name": "@numkong/linux-arm64",
-  "version": "7.8.1",
+  "version": "7.8.2",
   "description": "Linux arm64 native binary for NumKong",
   "repository": {
     "type": "git",

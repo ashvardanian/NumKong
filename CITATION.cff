@@ -3,7 +3,7 @@ title: "NumKong: 2000 Mixed Precision Kernels For All"
 message: "If you use this software, please cite it as below."
 type: software
 license: Apache-2.0
-version: 7.8.1
+version: 7.8.2
 repository-code: https://github.com/ashvardanian/NumKong
 url: https://ashvardanian.com/posts/numkong/
 doi: 10.5281/zenodo.21480519
