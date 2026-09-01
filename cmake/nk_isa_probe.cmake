@@ -6,10 +6,25 @@
 # Each architecture file sets `nk_native_flags_` before including this file,
 # then calls `nk_isa_probe_()` for each ISA and `nk_build_isa_defs_()` once
 # to collect the results.
+#
+# Results are CMake check caches: a preset `-Dnk_target_<isa>_compiles=0` (or `_native`)
+# skips that probe entirely, which is also how a build can force an ISA off by hand.
 
 include(CheckSourceCompiles)
-if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.19)
-    include(CheckSourceRuns)
+include(CheckSourceRuns)
+
+# `check_source_runs` caches success, so results probed under one emulated CPU would
+# survive a reconfigure with another (e.g. `sve-max-vq=2` → `sve=off`). Drop them.
+if (NOT "$CACHE{nk_probe_emulator_}" STREQUAL "${CMAKE_CROSSCOMPILING_EMULATOR}")
+    get_cmake_property(nk_cache_vars_ CACHE_VARIABLES)
+    foreach (nk_cache_var_ IN LISTS nk_cache_vars_)
+        if (nk_cache_var_ MATCHES "^nk_target_.*_native$")
+            unset(${nk_cache_var_} CACHE)
+        endif ()
+    endforeach ()
+    set(nk_probe_emulator_ "${CMAKE_CROSSCOMPILING_EMULATOR}" CACHE INTERNAL
+                                                                    "Emulator the native ISA probes last ran under"
+    )
 endif ()
 
 # Save and restore CMAKE_REQUIRED_FLAGS around probes.
@@ -47,15 +62,23 @@ macro (nk_isa_probe_ var_ msvc_arch_ gcc_flags_ probe_file_)
     if (NOT CMAKE_CROSSCOMPILING AND NOT MSVC AND NOT "${nk_native_flags_}" STREQUAL "")
         set(CMAKE_REQUIRED_FLAGS "${nk_native_flags_}")
         check_source_compiles(C "${nk_probe_source_}" ${var_}_native)
-    elseif (NOT CMAKE_CROSSCOMPILING AND MSVC AND ${var_}_compiles AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.19)
+    elseif (NOT CMAKE_CROSSCOMPILING AND MSVC AND ${var_}_compiles)
         # MSVC has no -march=native; instead compile with ISA-specific flags and
         # run the probe.  If the CPU lacks the ISA the process will crash and
         # check_source_runs() will report failure.
         set(CMAKE_REQUIRED_FLAGS "${msvc_arch_}")
         check_source_runs(C "${nk_probe_source_}" ${var_}_native)
+    elseif (CMAKE_CROSSCOMPILING_EMULATOR AND ${var_}_compiles)
+        # The emulator carries the exact CPU under test, so run the probe through it: a leg
+        # like `-cpu max,sve=off` then rejects SVE kernels just as NEON-only hardware would.
+        set(CMAKE_REQUIRED_FLAGS "${gcc_flags_}")
+        set(nk_saved_target_type_ "${CMAKE_TRY_COMPILE_TARGET_TYPE}")
+        set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
+        check_source_runs(C "${nk_probe_source_}" ${var_}_native)
+        set(CMAKE_TRY_COMPILE_TARGET_TYPE "${nk_saved_target_type_}")
     else ()
-        # Cross-compiling: nothing can execute the probe, so this records what the compiler can
-        # emit, not what the target runs. Binaries that must run elsewhere need `nk_shared`.
+        # Cross-compiling with no emulator: nothing can execute the probe, so this records what
+        # the compiler can emit, not what the target runs. Such binaries need `nk_shared`.
         set(${var_}_native ${${var_}_compiles})
     endif ()
 endmacro ()
