@@ -369,6 +369,78 @@ class Tensor(memoryview):
         """Return the index of the maximum element, or None if all elements are NaN."""
         ...
 
+
+class Generator:
+    """Independent stateful pseudo-random number generator."""
+
+    def __init__(self, seed: int | None = None) -> None:
+        """Create a generator with an explicit integer seed."""
+        ...
+
+    @property
+    def state(self) -> int:
+        """Read or replace the generator's reproducible state."""
+        ...
+
+    @state.setter
+    def state(self, value: int) -> None: ...
+
+    def random(
+        self,
+        size: int | tuple[int, ...],
+        *,
+        dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
+        out: _BufferType | None = None,
+    ) -> Tensor | None:
+        """Generate uniform samples in [0, 1)."""
+        ...
+
+    def uniform(
+        self,
+        low: float = 0.0,
+        high: float = 1.0,
+        size: int | tuple[int, ...] = ...,
+        *,
+        dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
+        out: _BufferType | None = None,
+    ) -> Tensor | None:
+        """Generate uniform samples in [low, high)."""
+        ...
+
+    def normal(
+        self,
+        loc: float = 0.0,
+        scale: float = 1.0,
+        size: int | tuple[int, ...] = ...,
+        *,
+        dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
+        out: _BufferType | None = None,
+    ) -> Tensor | None:
+        """Generate normal samples with the requested location and scale."""
+        ...
+
+    def standard_normal(
+        self,
+        size: int | tuple[int, ...],
+        *,
+        dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
+        out: _BufferType | None = None,
+    ) -> Tensor | None:
+        """Generate standard normal samples."""
+        ...
+
+    def integers(
+        self,
+        low: int,
+        high: int | None = None,
+        size: int | tuple[int, ...] = ...,
+        *,
+        dtype: _IntegralTypeName = "int64",
+        out: _BufferType | None = None,
+    ) -> Tensor | None:
+        """Generate uniformly distributed integers in [low, high)."""
+        ...
+
 class PackedMatrix:
     """Opaque pre-packed matrix for repeated cross operations.
 
