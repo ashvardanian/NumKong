@@ -1203,6 +1203,94 @@ NK_API_COMPTIME nk_size_t nk_dtype_bits(nk_dtype_t dtype) {
     }
 }
 
+/** @brief Compares an explicit-length string against a NUL-terminated literal. */
+NK_API_COMPTIME int nk_same_literal_(char const *name, nk_size_t length, char const *literal) {
+    nk_size_t position = 0;
+    for (; position != length; ++position)
+        if (literal[position] == '\0' || name[position] != literal[position]) return 0;
+    return literal[position] == '\0';
+}
+
+/** @brief Canonical name of a data type - the spelling bindings parse and interchange
+ *  formats carry; "unknown" for unrecognized values. */
+NK_API_COMPTIME char const *nk_dtype_name(nk_dtype_t dtype) {
+    switch (dtype) {
+    case nk_f64_k: return "f64";
+    case nk_f32_k: return "f32";
+    case nk_f16_k: return "f16";
+    case nk_bf16_k: return "bf16";
+    case nk_e4m3_k: return "e4m3";
+    case nk_e5m2_k: return "e5m2";
+    case nk_e2m3_k: return "e2m3";
+    case nk_e3m2_k: return "e3m2";
+    case nk_e2m1_k: return "e2m1";
+    case nk_ue8m0_k: return "ue8m0";
+    case nk_ue4m3_k: return "ue4m3";
+    case nk_f64c_k: return "f64c";
+    case nk_f32c_k: return "f32c";
+    case nk_f16c_k: return "f16c";
+    case nk_bf16c_k: return "bf16c";
+    case nk_u1_k: return "u1";
+    case nk_u4_k: return "u4";
+    case nk_u8_k: return "u8";
+    case nk_u16_k: return "u16";
+    case nk_u32_k: return "u32";
+    case nk_u64_k: return "u64";
+    case nk_i4_k: return "i4";
+    case nk_i8_k: return "i8";
+    case nk_i16_k: return "i16";
+    case nk_i32_k: return "i32";
+    case nk_i64_k: return "i64";
+    case nk_nvfp4_k: return "nvfp4";
+    case nk_mxfp4_k: return "mxfp4";
+    case nk_mxfp6_e2m3_k: return "mxfp6_e2m3";
+    case nk_mxfp6_e3m2_k: return "mxfp6_e3m2";
+    case nk_mxfp8_e4m3_k: return "mxfp8_e4m3";
+    case nk_mxfp8_e5m2_k: return "mxfp8_e5m2";
+    case nk_mxint8_k: return "mxint8";
+    default: return "unknown";
+    }
+}
+
+/** @brief Inverse of `nk_dtype_name` over an explicit-length string;
+ *  `nk_dtype_unknown_k` for unrecognized names. */
+NK_API_COMPTIME nk_dtype_t nk_dtype_named(char const *name, nk_size_t length) {
+    if (nk_same_literal_(name, length, "f64")) return nk_f64_k;
+    if (nk_same_literal_(name, length, "f32")) return nk_f32_k;
+    if (nk_same_literal_(name, length, "f16")) return nk_f16_k;
+    if (nk_same_literal_(name, length, "bf16")) return nk_bf16_k;
+    if (nk_same_literal_(name, length, "e4m3")) return nk_e4m3_k;
+    if (nk_same_literal_(name, length, "e5m2")) return nk_e5m2_k;
+    if (nk_same_literal_(name, length, "e2m3")) return nk_e2m3_k;
+    if (nk_same_literal_(name, length, "e3m2")) return nk_e3m2_k;
+    if (nk_same_literal_(name, length, "e2m1")) return nk_e2m1_k;
+    if (nk_same_literal_(name, length, "ue8m0")) return nk_ue8m0_k;
+    if (nk_same_literal_(name, length, "ue4m3")) return nk_ue4m3_k;
+    if (nk_same_literal_(name, length, "f64c")) return nk_f64c_k;
+    if (nk_same_literal_(name, length, "f32c")) return nk_f32c_k;
+    if (nk_same_literal_(name, length, "f16c")) return nk_f16c_k;
+    if (nk_same_literal_(name, length, "bf16c")) return nk_bf16c_k;
+    if (nk_same_literal_(name, length, "u1")) return nk_u1_k;
+    if (nk_same_literal_(name, length, "u4")) return nk_u4_k;
+    if (nk_same_literal_(name, length, "u8")) return nk_u8_k;
+    if (nk_same_literal_(name, length, "u16")) return nk_u16_k;
+    if (nk_same_literal_(name, length, "u32")) return nk_u32_k;
+    if (nk_same_literal_(name, length, "u64")) return nk_u64_k;
+    if (nk_same_literal_(name, length, "i4")) return nk_i4_k;
+    if (nk_same_literal_(name, length, "i8")) return nk_i8_k;
+    if (nk_same_literal_(name, length, "i16")) return nk_i16_k;
+    if (nk_same_literal_(name, length, "i32")) return nk_i32_k;
+    if (nk_same_literal_(name, length, "i64")) return nk_i64_k;
+    if (nk_same_literal_(name, length, "nvfp4")) return nk_nvfp4_k;
+    if (nk_same_literal_(name, length, "mxfp4")) return nk_mxfp4_k;
+    if (nk_same_literal_(name, length, "mxfp6_e2m3")) return nk_mxfp6_e2m3_k;
+    if (nk_same_literal_(name, length, "mxfp6_e3m2")) return nk_mxfp6_e3m2_k;
+    if (nk_same_literal_(name, length, "mxfp8_e4m3")) return nk_mxfp8_e4m3_k;
+    if (nk_same_literal_(name, length, "mxfp8_e5m2")) return nk_mxfp8_e5m2_k;
+    if (nk_same_literal_(name, length, "mxint8")) return nk_mxint8_k;
+    return nk_dtype_unknown_k;
+}
+
 /** @brief Returns how many logical dimensions are packed into one storage value.
  *  For sub-byte types multiple dimensions share a single byte container.
  *  For byte-or-larger types this is always 1. */

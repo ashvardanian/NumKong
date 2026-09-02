@@ -265,6 +265,131 @@ typedef enum {
 } nk_kernel_kind_t;
 
 /**
+ *  @brief  Canonical name of a kernel kind - the spelling bindings parse and interchange
+ *          formats carry; "unknown" for unrecognized values.
+ */
+NK_API_COMPTIME char const *nk_kernel_name(nk_kernel_kind_t kind) {
+    switch (kind) {
+    case nk_kernel_unknown_k: return "unknown";
+    case nk_kernel_dot_k: return "dot";
+    case nk_kernel_vdot_k: return "vdot";
+    case nk_kernel_angular_k: return "angular";
+    case nk_kernel_euclidean_k: return "euclidean";
+    case nk_kernel_sqeuclidean_k: return "sqeuclidean";
+    case nk_kernel_hamming_k: return "hamming";
+    case nk_kernel_jaccard_k: return "jaccard";
+    case nk_kernel_bilinear_k: return "bilinear";
+    case nk_kernel_mahalanobis_k: return "mahalanobis";
+    case nk_kernel_haversine_k: return "haversine";
+    case nk_kernel_vincenty_k: return "vincenty";
+    case nk_kernel_kld_k: return "kld";
+    case nk_kernel_jsd_k: return "jsd";
+    case nk_kernel_rmsd_k: return "rmsd";
+    case nk_kernel_kabsch_k: return "kabsch";
+    case nk_kernel_umeyama_k: return "umeyama";
+    case nk_kernel_sparse_dot_k: return "sparse_dot";
+    case nk_kernel_sparse_intersect_k: return "sparse_intersect";
+    case nk_kernel_each_scale_k: return "each_scale";
+    case nk_kernel_each_sum_k: return "each_sum";
+    case nk_kernel_each_blend_k: return "each_blend";
+    case nk_kernel_each_fma_k: return "each_fma";
+    case nk_kernel_each_swiglu_k: return "each_swiglu";
+    case nk_kernel_trig_sin_k: return "trig_sin";
+    case nk_kernel_trig_cos_k: return "trig_cos";
+    case nk_kernel_trig_atan_k: return "trig_atan";
+    case nk_kernel_trig_rope_k: return "trig_rope";
+    case nk_kernel_reduce_moments_k: return "reduce_moments";
+    case nk_kernel_reduce_minmax_k: return "reduce_minmax";
+    case nk_kernel_reduce_rmsnorm_k: return "reduce_rmsnorm";
+    case nk_kernel_dots_pack_size_k: return "dots_pack_size";
+    case nk_kernel_dots_pack_k: return "dots_pack";
+    case nk_kernel_dots_packed_k: return "dots_packed";
+    case nk_kernel_dots_packed_shape_k: return "dots_packed_shape";
+    case nk_kernel_dots_symmetric_k: return "dots_symmetric";
+    case nk_kernel_hammings_packed_k: return "hammings_packed";
+    case nk_kernel_hammings_symmetric_k: return "hammings_symmetric";
+    case nk_kernel_jaccards_packed_k: return "jaccards_packed";
+    case nk_kernel_jaccards_symmetric_k: return "jaccards_symmetric";
+    case nk_kernel_angulars_packed_k: return "angulars_packed";
+    case nk_kernel_angulars_symmetric_k: return "angulars_symmetric";
+    case nk_kernel_euclideans_packed_k: return "euclideans_packed";
+    case nk_kernel_euclideans_symmetric_k: return "euclideans_symmetric";
+    case nk_kernel_maxsim_pack_size_k: return "maxsim_pack_size";
+    case nk_kernel_maxsim_pack_k: return "maxsim_pack";
+    case nk_kernel_maxsim_packed_k: return "maxsim_packed";
+    case nk_kernel_maxsim_packed_shape_k: return "maxsim_packed_shape";
+    case nk_kernel_attention_pack_size_k: return "attention_pack_size";
+    case nk_kernel_attention_pack_k: return "attention_pack";
+    case nk_kernel_attention_packed_k: return "attention_packed";
+    case nk_kernel_attention_packed_shape_k: return "attention_packed_shape";
+    case nk_kernel_cast_k: return "cast";
+    case nk_kernel_cast_block_scaled_k: return "cast_block_scaled";
+    default: return "unknown";
+    }
+}
+
+/**
+ *  @brief  Inverse of `nk_kernel_name` over an explicit-length string;
+ *          `nk_kernel_unknown_k` for unrecognized names.
+ */
+NK_API_COMPTIME nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t length) {
+    if (nk_same_literal_(name, length, "dot")) return nk_kernel_dot_k;
+    if (nk_same_literal_(name, length, "vdot")) return nk_kernel_vdot_k;
+    if (nk_same_literal_(name, length, "angular")) return nk_kernel_angular_k;
+    if (nk_same_literal_(name, length, "euclidean")) return nk_kernel_euclidean_k;
+    if (nk_same_literal_(name, length, "sqeuclidean")) return nk_kernel_sqeuclidean_k;
+    if (nk_same_literal_(name, length, "hamming")) return nk_kernel_hamming_k;
+    if (nk_same_literal_(name, length, "jaccard")) return nk_kernel_jaccard_k;
+    if (nk_same_literal_(name, length, "bilinear")) return nk_kernel_bilinear_k;
+    if (nk_same_literal_(name, length, "mahalanobis")) return nk_kernel_mahalanobis_k;
+    if (nk_same_literal_(name, length, "haversine")) return nk_kernel_haversine_k;
+    if (nk_same_literal_(name, length, "vincenty")) return nk_kernel_vincenty_k;
+    if (nk_same_literal_(name, length, "kld")) return nk_kernel_kld_k;
+    if (nk_same_literal_(name, length, "jsd")) return nk_kernel_jsd_k;
+    if (nk_same_literal_(name, length, "rmsd")) return nk_kernel_rmsd_k;
+    if (nk_same_literal_(name, length, "kabsch")) return nk_kernel_kabsch_k;
+    if (nk_same_literal_(name, length, "umeyama")) return nk_kernel_umeyama_k;
+    if (nk_same_literal_(name, length, "sparse_dot")) return nk_kernel_sparse_dot_k;
+    if (nk_same_literal_(name, length, "sparse_intersect")) return nk_kernel_sparse_intersect_k;
+    if (nk_same_literal_(name, length, "each_scale")) return nk_kernel_each_scale_k;
+    if (nk_same_literal_(name, length, "each_sum")) return nk_kernel_each_sum_k;
+    if (nk_same_literal_(name, length, "each_blend")) return nk_kernel_each_blend_k;
+    if (nk_same_literal_(name, length, "each_fma")) return nk_kernel_each_fma_k;
+    if (nk_same_literal_(name, length, "each_swiglu")) return nk_kernel_each_swiglu_k;
+    if (nk_same_literal_(name, length, "trig_sin")) return nk_kernel_trig_sin_k;
+    if (nk_same_literal_(name, length, "trig_cos")) return nk_kernel_trig_cos_k;
+    if (nk_same_literal_(name, length, "trig_atan")) return nk_kernel_trig_atan_k;
+    if (nk_same_literal_(name, length, "trig_rope")) return nk_kernel_trig_rope_k;
+    if (nk_same_literal_(name, length, "reduce_moments")) return nk_kernel_reduce_moments_k;
+    if (nk_same_literal_(name, length, "reduce_minmax")) return nk_kernel_reduce_minmax_k;
+    if (nk_same_literal_(name, length, "reduce_rmsnorm")) return nk_kernel_reduce_rmsnorm_k;
+    if (nk_same_literal_(name, length, "dots_pack_size")) return nk_kernel_dots_pack_size_k;
+    if (nk_same_literal_(name, length, "dots_pack")) return nk_kernel_dots_pack_k;
+    if (nk_same_literal_(name, length, "dots_packed")) return nk_kernel_dots_packed_k;
+    if (nk_same_literal_(name, length, "dots_packed_shape")) return nk_kernel_dots_packed_shape_k;
+    if (nk_same_literal_(name, length, "dots_symmetric")) return nk_kernel_dots_symmetric_k;
+    if (nk_same_literal_(name, length, "hammings_packed")) return nk_kernel_hammings_packed_k;
+    if (nk_same_literal_(name, length, "hammings_symmetric")) return nk_kernel_hammings_symmetric_k;
+    if (nk_same_literal_(name, length, "jaccards_packed")) return nk_kernel_jaccards_packed_k;
+    if (nk_same_literal_(name, length, "jaccards_symmetric")) return nk_kernel_jaccards_symmetric_k;
+    if (nk_same_literal_(name, length, "angulars_packed")) return nk_kernel_angulars_packed_k;
+    if (nk_same_literal_(name, length, "angulars_symmetric")) return nk_kernel_angulars_symmetric_k;
+    if (nk_same_literal_(name, length, "euclideans_packed")) return nk_kernel_euclideans_packed_k;
+    if (nk_same_literal_(name, length, "euclideans_symmetric")) return nk_kernel_euclideans_symmetric_k;
+    if (nk_same_literal_(name, length, "maxsim_pack_size")) return nk_kernel_maxsim_pack_size_k;
+    if (nk_same_literal_(name, length, "maxsim_pack")) return nk_kernel_maxsim_pack_k;
+    if (nk_same_literal_(name, length, "maxsim_packed")) return nk_kernel_maxsim_packed_k;
+    if (nk_same_literal_(name, length, "maxsim_packed_shape")) return nk_kernel_maxsim_packed_shape_k;
+    if (nk_same_literal_(name, length, "attention_pack_size")) return nk_kernel_attention_pack_size_k;
+    if (nk_same_literal_(name, length, "attention_pack")) return nk_kernel_attention_pack_k;
+    if (nk_same_literal_(name, length, "attention_packed")) return nk_kernel_attention_packed_k;
+    if (nk_same_literal_(name, length, "attention_packed_shape")) return nk_kernel_attention_packed_shape_k;
+    if (nk_same_literal_(name, length, "cast")) return nk_kernel_cast_k;
+    if (nk_same_literal_(name, length, "cast_block_scaled")) return nk_kernel_cast_block_scaled_k;
+    return nk_kernel_unknown_k;
+}
+
+/**
  *  @brief  64-bit bitmask representing SIMD capabilities of the target architecture.
  */
 typedef nk_u64_t nk_capability_t;

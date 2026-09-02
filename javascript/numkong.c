@@ -7,7 +7,7 @@
  *  @see NodeJS docs: https://nodejs.org/api/n-api.html
  */
 
-#include <string.h> // `strcmp` function
+#include <string.h> // `strlen` function
 
 #if defined(NK_USE_OPENMP)
 #include <omp.h>
@@ -23,24 +23,7 @@
 #pragma region Helpers
 
 /** @brief Parses a dtype string (e.g. "f32", "f16", "bf16") into a nk_dtype_t enum value. */
-static nk_dtype_t parse_dtype_string(const char *str) {
-    if (strcmp(str, "f64") == 0) return nk_f64_k;
-    else if (strcmp(str, "f32") == 0) return nk_f32_k;
-    else if (strcmp(str, "f16") == 0) return nk_f16_k;
-    else if (strcmp(str, "bf16") == 0) return nk_bf16_k;
-    else if (strcmp(str, "e4m3") == 0) return nk_e4m3_k;
-    else if (strcmp(str, "e5m2") == 0) return nk_e5m2_k;
-    else if (strcmp(str, "e2m3") == 0) return nk_e2m3_k;
-    else if (strcmp(str, "e3m2") == 0) return nk_e3m2_k;
-    else if (strcmp(str, "i8") == 0) return nk_i8_k;
-    else if (strcmp(str, "u8") == 0) return nk_u8_k;
-    else if (strcmp(str, "i16") == 0) return nk_i16_k;
-    else if (strcmp(str, "u16") == 0) return nk_u16_k;
-    else if (strcmp(str, "i64") == 0) return nk_i64_k;
-    else if (strcmp(str, "u64") == 0) return nk_u64_k;
-    else if (strcmp(str, "u1") == 0) return nk_u1_k;
-    return nk_dtype_unknown_k;
-}
+static nk_dtype_t parse_dtype_string(char const *str) { return nk_dtype_named(str, strlen(str)); }
 
 /** @brief Validates that the N-API TypedArray type is compatible with the claimed dtype. */
 static int is_compatible_napi_type(napi_typedarray_type napi_type, nk_dtype_t dtype) {
@@ -58,6 +41,10 @@ static int is_compatible_napi_type(napi_typedarray_type napi_type, nk_dtype_t dt
     case nk_i8_k: return napi_type == napi_int8_array;
     case nk_i16_k: return napi_type == napi_int16_array;
     case nk_u16_k: return napi_type == napi_uint16_array;
+    case nk_i32_k: return napi_type == napi_int32_array;
+    case nk_u32_k: return napi_type == napi_uint32_array;
+    case nk_i64_k: return napi_type == napi_bigint64_array;
+    case nk_u64_k: return napi_type == napi_biguint64_array;
     default: return 0;
     }
 }
