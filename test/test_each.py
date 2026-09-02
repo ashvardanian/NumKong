@@ -606,6 +606,51 @@ def test_scale_edge_cases(ndim: int, dtype: str, capability: str):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_scale_preserves_hwc_shape():
+    """scale accepts an HWC buffer directly and preserves its shape."""
+    image = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+
+    result = nk.scale(image, alpha=0.5, beta=-1.0)
+
+    assert np.asarray(result).shape == image.shape
+    assert_allclose(np.asarray(result), image * 0.5 - 1.0)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("shape", [(2, 3, 4), (2, 3, 4, 5)])
+def test_scale_writes_nd_output(shape: tuple[int, ...]):
+    """scale writes HWC and NHWC buffers through out= without flattening."""
+    image = np.arange(np.prod(shape), dtype=np.float32).reshape(shape)
+    out = np.empty_like(image)
+
+    assert nk.scale(image, alpha=-0.25, beta=3.0, out=out) is None
+
+    assert_allclose(out, image * -0.25 + 3.0)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_scale_allows_in_place_hwc_output():
+    """scale permits the input HWC buffer as its own output."""
+    image = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    expected = image * 0.5 - 1.0
+
+    assert nk.scale(image, alpha=0.5, beta=-1.0, out=image) is None
+
+    assert_allclose(image, expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_scale_handles_strided_hwc_input():
+    """scale reads an HWC view without materializing a flattened copy."""
+    image = np.arange(4 * 6 * 4, dtype=np.float32).reshape(4, 6, 4)[::2, 1::2]
+    out = np.empty_like(image)
+
+    assert nk.scale(image, alpha=0.5, beta=-1.0, out=out) is None
+
+    assert_allclose(out, image * 0.5 - 1.0)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(randomized_repetitions_count)
 @pytest.mark.parametrize("ndim", dense_dimensions)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])

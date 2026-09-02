@@ -365,13 +365,13 @@ cleanup:
 }
 
 char const doc_scale[] =                                                                               //
-    "Element-wise affine transformation of a single vector.\n\n"                                       //
+    "Element-wise affine transformation of a tensor.\n\n"                                             //
     "Parameters:\n"                                                                                    //
-    "    a (Tensor): Input vector.\n"                                                                  //
+    "    a (Tensor): Input tensor.\n"                                                                  //
     "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
     "    alpha (float, optional): Multiplicative scale, 1.0 by default.\n"                             //
     "    beta (float, optional): Additive offset, 0.0 by default.\n"                                   //
-    "    out (Tensor, optional): Vector for resulting output.\n\n"                                     //
+    "    out (Tensor, optional): C-contiguous tensor with matching shape and dtype; may be `a`.\n\n"    //
     "Returns:\n"                                                                                       //
     "    Tensor: The result if `out` is not provided.\n"                                               //
     "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
@@ -396,7 +396,7 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     nk_dtype_t dtype = nk_dtype_unknown_k;
 
     Py_buffer a_buffer, out_buffer;
-    MatrixOrVectorView a_parsed, out_parsed;
+    TensorView a_parsed;
     memset(&a_buffer, 0, sizeof(Py_buffer));
     memset(&out_buffer, 0, sizeof(Py_buffer));
 
@@ -438,28 +438,31 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
         if (dtype == nk_dtype_unknown_k) return NULL;
     }
 
-    // Convert `a_obj` to `a_buffer` and to `a_parsed`.
+    // Convert the input into an N-D view and acquire a writable output buffer when supplied.
     nk_buffer_backing_t a_parsed_backing, out_parsed_backing;
-    if (!parse_tensor(a_obj, &a_buffer, &a_parsed, &a_parsed_backing, dtype)) goto cleanup;
-    if (out_obj && !parse_tensor(out_obj, &out_buffer, &out_parsed, &out_parsed_backing, nk_dtype_unknown_k))
+    if (!parse_tensor_nd(a_obj, &a_buffer, &a_parsed, &a_parsed_backing, dtype)) goto cleanup;
+    if (out_obj &&
+        !nk_get_buffer(out_obj, &out_buffer, PyBUF_STRIDES | PyBUF_FORMAT | PyBUF_WRITABLE, &out_parsed_backing))
         goto cleanup;
 
-    // Check dimensions
-    if (a_parsed.rank != 1 || (out_obj && out_parsed.rank != 1)) {
-        PyErr_SetString(PyExc_ValueError, "All tensors must be vectors");
-        goto cleanup;
-    }
-    if (out_obj && a_parsed.cols != out_parsed.cols) {
-        PyErr_SetString(PyExc_ValueError, "Vector dimensions don't match");
+    if (out_obj && !buffers_shapes_match(&a_buffer, &out_buffer)) goto cleanup;
+    if (out_obj && !PyBuffer_IsContiguous(&out_buffer, 'C')) {
+        PyErr_SetString(PyExc_ValueError, "out must be C-contiguous");
         goto cleanup;
     }
 
     // Check data types
-    if (a_parsed.dtype == nk_dtype_unknown_k || (out_obj && out_parsed.dtype == nk_dtype_unknown_k)) {
+    if (a_parsed.dtype == nk_dtype_unknown_k) {
         PyErr_SetString(PyExc_TypeError, "Input tensors must have known dtypes, check with `X.__array_interface__`");
         goto cleanup;
     }
     if (dtype == nk_dtype_unknown_k) dtype = a_parsed.dtype;
+    nk_dtype_t const out_dtype = out_obj ? resolve_nk_dtype_in_py_buffer(&out_buffer) : nk_dtype_unknown_k;
+    if (out_obj && out_dtype != dtype) {
+        PyErr_Format(PyExc_TypeError, "out dtype '%s' does not match input dtype '%s'", \
+                     nk_dtype_name(out_dtype), nk_dtype_name(dtype));
+        goto cleanup;
+    }
 
     // Convert `alpha_obj` to `alpha_buf` and `beta_obj` to `beta_buf`
     nk_scalar_buffer_t alpha_buf, beta_buf;
@@ -492,25 +495,33 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     }
 
     char *result_data = NULL;
+    Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    Py_buffer const *input_buffers[] = {&a_buffer};
+    size_t contiguous_tail = shared_contiguous_tail_dimensions(input_buffers, 1, a_parsed.rank);
 
     // nk.scale(a, alpha=2.0, beta=1.0) → returns new Tensor with α·a + β
     if (!out_obj) {
-        Py_ssize_t out_shape[1] = {a_parsed.cols};
-        Tensor *result_tensor = Tensor_new(dtype, 1, out_shape);
+        Tensor *result_tensor = Tensor_new(dtype, a_parsed.rank, a_parsed.shape);
         if (!result_tensor) goto cleanup;
         return_obj = (PyObject *)result_tensor;
         result_data = result_tensor->data;
+        compute_contiguous_strides(a_parsed.rank, a_parsed.shape, nk_dtype_bytes_per_value(dtype), result_strides);
     }
     // nk.scale(a, alpha=2.0, out=result) → writes into provided buffer, returns None
     else {
-        result_data = out_parsed.data;
+        result_data = out_buffer.buf;
+        for (size_t dimension = 0; dimension < a_parsed.rank; ++dimension)
+            result_strides[dimension] = out_buffer.strides[dimension];
+        Py_buffer const *both_buffers[] = {&a_buffer, &out_buffer};
+        contiguous_tail = shared_contiguous_tail_dimensions(both_buffers, 2, a_parsed.rank);
         return_obj = Py_None;
         Py_INCREF(Py_None);
     }
 
     {
         PyThreadState *gil = PyEval_SaveThread();
-        kernel(a_parsed.data, a_parsed.cols, &alpha_buf, &beta_buf, result_data);
+        each_scale_recursive(kernel, a_parsed.data, result_data, &alpha_buf, &beta_buf, a_parsed.shape,
+                             a_parsed.strides, result_strides, a_parsed.rank, contiguous_tail);
         PyEval_RestoreThread(gil);
     }
 cleanup:
