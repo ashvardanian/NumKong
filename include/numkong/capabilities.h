@@ -248,7 +248,8 @@ typedef enum {
     nk_kernel_maxsim_pack_k = 'l',        ///< MaxSim vector packing
     nk_kernel_maxsim_packed_k = 'T',      ///< MaxSim late-interaction computation
 
-    nk_kernel_cast_k = '-', ///< Type casting from one type to another
+    nk_kernel_cast_truncate_k = 256, ///< Truncating float-to-integer type casting
+    nk_kernel_cast_k = '-',          ///< Type casting from one type to another
 
 } nk_kernel_kind_t;
 

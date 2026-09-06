@@ -784,6 +784,7 @@ def astype(
     dtype: _DtypeLike,
     /,
     *,
+    rounding: Literal["nearest_even", "truncate"] = "nearest_even",
     out: _BufferType | None = None,
 ) -> Tensor:
     """Cast an N-D buffer to ``dtype`` without first copying it into a Tensor.
@@ -791,6 +792,10 @@ def astype(
     A supplied ``out`` must be writable, C-contiguous, have the exact input
     shape and requested dtype, and must not overlap ``a``. Returns ``out`` when
     provided, otherwise a new Tensor.
+    ``rounding="truncate"`` discards fractions toward zero for real floating-point
+    inputs and 8/16/32/64-bit integer outputs; other dtype pairs raise ValueError.
+    The default rounds ties to even. Both modes saturate overflow/infinity and
+    map NaN to zero. Truncation currently uses a portable serial native kernel.
     """
     ...
 
