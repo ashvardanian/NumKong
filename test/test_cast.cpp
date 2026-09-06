@@ -37,10 +37,55 @@ error_stats_t test_cast(cast_t kernel) {
     return stats;
 }
 
+/** @brief Fixed truncation oracles, including exact endpoints that f64 cannot represent as integers. */
+error_stats_t test_cast_truncate(cast_t kernel) {
+    error_stats_t stats(comparison_family_t::exact_k);
+    nk_f64_t source[] = {-INFINITY, -129.9, -2.5, -1.9, -0.5, 0.5, 1.5, 1.9, 2.5, 127.9, 255.9, INFINITY, NAN};
+    nk_i8_t expected_signed[] = {-128, -128, -2, -1, 0, 0, 1, 1, 2, 127, 127, 127, 0};
+    nk_u8_t expected_unsigned[] = {0, 0, 0, 0, 0, 0, 1, 1, 2, 127, 255, 255, 0};
+    nk_i8_t signed_output[13] = {};
+    nk_u8_t unsigned_output[13] = {};
+    // Every prefix exercises the zero-length case and both sides of the eight-element batch boundary.
+    for (nk_size_t count = 0; count <= 13; ++count) {
+        std::fill_n(signed_output, 13, 42);
+        std::fill_n(unsigned_output, 13, 42);
+        kernel(source, nk_f64_k, count, signed_output, nk_i8_k);
+        kernel(source, nk_f64_k, count, unsigned_output, nk_u8_k);
+        for (nk_size_t i = 0; i < 13; ++i) {
+            stats.accumulate(signed_output[i], i < count ? expected_signed[i] : (nk_i8_t)42);
+            stats.accumulate(unsigned_output[i], i < count ? expected_unsigned[i] : (nk_u8_t)42);
+        }
+    }
+    nk_f64_t wide_source[] = {-INFINITY, -0x1p63, -0x1p63 + 1024, 0x1p63 - 1024, 0x1p63, 0x1p64 - 2048, 0x1p64,
+                              INFINITY,  NAN};
+    nk_i64_t wide_signed[] = {NK_I64_MIN,        NK_I64_MIN, NK_I64_MIN + 1024,
+                              NK_I64_MAX - 1023, NK_I64_MAX, NK_I64_MAX,
+                              NK_I64_MAX,        NK_I64_MAX, 0};
+    nk_u64_t wide_unsigned[] = {
+        0, 0, 0, (NK_U64_MAX >> 1) - 1023, (nk_u64_t)1 << 63, NK_U64_MAX - 2047, NK_U64_MAX, NK_U64_MAX, 0};
+    nk_i64_t signed_wide_output[9];
+    nk_u64_t unsigned_wide_output[9];
+    kernel(wide_source, nk_f64_k, 9, signed_wide_output, nk_i64_k);
+    kernel(wide_source, nk_f64_k, 9, unsigned_wide_output, nk_u64_k);
+    for (nk_size_t i = 0; i < 9; ++i) {
+        // Compare as booleans so the stats accumulator cannot round adjacent 64-bit integers together.
+        stats.accumulate(signed_wide_output[i] == wide_signed[i], true);
+        stats.accumulate(unsigned_wide_output[i] == wide_unsigned[i], true);
+    }
+    nk_i32_t unchanged = 42;
+    kernel(source, nk_f64_k, 1, &unchanged, nk_f32_k);
+    stats.accumulate(unchanged, (nk_i32_t)42);
+    kernel(&unchanged, nk_i32_k, 1, signed_output, nk_i8_k);
+    stats.accumulate(signed_output[0], expected_signed[0]);
+    return stats;
+}
+
 void test_casts() {
     error_stats_section_t check;
 
     check.section("Type Casts Serial", nk_cap_serial_k);
+    check("cast_truncate_serial", test_cast_truncate, nk_cast_truncate_serial);
+    check("cast_truncate", test_cast_truncate, nk_cast_truncate);
     check("cast_bf16_to_f32_serial", test_cast<bf16_t, f32_t>, nk_cast_serial);
     check("cast_f32_to_bf16_serial", test_cast<f32_t, bf16_t>, nk_cast_serial);
     check("cast_e4m3_to_f32_serial", test_cast<e4m3_t, f32_t>, nk_cast_serial);
