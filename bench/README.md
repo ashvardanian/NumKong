@@ -33,10 +33,10 @@ Compiler requirements vary by ISA target — see [CONTRIBUTING.md](../CONTRIBUTI
 ### Running
 
 ```sh
-build_release/nk_bench                                    # run all benchmarks
-build_release/nk_bench --benchmark_filter=dot             # filter by name
-build_release/nk_bench --benchmark_min_time=10s           # longer runs for stable results
-build_release/nk_bench --filter=dot                       # shorthand for --benchmark_filter
+build_release/numkong_bench                                    # run all benchmarks
+build_release/numkong_bench --benchmark_filter=dot             # filter by name
+build_release/numkong_bench --benchmark_min_time=10s           # longer runs for stable results
+build_release/numkong_bench --filter=dot                       # shorthand for --benchmark_filter
 ```
 
 ### Environment Variables
@@ -146,9 +146,9 @@ cmake --build build-wasi --parallel
 __Running__
 
 ```sh
-wasmtime run -W simd=y,relaxed-simd=y,threads=y,shared-memory=y -S threads=y,inherit-env=y ./build-wasi/nk_bench.wasm
-wasmer run --enable-simd --enable-relaxed-simd ./build-wasi/nk_bench.wasm
-node ./build-wasm/nk_bench.js
+wasmtime run -W simd=y,relaxed-simd=y,threads=y,shared-memory=y -S threads=y,inherit-env=y ./build-wasi/numkong_bench.wasm
+wasmer run --enable-simd --enable-relaxed-simd ./build-wasi/numkong_bench.wasm
+node ./build-wasm/numkong_bench.js
 ```
 
 Browser benchmarks via Playwright:
@@ -190,8 +190,8 @@ Mitigations:
 ### Linux
 
 ```sh
-taskset -c 0-3 ./build_release/nk_bench
-numactl --physcpubind=0-3 ./build_release/nk_bench
+taskset -c 0-3 ./build_release/numkong_bench
+numactl --physcpubind=0-3 ./build_release/numkong_bench
 ```
 
 For dedicated benchmarking machines, add `isolcpus=4-7` to the kernel command line and pin benchmarks to isolated cores.
@@ -202,7 +202,7 @@ No direct core-pinning API exists on macOS.
 Use QoS to avoid efficiency cores:
 
 ```sh
-taskpolicy -b ./build_release/nk_bench
+taskpolicy -b ./build_release/numkong_bench
 ```
 
 On Apple Silicon there is no public API for P/E core pinning.
@@ -211,7 +211,7 @@ Run with minimal background load for reproducible results.
 ### Windows
 
 ```sh
-start /affinity 0xF nk_bench.exe
+start /affinity 0xF numkong_bench.exe
 ```
 
 The hex mask `0xF` pins to cores 0-3.

@@ -99,7 +99,7 @@ For E4M3 GEMM specifically, `nk_e4m3x16_to_f16x16_skylake_` produces TRUE F16 (b
 
 ## Performance
 
-The following performance tables are produced by manually running `nk_bench` included internal tools to measure the throughput at different input shapes.
+The following performance tables are produced by manually running `numkong_bench` included internal tools to measure the throughput at different input shapes.
 The input size is controlled by the `NK_DENSE_DIMENSIONS` environment variable and set to 256, 1024, and 4096 elements.
 The throughput is measured in GB/s as the number of bytes read and written per second, with ↓ for downcasts and ↑ for upcasts.
 Each kernel runs for at least 5 seconds per configuration.

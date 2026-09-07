@@ -124,7 +124,7 @@ This design decouples the GEMM loop from the distance metric: the same tiled acc
 
 ## Performance
 
-The following performance tables are produced by manually re-running `nk_test` and `nk_bench` included internal tools to measure both accuracy and throughput at different input shapes.
+The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
 The input size is controlled by `NK_MATRIX_HEIGHT`, `NK_MATRIX_WIDTH`, and `NK_MATRIX_DEPTH` environment variables, all set to the same value for products of two square matrices.
 Columns show throughput for 256³, 1024³, and 4096³ matrix products.
 The throughput is measured in GSO/s as Giga Scalar Operations per Second, with `ops = 2 · M · N · K` arithmetic complexity for an M × K by K × N product.

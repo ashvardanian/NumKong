@@ -88,7 +88,7 @@ Hardware support remains the bottleneck: no ISA provides native sparse outer-pro
 
 ## Performance
 
-The following performance tables are produced by manually re-running `nk_test` and `nk_bench` included internal tools to measure both accuracy and throughput at different input shapes.
+The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
 The input size is controlled by `NK_SPARSE_FIRST_LENGTH`, `NK_SPARSE_SECOND_LENGTH`, and `NK_SPARSE_INTERSECTION` environment variables.
 Columns show throughput at 1%, 50%, and 95% intersection ratio with both set lengths fixed at 4096.
 The throughput is measured in GB/s as the number of input bytes per second.

@@ -40,7 +40,7 @@ jobs:
           cmake --build build_release --config Release
 
       - name: Test
-        run: build_release/nk_test
+        run: build_release/numkong_test
         env:
           NK_BUDGET_SECS: 0.2
 
@@ -48,10 +48,10 @@ jobs:
         run: |
           cmake -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_SHARED=1 -D NK_BUILD_SHARED_TEST=1 \
             -D CMAKE_C_COMPILER=gcc-14 -D CMAKE_CXX_COMPILER=g++-14 -B build_shared
-          cmake --build build_shared --config Release --target nk_shared_test
+          cmake --build build_shared --config Release --target numkong_shared_test
 
       - name: Test Shared Library
-        run: LD_LIBRARY_PATH=build_shared build_shared/nk_shared_test
+        run: LD_LIBRARY_PATH=build_shared build_shared/numkong_shared_test
 
   test_macos_homebrew_llvm:
     name: Test macOS Homebrew LLVM
@@ -94,13 +94,13 @@ jobs:
               -k 'image lookup -a {frame.pc}' \
               -k 'disassemble -c 8 -s {frame.pc}' \
               -k 'quit' \
-              -- build_brew_llvm/nk_test
+              -- build_brew_llvm/numkong_test
         env:
           NK_FILTER: __nk_impossible_filter__
           NK_BUDGET_SECS: 0.05
 
       - name: Test
-        run: DYLD_LIBRARY_PATH=build_brew_llvm build_brew_llvm/nk_test
+        run: DYLD_LIBRARY_PATH=build_brew_llvm build_brew_llvm/numkong_test
         env:
           NK_BUDGET_SECS: 0.2
 
@@ -131,7 +131,7 @@ jobs:
           cmake --build build_release --config Release
 
       - name: Test
-        run: build_release\Release\nk_test.exe
+        run: build_release\Release\numkong_test.exe
         env:
           NK_BUDGET_SECS: 0.2
 
@@ -142,11 +142,11 @@ jobs:
             -DNK_BUILD_SHARED=ON `
             -DNK_BUILD_SHARED_TEST=ON `
             -B build_shared
-          cmake --build build_shared --config Release --target nk_shared_test
+          cmake --build build_shared --config Release --target numkong_shared_test
 
       - name: Test Shared Library
         shell: cmd # PowerShell normalizes structured-exception exit codes to 1; cmd preserves the real code
-        run: build_shared\Release\nk_shared_test.exe
+        run: build_shared\Release\numkong_shared_test.exe
         env:
           NK_BUDGET_SECS: 0.2
 
@@ -312,7 +312,7 @@ jobs:
             -DNK_BUILD_SHARED=ON
 
       - name: Build Portable RISC-V Library
-        run: cmake --build build_riscv --parallel --target nk_shared
+        run: cmake --build build_riscv --parallel --target numkong_shared
 
   test_loongarch:
     name: Test LoongArch (QEMU)
@@ -412,6 +412,6 @@ jobs:
           cmake --build build_sde --config Release --parallel
 
       - name: Test Under Granite Rapids Emulation
-        run: $SDE_PATH/sde64 -gnr -- build_sde/nk_test
+        run: $SDE_PATH/sde64 -gnr -- build_sde/numkong_test
         env:
           NK_BUDGET_SECS: 0

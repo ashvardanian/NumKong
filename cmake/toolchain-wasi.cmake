@@ -40,7 +40,7 @@ set(CMAKE_FIND_ROOT_PATH "${WASI_SDK_PATH}")
 
 # Cross-runtime portable mode: build single-threaded with self-contained memory so the SAME `.wasm`
 # runs under node, wasmtime, AND wasmer (used by the cross-runtime kernel validation). Default OFF keeps
-# the threaded, host-imported-memory build that the full nk_test / nk_bench suites rely on.
+# the threaded, host-imported-memory build that the full numkong_test / numkong_bench suites rely on.
 if (NK_WASI_PORTABLE)
     set(NK_WASI_TARGET_ "wasm32-wasip1")
     set(NK_WASI_THREADS_ "")

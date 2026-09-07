@@ -27,8 +27,8 @@ macro (nk_isa_probes_end_)
 endmacro ()
 
 # Two-pass probe: compile with ISA flags (Pass 1) and native flags (Pass 2).
-#   Pass 1 result drives nk_shared (runtime dispatch — compile all the compiler supports).
-#   Pass 2 result drives nk_test/nk_bench (must actually run on the local CPU).
+#   Pass 1 result drives numkong_shared (runtime dispatch — compile all the compiler supports).
+#   Pass 2 result drives numkong_test/numkong_bench (must actually run on the local CPU).
 #
 # The native flag (`nk_native_flags_`) is set by the caller:
 #   x86/ARM/LoongArch: -march=native
@@ -43,6 +43,8 @@ macro (nk_isa_probe_ var_ msvc_arch_ gcc_flags_ probe_file_)
         set(CMAKE_REQUIRED_FLAGS "${gcc_flags_}")
     endif ()
     check_source_compiles(C "${nk_probe_source_}" ${var_}_compiles)
+    # The flags the verdict was reached with, for a consumer composing one unit out of several kits.
+    set(${var_}_flags "${CMAKE_REQUIRED_FLAGS}" CACHE INTERNAL "")
     # Pass 2: does the local CPU support it?
     if (NOT CMAKE_CROSSCOMPILING AND NOT MSVC AND NOT "${nk_native_flags_}" STREQUAL "")
         set(CMAKE_REQUIRED_FLAGS "${nk_native_flags_}")

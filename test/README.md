@@ -12,7 +12,7 @@ No GTest dependency — the framework is self-contained in `test.hpp`.
 ```sh
 cmake -B build_release -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_TEST=1
 cmake --build build_release --config Release --parallel
-build_release/nk_test
+build_release/numkong_test
 ```
 
 To compile with BLAS cross-validation:
@@ -26,11 +26,11 @@ Compiler requirements vary by ISA target — see [CONTRIBUTING.md](../CONTRIBUTI
 ### Running
 
 ```sh
-build_release/nk_test --filter=dot           # run only tests matching "dot"
-build_release/nk_test --filter="dot|spatial"  # regex filter
-build_release/nk_test --assert               # abort on first accuracy failure
-build_release/nk_test --verbose              # per-dimension ULP breakdown
-build_release/nk_test --time-budget=5000     # 5 seconds per kernel (milliseconds)
+build_release/numkong_test --filter=dot           # run only tests matching "dot"
+build_release/numkong_test --filter="dot|spatial"  # regex filter
+build_release/numkong_test --assert               # abort on first accuracy failure
+build_release/numkong_test --verbose              # per-dimension ULP breakdown
+build_release/numkong_test --time-budget=5000     # 5 seconds per kernel (milliseconds)
 ```
 
 Foreign flag mapping for muscle-memory compatibility:
@@ -126,9 +126,9 @@ cmake --build build-wasi --parallel
 __Running WASM Tests__
 
 ```sh
-wasmtime run -W simd=y,relaxed-simd=y,threads=y,shared-memory=y -S threads=y,inherit-env=y ./build-wasi/nk_test.wasm
-wasmer run --enable-simd --enable-relaxed-simd ./build-wasi/nk_test.wasm
-node ./build-wasm/nk_test.js
+wasmtime run -W simd=y,relaxed-simd=y,threads=y,shared-memory=y -S threads=y,inherit-env=y ./build-wasi/numkong_test.wasm
+wasmer run --enable-simd --enable-relaxed-simd ./build-wasi/numkong_test.wasm
+node ./build-wasm/numkong_test.js
 ```
 
 __Memory Model__
@@ -201,8 +201,8 @@ __Android ARM64__
 cmake -B build_android -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-android-arm64.cmake \
       -DNK_BUILD_TEST=1
 cmake --build build_android --parallel
-adb push build_android/nk_test /data/local/tmp/
-adb shell /data/local/tmp/nk_test
+adb push build_android/numkong_test /data/local/tmp/
+adb shell /data/local/tmp/numkong_test
 ```
 
 ## Rust

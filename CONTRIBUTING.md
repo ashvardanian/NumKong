@@ -28,8 +28,8 @@ cmake -B build_release -D CMAKE_BUILD_TYPE=Release \
       -D NK_BUILD_BENCH=1 \
       -D NK_COMPARE_TO_BLAS=1
 cmake --build build_release --config Release --parallel
-build_release/nk_bench
-build_release/nk_test
+build_release/numkong_bench
+build_release/numkong_test
 ```
 
 | CMake Flag                 | Default            | Description                                            |
@@ -404,7 +404,7 @@ To add a new operation family, for example `foo`:
 5. __Test__: create `test/test_foo.cpp` with precision validation against `f118_t` references.
 6. __Benchmark__: create `bench/bench_foo.cpp` with Google Benchmark harness.
 7. __Cross-platform tests__: add entries to `test/test_cross.hpp` and the relevant `test_cross_*.cpp` files.
-8. __CMakeLists.txt__: wire the new source files into the `nk_test` and `nk_bench` targets.
+8. __CMakeLists.txt__: wire the new source files into the `numkong_test` and `numkong_bench` targets.
 9. __Language bindings__: update `python/numkong.c`, `javascript/numkong.c`, `rust/numkong.rs`, etc. as needed.
 
 ## Adding a Backend Kernel to an Existing Family
@@ -414,8 +414,8 @@ For primary kernels, every backend implementation should be wired in five places
 1. __Forward declaration__: add the `NK_API_COMPTIME` declaration with the matching `@copydoc` in the first half of `include/numkong/<family>.h`.
 2. __Compile-time dispatch__: add the `#if !NK_RUNTIME_DISPATCH` branch in the second half of `include/numkong/<family>.h`.
 3. __Run-time dispatch__: add the dtype-specific entry to the relevant `c/dispatch_*.c` table.
-4. __Precision tests__: register the kernel in `nk_test`, usually in the existing `test/test_<family>.cpp` suite.
-5. __Benchmarks__: register the kernel in `nk_bench`, usually in the existing `bench/bench_<family>.cpp` suite.
+4. __Precision tests__: register the kernel in `numkong_test`, usually in the existing `test/test_<family>.cpp` suite.
+5. __Benchmarks__: register the kernel in `numkong_bench`, usually in the existing `bench/bench_<family>.cpp` suite.
 
 Use the existing family suite unless the kernel introduces a genuinely new test shape.
 The rule is about coverage and reachability, not about creating a brand new source file for every symbol.
@@ -423,7 +423,7 @@ The rule is about coverage and reachability, not about creating a brand new sour
 There are two intentional exceptions:
 
 - `cast`: the family-level `nk_cast_*` kernels follow the same header/dispatch/test/bench rule, but scalar conversion helpers are wired through `c/dispatch_other.c` and are covered through `test/test_cast.cpp` and `bench/bench_cast.cpp`.
-- `scalar`: scalar helpers are centrally declared in `include/numkong/scalar.h`, wired through `c/dispatch_other.c`, and currently do not follow the per-helper `nk_test` and `nk_bench` registration pattern.
+- `scalar`: scalar helpers are centrally declared in `include/numkong/scalar.h`, wired through `c/dispatch_other.c`, and currently do not follow the per-helper `numkong_test` and `numkong_bench` registration pattern.
 
 ## Wording & Styling
 

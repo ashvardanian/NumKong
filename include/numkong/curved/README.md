@@ -83,7 +83,7 @@ This fuses the conjugation of $a$ into the sign of the cross terms rather than e
 
 ## Performance
 
-The following performance tables are produced by manually re-running `nk_test` and `nk_bench` included internal tools to measure both accuracy and throughput at different input shapes.
+The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
 The input size is controlled by the `NK_CURVED_DIMENSIONS` environment variable.
 The metric tensor is a square matrix of side $N$, so each bilinear form $\mathbf{x}^\top M \mathbf{x}$ has $O(N^2)$ arithmetic complexity.
 Columns show matrix side length: 256², 1024², 4096².

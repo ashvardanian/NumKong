@@ -96,7 +96,7 @@ Experimental SVE mesh kernels (`sve.h`, `svehalf.h`, 112 lines total) were remov
 
 ## Performance
 
-The following performance tables are produced by manually re-running `nk_test` and `nk_bench` included internal tools to measure both accuracy and throughput at different input shapes.
+The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
 The input size is controlled by the `NK_MESH_POINTS` environment variable and set to 256, 1024, and 4096 points.
 Each alignment computes centroids, covariance, and a 3×3 SVD over $N$ point pairs, so cost is $O(N)$ per alignment with a large constant.
 The throughput is measured in mp/s as millions of 3D points aligned per second.
