@@ -169,25 +169,6 @@ public struct BFloat16: Equatable, Hashable, Sendable {
     public var float: Float32 { _nkBf16BitsToF32(bitPattern) }
 }
 
-/// FP8 format with 4-bit exponent and 3-bit mantissa (FP8 E4M3), used in transformer inference.
-@frozen
-public struct E4M3: Equatable, Hashable, Sendable {
-    public var bitPattern: UInt8
-
-    @inlinable
-    public init(bitPattern: UInt8) {
-        self.bitPattern = bitPattern
-    }
-
-    @inlinable
-    public init(float: Float32) {
-        self.bitPattern = _nkF32ToE4M3Bits(float)
-    }
-
-    @inlinable
-    public var float: Float32 { _nkE4M3BitsToF32(bitPattern) }
-}
-
 /// FP8 format with 5-bit exponent and 2-bit mantissa (FP8 E5M2), used in gradient storage.
 @frozen
 public struct E5M2: Equatable, Hashable, Sendable {
@@ -207,9 +188,9 @@ public struct E5M2: Equatable, Hashable, Sendable {
     public var float: Float32 { _nkE5M2BitsToF32(bitPattern) }
 }
 
-/// MX format with 2-bit exponent and 3-bit mantissa (MX E2M3).
+/// FP8 format with 4-bit exponent and 3-bit mantissa (FP8 E4M3), used in transformer inference.
 @frozen
-public struct E2M3: Equatable, Hashable, Sendable {
+public struct E4M3: Equatable, Hashable, Sendable {
     public var bitPattern: UInt8
 
     @inlinable
@@ -219,11 +200,11 @@ public struct E2M3: Equatable, Hashable, Sendable {
 
     @inlinable
     public init(float: Float32) {
-        self.bitPattern = _nkF32ToE2M3Bits(float)
+        self.bitPattern = _nkF32ToE4M3Bits(float)
     }
 
     @inlinable
-    public var float: Float32 { _nkE2M3BitsToF32(bitPattern) }
+    public var float: Float32 { _nkE4M3BitsToF32(bitPattern) }
 }
 
 /// MX format with 3-bit exponent and 2-bit mantissa (MX E3M2).
@@ -245,6 +226,25 @@ public struct E3M2: Equatable, Hashable, Sendable {
     public var float: Float32 { _nkE3M2BitsToF32(bitPattern) }
 }
 
+/// MX format with 2-bit exponent and 3-bit mantissa (MX E2M3).
+@frozen
+public struct E2M3: Equatable, Hashable, Sendable {
+    public var bitPattern: UInt8
+
+    @inlinable
+    public init(bitPattern: UInt8) {
+        self.bitPattern = bitPattern
+    }
+
+    @inlinable
+    public init(float: Float32) {
+        self.bitPattern = _nkF32ToE2M3Bits(float)
+    }
+
+    @inlinable
+    public var float: Float32 { _nkE2M3BitsToF32(bitPattern) }
+}
+
 // MARK: - String Descriptions
 
 private func _hexPad(_ value: UInt16, width: Int) -> String {
@@ -261,19 +261,19 @@ extension BFloat16: CustomStringConvertible {
     public var description: String { "\(float) [0x\(_hexPad(bitPattern, width: 4))]" }
 }
 
-extension E4M3: CustomStringConvertible {
-    public var description: String { "\(float) [0x\(_hexPad(bitPattern, width: 2))]" }
-}
-
 extension E5M2: CustomStringConvertible {
     public var description: String { "\(float) [0x\(_hexPad(bitPattern, width: 2))]" }
 }
 
-extension E2M3: CustomStringConvertible {
+extension E4M3: CustomStringConvertible {
     public var description: String { "\(float) [0x\(_hexPad(bitPattern, width: 2))]" }
 }
 
 extension E3M2: CustomStringConvertible {
+    public var description: String { "\(float) [0x\(_hexPad(bitPattern, width: 2))]" }
+}
+
+extension E2M3: CustomStringConvertible {
     public var description: String { "\(float) [0x\(_hexPad(bitPattern, width: 2))]" }
 }
 
@@ -285,13 +285,19 @@ extension BFloat16: ExpressibleByFloatLiteral {
     }
 }
 
+extension E5M2: ExpressibleByFloatLiteral {
+    public init(floatLiteral value: Double) {
+        self.init(float: Float32(value))
+    }
+}
+
 extension E4M3: ExpressibleByFloatLiteral {
     public init(floatLiteral value: Double) {
         self.init(float: Float32(value))
     }
 }
 
-extension E5M2: ExpressibleByFloatLiteral {
+extension E3M2: ExpressibleByFloatLiteral {
     public init(floatLiteral value: Double) {
         self.init(float: Float32(value))
     }
@@ -303,10 +309,44 @@ extension E2M3: ExpressibleByFloatLiteral {
     }
 }
 
-extension E3M2: ExpressibleByFloatLiteral {
-    public init(floatLiteral value: Double) {
-        self.init(float: Float32(value))
+// MARK: - Nibble Storage Types
+
+/// Packed pair of 4-bit signed integers, `[high nibble : low nibble]`, each in -8...7.
+@frozen
+public struct I4x2: Equatable, Hashable, Sendable {
+    public var bitPattern: UInt8
+    @inlinable public init(_ bits: UInt8) { self.bitPattern = bits }
+    @inlinable public init(bitPattern: UInt8) { self.bitPattern = bitPattern }
+    /// Packs two lanes, keeping the low four bits of each.
+    @inlinable public init(low: Int8, high: Int8) {
+        self.bitPattern = (UInt8(bitPattern: high) << 4) | (UInt8(bitPattern: low) & 0x0F)
     }
+    /// The low nibble, sign-extended.
+    @inlinable public var low: Int8 { Int8(bitPattern: bitPattern << 4) >> 4 }
+    /// The high nibble, sign-extended.
+    @inlinable public var high: Int8 { Int8(bitPattern: bitPattern) >> 4 }
+}
+
+/// Packed pair of 4-bit unsigned integers, `[high nibble : low nibble]`, each in 0...15.
+@frozen
+public struct U4x2: Equatable, Hashable, Sendable {
+    public var bitPattern: UInt8
+    @inlinable public init(_ bits: UInt8) { self.bitPattern = bits }
+    @inlinable public init(bitPattern: UInt8) { self.bitPattern = bitPattern }
+    /// Packs two lanes, keeping the low four bits of each.
+    @inlinable public init(low: UInt8, high: UInt8) { self.bitPattern = (high << 4) | (low & 0x0F) }
+    /// The low nibble.
+    @inlinable public var low: UInt8 { bitPattern & 0x0F }
+    /// The high nibble.
+    @inlinable public var high: UInt8 { bitPattern >> 4 }
+}
+
+extension I4x2: CustomStringConvertible {
+    public var description: String { "(\(low), \(high)) [0x\(_hexPad(bitPattern, width: 2))]" }
+}
+
+extension U4x2: CustomStringConvertible {
+    public var description: String { "(\(low), \(high)) [0x\(_hexPad(bitPattern, width: 2))]" }
 }
 
 // MARK: - Binary Storage Type

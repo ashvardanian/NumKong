@@ -39,7 +39,7 @@ public protocol NumKongEuclidean {
 /// Convenience alias for types supporting all four spatial distance metrics.
 public typealias NumKongSpatial = NumKongDot & NumKongAngular & NumKongEuclidean & NumKongSqEuclidean
 
-// MARK: - Built-in Scalars
+// MARK: - Floating-Point Scalars
 
 extension Float64: NumKongDot {
     public typealias DotOutput = Float64
@@ -153,6 +153,62 @@ extension Float32: NumKongSqEuclidean {
     }
 }
 
+extension BFloat16: NumKongDot {
+    public typealias DotOutput = Float32
+
+    @inlinable @inline(__always)
+    public static func dot<A, B>(_ a: A, _ b: B) -> Float32?
+    where A: Sequence, B: Sequence, A.Element == BFloat16, B.Element == BFloat16 {
+        _nkWithDensePairRebound(a, b, to: nk_bf16_t.self) { ap, bp, n in
+            var result: Float32 = 0
+            nk_dot_bf16(ap, bp, UInt64(n), &result)
+            return result
+        }
+    }
+}
+
+extension BFloat16: NumKongAngular {
+    public typealias AngularOutput = Float32
+
+    @inlinable @inline(__always)
+    public static func angular<A, B>(_ a: A, _ b: B) -> Float32?
+    where A: Sequence, B: Sequence, A.Element == BFloat16, B.Element == BFloat16 {
+        _nkWithDensePairRebound(a, b, to: nk_bf16_t.self) { ap, bp, n in
+            var result: Float32 = 0
+            nk_angular_bf16(ap, bp, UInt64(n), &result)
+            return result
+        }
+    }
+}
+
+extension BFloat16: NumKongEuclidean {
+    public typealias EuclideanOutput = Float32
+
+    @inlinable @inline(__always)
+    public static func euclidean<A, B>(_ a: A, _ b: B) -> Float32?
+    where A: Sequence, B: Sequence, A.Element == BFloat16, B.Element == BFloat16 {
+        _nkWithDensePairRebound(a, b, to: nk_bf16_t.self) { ap, bp, n in
+            var result: Float32 = 0
+            nk_euclidean_bf16(ap, bp, UInt64(n), &result)
+            return result
+        }
+    }
+}
+
+extension BFloat16: NumKongSqEuclidean {
+    public typealias SqEuclideanOutput = Float32
+
+    @inlinable @inline(__always)
+    public static func sqeuclidean<A, B>(_ a: A, _ b: B) -> Float32?
+    where A: Sequence, B: Sequence, A.Element == BFloat16, B.Element == BFloat16 {
+        _nkWithDensePairRebound(a, b, to: nk_bf16_t.self) { ap, bp, n in
+            var result: Float32 = 0
+            nk_sqeuclidean_bf16(ap, bp, UInt64(n), &result)
+            return result
+        }
+    }
+}
+
 // Float16 is a type-level absence on x86_64 — the compiler rejects it before
 // @available runtime checks apply, so we need a compile-time arch guard.
 // See: https://github.com/unum-cloud/USearch/pull/739
@@ -226,171 +282,57 @@ extension Float16: NumKongSqEuclidean {
 }
 #endif  // !arch(x86_64)
 
-extension Int8: NumKongDot {
-    public typealias DotOutput = Int32
-
-    @inlinable @inline(__always)
-    public static func dot<A, B>(_ a: A, _ b: B) -> Int32?
-    where A: Sequence, B: Sequence, A.Element == Int8, B.Element == Int8 {
-        _nkWithDensePair(a, b) { ap, bp, n in
-            var result: Int32 = 0
-            nk_dot_i8(ap, bp, UInt64(n), &result)
-            return result
-        }
-    }
-}
-
-extension Int8: NumKongAngular {
-    public typealias AngularOutput = Float32
-
-    @inlinable @inline(__always)
-    public static func angular<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == Int8, B.Element == Int8 {
-        _nkWithDensePair(a, b) { ap, bp, n in
-            var result: Float32 = 0
-            nk_angular_i8(ap, bp, UInt64(n), &result)
-            return result
-        }
-    }
-}
-
-extension Int8: NumKongEuclidean {
-    public typealias EuclideanOutput = Float32
-
-    @inlinable @inline(__always)
-    public static func euclidean<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == Int8, B.Element == Int8 {
-        _nkWithDensePair(a, b) { ap, bp, n in
-            var result: Float32 = 0
-            nk_euclidean_i8(ap, bp, UInt64(n), &result)
-            return result
-        }
-    }
-}
-
-extension Int8: NumKongSqEuclidean {
-    public typealias SqEuclideanOutput = UInt32
-
-    @inlinable @inline(__always)
-    public static func sqeuclidean<A, B>(_ a: A, _ b: B) -> UInt32?
-    where A: Sequence, B: Sequence, A.Element == Int8, B.Element == Int8 {
-        _nkWithDensePair(a, b) { ap, bp, n in
-            var result: UInt32 = 0
-            nk_sqeuclidean_i8(ap, bp, UInt64(n), &result)
-            return result
-        }
-    }
-}
-
-extension UInt8: NumKongDot {
-    public typealias DotOutput = UInt32
-
-    @inlinable @inline(__always)
-    public static func dot<A, B>(_ a: A, _ b: B) -> UInt32?
-    where A: Sequence, B: Sequence, A.Element == UInt8, B.Element == UInt8 {
-        _nkWithDensePair(a, b) { ap, bp, n in
-            var result: UInt32 = 0
-            nk_dot_u8(ap, bp, UInt64(n), &result)
-            return result
-        }
-    }
-}
-
-extension UInt8: NumKongAngular {
-    public typealias AngularOutput = Float32
-
-    @inlinable @inline(__always)
-    public static func angular<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == UInt8, B.Element == UInt8 {
-        _nkWithDensePair(a, b) { ap, bp, n in
-            var result: Float32 = 0
-            nk_angular_u8(ap, bp, UInt64(n), &result)
-            return result
-        }
-    }
-}
-
-extension UInt8: NumKongEuclidean {
-    public typealias EuclideanOutput = Float32
-
-    @inlinable @inline(__always)
-    public static func euclidean<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == UInt8, B.Element == UInt8 {
-        _nkWithDensePair(a, b) { ap, bp, n in
-            var result: Float32 = 0
-            nk_euclidean_u8(ap, bp, UInt64(n), &result)
-            return result
-        }
-    }
-}
-
-extension UInt8: NumKongSqEuclidean {
-    public typealias SqEuclideanOutput = UInt32
-
-    @inlinable @inline(__always)
-    public static func sqeuclidean<A, B>(_ a: A, _ b: B) -> UInt32?
-    where A: Sequence, B: Sequence, A.Element == UInt8, B.Element == UInt8 {
-        _nkWithDensePair(a, b) { ap, bp, n in
-            var result: UInt32 = 0
-            nk_sqeuclidean_u8(ap, bp, UInt64(n), &result)
-            return result
-        }
-    }
-}
-
-// MARK: - Minifloat Scalars
-
-extension BFloat16: NumKongDot {
+extension E5M2: NumKongDot {
     public typealias DotOutput = Float32
 
     @inlinable @inline(__always)
     public static func dot<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == BFloat16, B.Element == BFloat16 {
-        _nkWithDensePairRebound(a, b, to: nk_bf16_t.self) { ap, bp, n in
+    where A: Sequence, B: Sequence, A.Element == E5M2, B.Element == E5M2 {
+        _nkWithDensePairRebound(a, b, to: nk_e5m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_dot_bf16(ap, bp, UInt64(n), &result)
+            nk_dot_e5m2(ap, bp, UInt64(n), &result)
             return result
         }
     }
 }
 
-extension BFloat16: NumKongAngular {
+extension E5M2: NumKongAngular {
     public typealias AngularOutput = Float32
 
     @inlinable @inline(__always)
     public static func angular<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == BFloat16, B.Element == BFloat16 {
-        _nkWithDensePairRebound(a, b, to: nk_bf16_t.self) { ap, bp, n in
+    where A: Sequence, B: Sequence, A.Element == E5M2, B.Element == E5M2 {
+        _nkWithDensePairRebound(a, b, to: nk_e5m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_angular_bf16(ap, bp, UInt64(n), &result)
+            nk_angular_e5m2(ap, bp, UInt64(n), &result)
             return result
         }
     }
 }
 
-extension BFloat16: NumKongEuclidean {
+extension E5M2: NumKongEuclidean {
     public typealias EuclideanOutput = Float32
 
     @inlinable @inline(__always)
     public static func euclidean<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == BFloat16, B.Element == BFloat16 {
-        _nkWithDensePairRebound(a, b, to: nk_bf16_t.self) { ap, bp, n in
+    where A: Sequence, B: Sequence, A.Element == E5M2, B.Element == E5M2 {
+        _nkWithDensePairRebound(a, b, to: nk_e5m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_euclidean_bf16(ap, bp, UInt64(n), &result)
+            nk_euclidean_e5m2(ap, bp, UInt64(n), &result)
             return result
         }
     }
 }
 
-extension BFloat16: NumKongSqEuclidean {
+extension E5M2: NumKongSqEuclidean {
     public typealias SqEuclideanOutput = Float32
 
     @inlinable @inline(__always)
     public static func sqeuclidean<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == BFloat16, B.Element == BFloat16 {
-        _nkWithDensePairRebound(a, b, to: nk_bf16_t.self) { ap, bp, n in
+    where A: Sequence, B: Sequence, A.Element == E5M2, B.Element == E5M2 {
+        _nkWithDensePairRebound(a, b, to: nk_e5m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_sqeuclidean_bf16(ap, bp, UInt64(n), &result)
+            nk_sqeuclidean_e5m2(ap, bp, UInt64(n), &result)
             return result
         }
     }
@@ -452,57 +394,57 @@ extension E4M3: NumKongSqEuclidean {
     }
 }
 
-extension E5M2: NumKongDot {
+extension E3M2: NumKongDot {
     public typealias DotOutput = Float32
 
     @inlinable @inline(__always)
     public static func dot<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == E5M2, B.Element == E5M2 {
-        _nkWithDensePairRebound(a, b, to: nk_e5m2_t.self) { ap, bp, n in
+    where A: Sequence, B: Sequence, A.Element == E3M2, B.Element == E3M2 {
+        _nkWithDensePairRebound(a, b, to: nk_e3m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_dot_e5m2(ap, bp, UInt64(n), &result)
+            nk_dot_e3m2(ap, bp, UInt64(n), &result)
             return result
         }
     }
 }
 
-extension E5M2: NumKongAngular {
+extension E3M2: NumKongAngular {
     public typealias AngularOutput = Float32
 
     @inlinable @inline(__always)
     public static func angular<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == E5M2, B.Element == E5M2 {
-        _nkWithDensePairRebound(a, b, to: nk_e5m2_t.self) { ap, bp, n in
+    where A: Sequence, B: Sequence, A.Element == E3M2, B.Element == E3M2 {
+        _nkWithDensePairRebound(a, b, to: nk_e3m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_angular_e5m2(ap, bp, UInt64(n), &result)
+            nk_angular_e3m2(ap, bp, UInt64(n), &result)
             return result
         }
     }
 }
 
-extension E5M2: NumKongEuclidean {
+extension E3M2: NumKongEuclidean {
     public typealias EuclideanOutput = Float32
 
     @inlinable @inline(__always)
     public static func euclidean<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == E5M2, B.Element == E5M2 {
-        _nkWithDensePairRebound(a, b, to: nk_e5m2_t.self) { ap, bp, n in
+    where A: Sequence, B: Sequence, A.Element == E3M2, B.Element == E3M2 {
+        _nkWithDensePairRebound(a, b, to: nk_e3m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_euclidean_e5m2(ap, bp, UInt64(n), &result)
+            nk_euclidean_e3m2(ap, bp, UInt64(n), &result)
             return result
         }
     }
 }
 
-extension E5M2: NumKongSqEuclidean {
+extension E3M2: NumKongSqEuclidean {
     public typealias SqEuclideanOutput = Float32
 
     @inlinable @inline(__always)
     public static func sqeuclidean<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == E5M2, B.Element == E5M2 {
-        _nkWithDensePairRebound(a, b, to: nk_e5m2_t.self) { ap, bp, n in
+    where A: Sequence, B: Sequence, A.Element == E3M2, B.Element == E3M2 {
+        _nkWithDensePairRebound(a, b, to: nk_e3m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_sqeuclidean_e5m2(ap, bp, UInt64(n), &result)
+            nk_sqeuclidean_e3m2(ap, bp, UInt64(n), &result)
             return result
         }
     }
@@ -564,63 +506,249 @@ extension E2M3: NumKongSqEuclidean {
     }
 }
 
-extension E3M2: NumKongDot {
-    public typealias DotOutput = Float32
+// MARK: - Signed Integer Scalars
+
+extension Int8: NumKongDot {
+    public typealias DotOutput = Int32
 
     @inlinable @inline(__always)
-    public static func dot<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == E3M2, B.Element == E3M2 {
-        _nkWithDensePairRebound(a, b, to: nk_e3m2_t.self) { ap, bp, n in
-            var result: Float32 = 0
-            nk_dot_e3m2(ap, bp, UInt64(n), &result)
+    public static func dot<A, B>(_ a: A, _ b: B) -> Int32?
+    where A: Sequence, B: Sequence, A.Element == Int8, B.Element == Int8 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            var result: Int32 = 0
+            nk_dot_i8(ap, bp, UInt64(n), &result)
             return result
         }
     }
 }
 
-extension E3M2: NumKongAngular {
+extension Int8: NumKongAngular {
     public typealias AngularOutput = Float32
 
     @inlinable @inline(__always)
     public static func angular<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == E3M2, B.Element == E3M2 {
-        _nkWithDensePairRebound(a, b, to: nk_e3m2_t.self) { ap, bp, n in
+    where A: Sequence, B: Sequence, A.Element == Int8, B.Element == Int8 {
+        _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float32 = 0
-            nk_angular_e3m2(ap, bp, UInt64(n), &result)
+            nk_angular_i8(ap, bp, UInt64(n), &result)
             return result
         }
     }
 }
 
-extension E3M2: NumKongEuclidean {
+extension Int8: NumKongEuclidean {
     public typealias EuclideanOutput = Float32
 
     @inlinable @inline(__always)
     public static func euclidean<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == E3M2, B.Element == E3M2 {
-        _nkWithDensePairRebound(a, b, to: nk_e3m2_t.self) { ap, bp, n in
+    where A: Sequence, B: Sequence, A.Element == Int8, B.Element == Int8 {
+        _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float32 = 0
-            nk_euclidean_e3m2(ap, bp, UInt64(n), &result)
+            nk_euclidean_i8(ap, bp, UInt64(n), &result)
             return result
         }
     }
 }
 
-extension E3M2: NumKongSqEuclidean {
-    public typealias SqEuclideanOutput = Float32
+extension Int8: NumKongSqEuclidean {
+    public typealias SqEuclideanOutput = UInt32
 
     @inlinable @inline(__always)
-    public static func sqeuclidean<A, B>(_ a: A, _ b: B) -> Float32?
-    where A: Sequence, B: Sequence, A.Element == E3M2, B.Element == E3M2 {
-        _nkWithDensePairRebound(a, b, to: nk_e3m2_t.self) { ap, bp, n in
-            var result: Float32 = 0
-            nk_sqeuclidean_e3m2(ap, bp, UInt64(n), &result)
+    public static func sqeuclidean<A, B>(_ a: A, _ b: B) -> UInt32?
+    where A: Sequence, B: Sequence, A.Element == Int8, B.Element == Int8 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            var result: UInt32 = 0
+            nk_sqeuclidean_i8(ap, bp, UInt64(n), &result)
             return result
         }
     }
 }
 
-// MARK: - U1x8 Dot
+extension I4x2: NumKongDot {
+    public typealias DotOutput = Int32
+
+    @inlinable @inline(__always)
+    public static func dot<A, B>(_ a: A, _ b: B) -> Int32?
+    where A: Sequence, B: Sequence, A.Element == I4x2, B.Element == I4x2 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_i4x2_t.self)
+            let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_i4x2_t.self)
+            var result: Int32 = 0
+            nk_dot_i4(aPtr, bPtr, UInt64(n * 2), &result)
+            return result
+        }
+    }
+}
+
+extension I4x2: NumKongAngular {
+    public typealias AngularOutput = Float32
+
+    @inlinable @inline(__always)
+    public static func angular<A, B>(_ a: A, _ b: B) -> Float32?
+    where A: Sequence, B: Sequence, A.Element == I4x2, B.Element == I4x2 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_i4x2_t.self)
+            let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_i4x2_t.self)
+            var result: Float32 = 0
+            nk_angular_i4(aPtr, bPtr, UInt64(n * 2), &result)
+            return result
+        }
+    }
+}
+
+extension I4x2: NumKongEuclidean {
+    public typealias EuclideanOutput = Float32
+
+    @inlinable @inline(__always)
+    public static func euclidean<A, B>(_ a: A, _ b: B) -> Float32?
+    where A: Sequence, B: Sequence, A.Element == I4x2, B.Element == I4x2 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_i4x2_t.self)
+            let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_i4x2_t.self)
+            var result: Float32 = 0
+            nk_euclidean_i4(aPtr, bPtr, UInt64(n * 2), &result)
+            return result
+        }
+    }
+}
+
+extension I4x2: NumKongSqEuclidean {
+    public typealias SqEuclideanOutput = UInt32
+
+    @inlinable @inline(__always)
+    public static func sqeuclidean<A, B>(_ a: A, _ b: B) -> UInt32?
+    where A: Sequence, B: Sequence, A.Element == I4x2, B.Element == I4x2 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_i4x2_t.self)
+            let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_i4x2_t.self)
+            var result: UInt32 = 0
+            nk_sqeuclidean_i4(aPtr, bPtr, UInt64(n * 2), &result)
+            return result
+        }
+    }
+}
+
+// MARK: - Unsigned Integer Scalars
+
+extension UInt8: NumKongDot {
+    public typealias DotOutput = UInt32
+
+    @inlinable @inline(__always)
+    public static func dot<A, B>(_ a: A, _ b: B) -> UInt32?
+    where A: Sequence, B: Sequence, A.Element == UInt8, B.Element == UInt8 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            var result: UInt32 = 0
+            nk_dot_u8(ap, bp, UInt64(n), &result)
+            return result
+        }
+    }
+}
+
+extension UInt8: NumKongAngular {
+    public typealias AngularOutput = Float32
+
+    @inlinable @inline(__always)
+    public static func angular<A, B>(_ a: A, _ b: B) -> Float32?
+    where A: Sequence, B: Sequence, A.Element == UInt8, B.Element == UInt8 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            var result: Float32 = 0
+            nk_angular_u8(ap, bp, UInt64(n), &result)
+            return result
+        }
+    }
+}
+
+extension UInt8: NumKongEuclidean {
+    public typealias EuclideanOutput = Float32
+
+    @inlinable @inline(__always)
+    public static func euclidean<A, B>(_ a: A, _ b: B) -> Float32?
+    where A: Sequence, B: Sequence, A.Element == UInt8, B.Element == UInt8 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            var result: Float32 = 0
+            nk_euclidean_u8(ap, bp, UInt64(n), &result)
+            return result
+        }
+    }
+}
+
+extension UInt8: NumKongSqEuclidean {
+    public typealias SqEuclideanOutput = UInt32
+
+    @inlinable @inline(__always)
+    public static func sqeuclidean<A, B>(_ a: A, _ b: B) -> UInt32?
+    where A: Sequence, B: Sequence, A.Element == UInt8, B.Element == UInt8 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            var result: UInt32 = 0
+            nk_sqeuclidean_u8(ap, bp, UInt64(n), &result)
+            return result
+        }
+    }
+}
+
+extension U4x2: NumKongDot {
+    public typealias DotOutput = UInt32
+
+    @inlinable @inline(__always)
+    public static func dot<A, B>(_ a: A, _ b: B) -> UInt32?
+    where A: Sequence, B: Sequence, A.Element == U4x2, B.Element == U4x2 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u4x2_t.self)
+            let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u4x2_t.self)
+            var result: UInt32 = 0
+            nk_dot_u4(aPtr, bPtr, UInt64(n * 2), &result)
+            return result
+        }
+    }
+}
+
+extension U4x2: NumKongAngular {
+    public typealias AngularOutput = Float32
+
+    @inlinable @inline(__always)
+    public static func angular<A, B>(_ a: A, _ b: B) -> Float32?
+    where A: Sequence, B: Sequence, A.Element == U4x2, B.Element == U4x2 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u4x2_t.self)
+            let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u4x2_t.self)
+            var result: Float32 = 0
+            nk_angular_u4(aPtr, bPtr, UInt64(n * 2), &result)
+            return result
+        }
+    }
+}
+
+extension U4x2: NumKongEuclidean {
+    public typealias EuclideanOutput = Float32
+
+    @inlinable @inline(__always)
+    public static func euclidean<A, B>(_ a: A, _ b: B) -> Float32?
+    where A: Sequence, B: Sequence, A.Element == U4x2, B.Element == U4x2 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u4x2_t.self)
+            let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u4x2_t.self)
+            var result: Float32 = 0
+            nk_euclidean_u4(aPtr, bPtr, UInt64(n * 2), &result)
+            return result
+        }
+    }
+}
+
+extension U4x2: NumKongSqEuclidean {
+    public typealias SqEuclideanOutput = UInt32
+
+    @inlinable @inline(__always)
+    public static func sqeuclidean<A, B>(_ a: A, _ b: B) -> UInt32?
+    where A: Sequence, B: Sequence, A.Element == U4x2, B.Element == U4x2 {
+        _nkWithDensePair(a, b) { ap, bp, n in
+            let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u4x2_t.self)
+            let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u4x2_t.self)
+            var result: UInt32 = 0
+            nk_sqeuclidean_u4(aPtr, bPtr, UInt64(n * 2), &result)
+            return result
+        }
+    }
+}
 
 extension U1x8: NumKongDot {
     public typealias DotOutput = UInt32

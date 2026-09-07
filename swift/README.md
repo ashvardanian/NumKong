@@ -346,25 +346,28 @@ NumKong ships storage wrappers instead.
 - __`BFloat16`__ — 1+8+7 bit layout (sign + exponent + mantissa), 2 bytes.
   Same dynamic range as `Float32` with reduced precision.
   Supports NaN and Inf.
-- __`E4M3`__ — 1+4+3 bit layout, 1 byte.
-  Range ±448.
-  No Inf representation; NaN is encoded only as `0x7F` or `0xFF`.
 - __`E5M2`__ — 1+5+2 bit layout, 1 byte.
   Range ±57344.
   Supports Inf and NaN.
-- __`E2M3`__ — 1+2+3 bit layout, 1 byte (6 bits used).
-  Range ±7.5.
-  No Inf, no NaN.
+- __`E4M3`__ — 1+4+3 bit layout, 1 byte.
+  Range ±448.
+  No Inf representation; NaN is encoded only as `0x7F` or `0xFF`.
 - __`E3M2`__ — 1+3+2 bit layout, 1 byte (6 bits used).
   Range ±28.
   No Inf, no NaN.
+- __`E2M3`__ — 1+2+3 bit layout, 1 byte (6 bits used).
+  Range ±7.5.
+  No Inf, no NaN.
+- __`I4x2`__ and __`U4x2`__ — two 4-bit lanes per byte, high nibble first.
+  Signed lanes span -8...7, unsigned 0...15; `low` and `high` unpack them, `init(low:high:)` packs.
+  Supports dot, angular, and Euclidean scalar and matrix kernels.
 - __`U1x8`__ — 8 packed bits per byte.
   Used for binary embeddings and semantic hashing.
   Supports Hamming and Jaccard scalar and matrix kernels.
 
 Every floating-point wrapper provides `init(bitPattern:)`, `init(float:)`, and `var float: Float32`.
 All are `@frozen`, `Equatable`, `Hashable`, `Sendable`.
-`U1x8` provides `init(bitPattern:)` and exposes its underlying `UInt8` value.
+`U1x8`, `I4x2`, and `U4x2` provide `init(bitPattern:)` and expose their underlying `UInt8` value.
 These wrappers are exact-storage types first.
 They are there to preserve bits and make the native kernels callable from Swift.
 They are not pretending to be standard-library numeric types.
@@ -378,26 +381,30 @@ The table below documents the promotion for scalar collection extensions.
 | ---------- | --------- | ------------ | -------------- | ---------------- | ------------ | ------------ |
 | `Float64`  | `Float64` | `Float64`    | `Float64`      | `Float64`        | —            | —            |
 | `Float32`  | `Float64` | `Float64`    | `Float64`      | `Float64`        | —            | —            |
-| `Float16`  | `Float32` | `Float32`    | `Float32`      | `Float32`        | —            | —            |
 | `BFloat16` | `Float32` | `Float32`    | `Float32`      | `Float32`        | —            | —            |
+| `Float16`  | `Float32` | `Float32`    | `Float32`      | `Float32`        | —            | —            |
 | `Int8`     | `Int32`   | `Float32`    | `Float32`      | `UInt32`         | —            | —            |
+| `I4x2`     | `Int32`   | `Float32`    | `Float32`      | `UInt32`         | —            | —            |
 | `UInt8`    | `UInt32`  | `Float32`    | `Float32`      | `UInt32`         | —            | —            |
+| `U4x2`     | `UInt32`  | `Float32`    | `Float32`      | `UInt32`         | —            | —            |
 | `U1x8`     | —         | —            | —              | —                | `UInt32`     | `Float32`    |
 
 The matrix kernel output types follow a similar pattern but vary for the mini-float formats:
 
 | Input type | Dots output | Spatial output | Hamming output | Jaccard output |
 | ---------- | ----------- | -------------- | -------------- | -------------- |
-| `Float32`  | `Float64`   | `Float64`      | —              | —              |
 | `Float64`  | `Float64`   | `Float64`      | —              | —              |
-| `Float16`  | `Float32`   | `Float32`      | —              | —              |
+| `Float32`  | `Float64`   | `Float64`      | —              | —              |
 | `BFloat16` | `Float32`   | `Float32`      | —              | —              |
-| `Int8`     | `Int32`     | `Float32`      | —              | —              |
-| `UInt8`    | `UInt32`    | `Float32`      | —              | —              |
-| `E4M3`     | `Float32`   | `Float32`      | —              | —              |
+| `Float16`  | `Float32`   | `Float32`      | —              | —              |
 | `E5M2`     | `Float32`   | `Float32`      | —              | —              |
-| `E2M3`     | `Float32`   | `Float32`      | —              | —              |
+| `E4M3`     | `Float32`   | `Float32`      | —              | —              |
 | `E3M2`     | `Float32`   | `Float32`      | —              | —              |
+| `E2M3`     | `Float32`   | `Float32`      | —              | —              |
+| `Int8`     | `Int32`     | `Float32`      | —              | —              |
+| `I4x2`     | `Int32`     | `Float32`      | —              | —              |
+| `UInt8`    | `UInt32`    | `Float32`      | —              | —              |
+| `U4x2`     | `UInt32`    | `Float32`      | —              | —              |
 | `U1x8`     | `UInt32`    | —              | `UInt32`       | `Float32`      |
 
 ## Geospatial Metrics
