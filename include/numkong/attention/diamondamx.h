@@ -36,14 +36,19 @@
 extern "C" {
 #endif
 
-#if defined(__clang__)
+#if defined(__clang__) && __clang_major__ >= 22
+#pragma clang attribute push(                                                                                                            \
+    __attribute__((target(                                                                                                               \
+        "avx2,avx512f,avx512vl,avx512bw,avx512dq,avx512fp16,avx10.2,f16c,fma,bmi,bmi2,amx-tile,amx-bf16,amx-int8,amx-fp8,amx-avx512"))), \
+    apply_to = function)
+#elif defined(__clang__)
 #pragma clang attribute push(                                                                                                                \
     __attribute__((target(                                                                                                                   \
         "avx2,avx512f,avx512vl,avx512bw,avx512dq,avx512fp16,avx10.2-512,f16c,fma,bmi,bmi2,amx-tile,amx-bf16,amx-int8,amx-fp8,amx-avx512"))), \
     apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
-#pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512fp16", "avx10.2-512", "f16c", "fma", \
+#pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512fp16", "avx10.2", "f16c", "fma", \
                    "bmi", "bmi2", "amx-tile", "amx-bf16", "amx-int8", "amx-fp8", "amx-avx512")
 #endif
 

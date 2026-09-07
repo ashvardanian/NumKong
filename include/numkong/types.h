@@ -581,8 +581,9 @@
 #endif // !defined(NK_TARGET_GENOA) || ...
 
 // Compiling for x86: NK_TARGET_DIAMOND (AVX10.2, Diamond Rapids)
-// GCC 14+: defines __AVX10_2__ with -mavx10.2-512
-// Clang 19+: defines __AVX10_2__ with -mavx10.2-512
+// GCC 15+: defines __AVX10_2__ with -mavx10.2, target attribute `avx10.2`
+// Clang 20+: defines __AVX10_2__ with -mavx10.2
+// The target attribute spells it `avx10.2-512` up to clang 21, and `avx10.2` from clang 22 and GCC 15
 // MSVC: defines __AVX10_VER__ >= 2 with /arch:AVX10.2 (VS 2026+, not yet released)
 #if !defined(NK_TARGET_DIAMOND) || (NK_TARGET_DIAMOND && !NK_TARGET_X8664_)
 #if defined(__AVX10_2__) || (defined(__AVX10_VER__) && __AVX10_VER__ >= 2)
