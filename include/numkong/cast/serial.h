@@ -22,6 +22,9 @@ extern "C" {
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#if NK_TARGET_ARM64_
+#pragma GCC target("arch=armv8-a")
+#endif
 #endif
 
 #pragma region Type Punned Loads and Stores

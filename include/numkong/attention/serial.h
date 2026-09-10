@@ -51,6 +51,18 @@
 extern "C" {
 #endif
 
+/*  Keep the serial helpers below scalar, and at the architecture's floor so a vector kernel that pins its own ISA can
+ *  still inline them - GCC declines an `always_inline` callee carrying options its caller lacks. */
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#if NK_TARGET_ARM64_
+#pragma GCC target("arch=armv8-a")
+#endif
+#endif
+
 /**
  *  @brief Packed ragged KV cache header (64 bytes), shared by all attention backends.
  *  Followed by the segment offsets table; the payload beyond it is backend-specific.
@@ -439,6 +451,12 @@ NK_API_COMPTIME void nk_attention_packed_i8_serial(                             
         }
     }
 }
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 #if defined(__cplusplus)
 } // extern "C"

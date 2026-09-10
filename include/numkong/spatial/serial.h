@@ -115,6 +115,9 @@ extern "C" {
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#if NK_TARGET_ARM64_
+#pragma GCC target("arch=armv8-a")
+#endif
 #endif
 
 nk_define_angular_(f64, f64, f64, nk_assign_from_to_, nk_f64_rsqrt_serial)       // nk_angular_f64_serial

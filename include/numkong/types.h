@@ -1837,12 +1837,14 @@ NK_API_COMPTIME void nk_tensor_shape_init(nk_tensor_shape_t *tensor_shape) {
     tensor_shape->rank = 0;
 }
 
-NK_HELPER_INLINE nk_u32_t nk_u32_rol(nk_u32_t x, int n) { return (x << n) | (x >> (32 - n)); }
-NK_HELPER_INLINE nk_u16_t nk_u16_rol(nk_u16_t x, int n) { return (x << n) | (x >> (16 - n)); }
-NK_HELPER_INLINE nk_u8_t nk_u8_rol(nk_u8_t x, int n) { return (x << n) | (x >> (8 - n)); }
-NK_HELPER_INLINE nk_u32_t nk_u32_ror(nk_u32_t x, int n) { return (x >> n) | (x << (32 - n)); }
-NK_HELPER_INLINE nk_u16_t nk_u16_ror(nk_u16_t x, int n) { return (x >> n) | (x << (16 - n)); }
-NK_HELPER_INLINE nk_u8_t nk_u8_ror(nk_u8_t x, int n) { return (x >> n) | (x << (8 - n)); }
+/*  The helpers below are inlined by vector kernels that pin their own ISA, and GCC refuses an `always_inline` callee
+ *  carrying options its caller lacks - so they let the compiler decide, which for one-liners it does anyway. */
+NK_HELPER_AUTO nk_u32_t nk_u32_rol(nk_u32_t x, int n) { return (x << n) | (x >> (32 - n)); }
+NK_HELPER_AUTO nk_u16_t nk_u16_rol(nk_u16_t x, int n) { return (x << n) | (x >> (16 - n)); }
+NK_HELPER_AUTO nk_u8_t nk_u8_rol(nk_u8_t x, int n) { return (x << n) | (x >> (8 - n)); }
+NK_HELPER_AUTO nk_u32_t nk_u32_ror(nk_u32_t x, int n) { return (x >> n) | (x << (32 - n)); }
+NK_HELPER_AUTO nk_u16_t nk_u16_ror(nk_u16_t x, int n) { return (x >> n) | (x << (16 - n)); }
+NK_HELPER_AUTO nk_u8_t nk_u8_ror(nk_u8_t x, int n) { return (x >> n) | (x << (8 - n)); }
 
 /**
  *  @brief  SWAR population count for 64-bit integers.
@@ -1855,14 +1857,14 @@ NK_HELPER_INLINE nk_u8_t nk_u8_ror(nk_u8_t x, int n) { return (x >> n) | (x << (
  *
  *  Cost: ~12 ALU ops, zero memory access (vs 8 table lookups for byte-wise).
  */
-NK_HELPER_INLINE nk_u64_t nk_u64_popcount_(nk_u64_t x) {
+NK_HELPER_AUTO nk_u64_t nk_u64_popcount_(nk_u64_t x) {
     x = x - ((x >> 1) & 0x5555555555555555ull);
     x = (x & 0x3333333333333333ull) + ((x >> 2) & 0x3333333333333333ull);
     x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0Full;
     return (x * 0x0101010101010101ull) >> 56;
 }
 
-NK_HELPER_INLINE unsigned char nk_u1x8_popcount_(nk_u1x8_t x) {
+NK_HELPER_AUTO unsigned char nk_u1x8_popcount_(nk_u1x8_t x) {
     static unsigned char lookup_table[256] = {
         0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, //
         1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
@@ -1893,71 +1895,71 @@ NK_HELPER_AUTO int nk_size_mul_checked_(nk_size_t a, nk_size_t b, nk_size_t *pro
     return 1;
 }
 
-NK_HELPER_INLINE nk_f32_t nk_f32_abs_(nk_f32_t x) { return x < 0 ? -x : x; }
-NK_HELPER_INLINE nk_f64_t nk_f64_abs_(nk_f64_t x) { return x < 0 ? -x : x; }
-NK_HELPER_INLINE nk_i64_t nk_i64_abs_(nk_i64_t x) { return x < 0 ? -x : x; }
-NK_HELPER_INLINE nk_u64_t nk_u64_abs_(nk_u64_t x) { return x; }
-NK_HELPER_INLINE nk_i64_t nk_i32_abs_(nk_i32_t x) { return x < 0 ? -x : x; }
-NK_HELPER_INLINE nk_u32_t nk_u32_abs_(nk_u32_t x) { return x; }
+NK_HELPER_AUTO nk_f32_t nk_f32_abs_(nk_f32_t x) { return x < 0 ? -x : x; }
+NK_HELPER_AUTO nk_f64_t nk_f64_abs_(nk_f64_t x) { return x < 0 ? -x : x; }
+NK_HELPER_AUTO nk_i64_t nk_i64_abs_(nk_i64_t x) { return x < 0 ? -x : x; }
+NK_HELPER_AUTO nk_u64_t nk_u64_abs_(nk_u64_t x) { return x; }
+NK_HELPER_AUTO nk_i64_t nk_i32_abs_(nk_i32_t x) { return x < 0 ? -x : x; }
+NK_HELPER_AUTO nk_u32_t nk_u32_abs_(nk_u32_t x) { return x; }
 
 /** @brief Extract low (bits 0-3) unsigned nibble from packed u4x2 byte. */
-NK_HELPER_INLINE nk_u8_t nk_u4x2_low_(nk_u4x2_t byte_val) { return byte_val & 0x0F; }
+NK_HELPER_AUTO nk_u8_t nk_u4x2_low_(nk_u4x2_t byte_val) { return byte_val & 0x0F; }
 /** @brief Extract high (bits 4-7) unsigned nibble from packed u4x2 byte. */
-NK_HELPER_INLINE nk_u8_t nk_u4x2_high_(nk_u4x2_t byte_val) { return (byte_val >> 4) & 0x0F; }
+NK_HELPER_AUTO nk_u8_t nk_u4x2_high_(nk_u4x2_t byte_val) { return (byte_val >> 4) & 0x0F; }
 
 /** @brief Extract low (bits 0-3) signed nibble from packed i4x2 byte as i8. */
-NK_HELPER_INLINE nk_i8_t nk_i4x2_low_(nk_i4x2_t byte_val) { return (nk_i8_t)(((byte_val & 0x0F) ^ 8) - 8); }
+NK_HELPER_AUTO nk_i8_t nk_i4x2_low_(nk_i4x2_t byte_val) { return (nk_i8_t)(((byte_val & 0x0F) ^ 8) - 8); }
 /** @brief Extract high (bits 4-7) signed nibble from packed i4x2 byte as i8. */
-NK_HELPER_INLINE nk_i8_t nk_i4x2_high_(nk_i4x2_t byte_val) { return (nk_i8_t)((((byte_val >> 4) & 0x0F) ^ 8) - 8); }
+NK_HELPER_AUTO nk_i8_t nk_i4x2_high_(nk_i4x2_t byte_val) { return (nk_i8_t)((((byte_val >> 4) & 0x0F) ^ 8) - 8); }
 
 /** @brief Extract n-th nibble (n=0: low, n=1: high) — branchless. */
-NK_HELPER_INLINE nk_u8_t nk_u4x2_get_(nk_u4x2_t byte_val, int n) { return (byte_val >> ((n & 1) * 4)) & 0x0F; }
-NK_HELPER_INLINE nk_i8_t nk_i4x2_get_(nk_i4x2_t byte_val, int n) {
+NK_HELPER_AUTO nk_u8_t nk_u4x2_get_(nk_u4x2_t byte_val, int n) { return (byte_val >> ((n & 1) * 4)) & 0x0F; }
+NK_HELPER_AUTO nk_i8_t nk_i4x2_get_(nk_i4x2_t byte_val, int n) {
     nk_u8_t nibble = (byte_val >> ((n & 1) * 4)) & 0x0F;
     return (nk_i8_t)((nibble ^ 8) - 8);
 }
 
 /** @brief Extract bit at position n (0-7) from packed u1x8 byte. */
-NK_HELPER_INLINE nk_u8_t nk_u1x8_get_(nk_u1x8_t byte_val, int n) { return (byte_val >> (n & 7)) & 1; }
+NK_HELPER_AUTO nk_u8_t nk_u1x8_get_(nk_u1x8_t byte_val, int n) { return (byte_val >> (n & 7)) & 1; }
 
-NK_HELPER_INLINE nk_f16_t nk_u16_as_f16_(nk_u16_t bits) {
+NK_HELPER_AUTO nk_f16_t nk_u16_as_f16_(nk_u16_t bits) {
     nk_fui16_t c;
     c.u = bits;
     return c.f;
 }
-NK_HELPER_INLINE nk_u16_t nk_f16_as_u16_(nk_f16_t x) {
+NK_HELPER_AUTO nk_u16_t nk_f16_as_u16_(nk_f16_t x) {
     nk_fui16_t c;
     c.f = x;
     return c.u;
 }
-NK_HELPER_INLINE nk_bf16_t nk_u16_as_bf16_(nk_u16_t bits) {
+NK_HELPER_AUTO nk_bf16_t nk_u16_as_bf16_(nk_u16_t bits) {
     nk_fui16_t c;
     c.u = bits;
     return c.bf;
 }
 
-NK_HELPER_INLINE void nk_f64_from_i64_(nk_i64_t const *src, nk_f64_t *dest) { *dest = (nk_f64_t)*src; }
-NK_HELPER_INLINE void nk_f64_from_u64_(nk_u64_t const *src, nk_f64_t *dest) { *dest = (nk_f64_t)*src; }
-NK_HELPER_INLINE void nk_f32_from_i32_(nk_i32_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
-NK_HELPER_INLINE void nk_f32_from_u32_(nk_u32_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
-NK_HELPER_INLINE void nk_f32_from_f64_(nk_f64_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
+NK_HELPER_AUTO void nk_f64_from_i64_(nk_i64_t const *src, nk_f64_t *dest) { *dest = (nk_f64_t)*src; }
+NK_HELPER_AUTO void nk_f64_from_u64_(nk_u64_t const *src, nk_f64_t *dest) { *dest = (nk_f64_t)*src; }
+NK_HELPER_AUTO void nk_f32_from_i32_(nk_i32_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
+NK_HELPER_AUTO void nk_f32_from_u32_(nk_u32_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
+NK_HELPER_AUTO void nk_f32_from_f64_(nk_f64_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
 
 /** @brief E4M3: NaN when (raw & 0x7F) == 0x7F  (two NaN values: 0x7F, 0xFF). */
-NK_HELPER_INLINE int nk_e4m3_is_nan_(nk_e4m3_t x) { return (x & 0x7F) == 0x7F; }
+NK_HELPER_AUTO int nk_e4m3_is_nan_(nk_e4m3_t x) { return (x & 0x7F) == 0x7F; }
 
 /** @brief E5M2: NaN when exponent=31 and mantissa!=0, i.e. (raw & 0x7F) > 0x7C.
  *  Values: 0x7D-0x7F (positive), 0xFD-0xFF (negative). Infinity = 0x7C/0xFC is NOT NaN. */
-NK_HELPER_INLINE int nk_e5m2_is_nan_(nk_e5m2_t x) { return (x & 0x7F) > 0x7C; }
+NK_HELPER_AUTO int nk_e5m2_is_nan_(nk_e5m2_t x) { return (x & 0x7F) > 0x7C; }
 
 /** @brief F16: NaN when (raw & 0x7FFF) > 0x7C00. */
-NK_HELPER_INLINE int nk_f16_is_nan_(nk_f16_t x) {
+NK_HELPER_AUTO int nk_f16_is_nan_(nk_f16_t x) {
     nk_fui16_t x_fui;
     x_fui.f = x;
     return (x_fui.u & 0x7FFF) > 0x7C00;
 }
 
 /** @brief BF16: NaN when (raw & 0x7FFF) > 0x7F80. */
-NK_HELPER_INLINE int nk_bf16_is_nan_(nk_bf16_t x) {
+NK_HELPER_AUTO int nk_bf16_is_nan_(nk_bf16_t x) {
     nk_fui16_t x_fui;
     x_fui.bf = x;
     return (x_fui.u & 0x7FFF) > 0x7F80;

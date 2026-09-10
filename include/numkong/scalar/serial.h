@@ -19,6 +19,18 @@
 extern "C" {
 #endif
 
+/*  Keep the serial helpers below scalar, and at the architecture's floor so a vector kernel that pins its own ISA can
+ *  still inline them - GCC declines an `always_inline` callee carrying options its caller lacks. */
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#if NK_TARGET_ARM64_
+#pragma GCC target("arch=armv8-a")
+#endif
+#endif
+
 NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_serial(nk_f32_t number) {
     nk_fui32_t conv;
     conv.f = number;
@@ -359,6 +371,12 @@ NK_HELPER_INLINE nk_f32_t nk_sigmoid_f32_serial_(nk_f32_t x) {
 
 /** @brief Scalar SiLU / swish `x · sigmoid(x)`, built on the shared fast exponent. */
 NK_HELPER_INLINE nk_f32_t nk_silu_f32_serial_(nk_f32_t x) { return x * nk_sigmoid_f32_serial_(x); }
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 #if defined(__cplusplus)
 } // extern "C"

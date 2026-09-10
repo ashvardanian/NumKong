@@ -836,6 +836,7 @@ NK_HELPER_INLINE nk_dtype_t nk_attention_output_dtype(nk_dtype_t dtype) {
 #include "numkong/attention/icelake.h"
 #include "numkong/attention/genoa.h"
 #include "numkong/attention/sapphireamx.h"
+#include "numkong/attention/diamondamx.h"
 #include "numkong/attention/sme.h"
 #include "numkong/attention/neonbfdot.h"
 #include "numkong/attention/neonfhm.h"
