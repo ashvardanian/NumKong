@@ -53,7 +53,7 @@ def blend(a: np.ndarray, b: np.ndarray,
 Real and integer element-wise operations:
 
 | Input Type | Output Type | Description                               |
-| ---------- | ----------- | ----------------------------------------- |
+| :--------- | :---------- | :---------------------------------------- |
 | `f64`      | `f64`       | 64-bit IEEE 754 double precision          |
 | `f32`      | `f32`       | 32-bit IEEE 754 single precision          |
 | `f16`      | `f16`       | 16-bit IEEE 754 half precision            |
@@ -74,7 +74,7 @@ Real and integer element-wise operations:
 Complex element-wise operations:
 
 | Input Type | Output Type | Description          |
-| ---------- | ----------- | -------------------- |
+| :--------- | :---------- | :------------------- |
 | `f64c`     | `f64c`      | 64-bit complex pairs |
 | `f32c`     | `f32c`      | 32-bit complex pairs |
 

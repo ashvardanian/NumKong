@@ -30,7 +30,7 @@ Internally every backend uses the streaming base-2 softmax: the scale folds $\lo
 ## Input & Output Types
 
 | Input Type | Output Type | Description                                                                |
-| ---------- | ----------- | -------------------------------------------------------------------------- |
+| :--------- | :---------- | :------------------------------------------------------------------------- |
 | `bf16`     | `f32`       | 16-bit brain float; native AMX tiles and `VDPBF16PS` lanes                 |
 | `e4m3`     | `f32`       | 8-bit Float8; widened to the ISA's compute format at the pack boundary     |
 | `i8`       | `f32`       | 8-bit signed integers; exact `i32` scores, probabilities quantized to `u8` |

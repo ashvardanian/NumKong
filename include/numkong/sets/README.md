@@ -40,7 +40,7 @@ def jaccards_packed(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 ## Input & Output Types
 
 | Input Type | Output Type | Description                            |
-| ---------- | ----------- | -------------------------------------- |
+| :--------- | :---------- | :------------------------------------- |
 | `u1`       | `u32`       | Binary Hamming distance, packed octets |
 | `u1`       | `f32`       | Binary Jaccard distance, packed octets |
 

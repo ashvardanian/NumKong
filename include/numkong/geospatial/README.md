@@ -36,7 +36,7 @@ Input coordinates are in radians, output distances are in meters.
 ## Input & Output Types
 
 | Input Type | Output Type | Description             |
-| ---------- | ----------- | ----------------------- |
+| :--------- | :---------- | :---------------------- |
 | `f64`      | `f64`       | 64-bit double precision |
 | `f32`      | `f32`       | 32-bit single precision |
 

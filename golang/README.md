@@ -47,7 +47,7 @@ You can inspect the runtime SIMD surface from Go.
 ## Ecosystem Comparison
 
 | Feature                      | NumKong                                                                                  | [GoNum][gonum]                                           |
-| ---------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| :--------------------------- | :--------------------------------------------------------------------------------------- | :------------------------------------------------------- |
 | Operation families           | dots, distances, binary, probability, geospatial, MaxSim                                 | dots, distances, some statistics                         |
 | Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float64 only; standard accuracy                          |
 | Runtime SIMD dispatch        | auto-selects best ISA per-thread at runtime across x86, ARM, RISC-V                      | no runtime dispatch; some hand-written assembly routines |

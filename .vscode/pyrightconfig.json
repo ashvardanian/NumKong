@@ -1,18 +1,18 @@
 {
-    "include": [
-        "test",
-        "python"
-    ],
-    "stubPath": "python/annotations",
-    "typeCheckingMode": "standard",
-    "reportMissingModuleSource": false,
-    "pythonVersion": "3.10",
-    "executionEnvironments": [
-        {
-            "root": "test",
-            "extraPaths": [
-                "test"
-            ]
-        }
-    ]
+  "include": [
+    "test",
+    "python"
+  ],
+  "stubPath": "python/annotations",
+  "typeCheckingMode": "standard",
+  "reportMissingModuleSource": false,
+  "pythonVersion": "3.10",
+  "executionEnvironments": [
+    {
+      "root": "test",
+      "extraPaths": [
+        "test"
+      ]
+    }
+  ]
 }

@@ -43,7 +43,7 @@ The `parallel` feature is the intended native orchestration layer.
 ## Ecosystem Comparison
 
 | Feature                      | NumKong                                                                                                             | [nalgebra][nalgebra]                                 | [ndarray][ndarray]                                   |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------- |
+| :--------------------------- | :------------------------------------------------------------------------------------------------------------------ | :--------------------------------------------------- | :--------------------------------------------------- |
 | Operation families           | dots, distances, binary, probability, geospatial, curved, mesh, sparse, MaxSim, elementwise, reductions, cast, trig | linear algebra, decompositions                       | general n-dimensional arithmetic                     |
 | Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation; 0 ULP in Float32/Float64                            | Float32/Float64 only; no widening; standard accuracy | Float32/Float64 only; no widening; standard accuracy |
 | Runtime SIMD dispatch        | auto-selects best ISA per-thread at runtime across x86, ARM, RISC-V                                                 | none                                                 | none                                                 |
@@ -200,17 +200,17 @@ println!("{distance}");
 The scalar wrappers are storage-first types.
 They are not decorative aliases over `f32`.
 
-| Type   | Layout        | Bytes | Range        | Inf | NaN |
-| ------ | ------------- | ----- | ------------ | --- | --- |
-| `f16`  | 1+5+10        | 2     | ±65504       | yes | yes |
-| `bf16` | 1+8+7         | 2     | ±3.4×10³⁸    | yes | yes |
-| `e4m3` | 1+4+3         | 1     | ±448         | no  | yes |
-| `e5m2` | 1+5+2         | 1     | ±57344       | yes | yes |
-| `e2m3` | 1+2+3 (6 bit) | 1     | ±7.5         | no  | no  |
-| `e3m2` | 1+3+2 (6 bit) | 1     | ±28          | no  | no  |
-| `u1x8` | 8 packed bits | 1     | 0–1 per bit  | —   | —   |
-| `u4x2` | 2×4-bit uint  | 1     | 0–15 per nib | —   | —   |
-| `i4x2` | 2×4-bit int   | 1     | −8–7 per nib | —   | —   |
+| Type   | Layout        | Bytes |        Range | Inf | NaN |
+| :----- | :------------ | ----: | -----------: | :-: | :-: |
+| `f16`  | 1+5+10        |     2 |       ±65504 | yes | yes |
+| `bf16` | 1+8+7         |     2 |    ±3.4×10³⁸ | yes | yes |
+| `e4m3` | 1+4+3         |     1 |         ±448 | no  | yes |
+| `e5m2` | 1+5+2         |     1 |       ±57344 | yes | yes |
+| `e2m3` | 1+2+3 (6 bit) |     1 |         ±7.5 | no  | no  |
+| `e3m2` | 1+3+2 (6 bit) |     1 |          ±28 | no  | no  |
+| `u1x8` | 8 packed bits |     1 |  0–1 per bit |  …  |  …  |
+| `u4x2` | 2×4-bit uint  |     1 | 0–15 per nib |  …  |  …  |
+| `i4x2` | 2×4-bit int   |     1 | −8–7 per nib |  …  |  …  |
 
 The trait hierarchy documents intent:
 
@@ -353,7 +353,7 @@ let col = t.try_slice(&[SliceRange::full(), SliceRange::index(1)]).unwrap();
 Tuple elements implement `SliceArg` — each monomorphized with zero runtime dispatch:
 
 | Rust syntax                     | Meaning                                |
-| ------------------------------- | -------------------------------------- |
+| :------------------------------ | :------------------------------------- |
 | `..`                            | all                                    |
 | `0_usize` / `-1_isize`          | single index (negative wraps from end) |
 | `1..4_usize` / `-3..-1_isize`   | half-open range                        |

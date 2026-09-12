@@ -40,7 +40,7 @@ def atan(a: np.ndarray) -> np.ndarray:
 ## Input & Output Types
 
 | Input Type | Output Type | Description                                      |
-| ---------- | ----------- | ------------------------------------------------ |
+| :--------- | :---------- | :----------------------------------------------- |
 | `f64`      | `f64`       | 64-bit IEEE 754 double precision                 |
 | `f32`      | `f32`       | 32-bit IEEE 754 single precision                 |
 | `f16`      | `f16`       | 16-bit half precision, widened to f32 internally |

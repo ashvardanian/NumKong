@@ -34,7 +34,7 @@ def sparse_dot(a_indices: np.ndarray, a_weights: np.ndarray,
 ## Input & Output Types
 
 | Input Type | Output Type | Description                                  |
-| ---------- | ----------- | -------------------------------------------- |
+| :--------- | :---------- | :------------------------------------------- |
 | `u16`      | `u64`       | 16-bit index intersection count              |
 | `u32`      | `u64`       | 32-bit index intersection count              |
 | `u64`      | `u64`       | 64-bit index intersection count              |

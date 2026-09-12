@@ -44,7 +44,7 @@ Packing handles internal layout itself and does not require caller-side alignmen
 ## Ecosystem Comparison
 
 | Feature                      | NumKong                                                                                                                             | [OpenBLAS][openblas]                                              | [Eigen][eigen]                                                                          |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| :--------------------------- | :---------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------- | :-------------------------------------------------------------------------------------- |
 | Operation families           | dots, distances, binary, probability, geospatial, curved, mesh, sparse, MaxSim, elementwise, reductions, cast, trig                 | dense linear algebra only                                         | dense LA, some reductions and elementwise                                               |
 | Precision                    | Sub-byte to Float64 dtypes; automatic widening per scalar type; Kahan-compensated summation; 0 ULP Float32/Float64 where applicable | Float32, Float64 only; same-type in/out; no compensated summation | Float16/BFloat16 partial; no Float8 or sub-byte; manual casts; no compensated summation |
 | Runtime SIMD dispatch        | per-thread at runtime across x86, ARM, RISC-V                                                                                       | load-time CPU detection; one kernel set per process               | compile-time ISA flags only                                                             |
@@ -141,17 +141,17 @@ The API is intentionally not STL-shaped.
 The scalar wrappers in `include/numkong/types.hpp` are storage-first types.
 They encode raw layout, default output types, and the kernel function pointer signatures for each family.
 
-| Type        | Layout           | Bytes | Range           | Inf | NaN |
-| ----------- | ---------------- | ----- | --------------- | --- | --- |
-| `nk_f16_t`  | 1+5+10           | 2     | ±65504          | yes | yes |
-| `nk_bf16_t` | 1+8+7            | 2     | ±3.4×10³⁸       | yes | yes |
-| `nk_e4m3_t` | 1+4+3            | 1     | ±448            | no  | yes |
-| `nk_e5m2_t` | 1+5+2            | 1     | ±57344          | yes | yes |
-| `nk_e2m3_t` | 1+2+3            | 1     | ±7.5            | no  | no  |
-| `nk_e3m2_t` | 1+3+2            | 1     | ±28             | no  | no  |
-| `nk_u1x8_t` | 8 packed bits    | 1     | 0 or 1 per bit  | …   | …   |
-| `nk_u4x2_t` | 2x4-bit unsigned | 1     | 0-15 per nibble | …   | …   |
-| `nk_i4x2_t` | 2x4-bit signed   | 1     | -8-7 per nibble | …   | …   |
+| Type        | Layout           | Bytes |           Range | Inf | NaN |
+| :---------- | :--------------- | ----: | --------------: | :-: | :-: |
+| `nk_f16_t`  | 1+5+10           |     2 |          ±65504 | yes | yes |
+| `nk_bf16_t` | 1+8+7            |     2 |       ±3.4×10³⁸ | yes | yes |
+| `nk_e4m3_t` | 1+4+3            |     1 |            ±448 | no  | yes |
+| `nk_e5m2_t` | 1+5+2            |     1 |          ±57344 | yes | yes |
+| `nk_e2m3_t` | 1+2+3            |     1 |            ±7.5 | no  | no  |
+| `nk_e3m2_t` | 1+3+2            |     1 |             ±28 | no  | no  |
+| `nk_u1x8_t` | 8 packed bits    |     1 |  0 or 1 per bit |  …  |  …  |
+| `nk_u4x2_t` | 2x4-bit unsigned |     1 | 0-15 per nibble |  …  |  …  |
+| `nk_i4x2_t` | 2x4-bit signed   |     1 | -8-7 per nibble |  …  |  …  |
 
 The layout column shows sign, exponent, and mantissa bit counts for floating-point types.
 For `nk_f16_t`, 1+5+10 means one sign bit, five exponent bits, and ten mantissa bits, totaling 16 bits stored in 2 bytes.
@@ -172,7 +172,7 @@ When `__cpp_lib_format >= 202110L` for the C++23 `<format>` header support, all 
 For the Float16 type, the output for `nk::f16_t::from_f32(3.14f)` will look like:
 
 | Format spec | Output example       | Description                            |
-| ----------- | -------------------- | -------------------------------------- |
+| :---------- | :------------------- | :------------------------------------- |
 | `{}`        | `3.140625`           | Clean float value                      |
 | `{:#}`      | `3.140625 [0x4248]`  | Annotated with hex bits                |
 | `{:.2f}`    | `3.14`               | Precision forwarded to float formatter |

@@ -43,7 +43,7 @@ def bilinear_complex(a: np.ndarray, b: np.ndarray, C: np.ndarray) -> complex:
 Real bilinear and Mahalanobis:
 
 | Input Type | Output Type | Description                                      |
-| ---------- | ----------- | ------------------------------------------------ |
+| :--------- | :---------- | :----------------------------------------------- |
 | `f64`      | `f64`       | 64-bit IEEE 754 double precision                 |
 | `f32`      | `f64`       | 32-bit IEEE 754 single precision, widened output |
 | `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output   |
@@ -52,7 +52,7 @@ Real bilinear and Mahalanobis:
 Complex bilinear:
 
 | Input Type | Output Type | Description                                |
-| ---------- | ----------- | ------------------------------------------ |
+| :--------- | :---------- | :----------------------------------------- |
 | `f64c`     | `f64c`      | 64-bit complex pairs                       |
 | `f32c`     | `f64c`      | 32-bit complex pairs, widened output       |
 | `f16c`     | `f32c`      | 16-bit complex pairs, widened output       |

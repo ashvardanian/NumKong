@@ -9,7 +9,7 @@ Low-precision dtypes (BFloat16, Float8, Float6, packed bits) flow through the sa
 ## Ecosystem Comparison
 
 | Feature                         | NumKong                                                                                                                      | [NumPy][numpy]/[SciPy][scipy]                                          | [PyTorch][pytorch]                                                          |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| :------------------------------ | :--------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------- | :-------------------------------------------------------------------------- |
 | Operation families              | dots, distances, binary, probability, geospatial, curved, mesh, sparse, MaxSim, elementwise, reductions, cast, trig          | dots, distances, elementwise, reductions, some probability via `cdist` | dots, distances, elementwise, reductions                                    |
 | Precision                       | BFloat16 through sub-byte — Float8, Float6, Int4, packed bits; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float16, partial BFloat16; no auto-widening; standard accuracy         | Float16, BFloat16, partial Float8; explicit AMP required; standard accuracy |
 | Runtime SIMD dispatch           | auto-selects best ISA per-thread at runtime on x86, ARM, RISC-V                                                              | compile-time only                                                      | CPU: compile-time; CUDA: runtime                                            |
@@ -269,14 +269,14 @@ And it exposes tensor dtypes for the broader buffer-oriented path.
 
 The six scalar types have stable payload sizes even though Python object headers are not:
 
-| Type             | Bits   | Bytes | Range     | Inf | NaN |
-| ---------------- | ------ | ----- | --------- | --- | --- |
-| `nk.float16`     | 1+5+10 | 2     | ±65504    | yes | yes |
-| `nk.bfloat16`    | 1+8+7  | 2     | ±3.4×10³⁸ | yes | yes |
-| `nk.float8_e4m3` | 1+4+3  | 1     | ±448      | no  | yes |
-| `nk.float8_e5m2` | 1+5+2  | 1     | ±57344    | yes | yes |
-| `nk.float6_e2m3` | 1+2+3  | 1     | ±7.5      | no  | no  |
-| `nk.float6_e3m2` | 1+3+2  | 1     | ±28       | no  | no  |
+| Type             | Bits   | Bytes |     Range | Inf | NaN |
+| :--------------- | :----- | ----: | --------: | :-: | :-: |
+| `nk.float16`     | 1+5+10 |     2 |    ±65504 | yes | yes |
+| `nk.bfloat16`    | 1+8+7  |     2 | ±3.4×10³⁸ | yes | yes |
+| `nk.float8_e4m3` | 1+4+3  |     1 |      ±448 | no  | yes |
+| `nk.float8_e5m2` | 1+5+2  |     1 |    ±57344 | yes | yes |
+| `nk.float6_e2m3` | 1+2+3  |     1 |      ±7.5 | no  | no  |
+| `nk.float6_e3m2` | 1+3+2  |     1 |       ±28 | no  | no  |
 
 The Bits column shows sign + exponent + mantissa bit counts.
 The Bytes column is the stable payload size; `float8_*` and `float6_*` both store 1 byte because the sub-byte formats are padded to byte alignment.
@@ -312,37 +312,37 @@ float(arr[0])  # → 1.0
 Type name mapping between the two libraries:
 
 | ml_dtypes                      | NumKong                      | Status                                    |
-| ------------------------------ | ---------------------------- | ----------------------------------------- |
+| :----------------------------- | :--------------------------- | :---------------------------------------- |
 | `ml_dtypes.bfloat16`           | `nk.bfloat16` / `"bfloat16"` | Identical format                          |
 | `ml_dtypes.float8_e4m3`        | `nk.float8_e4m3` / `"e4m3"`  | Identical (IEEE E4M3)                     |
 | `ml_dtypes.float8_e4m3fn`      | `nk.float8_e4m3` / `"e4m3"`  | Identical (E4M3FN = no inf)               |
 | `ml_dtypes.float8_e5m2`        | `nk.float8_e5m2` / `"e5m2"`  | Identical format                          |
 | `ml_dtypes.float6_e2m3fn`      | `nk.float6_e2m3` / `"e2m3"`  | Identical (MX E2M3)                       |
 | `ml_dtypes.float6_e3m2fn`      | `nk.float6_e3m2` / `"e3m2"`  | Identical (MX E3M2)                       |
-| `ml_dtypes.float8_e4m3fnuz`    | —                            | Rejected: different bias, NaN, and zero   |
-| `ml_dtypes.float8_e5m2fnuz`    | —                            | Rejected: different NaN and zero encoding |
-| `ml_dtypes.float8_e4m3b11fnuz` | —                            | Rejected: bias=11, incompatible encoding  |
+| `ml_dtypes.float8_e4m3fnuz`    | …                            | Rejected: different bias, NaN, and zero   |
+| `ml_dtypes.float8_e5m2fnuz`    | …                            | Rejected: different NaN and zero encoding |
+| `ml_dtypes.float8_e4m3b11fnuz` | …                            | Rejected: bias=11, incompatible encoding  |
 | `ml_dtypes.float8_e8m0fnu`     | `"float8_e8m0"` / `"e8m0"`   | MX block scale byte (see `ScaledTensor`)  |
-| `ml_dtypes.float8_e3m4`        | —                            | Not supported: no NumKong kernel          |
+| `ml_dtypes.float8_e3m4`        | …                            | Not supported: no NumKong kernel          |
 | `ml_dtypes.float4_e2m1fn`      | `"float4_e2m1"` / `"e2m1"`   | NVFP4/MXFP4 element (see `ScaledTensor`)  |
 | `ml_dtypes.int4`               | `"int4"`                     | Compatible via buffer protocol            |
 | `ml_dtypes.uint4`              | `"uint4"`                    | Compatible via buffer protocol            |
-| `ml_dtypes.int2`               | —                            | Not supported                             |
-| `ml_dtypes.uint2`              | —                            | Not supported                             |
+| `ml_dtypes.int2`               | …                            | Not supported                             |
+| `ml_dtypes.uint2`              | …                            | Not supported                             |
 
 ## Block-Scaled Formats (OCP MX & NVIDIA NVFP4)
 
 Block-scaled formats group elements into fixed-size blocks, each carrying its own scale byte.
 
 | Format         | Block | Element | Scale   | Global    |
-| -------------- | ----- | ------- | ------- | --------- |
-| `"nvfp4"`      | 16    | `e2m1`  | `ue4m3` | `float32` |
-| `"mxfp4"`      | 32    | `e2m1`  | `ue8m0` | —         |
-| `"mxfp6_e2m3"` | 32    | `e2m3`  | `ue8m0` | —         |
-| `"mxfp6_e3m2"` | 32    | `e3m2`  | `ue8m0` | —         |
-| `"mxfp8_e4m3"` | 32    | `e4m3`  | `ue8m0` | —         |
-| `"mxfp8_e5m2"` | 32    | `e5m2`  | `ue8m0` | —         |
-| `"mxint8"`     | 32    | `i8`    | `ue8m0` | —         |
+| :------------- | ----: | :------ | :------ | :-------- |
+| `"nvfp4"`      |    16 | `e2m1`  | `ue4m3` | `float32` |
+| `"mxfp4"`      |    32 | `e2m1`  | `ue8m0` | …         |
+| `"mxfp6_e2m3"` |    32 | `e2m3`  | `ue8m0` | …         |
+| `"mxfp6_e3m2"` |    32 | `e3m2`  | `ue8m0` | …         |
+| `"mxfp8_e4m3"` |    32 | `e4m3`  | `ue8m0` | …         |
+| `"mxfp8_e5m2"` |    32 | `e5m2`  | `ue8m0` | …         |
+| `"mxint8"`     |    32 | `i8`    | `ue8m0` | …         |
 
 Quantization happens through the same `astype` verb used for dense casts.
 Passing a block-scaled dtype name to a dense `Tensor.astype(...)` returns a `ScaledTensor`; calling `astype(...)` on a `ScaledTensor` with a dense dtype materializes it back.
@@ -351,7 +351,7 @@ Quantization is always along the __last axis__, which must be a whole multiple o
 A `ScaledTensor` exposes plain read attributes, but no getter/setter methods:
 
 | Attribute       | Type             | Meaning                                                                 |
-| --------------- | ---------------- | ----------------------------------------------------------------------- |
+| :-------------- | :--------------- | :---------------------------------------------------------------------- |
 | `.elements`     | `Tensor`         | Packed sub-byte element bytes (e.g. `e2m1`), last axis in storage bytes |
 | `.block_scales` | `Tensor`         | One scale byte per block (`ue4m3` / `ue8m0`), last axis = `n / block`   |
 | `.tensor_scale` | `float` / `None` | NVFP4 per-tensor multiplier; `None` for the MX family                   |
@@ -432,7 +432,7 @@ The important layout rules are:
 ### Memory Layout Requirements
 
 | API family                                       | Input requirement                                                                                  | Output requirement                                                        |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| :----------------------------------------------- | :------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------ |
 | Dense distances (`dot`, `euclidean`, etc.)       | Rows must be contiguous (`strides[last] <= itemsize`). Strided rows (sliced columns) are rejected. | `out=` can have any stride along dim 0, but inner dim must be contiguous. |
 | `cdist`                                          | Same as dense distances                                                                            | `out=` must be rank-2 with shape `(a.count, b.count)`                     |
 | Elementwise (`scale`, `blend`, `fma`)            | Arbitrary strides (strided views are supported)                                                    | `out=` must match input shape; strides are preserved                      |

@@ -45,7 +45,7 @@ __Jensen-Shannon distance__ is commonly used in microbiome community comparison 
 ## Input & Output Types
 
 | Input Type | Output Type | Description                                      |
-| ---------- | ----------- | ------------------------------------------------ |
+| :--------- | :---------- | :----------------------------------------------- |
 | `f64`      | `f64`       | 64-bit IEEE 754 double precision                 |
 | `f32`      | `f64`       | 32-bit IEEE 754 single precision, widened output |
 | `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output   |

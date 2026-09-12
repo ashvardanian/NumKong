@@ -44,7 +44,7 @@ def jaccard_words(a: np.ndarray, b: np.ndarray) -> float:
 ## Input & Output Types
 
 | Input Type | Output Type | Description                                 |
-| ---------- | ----------- | ------------------------------------------- |
+| :--------- | :---------- | :------------------------------------------ |
 | `u1`       | `u32`       | Binary Hamming distance, packed octets      |
 | `u1`       | `f32`       | Binary Jaccard distance, packed octets      |
 | `u8`       | `u32`       | Byte-level Hamming distance                 |

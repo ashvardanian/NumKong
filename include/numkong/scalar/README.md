@@ -41,7 +41,7 @@ def saturating_add(a: int, b: int, bits: int, signed: bool) -> int:
 ## Input & Output Types
 
 | Input Type | Output Type | Description                                                  |
-| ---------- | ----------- | ------------------------------------------------------------ |
+| :--------- | :---------- | :----------------------------------------------------------- |
 | `f64`      | `f64`       | sqrt, rsqrt, fma for 64-bit doubles                          |
 | `f32`      | `f32`       | sqrt, rsqrt, fma for 32-bit floats                           |
 | `f16`      | `f16`       | sqrt, rsqrt, fma for 16-bit halfs                            |

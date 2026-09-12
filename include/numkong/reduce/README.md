@@ -37,7 +37,7 @@ The Output Type column lists the accumulator type of `nk_reduce_moments_*`.
 Float reductions:
 
 | Input Type | Output Type | Description                             |
-| ---------- | ----------- | --------------------------------------- |
+| :--------- | :---------- | :-------------------------------------- |
 | `f64`      | `f64`       | 64-bit double precision                 |
 | `f32`      | `f64`       | 32-bit single precision, widened output |
 | `bf16`     | `f32`       | 16-bit brain float, widened output      |
@@ -46,7 +46,7 @@ Float reductions:
 Mini-float reductions:
 
 | Input Type | Output Type | Description                                  |
-| ---------- | ----------- | -------------------------------------------- |
+| :--------- | :---------- | :------------------------------------------- |
 | `e5m2`     | `f32`       | 8-bit Float8: 5 exponent, 2 mantissa bits    |
 | `e4m3`     | `f32`       | 8-bit Float8: 4 exponent, 3 mantissa bits    |
 | `e3m2`     | `f32`       | 8-bit MX format: 3 exponent, 2 mantissa bits |
@@ -55,7 +55,7 @@ Mini-float reductions:
 Integer reductions:
 
 | Input Type | Output Type | Description                        |
-| ---------- | ----------- | ---------------------------------- |
+| :--------- | :---------- | :--------------------------------- |
 | `i64`      | `i64`       | 64-bit signed                      |
 | `i32`      | `i64`       | 32-bit signed, widened to 64-bit   |
 | `i16`      | `i64`       | 16-bit signed, widened to 64-bit   |
@@ -68,7 +68,7 @@ Integer reductions:
 Sub-byte reductions:
 
 | Input Type | Output Type | Description                               |
-| ---------- | ----------- | ----------------------------------------- |
+| :--------- | :---------- | :---------------------------------------- |
 | `i4`       | `i64`       | 4-bit signed nibbles, widened to 64-bit   |
 | `u4`       | `u64`       | 4-bit unsigned nibbles, widened to 64-bit |
 | `u1`       | `u64`       | 1-bit binary packed octets                |

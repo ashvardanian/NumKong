@@ -308,9 +308,7 @@ function testSelfDistance(funcName, dtype, dimension) {
 
 // #region Main test suite
 
-console.log("╔════════════════════════════════════════════════════════════════╗");
-console.log("║             NumKong Comprehensive DType Test Suite             ║");
-console.log("╚════════════════════════════════════════════════════════════════╝\n");
+console.log("NumKong Comprehensive DType Test Suite\n");
 
 let totalTests = 0;
 for (const [funcName, dtypes] of Object.entries(TEST_MATRIX.functions)) {

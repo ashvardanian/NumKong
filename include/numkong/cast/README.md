@@ -33,7 +33,7 @@ def cast(a: np.ndarray, target_dtype: np.dtype) -> np.ndarray:
 Float-to-float conversions:
 
 | Input Type | Output Type | Description                                |
-| ---------- | ----------- | ------------------------------------------ |
+| :--------- | :---------- | :----------------------------------------- |
 | `f64`      | `f32`       | 64-bit to 32-bit, narrowing with RNE       |
 | `f32`      | `f64`       | 32-bit to 64-bit, exact widening           |
 | `f32`      | `f16`       | 32-bit to 16-bit half precision            |
@@ -44,7 +44,7 @@ Float-to-float conversions:
 Float-to-Float8 conversions:
 
 | Input Type | Output Type | Description                                   |
-| ---------- | ----------- | --------------------------------------------- |
+| :--------- | :---------- | :-------------------------------------------- |
 | `f32`      | `e4m3`      | 32-bit to Float8: 4 exponent, 3 mantissa bits |
 | `e4m3`     | `f32`       | Float8 to 32-bit, exact via lookup table      |
 | `f32`      | `e5m2`      | 32-bit to Float8: 5 exponent, 2 mantissa bits |
@@ -57,7 +57,7 @@ Float-to-Float8 conversions:
 Float-to-integer conversions:
 
 | Input Type | Output Type | Description                         |
-| ---------- | ----------- | ----------------------------------- |
+| :--------- | :---------- | :---------------------------------- |
 | `f32`      | `i8`        | Clamped to [-128, 127], rounded     |
 | `f32`      | `u8`        | Clamped to [0, 255], rounded        |
 | `f32`      | `i16`       | Clamped to [-32768, 32767], rounded |
@@ -70,7 +70,7 @@ Float-to-integer conversions:
 Packed sub-byte conversions:
 
 | Input Type | Output Type | Description                                      |
-| ---------- | ----------- | ------------------------------------------------ |
+| :--------- | :---------- | :----------------------------------------------- |
 | `i4x2`     | `i8`        | Signed 4-bit pair to two signed 8-bit values     |
 | `u4x2`     | `u8`        | Unsigned 4-bit pair to two unsigned 8-bit values |
 

@@ -44,7 +44,7 @@ Packing handles internal layout itself.
 ## Ecosystem Comparison
 
 | Feature                      | NumKong                                                                                                                | Accelerate/vDSP                                                   | [MLX][mlx]                                                         |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------ |
+| :--------------------------- | :--------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------- | :----------------------------------------------------------------- |
 | Operation families           | dots, distances, binary, geospatial, MaxSim                                                                            | dots, distances, FFT, some BLAS                                   | matmul, elementwise, reductions, FFT                               |
 | Precision                    | BFloat16 through sub-byte — Float8, Float6, packed bits; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float32/Float64, limited Float16; no auto-widening; IEEE defaults | Float16/BFloat16/Float32; no Float8 or sub-byte; backend-dependent |
 | Runtime SIMD dispatch        | auto-selects best ISA per-thread at runtime across x86, ARM, RISC-V                                                    | Apple-only, no runtime ISA selection                              | GPU dispatch only, no CPU ISA selection                            |
@@ -333,7 +333,7 @@ let packed = try MaxSimPackedMatrix<Float32>(packing: view)
 Supported types and their output types:
 
 | Input type | Score output |
-| ---------- | ------------ |
+| :--------- | :----------- |
 | `Float32`  | `Float64`    |
 | `BFloat16` | `Float32`    |
 | `Float16`  | `Float32`    |
@@ -380,34 +380,34 @@ The output type is intentionally wider than the storage type for most operations
 The table below documents the promotion for scalar collection extensions.
 
 | Input type | `.dot()`  | `.angular()` | `.euclidean()` | `.sqeuclidean()` | `.hamming()` | `.jaccard()` |
-| ---------- | --------- | ------------ | -------------- | ---------------- | ------------ | ------------ |
-| `Float64`  | `Float64` | `Float64`    | `Float64`      | `Float64`        | —            | —            |
-| `Float32`  | `Float64` | `Float64`    | `Float64`      | `Float64`        | —            | —            |
-| `BFloat16` | `Float32` | `Float32`    | `Float32`      | `Float32`        | —            | —            |
-| `Float16`  | `Float32` | `Float32`    | `Float32`      | `Float32`        | —            | —            |
-| `Int8`     | `Int32`   | `Float32`    | `Float32`      | `UInt32`         | —            | —            |
-| `I4x2`     | `Int32`   | `Float32`    | `Float32`      | `UInt32`         | —            | —            |
-| `UInt8`    | `UInt32`  | `Float32`    | `Float32`      | `UInt32`         | —            | —            |
-| `U4x2`     | `UInt32`  | `Float32`    | `Float32`      | `UInt32`         | —            | —            |
-| `U1x8`     | —         | —            | —              | —                | `UInt32`     | `Float32`    |
+| :--------- | :-------- | :----------- | :------------- | :--------------- | :----------- | :----------- |
+| `Float64`  | `Float64` | `Float64`    | `Float64`      | `Float64`        | …            | …            |
+| `Float32`  | `Float64` | `Float64`    | `Float64`      | `Float64`        | …            | …            |
+| `BFloat16` | `Float32` | `Float32`    | `Float32`      | `Float32`        | …            | …            |
+| `Float16`  | `Float32` | `Float32`    | `Float32`      | `Float32`        | …            | …            |
+| `Int8`     | `Int32`   | `Float32`    | `Float32`      | `UInt32`         | …            | …            |
+| `I4x2`     | `Int32`   | `Float32`    | `Float32`      | `UInt32`         | …            | …            |
+| `UInt8`    | `UInt32`  | `Float32`    | `Float32`      | `UInt32`         | …            | …            |
+| `U4x2`     | `UInt32`  | `Float32`    | `Float32`      | `UInt32`         | …            | …            |
+| `U1x8`     | …         | …            | …              | …                | `UInt32`     | `Float32`    |
 
 The matrix kernel output types follow a similar pattern but vary for the mini-float formats:
 
 | Input type | Dots output | Spatial output | Hamming output | Jaccard output |
-| ---------- | ----------- | -------------- | -------------- | -------------- |
-| `Float64`  | `Float64`   | `Float64`      | —              | —              |
-| `Float32`  | `Float64`   | `Float64`      | —              | —              |
-| `BFloat16` | `Float32`   | `Float32`      | —              | —              |
-| `Float16`  | `Float32`   | `Float32`      | —              | —              |
-| `E5M2`     | `Float32`   | `Float32`      | —              | —              |
-| `E4M3`     | `Float32`   | `Float32`      | —              | —              |
-| `E3M2`     | `Float32`   | `Float32`      | —              | —              |
-| `E2M3`     | `Float32`   | `Float32`      | —              | —              |
-| `Int8`     | `Int32`     | `Float32`      | —              | —              |
-| `I4x2`     | `Int32`     | `Float32`      | —              | —              |
-| `UInt8`    | `UInt32`    | `Float32`      | —              | —              |
-| `U4x2`     | `UInt32`    | `Float32`      | —              | —              |
-| `U1x8`     | `UInt32`    | —              | `UInt32`       | `Float32`      |
+| :--------- | :---------- | :------------- | :------------- | :------------- |
+| `Float64`  | `Float64`   | `Float64`      | …              | …              |
+| `Float32`  | `Float64`   | `Float64`      | …              | …              |
+| `BFloat16` | `Float32`   | `Float32`      | …              | …              |
+| `Float16`  | `Float32`   | `Float32`      | …              | …              |
+| `E5M2`     | `Float32`   | `Float32`      | …              | …              |
+| `E4M3`     | `Float32`   | `Float32`      | …              | …              |
+| `E3M2`     | `Float32`   | `Float32`      | …              | …              |
+| `E2M3`     | `Float32`   | `Float32`      | …              | …              |
+| `Int8`     | `Int32`     | `Float32`      | …              | …              |
+| `I4x2`     | `Int32`     | `Float32`      | …              | …              |
+| `UInt8`    | `UInt32`    | `Float32`      | …              | …              |
+| `U4x2`     | `UInt32`    | `Float32`      | …              | …              |
+| `U1x8`     | `UInt32`    | …              | `UInt32`       | `Float32`      |
 
 ## Geospatial Metrics
 
