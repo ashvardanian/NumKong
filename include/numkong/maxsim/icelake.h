@@ -27,7 +27,7 @@
 
 #include "numkong/types.h"
 #include "numkong/maxsim/serial.h"   // `nk_maxsim_packed_header_t`
-#include "numkong/dot.h"             // `nk_dot_f32`, `nk_dot_f16`
+#include "numkong/dot/skylake.h"     // `nk_dot_f32_skylake`, `nk_dot_f16_skylake`
 #include "numkong/cast/haswell.h"    // `nk_f16_to_f32_haswell`
 #include "numkong/spatial/haswell.h" // `nk_f32_sqrt_haswell`
 #include "numkong/reduce/skylake.h"  // `nk_reduce_add_f32x16_skylake_`
@@ -421,7 +421,7 @@ NK_API_COMPTIME void nk_maxsim_packed_f32_icelake( //
         for (nk_size_t query_index = 0; query_index < chunk_size; query_index++) {
             nk_u32_t best_document_index = best_document_indices[query_index];
             nk_f64_t dot_result;
-            nk_dot_f32(
+            nk_dot_f32_skylake(
                 (nk_f32_t const *)(regions.query_originals +
                                    (chunk_start + query_index) * regions.query_original_stride),
                 (nk_f32_t const *)(regions.document_originals + best_document_index * regions.document_original_stride),
@@ -456,7 +456,7 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_icelake( //
         for (nk_size_t query_index = 0; query_index < chunk_size; query_index++) {
             nk_u32_t best_document_index = best_document_indices[query_index];
             nk_f32_t dot_result;
-            nk_dot_f16(
+            nk_dot_f16_skylake(
                 (nk_f16_t const *)(regions.query_originals +
                                    (chunk_start + query_index) * regions.query_original_stride),
                 (nk_f16_t const *)(regions.document_originals + best_document_index * regions.document_original_stride),

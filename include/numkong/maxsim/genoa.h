@@ -20,7 +20,7 @@
 
 #include "numkong/types.h"
 #include "numkong/maxsim/icelake.h" // `nk_maxsim_coarse_argmax_icelake_`
-#include "numkong/dot.h"            // `nk_dot_bf16`
+#include "numkong/dot/genoa.h"      // `nk_dot_bf16_genoa`
 #include "numkong/cast/icelake.h"   // `nk_e5m2x32_to_bf16x32_icelake_`
 #include "numkong/dot/skylake.h"    // `nk_dot_through_f32_finalize_skylake_`
 #include "numkong/maxsim/serial.h"  // `nk_maxsim_packed_header_setup_`, `nk_maxsim_packed_size_`
@@ -92,11 +92,11 @@ NK_API_COMPTIME void nk_maxsim_packed_bf16_genoa( //
         for (nk_size_t query_index = 0; query_index < chunk_size; query_index++) {
             nk_u32_t best_document_index = best_document_indices[query_index];
             nk_f32_t dot_result;
-            nk_dot_bf16((nk_bf16_t const *)(regions.query_originals +
-                                            (chunk_start + query_index) * regions.query_original_stride),
-                        (nk_bf16_t const *)(regions.document_originals +
-                                            best_document_index * regions.document_original_stride),
-                        depth, &dot_result);
+            nk_dot_bf16_genoa((nk_bf16_t const *)(regions.query_originals +
+                                                  (chunk_start + query_index) * regions.query_original_stride),
+                              (nk_bf16_t const *)(regions.document_originals +
+                                                  best_document_index * regions.document_original_stride),
+                              depth, &dot_result);
             nk_f32_t cosine = dot_result * regions.query_metadata[chunk_start + query_index].inverse_norm_f32 *
                               regions.document_metadata[best_document_index].inverse_norm_f32;
             nk_f32_t angular = 1.0f - cosine;

@@ -18,7 +18,6 @@
 
 #include "numkong/dot/loongsonasx.h"
 #include "numkong/cast/loongsonasx.h"
-#include "numkong/cast.h"
 
 #if defined(__cplusplus)
 extern "C" {

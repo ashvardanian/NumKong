@@ -50,7 +50,7 @@
 
 #include "numkong/types.h"
 #include "numkong/dots/sapphireamx.h" // AMX tile types, configure, load, transpose
-#include "numkong/dot.h"              // `nk_dot_f32`, `nk_dot_f16`
+#include "numkong/dot/skylake.h"      // `nk_dot_f32_skylake`, `nk_dot_f16_skylake`
 #include "numkong/cast/haswell.h"     // `nk_f16_to_f32_haswell`
 #include "numkong/cast/serial.h"      // `nk_bf16_to_f32_serial`
 #include "numkong/scalar/haswell.h"   // `nk_f32_rsqrt_haswell`
@@ -340,9 +340,9 @@ NK_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
             nk_u32_t best_document_index = (nk_u32_t)best_document_indices_i32[query_in_tile];
 
             nk_f64_t dot_result_f64;
-            nk_dot_f32((nk_f32_t const *)(query_originals + query_index * query_original_stride),
-                       (nk_f32_t const *)(document_originals + best_document_index * document_original_stride), depth,
-                       &dot_result_f64);
+            nk_dot_f32_skylake((nk_f32_t const *)(query_originals + query_index * query_original_stride),
+                               (nk_f32_t const *)(document_originals + best_document_index * document_original_stride),
+                               depth, &dot_result_f64);
 
             nk_f64_t cosine_f64 = dot_result_f64 * (nk_f64_t)query_inverse_norms[query_index] *
                                   (nk_f64_t)document_inverse_norms[best_document_index];
@@ -603,9 +603,9 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
             nk_u32_t best_document_index = (nk_u32_t)best_document_indices_i32[query_in_tile];
 
             nk_f32_t dot_result_f32;
-            nk_dot_f16((nk_f16_t const *)(query_originals + query_index * query_original_stride),
-                       (nk_f16_t const *)(document_originals + best_document_index * document_original_stride), depth,
-                       &dot_result_f32);
+            nk_dot_f16_skylake((nk_f16_t const *)(query_originals + query_index * query_original_stride),
+                               (nk_f16_t const *)(document_originals + best_document_index * document_original_stride),
+                               depth, &dot_result_f32);
 
             nk_f32_t cosine_f32 = dot_result_f32 * query_inverse_norms[query_index] *
                                   document_inverse_norms[best_document_index];

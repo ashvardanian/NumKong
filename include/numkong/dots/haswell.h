@@ -27,7 +27,6 @@
 #if NK_TARGET_HASWELL
 
 #include "numkong/dot/haswell.h"
-#include "numkong/cast.h" // `nk_f16_to_f32`
 
 #if defined(__cplusplus)
 extern "C" {

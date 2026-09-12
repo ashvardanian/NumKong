@@ -157,7 +157,7 @@ while IFS= read -r file; do
     base="${file##*/}"
     case "$base" in
     haswell.h | skylake.h | icelake.h | genoa.h | sapphire.h | sapphireamx.h | graniteamx.h | alder.h | \
-        sierra.h | turin.h | v128relaxed.h | loongsonasx.h | powervsx.h | neon*.h) isa="fixed" ;;
+        sierra.h | turin.h | v128.h | v128relaxed.h | loongsonasx.h | powervsx.h | neon*.h) isa="fixed" ;;
     sve*.h | sme*.h) isa="sve" ;;
     rvv*.h) isa="rvv" ;;
     *) continue ;;
@@ -215,6 +215,25 @@ while IFS= read -r file; do
         echo "            (<role>_<dtype>x<lanes> / _<dtype>x / _<dtype>m<lmul>; masks per ISA). Rename, or"
         echo "            grandfather one line with a trailing \`// nk-nolint: naming\`:"
         printf '%s\n' "$bad_names" | head -5
+        failed=1
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+# ISA kernels — an include/numkong/<family>/<isa>.h never includes a dispatch umbrella such as `numkong/dot.h`
+# or `numkong/capabilities.h`: those hold the runtime-dispatched entry points, so a kernel calling `nk_dot_f32`
+# would route through the dispatch table instead of its own tier's `nk_dot_f32_<isa>`. Whole-file on every
+# staged ISA header, serial.h exempt; `numkong/types.h` is the only legal top-level include.
+while IFS= read -r file; do
+    case "$file" in
+    include/numkong/*/serial.h) continue ;;
+    include/numkong/*/*.h) ;;
+    *) continue ;;
+    esac
+    umbrellas=$(git show ":$file" 2> /dev/null |
+        grep -nE '^#include "numkong/[A-Za-z0-9_]+\.h"' | grep -v '"numkong/types.h"' || true)
+    if [ -n "$umbrellas" ]; then
+        echo "pre-commit: $file includes a dispatch umbrella — include the sibling <family>/<isa>.h and call its kernel:"
+        printf '%s\n' "$umbrellas" | head -5
         failed=1
     fi
 done < <(git diff --cached --name-only --diff-filter=ACM)
