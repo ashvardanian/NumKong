@@ -32,21 +32,20 @@ build_release/numkong_bench
 build_release/numkong_test
 ```
 
-| CMake Flag                 | Default            | Description                                            |
-| -------------------------- | ------------------ | ------------------------------------------------------ |
-| `NK_BUILD_TEST`            | `OFF`              | Compile precision tests with ULP error analysis        |
-| `NK_BUILD_BENCH`           | `OFF`              | Compile micro-benchmarks                               |
-| `NK_BUILD_SHARED`          | `ON`, if top-level | Compile dynamic library                                |
-| `NK_BUILD_SHARED_TEST`     | `OFF`              | Compile tests against the shared library               |
-| `NK_COMPARE_TO_BLAS`       | `AUTO`             | Include OpenBLAS into test/bench comparisons           |
-| `NK_COMPARE_TO_ACCELERATE` | `AUTO`             | Include Apple's Accelerate into test/bench comparisons |
-| `NK_COMPARE_TO_MKL`        | `AUTO`             | Include Intel' MKL into test/bench comparisons         |
-| `NK_MARCH_NATIVE`          | `OFF`              | Tune for host CPU with `-march=native`                 |
+| CMake Flag             | Default            | Description                                                                   |
+| ---------------------- | ------------------ | ----------------------------------------------------------------------------- |
+| `NK_BUILD_TEST`        | `OFF`              | Compile precision tests with ULP error analysis                               |
+| `NK_BUILD_BENCH`       | `OFF`              | Compile micro-benchmarks                                                      |
+| `NK_BUILD_SHARED`      | `ON`, if top-level | Compile dynamic library                                                       |
+| `NK_BUILD_SHARED_TEST` | `OFF`              | Compile tests against the shared library                                      |
+| `NK_COMPARE_TO_BLAS`   | `AUTO`             | Include OpenBLAS, or Apple's Accelerate on macOS, into test/bench comparisons |
+| `NK_COMPARE_TO_MKL`    | `AUTO`             | Include Intel' MKL into test/bench comparisons                                |
+| `NK_MARCH_NATIVE`      | `OFF`              | Tune for host CPU with `-march=native`                                        |
 
 ### Target Baseline Policy
 
 `CMakeLists.txt`, `build.rs`, `setup.py`, and `binding.gyp` pin the TU-level baseline to each architecture's ABI floor so distributable artifacts run on any CPU matching the ABI, not just the build host.
-SIMD kernels live inside `#pragma GCC target(...)` regions and are only called after runtime probing — see the README's [Compile-Time and Run-Time Dispatch](../README.md#compile-time-and-run-time-dispatch) section.
+SIMD kernels live inside `#pragma GCC target(...)` regions and are only called after runtime probing — see the README's [Compile-Time and Run-Time Dispatch](README.md#compile-time-and-run-time-dispatch) section.
 
 | Target arch   | GCC/Clang baseline          | MSVC baseline   | Notes                                                       |
 | ------------- | --------------------------- | --------------- | ----------------------------------------------------------- |
@@ -89,19 +88,24 @@ sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 100
 
 ### Cross-Compilation
 
-NumKong ships 8 toolchain files in `cmake/` for cross-compiling to non-native targets.
+NumKong ships 11 toolchain files in `cmake/`, each named `toolchain-<name>.cmake`.
 Tests and benchmarks run transparently under QEMU via `CMAKE_CROSSCOMPILING_EMULATOR`.
+Targets with a `qemu-*` emulator additionally require `qemu-user`.
 
-| Target                    | Toolchain File                  | Emulator                | Prerequisites                                                                                    |
-| ------------------------- | ------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
-| ARM64 Linux               | `toolchain-aarch64-gnu.cmake`   | `qemu-aarch64 -cpu max` | `gcc-aarch64-linux-gnu`, `qemu-user`                                                             |
-| RISC-V 64 GCC             | `toolchain-riscv64-gnu.cmake`   | `qemu-riscv64 -cpu max` | [riscv-gnu-toolchain](https://github.com/riscv-collab/riscv-gnu-toolchain/releases), `qemu-user` |
-| RISC-V 64 LLVM            | `toolchain-riscv64-llvm.cmake`  | `qemu-riscv64 -cpu max` | LLVM 17+, `RISCV_SYSROOT`                                                                        |
-| Android ARM64             | `toolchain-android-arm64.cmake` | —                       | `ANDROID_NDK_ROOT`                                                                               |
-| x86_64 from Apple Silicon | `toolchain-x86_64-llvm.cmake`   | `arch -x86_64`          | Homebrew LLVM                                                                                    |
-| WASM Emscripten           | `toolchain-wasm.cmake`          | Node.js                 | Emscripten 3.1.27+                                                                               |
-| WASM64 Memory64           | `toolchain-wasm64.cmake`        | Node.js                 | Emscripten 3.1.35+                                                                               |
-| WASI                      | `toolchain-wasi.cmake`          | Wasmtime / Wasmer       | WASI SDK 24+                                                                                     |
+| Target                  | Toolchain         | Emulator                    | Prerequisites                      |
+| ----------------------- | ----------------- | --------------------------- | ---------------------------------- |
+| ARM64 Linux             | `aarch64-gnu`     | `qemu-aarch64 -cpu max`     | `gcc-aarch64-linux-gnu`            |
+| RISC-V 64 LLVM          | `riscv64-llvm`    | `qemu-riscv64 -cpu max`     | Clang 17+, `gcc-riscv64-linux-gnu` |
+| RISC-V 64 GCC           | `riscv64-gnu`     | `qemu-riscv64 -cpu max`     | GCC 16+, `gcc-riscv64-linux-gnu`   |
+| ppc64le Linux           | `ppc64le-gnu`     | `qemu-ppc64le -cpu power10` | `gcc-powerpc64le-linux-gnu`        |
+| LoongArch 64            | `loongarch64-gnu` | `qemu-loongarch64 -cpu max` | `gcc-loongarch64-linux-gnu`        |
+| Android ARM64           | `android-arm64`   | —                           | `ANDROID_NDK_ROOT`                 |
+| Android ARMv7           | `android-armv7`   | —                           | `ANDROID_NDK_ROOT`                 |
+| x86_64 on Apple Silicon | `x86_64-llvm`     | `arch -x86_64`              | Homebrew LLVM                      |
+| WASM Emscripten         | `wasm`            | Node.js                     | Emscripten 3.1.27+                 |
+| WASM64 Memory64         | `wasm64`          | Node.js                     | Emscripten 3.1.35+                 |
+| WASI                    | `wasi`            | Wasmtime / Wasmer           | WASI SDK 24+                       |
+
 
 Set `NK_IN_QEMU=1` to relax half-precision accuracy thresholds under emulation.
 
@@ -114,7 +118,8 @@ cmake --build build_arm64 --parallel
 
 To build and run tests under emulation, see [test/README.md](test/README.md#cross-compilation).
 
-Default arch: `armv9-a+sve2+fp16+bf16+i8mm+dotprod+fp16fml`.
+The ISA floor is `armv8-a`; individual kernels are gated by the compile probes in `cmake/`.
+Use Clang: GCC 14 compiles the SME kernels but its `libgcc` has no `__arm_tpidr2_save`, so the link fails.
 
 __RISC-V 64 with GCC__
 
@@ -126,16 +131,19 @@ cmake --build build_riscv --parallel
 To build and run tests under emulation, see [test/README.md](test/README.md#cross-compilation).
 
 Default arch: `rv64gcv_zvfh_zvfbfwma_zvbb`.
+Needs GCC 16 or newer: the RVV kernels gate on `#pragma GCC target("arch=+v")`, which GCC implements for RISC-V only from 16, and 14 and 15 ignore it and then fail on the intrinsics.
+GCC 16 is not in Debian stable yet, so this currently needs it from `sid`.
 
 __RISC-V 64 with LLVM__
 
 ```sh
-export RISCV_SYSROOT=/path/to/riscv-sysroot
 cmake -B build_riscv_llvm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake
 cmake --build build_riscv_llvm --parallel
 ```
 
 To build and run tests under emulation, see [test/README.md](test/README.md#cross-compilation).
+
+Set `RISCV_SYSROOT` only for a self-contained toolchain; distribution cross packages need none.
 
 __Android ARM64__
 
@@ -236,7 +244,7 @@ See [test/README.md](test/README.md) for test framework details and [bench/READM
 Once done editing the code, please run analyzers and formatters:
 
 ```bash
-git ls-files '*.h' '*.c' '*.hpp' '*.cpp' | xargs clang-format -i # Use Clang Format 21 or newer
+git ls-files '*.h' '*.c' '*.hpp' '*.cpp' | xargs clang-format -i # Use Clang Format 22 or newer
 ```
 
 ## Python

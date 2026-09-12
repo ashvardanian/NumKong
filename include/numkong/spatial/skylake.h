@@ -25,8 +25,10 @@
 #if NK_TARGET_SKYLAKE
 
 #include "numkong/types.h"
-#include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
-#include "numkong/dot/skylake.h"    // `nk_dot_f64x8_state_skylake_t`
+#include "numkong/reduce/skylake.h"  // `nk_reduce_add_f32x16_skylake_`
+#include "numkong/dot/skylake.h"     // `nk_dot_f64x8_state_skylake_t`
+#include "numkong/scalar/haswell.h"  // `nk_f32_sqrt_haswell`, `nk_f64_sqrt_haswell`
+#include "numkong/spatial/haswell.h" // `nk_angular_normalize_f32_haswell_`
 
 #if defined(__cplusplus)
 extern "C" {

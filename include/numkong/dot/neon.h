@@ -89,7 +89,8 @@
 #if NK_TARGET_ARM64_
 #if NK_TARGET_NEON
 
-#include "numkong/cast/neon.h" // `nk_e4m3x8_to_f16x8_neon_`
+#include "numkong/cast/neon.h"  // `nk_e4m3x8_to_f16x8_neon_`
+#include "numkong/dot/serial.h" // `nk_dot_f16c_serial`, `nk_vdot_f16c_serial`
 
 #if defined(__cplusplus)
 extern "C" {

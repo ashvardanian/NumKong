@@ -34,16 +34,19 @@
 extern "C" {
 #endif
 
-/*  Keep the serial helpers below scalar, and at the architecture's floor so a vector kernel that pins its own ISA can
- *  still inline them - GCC declines an `always_inline` callee carrying options its caller lacks. */
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
+#pragma GCC push_options
+#pragma GCC target("arch=armv8-a")
+#endif
+
+/*  Keep the serial instantiations below actually scalar, regardless of build type.
+ *  See dots/serial.h for rationale. */
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#if NK_TARGET_ARM64_
-#pragma GCC target("arch=armv8-a")
-#endif
 #endif
 
 #pragma region Binary Sets
@@ -86,6 +89,12 @@ NK_API_COMPTIME void nk_jaccard_u16_serial(nk_u16_t const *a, nk_u16_t const *b,
 }
 
 #pragma endregion Integer Sets
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 #pragma region Stateful Streaming
 
@@ -182,9 +191,7 @@ NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_serial_(nk_b128_vec_t const *dot
 
 #pragma endregion Stateful Streaming
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC pop_options
 #endif
 

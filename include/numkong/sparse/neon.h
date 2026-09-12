@@ -13,6 +13,7 @@
 #if NK_TARGET_NEON
 
 #include "numkong/types.h"
+#include "numkong/sparse/serial.h" // `nk_sparse_intersect_u16_serial`, `nk_sparse_intersect_u32_serial`, `nk_sparse_intersect_u64_serial`
 
 #if defined(__cplusplus)
 extern "C" {

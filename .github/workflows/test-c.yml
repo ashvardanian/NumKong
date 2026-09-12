@@ -35,7 +35,7 @@ jobs:
 
       - name: Build Locally
         run: |
-          cmake -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_TEST=1 -D NK_BUILD_BENCH=1 -D NK_COMPARE_TO_BLAS=1 \
+          cmake -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_TEST=1 -D NK_BUILD_BENCH=1 -D NK_COMPARE_TO_BLAS=ON \
             -D CMAKE_C_COMPILER=gcc-14 -D CMAKE_CXX_COMPILER=g++-14 -B build_release
           cmake --build build_release --config Release
 
@@ -54,7 +54,7 @@ jobs:
         run: LD_LIBRARY_PATH=build_shared build_shared/numkong_shared_test
 
   test_macos_homebrew_llvm:
-    name: Test macOS Homebrew LLVM
+    name: Test C on macOS with Homebrew LLVM
     runs-on: macos-15
 
     steps:
@@ -85,7 +85,7 @@ jobs:
       # argv/env setup. If a SIGILL fires during probing (as on Apple M1 with
       # Homebrew LLVM), lldb captures the backtrace, faulting PC symbol, and
       # 8 instructions around it so the offender is visible in the job log.
-      - name: Smoke test under lldb (probing only)
+      - name: Smoke Test under lldb
         run: |
           DYLD_LIBRARY_PATH=build_brew_llvm \
             lldb --batch \
@@ -121,6 +121,11 @@ jobs:
       - name: Set Up MSVC
         uses: microsoft/setup-msbuild@v3
 
+      # Newest CMake, so it knows whichever Visual Studio the image ships.
+      - name: Set Up CMake
+        uses: lukka/get-cmake@latest
+
+      # No `-G`: let CMake pick the installed Visual Studio.
       - name: Build
         run: |
           cmake -A x64 `
@@ -151,7 +156,7 @@ jobs:
           NK_BUDGET_SECS: 0.2
 
   test_android:
-    name: Test Android
+    name: Test C for Android ARM64
     runs-on: ubuntu-24.04
 
     steps:
@@ -200,7 +205,7 @@ jobs:
   # 32-bit ARM Android — catches AArch64-only intrinsics leaking into
   # NEON code paths, like float64x2_t which doesn't exist on ARMv7.
   test_android_armv7:
-    name: Test Android ARMv7
+    name: Test C for Android ARMv7
     runs-on: ubuntu-24.04
 
     steps:
@@ -239,7 +244,7 @@ jobs:
   # 32-bit ARM Linux — validates the same AArch32 code paths as Android ARMv7
   # but with the GNU toolchain instead of the NDK's Clang.
   test_armv7_linux:
-    name: Test ARMv7 Linux
+    name: Test C for Linux ARMv7
     runs-on: ubuntu-24.04
 
     steps:
@@ -280,129 +285,147 @@ jobs:
         run: cargo build --target armv7-unknown-linux-gnueabihf --release
 
   test_riscv_llvm23:
-    name: Test RISC-V LLVM 23
+    name: Test RISC-V LLVM 23 under QEMU, ${{ matrix.march }}
     runs-on: ubuntu-24.04
+    # Noble's qemu-user is 8.2, which predates `Zvbb`/`Zvfh` in `riscv_hwprobe`,
+    # so RVV would never dispatch and this job would pass on serial fallbacks.
+    # Trixie has qemu 10, and apt.llvm.org publishes Clang 23 for trixie.
+    container: debian:trixie
+    timeout-minutes: 90
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Second entry is what `release-c.yml` ships; CI must run what we publish.
+        march: [rv64gcv, rv64gcv_zvfh_zvfbfwma_zvbb]
 
     steps:
+      # `git` must precede `actions/checkout`, or it falls back to the tarball API.
+      - name: Install Dependencies
+        run: |
+          set -eux
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates curl gnupg \
+            cmake make qemu-user gcc-riscv64-linux-gnu g++-riscv64-linux-gnu libc6-dev-riscv64-cross
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/llvm.gpg
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/trixie/ llvm-toolchain-trixie-23 main" \
+            > /etc/apt/sources.list.d/llvm.list
+          apt-get update
+          apt-get install -y clang-23 lld-23 llvm-23
+
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ca-certificates curl gnupg
-          # Ubuntu 24.04 ships older LLVM in the default apt sources, but this
-          # RISC-V validation needs Clang 23 for the portable `rv64gcv` baseline
-          # while still compiling the richer RVV target-pragmas in our headers.
-          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/llvm.gpg
-          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble main" | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y cmake clang-23 lld-23 llvm-23 gcc-riscv64-linux-gnu libc6-dev-riscv64-cross
-
-      - name: Configure Portable RISC-V Library Build
+      - name: Configure for ${{ matrix.march }}
         shell: bash
         run: |
           set -euo pipefail
-          SYSROOT="$(riscv64-linux-gnu-gcc -print-sysroot)"
           cmake -B build_riscv \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
             -DLLVM_ROOT=/usr/lib/llvm-23 \
-            -DRISCV_SYSROOT="${SYSROOT}" \
-            -DRISCV_MARCH=rv64gcv \
-            -DNK_BUILD_SHARED=ON
-
-      - name: Build Portable RISC-V Library
-        run: cmake --build build_riscv --parallel --target numkong_shared
-
-  test_loongarch:
-    name: Test LoongArch (QEMU)
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake qemu-user \
-            gcc-14-loongarch64-linux-gnu g++-14-loongarch64-linux-gnu
-
-      - name: Configure
-        run: |
-          SYSROOT="/usr/$(loongarch64-linux-gnu-gcc-14 -dumpmachine)"
-          cmake -B build_loongarch \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=loongarch64 \
-            -DCMAKE_C_COMPILER=loongarch64-linux-gnu-gcc-14 \
-            -DCMAKE_CXX_COMPILER=loongarch64-linux-gnu-g++-14 \
-            -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-loongarch64;-L;${SYSROOT};-cpu;max" \
-            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+            -DRISCV_MARCH=${{ matrix.march }} \
             -DNK_BUILD_TEST=ON \
             -DNK_BUILD_SHARED=ON
 
       - name: Build
-        run: cmake --build build_loongarch --parallel
+        run: cmake --build build_riscv --parallel
 
+      # `-V` so the ISA table lands in the log and shows which kernels dispatched.
       - name: Test
-        run: ctest --test-dir build_loongarch --output-on-failure
+        run: ctest --test-dir build_riscv -V --no-tests=error
         env:
           NK_IN_QEMU: 1
           NK_BUDGET_SECS: 0.1
 
-  test_power:
-    name: Test Power (QEMU)
+  test_qemu_cross:
+    name: Test C under QEMU, ${{ matrix.name }}
     runs-on: ubuntu-24.04
+    # Noble's GCC 14 cross ICEs folding SVE intrinsics under LTO; Trixie's builds the same tree.
+    container: debian:trixie
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `sve-max-vq` is VL/128; the NEON leg needs `sve=off` or dispatch prefers SVE2.
+          - name: AArch64 NEON
+            arch: aarch64
+            prefix: AARCH64
+            triple: aarch64-linux-gnu
+            qemu_cpu: max,sve=off
+          - name: AArch64 SVE 128
+            arch: aarch64
+            prefix: AARCH64
+            triple: aarch64-linux-gnu
+            qemu_cpu: max,sve-max-vq=1
+          - name: AArch64 SVE 256
+            arch: aarch64
+            prefix: AARCH64
+            triple: aarch64-linux-gnu
+            qemu_cpu: max,sve-max-vq=2
+          - name: AArch64 SVE 512
+            arch: aarch64
+            prefix: AARCH64
+            triple: aarch64-linux-gnu
+            qemu_cpu: max,sve-max-vq=4
+          - name: LoongArch
+            arch: loongarch64
+            prefix: LOONGARCH
+            triple: loongarch64-linux-gnu
+            qemu_cpu: max
+          - name: Power
+            arch: ppc64le
+            prefix: PPC
+            triple: powerpc64le-linux-gnu
+            qemu_cpu: power10
 
     steps:
+      - name: Install Dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates cmake make g++ qemu-user \
+            gcc-14-${{ matrix.triple }} g++-14-${{ matrix.triple }}
+
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install Dependencies
+      # The toolchain file knows the emulator and loader prefix; only these two vary.
+      - name: Configure for ${{ matrix.qemu_cpu }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake qemu-user \
-            gcc-14-powerpc64le-linux-gnu g++-14-powerpc64le-linux-gnu
-
-      - name: Configure
-        run: |
-          SYSROOT="/usr/$(powerpc64le-linux-gnu-gcc-14 -dumpmachine)"
-          cmake -B build_power \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=ppc64le \
-            -DCMAKE_C_COMPILER=powerpc64le-linux-gnu-gcc-14 \
-            -DCMAKE_CXX_COMPILER=powerpc64le-linux-gnu-g++-14 \
-            -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-ppc64le;-L;${SYSROOT};-cpu;power10" \
-            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+          cmake -B build_cross \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-${{ matrix.arch }}-gnu.cmake \
+            -D${{ matrix.prefix }}_COMPILER_SUFFIX=-14 \
+            -D${{ matrix.prefix }}_QEMU_CPU=${{ matrix.qemu_cpu }} \
             -DNK_BUILD_TEST=ON \
+            -DNK_BUILD_SHARED_TEST=ON \
             -DNK_BUILD_SHARED=ON
 
       - name: Build
-        run: cmake --build build_power --parallel
+        run: cmake --build build_cross --parallel
 
+      # `-V` so the ISA table lands in the log and shows which kernels dispatched.
       - name: Test
-        run: ctest --test-dir build_power --output-on-failure
+        run: ctest --test-dir build_cross -V --no-tests=error
         env:
           NK_IN_QEMU: 1
           NK_BUDGET_SECS: 0.1
 
   test_x86_sde:
-    name: Test x86 (Intel SDE)
+    name: Test x86 under Intel SDE
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential
-
-      # Intel's downloadmirror.intel.com now sits behind an AWS WAF challenge that
-      # blocks scripted downloads, so we pull SDE from the action's GitHub-hosted mirror.
+      # Intel rotates the numeric mirror ID per release and retires the old ones,
+      # so the download URL cannot be hardcoded. Exports `SDE_PATH`.
       - name: Set Up Intel SDE
-        uses: petarpetrovt/setup-sde@v5.0
+        uses: petarpetrovt/setup-sde@v6.0
+        with:
+          sdeVersion: 10.8.0
 
       - name: Build with All x86 ISAs
         run: |
@@ -412,6 +435,6 @@ jobs:
           cmake --build build_sde --config Release --parallel
 
       - name: Test Under Granite Rapids Emulation
-        run: $SDE_PATH/sde64 -gnr -- build_sde/numkong_test
+        run: "$SDE_PATH/sde64 -gnr -- build_sde/numkong_test"
         env:
           NK_BUDGET_SECS: 0

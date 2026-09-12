@@ -21,16 +21,10 @@
 extern "C" {
 #endif
 
-/*  Keep the serial instantiations below actually scalar, regardless of build type.
- *  See dots/serial.h for rationale. */
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#if NK_TARGET_ARM64_
 #pragma GCC target("arch=armv8-a")
-#endif
 #endif
 
 NK_HELPER_INLINE nk_f64_t nk_reduce_sum_f64_serial_(nk_f64_t const *values, nk_f64_t const *compensations, int count) {
@@ -49,6 +43,15 @@ NK_HELPER_INLINE nk_f64_t nk_reduce_sum_f64_serial_(nk_f64_t const *values, nk_f
     }
     return running_sum + accumulated_error;
 }
+
+/*  Keep the serial instantiations below actually scalar, regardless of build type.
+ *  See dots/serial.h for rationale. */
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
 
 NK_API_COMPTIME void nk_reduce_moments_f32_serial(                 //
     nk_f32_t const *data, nk_size_t count, nk_size_t stride_bytes, //
@@ -800,6 +803,10 @@ nk_define_reduce_rmsnorm_(e4m3, nk_f32_t, nk_e4m3_to_f32_serial, nk_f32_to_e4m3_
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC pop_options
 #endif
 

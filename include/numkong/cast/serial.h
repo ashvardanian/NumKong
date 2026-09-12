@@ -13,18 +13,10 @@
 extern "C" {
 #endif
 
-/*  Keep the serial conversions below actually scalar, regardless of build type.
- *  Without this, -O3 + LTO can vectorize or clone the serial kernels under AVX-512
- *  callers in dispatch_*.c, which wastes binary and breaks the nk_*_serial-as-scalar-oracle
- *  contract. See dots/serial.h. */
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#if NK_TARGET_ARM64_
 #pragma GCC target("arch=armv8-a")
-#endif
 #endif
 
 #pragma region Type Punned Loads and Stores
@@ -566,6 +558,17 @@ NK_HELPER_INLINE void nk_strided_load_b8x16_serial_(void const *src, nk_size_t s
 
 #pragma endregion Type Punned Loads and Stores
 
+/*  Keep the serial conversions below actually scalar, regardless of build type.
+ *  Without this, -O3 + LTO can vectorize or clone the serial kernels under AVX-512
+ *  callers in dispatch_*.c, which wastes binary and breaks the nk_*_serial-as-scalar-oracle
+ *  contract. See dots/serial.h. */
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
 /**
  *  @brief Expands an `f16` (IEEE-754 16-bit) to a `float`.
  *
@@ -625,6 +628,12 @@ NK_API_COMPTIME void nk_f16_to_f32_serial(nk_f16_t const *src, nk_f32_t *dest) {
 #endif
 }
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 /** @brief Load 4 × f16 from memory and upcast them to 4 × f32. */
 NK_HELPER_INLINE void nk_load_f16x4_to_f32x4_serial_(void const *src, nk_b128_vec_t *dst) {
     nk_f16_t const *scalars = (nk_f16_t const *)src;
@@ -646,6 +655,13 @@ NK_HELPER_INLINE void nk_partial_load_f16x4_to_f32x4_serial_(nk_f16_t const *src
     case 0: break;
     }
 }
+
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
 
 /**
  *  @brief Compresses a `float` to an `f16` (IEEE-754 16-bit).
@@ -949,6 +965,12 @@ NK_API_COMPTIME void nk_f32_to_e4m3_serial(nk_f32_t const *src, nk_e4m3_t *dest)
     *dest = (nk_e4m3_t)(sign | (exp_field << 3) | mant_field);
 }
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 /**
  *  @brief Convert FP8 E4M3 to IEEE 754 half-precision float.
  *
@@ -1041,6 +1063,13 @@ NK_HELPER_INLINE void nk_e5m2_to_f32_manual_(nk_e5m2_t const *src, nk_f32_t *des
     conv.u = sign | f32_exponent | f32_mantissa;
     *dest = conv.f;
 }
+
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
 
 NK_API_COMPTIME void nk_e5m2_to_f32_serial(nk_e5m2_t const *src, nk_f32_t *dest) {
     static nk_u32_t const lut[128] = {
@@ -1184,6 +1213,12 @@ NK_API_COMPTIME void nk_f32_to_e5m2_serial(nk_f32_t const *src, nk_e5m2_t *dest)
     *dest = (nk_e5m2_t)(sign | (exp_field << 2) | mant_field);
 }
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 /**
  *  @brief Convert FP8 E5M2 to IEEE 754 half-precision float.
  *
@@ -1318,6 +1353,13 @@ NK_HELPER_INLINE void nk_e2m3_to_f32_manual_(nk_e2m3_t const *src, nk_f32_t *des
     *dest = conv.f;
 }
 
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
 NK_API_COMPTIME void nk_e2m3_to_f32_serial(nk_e2m3_t const *src, nk_f32_t *dest) {
     static nk_u32_t const lut[32] = {
         0x00000000, 0x3E000000, 0x3E800000, 0x3EC00000, 0x3F000000, 0x3F200000, 0x3F400000, 0x3F600000, // exp=0 sub
@@ -1418,6 +1460,12 @@ NK_API_COMPTIME void nk_f32_to_e2m3_serial(nk_f32_t const *src, nk_e2m3_t *dest)
     *dest = (nk_e2m3_t)(sign | (exp_field << 3) | mant_field);
 }
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 /**
  *  @brief Convert FP6 E3M2FN to IEEE 754 single-precision float.
  *
@@ -1454,6 +1502,13 @@ NK_HELPER_INLINE void nk_e3m2_to_f32_manual_(nk_e3m2_t const *src, nk_f32_t *des
     conv.u = sign | f32_exponent | f32_mantissa;
     *dest = conv.f;
 }
+
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
 
 NK_API_COMPTIME void nk_e3m2_to_f32_serial(nk_e3m2_t const *src, nk_f32_t *dest) {
     static nk_u32_t const lut[32] = {
@@ -1560,6 +1615,12 @@ NK_API_COMPTIME void nk_f32_to_e3m2_serial(nk_f32_t const *src, nk_e3m2_t *dest)
     *dest = (nk_e3m2_t)(sign | (exp_field << 2) | mant_field);
 }
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 /** @brief Convert a single E2M1 nibble (low 4 bits) to f32.
  *  E2M1 format: sign(1) + exponent(2) + mantissa(1), bias=1.
  *  Magnitudes indexed by bits 2..0: {0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0}. No Inf or NaN. */
@@ -1617,6 +1678,13 @@ NK_HELPER_INLINE void nk_f32_to_e2m1_nibble_serial_(nk_f32_t src, nk_u8_t *nibbl
 
     *nibble_out = sign_bit | mag;
 }
+
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
 
 /** @brief Unpack a byte of two E2M1 nibbles into two f32 values.
  *  High nibble → dest[0], low nibble → dest[1] (matches nk_i4x2 / nk_u4x2 convention). */
@@ -1687,6 +1755,12 @@ NK_API_COMPTIME void nk_f32_to_ue8m0_serial(nk_f32_t const *src, nk_ue8m0_t *des
     *dest = (nk_ue8m0_t)exp_biased;
 }
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 /** @brief OCP MX v1.0 shared-scale byte for a block of abs-max @p amax whose element format has
  *  largest magnitude @p element_max: `X = 2^(floor(log2 amax) - floor(log2 element_max))`.
  *
@@ -1713,6 +1787,13 @@ NK_HELPER_INLINE nk_u8_t nk_f32_block_amax_to_ue8m0_serial_(nk_f32_t amax, nk_f3
     return (nk_u8_t)scale_byte;
 }
 
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
 /** @brief Convert UE4M3 (NVFP4 scale byte: E4M3 with sign bit forced to 0) to f32. */
 NK_API_COMPTIME void nk_ue4m3_to_f32_serial(nk_ue4m3_t const *src, nk_f32_t *dest) {
     nk_e4m3_t raw = (nk_e4m3_t)(*src & 0x7F);
@@ -1734,6 +1815,12 @@ NK_API_COMPTIME void nk_f32_to_ue4m3_serial(nk_f32_t const *src, nk_ue4m3_t *des
     nk_f32_to_e4m3_serial(&conv.f, &encoded); // RNE
     *dest = (nk_ue4m3_t)((nk_u8_t)encoded & 0x7F);
 }
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 NK_HELPER_INLINE void nk_f16_to_f64_serial(nk_f16_t const *x, nk_f64_t *y) {
     nk_f32_t f32;
@@ -1909,6 +1996,13 @@ NK_HELPER_INLINE void nk_u64_to_bf16_serial(nk_u64_t const *x, nk_bf16_t *y) {
     nk_f32_to_bf16_serial(&f32, y);
 }
 
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
 /** @brief Convert a pair of i4 (4-bit signed integer, -8 to 7) nibbles into signed integers. */
 NK_API_COMPTIME void nk_i4x2_to_i8x2_serial(nk_i4x2_t const *src, nk_i8_t *dest) {
     nk_u8_t byte = *(nk_u8_t const *)src;
@@ -1925,6 +2019,12 @@ NK_API_COMPTIME void nk_u4x2_to_u8x2_serial(nk_u4x2_t const *src, nk_u8_t *dest)
     dest[0] = byte >> 4;
     dest[1] = byte & 0x0F;
 }
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 /** @brief Reads a typed scalar from @p buf and writes the widened f64c into @p result.
  *  Real types set `.imag = 0`. Safe when @p result aliases @p buf (in-place conversion).
@@ -2437,6 +2537,13 @@ NK_HELPER_INLINE int nk_scalar_buffer_from_f64(nk_f64_t const *value, nk_scalar_
 
 #pragma region Public API
 
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
 NK_API_COMPTIME void nk_cast_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type) {
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
@@ -2528,6 +2635,12 @@ NK_API_COMPTIME void nk_e3m2_to_bf16(nk_e3m2_t const *src, nk_bf16_t *dest) {
     nk_f32_to_bf16_serial(&temp, dest);
 }
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 /** @brief Maximum representable magnitude for each block-scaled element dtype (OCP MX / NVFP4 spec). */
 NK_HELPER_INLINE nk_f32_t nk_element_max_representable_(nk_dtype_t element_dtype) {
     switch (element_dtype) {
@@ -2578,6 +2691,13 @@ NK_HELPER_INLINE nk_u8_t nk_block_scaled_encode_scale_serial_(nk_f32_t block_ama
     }
     return raw;
 }
+
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
 
 NK_API_COMPTIME void nk_nvfp4_to_f32x16_serial(nk_nvfp4_t const *src, nk_f32_t tensor_scale, nk_f32_t *dest) {
     nk_f32_t scale_f32;
@@ -2928,6 +3048,10 @@ NK_API_COMPTIME void nk_cast_block_scaled_serial(                               
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC pop_options
 #endif
 

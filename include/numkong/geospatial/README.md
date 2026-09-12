@@ -1,6 +1,6 @@
 # Geospatial Distances in NumKong
 
-NumKong implements geodesic distance functions for points on Earth's surface: Haversine computes great-circle distance on a perfect sphere, while Vincenty solves the inverse geodesic problem on the WGS-84 oblate spheroid.
+NumKong implements geodesic distance functions for points on Earth's surface: Haversine computes great-circle distance on a perfect sphere, while Vincenty solves the inverse geodesic problem on an oblate spheroid, using the IERS-2003 ellipsoid constants by default.
 Both operate on arrays of latitude/longitude pairs in radians and produce distances in meters.
 
 The Haversine formula computes the great-circle distance between two points:
@@ -9,7 +9,7 @@ $$
 \text{haversine}(\phi_1, \lambda_1, \phi_2, \lambda_2) = 2R \arcsin\sqrt{\sin^2\frac{\phi_2 - \phi_1}{2} + \cos\phi_1 \cos\phi_2 \sin^2\frac{\lambda_2 - \lambda_1}{2}}
 $$
 
-where $R$ is Earth's mean radius and $(\phi, \lambda)$ are latitude and longitude in radians.
+where $R$ is the Earth radius from `NK_EARTH_MEDIATORIAL_RADIUS`, 6,335,439 m by default, and $(\phi, \lambda)$ are latitude and longitude in radians.
 
 Vincenty's formula solves the inverse geodesic problem on an oblate spheroid, iteratively refining the reduced latitude difference until convergence:
 
@@ -17,14 +17,14 @@ $$
 \text{vincenty}(\phi_1, \lambda_1, \phi_2, \lambda_2) = b \cdot A \cdot (\sigma - \Delta\sigma)
 $$
 
-where $a$ and $b$ are the equatorial and polar semi-axes of the WGS-84 ellipsoid, $\sigma$ is the angular separation, and $\Delta\sigma$ is the correction term computed through iterative convergence.
+where $a$ and $b$ are the equatorial and polar semi-axes of the configured Earth ellipsoid, $\sigma$ is the angular separation, and $\Delta\sigma$ is the correction term computed through iterative convergence.
 
 Reformulating as Python pseudocode:
 
 ```python
 import numpy as np
 
-def haversine(lat1, lon1, lat2, lon2, R=6371000):
+def haversine(lat1, lon1, lat2, lon2, R=6335439):
     dlat = lat2 - lat1
     dlon = lon2 - lon1
     a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
@@ -45,8 +45,8 @@ Input coordinates are in radians, output distances are in meters.
 ### Trigonometric Polynomial Approximations
 
 `nk_haversine_f32_haswell`, `nk_haversine_f32_skylake`, `nk_haversine_f32_neon` replace `libm` sin, cos, atan2, and asin with SIMD polynomial approximations achieving approximately 3.5 ULP accuracy.
-Range reduction maps the input angle to $[-\pi/4, \pi/4]$ using Cody-Waite extended precision constants, then an odd-degree minimax polynomial evaluates sin and an even-degree polynomial evaluates cos.
-The `f32` kernels use 5-term polynomials while `f64` kernels use 11-term polynomials for the extra precision required by double-precision inputs.
+Range reduction maps the input angle to $[-\pi/2, \pi/2]$ using Cody-Waite extended precision constants, then an odd-degree minimax polynomial evaluates sin, and cos reuses the same polynomial after shifting the argument by $\pi/2$.
+The `f32` kernels use 5-term polynomials while `f64` kernels use 10-term polynomials for the extra precision required by double-precision inputs.
 This avoids the latency of scalar `libm` calls — each trigonometric evaluation would otherwise serialize through a single execution port, while the polynomial chains pipeline across multiple FMA units.
 
 ### Vincenty Iterative Convergence with Masked Lanes

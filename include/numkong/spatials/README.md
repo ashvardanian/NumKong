@@ -34,20 +34,20 @@ def euclideans_packed(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 ## Input & Output Types
 
-| Input Type | Output Type | Description                                    |
-| ---------- | ----------- | ---------------------------------------------- |
-| `f64`      | `f64`       | 64-bit IEEE 754 double precision               |
-| `f32`      | `f32`       | 32-bit IEEE 754 single precision               |
-| `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output |
-| `bf16`     | `f32`       | 16-bit brain float, widened output             |
-| `e4m3`     | `f32`       | 8-bit Float8: 4 exponent, 3 mantissa bits      |
-| `e5m2`     | `f32`       | 8-bit Float8: 5 exponent, 2 mantissa bits      |
-| `e2m3`     | `f32`       | 8-bit MX format: 2 exponent, 3 mantissa bits   |
-| `e3m2`     | `f32`       | 8-bit MX format: 3 exponent, 2 mantissa bits   |
-| `i8`       | `f32`       | 8-bit signed integers, float output            |
-| `u8`       | `f32`       | 8-bit unsigned integers, float output          |
-| `i4`       | `f32`       | 4-bit signed integers, float output            |
-| `u4`       | `f32`       | 4-bit unsigned integers, float output          |
+| Input Type | Output Type | Description                                      |
+| ---------- | ----------- | ------------------------------------------------ |
+| `f64`      | `f64`       | 64-bit IEEE 754 double precision                 |
+| `f32`      | `f64`       | 32-bit IEEE 754 single precision, widened output |
+| `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output   |
+| `bf16`     | `f32`       | 16-bit brain float, widened output               |
+| `e4m3`     | `f32`       | 8-bit Float8: 4 exponent, 3 mantissa bits        |
+| `e5m2`     | `f32`       | 8-bit Float8: 5 exponent, 2 mantissa bits        |
+| `e2m3`     | `f32`       | 8-bit MX format: 2 exponent, 3 mantissa bits     |
+| `e3m2`     | `f32`       | 8-bit MX format: 3 exponent, 2 mantissa bits     |
+| `i8`       | `f32`       | 8-bit signed integers, float output              |
+| `u8`       | `f32`       | 8-bit unsigned integers, float output            |
+| `i4`       | `f32`       | 4-bit signed integers, float output              |
+| `u4`       | `f32`       | 4-bit unsigned integers, float output            |
 
 ## Optimizations
 
@@ -65,7 +65,7 @@ The singular `spatial/` kernels compute these three sums ($\sum a_i b_i$, $\sum 
 `nk_angular_through_f32_from_dot_haswell_` replaces this with hardware `_mm_rsqrt_ps` (~12-bit approximation, 5cy latency, 1/cy on port 0) plus one Newton-Raphson refinement step (~22–24 correct bits).
 `nk_euclidean_through_f32_from_dot_serial_` computes `sqrt(x)` as `x * rsqrt(x)` — reusing the same rsqrt path.
 `nk_euclidean_through_f32_from_dot_haswell_` uses exact `_mm_sqrt_ps` (11cy latency, 7cy throughput for XMM) instead of the rsqrt approximation — the subtraction $\|a\|^2 + \|b\|^2 - 2 \cdot \text{dot}$ can produce values near zero where rsqrt error would be amplified by the subsequent multiply.
-For Float64, all backends use exact division and sqrt — no fast rsqrt approximation, since reaching 52 mantissa bits of precision would need 4+ Newton-Raphson iterations, negating the speed advantage.
+For Float64, the SIMD backends use exact division and sqrt — no fast rsqrt approximation, since reaching 52 mantissa bits of precision would need 4+ Newton-Raphson iterations, negating the speed advantage — while `nk_angular_through_f64_from_dot_serial_` still routes through `nk_f64_rsqrt_serial` and its four iterations.
 The 4-wide finalizer batching amortizes these costs: one rsqrt or sqrt call processes 4 output elements simultaneously, hiding the latency behind the GEMM tile's computation.
 
 ### Norm Precomputation in Packed Buffers

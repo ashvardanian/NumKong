@@ -26,6 +26,7 @@
 #if NK_TARGET_ICELAKE
 
 #include "numkong/types.h"
+#include "numkong/sparse/serial.h" // `nk_sparse_intersect_u16_serial`, `nk_sparse_intersect_u32_serial`
 
 #if defined(__cplusplus)
 extern "C" {

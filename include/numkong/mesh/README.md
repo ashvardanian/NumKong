@@ -51,9 +51,12 @@ def rmsd(a: np.ndarray, b: np.ndarray) -> float:
 | Input Type | Output Type | Description                                    |
 | ---------- | ----------- | ---------------------------------------------- |
 | `f64`      | `f64`       | 64-bit IEEE 754 double precision               |
-| `f32`      | `f32`       | 32-bit IEEE 754 single precision               |
+| `f32`      | `f64`       | 32-bit IEEE 754 single precision, widened RMSD |
 | `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output |
 | `bf16`     | `f32`       | 16-bit brain float, widened output             |
+
+The output type above is the RMSD result.
+The centroid, rotation, and scale outputs use the transform type instead: `f64` for `f64` inputs, `f32` for `f32`, `f16`, and `bf16` inputs.
 
 ## Optimizations
 
@@ -199,9 +202,9 @@ Measured with Wasmtime v43 (Cranelift backend), WASI-SDK 24, `-msimd128 -mrelaxe
 | `nk_kabsch_bf16_neonbfdot`  |        180 mp/s, 0.7 ulp |        448 mp/s, 0.9 ulp |        726 mp/s, 1.3 ulp |
 | `nk_umeyama_bf16_neonbfdot` |        176 mp/s, 0.2 ulp |        433 mp/s, 0.4 ulp |        705 mp/s, 0.8 ulp |
 | __f16__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f16_neonhalf`      |      2,998 mp/s, 0.4 ulp |      3,215 mp/s, 1.7 ulp |      3,216 mp/s, 4.6 ulp |
-| `nk_kabsch_f16_neonhalf`    |        178 mp/s, 0.9 ulp |        443 mp/s, 1.3 ulp |        711 mp/s, 2.4 ulp |
-| `nk_umeyama_f16_neonhalf`   |        175 mp/s, 0.4 ulp |        408 mp/s, 0.8 ulp |        620 mp/s, 1.5 ulp |
+| `nk_rmsd_f16_neon`          |      2,998 mp/s, 0.4 ulp |      3,215 mp/s, 1.7 ulp |      3,216 mp/s, 4.6 ulp |
+| `nk_kabsch_f16_neon`        |        178 mp/s, 0.9 ulp |        443 mp/s, 1.3 ulp |        711 mp/s, 2.4 ulp |
+| `nk_umeyama_f16_neon`       |        175 mp/s, 0.4 ulp |        408 mp/s, 0.8 ulp |        620 mp/s, 1.5 ulp |
 
 #### WASM
 

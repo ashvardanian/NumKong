@@ -51,16 +51,10 @@
 extern "C" {
 #endif
 
-/*  Keep the serial helpers below scalar, and at the architecture's floor so a vector kernel that pins its own ISA can
- *  still inline them - GCC declines an `always_inline` callee carrying options its caller lacks. */
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#if NK_TARGET_ARM64_
 #pragma GCC target("arch=armv8-a")
-#endif
 #endif
 
 /**
@@ -153,6 +147,15 @@ NK_HELPER_INLINE nk_size_t nk_attention_pack_size_serial_(nk_size_t key_value_he
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
+/*  Keep the serial instantiations below actually scalar, regardless of build type.
+ *  See dots/serial.h for rationale. */
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
 NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_serial(nk_size_t key_value_head_count, nk_size_t depth,
                                                              nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     return nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
@@ -172,6 +175,12 @@ NK_API_COMPTIME void nk_attention_packed_shape_e4m3_serial(void const *key_value
                                                            nk_size_t *depth, nk_size_t *segments) {
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
 }
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 /**
  *  @brief Shared packing core: widen K and V rows to F32 planes `[key_value_head][position][channel]`.
@@ -219,6 +228,13 @@ NK_HELPER_INLINE void nk_attention_pack_serial_(                                
     }
 }
 
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
 NK_API_COMPTIME void nk_attention_pack_bf16_serial(                                                  //
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
@@ -236,6 +252,12 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_serial(                             
                               depth, segment_offsets, segment_lengths, segment_count, key_stride_bytes,
                               value_stride_bytes, key_value_packed, begin, end);
 }
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 /**
  *  @brief Shared attention core: exact two-sweep softmax attention per (segment, head) task.
@@ -311,6 +333,13 @@ NK_HELPER_INLINE void nk_attention_serial_(                                     
         }
     }
 }
+
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
 
 NK_API_COMPTIME void nk_attention_packed_bf16_serial(                                                           //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
@@ -455,6 +484,10 @@ NK_API_COMPTIME void nk_attention_packed_i8_serial(                             
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC pop_options
 #endif
 

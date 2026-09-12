@@ -70,6 +70,10 @@ set(CMAKE_EXE_LINKER_FLAGS_INIT
      -Wl,--export=_start"
 )
 
+# `wasm-ld` resolves `__global_base`, `__data_end`, and `__heap_base` only in a main module, so a `-shared`
+# WASI build cannot link. Seeded rather than forced, so `-D NK_BUILD_SHARED=ON` still overrides.
+set(NK_BUILD_SHARED OFF CACHE BOOL "Compile a dynamic library")
+
 # Do not look for programs in build-host directories.
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)

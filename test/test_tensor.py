@@ -99,6 +99,99 @@ def assert_op_matches(result, expected, dtype: str) -> None:
         assert_allclose(np.asarray(result), np.asarray(expected), atol=atol, rtol=rtol)
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_astype_accepts_ndarray_without_tensor_copy():
+    """Top-level astype converts an N-D NumPy buffer while preserving its shape."""
+    source = np.arange(24, dtype=np.uint8).reshape(2, 3, 4)
+
+    result = nk.astype(source, "float32")
+
+    assert result.shape == source.shape
+    assert result.dtype == "float32"
+    assert_allclose(np.asarray(result), source.astype(np.float32))
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_astype_writes_to_caller_owned_output():
+    """Top-level astype converts directly into a matching caller-owned buffer and returns it."""
+    source = np.arange(12, dtype=np.float32).reshape(3, 4) + 0.75
+    output = np.empty(source.shape, dtype=np.uint8)
+
+    assert nk.astype(source, "uint8", out=output) is output
+    assert_allclose(output, source.astype(np.uint8))
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype", ["bfloat16", "uint4"])
+def test_astype_writes_to_tensor_output(dtype):
+    """A NumKong Tensor names dtypes NumPy cannot express, so it must be accepted as `out`."""
+    source = np.arange(8, dtype=np.uint8)
+    output = nk.empty(source.shape, dtype=dtype)
+
+    assert nk.astype(source, dtype, out=output) is output
+    np.testing.assert_array_equal(np.asarray(nk.astype(output, "uint8")), source)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_astype_linearizes_strided_input():
+    """Top-level astype accepts a non-contiguous input buffer."""
+    source = np.arange(48, dtype=np.int16).reshape(2, 3, 8)[:, ::-1, ::2]
+
+    result = nk.astype(source, "float32")
+
+    assert result.shape == source.shape
+    assert_allclose(np.asarray(result), source.astype(np.float32))
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_astype_float_to_integer_policy():
+    """Float-to-integer casts round ties to even, saturate, and map NaN to zero."""
+    source = np.array([-np.inf, -127.5, -0.5, 0.5, 1.5, 126.5, np.inf, np.nan], dtype=np.float64)
+
+    result = nk.astype(source, "int8")
+
+    np.testing.assert_array_equal(np.asarray(result), np.array([-128, -128, 0, 0, 2, 126, 127, 0], dtype=np.int8))
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_astype_round_trips_through_packed_dtype():
+    """Top-level astype preserves logical values when a packed Tensor is used in between."""
+    source = np.arange(8, dtype=np.uint8)
+
+    packed = nk.astype(source, "uint4")
+    result = nk.astype(packed, "uint8")
+
+    assert packed.dtype == "uint4"
+    np.testing.assert_array_equal(np.asarray(result), source)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_astype_validates_output_shape_dtype_and_layout():
+    """Top-level astype requires an exact, C-contiguous output buffer."""
+    source = np.arange(24, dtype=np.uint8).reshape(2, 3, 4)
+
+    with pytest.raises(ValueError, match="shapes don't match"):
+        nk.astype(source, "float32", out=np.empty((2, 3, 3), dtype=np.float32))
+    with pytest.raises(TypeError, match="expected"):
+        nk.astype(source, "float32", out=np.empty(source.shape, dtype=np.float64))
+    with pytest.raises(ValueError, match="C-contiguous"):
+        nk.astype(source, "float32", out=np.empty((4, 3, 2), dtype=np.float32).transpose(2, 1, 0))
+
+    readonly = np.empty(source.shape, dtype=np.float32)
+    readonly.flags.writeable = False
+    with pytest.raises((ValueError, BufferError, TypeError)):
+        nk.astype(source, "float32", out=readonly)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_astype_rejects_overlapping_output():
+    """Top-level astype rejects an output buffer that aliases its input."""
+    source = np.arange(12, dtype=np.float32)
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        nk.astype(source, "float32", out=source)
+
+
 def test_pointers_availability():
     """Tests the availability of pre-compiled functions for compatibility with USearch."""
     assert nk.pointer_to_sqeuclidean("float64") != 0
@@ -844,7 +937,9 @@ def test_ndarray_sum(dtype: str, shape, capability: str):
     keep_one_capability(capability)
     np_arr = random_ndarray(dtype, shape)
     nk_arr = make_nk(np_arr, dtype)
-    assert_op_matches(nk_arr.sum(), np.sum(np_arr), dtype)
+    # NumKong sums integers in 64 bits, while NumPy's default integer accumulator is 32-bit under Emscripten.
+    expected = np.sum(np_arr, dtype=np.int64) if dtype.startswith(("int", "uint")) else np.sum(np_arr)
+    assert_op_matches(nk_arr.sum(), expected, dtype)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")

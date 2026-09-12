@@ -19,7 +19,6 @@
  *  GEMM kernels use tiled dot products with 4-way parallel accumulation to hide FMA latency.
  *  Type-specific tile sizes: f32 uses depth_simd_dimensions=4, f64 uses depth_simd_dimensions=2,
  *  bf16/f16 use depth_simd_dimensions=8, u1 uses depth_simd_dimensions=128.
- *  Load/store helpers are defined in cast/powervsx.h and included transitively via dot/powervsx.h.
  */
 #ifndef NK_DOTS_POWERVSX_H
 #define NK_DOTS_POWERVSX_H
@@ -27,6 +26,7 @@
 #if NK_TARGET_POWER64_
 #if NK_TARGET_POWERVSX
 
+#include "numkong/cast/powervsx.h" // `nk_load_b128_powervsx_`, `nk_partial_load_b32x4_powervsx_`
 #include "numkong/dot/powervsx.h"
 
 #if defined(__cplusplus)

@@ -19,16 +19,19 @@
 extern "C" {
 #endif
 
-/*  Keep the serial helpers below scalar, and at the architecture's floor so a vector kernel that pins its own ISA can
- *  still inline them - GCC declines an `always_inline` callee carrying options its caller lacks. */
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
+#pragma GCC push_options
+#pragma GCC target("arch=armv8-a")
+#endif
+
+/*  Keep the serial instantiations below actually scalar, regardless of build type.
+ *  See dots/serial.h for rationale. */
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#if NK_TARGET_ARM64_
-#pragma GCC target("arch=armv8-a")
-#endif
 #endif
 
 NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_serial(nk_f32_t number) {
@@ -136,6 +139,12 @@ NK_API_COMPTIME nk_f32_t nk_f32_fma_serial(nk_f32_t multiplicand, nk_f32_t multi
     return result + (product_error + addition_error);
 }
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 /**
  *  @brief Scalar Dot2 accumulator: sum += a * b with error compensation.
  *  Uses TwoProd (via FMA) and TwoSum error-free transformations.
@@ -151,6 +160,13 @@ NK_HELPER_INLINE void nk_f64_dot2_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64
     *sum = running_sum;
     *compensation += sum_error + product_error;
 }
+
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
 
 NK_API_COMPTIME nk_f16_t nk_f16_fma_serial(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
     nk_f32_t a_f32, b_f32, c_f32;
@@ -342,6 +358,12 @@ NK_API_COMPTIME int nk_f16_order_serial(nk_f16_t a, nk_f16_t b) {
     return ((int)a_fui.u ^ -sign_a) - ((int)b_fui.u ^ -sign_b);
 }
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 /**
  *  @brief Scalar `2^x` via a degree-4 minimax polynomial; no libm.
  *  The lower clamp is −125 (not the F32 limit) so the smallest result stays a normal float:
@@ -372,9 +394,7 @@ NK_HELPER_INLINE nk_f32_t nk_sigmoid_f32_serial_(nk_f32_t x) {
 /** @brief Scalar SiLU / swish `x · sigmoid(x)`, built on the shared fast exponent. */
 NK_HELPER_INLINE nk_f32_t nk_silu_f32_serial_(nk_f32_t x) { return x * nk_sigmoid_f32_serial_(x); }
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC pop_options
 #endif
 

@@ -108,6 +108,12 @@ extern "C" {
         }                                                                                                             \
     }
 
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
+#pragma GCC push_options
+#pragma GCC target("arch=armv8-a")
+#endif
+
 /*  Keep the serial instantiations below actually scalar, regardless of build type.
  *  See dots/serial.h for rationale. */
 #if defined(__clang__)
@@ -115,9 +121,6 @@ extern "C" {
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#if NK_TARGET_ARM64_
-#pragma GCC target("arch=armv8-a")
-#endif
 #endif
 
 nk_define_angular_(f64, f64, f64, nk_assign_from_to_, nk_f64_rsqrt_serial)       // nk_angular_f64_serial
@@ -256,6 +259,12 @@ NK_API_COMPTIME void nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b
     }
 }
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 /** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq) × rsqrt(target_sumsq) for 4 pairs (serial).
  *  Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms. */
 NK_HELPER_INLINE void nk_angular_through_f32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
@@ -367,9 +376,7 @@ NK_HELPER_INLINE void nk_euclidean_through_u32_from_dot_serial_(nk_b128_vec_t co
     }
 }
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC pop_options
 #endif
 

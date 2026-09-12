@@ -49,7 +49,7 @@ nk_isa_probe_(nk_target_smef64 "" "-march=armv8-a+sme+sme-f64f64" "probes/arm_sm
 nk_isa_probe_(nk_target_smehalf "" "-march=armv8-a+sme+sme-f16f16" "probes/arm_sme_half.c")
 nk_isa_probe_(nk_target_smebf16 "" "-march=armv8-a+sme2+sme-b16b16" "probes/arm_sme_bf16.c")
 nk_isa_probe_(nk_target_smebi32 "" "-march=armv8-a+sme2" "probes/arm_sme_bi32.c")
-nk_isa_probe_(nk_target_smelut2 "" "-march=armv8-a+sme2+lut" "probes/arm_sme_lut2.c")
+nk_isa_probe_(nk_target_smelut2 "" "-march=armv8-a+sme2+sme-lutv2" "probes/arm_sme_lut2.c")
 nk_isa_probe_(nk_target_smefa64 "" "-march=armv8-a+sme+sme-fa64" "probes/arm_sme_fa64.c")
 
 nk_isa_probes_end_()

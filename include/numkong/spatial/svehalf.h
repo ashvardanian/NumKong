@@ -1,6 +1,6 @@
 /**
  *  @brief SIMD-accelerated Spatial Similarity Measures for SVE FP16.
- *  @file include/numkong/spatial/sve.h
+ *  @file include/numkong/spatial/svehalf.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
  *

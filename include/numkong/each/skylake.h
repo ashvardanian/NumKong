@@ -28,6 +28,7 @@
 
 #include "numkong/types.h"
 #include "numkong/cast/skylake.h"  // `nk_e4m3x16_to_f32x16_skylake_`
+#include "numkong/each/haswell.h"  // `nk_each_sum_f16_haswell`
 #include "numkong/scalar/serial.h" // `nk_f32_exp2_serial_`
 
 #if defined(__cplusplus)

@@ -19,6 +19,7 @@
 #if NK_TARGET_ICELAKE
 
 #include "numkong/reduce/serial.h"
+#include "numkong/reduce/skylake.h" // `nk_reduce_add_i64x8_skylake_`, `nk_reduce_add_u64x8_skylake_`, `nk_stride_mask_b16x32_`
 
 #if defined(__cplusplus)
 extern "C" {

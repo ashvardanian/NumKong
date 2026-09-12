@@ -139,6 +139,12 @@ extern "C" {
         result->imag = sum_imag;                                                                                  \
     }
 
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
+#pragma GCC push_options
+#pragma GCC target("arch=armv8-a")
+#endif
+
 /*  Keep the serial instantiations below actually scalar, regardless of build type.
  *  See dots/serial.h for rationale. */
 #if defined(__clang__)
@@ -146,9 +152,6 @@ extern "C" {
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#if NK_TARGET_ARM64_
-#pragma GCC target("arch=armv8-a")
-#endif
 #endif
 
 #pragma region F32 and F64 Floats
@@ -275,6 +278,12 @@ typedef struct nk_dot_f64x2_state_serial_t {
     nk_f64_t sums[2];
     nk_f64_t compensations[2];
 } nk_dot_f64x2_state_serial_t;
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 NK_HELPER_INLINE void nk_dot_f64x2_init_serial(nk_dot_f64x2_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0;
@@ -815,6 +824,13 @@ NK_HELPER_INLINE void nk_dot_i4x16_finalize_serial(nk_dot_i4x16_state_serial_t c
 
 #pragma region Binary
 
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
 NK_API_COMPTIME void nk_dot_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
     nk_u32_t dot = 0;
     nk_size_t bytes = nk_size_divide_round_up_(n_bits, NK_BITS_PER_BYTE);
@@ -825,6 +841,12 @@ NK_API_COMPTIME void nk_dot_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk
 typedef struct nk_dot_u1x128_state_serial_t {
     nk_u32_t dot_count;
 } nk_dot_u1x128_state_serial_t;
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 NK_HELPER_INLINE void nk_dot_u1x128_init_serial(nk_dot_u1x128_state_serial_t *state) { state->dot_count = 0; }
 
@@ -883,9 +905,7 @@ NK_HELPER_INLINE nk_i32_t nk_sum_i4x32_finalize_serial(nk_sum_i4x32_state_serial
 
 #pragma endregion Stateful Element Sum Helpers
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC pop_options
 #endif
 

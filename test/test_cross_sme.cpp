@@ -10,6 +10,7 @@
 void test_cross_sme() {
     [[maybe_unused]] error_stats_section_t check;
 #if NK_TARGET_SME
+    check.section("Cross SME", nk_cap_sme_k);
     check("dots_packed_f16_sme", test_dots_packed<f16_t>, nk_dots_pack_size_f16_sme, nk_dots_pack_f16_sme,
           nk_dots_packed_f16_sme);
     check("dots_packed_bf16_sme", test_dots_packed<bf16_t>, nk_dots_pack_size_bf16_sme, nk_dots_pack_bf16_sme,
@@ -112,9 +113,10 @@ void test_cross_sme() {
           nk_attention_pack_e4m3_sme, nk_attention_packed_e4m3_sme);
     check("attention_packed_i8_sme", test_attention_packed<i8_t>, nk_attention_pack_size_i8_sme,
           nk_attention_pack_i8_sme, nk_attention_packed_i8_sme);
-#endif
+#endif // NK_TARGET_SME
 
 #if NK_TARGET_SMEBI32
+    check.section("Cross SME BI32", nk_cap_smebi32_k);
     check("dots_packed_u1_smebi32", test_dots_packed<u1x8_t>, nk_dots_pack_size_u1_smebi32, nk_dots_pack_u1_smebi32,
           nk_dots_packed_u1_smebi32);
     check("dots_symmetric_u1_smebi32", test_dots_symmetric<u1x8_t>, nk_dots_symmetric_u1_smebi32);
@@ -126,9 +128,10 @@ void test_cross_sme() {
     check("jaccards_packed_u1_smebi32", test_jaccards_packed<u1x8_t>, nk_dots_pack_size_u1_smebi32,
           nk_dots_pack_u1_smebi32, nk_jaccards_packed_u1_smebi32);
     check("jaccards_symmetric_u1_smebi32", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1_smebi32);
-#endif
+#endif // NK_TARGET_SMEBI32
 
 #if NK_TARGET_SMEF64
+    check.section("Cross SME F64", nk_cap_smef64_k);
     check("dots_packed_f64_smef64", test_dots_packed<f64_t>, nk_dots_pack_size_f64_smef64, nk_dots_pack_f64_smef64,
           nk_dots_packed_f64_smef64);
     check("dots_packed_f32_smef64", test_dots_packed<f32_t>, nk_dots_pack_size_f32_smef64, nk_dots_pack_f32_smef64,
@@ -151,5 +154,5 @@ void test_cross_sme() {
 
     check("euclideans_symmetric_f32_smef64", test_euclideans_symmetric<f32_t>, nk_euclideans_symmetric_f32_smef64);
     check("euclideans_symmetric_f64_smef64", test_euclideans_symmetric<f64_t>, nk_euclideans_symmetric_f64_smef64);
-#endif
+#endif // NK_TARGET_SMEF64
 }

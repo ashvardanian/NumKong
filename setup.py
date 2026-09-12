@@ -84,18 +84,19 @@ def march_baseline_args() -> list[str]:
     NEON/SSE2/VSX. SIMD kernels use explicit intrinsics; unaffected. MSVC has no
     command-line vectorizer toggle. `NK_MARCH_NATIVE=1` opts out (non-MSVC).
 
-    Keep per-arch table in sync with cmake/nk_compiler_flags.cmake, build.rs, binding.gyp.
+    Keep per-arch table in sync with CMakeLists.txt, build.rs, binding.gyp.
     """
-    msvc = sys.platform == "win32"
-    if msvc:
+    if is_msvc():
         if is_64bit_x86():
             return ["/arch:SSE2"]
         if is_64bit_arm():
             return ["/arch:armv8.0"]
         return []
-    if os.environ.get("NK_MARCH_NATIVE") in ("1", "true", "TRUE"):
-        print("[NumKong] NK_MARCH_NATIVE=1: building -march=native, result will not run on older CPUs")
-        return ["-march=native"]
+    if os.environ.get("NK_MARCH_NATIVE") in ("1", "true", "TRUE") and not is_cross_compiling():
+        print("[NumKong] NK_MARCH_NATIVE=1: building host-tuned, result will not run on older CPUs")
+        # Apple Clang's `-march=native` advertises only a subset of host features
+        # (no SME/SME2/FP16_FML); `-mcpu=native` is the complete knob on macOS.
+        return ["-mcpu=native"] if sys.platform == "darwin" else ["-march=native"]
     no_vectorize = ["-fno-tree-vectorize", "-fno-tree-slp-vectorize"]
     # On macOS, `-arch arm64`/`-arch x86_64` already pins the ABI floor. When
     # cibuildwheel cross-compiles (e.g. arm64 host → x86_64 wheel) a per-arch
@@ -124,9 +125,26 @@ def is_wasm() -> bool:
     return "emscripten" in host or "wasm" in host
 
 
+def is_msvc() -> bool:
+    """MSVC, as opposed to a MinGW or clang-cl Python on the same platform.
+
+    Those report their compiler through `CC`; an MSVC build does not.
+    """
+    if sys.platform != "win32":
+        return False
+    return not (os.environ.get("CC") or sysconfig.get_config_var("CC"))
+
+
+def is_cross_compiling() -> bool:
+    """`-march=native` is meaningless when the build host is not the target."""
+    if os.environ.get("_PYTHON_HOST_PLATFORM"):
+        return True
+    return any(name.startswith("NK_TARGET_") and name.endswith("_") for name in os.environ)
+
+
 def detect_cc() -> tuple[str, bool, dict[str, str] | None]:
     """Detect the C compiler and the environment its probes need. Returns (cc, is_msvc, env)."""
-    if sys.platform == "win32":
+    if is_msvc():
         try:
             # Imported here, not at module scope: this is private API that has already moved
             # twice (`msvccompiler` → `_msvccompiler` → `compilers.C.msvc`), and every other
@@ -232,7 +250,7 @@ PROBE_TABLE_ARM: ProbeTable = [
     ("SMEHALF", "probes/arm_sme_half.c", ["-march=armv8-a+sme+sme-f16f16"], []),
     ("SMEBF16", "probes/arm_sme_bf16.c", ["-march=armv8-a+sme2+sme-b16b16"], []),
     ("SMEBI32", "probes/arm_sme_bi32.c", ["-march=armv8-a+sme2"], []),
-    ("SMELUT2", "probes/arm_sme_lut2.c", ["-march=armv8-a+sme2+lut"], []),
+    ("SMELUT2", "probes/arm_sme_lut2.c", ["-march=armv8-a+sme2+sme-lutv2"], []),
     ("SMEFA64", "probes/arm_sme_fa64.c", ["-march=armv8-a+sme+sme-fa64"], []),
 ]
 
@@ -349,7 +367,6 @@ def linux_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     ]
     macros: list[tuple[str, str]] = [
         ("NK_RUNTIME_DISPATCH", "1"),
-        ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
     ]
@@ -362,33 +379,13 @@ def darwin_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     compile_args = [
         "-std=c11",
         "-O3",
-        "-Xpreprocessor",
-        "-fopenmp",
         "-w",  # Hush warnings
         *march_baseline_args(),
     ]
-    link_args: list[str] = ["-lomp"]
-    # Apple Clang ships no `omp.h` / `libomp`; point at the Homebrew-installed
-    # libomp so `#include <omp.h>` resolves and the linker finds `-lomp`.
-    # `delocate` bundles `libomp.dylib` into the wheel; at import time we set
-    # `KMP_DUPLICATE_LIB_OK=TRUE` (see `python/numkong/__init__.py`) so the
-    # bundled runtime coexists with any libomp that NumPy/SciPy already loaded.
-    try:
-        libomp_prefix = subprocess.run(
-            ["brew", "--prefix", "libomp"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=True,
-        ).stdout.strip()
-    except (subprocess.SubprocessError, FileNotFoundError):
-        libomp_prefix = ""
-    if libomp_prefix and Path(libomp_prefix).exists():
-        compile_args.append(f"-I{libomp_prefix}/include")
-        link_args.append(f"-L{libomp_prefix}/lib")
+    link_args: list[str] = []
+    # No OpenMP: `libdispatch` in libSystem runs the tile pools.
     macros: list[tuple[str, str]] = [
         ("NK_RUNTIME_DISPATCH", "1"),
-        ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
     ]
@@ -415,7 +412,6 @@ def freebsd_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     ]
     macros: list[tuple[str, str]] = [
         ("NK_RUNTIME_DISPATCH", "1"),
-        ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
     ]
@@ -428,10 +424,6 @@ def windows_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     compile_args = [
         "/std:c11",
         "/O2",
-        # `/openmp:llvm` enables OpenMP 3.1+ on MSVC 2019 16.9+ so `size_t`
-        # (unsigned) parallel-for counters compile — the legacy `/openmp` is
-        # frozen at OpenMP 2.0 and rejects them with C3015.
-        "/openmp:llvm",
         # Dealing with MinGW linking errors
         # https://cibuildwheel.readthedocs.io/en/stable/faq/#windows-importerror-dll-load-failed-the-specific-module-could-not-be-found
         "/d2FH4-",
@@ -439,9 +431,9 @@ def windows_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
         *march_baseline_args(),  # MSVC: matches default; documents the contract
     ]
     link_args: list[str] = []
+    # No OpenMP: the kernel32 thread pool runs the tile pools.
     macros: list[tuple[str, str]] = [
         ("NK_RUNTIME_DISPATCH", "1"),
-        ("NK_USE_OPENMP", "1"),
         ("NK_NATIVE_F16", "0"),
         ("NK_NATIVE_BF16", "0"),
     ]
@@ -520,18 +512,17 @@ base_sources = [
     "python/numpy_interop.c",
     "python/dlpack_interop.c",
     "c/numkong.c",
+    "c/parallel.c",  # Shared with the Node addon; no CMake or Cargo build compiles it
 ]
 
 dispatch_sources = sorted(glob.glob("c/dispatch_*.c"))
 
 ext_modules = [
     Extension(
-        # Lives under the `numkong` package so `numkong/__init__.py` runs first
-        # — it sets `KMP_DUPLICATE_LIB_OK=TRUE` before the dynamic linker
-        # initializes the bundled libomp.
+        # Lives under the `numkong` package so `numkong/__init__.py` runs first.
         "numkong._numkong",
         sources=base_sources + dispatch_sources,
-        include_dirs=["include", "python"],
+        include_dirs=["include", "python", "c"],
         language="c",
         extra_compile_args=compile_args,
         extra_link_args=link_args,

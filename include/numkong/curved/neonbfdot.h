@@ -30,6 +30,7 @@
 #include "numkong/types.h"        // `nk_bf16_t`
 #include "numkong/spatial/neon.h" // `nk_f32_sqrt_neon`
 #include "numkong/cast/serial.h"  // `nk_bf16_to_f32_serial`
+#include "numkong/dot/serial.h"   // `nk_dot_f16c_serial`, `nk_vdot_f16c_serial`
 
 #if defined(__cplusplus)
 extern "C" {

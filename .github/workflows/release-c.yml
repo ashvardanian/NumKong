@@ -39,8 +39,10 @@ jobs:
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
       - name: Install Dependencies
         run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" | sudo tee /etc/apt/sources.list.d/llvm-20.list
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo gpg --dearmor -o /usr/share/keyrings/llvm.gpg
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
           sudo apt-get update
           sudo apt-get install -y clang-20 lld-20 make crossbuild-essential-arm64
       - name: Build Shared Library
@@ -83,7 +85,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} *.so *.deb --clobber
 
   create_windows_dll_library:
-    name: Create DLL Library for Windows
+    name: Create Library for Windows
     runs-on: windows-2025
     strategy:
       fail-fast: false
@@ -100,10 +102,14 @@ jobs:
           ref: "main"
       - name: Set Up MSVC
         uses: microsoft/setup-msbuild@v3
+      # Newest CMake, so it knows whichever Visual Studio the image ships.
+      - name: Set Up CMake
+        uses: lukka/get-cmake@latest
       - name: Get Version
         id: set_version
         shell: bash
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+      # No `-G`: let CMake pick the installed Visual Studio.
       - name: Build Shared Library
         run: |
           cmake -A ${{ matrix.cmake_arch }} `
@@ -127,7 +133,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} "numkong_windows_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.tar.gz" --clobber
 
   create_macos_dylib_library:
-    name: Create Library for macOS
+    name: Create Library for macOS, ${{ matrix.arch }}
     runs-on: macos-15
     strategy:
       fail-fast: false
@@ -160,7 +166,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} *.dylib *.zip --clobber
 
   create_android_library:
-    name: Create Android Libraries
+    name: Create Android Library
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -200,7 +206,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} *.zip --clobber
 
   create_wasm_library:
-    name: Create WASM Libraries
+    name: Create WASM Library
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
@@ -211,9 +217,15 @@ jobs:
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
       - name: Install Emscripten
-        run: |
-          git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
-          (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 15
+          timeout_minutes: 180
+          command: |
+            rm -rf ~/emsdk
+            git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
+            (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
       - name: Set Up Node.js
         uses: actions/setup-node@v6
         with:
@@ -249,6 +261,64 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload ${{ github.event.release.tag_name }} numkong_wasm_*.tar.gz numkong_wasm_*.zip --clobber
 
+  # Separate job so a wasm64 failure cannot stop the wasm32 bundle.
+  create_wasm64_library:
+    name: Create WASM64 Library
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          ref: "main"
+      - name: Get Version
+        id: set_version
+        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+      - name: Install Emscripten
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 15
+          timeout_minutes: 180
+          command: |
+            rm -rf ~/emsdk
+            git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
+            (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
+      - name: Set Up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Build WASM64 Library
+        run: |
+          source ~/emsdk/emsdk_env.sh
+          cmake -B build_wasm64 \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNK_BUILD_SHARED=ON \
+            -DNK_BUILD_TEST=OFF \
+            -DNK_BUILD_BENCH=OFF
+          cmake --build build_wasm64 --config Release
+      # No test workflow covers wasm64, and its linker flags can produce a
+      # module that links but fails to instantiate.
+      - name: Smoke Test WASM64 Module
+        run: |
+          node --experimental-wasm-memory64 -e "
+            import('./build_wasm64/numkong64.js')
+              .then(m => m.default())
+              .then(M => console.log('capabilities:', M._nk_capabilities_available()))"
+
+      - name: Package WASM64 Release
+        run: |
+          cp LICENSE build_wasm64/
+          cd build_wasm64
+          tar -czf "../numkong_wasm64_${{ steps.set_version.outputs.version }}.tar.gz" \
+            numkong64.js numkong64.wasm LICENSE
+          zip -r "../numkong_wasm64_${{ steps.set_version.outputs.version }}.zip" \
+            numkong64.js numkong64.wasm LICENSE
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ github.event.release.tag_name }} numkong_wasm64_*.tar.gz numkong_wasm64_*.zip --clobber
+
   create_freebsd_library:
     name: Create Library for FreeBSD
     runs-on: ubuntu-24.04
@@ -258,17 +328,17 @@ jobs:
       AR: llvm-ar-20
       NM: llvm-nm-20
       RANLIB: llvm-ranlib-20
+      # Sysroot and triple share one release; upstream retires EOL trees.
+      FREEBSD_RELEASE: "14.4"
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: amd64
             freebsd_arch: amd64
-            target: x86_64-unknown-freebsd14.2
             processor: x86_64
           - arch: arm64
             freebsd_arch: arm64/aarch64
-            target: aarch64-unknown-freebsd14.2
             processor: aarch64
     steps:
       - name: Checkout Repository
@@ -280,14 +350,16 @@ jobs:
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
       - name: Install Dependencies
         run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" | sudo tee /etc/apt/sources.list.d/llvm-20.list
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo gpg --dearmor -o /usr/share/keyrings/llvm.gpg
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
           sudo apt-get update
           sudo apt-get install -y clang-20 lld-20
       - name: Download FreeBSD Sysroot
         run: |
           mkdir -p /tmp/freebsd-sysroot
-          curl -fsSL "https://download.freebsd.org/releases/${{ matrix.freebsd_arch }}/14.2-RELEASE/base.txz" \
+          curl -fsSL "https://download.freebsd.org/releases/${{ matrix.freebsd_arch }}/${{ env.FREEBSD_RELEASE }}-RELEASE/base.txz" \
             | tar -xJf - -C /tmp/freebsd-sysroot ./lib ./usr/lib ./usr/include
       - name: Build Shared Library
         run: |
@@ -296,8 +368,8 @@ jobs:
             -DCMAKE_SYSTEM_NAME=FreeBSD \
             -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.processor }} \
             -DCMAKE_SYSROOT=/tmp/freebsd-sysroot \
-            -DCMAKE_C_COMPILER_TARGET=${{ matrix.target }} \
-            -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target }} \
+            -DCMAKE_C_COMPILER_TARGET=${{ matrix.processor }}-unknown-freebsd${{ env.FREEBSD_RELEASE }} \
+            -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.processor }}-unknown-freebsd${{ env.FREEBSD_RELEASE }} \
             -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld-20" \
             -DNK_BUILD_SHARED=ON \
             -DNK_BUILD_TEST=OFF \
@@ -311,7 +383,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} *.so --clobber
 
   create_linux_exotic_library:
-    name: Create Library for Linux (${{ matrix.name }})
+    name: Create Library for Linux, ${{ matrix.name }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -329,6 +401,18 @@ jobs:
             cxx: loongarch64-linux-gnu-g++-14
             pkg: gcc-14-loongarch64-linux-gnu g++-14-loongarch64-linux-gnu
             processor: loongarch64
+          - name: s390x
+            arch: s390x
+            cc: s390x-linux-gnu-gcc-14
+            cxx: s390x-linux-gnu-g++-14
+            pkg: gcc-14-s390x-linux-gnu g++-14-s390x-linux-gnu
+            processor: s390x
+          - name: armv7l
+            arch: armv7l
+            cc: arm-linux-gnueabihf-gcc-14
+            cxx: arm-linux-gnueabihf-g++-14
+            pkg: gcc-14-arm-linux-gnueabihf g++-14-arm-linux-gnueabihf
+            processor: arm
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
@@ -362,7 +446,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} *.so --clobber
 
   create_linux_riscv_library:
-    name: Create Library for Linux (riscv64)
+    name: Create Library for Linux RISC-V
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
@@ -376,18 +460,16 @@ jobs:
         run: |
           curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key \
             | sudo gpg --dearmor -o /usr/share/keyrings/llvm.gpg
-          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble main" \
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-23 main" \
             | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
           sudo apt-get update
           sudo apt-get install -y cmake clang-23 lld-23 llvm-23 \
             gcc-riscv64-linux-gnu libc6-dev-riscv64-cross
       - name: Build Shared Library
         run: |
-          SYSROOT="$(riscv64-linux-gnu-gcc -print-sysroot)"
           cmake -B build_riscv \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
             -DLLVM_ROOT=/usr/lib/llvm-23 \
-            -DRISCV_SYSROOT="${SYSROOT}" \
             -DRISCV_MARCH=rv64gcv_zvfh_zvfbfwma_zvbb \
             -DCMAKE_BUILD_TYPE=Release \
             -DNK_BUILD_SHARED=ON \

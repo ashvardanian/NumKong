@@ -10,6 +10,7 @@
 void test_cross_wasm() {
     [[maybe_unused]] error_stats_section_t check;
 #if NK_TARGET_V128RELAXED
+    check.section("Cross V128 Relaxed", nk_cap_v128relaxed_k);
     check("dots_packed_f64_v128relaxed", test_dots_packed<f64_t>, nk_dots_pack_size_f64_v128relaxed,
           nk_dots_pack_f64_v128relaxed, nk_dots_packed_f64_v128relaxed);
     check("dots_packed_f32_v128relaxed", test_dots_packed<f32_t>, nk_dots_pack_size_f32_v128relaxed,
@@ -143,5 +144,5 @@ void test_cross_wasm() {
           nk_attention_pack_e4m3_v128relaxed, nk_attention_packed_e4m3_v128relaxed);
     check("attention_packed_i8_v128relaxed", test_attention_packed<i8_t>, nk_attention_pack_size_i8_v128relaxed,
           nk_attention_pack_i8_v128relaxed, nk_attention_packed_i8_v128relaxed);
-#endif
+#endif // NK_TARGET_V128RELAXED
 }

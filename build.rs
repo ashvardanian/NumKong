@@ -238,7 +238,7 @@ const ARM_PROBES: &[IsaProbe] = &[
     IsaProbe {
         name: "NK_TARGET_SMELUT2",
         probe_file: "probes/arm_sme_lut2.c",
-        gcc_flags: &["-march=armv8-a+sme2+lut"],
+        gcc_flags: &["-march=armv8-a+sme2+sme-lutv2"],
         msvc_flags: &[],
     },
     IsaProbe {
@@ -371,15 +371,20 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
 
     // Pin TU baseline to each arch's ABI floor; SIMD kernels carry per-function pragmas.
     // `NK_MARCH_NATIVE=1` opts into a host-tuned, non-portable build (ignored on MSVC).
-    // Keep per-arch table in sync with cmake/nk_compiler_flags.cmake, setup.py, binding.gyp.
-    let march_native = env::var("NK_MARCH_NATIVE").is_ok_and(|v| v == "1" || v == "true");
+    // Keep per-arch table in sync with CMakeLists.txt, setup.py, binding.gyp.
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let is_apple = target_os == "macos" || target_os == "ios";
+    let is_cross = env::var("HOST").unwrap_or_default() != env::var("TARGET").unwrap_or_default();
+    let march_native = env::var("NK_MARCH_NATIVE").is_ok_and(|v| v == "1" || v == "true" || v == "TRUE");
     // Portable baseline: pin TU ISA floor + forbid auto-vectorization so serial
     // fallbacks don't get silently promoted to NEON/SSE2/VSX. SIMD kernels use
     // explicit intrinsics; unaffected. MSVC has no command-line vectorizer
     // toggle; `NK_MARCH_NATIVE=1` opts out for host-tuned builds.
-    if march_native && !is_msvc {
-        println!("cargo:warning=NK_MARCH_NATIVE=1: building -march=native, result will not run on older CPUs");
-        build.flag_if_supported("-march=native");
+    if march_native && !is_msvc && !is_cross {
+        println!("cargo:warning=NK_MARCH_NATIVE=1: building host-tuned, result will not run on older CPUs");
+        // Apple Clang's `-march=native` advertises only a subset of host features
+        // (no SME/SME2/FP16_FML); `-mcpu=native` is the complete knob on macOS.
+        build.flag_if_supported(if is_apple { "-mcpu=native" } else { "-march=native" });
     } else if is_msvc {
         match target_arch.as_str() {
             "x86_64" => {
@@ -390,6 +395,11 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
             }
             _ => {}
         }
+    } else if is_apple {
+        // `-arch` already pins the ABI floor per slice, and a universal build passes both
+        // to one clang invocation, where a per-arch `-march=` conflicts with the other slice.
+        build.flag_if_supported("-fno-tree-vectorize");
+        build.flag_if_supported("-fno-tree-slp-vectorize");
     } else {
         build.flag_if_supported("-fno-tree-vectorize");
         build.flag_if_supported("-fno-tree-slp-vectorize");

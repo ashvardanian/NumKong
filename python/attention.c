@@ -10,15 +10,58 @@
  *  - Compute API: `attention_packed()`.
  */
 #include "attention.h"
+#include "parallel.h" // `nk_parallel_for_tiles`
 #include "tensor.h"
 
 #include <numkong/attention.h>
 
 #include <math.h>
 
-#if defined(NK_USE_OPENMP)
-#include <omp.h>
-#endif
+/** @brief One segment-head window of a KV-cache pack. */
+typedef struct attention_pack_task_t {
+    nk_attention_pack_punned_t kernel;
+    void const *keys;
+    void const *values;
+    nk_size_t heads;
+    nk_size_t depth;
+    nk_u32_t const *segment_offsets;
+    nk_u32_t const *segment_lengths;
+    nk_size_t segment_count;
+    nk_size_t keys_stride_bytes;
+    nk_size_t values_stride_bytes;
+    void *packed;
+} attention_pack_task_t;
+
+static void attention_pack_tile_(nk_size_t tile_index, void *context) {
+    attention_pack_task_t const *task = (attention_pack_task_t const *)context;
+    // Window 0 initializes the blob's header and directory before the pool starts, so tile 0 is window 1.
+    nk_size_t const window = tile_index + 1;
+    task->kernel(task->keys, task->values, task->heads, task->depth, task->segment_offsets, task->segment_lengths,
+                 task->segment_count, task->keys_stride_bytes, task->values_stride_bytes, task->packed, window,
+                 window + 1);
+}
+
+/** @brief One segment-head window of ragged attention against a packed KV-cache. */
+typedef struct attention_packed_task_t {
+    nk_attention_packed_punned_t kernel;
+    void const *queries;
+    void const *key_value_packed;
+    void *outputs;
+    nk_size_t heads;
+    nk_size_t key_value_heads;
+    nk_size_t depth;
+    nk_u32_t const *query_offsets;
+    nk_size_t queries_stride_bytes;
+    nk_size_t outputs_stride_bytes;
+    nk_f32_t scale;
+} attention_packed_task_t;
+
+static void attention_packed_tile_(nk_size_t tile_index, void *context) {
+    attention_packed_task_t const *task = (attention_packed_task_t const *)context;
+    task->kernel(task->queries, task->key_value_packed, task->outputs, task->heads, task->key_value_heads, task->depth,
+                 task->query_offsets, task->queries_stride_bytes, task->outputs_stride_bytes, task->scale, tile_index,
+                 tile_index + 1);
+}
 
 static void AttentionPackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self); }
 
@@ -170,7 +213,7 @@ char const doc_attention_pack[] =                                               
     "    segment_lengths (u32 array, optional): KV length per segment; defaults to\n" //
     "        adjacent offset differences (self-attention).\n"                         //
     "    depth (int, optional): Required when k/v are 2-D.\n"                         //
-    "    threads (int): OpenMP threads for packing; 0 = all cores.\n\n"               //
+    "    threads (int): Threads for packing; 0 = all cores.\n\n"                      //
     "Returns:\n"                                                                      //
     "    AttentionPackedMatrix: Opaque packed KV-cache for attention_packed().\n\n"   //
     "Signature:\n"                                                                    //
@@ -308,26 +351,25 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
     packed->nbytes = packed_bytes;
 
     {
+        attention_pack_task_t task;
+        task.kernel = pack_fn;
+        task.keys = k_buffer.buf;
+        task.values = v_buffer.buf;
+        task.heads = heads;
+        task.depth = depth;
+        task.segment_offsets = segment_offsets;
+        task.segment_lengths = segment_lengths;
+        task.segment_count = segment_count;
+        task.keys_stride_bytes = k_stride;
+        task.values_stride_bytes = v_stride;
+        task.packed = packed->start;
+        nk_size_t const task_count = segment_count * heads;
         PyThreadState *save = PyEval_SaveThread();
-#if defined(NK_USE_OPENMP)
-        // Resolve 0 → all cores with the num_threads() clause, never omp_set_num_threads():
-        // the latter mutates the process-wide ICV (see the note in matrix.c).
-        if (threads == 0) threads = (nk_size_t)omp_get_max_threads();
-#else
-        if (threads == 0) threads = 1;
-#endif
-        int const task_count = (int)(segment_count * heads);
         // The window covering task 0 initializes the blob's header and directory;
         // running it first keeps the parallel remainder read-only on that region.
         pack_fn(k_buffer.buf, v_buffer.buf, heads, depth, segment_offsets, segment_lengths, segment_count, k_stride,
                 v_stride, packed->start, 0, 1);
-        // MSVC's ARM64 backend raises C1001 on any expression inside `num_threads` beside an `if` clause.
-        int const thread_count = (int)threads;
-        int task_index;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads(thread_count)
-        for (task_index = 1; task_index < task_count; task_index++)
-            pack_fn(k_buffer.buf, v_buffer.buf, heads, depth, segment_offsets, segment_lengths, segment_count, k_stride,
-                    v_stride, packed->start, (nk_size_t)task_index, (nk_size_t)task_index + 1);
+        if (task_count > 1) nk_parallel_for_tiles(task_count - 1, threads, attention_pack_tile_, &task);
         PyEval_RestoreThread(save);
     }
 
@@ -344,23 +386,23 @@ cleanup:
     return (PyObject *)packed;
 }
 
-char const doc_attention_packed[] =                                                   //
-    "attention_packed(q, kv, /, query_offsets, out=None, scale=None, threads=1) "     //
-    "-> Tensor\n\n"                                                                   //
-    "Ragged scaled-dot-product attention against a pre-packed KV-cache.\n\n"          //
-    "Parameters:\n"                                                                   //
-    "    q (array_like): Query tokens, 2-D (tokens, heads*depth) or 3-D\n"            //
-    "        (tokens, heads, depth), same dtype as the packed KV-cache.\n"            //
-    "    kv (AttentionPackedMatrix): Packed KV-cache from attention_pack().\n"        //
-    "    query_offsets (u32 array): Cumulative query offsets, length segments+1;\n"   //
-    "        arange(segments+1) turns the call into a batched single-query pool.\n"   //
-    "    out (Tensor, optional): Pre-allocated f32 output of the same shape as q.\n"  //
-    "    scale (float, optional): Score scale; default 1/sqrt(depth).\n"              //
-    "    threads (int): OpenMP threads over the segment*head task grid; 0 = all.\n\n" //
-    "Returns:\n"                                                                      //
-    "    Tensor: f32 outputs, rows covered by query_offsets are written.\n\n"         //
-    "Signature:\n"                                                                    //
-    "    >>> def attention_packed(q, kv, /, query_offsets, out=None, scale=None,\n"   //
+char const doc_attention_packed[] =                                                  //
+    "attention_packed(q, kv, /, query_offsets, out=None, scale=None, threads=1) "    //
+    "-> Tensor\n\n"                                                                  //
+    "Ragged scaled-dot-product attention against a pre-packed KV-cache.\n\n"         //
+    "Parameters:\n"                                                                  //
+    "    q (array_like): Query tokens, 2-D (tokens, heads*depth) or 3-D\n"           //
+    "        (tokens, heads, depth), same dtype as the packed KV-cache.\n"           //
+    "    kv (AttentionPackedMatrix): Packed KV-cache from attention_pack().\n"       //
+    "    query_offsets (u32 array): Cumulative query offsets, length segments+1;\n"  //
+    "        arange(segments+1) turns the call into a batched single-query pool.\n"  //
+    "    out (Tensor, optional): Pre-allocated f32 output of the same shape as q.\n" //
+    "    scale (float, optional): Score scale; default 1/sqrt(depth).\n"             //
+    "    threads (int): Threads over the segment*head task grid; 0 = all.\n\n"       //
+    "Returns:\n"                                                                     //
+    "    Tensor: f32 outputs, rows covered by query_offsets are written.\n\n"        //
+    "Signature:\n"                                                                   //
+    "    >>> def attention_packed(q, kv, /, query_offsets, out=None, scale=None,\n"  //
     "    ...                      threads=1) -> Tensor: ...";
 
 PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
@@ -477,21 +519,20 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
     }
 
     {
-        nk_size_t const o_stride = row_values * sizeof(nk_f32_t);
+        attention_packed_task_t task;
+        task.kernel = kernel;
+        task.queries = q_buffer.buf;
+        task.key_value_packed = kv->start;
+        task.outputs = result->data;
+        task.heads = num_heads;
+        task.key_value_heads = kv->heads;
+        task.depth = kv->depth;
+        task.query_offsets = query_offsets;
+        task.queries_stride_bytes = q_stride;
+        task.outputs_stride_bytes = row_values * sizeof(nk_f32_t);
+        task.scale = scale;
         PyThreadState *save = PyEval_SaveThread();
-#if defined(NK_USE_OPENMP)
-        if (threads == 0) threads = (nk_size_t)omp_get_max_threads();
-#else
-        if (threads == 0) threads = 1;
-#endif
-        int const task_count = (int)(kv->segment_count * num_heads);
-        // MSVC's ARM64 backend raises C1001 on any expression inside `num_threads` beside an `if` clause.
-        int const thread_count = (int)threads;
-        int task_index;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1) num_threads(thread_count)
-        for (task_index = 0; task_index < task_count; task_index++)
-            kernel(q_buffer.buf, kv->start, (nk_f32_t *)result->data, num_heads, kv->heads, kv->depth, query_offsets,
-                   q_stride, o_stride, scale, (nk_size_t)task_index, (nk_size_t)task_index + 1);
+        nk_parallel_for_tiles(kv->segment_count * num_heads, threads, attention_packed_tile_, &task);
         PyEval_RestoreThread(save);
     }
 

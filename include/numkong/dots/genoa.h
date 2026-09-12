@@ -13,7 +13,9 @@
 #if NK_TARGET_GENOA
 
 #include "numkong/dot/genoa.h"
-#include "numkong/cast/icelake.h" // `nk_load_e4m3x32_to_bf16x32_icelake_`
+#include "numkong/cast/icelake.h"   // `nk_load_e4m3x32_to_bf16x32_icelake_`
+#include "numkong/dot/skylake.h"    // `nk_dot_through_f32_finalize_skylake_`
+#include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {

@@ -13,9 +13,10 @@ env:
 
 jobs:
   build_wheels_linux_x86:
-    name: Build Python Wheels (Linux x86)
+    name: Build Python Wheels for Linux x86, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
@@ -33,7 +34,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -53,12 +54,11 @@ jobs:
           path: wheelhouse/*.whl
           overwrite: true
 
-  # These are maintained by Arm, not GitHub, so we need to include
-  # extra steps, like installing Docker and starting the service
   build_wheels_linux_arm:
-    name: Build Python Wheels (Linux ARM)
+    name: Build Python Wheels for Linux ARM, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04-arm
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
@@ -66,23 +66,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - name: Install Docker CE from Official Repository
-        uses: nick-fields/retry@v4
-        with:
-          max_attempts: 3
-          retry_wait_seconds: 15
-          timeout_minutes: 180
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y ca-certificates curl gnupg lsb-release
-            sudo mkdir -p /etc/apt/keyrings
-            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-            sudo apt-get update
-            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-            sudo systemctl start docker
-            sudo chmod 666 /var/run/docker.sock
-            docker version
       - name: Install Python
         uses: actions/setup-python@v7
         with:
@@ -93,7 +76,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -114,9 +97,10 @@ jobs:
           overwrite: true
 
   build_wheels_macos_x86:
-    name: Build Python Wheels (macOS x86)
+    name: Build Python Wheels for macOS x86, cp${{ matrix.python-version }}
     runs-on: macos-26
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
@@ -136,7 +120,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -157,9 +141,10 @@ jobs:
           overwrite: true
 
   build_wheels_macos_arm:
-    name: Build Python Wheels (macOS ARM)
+    name: Build Python Wheels for macOS ARM, cp${{ matrix.python-version }}
     runs-on: macos-26
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
@@ -179,7 +164,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -200,25 +185,13 @@ jobs:
           overwrite: true
 
   build_wheels_windows:
-    name: Build Python Wheels (Windows)
+    name: Build Python Wheels for Windows, ${{ matrix.architecture }}, cp${{ matrix.python-version }}
     runs-on: windows-2025
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "314", "314t"]
-        architecture: [AMD64]
-        include:
-          - python-version: "310"
-            architecture: ARM64
-          - python-version: "311"
-            architecture: ARM64
-          - python-version: "312"
-            architecture: ARM64
-          - python-version: "313"
-            architecture: ARM64
-          - python-version: "314"
-            architecture: ARM64
-          - python-version: "314t"
-            architecture: ARM64
+        architecture: [AMD64, ARM64]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -241,27 +214,13 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.architecture == 'ARM64' && 'amd64_arm64' || 'amd64' }}
-      # `/openmp:llvm` makes the extension import `libomp140.<arch>.dll`. It ships with Visual
-      # Studio, but under `VC\Redist\...\debug_nonredist\`, which vcvarsall does not add to PATH
-      # — and delvewheel vendors only what it can find on PATH. Every Windows runner has Visual
-      # Studio, so an unvendored wheel still imports here and fails only on a user's machine.
-      - name: Expose the OpenMP runtime to delvewheel
-        shell: pwsh
-        run: |
-          $name = if ('${{ matrix.architecture }}' -eq 'ARM64') { 'libomp140.aarch64.dll' } else { 'libomp140.x86_64.dll' }
-          $roots = @("${env:ProgramFiles}\Microsoft Visual Studio", "${env:ProgramFiles(x86)}\Microsoft Visual Studio")
-          $dll = Get-ChildItem -Path $roots -Recurse -Filter $name -ErrorAction SilentlyContinue |
-                 Select-Object -First 1
-          if (-not $dll) { Write-Error "$name not found in the Visual Studio install"; exit 1 }
-          Write-Host "Found libomp: $($dll.FullName)"
-          Add-Content -Path $env:GITHUB_PATH -Value $dll.DirectoryName
       - name: Install cibuildwheel
         uses: nick-fields/retry@v4
         with:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -273,23 +232,6 @@ jobs:
           CIBW_BUILD: cp${{ matrix.python-version }}-win_${{ matrix.architecture }}
           CIBW_PLATFORM: windows
           NK_REPETITIONS: 1
-      # Every Windows runner has Visual Studio, so `import numkong` succeeds whether or not
-      # delvewheel vendored the OpenMP runtime. Only the archive shows the truth.
-      - name: Verify the OpenMP runtime is vendored
-        shell: pwsh
-        run: |
-          $wheel = Get-ChildItem wheelhouse\*.whl | Select-Object -First 1
-          if (-not $wheel) { Write-Error 'No wheel was produced'; exit 1 }
-          $names = @(python -c "import sys, zipfile; print(chr(10).join(zipfile.ZipFile(sys.argv[1]).namelist()))" $wheel.FullName)
-          # delvewheel mangles the vendored name (libomp140.x86_64-<hash>.dll), so match the stem.
-          # `-match` over a list filters it; `-notmatch` would return every other entry and read as true.
-          $vendored = @($names -match 'libomp140')
-          if ($vendored.Count -eq 0) {
-            Write-Error "$($wheel.Name) imports libomp140 but does not carry it; it would fail to import wherever Visual Studio is absent"
-            exit 1
-          }
-          Write-Host "OK: OpenMP runtime vendored into $($wheel.Name)"
-          $vendored | ForEach-Object { "  $_" }
       - name: Upload Wheels
         uses: actions/upload-artifact@v7
         with:
@@ -298,7 +240,7 @@ jobs:
           overwrite: true
 
   build_wheels_other:
-    name: Build Python Wheels (Other Platforms)
+    name: Build Python Wheels for Linux, ${{ matrix.architecture }}, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04
     strategy:
       # One emulated arch failing must not cancel its siblings — we want per-arch truth,
@@ -324,7 +266,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -336,6 +278,7 @@ jobs:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
           CIBW_PLATFORM: linux
           CIBW_ARCHS: ${{ matrix.architecture }}
+          NK_IN_QEMU: 1
           NK_REPETITIONS: 1
       - name: Upload Wheels
         uses: actions/upload-artifact@v7
@@ -344,13 +287,53 @@ jobs:
           path: wheelhouse/*.whl
           overwrite: true
 
-  build_wheels_linux_riscv:
-    name: Build Python Wheels (Linux RISC-V)
-    # Temporarily disabled until the official PyPA riscv64 images expose a
-    # packaged LLVM 23 toolchain, or until we switch to custom images.
-    if: ${{ false }}
+  build_wheels_pyodide:
+    name: Build Python Wheels for Pyodide, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
+      matrix:
+        # Every non-prerelease Pyodide identifier cibuildwheel offers.
+        python-version: ["313", "314"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: Install Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install cibuildwheel
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 10
+          timeout_minutes: 180
+          command: python -m pip install 'cibuildwheel~=4.2'
+      - name: Build Wheels
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 2
+          retry_wait_seconds: 30
+          timeout_minutes: 180
+          command: cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_BUILD: cp${{ matrix.python-version }}-pyodide_wasm32
+          CIBW_PLATFORM: pyodide
+          NK_REPETITIONS: 1
+      - name: Upload Wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: cibw-wheels-pyodide-cp${{ matrix.python-version }}
+          path: wheelhouse/*.whl
+          overwrite: true
+
+  build_wheels_linux_riscv:
+    name: Build Python Wheels for Linux RISC-V, cp${{ matrix.python-version }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
       matrix:
         python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
@@ -370,7 +353,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -383,6 +366,7 @@ jobs:
           CIBW_PLATFORM: linux
           CIBW_ARCHS: riscv64
           QEMU_CPU: max
+          NK_IN_QEMU: 1
           NK_REPETITIONS: 1
       - name: Upload Wheels
         uses: actions/upload-artifact@v7
@@ -393,7 +377,7 @@ jobs:
 
   build_sdist:
     name: Build Python Source Distribution
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7

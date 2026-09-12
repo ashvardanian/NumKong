@@ -37,6 +37,7 @@
 #if NK_TARGET_V128RELAXED
 
 #include "numkong/types.h"
+#include "numkong/cast/serial.h" // `nk_partial_load_b32x4_serial_`, `nk_partial_load_b64x2_serial_`, `nk_partial_store_b32x4_serial_`
 
 #if defined(__cplusplus)
 extern "C" {

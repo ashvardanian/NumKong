@@ -12,7 +12,7 @@
 void test_cross_x86() {
     [[maybe_unused]] error_stats_section_t check;
 #if NK_TARGET_HASWELL
-
+    check.section("Cross Haswell", nk_cap_haswell_k);
     check("dots_packed_f64_haswell", test_dots_packed<f64_t>, nk_dots_pack_size_f64_haswell, nk_dots_pack_f64_haswell,
           nk_dots_packed_f64_haswell);
     check("dots_packed_f32_haswell", test_dots_packed<f32_t>, nk_dots_pack_size_f32_haswell, nk_dots_pack_f32_haswell,
@@ -126,11 +126,10 @@ void test_cross_x86() {
           nk_attention_pack_e4m3_haswell, nk_attention_packed_e4m3_haswell);
     check("attention_packed_i8_haswell", test_attention_packed<i8_t>, nk_attention_pack_size_i8_haswell,
           nk_attention_pack_i8_haswell, nk_attention_packed_i8_haswell);
-
-#endif
+#endif // NK_TARGET_HASWELL
 
 #if NK_TARGET_SKYLAKE
-
+    check.section("Cross Skylake", nk_cap_skylake_k);
     check("dots_packed_f64_skylake", test_dots_packed<f64_t>, nk_dots_pack_size_f64_skylake, nk_dots_pack_f64_skylake,
           nk_dots_packed_f64_skylake);
     check("dots_packed_f32_skylake", test_dots_packed<f32_t>, nk_dots_pack_size_f32_skylake, nk_dots_pack_f32_skylake,
@@ -213,10 +212,10 @@ void test_cross_x86() {
           nk_attention_pack_bf16_skylake, nk_attention_packed_bf16_skylake);
     check("attention_packed_e4m3_skylake", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_skylake,
           nk_attention_pack_e4m3_skylake, nk_attention_packed_e4m3_skylake);
-
-#endif
+#endif // NK_TARGET_SKYLAKE
 
 #if NK_TARGET_ICELAKE
+    check.section("Cross Ice Lake", nk_cap_icelake_k);
     check("dots_packed_i8_icelake", test_dots_packed<i8_t>, nk_dots_pack_size_i8_icelake, nk_dots_pack_i8_icelake,
           nk_dots_packed_i8_icelake);
     check("dots_packed_u8_icelake", test_dots_packed<u8_t>, nk_dots_pack_size_u8_icelake, nk_dots_pack_u8_icelake,
@@ -272,11 +271,10 @@ void test_cross_x86() {
 
     check("attention_packed_i8_icelake", test_attention_packed<i8_t>, nk_attention_pack_size_i8_icelake,
           nk_attention_pack_i8_icelake, nk_attention_packed_i8_icelake);
-
-#endif
+#endif // NK_TARGET_ICELAKE
 
 #if NK_TARGET_GENOA
-
+    check.section("Cross Genoa", nk_cap_genoa_k);
     check("dots_packed_bf16_genoa", test_dots_packed<bf16_t>, nk_dots_pack_size_bf16_genoa, nk_dots_pack_bf16_genoa,
           nk_dots_packed_bf16_genoa);
     check("dots_packed_e4m3_genoa", test_dots_packed<e4m3_t>, nk_dots_pack_size_e4m3_genoa, nk_dots_pack_e4m3_genoa,
@@ -309,10 +307,10 @@ void test_cross_x86() {
           nk_attention_pack_bf16_genoa, nk_attention_packed_bf16_genoa);
     check("attention_packed_e4m3_genoa", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_genoa,
           nk_attention_pack_e4m3_genoa, nk_attention_packed_e4m3_genoa);
-
-#endif
+#endif // NK_TARGET_GENOA
 
 #if NK_TARGET_DIAMOND
+    check.section("Cross Diamond", nk_cap_diamond_k);
     check("dots_packed_e4m3_diamond", test_dots_packed<e4m3_t>, nk_dots_pack_size_e4m3_diamond,
           nk_dots_pack_e4m3_diamond, nk_dots_packed_e4m3_diamond);
     check("dots_packed_e5m2_diamond", test_dots_packed<e5m2_t>, nk_dots_pack_size_e5m2_diamond,
@@ -331,10 +329,10 @@ void test_cross_x86() {
           nk_dots_pack_e5m2_diamond, nk_euclideans_packed_e5m2_diamond);
     check("euclideans_symmetric_e4m3_diamond", test_euclideans_symmetric<e4m3_t>, nk_euclideans_symmetric_e4m3_diamond);
     check("euclideans_symmetric_e5m2_diamond", test_euclideans_symmetric<e5m2_t>, nk_euclideans_symmetric_e5m2_diamond);
-
-#endif
+#endif // NK_TARGET_DIAMOND
 
 #if NK_TARGET_ALDER
+    check.section("Cross Alder", nk_cap_alder_k);
     check("dots_packed_e2m3_alder", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_alder, nk_dots_pack_e2m3_alder,
           nk_dots_packed_e2m3_alder);
     check("dots_packed_i8_alder", test_dots_packed<i8_t>, nk_dots_pack_size_i8_alder, nk_dots_pack_i8_alder,
@@ -369,9 +367,10 @@ void test_cross_x86() {
     check("euclideans_packed_e2m3_alder", test_euclideans_packed<e2m3_t>, nk_dots_pack_size_e2m3_alder,
           nk_dots_pack_e2m3_alder, nk_euclideans_packed_e2m3_alder);
     check("euclideans_symmetric_e2m3_alder", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3_alder);
-#endif
+#endif // NK_TARGET_ALDER
 
 #if NK_TARGET_SIERRA
+    check.section("Cross Sierra", nk_cap_sierra_k);
     check("dots_packed_e2m3_sierra", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_sierra, nk_dots_pack_e2m3_sierra,
           nk_dots_packed_e2m3_sierra);
     check("dots_packed_i8_sierra", test_dots_packed<i8_t>, nk_dots_pack_size_i8_sierra, nk_dots_pack_i8_sierra,
@@ -406,9 +405,10 @@ void test_cross_x86() {
     check("euclideans_packed_e2m3_sierra", test_euclideans_packed<e2m3_t>, nk_dots_pack_size_e2m3_sierra,
           nk_dots_pack_e2m3_sierra, nk_euclideans_packed_e2m3_sierra);
     check("euclideans_symmetric_e2m3_sierra", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3_sierra);
-#endif
+#endif // NK_TARGET_SIERRA
 
 #if NK_TARGET_SAPPHIREAMX
+    check.section("Cross Sapphire AMX", nk_cap_sapphireamx_k);
     check("angulars_packed_bf16_sapphireamx", test_angulars_packed<bf16_t>, nk_dots_pack_size_bf16_sapphireamx,
           nk_dots_pack_bf16_sapphireamx, nk_angulars_packed_bf16_sapphireamx);
     check("angulars_packed_i8_sapphireamx", test_angulars_packed<i8_t>, nk_dots_pack_size_i8_sapphireamx,
@@ -466,5 +466,5 @@ void test_cross_x86() {
           nk_euclideans_symmetric_e5m2_sapphireamx);
     check("euclideans_symmetric_u8_sapphireamx", test_euclideans_symmetric<u8_t>,
           nk_euclideans_symmetric_u8_sapphireamx);
-#endif
+#endif // NK_TARGET_SAPPHIREAMX
 }

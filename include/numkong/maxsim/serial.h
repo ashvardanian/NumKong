@@ -71,15 +71,6 @@ NK_STATIC_ASSERT(sizeof(nk_maxsim_vector_metadata_t) == 12, nk_maxsim_vector_met
  */
 typedef void (*nk_maxsim_to_f32_t)(void const *source, nk_f32_t *destination);
 
-/*  Keep the serial instantiations below actually scalar, regardless of build type.
- *  See dots/serial.h for rationale. */
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
-
 /** @brief Identity conversion for f32 sources — just a typed memcpy. */
 NK_HELPER_INLINE void nk_f32_to_f32_(void const *source, nk_f32_t *destination) {
     *destination = *(nk_f32_t const *)source;
@@ -254,6 +245,15 @@ NK_HELPER_INLINE void nk_maxsim_packed_shape_(void const *packed, nk_size_t *vec
     *depth = header->depth;
 }
 
+/*  Keep the serial instantiations below actually scalar, regardless of build type.
+ *  See dots/serial.h for rationale. */
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
 NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_serial(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_bf16_t), 1);
 }
@@ -355,6 +355,12 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_serial( //
     }
 }
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 /**
  *  @brief Dtype-agnostic coarse i8 argmax kernel for the serial backend.
  *  Produces per-query best document indices using signed i8×i8 dot products.
@@ -420,6 +426,13 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_serial_( //
         best_document_indices[query_index] = running_argmax_u32;
     }
 }
+
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
 
 NK_API_COMPTIME void nk_maxsim_packed_bf16_serial( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,

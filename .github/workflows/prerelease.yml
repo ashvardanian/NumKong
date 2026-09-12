@@ -18,7 +18,7 @@ env:
 jobs:
   versioning:
     name: Update Version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -26,7 +26,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Run TinySemVer
-        uses: ashvardanian/tinysemver@v2.1.1
+        uses: ashvardanian/tinysemver@v3
         with:
           verbose: "true"
           version-file: "VERSION"
@@ -40,13 +40,13 @@ jobs:
             javascript/@numkong-win32-x64/package.json:"version": "(\d+\.\d+\.\d+)"
             javascript/@numkong-win32-arm64/package.json:"version": "(\d+\.\d+\.\d+)"
             CMakeLists.txt:VERSION (\d+\.\d+\.\d+)
+            CITATION.cff:^version: (\d+\.\d+\.\d+)
             package.json:@numkong/darwin-arm64": "(\d+\.\d+\.\d+)"
             package.json:@numkong/darwin-x64": "(\d+\.\d+\.\d+)"
             package.json:@numkong/linux-arm64": "(\d+\.\d+\.\d+)"
             package.json:@numkong/linux-x64": "(\d+\.\d+\.\d+)"
             package.json:@numkong/win32-arm64": "(\d+\.\d+\.\d+)"
             package.json:@numkong/win32-x64": "(\d+\.\d+\.\d+)"
-            CITATION.cff:^version: (\d+\.\d+\.\d+)
           update-major-version-in: |
             include/numkong/capabilities.h:^#define NK_VERSION_MAJOR (\d+)
           update-minor-version-in: |
@@ -56,6 +56,6 @@ jobs:
           dry-run: "true"
 
   wheels:
-    name: Build Wheels
+    name: Build Python Wheels
     uses: ./.github/workflows/_wheels.yml
     secrets: inherit
