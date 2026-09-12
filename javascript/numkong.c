@@ -567,8 +567,9 @@ static void packed_tile_(nk_size_t tile_index, void *context) {
 
 /**
  *  @brief Shared dispatcher for packed operations (dots, angulars, euclideans).
- *  Args: TypedArray a, ArrayBuffer packed, TypedArray result, numbers height/width/depth/aStride/resultStride, string
- * dtype
+ *
+ *  Args: TypedArray a, ArrayBuffer packed, TypedArray result,
+ *  numbers height/width/depth/aStride/resultStride, string dtype
  */
 static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_kernel_kind_t kernel_kind) {
     size_t argc = 10;
@@ -674,8 +675,9 @@ static void symmetric_tile_(nk_size_t tile_index, void *context) {
 
 /**
  *  @brief Shared dispatcher for symmetric operations (dots, angulars, euclideans).
- *  Args: TypedArray vectors, TypedArray result, numbers nVectors/depth/vectorsStride/resultStride/rowStart/rowCount,
- * string dtype
+ *
+ *  Args: TypedArray vectors, TypedArray result,
+ *  numbers nVectors/depth/vectorsStride/resultStride/rowStart/rowCount, string dtype
  */
 static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk_kernel_kind_t kernel_kind) {
     size_t argc = 10;

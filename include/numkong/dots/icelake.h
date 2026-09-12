@@ -44,9 +44,9 @@ extern "C" {
 
 /* I8 GEMM: depth_simd_dimensions=64 — compensated (B sums precomputed in pack) */
 nk_define_cross_packed_shape_(dots, i8, icelake)
-    nk_define_cross_compensated_pack_size_(dots, i8, icelake, i8, i8,
-                                           /*sum_value_type=*/i32, /*norm_value_type=*/u32,
-                                           /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
+nk_define_cross_compensated_pack_size_(dots, i8, icelake, i8, i8,
+                                       /*sum_value_type=*/i32, /*norm_value_type=*/u32,
+                                       /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
 nk_define_cross_compensated_pack_(dots, i8, icelake, i8, i8, nk_b512_vec_t, nk_load_b512_skylake_,
                                   nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_,
                                   nk_partial_store_b8x64_skylake_, /*simd_width=*/64, /*sum_value_type=*/i32,
@@ -74,9 +74,9 @@ nk_define_cross_compensated_packed_(dots, i8, icelake, i8, i8, i32,
 
 /* U8 GEMM: depth_simd_dimensions=64 — compensated (operand swap, B sums precomputed) */
 nk_define_cross_packed_shape_(dots, u8, icelake)
-    nk_define_cross_compensated_pack_size_(dots, u8, icelake, u8, u8,
-                                           /*sum_value_type=*/u32, /*norm_value_type=*/u32,
-                                           /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
+nk_define_cross_compensated_pack_size_(dots, u8, icelake, u8, u8,
+                                       /*sum_value_type=*/u32, /*norm_value_type=*/u32,
+                                       /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
 nk_define_cross_compensated_pack_(dots, u8, icelake, u8, u8, nk_b512_vec_t, nk_load_b512_skylake_,
                                   nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_,
                                   nk_partial_store_b8x64_skylake_, /*simd_width=*/64, /*sum_value_type=*/u32,
@@ -104,9 +104,9 @@ nk_define_cross_compensated_packed_(dots, u8, icelake, u8, u8, u32,
 
 /* I4 GEMM: depth_simd_dimensions=128 — compensated (A+B sums precomputed) */
 nk_define_cross_packed_shape_(dots, i4, icelake)
-    nk_define_cross_compensated_pack_size_(dots, i4, icelake, i4x2, i4x2,
-                                           /*sum_value_type=*/i32, /*norm_value_type=*/u32,
-                                           /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
+nk_define_cross_compensated_pack_size_(dots, i4, icelake, i4x2, i4x2,
+                                       /*sum_value_type=*/i32, /*norm_value_type=*/u32,
+                                       /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
 nk_define_cross_compensated_pack_(dots, i4, icelake, i4x2, i4x2, nk_b512_vec_t, nk_load_b512_skylake_,
                                   nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_,
                                   nk_partial_store_b8x64_skylake_, /*simd_width=*/64, /*sum_value_type=*/i32,
@@ -136,10 +136,10 @@ nk_define_cross_compensated_packed_(dots, i4, icelake, i4x2, i4x2, i32,
 nk_define_cross_pack_size_(dots, u4, icelake, u4x2, u4x2, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/128,
                            /*dimensions_per_value=*/2)
 nk_define_cross_packed_shape_(dots, u4, icelake)
-    nk_define_cross_pack_(dots, u4, icelake, u4x2, u4x2, nk_b512_vec_t, nk_load_b512_skylake_,
-                          nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
-                          /*simd_width=*/64, /*norm_value_type=*/u32, nk_dots_reduce_sumsq_u4_,
-                          /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
+nk_define_cross_pack_(dots, u4, icelake, u4x2, u4x2, nk_b512_vec_t, nk_load_b512_skylake_,
+                      nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
+                      /*simd_width=*/64, /*norm_value_type=*/u32, nk_dots_reduce_sumsq_u4_,
+                      /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
 
 nk_define_cross_symmetric_(dots, u4, icelake, u4x2, u32, nk_b512_vec_t, nk_dot_u4x128_state_icelake_t, nk_b128_vec_t,
                            nk_dot_u4x128_init_icelake, nk_load_b512_skylake_, nk_partial_load_b4x128_skylake_,
@@ -156,10 +156,10 @@ nk_define_cross_packed_(dots, u4, icelake, u4x2, u4x2, u32, nk_b512_vec_t, nk_do
 nk_define_cross_pack_size_(dots, u1, icelake, u1x8, u1x8, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/512,
                            /*dimensions_per_value=*/8)
 nk_define_cross_packed_shape_(dots, u1, icelake)
-    nk_define_cross_pack_(dots, u1, icelake, u1x8, u1x8, nk_b512_vec_t, nk_load_b512_skylake_,
-                          nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
-                          /*simd_width=*/64, /*norm_value_type=*/u32, nk_dots_reduce_sum_u1_,
-                          /*depth_simd_dimensions=*/512, /*dimensions_per_value=*/8)
+nk_define_cross_pack_(dots, u1, icelake, u1x8, u1x8, nk_b512_vec_t, nk_load_b512_skylake_,
+                      nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
+                      /*simd_width=*/64, /*norm_value_type=*/u32, nk_dots_reduce_sum_u1_,
+                      /*depth_simd_dimensions=*/512, /*dimensions_per_value=*/8)
 nk_define_cross_symmetric_(dots, u1, icelake, u1x8, u32, nk_b512_vec_t, nk_dot_u1x512_state_icelake_t, nk_b128_vec_t,
                            nk_dot_u1x512_init_icelake, nk_load_b512_skylake_, nk_partial_load_b1x512_skylake_,
                            nk_dot_u1x512_update_icelake, nk_dot_u1x512_finalize_icelake, nk_store_b128_haswell_,

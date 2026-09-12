@@ -5,6 +5,7 @@ TabWidth: 4
 NamespaceIndentation: None
 ColumnLimit: 120
 ReflowComments: true
+CommentPragmas: '^ IWYU pragma:|https?://'
 UseTab: Never
 
 AlignConsecutiveAssignments: false
@@ -120,6 +121,7 @@ StatementMacros:
   - nk_define_reduce_minmax_
   - nk_define_reduce_rmsnorm_
   - nk_define_cross_pack_size_
+  - nk_define_cross_packed_shape_
   - nk_define_cross_pack_
   - nk_define_cross_packed_
   - nk_define_cross_symmetric_
@@ -142,16 +144,22 @@ StatementMacros:
   - nk_dispatch_each_blend_
   - nk_dispatch_each_scale_
   - nk_dispatch_each_sum_
+  - nk_dispatch_each_swiglu_
   - nk_dispatch_trig_
+  - nk_dispatch_trig_rope_
   - nk_dispatch_mesh_
   - nk_dispatch_reduce_moments_
   - nk_dispatch_reduce_minmax_
+  - nk_dispatch_reduce_rmsnorm_
   - nk_dispatch_cross_pack_size_
+  - nk_dispatch_cross_packed_shape_
   - nk_dispatch_cross_pack_
   - nk_dispatch_cross_packed_
   - nk_dispatch_cross_symmetric_
+  - nk_dispatch_dots_pack_
   - nk_dispatch_maxsim_packed_
   - nk_dispatch_attention_pack_size_
+  - nk_dispatch_attention_packed_shape_
   - nk_dispatch_attention_pack_
   - nk_dispatch_attention_packed_
 

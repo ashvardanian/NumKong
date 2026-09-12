@@ -109,8 +109,8 @@ void store_derived_tensor_scale_(scaled_tensor_span<format_> const &destination,
 template <typename format_, std::size_t max_rank_, allow_simd_t allow_simd_ = prefer_simd_k>
 void cast(tensor_view<f32_t, max_rank_> from, scaled_tensor_span<format_, max_rank_> to) noexcept {
     auto source = plain_f32_operand_(from.byte_data());
-    auto destination =
-        scaled_operand_<format_>(to.elements().byte_data(), to.block_scales().byte_data(), /*derive*/ 0.0f);
+    auto destination = scaled_operand_<format_>(to.elements().byte_data(), to.block_scales().byte_data(),
+                                                /*derive*/ 0.0f);
     block_scaled_cast_<allow_simd_>(source, destination, from.numel());
     store_derived_tensor_scale_(to, destination);
 }
@@ -119,8 +119,8 @@ void cast(tensor_view<f32_t, max_rank_> from, scaled_tensor_span<format_, max_ra
 template <typename format_, allow_simd_t allow_simd_ = prefer_simd_k>
 void cast(vector_view<f32_t> from, scaled_tensor_span<format_> to) noexcept {
     auto source = plain_f32_operand_(from.byte_data());
-    auto destination =
-        scaled_operand_<format_>(to.elements().byte_data(), to.block_scales().byte_data(), /*derive*/ 0.0f);
+    auto destination = scaled_operand_<format_>(to.elements().byte_data(), to.block_scales().byte_data(),
+                                                /*derive*/ 0.0f);
     block_scaled_cast_<allow_simd_>(source, destination, from.size());
     store_derived_tensor_scale_(to, destination);
 }
@@ -144,13 +144,13 @@ void cast(scaled_tensor_view<format_, max_rank_> from, vector_span<f32_t> to) no
  */
 template <typename format_, std::size_t max_rank_, allow_simd_t allow_simd_ = prefer_simd_k>
 void cast(scaled_tensor_view<format_, max_rank_> from, tensor_span<f32_t, max_rank_> to) noexcept {
-    bool const contiguous =
-        from.elements().is_contiguous() && from.block_scales().is_contiguous() && to.is_contiguous();
+    bool const contiguous = from.elements().is_contiguous() && from.block_scales().is_contiguous() &&
+                            to.is_contiguous();
     if (from.rank() <= 1 || contiguous) {
         float tensor_scale = 0.0f;
         if constexpr (format_::has_tensor_scale()) tensor_scale = from.tensor_scale();
-        auto source =
-            scaled_operand_<format_>(from.elements().byte_data(), from.block_scales().byte_data(), tensor_scale);
+        auto source = scaled_operand_<format_>(from.elements().byte_data(), from.block_scales().byte_data(),
+                                               tensor_scale);
         auto destination = plain_f32_operand_(to.byte_data());
         std::size_t count = from.numel() < to.numel() ? from.numel() : to.numel();
         block_scaled_cast_<allow_simd_>(source, destination, count);
@@ -170,15 +170,15 @@ template <typename from_format_, typename to_format_, std::size_t max_rank_, all
 void cast(scaled_tensor_view<from_format_, max_rank_> from, scaled_tensor_span<to_format_, max_rank_> to) noexcept {
     float from_tensor_scale = 0.0f;
     if constexpr (from_format_::has_tensor_scale()) from_tensor_scale = from.tensor_scale();
-    auto source =
-        scaled_operand_<from_format_>(from.elements().byte_data(), from.block_scales().byte_data(), from_tensor_scale);
-    auto destination =
-        scaled_operand_<to_format_>(to.elements().byte_data(), to.block_scales().byte_data(), /*derive*/ 0.0f);
+    auto source = scaled_operand_<from_format_>(from.elements().byte_data(), from.block_scales().byte_data(),
+                                                from_tensor_scale);
+    auto destination = scaled_operand_<to_format_>(to.elements().byte_data(), to.block_scales().byte_data(),
+                                                   /*derive*/ 0.0f);
     block_scaled_cast_<allow_simd_>(source, destination, from.numel());
     store_derived_tensor_scale_(to, destination);
 }
 
-#pragma endregion Block-Scaled Casts
+#pragma endregion Block - Scaled Casts
 
 } // namespace ashvardanian::numkong
 

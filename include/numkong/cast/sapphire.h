@@ -74,10 +74,10 @@ NK_HELPER_INLINE __m256h nk_e4m3x16_to_f16x16_sapphire_(__m128i e4m3_i8x16) {
     __m256i result_i16x16 = _mm256_mask_blend_epi16(is_subnormal_m16, normal_i16x16, subnorm_signed_i16x16);
 
     // NaN path: E4M3FN has NaN only when exp=15 AND mant=7 (lower 7 bits == 0x7F)
-    __mmask16 is_nan_m16 = _mm256_cmpeq_epi16_mask(                                    //
-        _mm256_and_si256(e4m3_i16x16, _mm256_set1_epi16(0x7F)),                        //
-        _mm256_set1_epi16(0x7F));                                                      //
-    __m256i nan_i16x16 = _mm256_or_si256(sign_i16x16, _mm256_set1_epi16(0x7E00));      // F16 quiet NaN
+    __mmask16 is_nan_m16 = _mm256_cmpeq_epi16_mask(                               //
+        _mm256_and_si256(e4m3_i16x16, _mm256_set1_epi16(0x7F)),                   //
+        _mm256_set1_epi16(0x7F));                                                 //
+    __m256i nan_i16x16 = _mm256_or_si256(sign_i16x16, _mm256_set1_epi16(0x7E00)); // F16 quiet NaN
     return _mm256_castsi256_ph(_mm256_mask_blend_epi16(is_nan_m16, result_i16x16, nan_i16x16));
 }
 

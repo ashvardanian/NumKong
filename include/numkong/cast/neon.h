@@ -287,7 +287,7 @@ NK_HELPER_INLINE float16x8_t nk_e2m3x8_to_f16x8_neon_(uint8x8_t e2m3_u8x8) {
     uint16x8_t e2m3_u16x8 = vmovl_u8(e2m3_u8x8);
 
     // Extract fields: format is 0b00SEEMMM (6 bits used)
-    uint16x8_t sign_u16x8 = vshlq_n_u16(vandq_u16(e2m3_u16x8, vdupq_n_u16(0x20)), 10); // sign << 15
+    uint16x8_t sign_u16x8 = vshlq_n_u16(vandq_u16(e2m3_u16x8, vdupq_n_u16(0x20)), 10);    // sign << 15
     uint16x8_t exponent_u16x8 = vandq_u16(vshrq_n_u16(e2m3_u16x8, 3), vdupq_n_u16(0x03)); // 2-bit exp
     uint16x8_t mantissa_u16x8 = vandq_u16(e2m3_u16x8, vdupq_n_u16(0x07));                 // 3-bit mant
 
@@ -320,7 +320,7 @@ NK_HELPER_INLINE float16x8_t nk_e3m2x8_to_f16x8_neon_(uint8x8_t e3m2_u8x8) {
     uint16x8_t e3m2_u16x8 = vmovl_u8(e3m2_u8x8);
 
     // Extract fields: format is 0b00SEEEMM (6 bits used)
-    uint16x8_t sign_u16x8 = vshlq_n_u16(vandq_u16(e3m2_u16x8, vdupq_n_u16(0x20)), 10); // sign << 15
+    uint16x8_t sign_u16x8 = vshlq_n_u16(vandq_u16(e3m2_u16x8, vdupq_n_u16(0x20)), 10);    // sign << 15
     uint16x8_t exponent_u16x8 = vandq_u16(vshrq_n_u16(e3m2_u16x8, 2), vdupq_n_u16(0x07)); // 3-bit exp
     uint16x8_t mantissa_u16x8 = vandq_u16(e3m2_u16x8, vdupq_n_u16(0x03));                 // 2-bit mant
 
