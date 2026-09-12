@@ -34,9 +34,9 @@ cc = "1.2.36"
 
 [profile.bench]
 codegen-units = 1 # May increase compilation time but optimizes further
-lto = true # Enables Link Time Optimization for further optimizations
-opt-level = 3 # Corresponds to -O3
-rpath = false # On some systems, setting this to false can help with optimizations
+lto = true        # Enables Link Time Optimization for further optimizations
+opt-level = 3     # Corresponds to -O3
+rpath = false     # On some systems, setting this to false can help with optimizations
 
 [features]
 default = ["alloc"]
@@ -54,11 +54,11 @@ wasm-runtime = []
 # reimplementation an order of magnitude larger than the trait, only to supply a `Global` that
 # this crate defines itself in a dozen lines - and that would force the `alloc` crate on the
 # heapless targets `--no-default-features` exists to serve.
-allocator-api2 = {version = "0.4", default-features = false}
-forkunion = {version = "3.0", optional = true}
+allocator-api2 = { version = "0.4", default-features = false }
+forkunion = { version = "3.0", optional = true }
 
 [dev-dependencies]
-half = {version = "2.6.0"}
-rand = {version = "0.10.0"}
-wasmtime = {version = "44.0"}
-wasmtime-wasi = {version = "44.0"}
+half = { version = "2.6.0" }
+rand = { version = "0.10.0" }
+wasmtime = { version = "48.0" }
+wasmtime-wasi = { version = "48.0" }

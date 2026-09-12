@@ -22,7 +22,6 @@
 
 import { performance } from 'node:perf_hooks';
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
-import { WASI } from 'node:wasi';
 import build from 'node-gyp-build';
 import * as path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -69,11 +68,6 @@ const RUNTIME_INFO = {
         description: 'WebAssembly with SIMD support',
         expectedPerformance: '0.60-0.80x of native',
     },
-    wasi: {
-        name: 'WASI',
-        description: 'WebAssembly System Interface',
-        expectedPerformance: '0.50-0.70x of native',
-    },
     browser: {
         name: 'Browser (Chromium)',
         description: 'WebAssembly in browser context',
@@ -88,12 +82,10 @@ async function loadNumKong(runtime) {
             return loadNative();
         case 'emscripten':
             return loadEmscripten();
-        case 'wasi':
-            return loadWASI();
         case 'browser':
             throw new Error('Browser runtime requires --browser flag');
         default:
-            throw new Error(`Unknown runtime: ${runtime}. Use: native, emscripten, wasi, or browser`);
+            throw new Error(`Unknown runtime: ${runtime}. Use: native, emscripten, or browser`);
     }
 }
 
@@ -110,7 +102,13 @@ function loadNative() {
 
 async function loadEmscripten() {
     try {
-        const wasmPath = path.join(rootDir, 'build-wasm', 'numkong.js');
+        // The relaxed tier where both tiers were built, the strict tier otherwise
+        const wasmPath = ['numkong-wasm32-v128relaxed.js', 'numkong-wasm32-v128.js']
+            .map((name) => path.join(rootDir, 'build-wasm', name))
+            .find((candidate) => existsSync(candidate));
+        if (!wasmPath) {
+            throw new Error('Missing build-wasm/numkong-wasm32-v128.js');
+        }
         const wrapperPath = path.join(rootDir, 'javascript', 'dist', 'esm', 'numkong-wasm.js');
         const wasmModule = await import(pathToFileURL(wasmPath).href);
         const { initWasm } = await import(pathToFileURL(wrapperPath).href);
@@ -118,56 +116,7 @@ async function loadEmscripten() {
         console.log('✓ Loaded NumKong Emscripten WASM');
         return numkong;
     } catch (e) {
-        throw new Error(`Failed to load Emscripten WASM: ${e.message}\nBuild with: cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm.cmake && cmake --build build-wasm`);
-    }
-}
-
-async function loadWASI() {
-    try {
-        const wasiPath = path.join(rootDir, 'build-wasi', 'test.wasm');
-        if (!existsSync(wasiPath)) {
-            throw new Error('Missing build-wasi/test.wasm');
-        }
-
-        const hasV128 = WebAssembly.validate(new Uint8Array([
-            0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
-            0x01, 0x05, 0x01, 0x60, 0x00, 0x01, 0x7b,
-            0x03, 0x02, 0x01, 0x00,
-            0x0a, 0x09, 0x01, 0x07, 0x00, 0xfd, 0x0c,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0b,
-        ])) ? 1 : 0;
-        const hasRelaxed = WebAssembly.validate(new Uint8Array([
-            0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
-            0x01, 0x06, 0x01, 0x60, 0x01, 0x7b, 0x01, 0x7b,
-            0x03, 0x02, 0x01, 0x00,
-            0x0a, 0x07, 0x01, 0x05, 0x00, 0x20, 0x00,
-            0xfd, 0x82, 0x02, 0x0b,
-        ])) ? 1 : 0;
-
-        console.log(`  WASM SIMD capabilities: v128=${hasV128}, relaxed=${hasRelaxed}`);
-
-        const wasi = new WASI({
-            version: 'preview1',
-            args: [],
-            env: {},
-        });
-
-        const wasmBytes = readFileSync(wasiPath);
-
-        const { instance } = await WebAssembly.instantiate(wasmBytes, {
-            wasi_snapshot_preview1: wasi.wasiImport,
-            env: {
-                nk_has_v128: () => hasV128,
-                nk_has_relaxed: () => hasRelaxed
-            }
-        });
-
-        wasi.start(instance);
-        console.log('✓ Loaded NumKong WASI');
-        return instance.exports;
-    } catch (e) {
-        throw new Error(`Failed to load WASI: ${e.message}\nBuild with: cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasi.cmake -DNK_BUILD_TEST=ON && cmake --build build-wasi --target nk_test`);
+        throw new Error(`Failed to load Emscripten WASM: ${e.message}\nBuild with: cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNK_BUILD_SHARED=ON && cmake --build build-wasm`);
     }
 }
 
@@ -236,9 +185,7 @@ function benchmarkOperation(fn, warmupMs = 200, samples = 5) {
 }
 
 async function runBenchmarks() {
-    console.log('╔════════════════════════════════════════════════════════════════╗');
-    console.log('║          NumKong JavaScript Multi-Runtime Benchmarks          ║');
-    console.log('╚════════════════════════════════════════════════════════════════╝\n');
+    console.log('NumKong JavaScript Multi-Runtime Benchmarks\n');
 
     console.log('Configuration:');
     console.log(`  Dimensions: ${CONFIG.dimensions}`);
@@ -314,9 +261,7 @@ async function runBenchmarks() {
 
 
 async function runBrowserBenchmarks() {
-    console.log('╔════════════════════════════════════════════════════════════════╗');
-    console.log('║             NumKong Browser Benchmark Runner                  ║');
-    console.log('╚════════════════════════════════════════════════════════════════╝\n');
+    console.log('NumKong Browser Benchmark Runner\n');
 
     console.log('Configuration:');
     console.log(`  Dimensions: ${CONFIG.dimensions}`);
@@ -324,13 +269,13 @@ async function runBrowserBenchmarks() {
     console.log(`  Seed: ${CONFIG.seed}\n`);
 
     // Check if WASM build exists
-    const wasmPath = path.join(rootDir, 'build-wasm', 'numkong.js');
+    const wasmPath = path.join(rootDir, 'build-wasm', 'numkong-wasm32-v128relaxed.js');
     if (!existsSync(wasmPath)) {
         console.error('❌ Emscripten WASM build not found!');
         console.error(`   Expected: ${wasmPath}`);
         console.error('   Build it with:');
         console.error('     source ~/emsdk/emsdk_env.sh');
-        console.error('     cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm.cmake');
+        console.error('     cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNK_WASM_SIMD=v128relaxed');
         console.error('     cmake --build build-wasm');
         process.exit(1);
     }
@@ -341,13 +286,7 @@ async function runBrowserBenchmarks() {
     console.log('\nLaunching Chromium...');
     const { chromium } = await import('playwright');
 
-    const browser = await chromium.launch({
-        headless: true,
-        args: [
-            '--enable-features=WebAssemblySimd',
-            '--enable-features=WebAssemblyRelaxedSimd',
-        ]
-    });
+    const browser = await chromium.launch({ headless: true });
 
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -553,9 +492,7 @@ function generateJSONSummary(allResults) {
 }
 
 function generateReport() {
-    console.log('╔════════════════════════════════════════════════════════════════╗');
-    console.log('║             NumKong Benchmark Report Generator                ║');
-    console.log('╚════════════════════════════════════════════════════════════════╝\n');
+    console.log('NumKong Benchmark Report Generator\n');
 
     try {
         const allResults = loadAllResults();

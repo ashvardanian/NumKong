@@ -33,7 +33,7 @@ build_release/numkong_test
 ```
 
 | CMake Flag             | Default            | Description                                                                   |
-| ---------------------- | ------------------ | ----------------------------------------------------------------------------- |
+| :--------------------- | :----------------- | :---------------------------------------------------------------------------- |
 | `NK_BUILD_TEST`        | `OFF`              | Compile precision tests with ULP error analysis                               |
 | `NK_BUILD_BENCH`       | `OFF`              | Compile micro-benchmarks                                                      |
 | `NK_BUILD_SHARED`      | `ON`, if top-level | Compile dynamic library                                                       |
@@ -48,12 +48,12 @@ build_release/numkong_test
 SIMD kernels live inside `#pragma GCC target(...)` regions and are only called after runtime probing — see the README's [Compile-Time and Run-Time Dispatch](README.md#compile-time-and-run-time-dispatch) section.
 
 | Target arch   | GCC/Clang baseline          | MSVC baseline   | Notes                                                       |
-| ------------- | --------------------------- | --------------- | ----------------------------------------------------------- |
+| :------------ | :-------------------------- | :-------------- | :---------------------------------------------------------- |
 | `x86_64`      | `-march=x86-64`             | `/arch:SSE2`    | System V psABI / Microsoft x64 ABI floor; SSE2 is mandatory |
 | `aarch64`     | `-march=armv8-a`            | `/arch:armv8.0` | ARMv8-A ABI floor; NEON is mandatory                        |
-| `riscv64`     | `-march=rv64gc`             | n/a             | V extension is runtime-probed and dispatched                |
-| `powerpc64le` | `-mcpu=power8`              | n/a             | ELFv2 ABI floor (VSX is mandatory)                          |
-| `loongarch64` | `-march=loongarch64 -mlasx` | n/a             | LASX baked into the baseline — see LoongArch note below     |
+| `riscv64`     | `-march=rv64gc`             | …               | V extension is runtime-probed and dispatched                |
+| `powerpc64le` | `-mcpu=power8`              | …               | ELFv2 ABI floor (VSX is mandatory)                          |
+| `loongarch64` | `-march=loongarch64 -mlasx` | …               | LASX baked into the baseline — see LoongArch note below     |
 
 GCC/Clang builds also pass `-fno-tree-vectorize -fno-tree-slp-vectorize` so the auto-vectorizer cannot promote serial fallbacks to baseline SIMD (NEON, SSE2, VSX, …).
 That keeps the tiered dispatch design intact: "serial" kernels stay actually serial, and the per-pragma SIMD kernels — which use explicit intrinsics, not vectorized scalar code — are the sole source of SIMD emission.
@@ -67,16 +67,16 @@ The resulting artifact bakes host-specific instructions into scaffolding code an
 
 ### Compiler Requirements
 
-| ISA Family                              | GCC | Clang | AppleClang     | MSVC        |
-| --------------------------------------- | --- | ----- | -------------- | ----------- |
-| Base — serial, NEON, AVX2               | 9+  | 10+   | Any            | 2019+       |
-| Float16 — NEONHalf, Sapphire FP16, Zvfh | 12+ | 16+   | Any            | 2022 17.14+ |
-| AVX-512 — Skylake, Ice Lake             | 9+  | 10+   | N/A            | 2019+       |
-| AVX-512BF16 — Genoa                     | 12+ | 16+   | N/A            | 2022 17.14+ |
-| Intel AMX — Sapphire, Granite           | 14+ | 18+   | N/A            | 2022 17.14+ |
-| Arm SME/SME2                            | 14+ | 18+   | 16+ / Xcode 16 | N/A         |
-| RISC-V Vector — RVV 1.0                 | 13+ | 17+   | N/A            | N/A         |
-| RVV + Zvfh/Zvfbfwma/Zvbb                | 14+ | 18+   | N/A            | N/A         |
+| ISA Family                              |  GCC | Clang | AppleClang     |        MSVC |
+| :-------------------------------------- | ---: | ----: | :------------- | ----------: |
+| Base — serial, NEON, AVX2               |   9+ |   10+ | Any            |       2019+ |
+| Float16 — NEONHalf, Sapphire FP16, Zvfh |  12+ |   16+ | Any            | 2022 17.14+ |
+| AVX-512 — Skylake, Ice Lake             |   9+ |   10+ | …              |       2019+ |
+| AVX-512BF16 — Genoa                     |  12+ |   16+ | …              | 2022 17.14+ |
+| Intel AMX — Sapphire, Granite           |  14+ |   18+ | …              | 2022 17.14+ |
+| Arm SME/SME2                            |  14+ |   18+ | 16+ / Xcode 16 |           … |
+| RISC-V Vector — RVV 1.0                 |  13+ |   17+ | …              |           … |
+| RVV + Zvfh/Zvfbfwma/Zvbb                |  14+ |   18+ | …              |           … |
 
 To install on Ubuntu 22.04:
 
@@ -88,24 +88,26 @@ sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 100
 
 ### Cross-Compilation
 
-NumKong ships 11 toolchain files in `cmake/`, each named `toolchain-<name>.cmake`.
+NumKong ships 12 toolchain files in `cmake/`, each named `toolchain-<name>.cmake`.
 Tests and benchmarks run transparently under QEMU via `CMAKE_CROSSCOMPILING_EMULATOR`.
 Targets with a `qemu-*` emulator additionally require `qemu-user`.
 
-| Target                  | Toolchain         | Emulator                    | Prerequisites                      |
-| ----------------------- | ----------------- | --------------------------- | ---------------------------------- |
-| ARM64 Linux             | `aarch64-gnu`     | `qemu-aarch64 -cpu max`     | `gcc-aarch64-linux-gnu`            |
-| RISC-V 64 LLVM          | `riscv64-llvm`    | `qemu-riscv64 -cpu max`     | Clang 17+, `gcc-riscv64-linux-gnu` |
-| RISC-V 64 GCC           | `riscv64-gnu`     | `qemu-riscv64 -cpu max`     | GCC 16+, `gcc-riscv64-linux-gnu`   |
-| ppc64le Linux           | `ppc64le-gnu`     | `qemu-ppc64le -cpu power10` | `gcc-powerpc64le-linux-gnu`        |
-| LoongArch 64            | `loongarch64-gnu` | `qemu-loongarch64 -cpu max` | `gcc-loongarch64-linux-gnu`        |
-| Android ARM64           | `android-arm64`   | —                           | `ANDROID_NDK_ROOT`                 |
-| Android ARMv7           | `android-armv7`   | —                           | `ANDROID_NDK_ROOT`                 |
-| x86_64 on Apple Silicon | `x86_64-llvm`     | `arch -x86_64`              | Homebrew LLVM                      |
-| WASM Emscripten         | `wasm`            | Node.js                     | Emscripten 3.1.27+                 |
-| WASM64 Memory64         | `wasm64`          | Node.js                     | Emscripten 3.1.35+                 |
-| WASI                    | `wasi`            | Wasmtime / Wasmer           | WASI SDK 24+                       |
+| Target                  | Toolchain             | Emulator                    | Prerequisites                                     |
+| :---------------------- | :-------------------- | :-------------------------- | :------------------------------------------------ |
+| ARM64 Linux             | `aarch64-gnu`         | `qemu-aarch64 -cpu max`     | `gcc-aarch64-linux-gnu`                           |
+| RISC-V 64 LLVM          | `riscv64-llvm`        | `qemu-riscv64 -cpu max`     | Clang 17+, `gcc-riscv64-linux-gnu`                |
+| RISC-V 64 GCC           | `riscv64-gnu`         | `qemu-riscv64 -cpu max`     | GCC 16+, `gcc-riscv64-linux-gnu`                  |
+| ppc64le Linux           | `ppc64le-gnu`         | `qemu-ppc64le -cpu power10` | `gcc-powerpc64le-linux-gnu`                       |
+| LoongArch 64            | `loongarch64-gnu`     | `qemu-loongarch64 -cpu max` | `gcc-loongarch64-linux-gnu`                       |
+| Android ARM64           | `android-arm64`       | …                           | `ANDROID_NDK_ROOT`                                |
+| Android ARMv7           | `android-armv7`       | …                           | `ANDROID_NDK_ROOT`                                |
+| x86_64 on Apple Silicon | `x86_64-llvm`         | `arch -x86_64`              | Homebrew LLVM                                     |
+| WASM32 Emscripten       | `wasm32-emscripten`   | Node.js                     | Emscripten 3.1.27+, tier `v128` by default        |
+| WASM64 Emscripten       | `wasm64-emscripten`   | Node.js 24+                 | Emscripten 3.1.35+, tier `v128relaxed` by default |
+| WASI                    | `wasm32-wasi`         | Wasmtime / Wasmer           | WASI SDK 24+, tier `v128` by default              |
+| WASI threads            | `wasm32-wasi-threads` | Wasmtime with threads       | WASI SDK 24+, tier `v128relaxed` by default       |
 
+A WebAssembly module carries one SIMD tier, so each wasm toolchain fixes it through `NK_WASM_SIMD` — `v128` or `v128relaxed` — and one build directory holds one tier.
 
 Set `NK_IN_QEMU=1` to relax half-precision accuracy thresholds under emulation.
 
@@ -158,14 +160,16 @@ __WASM via Emscripten__
 
 ```sh
 source ~/emsdk/emsdk_env.sh
-cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm.cmake
+cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake
 cmake --build build-wasm --parallel
 ```
 
-For wasm64 — Memory64:
+For the relaxed tier of the same 32-bit module, and for wasm64 — Memory64:
 
 ```sh
-cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64.cmake
+cmake -B build-wasm-relaxed -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNK_WASM_SIMD=v128relaxed
+cmake --build build-wasm-relaxed --parallel
+cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.cmake
 cmake --build build-wasm64 --parallel
 ```
 
@@ -173,8 +177,15 @@ __WASI__
 
 ```sh
 export WASI_SDK_PATH=~/wasi-sdk-24.0-x86_64-linux
-cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasi.cmake
+cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake
 cmake --build build-wasi --parallel
+```
+
+For a module over an imported shared memory, which hosts with WASI threads run:
+
+```sh
+cmake -B build-wasi-threads -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi-threads.cmake
+cmake --build build-wasi-threads --parallel
 ```
 
 __iOS Simulator via Xcode__

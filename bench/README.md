@@ -42,21 +42,21 @@ build_release/numkong_bench --filter=dot                       # shorthand for -
 ### Environment Variables
 
 | Variable                  | Default | Description                                            |
-| ------------------------- | ------- | ------------------------------------------------------ |
-| `NK_FILTER`               | `.*`    | Regex to filter benchmarks by name                     |
-| `NK_SEED`                 | `42`    | RNG seed for reproducible inputs                       |
-| `NK_BUDGET_SECS`          | `10`    | Minimum time per benchmark in seconds                  |
-| `NK_BUDGET_MB`            | `1024`  | Memory budget for pre-allocated inputs                 |
-| `NK_DENSE_DIMENSIONS`     | `1536`  | Vector dimension for dot/spatial benchmarks            |
-| `NK_CURVED_DIMENSIONS`    | `64`    | Vector dimension for curved / bilinear form benchmarks |
-| `NK_MESH_POINTS`          | `1000`  | Point count for mesh / RMSD / Kabsch benchmarks        |
-| `NK_MATRIX_HEIGHT`        | `1024`  | GEMM M dimension, dataset size in kNN                  |
-| `NK_MATRIX_WIDTH`         | `128`   | GEMM N dimension, query count in kNN                   |
-| `NK_MATRIX_DEPTH`         | `1536`  | GEMM K dimension, vector dimension in kNN              |
-| `NK_SPARSE_FIRST_LENGTH`  | `1024`  | First set size for sparse benchmarks                   |
-| `NK_SPARSE_SECOND_LENGTH` | `8192`  | Second set size for sparse benchmarks                  |
-| `NK_SPARSE_INTERSECTION`  | `0.5`   | Intersection share [0.0, 1.0] for sparse benchmarks    |
-| `NK_MAX_COORD_ANGLE`      | `180`   | Maximum angle in degrees for geospatial benchmarks     |
+| :------------------------ | ------: | :----------------------------------------------------- |
+| `NK_FILTER`               |    `.*` | Regex to filter benchmarks by name                     |
+| `NK_SEED`                 |    `42` | RNG seed for reproducible inputs                       |
+| `NK_BUDGET_SECS`          |    `10` | Minimum time per benchmark in seconds                  |
+| `NK_BUDGET_MB`            |  `1024` | Memory budget for pre-allocated inputs                 |
+| `NK_DENSE_DIMENSIONS`     |  `1536` | Vector dimension for dot/spatial benchmarks            |
+| `NK_CURVED_DIMENSIONS`    |    `64` | Vector dimension for curved / bilinear form benchmarks |
+| `NK_MESH_POINTS`          |  `1000` | Point count for mesh / RMSD / Kabsch benchmarks        |
+| `NK_MATRIX_HEIGHT`        |  `1024` | GEMM M dimension, dataset size in kNN                  |
+| `NK_MATRIX_WIDTH`         |   `128` | GEMM N dimension, query count in kNN                   |
+| `NK_MATRIX_DEPTH`         |  `1536` | GEMM K dimension, vector dimension in kNN              |
+| `NK_SPARSE_FIRST_LENGTH`  |  `1024` | First set size for sparse benchmarks                   |
+| `NK_SPARSE_SECOND_LENGTH` |  `8192` | Second set size for sparse benchmarks                  |
+| `NK_SPARSE_INTERSECTION`  |   `0.5` | Intersection share [0.0, 1.0] for sparse benchmarks    |
+| `NK_MAX_COORD_ANGLE`      |   `180` | Maximum angle in degrees for geospatial benchmarks     |
 
 Disable multi-threading in BLAS libraries to avoid interference:
 
@@ -70,7 +70,7 @@ export BLIS_NUM_THREADS=1        # for BLIS
 ### Reported Units
 
 | Benchmark Type                          | Counter        | Meaning                                                         |
-| --------------------------------------- | -------------- | --------------------------------------------------------------- |
+| :-------------------------------------- | :------------- | :-------------------------------------------------------------- |
 | Vector kernels — dot, spatial, set, ... | `bytes/s`      | Bytes of input consumed per second, both input vectors combined |
 | GEMM, symmetric, batch                  | `scalar-ops/s` | Scalar multiply-accumulate operations per second / FLOPS        |
 | Reductions, casts, trigonometry         | `bytes/s`      | Bytes of input consumed per second, single input vector         |
@@ -98,13 +98,13 @@ npm run bench:all                               # all runtimes
 NK_DIMENSIONS=768 NK_FILTER="dot" npm run bench:native    # custom config
 ```
 
-| Variable        | Default  | Description                             |
-| --------------- | -------- | --------------------------------------- |
-| `NK_DIMENSIONS` | `1536`   | Vector dimensionality                   |
-| `NK_ITERATIONS` | `1000`   | Number of benchmark iterations          |
-| `NK_FILTER`     | `.*`     | Regex to filter benchmarks              |
+| Variable        |  Default | Description                             |
+| :-------------- | -------: | :-------------------------------------- |
+| `NK_DIMENSIONS` |   `1536` | Vector dimensionality                   |
+| `NK_ITERATIONS` |   `1000` | Number of benchmark iterations          |
+| `NK_FILTER`     |     `.*` | Regex to filter benchmarks              |
 | `NK_RUNTIME`    | `native` | Runtime: `native`, `emscripten`, `wasi` |
-| `NK_SEED`       | `42`     | Random seed for reproducible data       |
+| `NK_SEED`       |     `42` | Random seed for reproducible data       |
 
 ### Output
 
@@ -122,34 +122,38 @@ __Emscripten — wasm32 and wasm64__
 
 ```sh
 source ~/emsdk/emsdk_env.sh
-cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm.cmake -DNK_BUILD_BENCH=1
+cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNK_BUILD_BENCH=1
 cmake --build build-wasm --parallel
 ```
 
 For wasm64:
 
 ```sh
-cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64.cmake -DNK_BUILD_BENCH=1
+cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.cmake -DNK_BUILD_BENCH=1
 cmake --build build-wasm64 --parallel
 ```
 
-The toolchain files enable `-msimd128` and `-mrelaxed-simd` automatically.
+Each toolchain file picks one SIMD tier through `NK_WASM_SIMD`, `v128` for wasm32 and `v128relaxed` for wasm64 by default; pass `-DNK_WASM_SIMD=v128relaxed` to time the relaxed kernels on wasm32.
 
 __WASI__
 
 ```sh
 export WASI_SDK_PATH=~/wasi-sdk-24.0-x86_64-linux
-cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasi.cmake -DNK_BUILD_BENCH=1
+cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DNK_BUILD_BENCH=1
 cmake --build build-wasi --parallel
 ```
+
+`toolchain-wasm32-wasi-threads.cmake` is the threaded twin, with shared memory and the relaxed tier by default.
 
 __Running__
 
 ```sh
-wasmtime run -W simd=y,relaxed-simd=y,threads=y,shared-memory=y -S threads=y,inherit-env=y ./build-wasi/numkong_bench.wasm
+wasmtime run -W simd=y,relaxed-simd=y -S inherit-env=y ./build-wasi/numkong_bench.wasm
 wasmer run --enable-simd --enable-relaxed-simd ./build-wasi/numkong_bench.wasm
 node ./build-wasm/numkong_bench.js
 ```
+
+A module from the threads toolchain also needs `-W threads=y,shared-memory=y -S threads=y` under Wasmtime.
 
 Browser benchmarks via Playwright:
 
@@ -163,13 +167,13 @@ WASM benchmarks run slower than native due to JIT compilation overhead and memor
 Expected performance relative to native:
 
 | Runtime              | Typical Throughput vs Native |
-| -------------------- | ---------------------------- |
-| Emscripten / Node.js | 60–80%                       |
-| WASI / Wasmtime      | 50–70%                       |
-| Browser / Chromium   | 40–60%                       |
+| :------------------- | ---------------------------: |
+| Emscripten / Node.js |                       60–80% |
+| WASI / Wasmtime      |                       50–70% |
+| Browser / Chromium   |                       40–60% |
 
 wasm64 / Memory64 adds ~5–10% overhead vs wasm32 due to 64-bit pointer arithmetic.
-Relaxed SIMD provides measurable gains for fused multiply-add patterns — compare with and without `--wasm-features relaxed-simd` to quantify.
+Relaxed SIMD provides measurable gains for fused multiply-add patterns — compare with and without `-W relaxed-simd=y` to quantify.
 
 ## Frequency Scaling on AMX and SME
 

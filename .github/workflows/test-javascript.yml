@@ -12,7 +12,11 @@ permissions:
   contents: read
 
 env:
-  WASI_SDK_VERSION: "33"
+  EMSCRIPTEN_VERSION: 6.0.9
+  WASI_SDK_VERSION: "34"
+  WASMER_VERSION: v7.4.1
+  # wasi-threads runs on Wasmtime 46 and older, so the threaded rows take the 36 LTS line.
+  WASMTIME_VERSION: v36.0.15
 
 jobs:
   test_nodejs:
@@ -46,7 +50,7 @@ jobs:
             sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -58,9 +62,66 @@ jobs:
           npm run build-js
           npm test
 
-  test_wasm_emscripten:
-    name: Test WASM via Emscripten
+  # One row per toolchain file, SIMD tier and runtime. A module carries one tier, so the strict and the
+  # relaxed rows are separate builds, and the wasm32 Emscripten rows hand their modules to the browser job.
+  test_wasm:
+    name: Test WASM, ${{ matrix.name }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: wasm32-emscripten v128 under Node
+            sdk: emscripten
+            toolchain: toolchain-wasm32-emscripten
+            simd: v128
+            build: build-wasm
+            runtime: emscripten
+            node: 22
+          - name: wasm32-emscripten v128relaxed under Node
+            sdk: emscripten
+            toolchain: toolchain-wasm32-emscripten
+            simd: v128relaxed
+            build: build-wasm
+            runtime: emscripten
+            node: 22
+          - name: wasm64-emscripten v128relaxed under Node
+            sdk: emscripten
+            toolchain: toolchain-wasm64-emscripten
+            simd: v128relaxed
+            build: build-wasm64
+            runtime: emscripten64
+            node: 24
+          - name: wasm32-wasi v128 under Node
+            sdk: wasi
+            toolchain: toolchain-wasm32-wasi
+            simd: v128
+            runtime: wasi-node
+            node: 22
+          - name: wasm32-wasi v128relaxed under Node
+            sdk: wasi
+            toolchain: toolchain-wasm32-wasi
+            simd: v128relaxed
+            runtime: wasi-node
+            node: 22
+          - name: wasm32-wasi v128 under Wasmtime and Wasmer
+            sdk: wasi
+            toolchain: toolchain-wasm32-wasi
+            simd: v128
+            runtime: standalone
+            node: 22
+          - name: wasm32-wasi v128relaxed under Wasmtime and Wasmer
+            sdk: wasi
+            toolchain: toolchain-wasm32-wasi
+            simd: v128relaxed
+            runtime: standalone
+            node: 22
+          - name: wasm32-wasi-threads v128relaxed under Wasmtime
+            sdk: wasi
+            toolchain: toolchain-wasm32-wasi-threads
+            simd: v128relaxed
+            runtime: wasmtime-threads
+            node: 22
 
     steps:
       - name: Checkout
@@ -76,6 +137,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Install Emscripten
+        if: matrix.sdk == 'emscripten'
         uses: nick-fields/retry@v4
         with:
           max_attempts: 3
@@ -84,92 +146,10 @@ jobs:
           command: |
             rm -rf ~/emsdk
             git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
-            (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
-
-      - name: Build WASM
-        run: |
-          source ~/emsdk/emsdk_env.sh
-          cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm.cmake -DNK_BUILD_SHARED=ON
-          cmake --build build-wasm
-
-      - name: Set Up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: Build JavaScript Bindings
-        run: |
-          npm install --ignore-scripts
-          npm run build-js
-
-      - name: Test Emscripten Runtime
-        run: NK_RUNTIME=emscripten node --test test/test-wasm.mjs
-
-  test_wasm_emscripten64:
-    name: Test WASM64 via Emscripten with memory64
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Print Machine Specs
-        shell: bash
-        run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || sysctl -a machdep.cpu 2>/dev/null | head -30 || wmic cpu get Name,NumberOfCores,MaxClockSpeed 2>/dev/null || true
-          free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
-          echo "::endgroup::"
-
-      - name: Install Emscripten
-        uses: nick-fields/retry@v4
-        with:
-          max_attempts: 3
-          retry_wait_seconds: 15
-          timeout_minutes: 180
-          command: |
-            rm -rf ~/emsdk
-            git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
-            (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
-
-      - name: Build WASM64
-        run: |
-          source ~/emsdk/emsdk_env.sh
-          cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64.cmake -DNK_BUILD_SHARED=ON
-          cmake --build build-wasm64
-
-      - name: Set Up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-
-      - name: Build JavaScript Bindings
-        run: |
-          npm install --ignore-scripts
-          npm run build-js
-
-      - name: Test Emscripten64 Runtime
-        run: NK_RUNTIME=emscripten64 node --test test/test-wasm.mjs
-
-  test_wasm_wasi:
-    name: Test WASM under WASI Node.js
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Print Machine Specs
-        shell: bash
-        run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || sysctl -a machdep.cpu 2>/dev/null | head -30 || wmic cpu get Name,NumberOfCores,MaxClockSpeed 2>/dev/null || true
-          free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
-          echo "::endgroup::"
+            (cd ~/emsdk && ./emsdk install "$EMSCRIPTEN_VERSION" && ./emsdk activate "$EMSCRIPTEN_VERSION")
 
       - name: Install WASI-SDK
+        if: matrix.sdk == 'wasi'
         uses: nick-fields/retry@v4
         with:
           max_attempts: 3
@@ -180,22 +160,105 @@ jobs:
             tar xzf wasi-sdk-${{ env.WASI_SDK_VERSION }}.0-x86_64-linux.tar.gz -C ~
             mv ~/wasi-sdk-* ~/wasi-sdk
 
-      - name: Build WASI
+      - name: Set Up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Build Emscripten Module
+        if: matrix.sdk == 'emscripten'
+        run: |
+          source ~/emsdk/emsdk_env.sh
+          cmake -B ${{ matrix.build }} -DCMAKE_TOOLCHAIN_FILE=cmake/${{ matrix.toolchain }}.cmake \
+            -DNK_WASM_SIMD=${{ matrix.simd }} -DNK_BUILD_SHARED=ON
+          cmake --build ${{ matrix.build }}
+
+      - name: Upload Emscripten Module
+        if: matrix.runtime == 'emscripten'
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-module-wasm32-${{ matrix.simd }}
+          path: |
+            ${{ matrix.build }}/numkong-wasm32-${{ matrix.simd }}.js
+            ${{ matrix.build }}/numkong-wasm32-${{ matrix.simd }}.wasm
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Build WASI Module
+        if: matrix.sdk == 'wasi'
         run: |
           export WASI_SDK_PATH=~/wasi-sdk
-          cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasi.cmake -DNK_BUILD_TEST=ON -DNK_WASI_HOSTED=ON
+          cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/${{ matrix.toolchain }}.cmake \
+            -DNK_WASM_SIMD=${{ matrix.simd }} -DNK_BUILD_TEST=ON \
+            -DNK_WASI_HOSTED=${{ matrix.runtime == 'wasi-node' && 'ON' || 'OFF' }}
           cmake --build build-wasi
 
-      - name: Set Up Node.js
-        uses: actions/setup-node@v6
+      - name: Build JavaScript Bindings
+        if: matrix.runtime != 'standalone' && matrix.runtime != 'wasmtime-threads'
+        run: |
+          npm install --ignore-scripts
+          npm run build-js
+
+      - name: Test on Node.js
+        if: matrix.runtime == 'emscripten' || matrix.runtime == 'emscripten64' || matrix.runtime == 'wasi-node'
+        run: NK_RUNTIME=${{ matrix.runtime }} node --test test/test-wasm.mjs
+
+      - name: Install Rust Toolchain
+        if: matrix.runtime == 'standalone'
+        uses: moonrepo/setup-rust@v1
+
+      # The Wasmtime run goes through the Rust harness, which owns the shared-memory and probe imports.
+      - name: Test on Wasmtime
+        if: matrix.runtime == 'standalone'
+        run: cargo test --features wasm-runtime -- wasm_runtime
+        env:
+          NK_WASI_MODULE: build-wasi/numkong_test.wasm
+          NK_BUDGET_SECS: 0.1
+
+      # Install the latest released Wasmer (which now ships relaxed-SIMD). Building
+      # `--git main` broke: upstream's main pulls a private SSH submodule
+      # (git@github.com:wasmerio/quickjs.git) that fails to authenticate in CI.
+      - name: Install Wasmer
+        if: matrix.runtime == 'standalone'
+        uses: nick-fields/retry@v4
         with:
-          node-version: 22
+          max_attempts: 3
+          retry_wait_seconds: 15
+          timeout_minutes: 10
+          command: curl https://get.wasmer.io -sSfL | sh -s "$WASMER_VERSION"
 
-      - name: Test WASI Runtime
-        run: NK_RUNTIME=wasi-node node --test test/test-wasm.mjs
+      # The strict module runs without the relaxed switch, which is the point of shipping it.
+      - name: Test on Wasmer
+        if: matrix.runtime == 'standalone'
+        run: |
+          export PATH="$HOME/.wasmer/bin:$PATH"
+          wasmer run --enable-simd ${{ matrix.simd == 'v128relaxed' && '--enable-relaxed-simd' || '' }} \
+            --forward-host-env ./build-wasi/numkong_test.wasm
+        env:
+          NK_BUDGET_SECS: 0.1
 
-  test_wasm_browser:
-    name: Test WASM under Browser
+      - name: Install Wasmtime
+        if: matrix.runtime == 'wasmtime-threads'
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 15
+          timeout_minutes: 10
+          command: curl https://wasmtime.dev/install.sh -sSf | bash -s -- --version "$WASMTIME_VERSION"
+
+      - name: Test on Wasmtime with Threads
+        if: matrix.runtime == 'wasmtime-threads'
+        run: |
+          export PATH="$HOME/.wasmtime/bin:$PATH"
+          wasmtime run -W relaxed-simd=y,threads=y -S threads=y,inherit-env=y ./build-wasi/numkong_test.wasm
+        env:
+          NK_BUDGET_SECS: 0.1
+
+  # Both wasm32 tiers meet in one directory, where the loader picks by what each browser validates.
+  test_browsers:
+    name: Test WASM, wasm32-emscripten under browsers
+    needs: test_wasm
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
 
     steps:
@@ -211,27 +274,17 @@ jobs:
           free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
           echo "::endgroup::"
 
-      - name: Install Emscripten
-        uses: nick-fields/retry@v4
-        with:
-          max_attempts: 3
-          retry_wait_seconds: 15
-          timeout_minutes: 180
-          command: |
-            rm -rf ~/emsdk
-            git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
-            (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
-
-      - name: Build WASM
-        run: |
-          source ~/emsdk/emsdk_env.sh
-          cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm.cmake -DNK_BUILD_SHARED=ON
-          cmake --build build-wasm
-
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
+
+      - name: Download Emscripten Modules
+        uses: actions/download-artifact@v8
+        with:
+          pattern: wasm-module-wasm32-*
+          path: build-wasm
+          merge-multiple: true
 
       - name: Build JavaScript Bindings
         run: |
@@ -240,7 +293,6 @@ jobs:
 
       - name: Build Browser Bundle
         run: |
-          cp build-wasm/numkong.js build-wasm/numkong-emscripten.js
           npx esbuild javascript/dist/esm/numkong-browser.js \
             --bundle --format=esm --platform=browser --target=es2022 \
             --outfile=build-wasm/numkong-bundle.js
@@ -251,9 +303,9 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 15
           timeout_minutes: 180
-          command: npx playwright install --with-deps chromium
+          command: npx playwright install --with-deps chromium webkit
 
-      - name: Test Browser runtime
+      - name: Test in Browsers
         run: npx playwright test --config test/playwright.config.ts
 
       - name: Upload Test Report
@@ -263,103 +315,6 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
-
-  test_wasm_wasmer:
-    name: Test WASM under Wasmer
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Print Machine Specs
-        shell: bash
-        run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || sysctl -a machdep.cpu 2>/dev/null | head -30 || wmic cpu get Name,NumberOfCores,MaxClockSpeed 2>/dev/null || true
-          free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
-          echo "::endgroup::"
-
-      - name: Install Rust Toolchain
-        uses: moonrepo/setup-rust@v1
-
-      - name: Install WASI-SDK
-        uses: nick-fields/retry@v4
-        with:
-          max_attempts: 3
-          retry_wait_seconds: 15
-          timeout_minutes: 180
-          command: |
-            wget -q https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${{ env.WASI_SDK_VERSION }}/wasi-sdk-${{ env.WASI_SDK_VERSION }}.0-x86_64-linux.tar.gz
-            tar xzf wasi-sdk-${{ env.WASI_SDK_VERSION }}.0-x86_64-linux.tar.gz -C ~
-            mv ~/wasi-sdk-* ~/wasi-sdk
-
-      - name: Build WASI
-        run: |
-          export WASI_SDK_PATH=~/wasi-sdk
-          cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasi.cmake -DNK_BUILD_TEST=ON
-          cmake --build build-wasi
-
-      # Install the latest released Wasmer (which now ships relaxed-SIMD). Building
-      # `--git main` broke: upstream's main pulls a private SSH submodule
-      # (git@github.com:wasmerio/quickjs.git) that fails to authenticate in CI.
-      - name: Install Wasmer
-        uses: nick-fields/retry@v4
-        with:
-          max_attempts: 3
-          retry_wait_seconds: 15
-          timeout_minutes: 10
-          command: curl https://get.wasmer.io -sSfL | sh
-
-      - name: Test Wasmer runtime
-        run: |
-          export PATH="$HOME/.wasmer/bin:$PATH"
-          wasmer run --enable-simd --enable-relaxed-simd --forward-host-env ./build-wasi/nk_test.wasm
-        env:
-          NK_BUDGET_SECS: 0.1
-
-  test_wasm_wasmtime:
-    name: Test WASM under Wasmtime
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Print Machine Specs
-        shell: bash
-        run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || sysctl -a machdep.cpu 2>/dev/null | head -30 || wmic cpu get Name,NumberOfCores,MaxClockSpeed 2>/dev/null || true
-          free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
-          echo "::endgroup::"
-
-      - name: Install Rust Toolchain
-        uses: moonrepo/setup-rust@v1
-
-      - name: Install WASI-SDK
-        uses: nick-fields/retry@v4
-        with:
-          max_attempts: 3
-          retry_wait_seconds: 15
-          timeout_minutes: 180
-          command: |
-            wget -q https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${{ env.WASI_SDK_VERSION }}/wasi-sdk-${{ env.WASI_SDK_VERSION }}.0-x86_64-linux.tar.gz
-            tar xzf wasi-sdk-${{ env.WASI_SDK_VERSION }}.0-x86_64-linux.tar.gz -C ~
-            mv ~/wasi-sdk-* ~/wasi-sdk
-
-      - name: Build WASI
-        run: |
-          export WASI_SDK_PATH=~/wasi-sdk
-          cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasi.cmake -DNK_BUILD_TEST=ON
-          cmake --build build-wasi
-
-      - name: Test Wasmtime Runtime
-        run: cargo test --features wasm-runtime -- wasm_runtime
-        env:
-          NK_BUDGET_SECS: 0.1
 
   test_deno:
     name: Test Deno
@@ -392,7 +347,7 @@ jobs:
             sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -443,7 +398,7 @@ jobs:
             sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 

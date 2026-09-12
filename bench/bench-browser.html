@@ -234,7 +234,7 @@
                 // Load NumKong WASM module
                 updateProgress('Loading NumKong WASM module...');
 
-                const wasmPath = '../build-wasm/numkong.js';
+                const wasmPath = '../build-wasm/numkong-wasm32-v128relaxed.js';
                 const wasmWrapperPath = '../javascript/dist/esm/numkong-wasm.js';
                 const numkongWrapper = await import(wasmWrapperPath);
                 const NumKongModule = await import(wasmPath);

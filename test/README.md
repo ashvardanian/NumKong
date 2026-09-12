@@ -36,35 +36,35 @@ build_release/numkong_test --time-budget=5000     # 5 seconds per kernel (millis
 Foreign flag mapping for muscle-memory compatibility:
 
 | Foreign Flag                 | Maps To                                     |
-| ---------------------------- | ------------------------------------------- |
+| :--------------------------- | :------------------------------------------ |
 | `--gtest_filter=<regex>`     | forwards to `--filter=<regex>` with warning |
 | `--benchmark_filter=<regex>` | forwards to `--filter=<regex>` with warning |
 | `--benchmark_min_time=<N>s`  | converts to ms and maps to `--time-budget`  |
 
 ### Environment Variables
 
-| Variable                 | Default       | Description                                          |
-| ------------------------ | ------------- | ---------------------------------------------------- |
-| `NK_FILTER`              | `.*`          | Regex to filter tests by name                        |
-| `NK_SEED`                | `42`          | RNG seed for reproducible inputs                     |
-| `NK_BUDGET_SECS`         | `1`           | Time budget per kernel in seconds                    |
-| `NK_DENSE_DIMENSIONS`    | `1536`        | Vector dimension for dot/spatial tests               |
-| `NK_CURVED_DIMENSIONS`   | `64`          | Vector dimension for curved tests                    |
-| `NK_SPARSE_DIMENSIONS`   | `256`         | Vector dimension for sparse tests                    |
-| `NK_MESH_POINTS`         | `1000`        | Point count for mesh tests                           |
-| `NK_MATRIX_HEIGHT`       | `1024`        | GEMM M dimension                                     |
-| `NK_MATRIX_WIDTH`        | `128`         | GEMM N dimension                                     |
-| `NK_MATRIX_DEPTH`        | `1536`        | GEMM K dimension                                     |
-| `NK_MAX_COORD_ANGLE`     | `180`         | Maximum angle in degrees for geospatial tests        |
-| `NK_IN_QEMU`             | unset         | Relax accuracy thresholds for QEMU emulation         |
-| `NK_TEST_ASSERT`         | `0`           | Assert (abort) on failed accuracy checks             |
-| `NK_TEST_VERBOSE`        | `0`           | Show per-dimension ULP breakdown                     |
-| `NK_ULP_THRESHOLD_F32`   | `4`           | Max allowed ULP distance for f32                     |
-| `NK_ULP_THRESHOLD_F16`   | `32`          | Max allowed ULP distance for f16                     |
-| `NK_ULP_THRESHOLD_BF16`  | `256`         | Max allowed ULP distance for bf16                    |
+| Variable                 |       Default | Description                                          |
+| :----------------------- | ------------: | :--------------------------------------------------- |
+| `NK_FILTER`              |          `.*` | Regex to filter tests by name                        |
+| `NK_SEED`                |          `42` | RNG seed for reproducible inputs                     |
+| `NK_BUDGET_SECS`         |           `1` | Time budget per kernel in seconds                    |
+| `NK_DENSE_DIMENSIONS`    |        `1536` | Vector dimension for dot/spatial tests               |
+| `NK_CURVED_DIMENSIONS`   |          `64` | Vector dimension for curved tests                    |
+| `NK_SPARSE_DIMENSIONS`   |         `256` | Vector dimension for sparse tests                    |
+| `NK_MESH_POINTS`         |        `1000` | Point count for mesh tests                           |
+| `NK_MATRIX_HEIGHT`       |        `1024` | GEMM M dimension                                     |
+| `NK_MATRIX_WIDTH`        |         `128` | GEMM N dimension                                     |
+| `NK_MATRIX_DEPTH`        |        `1536` | GEMM K dimension                                     |
+| `NK_MAX_COORD_ANGLE`     |         `180` | Maximum angle in degrees for geospatial tests        |
+| `NK_IN_QEMU`             |         unset | Relax accuracy thresholds for QEMU emulation         |
+| `NK_TEST_ASSERT`         |           `0` | Assert (abort) on failed accuracy checks             |
+| `NK_TEST_VERBOSE`        |           `0` | Show per-dimension ULP breakdown                     |
+| `NK_ULP_THRESHOLD_F32`   |           `4` | Max allowed ULP distance for f32                     |
+| `NK_ULP_THRESHOLD_F16`   |          `32` | Max allowed ULP distance for f16                     |
+| `NK_ULP_THRESHOLD_BF16`  |         `256` | Max allowed ULP distance for bf16                    |
 | `NK_RANDOM_DISTRIBUTION` | `lognormal_k` | Distribution: `uniform_k`, `lognormal_k`, `cauchy_k` |
-| `NO_COLOR`               | unset         | Disable colored output                               |
-| `FORCE_COLOR`            | unset         | Force colored output even without TTY                |
+| `NO_COLOR`               |         unset | Disable colored output                               |
+| `FORCE_COLOR`            |         unset | Force colored output even without TTY                |
 
 ### Precision Families
 
@@ -97,18 +97,22 @@ The baseline type depends on the input dtype, selected by the `reference_for<inp
 
 ### WASM
 
+A WebAssembly module carries one SIMD tier, so every wasm toolchain fixes it through `NK_WASM_SIMD` — `v128` or `v128relaxed` — and one build directory holds one tier.
+
 __Emscripten__
 
 ```sh
 source ~/emsdk/emsdk_env.sh
-cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm.cmake -DNK_BUILD_TEST=1
+cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNK_BUILD_TEST=1
 cmake --build build-wasm --parallel
 ```
 
-For wasm64 — Memory64:
+For the relaxed tier of the same 32-bit module, and for wasm64 — Memory64:
 
 ```sh
-cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64.cmake -DNK_BUILD_TEST=1
+cmake -B build-wasm-relaxed -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNK_WASM_SIMD=v128relaxed -DNK_BUILD_TEST=1
+cmake --build build-wasm-relaxed --parallel
+cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.cmake -DNK_BUILD_TEST=1
 cmake --build build-wasm64 --parallel
 ```
 
@@ -116,15 +120,26 @@ __WASI__
 
 ```sh
 export WASI_SDK_PATH=~/wasi-sdk-24.0-x86_64-linux
-cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasi.cmake -DNK_BUILD_TEST=1
+cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DNK_BUILD_TEST=1
 cmake --build build-wasi --parallel
+```
+
+For a module over an imported shared memory, which hosts with WASI threads run:
+
+```sh
+cmake -B build-wasi-threads -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi-threads.cmake -DNK_BUILD_TEST=1
+cmake --build build-wasi-threads --parallel
 ```
 
 __Running WASM Tests__
 
+`ctest` runs the WASI binary through the runtime `NK_WASM_RUNTIME` names — `wasmtime` by default, or `wasmer` or `node` — with the flags each module needs.
+The same runs by hand:
+
 ```sh
-wasmtime run -W simd=y,relaxed-simd=y,threads=y,shared-memory=y -S threads=y,inherit-env=y ./build-wasi/numkong_test.wasm
+wasmtime run -W relaxed-simd=y ./build-wasi/numkong_test.wasm
 wasmer run --enable-simd --enable-relaxed-simd ./build-wasi/numkong_test.wasm
+wasmtime run -W relaxed-simd=y,threads=y -S threads=y,inherit-env=y ./build-wasi-threads/numkong_test.wasm
 node ./build-wasm/numkong_test.js
 ```
 
@@ -132,28 +147,36 @@ __Memory Model__
 
 The toolchain files configure memory limits appropriate for each target:
 
-| Target | Initial Memory | Max Memory | Pointer Width | Emscripten Version |
-| ------ | -------------- | ---------- | ------------- | ------------------ |
-| wasm32 | 64 MB          | 2 GB       | 32-bit        | 3.1.27+            |
-| wasm64 | 256 MB         | 16 GB      | 64-bit        | 3.1.35+            |
-| WASI   | —              | 2 GB       | 32-bit        | —                  |
+| Target       | Initial | Maximum | Pointers | Memory           | Emscripten |
+| ------------ | ------: | ------: | -------: | ---------------- | ---------: |
+| wasm32       |   64 MB |    2 GB |   32-bit | imported         |    3.1.27+ |
+| wasm64       |  256 MB |   16 GB |   64-bit | imported         |    3.1.35+ |
+| WASI         |       … |       … |   32-bit | self-contained   |          … |
+| WASI threads |       … |    2 GB |   32-bit | imported, shared |          … |
 
-All three targets enable `-msimd128` and `-mrelaxed-simd` automatically.
 Stack size is 5 MB across all Emscripten targets.
-WASI builds use `wasm32-wasip1-threads` with shared memory and `-pthread` for threading support.
+Only the WASI threads build uses `wasm32-wasip1-threads` with `-pthread`; the kernels are thread-free, so every other module is single-threaded and loads in any page.
 
 __SIMD and Relaxed SIMD Support__
 
 All WASM builds require fixed-width SIMD — 128-bit `v128`.
-Relaxed SIMD instructions like `f32x4.relaxed_madd` and fused dot-product are used when available — the toolchain enables them unconditionally and the WASI test runner probes for support at startup via `WebAssembly.validate()`.
+The `v128relaxed` tier adds Relaxed SIMD instructions like `f32x4.relaxed_madd` and the fused `i8` dot product; an engine without them refuses the whole module at instantiation, which is why the tier is a build choice rather than a runtime one.
+Inside a module, `nk_capabilities_detected` still reports what the host validates — through `EM_JS` probes under Emscripten and through the `env.nk_has_*` imports a Node host supplies under `NK_WASI_HOSTED` — and `nk_capabilities_available` intersects that with what was compiled.
 
-Known-good minimum versions: Chrome 114+, Firefox 120+, Node.js 20+, Wasmtime 14+.
-Safari supports `v128` SIMD from 16.4 but has incomplete Relaxed SIMD coverage; Memory64 is not yet available in Safari or Wasmer.
+| Engine   | SIMD128 | Relaxed SIMD | Threads | Memory64 |
+| :------- | ------: | -----------: | ------: | -------: |
+| Chrome   |      91 |          114 |      74 |      133 |
+| Firefox  |      89 |          145 |      79 |      134 |
+| Safari   |    16.4 |         flag |    14.1 |        … |
+| Node.js  |    16.4 |         21.0 |    16.4 |     24.0 |
+| Wasmtime |    0.33 |           15 |      15 |       30 |
+| Wasmer   |     2.0 |          7.1 |     4.0 |        … |
+
 For up-to-date engine support, see [WebAssembly Roadmap](https://webassembly.org/features/) and [caniuse Relaxed SIMD](https://caniuse.com/wasm-relaxed-simd).
 
 ### Cross-Compilation
 
-NumKong ships 11 toolchain files in `cmake/` for cross-compiling to non-native targets.
+NumKong ships 12 toolchain files in `cmake/` for cross-compiling to non-native targets.
 Tests run transparently under QEMU via `CMAKE_CROSSCOMPILING_EMULATOR`.
 Set `NK_IN_QEMU=1` to relax half-precision accuracy thresholds under emulation.
 
@@ -230,7 +253,7 @@ pytest test/ -s -x -Wd
 Optional dependencies for extended test coverage:
 
 | Package     | What it unlocks                                         |
-| ----------- | ------------------------------------------------------- |
+| :---------- | :------------------------------------------------------ |
 | `numpy`     | Array interop, cdist, custom dtype registration         |
 | `scipy`     | Cross-validation against `scipy.spatial.distance`       |
 | `ml_dtypes` | `__array_interface__` fallback for bfloat16 / fp8 / fp6 |
@@ -245,19 +268,19 @@ pytest test/ -s -x -Wd -k "dot or spatial"
 
 ### Environment Variables
 
-| Variable               | Default          | Description                             |
-| ---------------------- | ---------------- | --------------------------------------- |
+| Variable               |          Default | Description                             |
+| :--------------------- | ---------------: | :-------------------------------------- |
 | `NK_DENSE_DIMENSIONS`  | `1,2,3,...,1536` | Comma-separated vector dimensions       |
-| `NK_CURVED_DIMENSIONS` | `11,97`          | Dimensions for curved-space tests       |
-| `NK_MATRIX_HEIGHT`     | `1024`           | GEMM M dimension                        |
-| `NK_MATRIX_WIDTH`      | `128`            | GEMM N dimension                        |
-| `NK_MATRIX_DEPTH`      | `1536`           | GEMM K dimension                        |
-| `NK_SEED`              | OS entropy       | Deterministic seed for `np.random`      |
-| `NK_REPETITIONS`       | `10`             | Randomized test repeat count            |
-| `NK_IN_QEMU`           | unset            | Relax accuracy thresholds               |
-| `NK_SPARSE_DIMENSIONS` | `256`            | Universe size for sparse tests          |
-| `NK_MESH_POINTS`       | `100`            | Point count for mesh alignment tests    |
-| `NK_MAX_COORD_ANGLE`   | `180`            | Maximum angle in degrees for geospatial |
+| `NK_CURVED_DIMENSIONS` |          `11,97` | Dimensions for curved-space tests       |
+| `NK_MATRIX_HEIGHT`     |           `1024` | GEMM M dimension                        |
+| `NK_MATRIX_WIDTH`      |            `128` | GEMM N dimension                        |
+| `NK_MATRIX_DEPTH`      |           `1536` | GEMM K dimension                        |
+| `NK_SEED`              |       OS entropy | Deterministic seed for `np.random`      |
+| `NK_REPETITIONS`       |             `10` | Randomized test repeat count            |
+| `NK_IN_QEMU`           |            unset | Relax accuracy thresholds               |
+| `NK_SPARSE_DIMENSIONS` |            `256` | Universe size for sparse tests          |
+| `NK_MESH_POINTS`       |            `100` | Point count for mesh alignment tests    |
+| `NK_MAX_COORD_ANGLE`   |            `180` | Maximum angle in degrees for geospatial |
 
 The `pytest-repeat` plugin re-runs each test `NK_REPETITIONS` times with auto-seeding — each iteration gets a unique seed derived from the base `NK_SEED`, ensuring broader input coverage without sacrificing reproducibility.
 
@@ -286,10 +309,10 @@ npx playwright test --config test/playwright.config.ts    # Browser via Playwrig
 
 ### Environment Variables
 
-| Variable              | Default         | Description                                        |
-| --------------------- | --------------- | -------------------------------------------------- |
-| `NK_RUNTIME`          | `native`        | Runtime: `emscripten`, `emscripten64`, `wasi-node` |
-| `NK_SEED`             | `42`            | Random seed for reproducible test data             |
+| Variable              |         Default | Description                                        |
+| :-------------------- | --------------: | :------------------------------------------------- |
+| `NK_RUNTIME`          |        `native` | Runtime: `emscripten`, `emscripten64`, `wasi-node` |
+| `NK_SEED`             |            `42` | Random seed for reproducible test data             |
 | `NK_DENSE_DIMENSIONS` | `3,16,128,1536` | Comma-separated vector dimensions                  |
 
 ## Swift

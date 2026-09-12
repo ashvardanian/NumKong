@@ -9,6 +9,7 @@ permissions:
 
 env:
   BUILD_TYPE: Release
+  EMSCRIPTEN_VERSION: 6.0.9
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -205,17 +206,25 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload ${{ github.event.release.tag_name }} *.zip --clobber
 
-  create_wasm_library:
-    name: Create WASM Library
+  # One module per tier and width; the loader picks a wasm32 tier by what the engine validates.
+  build_wasm_module:
+    name: Build WASM Module, ${{ matrix.width }} ${{ matrix.simd }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - width: wasm32
+            simd: v128
+          - width: wasm32
+            simd: v128relaxed
+          - width: wasm64
+            simd: v128relaxed
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Get Version
-        id: set_version
-        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
       - name: Install Emscripten
         uses: nick-fields/retry@v4
         with:
@@ -225,45 +234,41 @@ jobs:
           command: |
             rm -rf ~/emsdk
             git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
-            (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
+            (cd ~/emsdk && ./emsdk install "$EMSCRIPTEN_VERSION" && ./emsdk activate "$EMSCRIPTEN_VERSION")
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
       - name: Build WASM
         run: |
           source ~/emsdk/emsdk_env.sh
           cmake -B build_wasm \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm.cmake \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-${{ matrix.width }}-emscripten.cmake \
+            -DNK_WASM_SIMD=${{ matrix.simd }} \
             -DCMAKE_BUILD_TYPE=Release \
             -DNK_BUILD_SHARED=ON
           cmake --build build_wasm --config Release
-      - name: Build Browser Bundle
+      # The wasm64 linker flags can produce a module that links but fails to instantiate.
+      - name: Smoke Test WASM64 Module
+        if: matrix.width == 'wasm64'
         run: |
-          npm install --ignore-scripts
-          npm run build-js
-          cp build_wasm/numkong.js build_wasm/numkong-emscripten.js
-          npx esbuild javascript/dist/esm/numkong-browser.js \
-            --bundle --format=esm --platform=browser --target=es2022 \
-            --outfile=build_wasm/numkong-bundle.js
-          cp javascript/dist/esm/numkong-browser.d.ts build_wasm/numkong.d.ts
-          cp LICENSE build_wasm/
-      - name: Package WASM Release
-        run: |
-          cd build_wasm
-          mv numkong-bundle.js numkong.js
-          tar -czf "../numkong_wasm_${{ steps.set_version.outputs.version }}.tar.gz" \
-            numkong.js numkong-emscripten.js numkong.wasm numkong.d.ts LICENSE
-          zip -r "../numkong_wasm_${{ steps.set_version.outputs.version }}.zip" \
-            numkong.js numkong-emscripten.js numkong.wasm numkong.d.ts LICENSE
-      - name: Upload to GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ github.event.release.tag_name }} numkong_wasm_*.tar.gz numkong_wasm_*.zip --clobber
+          node --experimental-wasm-memory64 -e "
+            import('./build_wasm/numkong-wasm64-${{ matrix.simd }}.js')
+              .then(m => m.default())
+              .then(M => console.log('capabilities:', M._nk_capabilities_available()))"
+      - name: Upload WASM Module
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-module-${{ matrix.width }}-${{ matrix.simd }}
+          path: |
+            build_wasm/numkong-${{ matrix.width }}-${{ matrix.simd }}.js
+            build_wasm/numkong-${{ matrix.width }}-${{ matrix.simd }}.wasm
+          if-no-files-found: error
+          retention-days: 1
 
-  # Separate job so a wasm64 failure cannot stop the wasm32 bundle.
-  create_wasm64_library:
-    name: Create WASM64 Library
+  create_wasm_library:
+    name: Create WASM Library
+    needs: build_wasm_module
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
@@ -273,51 +278,36 @@ jobs:
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
-      - name: Install Emscripten
-        uses: nick-fields/retry@v4
-        with:
-          max_attempts: 3
-          retry_wait_seconds: 15
-          timeout_minutes: 180
-          command: |
-            rm -rf ~/emsdk
-            git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
-            (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
-      - name: Build WASM64 Library
+      - name: Download WASM Modules
+        uses: actions/download-artifact@v8
+        with:
+          pattern: wasm-module-*
+          path: wasm
+          merge-multiple: true
+      - name: Build Browser Bundle
         run: |
-          source ~/emsdk/emsdk_env.sh
-          cmake -B build_wasm64 \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64.cmake \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DNK_BUILD_SHARED=ON \
-            -DNK_BUILD_TEST=OFF \
-            -DNK_BUILD_BENCH=OFF
-          cmake --build build_wasm64 --config Release
-      # No test workflow covers wasm64, and its linker flags can produce a
-      # module that links but fails to instantiate.
-      - name: Smoke Test WASM64 Module
+          npm install --ignore-scripts
+          npm run build-js
+          npx esbuild javascript/dist/esm/numkong-browser.js \
+            --bundle --format=esm --platform=browser --target=es2022 \
+            --outfile=wasm/numkong.js
+          cp javascript/dist/esm/numkong-browser.d.ts wasm/numkong.d.ts
+          cp LICENSE wasm/
+      - name: Package WASM Release
         run: |
-          node --experimental-wasm-memory64 -e "
-            import('./build_wasm64/numkong64.js')
-              .then(m => m.default())
-              .then(M => console.log('capabilities:', M._nk_capabilities_available()))"
-
-      - name: Package WASM64 Release
-        run: |
-          cp LICENSE build_wasm64/
-          cd build_wasm64
-          tar -czf "../numkong_wasm64_${{ steps.set_version.outputs.version }}.tar.gz" \
-            numkong64.js numkong64.wasm LICENSE
-          zip -r "../numkong_wasm64_${{ steps.set_version.outputs.version }}.zip" \
-            numkong64.js numkong64.wasm LICENSE
+          cd wasm
+          tar -czf "../numkong_wasm_${{ steps.set_version.outputs.version }}.tar.gz" \
+            numkong.js numkong.d.ts numkong-wasm32-*.js numkong-wasm32-*.wasm numkong-wasm64-*.js numkong-wasm64-*.wasm LICENSE
+          zip -r "../numkong_wasm_${{ steps.set_version.outputs.version }}.zip" \
+            numkong.js numkong.d.ts numkong-wasm32-*.js numkong-wasm32-*.wasm numkong-wasm64-*.js numkong-wasm64-*.wasm LICENSE
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ github.event.release.tag_name }} numkong_wasm64_*.tar.gz numkong_wasm64_*.zip --clobber
+        run: gh release upload ${{ github.event.release.tag_name }} numkong_wasm_*.tar.gz numkong_wasm_*.zip --clobber
 
   create_freebsd_library:
     name: Create Library for FreeBSD

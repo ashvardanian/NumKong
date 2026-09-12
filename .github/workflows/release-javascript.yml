@@ -8,6 +8,9 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  EMSCRIPTEN_VERSION: 6.0.9
+
 jobs:
   build_native:
     name: Build Native Package, ${{ matrix.platform }}
@@ -57,7 +60,7 @@ jobs:
           ref: "main"
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
 
@@ -109,9 +112,20 @@ jobs:
           path: javascript/@numkong-${{ matrix.platform }}/
           retention-days: 1
 
-  build_wasm:
-    name: Build WASM Bundle
+  # One module per tier and width; the loader picks a wasm32 tier by what the engine validates.
+  build_wasm_module:
+    name: Build WASM Module, ${{ matrix.width }} ${{ matrix.simd }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - width: wasm32
+            simd: v128
+          - width: wasm32
+            simd: v128relaxed
+          - width: wasm64
+            simd: v128relaxed
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
@@ -126,29 +140,52 @@ jobs:
           command: |
             rm -rf ~/emsdk
             git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
-            (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
-      - name: Set Up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
+            (cd ~/emsdk && ./emsdk install "$EMSCRIPTEN_VERSION" && ./emsdk activate "$EMSCRIPTEN_VERSION")
       - name: Build WASM
         run: |
           source ~/emsdk/emsdk_env.sh
           cmake -B build_wasm \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm.cmake \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-${{ matrix.width }}-emscripten.cmake \
+            -DNK_WASM_SIMD=${{ matrix.simd }} \
             -DCMAKE_BUILD_TYPE=Release \
             -DNK_BUILD_SHARED=ON
           cmake --build build_wasm --config Release
+      - name: Upload WASM Module
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-module-${{ matrix.width }}-${{ matrix.simd }}
+          path: |
+            build_wasm/numkong-${{ matrix.width }}-${{ matrix.simd }}.js
+            build_wasm/numkong-${{ matrix.width }}-${{ matrix.simd }}.wasm
+          if-no-files-found: error
+          retention-days: 1
+
+  build_wasm:
+    name: Build WASM Bundle
+    needs: build_wasm_module
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          ref: "main"
+      - name: Set Up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Download WASM Modules
+        uses: actions/download-artifact@v8
+        with:
+          pattern: wasm-module-*
+          path: wasm
+          merge-multiple: true
       - name: Build JavaScript and Assemble WASM Bundle
         run: |
           npm install --ignore-scripts
           npm run build-js
-          mkdir -p wasm
-          cp build_wasm/numkong.js wasm/numkong-emscripten.js
           npx esbuild javascript/dist/esm/numkong-browser.js \
             --bundle --format=esm --platform=browser --target=es2022 \
             --outfile=wasm/numkong.js
-          cp build_wasm/numkong.wasm wasm/
           cp javascript/dist/esm/numkong-browser.d.ts wasm/numkong.d.ts
       - name: Upload WASM Bundle
         uses: actions/upload-artifact@v7
@@ -179,7 +216,7 @@ jobs:
           ref: "main"
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
@@ -223,7 +260,7 @@ jobs:
           ref: "main"
 
       - name: Set Up Node.js Environment
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"

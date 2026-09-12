@@ -472,10 +472,8 @@ mod wasm_runtime_tests {
                 return Some(path);
             }
         }
-        if Path::new("build-wasi/nk_test.wasm").exists() {
-            Some("build-wasi/nk_test.wasm".to_string())
-        } else if Path::new("build-wasi/test.wasm").exists() {
-            Some("build-wasi/test.wasm".to_string())
+        if Path::new("build-wasi/numkong_test.wasm").exists() {
+            Some("build-wasi/numkong_test.wasm".to_string())
         } else {
             None
         }
@@ -485,13 +483,13 @@ mod wasm_runtime_tests {
     /// This validates the dual-path capability detection — EM_ASM vs WASI imports
     #[test]
     fn wasi_with_wasmtime() -> wasmtime::Result<()> {
-        // Check if WASI build exists
+        // A missing module is a failed test, never a silent pass
         let Some(wasm_path) = resolve_wasi_module() else {
-            eprintln!("WASI build not found. Run:");
-            eprintln!("  export WASI_SDK_PATH=~/wasi-sdk");
-            eprintln!("  cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasi.cmake -DNK_BUILD_TEST=ON");
-            eprintln!("  cmake --build build-wasi --target nk_test");
-            return Ok(()); // Skip test if build doesn't exist
+            panic!(
+                "WASI build not found. Run:\n  export WASI_SDK_PATH=~/wasi-sdk\n  cmake -B build-wasi \
+                 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DNK_BUILD_TEST=ON\n  cmake --build \
+                 build-wasi --target numkong_test"
+            );
         };
 
         println!("Loading WASI module from {}", wasm_path);
@@ -515,7 +513,7 @@ mod wasm_runtime_tests {
         wasmtime_wasi::p1::add_to_linker_sync(&mut linker, |s| s)?;
 
         // Provide capability detection imports — required for WASI build
-        // These functions are called from nk_capabilities_v128relaxed_() in C code
+        // These functions are called from nk_capabilities_detected_wasm_() in C code
         linker.func_wrap("env", "nk_has_v128", || -> i32 {
             // Return 1 (true) - assume SIMD128 is available in Wasmtime
             println!("  nk_has_v128() called from WASM -> returning 1");

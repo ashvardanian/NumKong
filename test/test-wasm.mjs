@@ -11,9 +11,10 @@ import test from "node:test";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { WASI } from "node:wasi";
+import { relaxedProbe, simd128Probe } from "../javascript/dist/esm/wasm-probes.js";
 
-function resolveWasiTestModule() {
-  return ["./build-wasi/nk_test.wasm", "./build-wasi/test.wasm"].find((path) => {
+function resolveModule(candidates) {
+  return candidates.find((path) => {
     try {
       readFileSync(path);
       return true;
@@ -30,18 +31,26 @@ async function loadNumKong(runtime) {
       // Load native Node.js addon (baseline for comparison)
       return await import("../javascript/dist/esm/numkong.js");
 
-    case "emscripten":
-      // Load Emscripten build (uses EM_ASM for capability detection)
+    case "emscripten": {
+      // Load the wasm32 Emscripten build, the relaxed tier where both tiers were built
       const wasmWrapper = await import("../javascript/dist/esm/numkong-wasm.js");
-      const EmModule = await import("../build-wasm/numkong.js");
+      const emscriptenModule = resolveModule([
+        "./build-wasm/numkong-wasm32-v128relaxed.js",
+        "./build-wasm/numkong-wasm32-v128.js",
+      ]);
+      if (!emscriptenModule) {
+        throw new Error("Missing build-wasm/numkong-wasm32-v128.js or build-wasm/numkong-wasm32-v128relaxed.js");
+      }
+      const EmModule = await import(new URL(`.${emscriptenModule}`, import.meta.url).href);
       const wasmInstance = await EmModule.default();
       wasmWrapper.initWasm(wasmInstance);
       return wasmWrapper;
+    }
 
     case "emscripten64": {
       // Load Emscripten wasm64 (memory64) build
       const wasmWrapper64 = await import("../javascript/dist/esm/numkong-wasm.js");
-      const EmModule64 = await import("../build-wasm64/numkong64.js");
+      const EmModule64 = await import("../build-wasm64/numkong-wasm64-v128relaxed.js");
       const wasmInstance64 = await EmModule64.default();
       wasmWrapper64.initWasm(wasmInstance64);
       return wasmWrapper64;
@@ -56,40 +65,21 @@ async function loadNumKong(runtime) {
         env: {},
       });
 
-      const wasiModule = resolveWasiTestModule();
+      const wasiModule = resolveModule(["./build-wasi/numkong_test.wasm"]);
       if (!wasiModule) {
-        throw new Error("Missing build-wasi/nk_test.wasm (or legacy build-wasi/test.wasm)");
+        throw new Error("Missing build-wasi/numkong_test.wasm");
       }
       const wasmBytes = readFileSync(wasiModule);
 
-      // The WASI toolchain builds with --import-memory --shared-memory,
-      // so we must provide a WebAssembly.Memory object in the env imports.
-      const memory = new WebAssembly.Memory({ initial: 256, maximum: 4096, shared: true });
-
-      // Probe the engine for SIMD support by validating minimal test modules.
-      // A fat binary contains both serial and v128relaxed kernels — the host
-      // must report truthfully so dispatch picks the right one.
-      const hasV128 = WebAssembly.validate(new Uint8Array([
-        0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
-        0x01, 0x05, 0x01, 0x60, 0x00, 0x01, 0x7b,
-        0x03, 0x02, 0x01, 0x00,
-        0x0a, 0x09, 0x01, 0x07, 0x00, 0xfd, 0x0c,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0b,
-      ])) ? 1 : 0;
-      const hasRelaxed = WebAssembly.validate(new Uint8Array([
-        0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
-        0x01, 0x06, 0x01, 0x60, 0x01, 0x7b, 0x01, 0x7b,
-        0x03, 0x02, 0x01, 0x00,
-        0x0a, 0x07, 0x01, 0x05, 0x00, 0x20, 0x00,
-        0xfd, 0x82, 0x02, 0x0b,
-      ])) ? 1 : 0;
+      // The host reports what this engine validates; the module reports what it compiled, and
+      // dispatch takes the intersection.
+      const hasV128 = WebAssembly.validate(simd128Probe) ? 1 : 0;
+      const hasRelaxed = WebAssembly.validate(relaxedProbe) ? 1 : 0;
       console.log(`  WASI probe: v128=${hasV128}, relaxed-simd=${hasRelaxed}`);
 
       const { instance } = await WebAssembly.instantiate(wasmBytes, {
         wasi_snapshot_preview1: wasi.wasiImport,
         env: {
-          memory,
           nk_has_v128: () => hasV128,
           nk_has_relaxed: () => hasRelaxed,
         },
@@ -225,6 +215,19 @@ test(`[${runtime}] Capability detection`, () => {
     if (typeof numkong.hasCapability === "function") {
       // Serial fallback should always be present
       assert(numkong.hasCapability(1n << 0n), "SERIAL capability should be present");
+    }
+
+    // Every engine in the support matrix validates the SIMD128 probe; relaxed SIMD depends on the engine.
+    if (runtime !== "native") {
+      const v128 = 1n << 41n;
+      const v128relaxed = 1n << 16n;
+      assert((detected & v128) === v128, "detected must include V128 on every WASM runtime");
+      if (WebAssembly.validate(relaxedProbe)) {
+        assert(
+          (detected & v128relaxed) === v128relaxed,
+          "detected must include V128RELAXED where the engine validates the relaxed probe",
+        );
+      }
     }
   } else {
     console.log(`  Capability accessors not available in ${runtime} mode`);

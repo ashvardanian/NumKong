@@ -41,9 +41,8 @@
     "bench": "node bench/bench.mjs",
     "bench:native": "NK_RUNTIME=native node bench/bench.mjs",
     "bench:emscripten": "NK_RUNTIME=emscripten node bench/bench.mjs",
-    "bench:wasi": "NK_RUNTIME=wasi node bench/bench.mjs",
     "bench:browser": "node bench/bench.mjs --browser",
-    "bench:all": "npm run bench:native && npm run bench:emscripten && npm run bench:wasi && npm run bench:browser",
+    "bench:all": "npm run bench:native && npm run bench:emscripten && npm run bench:browser",
     "bench:report": "node bench/bench.mjs --report"
   },
   "main": "javascript/dist/cjs/numkong.js",

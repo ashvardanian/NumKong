@@ -563,7 +563,6 @@ if (NK_BUILD_BENCH)
         endif ()
 
         set_target_properties(numkong_bench PROPERTIES OUTPUT_NAME "numkong_bench.wasm")
-        target_link_options(numkong_bench PRIVATE -Wl,--export=main -Wl,--export=_start)
         message(STATUS "NumKong: Building benchmarks for WASI (output: numkong_bench.wasm)")
     endif ()
 
@@ -641,7 +640,6 @@ if (NK_BUILD_TEST)
         endif ()
 
         set_target_properties(numkong_test PROPERTIES OUTPUT_NAME "numkong_test.wasm")
-        target_link_options(numkong_test PRIVATE -Wl,--export=main -Wl,--export=_start)
         message(STATUS "NumKong: Building tests for WASI (output: numkong_test.wasm)")
     endif ()
 
@@ -705,31 +703,46 @@ if (NK_BUILD_SHARED)
         )
 
         add_executable(numkong_shared ${NK_SOURCES} "${CMAKE_BINARY_DIR}/emscripten_stub.c")
-        target_include_directories(
-            numkong_shared PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
-        )
 
-        if (NK_WASM64_)
-            set_target_properties(
-                numkong_shared PROPERTIES OUTPUT_NAME "numkong64" SUFFIX
-                                                                  ".js" # Generates numkong64.js + numkong64.wasm
-            )
+        # Consumers that `add_subdirectory(numkong)` link a library, not the `.js` executable.
+        add_library(numkong_static STATIC ${NK_SOURCES})
+        add_library(numkong::static ALIAS numkong_static)
+        set_target_properties(numkong_static PROPERTIES EXPORT_NAME static)
+
+        # One module carries one SIMD tier, chosen by the toolchain's flags, so its name says which.
+        if (CMAKE_C_FLAGS MATCHES "-mrelaxed-simd")
+            set(NK_WASM_SIMD_NAME_ "v128relaxed")
+        elseif (CMAKE_C_FLAGS MATCHES "-msimd128")
+            set(NK_WASM_SIMD_NAME_ "v128")
         else ()
-            set_target_properties(
-                numkong_shared PROPERTIES OUTPUT_NAME "numkong" SUFFIX ".js" # Generates numkong.js + numkong.wasm
-            )
+            set(NK_WASM_SIMD_NAME_ "serial")
         endif ()
-        target_compile_definitions(
-            numkong_shared
-            PRIVATE NK_TARGET_HASWELL=0 NK_TARGET_SKYLAKE=0 NK_TARGET_ICELAKE=0 NK_TARGET_GENOA=0 NK_TARGET_SAPPHIRE=0
-                    NK_TARGET_SAPPHIREAMX=0 NK_TARGET_GRANITEAMX=0 NK_TARGET_DIAMOND=0 NK_TARGET_TURIN=0
-                    NK_TARGET_ALDER=0 NK_TARGET_SIERRA=0 NK_TARGET_NEON=0 NK_TARGET_NEONHALF=0 NK_TARGET_NEONSDOT=0
-                    NK_TARGET_NEONBFDOT=0 NK_TARGET_NEONFHM=0 NK_TARGET_NEONFP8=0 NK_TARGET_SVE=0 NK_TARGET_SVEHALF=0
-                    NK_TARGET_SVEBFDOT=0 NK_TARGET_SVESDOT=0 NK_TARGET_SVE2=0 NK_TARGET_SVE2P1=0 NK_TARGET_SME=0
-                    NK_TARGET_SME2=0 NK_TARGET_SME2P1=0 NK_TARGET_SMEF64=0 NK_TARGET_SMEHALF=0 NK_TARGET_SMEBF16=0
-                    NK_TARGET_SMEBI32=0 NK_TARGET_SMELUT2=0 NK_TARGET_SMEFA64=0 NK_TARGET_RVV=0 NK_TARGET_RVVHALF=0
-                    NK_TARGET_RVVBF16=0 NK_TARGET_RVVBB=0 NK_TARGET_V128RELAXED=1
-        )
+        if (NK_WASM64_)
+            set(NK_WASM_MODULE_NAME_ "numkong-wasm64-${NK_WASM_SIMD_NAME_}")
+        else ()
+            set(NK_WASM_MODULE_NAME_ "numkong-wasm32-${NK_WASM_SIMD_NAME_}")
+        endif ()
+        # Generates `${NK_WASM_MODULE_NAME_}.js` + `.wasm`
+        set_target_properties(numkong_shared PROPERTIES OUTPUT_NAME "${NK_WASM_MODULE_NAME_}" SUFFIX ".js")
+        message(STATUS "NumKong: Building Emscripten module ${NK_WASM_MODULE_NAME_}")
+
+        # Every non-WebAssembly kit is off; the wasm tiers follow `-msimd128` / `-mrelaxed-simd` through `types.h`.
+        foreach (nk_library_ numkong_shared numkong_static)
+            target_include_directories(
+                ${nk_library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+            )
+            target_compile_definitions(
+                ${nk_library_}
+                PRIVATE NK_TARGET_HASWELL=0 NK_TARGET_SKYLAKE=0 NK_TARGET_ICELAKE=0 NK_TARGET_GENOA=0
+                        NK_TARGET_SAPPHIRE=0 NK_TARGET_SAPPHIREAMX=0 NK_TARGET_GRANITEAMX=0 NK_TARGET_DIAMOND=0
+                        NK_TARGET_TURIN=0 NK_TARGET_ALDER=0 NK_TARGET_SIERRA=0 NK_TARGET_NEON=0 NK_TARGET_NEONHALF=0
+                        NK_TARGET_NEONSDOT=0 NK_TARGET_NEONBFDOT=0 NK_TARGET_NEONFHM=0 NK_TARGET_NEONFP8=0
+                        NK_TARGET_SVE=0 NK_TARGET_SVEHALF=0 NK_TARGET_SVEBFDOT=0 NK_TARGET_SVESDOT=0 NK_TARGET_SVE2=0
+                        NK_TARGET_SVE2P1=0 NK_TARGET_SME=0 NK_TARGET_SME2=0 NK_TARGET_SME2P1=0 NK_TARGET_SMEF64=0
+                        NK_TARGET_SMEHALF=0 NK_TARGET_SMEBF16=0 NK_TARGET_SMEBI32=0 NK_TARGET_SMELUT2=0
+                        NK_TARGET_SMEFA64=0 NK_TARGET_RVV=0 NK_TARGET_RVVHALF=0 NK_TARGET_RVVBF16=0 NK_TARGET_RVVBB=0
+            )
+        endforeach ()
 
         target_link_options(
             numkong_shared
@@ -750,7 +763,7 @@ if (NK_BUILD_SHARED)
 
         # Memory64 link option for wasm64 builds
         if (NK_WASM64_)
-            target_link_options(numkong_shared PRIVATE "SHELL:-s MEMORY64=1")
+            target_link_options(numkong_shared PRIVATE "SHELL:-sMEMORY64=1")
         endif ()
 
         # Under Emscripten numkong_shared is an executable (.js/.wasm), not a shared
@@ -877,7 +890,7 @@ if (NK_BUILD_SHARED_TEST)
                 NK_TARGET_SVESDOT=0 NK_TARGET_SVE2=0 NK_TARGET_SVE2P1=0 NK_TARGET_SME=0 NK_TARGET_SME2=0
                 NK_TARGET_SME2P1=0 NK_TARGET_SMEF64=0 NK_TARGET_SMEHALF=0 NK_TARGET_SMEBF16=0 NK_TARGET_SMEBI32=0
                 NK_TARGET_SMELUT2=0 NK_TARGET_SMEFA64=0 NK_TARGET_RVV=0 NK_TARGET_RVVHALF=0 NK_TARGET_RVVBF16=0
-                NK_TARGET_RVVBB=0 NK_TARGET_LOONGSONASX=0 NK_TARGET_POWERVSX=0 NK_TARGET_V128RELAXED=0
+                NK_TARGET_RVVBB=0 NK_TARGET_LOONGSONASX=0 NK_TARGET_POWERVSX=0
     )
 
     add_test(NAME numkong_shared_test COMMAND numkong_shared_test)
