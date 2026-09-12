@@ -1002,6 +1002,7 @@ static struct {
     // Power
     {"powervsx", nk_cap_powervsx_k},
     // WASM
+    {"v128", nk_cap_v128_k},
     {"v128relaxed", nk_cap_v128relaxed_k},
     {NULL},
 };
@@ -1093,7 +1094,7 @@ char const doc_get_capabilities_detected[] =                                    
     "  RISC-V: rvv, rvvhalf, rvvbf16, rvvbb.\n"                                                  //
     "  LoongArch: loongsonasx.\n"                                                                //
     "  Power: powervsx.\n"                                                                       //
-    "  WASM: v128relaxed.\n\n"                                                                   //
+    "  WASM: v128, v128relaxed.\n\n"                                                             //
     "Signature:\n"                                                                               //
     "    >>> def get_capabilities_detected(): ...";
 

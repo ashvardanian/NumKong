@@ -476,6 +476,19 @@ void test_spatial() {
     check("angular_e3m2_v128relaxed", test_angular<e3m2_t>, nk_angular_e3m2_v128relaxed);
 #endif // NK_TARGET_V128RELAXED
 
+#if NK_TARGET_V128
+    check.section("Spatial Distances V128", nk_cap_v128_k);
+    check("sqeuclidean_bf16_v128", test_sqeuclidean<bf16_t>, nk_sqeuclidean_bf16_v128);
+    check("euclidean_bf16_v128", test_euclidean<bf16_t>, nk_euclidean_bf16_v128);
+    check("angular_bf16_v128", test_angular<bf16_t>, nk_angular_bf16_v128);
+    check("sqeuclidean_u8_v128", test_sqeuclidean<u8_t>, nk_sqeuclidean_u8_v128);
+    check("euclidean_u8_v128", test_euclidean<u8_t>, nk_euclidean_u8_v128);
+    check("angular_u8_v128", test_angular<u8_t>, nk_angular_u8_v128);
+    check("sqeuclidean_i8_v128", test_sqeuclidean<i8_t>, nk_sqeuclidean_i8_v128);
+    check("euclidean_i8_v128", test_euclidean<i8_t>, nk_euclidean_i8_v128);
+    check("angular_i8_v128", test_angular<i8_t>, nk_angular_i8_v128);
+#endif // NK_TARGET_V128
+
 #if NK_TARGET_RVVHALF
     check.section("Spatial Distances RVV HALF", nk_cap_rvvhalf_k);
     check("sqeuclidean_f16_rvvhalf", test_sqeuclidean<f16_t>, nk_sqeuclidean_f16_rvvhalf);

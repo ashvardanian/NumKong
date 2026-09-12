@@ -131,14 +131,14 @@ void test_set() {
     check("jaccard_u32_rvv", test_jaccard<u32_t>, nk_jaccard_u32_rvv);
 #endif // NK_TARGET_RVV
 
-#if NK_TARGET_V128RELAXED
-    check.section("Binary Distances V128 Relaxed", nk_cap_v128relaxed_k);
-    check("hamming_u1_v128relaxed", test_hamming<u1x8_t>, nk_hamming_u1_v128relaxed);
-    check("jaccard_u1_v128relaxed", test_jaccard<u1x8_t>, nk_jaccard_u1_v128relaxed);
-    check("hamming_u8_v128relaxed", test_hamming<u8_t>, nk_hamming_u8_v128relaxed);
-    check("jaccard_u16_v128relaxed", test_jaccard<u16_t>, nk_jaccard_u16_v128relaxed);
-    check("jaccard_u32_v128relaxed", test_jaccard<u32_t>, nk_jaccard_u32_v128relaxed);
-#endif // NK_TARGET_V128RELAXED
+#if NK_TARGET_V128
+    check.section("Binary Distances V128", nk_cap_v128_k);
+    check("hamming_u1_v128", test_hamming<u1x8_t>, nk_hamming_u1_v128);
+    check("jaccard_u1_v128", test_jaccard<u1x8_t>, nk_jaccard_u1_v128);
+    check("hamming_u8_v128", test_hamming<u8_t>, nk_hamming_u8_v128);
+    check("jaccard_u16_v128", test_jaccard<u16_t>, nk_jaccard_u16_v128);
+    check("jaccard_u32_v128", test_jaccard<u32_t>, nk_jaccard_u32_v128);
+#endif // NK_TARGET_V128
 
 #if NK_TARGET_LOONGSONASX
     check.section("Binary Distances LoongArch LASX", nk_cap_loongsonasx_k);

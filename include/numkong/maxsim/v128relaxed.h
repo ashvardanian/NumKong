@@ -9,6 +9,7 @@
  *  Uses wasm_i32x4_relaxed_dot_i8x16_i7x16_add for coarse i8 screening.
  *  Both operands stay within i7 range [-63, 63] for native signed×signed arithmetic.
  *  No bias correction needed (unlike Haswell/Alder XOR-0x80 approach).
+ *  The packing routines that produce that layout live in `maxsim/v128.h`.
  *
  *  1Q×1D tiling (simpler than x86 4x4) with scalar running argmax.
  *  Depth steps at 16 bytes (v128 width in bytes).
@@ -19,11 +20,9 @@
 #if NK_TARGET_V128RELAXED
 
 #include "numkong/types.h"
-#include "numkong/maxsim/serial.h"      // `nk_maxsim_packed_header_t`
-#include "numkong/dot.h"                // `nk_dot_bf16`, `nk_dot_f32`, `nk_dot_f16`
-#include "numkong/cast/serial.h"        // `nk_bf16_to_f32_serial`
-#include "numkong/scalar/v128relaxed.h" // `nk_f32_sqrt_v128relaxed`
-#include "numkong/reduce/v128relaxed.h" // `nk_reduce_add_i32x4_v128relaxed_`
+#include "numkong/maxsim/serial.h"   // `nk_maxsim_packed_regions_t`
+#include "numkong/dot/v128relaxed.h" // `nk_dot_bf16_v128relaxed`, `nk_dot_f32_v128relaxed`, `nk_dot_f16_v128relaxed`
+#include "numkong/reduce/v128.h"     // `nk_reduce_add_i32x4_v128_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -32,107 +31,6 @@ extern "C" {
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
-
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_v128relaxed(nk_size_t vector_count, nk_size_t depth) {
-    return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_bf16_t), 16);
-}
-
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_v128relaxed(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
-    nk_maxsim_packed_shape_(packed, vectors, depth);
-}
-
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_v128relaxed(nk_size_t vector_count, nk_size_t depth) {
-    return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 16);
-}
-
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_v128relaxed(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
-    nk_maxsim_packed_shape_(packed, vectors, depth);
-}
-
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_v128relaxed(nk_size_t vector_count, nk_size_t depth) {
-    return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 16);
-}
-
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_v128relaxed(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
-    nk_maxsim_packed_shape_(packed, vectors, depth);
-}
-
-NK_API_COMPTIME void nk_maxsim_pack_bf16_v128relaxed( //
-    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
-
-    nk_size_t const element_bytes = sizeof(nk_bf16_t);
-    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 16, element_bytes);
-
-    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
-    nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
-    nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
-    char *originals = (char *)packed + header->offset_original_data;
-    nk_size_t const original_stride = header->original_stride_bytes;
-
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride_in_bytes;
-        nk_f32_t norm_sq;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 63.0f,
-                                   (nk_maxsim_to_f32_t)nk_bf16_to_f32_serial,
-                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index], &norm_sq);
-        metadata[vector_index].inverse_norm_f32 = norm_sq > 0.0f ? (1.0f / nk_f32_sqrt_v128relaxed(norm_sq)) : 0.0f;
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
-}
-
-NK_API_COMPTIME void nk_maxsim_pack_f32_v128relaxed( //
-    nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
-
-    nk_size_t const element_bytes = sizeof(nk_f32_t);
-    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 16, element_bytes);
-
-    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
-    nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
-    nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
-    char *originals = (char *)packed + header->offset_original_data;
-    nk_size_t const original_stride = header->original_stride_bytes;
-
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride_in_bytes;
-        nk_f32_t norm_sq;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 63.0f, nk_f32_to_f32_,
-                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index], &norm_sq);
-        metadata[vector_index].inverse_norm_f32 = norm_sq > 0.0f ? (1.0f / nk_f32_sqrt_v128relaxed(norm_sq)) : 0.0f;
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
-}
-
-NK_API_COMPTIME void nk_maxsim_pack_f16_v128relaxed( //
-    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
-
-    nk_size_t const element_bytes = sizeof(nk_f16_t);
-    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 16, element_bytes);
-
-    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
-    nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
-    nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
-    char *originals = (char *)packed + header->offset_original_data;
-    nk_size_t const original_stride = header->original_stride_bytes;
-
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride_in_bytes;
-        nk_f32_t norm_sq;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 63.0f,
-                                   (nk_maxsim_to_f32_t)nk_f16_to_f32_serial,
-                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index], &norm_sq);
-        metadata[vector_index].inverse_norm_f32 = norm_sq > 0.0f ? (1.0f / nk_f32_sqrt_v128relaxed(norm_sq)) : 0.0f;
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
-}
 
 /**
  *  @brief Coarse i8 argmax kernel for WASM Relaxed SIMD.
@@ -165,7 +63,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_v128relaxed_( //
             }
 
             // Horizontal i32x4 reduce → scalar
-            nk_i32_t coarse_dot_i32 = nk_reduce_add_i32x4_v128relaxed_(accumulator_i32x4);
+            nk_i32_t coarse_dot_i32 = nk_reduce_add_i32x4_v128_(accumulator_i32x4);
 
             if (coarse_dot_i32 > running_max_i32) {
                 running_max_i32 = coarse_dot_i32;
@@ -195,11 +93,11 @@ NK_API_COMPTIME void nk_maxsim_packed_bf16_v128relaxed( //
         for (nk_size_t query_index = 0; query_index < chunk_size; query_index++) {
             nk_u32_t best_document_index = best_document_indices[query_index];
             nk_f32_t dot_result;
-            nk_dot_bf16((nk_bf16_t const *)(regions.query_originals +
-                                            (chunk_start + query_index) * regions.query_original_stride),
-                        (nk_bf16_t const *)(regions.document_originals +
-                                            best_document_index * regions.document_original_stride),
-                        depth, &dot_result);
+            nk_dot_bf16_v128relaxed((nk_bf16_t const *)(regions.query_originals +
+                                                        (chunk_start + query_index) * regions.query_original_stride),
+                                    (nk_bf16_t const *)(regions.document_originals +
+                                                        best_document_index * regions.document_original_stride),
+                                    depth, &dot_result);
             nk_f32_t cosine = dot_result * regions.query_metadata[chunk_start + query_index].inverse_norm_f32 *
                               regions.document_metadata[best_document_index].inverse_norm_f32;
             nk_f32_t angular = 1.0f - cosine;
@@ -229,7 +127,7 @@ NK_API_COMPTIME void nk_maxsim_packed_f32_v128relaxed( //
         for (nk_size_t query_index = 0; query_index < chunk_size; query_index++) {
             nk_u32_t best_document_index = best_document_indices[query_index];
             nk_f64_t dot_result;
-            nk_dot_f32(
+            nk_dot_f32_v128relaxed(
                 (nk_f32_t const *)(regions.query_originals +
                                    (chunk_start + query_index) * regions.query_original_stride),
                 (nk_f32_t const *)(regions.document_originals + best_document_index * regions.document_original_stride),
@@ -264,7 +162,7 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_v128relaxed( //
         for (nk_size_t query_index = 0; query_index < chunk_size; query_index++) {
             nk_u32_t best_document_index = best_document_indices[query_index];
             nk_f32_t dot_result;
-            nk_dot_f16(
+            nk_dot_f16_v128relaxed(
                 (nk_f16_t const *)(regions.query_originals +
                                    (chunk_start + query_index) * regions.query_original_stride),
                 (nk_f16_t const *)(regions.document_originals + best_document_index * regions.document_original_stride),

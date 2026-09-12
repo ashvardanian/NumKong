@@ -582,7 +582,7 @@ possible_arm_capabilities: list[str] = [
 possible_rvv_capabilities: list[str] = ["rvv", "rvvhalf", "rvvbf16", "rvvbb"]
 possible_loongarch_capabilities: list[str] = ["loongsonasx"]
 possible_power_capabilities: list[str] = ["powervsx"]
-possible_wasm_capabilities: list[str] = ["v128relaxed"]
+possible_wasm_capabilities: list[str] = ["v128", "v128relaxed"]
 # fmt: on
 
 possible_x86_capabilities = [c for c in possible_x86_capabilities if available_capabilities.get(c, False)]

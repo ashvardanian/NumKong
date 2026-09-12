@@ -15,9 +15,9 @@ NumKong promotes to wider accumulators — Float16 → Float32, BFloat16 → Flo
 |        |       ░░░░░░░░░░░░░░ |       ░░░░░░░░░░░░░░ |       ░░░░░░░░░░░░░░ |        ░░░░░░░░░░░░░░ |
 | `f64`  | 2.0 gso/s, 1e-15 err | 0.6 gso/s, 1e-15 err | 0.4 gso/s, 1e-14 err |  5.8 gso/s, 1e-16 err |
 | `f32`  |  1.5 gso/s, 2e-6 err |  0.6 gso/s, 2e-6 err |  0.4 gso/s, 5e-6 err |   7.1 gso/s, 2e-7 err |
-| `bf16` |                    — |  0.5 gso/s, 1.9% err |  0.5 gso/s, 1.9% err |   9.7 gso/s, 1.8% err |
+| `bf16` |                    … |  0.5 gso/s, 1.9% err |  0.5 gso/s, 1.9% err |   9.7 gso/s, 1.8% err |
 | `f16`  | 0.2 gso/s, 0.25% err | 0.5 gso/s, 0.25% err | 0.4 gso/s, 0.25% err | 11.5 gso/s, 0.24% err |
-| `e5m2` |                    — |  0.7 gso/s, 4.6% err |  0.5 gso/s, 4.6% err |     7.1 gso/s, 0% err |
+| `e5m2` |                    … |  0.7 gso/s, 4.6% err |  0.5 gso/s, 4.6% err |     7.1 gso/s, 0% err |
 | `i8`   |  1.1 gso/s, overflow |  0.5 gso/s, overflow |  0.5 gso/s, overflow |    14.8 gso/s, 0% err |
 
 > Single 2048-d dot product on Intel Sapphire Rapids, single-threaded.
@@ -34,9 +34,9 @@ So here's the same comparison on a throughput-oriented workload — matrix multi
 |        |        ░░░░░░░░░░░░░░ |        ░░░░░░░░░░░░░░ |         ░░░░░░░░░░░░░░ |       ░░░░░░░░░░░░░░ |
 | `f64`  | 65.5 gso/s, 1e-15 err | 68.2 gso/s, 1e-15 err | ~14.3 gso/s, 1e-15 err | 8.6 gso/s, 1e-16 err |
 | `f32`  |   140 gso/s, 9e-7 err |   145 gso/s, 1e-6 err |  ~60.5 gso/s, 1e-6 err | 37.7 gso/s, 4e-7 err |
-| `bf16` |                     — |   851 gso/s, 1.8% err |  ~25.8 gso/s, 3.4% err |  458 gso/s, 3.6% err |
+| `bf16` |                     … |   851 gso/s, 1.8% err |  ~25.8 gso/s, 3.4% err |  458 gso/s, 3.6% err |
 | `f16`  |  0.3 gso/s, 0.25% err |  140 gso/s, 0.37% err | ~26.1 gso/s, 0.35% err | 103 gso/s, 0.26% err |
-| `e5m2` |                     — |   0.4 gso/s, 4.6% err |  ~26.4 gso/s, 4.6% err |    398 gso/s, 0% err |
+| `e5m2` |                     … |   0.4 gso/s, 4.6% err |  ~26.4 gso/s, 4.6% err |    398 gso/s, 0% err |
 | `i8`   |   0.4 gso/s, overflow |  50.0 gso/s, overflow |   ~0.0 gso/s, overflow |   1279 gso/s, 0% err |
 
 > Matrix multiplication (2048 × 2048) × (2048 × 2048) on Intel Sapphire Rapids, single-threaded.
@@ -421,7 +421,7 @@ On Arm, ARMv8.4-A adds __FMLAL/FMLAL2__ instructions for fused Float16 → Float
 > Sapphire Rapids has native `VFMADDPH` for Float16 arithmetic, but NumKong does not use it for general dot products — Float16 accumulation loses precision.
 > It is only used for mini-float (E2M3/E3M2) paths where periodic flush-to-Float32 windows keep error bounded.
 > The table above covers only vector dot-product paths - GEMMs also leverage Arm SME and Intel AMX instructions.
-> Beyond x86, Arm, and RISC-V, NumKong also ships LoongArch, WebAssembly, and PowerPC backends, also excluded from the table.
+> Beyond x86, Arm, and RISC-V, NumKong also ships LoongArch and PowerPC backends, and two WebAssembly tiers — strict SIMD128 as `v128` and Relaxed SIMD as `v128relaxed` — all excluded from the table.
 
 ### Mini-Floats: E4M3, E5M2, E3M2, & E2M3
 
@@ -431,8 +431,8 @@ On Arm, ARMv8.4-A adds __FMLAL/FMLAL2__ instructions for fused Float16 → Float
 | E4M3FN       |     8 |   ±448 | BFloat16 → Float32                    | H100+, MI300+     |
 | E3M2FN       | 6 → 8 |    ±28 | B- & Float16 → Float32, Int16 → Int32 | only block-scaled |
 | E2M3FN       | 6 → 8 |   ±7.5 | B- & Float16 → Float32, Int8 → Int32  | only block-scaled |
-| Scaled NVFP4 |     4 |     ±6 | —                                     | B200+             |
-| Scaled MXFP4 |     4 |     ±6 | —                                     | B200+, MI325+     |
+| Scaled NVFP4 |     4 |     ±6 | …                                     | B200+             |
+| Scaled MXFP4 |     4 |     ±6 | …                                     | B200+, MI325+     |
 
 > __Block scaling.__
 > NumKong does not implement block-scaled variants (MXFP4, NVFP4, or block-scaled E3M2/E2M3).

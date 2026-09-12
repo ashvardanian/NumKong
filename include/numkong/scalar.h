@@ -15,7 +15,7 @@
  *  - Arm: NEON (sqrt, fma, saturating_add)
  *  - x86: Haswell (sqrt, rsqrt, fma)
  *  - RISC-V: RVV (sqrt, rsqrt, fma, saturating_add via vfrsqrt7 + Newton-Raphson)
- *  - WASM: V128Relaxed (sqrt)
+ *  - WASM: V128 (sqrt, rsqrt), V128Relaxed (fma)
  */
 #ifndef NK_SCALAR_H
 #define NK_SCALAR_H
@@ -358,15 +358,18 @@ NK_API_COMPTIME nk_u64_t nk_u64_saturating_mul_rvv(nk_u64_t a, nk_u64_t b);
 NK_API_COMPTIME nk_i64_t nk_i64_saturating_mul_rvv(nk_i64_t a, nk_i64_t b);
 #endif // NK_TARGET_RVV
 
-#if NK_TARGET_V128RELAXED
+#if NK_TARGET_V128
 /** @copydoc nk_f32_sqrt */
-NK_API_COMPTIME nk_f32_t nk_f32_sqrt_v128relaxed(nk_f32_t x);
+NK_API_COMPTIME nk_f32_t nk_f32_sqrt_v128(nk_f32_t x);
 /** @copydoc nk_f64_sqrt */
-NK_API_COMPTIME nk_f64_t nk_f64_sqrt_v128relaxed(nk_f64_t x);
+NK_API_COMPTIME nk_f64_t nk_f64_sqrt_v128(nk_f64_t x);
 /** @copydoc nk_f32_rsqrt */
-NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_v128relaxed(nk_f32_t x);
+NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_v128(nk_f32_t x);
 /** @copydoc nk_f64_rsqrt */
-NK_API_COMPTIME nk_f64_t nk_f64_rsqrt_v128relaxed(nk_f64_t x);
+NK_API_COMPTIME nk_f64_t nk_f64_rsqrt_v128(nk_f64_t x);
+#endif // NK_TARGET_V128
+
+#if NK_TARGET_V128RELAXED
 /** @copydoc nk_f32_fma */
 NK_API_COMPTIME nk_f32_t nk_f32_fma_v128relaxed(nk_f32_t a, nk_f32_t b, nk_f32_t c);
 /** @copydoc nk_f64_fma */
@@ -384,7 +387,8 @@ NK_API_COMPTIME nk_f64_t nk_f64_fma_v128relaxed(nk_f64_t a, nk_f64_t b, nk_f64_t
 #include "numkong/scalar/sapphire.h"    // `nk_f16_order_sapphire`
 #include "numkong/scalar/rvv.h"         // `nk_f32_rsqrt_rvv`
 #include "numkong/scalar/powervsx.h"    // `nk_f32_sqrt_powervsx`
-#include "numkong/scalar/v128relaxed.h" // `nk_f32_sqrt_v128relaxed`
+#include "numkong/scalar/v128.h"        // `nk_f32_sqrt_v128`
+#include "numkong/scalar/v128relaxed.h" // `nk_f32_fma_v128relaxed`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -401,8 +405,8 @@ NK_API_COMPTIME nk_f32_t nk_f32_sqrt(nk_f32_t x) {
     return nk_f32_sqrt_powervsx(x);
 #elif NK_TARGET_RVV
     return nk_f32_sqrt_rvv(x);
-#elif NK_TARGET_V128RELAXED
-    return nk_f32_sqrt_v128relaxed(x);
+#elif NK_TARGET_V128
+    return nk_f32_sqrt_v128(x);
 #else
     return nk_f32_sqrt_serial(x);
 #endif
@@ -417,8 +421,8 @@ NK_API_COMPTIME nk_f64_t nk_f64_sqrt(nk_f64_t x) {
     return nk_f64_sqrt_powervsx(x);
 #elif NK_TARGET_RVV
     return nk_f64_sqrt_rvv(x);
-#elif NK_TARGET_V128RELAXED
-    return nk_f64_sqrt_v128relaxed(x);
+#elif NK_TARGET_V128
+    return nk_f64_sqrt_v128(x);
 #else
     return nk_f64_sqrt_serial(x);
 #endif
@@ -433,8 +437,8 @@ NK_API_COMPTIME nk_f32_t nk_f32_rsqrt(nk_f32_t x) {
     return nk_f32_rsqrt_powervsx(x);
 #elif NK_TARGET_RVV
     return nk_f32_rsqrt_rvv(x);
-#elif NK_TARGET_V128RELAXED
-    return nk_f32_rsqrt_v128relaxed(x);
+#elif NK_TARGET_V128
+    return nk_f32_rsqrt_v128(x);
 #else
     return nk_f32_rsqrt_serial(x);
 #endif
@@ -449,8 +453,8 @@ NK_API_COMPTIME nk_f64_t nk_f64_rsqrt(nk_f64_t x) {
     return nk_f64_rsqrt_powervsx(x);
 #elif NK_TARGET_RVV
     return nk_f64_rsqrt_rvv(x);
-#elif NK_TARGET_V128RELAXED
-    return nk_f64_rsqrt_v128relaxed(x);
+#elif NK_TARGET_V128
+    return nk_f64_rsqrt_v128(x);
 #else
     return nk_f64_rsqrt_serial(x);
 #endif

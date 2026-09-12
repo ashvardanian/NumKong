@@ -9,7 +9,11 @@ fn main() { build_numkong().expect("Failed to build NumKong"); }
 /// silently dropping flags the compiler doesn't recognize.
 fn probe_isa(probe_file: &str, flags: &[&str]) -> bool {
     let mut build = cc::Build::new();
-    build.file(probe_file).warnings(false).opt_level(0);
+    build
+        .file(probe_file)
+        .cargo_metadata(false)
+        .warnings(false)
+        .opt_level(0);
     for flag in flags {
         build.flag(flag);
     }
@@ -290,12 +294,20 @@ const POWER_PROBES: &[IsaProbe] = &[IsaProbe {
     msvc_flags: &[],
 }];
 
-const WASM_PROBES: &[IsaProbe] = &[IsaProbe {
-    name: "NK_TARGET_V128RELAXED",
-    probe_file: "probes/wasm_v128relaxed.c",
-    gcc_flags: &["-mrelaxed-simd"],
-    msvc_flags: &[],
-}];
+const WASM_PROBES: &[IsaProbe] = &[
+    IsaProbe {
+        name: "NK_TARGET_V128",
+        probe_file: "probes/wasm_v128.c",
+        gcc_flags: &["-msimd128"],
+        msvc_flags: &[],
+    },
+    IsaProbe {
+        name: "NK_TARGET_V128RELAXED",
+        probe_file: "probes/wasm_v128relaxed.c",
+        gcc_flags: &["-msimd128", "-mrelaxed-simd"],
+        msvc_flags: &[],
+    },
+];
 
 fn build_numkong() -> Result<HashMap<String, bool>, String> {
     let mut flags = HashMap::<String, bool>::new();
@@ -349,12 +361,14 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
     let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
     let target_bits = env::var("CARGO_CFG_TARGET_POINTER_WIDTH").unwrap_or_default();
     let is_msvc = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default() == "msvc";
+    let target_features = env::var("CARGO_CFG_TARGET_FEATURE").unwrap_or_default();
 
     let is_x86_64 = target_arch == "x86_64" && target_bits == "64";
     let is_aarch64 = target_arch == "aarch64" && target_bits == "64";
     let is_riscv64 = target_arch == "riscv64" && target_bits == "64";
     let is_loongarch64 = target_arch == "loongarch64" && target_bits == "64";
     let is_power64 = target_arch == "powerpc64" && target_bits == "64";
+    let is_wasm = target_arch == "wasm32" || target_arch == "wasm64";
 
     build.define("NK_IS_64BIT_X86", if is_x86_64 { "1" } else { "0" });
     build.define("NK_IS_64BIT_ARM", if is_aarch64 { "1" } else { "0" });
@@ -438,7 +452,7 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
         _ => &[],
     };
 
-    // Probe each ISA — uniform for all architectures including NEON and WASM
+    // Probe each ISA, and on WASM only the tiers the Rust target declares
     for table in probe_tables {
         for probe in table.iter() {
             // Allow env-var override: NK_TARGET_FOO=0 forces off, NK_TARGET_FOO=1 forces on
@@ -458,12 +472,31 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
             }
 
             let probe_flags = if is_msvc { probe.msvc_flags } else { probe.gcc_flags };
-            let ok = probe_isa(probe.probe_file, probe_flags);
+            // An engine validates a WebAssembly module whole, so a tier the Rust target does not declare stays off.
+            let declared = !is_wasm
+                || probe_flags.iter().all(|flag| {
+                    let feature = flag.strip_prefix("-m");
+                    target_features
+                        .split(',')
+                        .any(|target_feature| Some(target_feature) == feature)
+                });
+            let ok = declared && probe_isa(probe.probe_file, probe_flags);
             build.define(probe.name, if ok { "1" } else { "0" });
             flags.insert(probe.name.to_string(), ok);
-            if !ok {
+            if declared && !ok {
                 println!("cargo:warning={}: not supported by compiler", probe.name);
             }
+        }
+    }
+
+    // WebAssembly selects its SIMD tier with whole-module flags rather than per-function `target`
+    // attributes, so the enabled tier goes onto the compiler invocation; `types.h` reads the
+    // `__wasm_simd128__` / `__wasm_relaxed_simd__` keys the flags define.
+    if is_wasm {
+        if *flags.get("NK_TARGET_V128RELAXED").unwrap_or(&false) {
+            build.flag("-msimd128").flag("-mrelaxed-simd");
+        } else if *flags.get("NK_TARGET_V128").unwrap_or(&false) {
+            build.flag("-msimd128");
         }
     }
 
@@ -481,6 +514,7 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
 
     // Rerun on env var changes
     println!("cargo:rerun-if-env-changed=NK_MARCH_NATIVE");
+    println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_FEATURE");
     for table in [
         X86_PROBES,
         ARM_PROBES,

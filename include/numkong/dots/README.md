@@ -281,6 +281,8 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_dots_symmetric_bf16_serial`      |        3.76 gso/s, 0 ulp |      6.36 gso/s, 0.5 ulp |      7.43 gso/s, 4.9 ulp |
 | `nk_dots_packed_bf16_v128relaxed`    |        23.2 gso/s, 0 ulp |      24.5 gso/s, 0.4 ulp |      24.9 gso/s, 6.8 ulp |
 | `nk_dots_symmetric_bf16_v128relaxed` |        4.92 gso/s, 0 ulp |      10.5 gso/s, 0.5 ulp |      13.7 gso/s, 4.9 ulp |
+| `nk_dots_packed_bf16_v128`           |                        … |                        … |                        … |
+| `nk_dots_symmetric_bf16_v128`        |                        … |                        … |                        … |
 | __f16__                              | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_f16_serial`          |       4.33 gso/s, 26 ulp |       4.46 gso/s, 26 ulp |       4.45 gso/s, 26 ulp |
 | `nk_dots_symmetric_f16_serial`       |       3.76 gso/s, 28 ulp |       6.36 gso/s, 28 ulp |       7.43 gso/s, 28 ulp |
@@ -306,11 +308,15 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_dots_symmetric_i8_serial`        |               2.74 gso/s |               3.89 gso/s |               4.29 gso/s |
 | `nk_dots_packed_i8_v128relaxed`      |               36.5 gso/s |               38.5 gso/s |               41.1 gso/s |
 | `nk_dots_symmetric_i8_v128relaxed`   |               29.2 gso/s |               36.3 gso/s |               39.2 gso/s |
+| `nk_dots_packed_i8_v128`             |                        … |                        … |                        … |
+| `nk_dots_symmetric_i8_v128`          |                        … |                        … |                        … |
 | __u8__                               | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_u8_serial`           |               4.94 gso/s |               5.14 gso/s |               4.88 gso/s |
 | `nk_dots_symmetric_u8_serial`        |               2.74 gso/s |               3.94 gso/s |               4.40 gso/s |
 | `nk_dots_packed_u8_v128relaxed`      |               35.2 gso/s |               37.7 gso/s |               40.5 gso/s |
 | `nk_dots_symmetric_u8_v128relaxed`   |               21.0 gso/s |               26.6 gso/s |               28.6 gso/s |
+| `nk_dots_packed_u8_v128`             |                        … |                        … |                        … |
+| `nk_dots_symmetric_u8_v128`          |                        … |                        … |                        … |
 | __i4__                               | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_i4_serial`           |               6.34 gso/s |               6.40 gso/s |               6.59 gso/s |
 | `nk_dots_symmetric_i4_serial`        |               2.70 gso/s |               3.76 gso/s |               4.13 gso/s |
@@ -323,9 +329,9 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_dots_symmetric_u4_v128relaxed`   |               6.97 gso/s |               21.9 gso/s |               46.7 gso/s |
 | __u1__                               | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_u1_serial`           |               96.2 gso/s |                143 gso/s |                151 gso/s |
-| `nk_dots_packed_u1_v128relaxed`      |                166 gso/s |                280 gso/s |                294 gso/s |
+| `nk_dots_packed_u1_v128`             |                166 gso/s |                280 gso/s |                294 gso/s |
 | `nk_dots_symmetric_u1_serial`        |               7.42 gso/s |               27.9 gso/s |               87.3 gso/s |
-| `nk_dots_symmetric_u1_v128relaxed`   |               7.35 gso/s |               27.5 gso/s |               81.9 gso/s |
+| `nk_dots_symmetric_u1_v128`          |               7.35 gso/s |               27.5 gso/s |               81.9 gso/s |
 
 ### Apple M5
 
@@ -446,6 +452,8 @@ Measured with Wasmtime v43 (Cranelift backend).
 | `nk_dots_symmetric_bf16_serial`      |        24.3 gso/s, 0 ulp |      24.9 gso/s, 0.6 ulp |      28.0 gso/s, 1.1 ulp |
 | `nk_dots_packed_bf16_v128relaxed`    |      70.4 gso/s, 1.4 ulp |      86.2 gso/s, 1.4 ulp |      90.3 gso/s, 1.4 ulp |
 | `nk_dots_symmetric_bf16_v128relaxed` |      37.2 gso/s, 1.3 ulp |      45.5 gso/s, 1.3 ulp |      47.7 gso/s, 1.3 ulp |
+| `nk_dots_packed_bf16_v128`           |                        … |                        … |                        … |
+| `nk_dots_symmetric_bf16_v128`        |                        … |                        … |                        … |
 | __f16__                              | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_f16_serial`          |      12.2 gso/s, 204 ulp |       11.6 gso/s, 36 ulp |     12.4 gso/s, 25.9 ulp |
 | `nk_dots_symmetric_f16_serial`       |       1.65 gso/s, 13 ulp |       1.54 gso/s, 29 ulp |     1.70 gso/s, 27.9 ulp |
@@ -476,11 +484,15 @@ Measured with Wasmtime v43 (Cranelift backend).
 | `nk_dots_symmetric_i8_serial`        |               12.5 gso/s |               11.8 gso/s |               13.6 gso/s |
 | `nk_dots_packed_i8_v128relaxed`      |               44.0 gso/s |               50.0 gso/s |               52.1 gso/s |
 | `nk_dots_symmetric_i8_v128relaxed`   |               37.7 gso/s |               45.5 gso/s |               50.6 gso/s |
+| `nk_dots_packed_i8_v128`             |                        … |                        … |                        … |
+| `nk_dots_symmetric_i8_v128`          |                        … |                        … |                        … |
 | __u8__                               | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_u8_serial`           |               17.2 gso/s |               16.7 gso/s |               17.7 gso/s |
 | `nk_dots_symmetric_u8_serial`        |               13.0 gso/s |               12.1 gso/s |               14.1 gso/s |
 | `nk_dots_packed_u8_v128relaxed`      |               43.3 gso/s |               47.7 gso/s |               50.8 gso/s |
 | `nk_dots_symmetric_u8_v128relaxed`   |               34.6 gso/s |               42.2 gso/s |               48.6 gso/s |
+| `nk_dots_packed_u8_v128`             |                        … |                        … |                        … |
+| `nk_dots_symmetric_u8_v128`          |                        … |                        … |                        … |
 | __i4__                               | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_i4_serial`           |               15.0 gso/s |               14.3 gso/s |               15.9 gso/s |
 | `nk_dots_symmetric_i4_serial`        |               12.8 gso/s |               12.6 gso/s |               14.0 gso/s |
@@ -494,5 +506,5 @@ Measured with Wasmtime v43 (Cranelift backend).
 | __u1__                               | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_u1_serial`           |                236 gso/s |                265 gso/s |                311 gso/s |
 | `nk_dots_symmetric_u1_serial`        |                173 gso/s |                321 gso/s |                443 gso/s |
-| `nk_dots_packed_u1_v128relaxed`      |                598 gso/s |                804 gso/s |                871 gso/s |
-| `nk_dots_symmetric_u1_v128relaxed`   |                183 gso/s |                390 gso/s |                543 gso/s |
+| `nk_dots_packed_u1_v128`             |                598 gso/s |                804 gso/s |                871 gso/s |
+| `nk_dots_symmetric_u1_v128`          |                183 gso/s |                390 gso/s |                543 gso/s |

@@ -131,4 +131,5 @@ pub mod cap {
     pub const DIAMOND: u64 = 1 << 38; // Intel AVX10.2
     pub const NEONFP8: u64 = 1 << 39; // ARM NEON FP8
     pub const DIAMONDAMX: u64 = 1 << 40; // Intel Diamond Rapids AMX
+    pub const V128: u64 = 1 << 41; // WASM SIMD128
 }

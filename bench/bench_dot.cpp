@@ -279,7 +279,13 @@ void bench_dot() {
     run_dense<u8_k, u32_k>("dot_u8_v128relaxed", nk_dot_u8_v128relaxed);
     run_dense<i4_k, i32_k>("dot_i4_v128relaxed", nk_dot_i4_v128relaxed);
     run_dense<u4_k, u32_k>("dot_u4_v128relaxed", nk_dot_u4_v128relaxed);
-    run_dense<u1_k, u32_k>("dot_u1_v128relaxed", nk_dot_u1_v128relaxed);
+#endif
+
+#if NK_TARGET_V128
+    run_dense<bf16_k, f32_k>("dot_bf16_v128", nk_dot_bf16_v128);
+    run_dense<i8_k, i32_k>("dot_i8_v128", nk_dot_i8_v128);
+    run_dense<u8_k, u32_k>("dot_u8_v128", nk_dot_u8_v128);
+    run_dense<u1_k, u32_k>("dot_u1_v128", nk_dot_u1_v128);
 #endif
 
 #if NK_TARGET_LOONGSONASX

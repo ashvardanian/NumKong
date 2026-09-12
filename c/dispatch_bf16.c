@@ -15,9 +15,6 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_angular_k: *m = (m_t)&nk_angular_bf16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_sqeuclidean_k: *m = (m_t)&nk_sqeuclidean_bf16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_euclidean_k: *m = (m_t)&nk_euclidean_bf16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
-        case nk_kernel_reduce_moments_k:
-            *m = (m_t)&nk_reduce_moments_bf16_v128relaxed, *c = nk_cap_v128relaxed_k;
-            return;
         case nk_kernel_reduce_minmax_k: *m = (m_t)&nk_reduce_minmax_bf16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_dots_pack_size_k:
             *m = (m_t)&nk_dots_pack_size_bf16_v128relaxed, *c = nk_cap_v128relaxed_k;
@@ -42,30 +39,41 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_euclideans_symmetric_k:
             *m = (m_t)&nk_euclideans_symmetric_bf16_v128relaxed, *c = nk_cap_v128relaxed_k;
             return;
-        case nk_kernel_maxsim_pack_size_k:
-            *m = (m_t)&nk_maxsim_pack_size_bf16_v128relaxed, *c = nk_cap_v128relaxed_k;
-            return;
-        case nk_kernel_maxsim_packed_shape_k:
-            *m = (m_t)&nk_maxsim_packed_shape_bf16_v128relaxed, *c = nk_cap_v128relaxed_k;
-            return;
-        case nk_kernel_maxsim_pack_k: *m = (m_t)&nk_maxsim_pack_bf16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_maxsim_packed_k: *m = (m_t)&nk_maxsim_packed_bf16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
-        case nk_kernel_each_sum_k: *m = (m_t)&nk_each_sum_bf16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_bf16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_bf16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_bf16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
-        case nk_kernel_attention_pack_size_k:
-            *m = (m_t)&nk_attention_pack_size_bf16_v128relaxed, *c = nk_cap_v128relaxed_k;
-            return;
-        case nk_kernel_attention_packed_shape_k:
-            *m = (m_t)&nk_attention_packed_shape_bf16_v128relaxed, *c = nk_cap_v128relaxed_k;
-            return;
-        case nk_kernel_attention_pack_k:
-            *m = (m_t)&nk_attention_pack_bf16_v128relaxed, *c = nk_cap_v128relaxed_k;
-            return;
         case nk_kernel_attention_packed_k:
             *m = (m_t)&nk_attention_packed_bf16_v128relaxed, *c = nk_cap_v128relaxed_k;
             return;
+        default: break;
+        }
+#endif
+#if NK_TARGET_V128
+    if (v & nk_cap_v128_k) switch (k) {
+        case nk_kernel_dot_k: *m = (m_t)&nk_dot_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_angular_k: *m = (m_t)&nk_angular_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_sqeuclidean_k: *m = (m_t)&nk_sqeuclidean_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_euclidean_k: *m = (m_t)&nk_euclidean_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_reduce_moments_k: *m = (m_t)&nk_reduce_moments_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_maxsim_pack_size_k: *m = (m_t)&nk_maxsim_pack_size_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_maxsim_packed_shape_k: *m = (m_t)&nk_maxsim_packed_shape_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_maxsim_pack_k: *m = (m_t)&nk_maxsim_pack_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_dots_pack_size_k: *m = (m_t)&nk_dots_pack_size_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_dots_packed_shape_k: *m = (m_t)&nk_dots_packed_shape_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_dots_pack_k: *m = (m_t)&nk_dots_pack_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_dots_packed_k: *m = (m_t)&nk_dots_packed_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_dots_symmetric_k: *m = (m_t)&nk_dots_symmetric_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_angulars_packed_k: *m = (m_t)&nk_angulars_packed_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_angulars_symmetric_k: *m = (m_t)&nk_angulars_symmetric_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_euclideans_packed_k: *m = (m_t)&nk_euclideans_packed_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_euclideans_symmetric_k: *m = (m_t)&nk_euclideans_symmetric_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_each_sum_k: *m = (m_t)&nk_each_sum_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_attention_pack_size_k: *m = (m_t)&nk_attention_pack_size_bf16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_attention_packed_shape_k:
+            *m = (m_t)&nk_attention_packed_shape_bf16_v128, *c = nk_cap_v128_k;
+            return;
+        case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_bf16_v128, *c = nk_cap_v128_k; return;
         default: break;
         }
 #endif

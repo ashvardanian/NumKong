@@ -56,12 +56,12 @@ void bench_set() {
     run_dense<u32_k, f32_k>("jaccard_u32_rvv", nk_jaccard_u32_rvv);
 #endif
 
-#if NK_TARGET_V128RELAXED
-    run_dense<u1_k, u32_k>("hamming_u1_v128relaxed", nk_hamming_u1_v128relaxed);
-    run_dense<u1_k, f32_k>("jaccard_u1_v128relaxed", nk_jaccard_u1_v128relaxed);
-    run_dense<u8_k, u32_k>("hamming_u8_v128relaxed", nk_hamming_u8_v128relaxed);
-    run_dense<u16_k, f32_k>("jaccard_u16_v128relaxed", nk_jaccard_u16_v128relaxed);
-    run_dense<u32_k, f32_k>("jaccard_u32_v128relaxed", nk_jaccard_u32_v128relaxed);
+#if NK_TARGET_V128
+    run_dense<u1_k, u32_k>("hamming_u1_v128", nk_hamming_u1_v128);
+    run_dense<u1_k, f32_k>("jaccard_u1_v128", nk_jaccard_u1_v128);
+    run_dense<u8_k, u32_k>("hamming_u8_v128", nk_hamming_u8_v128);
+    run_dense<u16_k, f32_k>("jaccard_u16_v128", nk_jaccard_u16_v128);
+    run_dense<u32_k, f32_k>("jaccard_u32_v128", nk_jaccard_u32_v128);
 #endif
 
     // Serial fallbacks

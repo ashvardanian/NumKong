@@ -440,6 +440,7 @@ typedef nk_u64_t nk_capability_t;
 #define nk_cap_diamond_k     ((nk_capability_t)1 << 38)
 #define nk_cap_neonfp8_k     ((nk_capability_t)1 << 39)
 #define nk_cap_diamondamx_k  ((nk_capability_t)1 << 40)
+#define nk_cap_v128_k        ((nk_capability_t)1 << 41)
 
 typedef void (*nk_metric_dense_punned_t)(void const *a, void const *b, nk_size_t dimensions, void *result);
 
@@ -992,20 +993,19 @@ __attribute__((__import_module__("env"), __import_name__("nk_has_v128"))) extern
 __attribute__((__import_module__("env"), __import_name__("nk_has_relaxed"))) extern int nk_has_relaxed(void);
 #endif
 
-NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_v128relaxed_(void) {
+NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_wasm_(void) {
+    /*  A hosted module asks its engine to validate one probe module per tier, so `detected` describes the
+     *  engine; a standalone module has already been validated whole, so it reports its own flags. */
 #if ((defined(__EMSCRIPTEN__) && NK_RUNTIME_DISPATCH) || (defined(__wasi__) && NK_DEFINED_WASI_)) && \
     !defined(NK_PYODIDE_SIDE_MODULE)
-    // Hosted environment (Emscripten or WASI with NK_WASI_HOSTED): the host provides
-    // runtime probes.  Compile-time flags only mean the *compiler* emitted relaxed-SIMD
-    // opcodes, not that the current runtime can execute them.
-    int has_relaxed = nk_has_relaxed();
-    return has_relaxed ? (nk_cap_serial_k | nk_cap_v128relaxed_k) : nk_cap_serial_k;
-#elif defined(__wasm_relaxed_simd__) || defined(__wasm_simd128__)
-    // Static WASM or Pyodide side module: if the compiler targeted relaxed SIMD,
-    // the runtime must support it (modules with relaxed opcodes fail validation otherwise).
-    return nk_cap_serial_k | nk_cap_v128relaxed_k;
+    nk_capability_t caps = nk_cap_serial_k;
+    if (nk_has_v128()) caps |= nk_cap_v128_k;
+    if (nk_has_relaxed()) caps |= nk_cap_v128_k | nk_cap_v128relaxed_k;
+    return caps;
 #else
-    return nk_cap_serial_k;
+    // Static WASM or Pyodide side module: the engine validated every opcode this module carries
+    // before running it, so the compiled tiers are the detected ones.
+    return nk_cap_serial_k | (nk_cap_v128_k * NK_TARGET_V128) | (nk_cap_v128relaxed_k * NK_TARGET_V128RELAXED);
 #endif
 }
 
@@ -1034,7 +1034,7 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_(void) {
 #elif NK_TARGET_POWER64_
     return nk_capabilities_detected_power64_();
 #elif NK_TARGET_WASM_
-    return nk_capabilities_detected_v128relaxed_();
+    return nk_capabilities_detected_wasm_();
 #else
     return nk_cap_serial_k;
 #endif
@@ -1097,6 +1097,7 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_compiled_(void) {
     caps |= nk_cap_powervsx_k * NK_TARGET_POWERVSX;
 #endif
 #if NK_TARGET_WASM_
+    caps |= nk_cap_v128_k * NK_TARGET_V128;
     caps |= nk_cap_v128relaxed_k * NK_TARGET_V128RELAXED;
 #endif
     return caps;

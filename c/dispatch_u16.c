@@ -10,11 +10,14 @@ void nk_dispatch_u16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
     typedef nk_kernel_punned_t m_t;
 #if NK_TARGET_V128RELAXED
     if (v & nk_cap_v128relaxed_k) switch (k) {
-        case nk_kernel_jaccard_k: *m = (m_t)&nk_jaccard_u16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
-        case nk_kernel_reduce_moments_k:
-            *m = (m_t)&nk_reduce_moments_u16_v128relaxed, *c = nk_cap_v128relaxed_k;
-            return;
         case nk_kernel_reduce_minmax_k: *m = (m_t)&nk_reduce_minmax_u16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
+        default: break;
+        }
+#endif
+#if NK_TARGET_V128
+    if (v & nk_cap_v128_k) switch (k) {
+        case nk_kernel_jaccard_k: *m = (m_t)&nk_jaccard_u16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_reduce_moments_k: *m = (m_t)&nk_reduce_moments_u16_v128, *c = nk_cap_v128_k; return;
         default: break;
         }
 #endif

@@ -81,12 +81,6 @@ NK_HELPER_INLINE void nk_deinterleave_f64x2_v128relaxed_(nk_f64_t const *ptr, v1
     *zs_f64x2 = wasm_i64x2_shuffle(v1_f64x2, v2_f64x2, 0, 3); // z0 z1
 }
 
-/* Horizontal sum of all 4 f32 lanes. */
-NK_HELPER_INLINE nk_f32_t nk_hsum_f32x4_v128relaxed_(v128_t v) {
-    return wasm_f32x4_extract_lane(v, 0) + wasm_f32x4_extract_lane(v, 1) + wasm_f32x4_extract_lane(v, 2) +
-           wasm_f32x4_extract_lane(v, 3);
-}
-
 /* Horizontal sum of both f64 lanes. */
 NK_HELPER_INLINE nk_f64_t nk_hsum_f64x2_v128relaxed_(v128_t v) {
     return wasm_f64x2_extract_lane(v, 0) + wasm_f64x2_extract_lane(v, 1);
@@ -99,20 +93,6 @@ NK_HELPER_INLINE nk_f64_t nk_reduce_stable_f64x2_v128relaxed_(v128_t values_f64x
     nk_accumulate_sum_f64_(&sum, &compensation, values.f64s[0]);
     nk_accumulate_sum_f64_(&sum, &compensation, values.f64s[1]);
     return sum + compensation;
-}
-
-NK_HELPER_INLINE void nk_accumulate_square_f64x2_v128relaxed_(v128_t *sum_f64x2, v128_t *compensation_f64x2,
-                                                              v128_t values_f64x2) {
-    v128_t product_f64x2 = wasm_f64x2_mul(values_f64x2, values_f64x2);
-    v128_t product_error_f64x2 = wasm_f64x2_sub(
-        wasm_f64x2_relaxed_madd(values_f64x2, values_f64x2, wasm_f64x2_splat(0.0)), product_f64x2);
-    v128_t tentative_sum_f64x2 = wasm_f64x2_add(*sum_f64x2, product_f64x2);
-    v128_t virtual_addend_f64x2 = wasm_f64x2_sub(tentative_sum_f64x2, *sum_f64x2);
-    v128_t sum_error_f64x2 = wasm_f64x2_add(
-        wasm_f64x2_sub(*sum_f64x2, wasm_f64x2_sub(tentative_sum_f64x2, virtual_addend_f64x2)),
-        wasm_f64x2_sub(product_f64x2, virtual_addend_f64x2));
-    *sum_f64x2 = tentative_sum_f64x2;
-    *compensation_f64x2 = wasm_f64x2_add(*compensation_f64x2, wasm_f64x2_add(sum_error_f64x2, product_error_f64x2));
 }
 
 NK_HELPER_INLINE void nk_centroid_and_cross_covariance_f32_v128relaxed_(    //
@@ -483,7 +463,7 @@ NK_API_COMPTIME void nk_rmsd_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *
         sum_sq_x += dx * dx, sum_sq_y += dy * dy, sum_sq_z += dz * dz;
     }
 
-    *result = nk_f64_sqrt_v128relaxed((sum_sq_x + sum_sq_y + sum_sq_z) / (nk_f64_t)n);
+    *result = nk_f64_sqrt_v128((sum_sq_x + sum_sq_y + sum_sq_z) / (nk_f64_t)n);
 }
 
 NK_API_COMPTIME void nk_rmsd_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
@@ -544,7 +524,7 @@ NK_API_COMPTIME void nk_rmsd_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *
     total_squared_x += total_squared_x_compensation, total_squared_y += total_squared_y_compensation,
         total_squared_z += total_squared_z_compensation;
 
-    *result = nk_f64_sqrt_v128relaxed((total_squared_x + total_squared_y + total_squared_z) / (nk_f64_t)n);
+    *result = nk_f64_sqrt_v128((total_squared_x + total_squared_y + total_squared_z) / (nk_f64_t)n);
 }
 
 NK_API_COMPTIME void nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
@@ -634,7 +614,7 @@ NK_API_COMPTIME void nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const
     // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
     nk_f64_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0 * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
-    *result = nk_f64_sqrt_v128relaxed(sum_squared / (nk_f64_t)n);
+    *result = nk_f64_sqrt_v128(sum_squared / (nk_f64_t)n);
 }
 
 NK_API_COMPTIME void nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
@@ -842,7 +822,7 @@ NK_API_COMPTIME void nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const
     // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
     nk_f64_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0 * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
-    *result = nk_f64_sqrt_v128relaxed(sum_squared * inv_points_count);
+    *result = nk_f64_sqrt_v128(sum_squared * inv_points_count);
 }
 
 NK_API_COMPTIME void nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
@@ -939,7 +919,7 @@ NK_API_COMPTIME void nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t cons
     nk_f64_t sum_squared = computed_scale * computed_scale * centered_norm_squared_a + centered_norm_squared_b -
                            2.0 * computed_scale * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
-    *result = nk_f64_sqrt_v128relaxed(sum_squared / (nk_f64_t)n);
+    *result = nk_f64_sqrt_v128(sum_squared / (nk_f64_t)n);
 }
 
 NK_API_COMPTIME void nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
@@ -1152,7 +1132,7 @@ NK_API_COMPTIME void nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t cons
     nk_f64_t sum_squared = computed_scale * computed_scale * centered_norm_squared_a + centered_norm_squared_b -
                            2.0 * computed_scale * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
-    *result = nk_f64_sqrt_v128relaxed(sum_squared * inv_points_count);
+    *result = nk_f64_sqrt_v128(sum_squared * inv_points_count);
 }
 
 #if defined(__clang__)

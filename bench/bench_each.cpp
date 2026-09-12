@@ -443,7 +443,6 @@ void bench_each() {
 #endif
 
 #if NK_TARGET_V128RELAXED
-    run_each<f32_k, sum_k, f32_k>("each_sum_f32_v128relaxed", nk_each_sum_f32_v128relaxed);
     run_each<f32_k, scale_k, f32_k>("each_scale_f32_v128relaxed", nk_each_scale_f32_v128relaxed);
     run_each<f32_k, blend_k, f32_k>("each_blend_f32_v128relaxed", nk_each_blend_f32_v128relaxed);
     run_each<f32_k, fma_k, f32_k>("each_fma_f32_v128relaxed", nk_each_fma_f32_v128relaxed);
@@ -451,18 +450,22 @@ void bench_each() {
     run_each<f16_k, scale_k, f32_k>("each_scale_f16_v128relaxed", nk_each_scale_f16_v128relaxed);
     run_each<f16_k, blend_k, f32_k>("each_blend_f16_v128relaxed", nk_each_blend_f16_v128relaxed);
     run_each<f16_k, fma_k, f32_k>("each_fma_f16_v128relaxed", nk_each_fma_f16_v128relaxed);
-    run_each<bf16_k, sum_k, f32_k>("each_sum_bf16_v128relaxed", nk_each_sum_bf16_v128relaxed);
     run_each<bf16_k, scale_k, f32_k>("each_scale_bf16_v128relaxed", nk_each_scale_bf16_v128relaxed);
     run_each<bf16_k, blend_k, f32_k>("each_blend_bf16_v128relaxed", nk_each_blend_bf16_v128relaxed);
     run_each<bf16_k, fma_k, f32_k>("each_fma_bf16_v128relaxed", nk_each_fma_bf16_v128relaxed);
-    run_each<i8_k, sum_k, f32_k>("each_sum_i8_v128relaxed", nk_each_sum_i8_v128relaxed);
     run_each<i8_k, scale_k, f32_k>("each_scale_i8_v128relaxed", nk_each_scale_i8_v128relaxed);
     run_each<i8_k, blend_k, f32_k>("each_blend_i8_v128relaxed", nk_each_blend_i8_v128relaxed);
     run_each<i8_k, fma_k, f32_k>("each_fma_i8_v128relaxed", nk_each_fma_i8_v128relaxed);
-    run_each<u8_k, sum_k, f32_k>("each_sum_u8_v128relaxed", nk_each_sum_u8_v128relaxed);
     run_each<u8_k, scale_k, f32_k>("each_scale_u8_v128relaxed", nk_each_scale_u8_v128relaxed);
     run_each<u8_k, blend_k, f32_k>("each_blend_u8_v128relaxed", nk_each_blend_u8_v128relaxed);
     run_each<u8_k, fma_k, f32_k>("each_fma_u8_v128relaxed", nk_each_fma_u8_v128relaxed);
+#endif
+
+#if NK_TARGET_V128
+    run_each<f32_k, sum_k, f32_k>("each_sum_f32_v128", nk_each_sum_f32_v128);
+    run_each<bf16_k, sum_k, f32_k>("each_sum_bf16_v128", nk_each_sum_bf16_v128);
+    run_each<i8_k, sum_k, f32_k>("each_sum_i8_v128", nk_each_sum_i8_v128);
+    run_each<u8_k, sum_k, f32_k>("each_sum_u8_v128", nk_each_sum_u8_v128);
 #endif
 
     // Serial fallbacks — f64

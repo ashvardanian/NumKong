@@ -724,9 +724,18 @@ NK_API_COMPTIME void nk_each_blend_u8_neonhalf(nk_u8_t const *a, nk_u8_t const *
                                                nk_f32_t const *beta, nk_u8_t *result);
 #endif // NK_TARGET_NEONHALF
 
-#if NK_TARGET_V128RELAXED
+#if NK_TARGET_V128
 /** @copydoc nk_each_sum_f32 */
-NK_API_COMPTIME void nk_each_sum_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_each_sum_f32_v128(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_each_sum_bf16 */
+NK_API_COMPTIME void nk_each_sum_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result);
+/** @copydoc nk_each_sum_i8 */
+NK_API_COMPTIME void nk_each_sum_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result);
+/** @copydoc nk_each_sum_u8 */
+NK_API_COMPTIME void nk_each_sum_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result);
+#endif // NK_TARGET_V128
+
+#if NK_TARGET_V128RELAXED
 /** @copydoc nk_each_scale_f32 */
 NK_API_COMPTIME void nk_each_scale_f32_v128relaxed(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
                                                    nk_f32_t const *beta, nk_f32_t *result);
@@ -747,9 +756,6 @@ NK_API_COMPTIME void nk_each_blend_f16_v128relaxed(nk_f16_t const *a, nk_f16_t c
 /** @copydoc nk_each_fma_f16 */
 NK_API_COMPTIME void nk_each_fma_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
                                                  nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result);
-/** @copydoc nk_each_sum_bf16 */
-NK_API_COMPTIME void nk_each_sum_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                  nk_bf16_t *result);
 /** @copydoc nk_each_scale_bf16 */
 NK_API_COMPTIME void nk_each_scale_bf16_v128relaxed(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
                                                     nk_f32_t const *beta, nk_bf16_t *result);
@@ -760,8 +766,6 @@ NK_API_COMPTIME void nk_each_blend_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_
 NK_API_COMPTIME void nk_each_fma_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
                                                   nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
                                                   nk_bf16_t *result);
-/** @copydoc nk_each_sum_i8 */
-NK_API_COMPTIME void nk_each_sum_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result);
 /** @copydoc nk_each_scale_i8 */
 NK_API_COMPTIME void nk_each_scale_i8_v128relaxed(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
                                                   nk_f32_t const *beta, nk_i8_t *result);
@@ -771,8 +775,6 @@ NK_API_COMPTIME void nk_each_blend_i8_v128relaxed(nk_i8_t const *a, nk_i8_t cons
 /** @copydoc nk_each_fma_i8 */
 NK_API_COMPTIME void nk_each_fma_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_i8_t const *c, nk_size_t n,
                                                 nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result);
-/** @copydoc nk_each_sum_u8 */
-NK_API_COMPTIME void nk_each_sum_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result);
 /** @copydoc nk_each_scale_u8 */
 NK_API_COMPTIME void nk_each_scale_u8_v128relaxed(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
                                                   nk_f32_t const *beta, nk_u8_t *result);
@@ -1342,6 +1344,7 @@ NK_HELPER_INLINE nk_dtype_t nk_each_scale_input_dtype(nk_dtype_t dtype) {
 #include "numkong/each/icelake.h"
 #include "numkong/each/sapphire.h"
 #include "numkong/each/rvv.h"
+#include "numkong/each/v128.h"
 #include "numkong/each/v128relaxed.h"
 
 #if defined(__cplusplus)
@@ -1373,8 +1376,8 @@ NK_API_COMPTIME void nk_each_sum_f32(nk_f32_t const *a, nk_f32_t const *b, nk_si
     nk_each_sum_f32_neon(a, b, n, r);
 #elif NK_TARGET_RVV
     nk_each_sum_f32_rvv(a, b, n, r);
-#elif NK_TARGET_V128RELAXED
-    nk_each_sum_f32_v128relaxed(a, b, n, r);
+#elif NK_TARGET_V128
+    nk_each_sum_f32_v128(a, b, n, r);
 #else
     nk_each_sum_f32_serial(a, b, n, r);
 #endif
@@ -1389,8 +1392,8 @@ NK_API_COMPTIME void nk_each_sum_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk
     nk_each_sum_bf16_neonbfdot(a, b, n, r);
 #elif NK_TARGET_RVV
     nk_each_sum_bf16_rvv(a, b, n, r);
-#elif NK_TARGET_V128RELAXED
-    nk_each_sum_bf16_v128relaxed(a, b, n, r);
+#elif NK_TARGET_V128
+    nk_each_sum_bf16_v128(a, b, n, r);
 #else
     nk_each_sum_bf16_serial(a, b, n, r);
 #endif
@@ -1421,8 +1424,8 @@ NK_API_COMPTIME void nk_each_sum_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_
     nk_each_sum_i8_neon(a, b, n, r);
 #elif NK_TARGET_RVV
     nk_each_sum_i8_rvv(a, b, n, r);
-#elif NK_TARGET_V128RELAXED
-    nk_each_sum_i8_v128relaxed(a, b, n, r);
+#elif NK_TARGET_V128
+    nk_each_sum_i8_v128(a, b, n, r);
 #else
     nk_each_sum_i8_serial(a, b, n, r);
 #endif
@@ -1437,8 +1440,8 @@ NK_API_COMPTIME void nk_each_sum_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_
     nk_each_sum_u8_neon(a, b, n, r);
 #elif NK_TARGET_RVV
     nk_each_sum_u8_rvv(a, b, n, r);
-#elif NK_TARGET_V128RELAXED
-    nk_each_sum_u8_v128relaxed(a, b, n, r);
+#elif NK_TARGET_V128
+    nk_each_sum_u8_v128(a, b, n, r);
 #else
     nk_each_sum_u8_serial(a, b, n, r);
 #endif

@@ -18,13 +18,6 @@ void nk_dispatch_f16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
             *m = (m_t)&nk_reduce_moments_f16_v128relaxed, *c = nk_cap_v128relaxed_k;
             return;
         case nk_kernel_reduce_minmax_k: *m = (m_t)&nk_reduce_minmax_f16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
-        case nk_kernel_maxsim_pack_size_k:
-            *m = (m_t)&nk_maxsim_pack_size_f16_v128relaxed, *c = nk_cap_v128relaxed_k;
-            return;
-        case nk_kernel_maxsim_packed_shape_k:
-            *m = (m_t)&nk_maxsim_packed_shape_f16_v128relaxed, *c = nk_cap_v128relaxed_k;
-            return;
-        case nk_kernel_maxsim_pack_k: *m = (m_t)&nk_maxsim_pack_f16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_maxsim_packed_k: *m = (m_t)&nk_maxsim_packed_f16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_dots_pack_size_k:
             *m = (m_t)&nk_dots_pack_size_f16_v128relaxed, *c = nk_cap_v128relaxed_k;
@@ -53,6 +46,14 @@ void nk_dispatch_f16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_f16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_f16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_f16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
+        default: break;
+        }
+#endif
+#if NK_TARGET_V128
+    if (v & nk_cap_v128_k) switch (k) {
+        case nk_kernel_maxsim_pack_size_k: *m = (m_t)&nk_maxsim_pack_size_f16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_maxsim_packed_shape_k: *m = (m_t)&nk_maxsim_packed_shape_f16_v128, *c = nk_cap_v128_k; return;
+        case nk_kernel_maxsim_pack_k: *m = (m_t)&nk_maxsim_pack_f16_v128, *c = nk_cap_v128_k; return;
         default: break;
         }
 #endif

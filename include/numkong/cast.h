@@ -311,6 +311,7 @@ NK_API_COMPTIME void nk_cast_v128relaxed(void const *from, nk_dtype_t from_type,
 #include "numkong/cast/icelake.h"
 #include "numkong/cast/sapphire.h"
 #include "numkong/cast/rvv.h"
+#include "numkong/cast/v128.h"
 #include "numkong/cast/v128relaxed.h"
 #include "numkong/cast/powervsx.h"
 #include "numkong/cast/loongsonasx.h"

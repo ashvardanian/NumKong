@@ -10,6 +10,7 @@ SIMD-free wheels once shipped with every check green: `detected` is true of the 
 matter what was compiled in.
 """
 
+import os
 import platform
 import sys
 
@@ -57,7 +58,7 @@ def test_capability_names_are_complete():
         "sve", "svehalf", "svebfdot", "svesdot", "sve2", "sve2p1",
         "sme", "sme2", "sme2p1", "smef64", "smehalf", "smebf16", "smebi32", "smelut2", "smefa64",
         "rvv", "rvvhalf", "rvvbf16", "rvvbb",
-        "loongsonasx", "powervsx", "v128relaxed",
+        "loongsonasx", "powervsx", "v128", "v128relaxed",
     ]
     # fmt: on
     accessors = (
@@ -91,8 +92,6 @@ def test_compiled_covers_the_baseline_this_machine_detects():
     or exotic arch, or a CPU too old for the baseline. Set `NK_EXPECT_SIMD=0` to skip a
     deliberately scalar build on a SIMD-capable machine.
     """
-    import os
-
     if os.environ.get("NK_EXPECT_SIMD") == "0":
         pytest.skip("NK_EXPECT_SIMD=0: this build is deliberately scalar")
 

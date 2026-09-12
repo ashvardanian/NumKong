@@ -37,7 +37,7 @@
  *  - Arm: NEON, NEON+I8, NEON+F16, NEON+FHM, NEON+BF16, SVE, SVE+F16
  *  - x86: Haswell, Skylake, Ice Lake, Genoa, Sapphire Rapids, Sierra Forest
  *  - RISC-V: RVV, RVV+BF16, RVV+HALF, RVV+BB
- *  - WASM: V128Relaxed
+ *  - WASM: V128, V128Relaxed
  *
  *  @section numerical_stability Numerical Stability
  *
@@ -590,6 +590,17 @@ NK_API_COMPTIME void nk_dot_e5m2_rvvbf16(nk_e5m2_t const *a, nk_e5m2_t const *b,
 NK_API_COMPTIME void nk_dot_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result);
 #endif // NK_TARGET_RVVBB
 
+#if NK_TARGET_V128
+/** @copydoc nk_dot_bf16 */
+NK_API_COMPTIME void nk_dot_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_dot_i8 */
+NK_API_COMPTIME void nk_dot_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i32_t *result);
+/** @copydoc nk_dot_u8 */
+NK_API_COMPTIME void nk_dot_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+/** @copydoc nk_dot_u1 */
+NK_API_COMPTIME void nk_dot_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result);
+#endif // NK_TARGET_V128
+
 #if NK_TARGET_V128RELAXED
 /** @copydoc nk_dot_f32 */
 NK_API_COMPTIME void nk_dot_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
@@ -607,8 +618,6 @@ NK_API_COMPTIME void nk_dot_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, n
 NK_API_COMPTIME void nk_dot_e2m3_v128relaxed(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_e3m2 */
 NK_API_COMPTIME void nk_dot_e3m2_v128relaxed(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_dot_u1 */
-NK_API_COMPTIME void nk_dot_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result);
 /** @copydoc nk_dot_f32 */
 NK_API_COMPTIME void nk_dot_e4m3_v128relaxed(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_f32 */
@@ -680,6 +689,7 @@ NK_HELPER_INLINE nk_dtype_t nk_dot_output_dtype(nk_dtype_t dtype) {
 #include "numkong/dot/rvvhalf.h"
 #include "numkong/dot/rvvbf16.h"
 #include "numkong/dot/powervsx.h"
+#include "numkong/dot/v128.h"
 #include "numkong/dot/v128relaxed.h"
 #include "numkong/dot/loongsonasx.h"
 
@@ -692,6 +702,8 @@ extern "C" {
 NK_API_COMPTIME void nk_dot_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i32_t *result) {
 #if NK_TARGET_V128RELAXED
     nk_dot_i8_v128relaxed(a, b, n, result);
+#elif NK_TARGET_V128
+    nk_dot_i8_v128(a, b, n, result);
 #elif NK_TARGET_POWERVSX
     nk_dot_i8_powervsx(a, b, n, result);
 #elif NK_TARGET_LOONGSONASX
@@ -720,6 +732,8 @@ NK_API_COMPTIME void nk_dot_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, 
 NK_API_COMPTIME void nk_dot_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
 #if NK_TARGET_V128RELAXED
     nk_dot_u8_v128relaxed(a, b, n, result);
+#elif NK_TARGET_V128
+    nk_dot_u8_v128(a, b, n, result);
 #elif NK_TARGET_POWERVSX
     nk_dot_u8_powervsx(a, b, n, result);
 #elif NK_TARGET_LOONGSONASX
@@ -782,8 +796,8 @@ NK_API_COMPTIME void nk_dot_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t
     nk_dot_u1_icelake(a, b, n_bits, result);
 #elif NK_TARGET_HASWELL
     nk_dot_u1_haswell(a, b, n_bits, result);
-#elif NK_TARGET_V128RELAXED
-    nk_dot_u1_v128relaxed(a, b, n_bits, result);
+#elif NK_TARGET_V128
+    nk_dot_u1_v128(a, b, n_bits, result);
 #elif NK_TARGET_POWERVSX
     nk_dot_u1_powervsx(a, b, n_bits, result);
 #elif NK_TARGET_RVVBB
@@ -826,6 +840,8 @@ NK_API_COMPTIME void nk_dot_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t 
 NK_API_COMPTIME void nk_dot_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
 #if NK_TARGET_V128RELAXED
     nk_dot_bf16_v128relaxed(a, b, n, result);
+#elif NK_TARGET_V128
+    nk_dot_bf16_v128(a, b, n, result);
 #elif NK_TARGET_POWERVSX
     nk_dot_bf16_powervsx(a, b, n, result);
 #elif NK_TARGET_LOONGSONASX

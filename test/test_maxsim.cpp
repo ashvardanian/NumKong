@@ -133,13 +133,23 @@ void test_maxsim() {
 
 #if NK_TARGET_V128RELAXED
     check.section("MaxSim V128 Relaxed", nk_cap_v128relaxed_k);
-    check("maxsim_packed_bf16_v128relaxed", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_v128relaxed,
-          nk_maxsim_pack_bf16_v128relaxed, nk_maxsim_packed_bf16_v128relaxed);
-    check("maxsim_packed_f32_v128relaxed", test_maxsim_packed<f32_t>, nk_maxsim_pack_size_f32_v128relaxed,
-          nk_maxsim_pack_f32_v128relaxed, nk_maxsim_packed_f32_v128relaxed);
-    check("maxsim_packed_f16_v128relaxed", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_v128relaxed,
-          nk_maxsim_pack_f16_v128relaxed, nk_maxsim_packed_f16_v128relaxed);
+    check("maxsim_packed_bf16_v128relaxed", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_v128,
+          nk_maxsim_pack_bf16_v128, nk_maxsim_packed_bf16_v128relaxed);
+    check("maxsim_packed_f32_v128relaxed", test_maxsim_packed<f32_t>, nk_maxsim_pack_size_f32_v128,
+          nk_maxsim_pack_f32_v128, nk_maxsim_packed_f32_v128relaxed);
+    check("maxsim_packed_f16_v128relaxed", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_v128,
+          nk_maxsim_pack_f16_v128, nk_maxsim_packed_f16_v128relaxed);
 #endif // NK_TARGET_V128RELAXED
+
+#if NK_TARGET_V128
+    check.section("MaxSim V128", nk_cap_v128_k);
+    check("maxsim_packed_bf16_v128", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_v128,
+          nk_maxsim_pack_bf16_v128, nk_maxsim_packed_bf16_serial);
+    check("maxsim_packed_f32_v128", test_maxsim_packed<f32_t>, nk_maxsim_pack_size_f32_v128, nk_maxsim_pack_f32_v128,
+          nk_maxsim_packed_f32_serial);
+    check("maxsim_packed_f16_v128", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_v128, nk_maxsim_pack_f16_v128,
+          nk_maxsim_packed_f16_serial);
+#endif // NK_TARGET_V128
 
 #if NK_TARGET_SME
     check.section("MaxSim SME", nk_cap_sme_k);

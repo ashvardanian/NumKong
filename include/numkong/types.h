@@ -229,16 +229,23 @@
 #define NK_DEFINED_WASI_ 0
 #endif // !defined(NK_DEFINED_WASI_)
 
+// Compiling for WASM with SIMD128: NK_TARGET_V128
+// A module carries one SIMD tier, decided by the toolchain's `-msimd128`, so the flag alone sets it.
+#undef NK_TARGET_V128
+#if NK_TARGET_WASM_ && defined(__wasm_simd128__)
+#define NK_TARGET_V128 1
+#else
+#define NK_TARGET_V128 0
+#endif
+
 // Compiling for WASM with Relaxed SIMD: NK_TARGET_V128RELAXED
 // Requires -mrelaxed-simd for FMA instructions (f32x4.relaxed_madd, f64x2.relaxed_madd)
-#if !defined(NK_TARGET_V128RELAXED) || (NK_TARGET_V128RELAXED && !NK_TARGET_WASM_)
-#if defined(__wasm_relaxed_simd__)
+#undef NK_TARGET_V128RELAXED
+#if NK_TARGET_V128 && defined(__wasm_relaxed_simd__)
 #define NK_TARGET_V128RELAXED 1
 #else
-#undef NK_TARGET_V128RELAXED
 #define NK_TARGET_V128RELAXED 0
 #endif
-#endif // !defined(NK_TARGET_V128RELAXED) || ...
 
 // Compiling for RISC-V Vector: NK_TARGET_RVV
 #if !defined(NK_TARGET_RVV) || (NK_TARGET_RVV && !NK_TARGET_RISCV64_)
@@ -684,7 +691,7 @@
 #if NK_TARGET_POWERVSX
 #include <altivec.h>
 #endif
-#if NK_TARGET_V128RELAXED
+#if NK_TARGET_V128
 #include <wasm_simd128.h>
 #endif
 
@@ -1599,7 +1606,7 @@ typedef union NK_MAY_ALIAS_ nk_b128_vec_t {
     __m128d xmm_pd;
     __m128 xmm_ps;
 #endif
-#if NK_TARGET_V128RELAXED
+#if NK_TARGET_V128
     v128_t v128;
 #endif
 #if NK_TARGET_NEON
@@ -1658,7 +1665,7 @@ typedef union NK_MAY_ALIAS_ nk_b256_vec_t {
     __m256 ymm_ps;
     __m128i xmms[2];
 #endif
-#if NK_TARGET_V128RELAXED
+#if NK_TARGET_V128
     v128_t v128s[2];
 #endif
 #if NK_TARGET_NEON

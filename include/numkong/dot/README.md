@@ -96,6 +96,7 @@ For Int8 × Int8, one operand is XORed with `0x80` to shift to unsigned, and the
 `nk_dot_i8_v128relaxed`, `nk_dot_u8_v128relaxed` face an even tighter constraint: WASM's `i32x4_relaxed_dot_i8x16_i7x16_add` computes Int8 × Int7, so the sign bit of one operand must be masked off entirely.
 For Int8 × Int8, the sign bit of $b$ is cleared to produce a 7-bit value, and a windowed correction $-128 \cdot \sum_{b_i < 0} a_i$ is accumulated in Int16 and flushed every 127 iterations to prevent overflow.
 For UInt8 × UInt8, $b$ is XORed with `0x80` to shift into signed range, same as Ice Lake, with the correction $128 \cdot \sum a_i$ computed via pairwise widening adds.
+`nk_dot_i8_v128`, `nk_dot_u8_v128` are the SIMD128 twins for engines without Relaxed SIMD: both operands widen to Int16 and `i32x4.dot_i16x8_s` multiplies adjacent pairs exactly, so no sign correction is needed and the window may run 32767 iterations before its Int32 lanes are drained.
 
 ### Octave Decomposition for E4M3 via VNNI
 
@@ -275,6 +276,7 @@ Measured with Wasmtime v42 (Cranelift backend).
 | __bf16__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dot_bf16_serial`       |         2.90 gb/s, 0 ulp |       2.27 gb/s, 0.5 ulp |       0.22 gb/s, 5.2 ulp |
 | `nk_dot_bf16_v128relaxed`  |        0.521 gb/s, 0 ulp |       2.30 gb/s, 0.3 ulp |       0.30 gb/s, 2.4 ulp |
+| `nk_dot_bf16_v128`         |                        … |                        … |                        … |
 | __f16__                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dot_f16_serial`        |     0.648 gb/s, 13.5 ulp |       0.712 gb/s, 32 ulp |      0.08 gb/s, 59.7 ulp |
 | `nk_dot_f16_v128relaxed`   |       1.58 gb/s, 7.0 ulp |      1.05 gb/s, 30.8 ulp |      0.09 gb/s, 65.1 ulp |
@@ -293,9 +295,11 @@ Measured with Wasmtime v42 (Cranelift backend).
 | __i8__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dot_i8_serial`         |                1.17 gb/s |                1.17 gb/s |                0.29 gb/s |
 | `nk_dot_i8_v128relaxed`    |                1.71 gb/s |               0.896 gb/s |                0.24 gb/s |
+| `nk_dot_i8_v128`           |                        … |                        … |                        … |
 | __u8__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dot_u8_serial`         |                1.16 gb/s |               0.658 gb/s |                0.30 gb/s |
 | `nk_dot_u8_v128relaxed`    |               0.873 gb/s |               0.997 gb/s |                0.15 gb/s |
+| `nk_dot_u8_v128`           |                        … |                        … |                        … |
 | __i4__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dot_i4_serial`         |               0.217 gb/s |               0.226 gb/s |                0.28 gb/s |
 | `nk_dot_i4_v128relaxed`    |                1.53 gb/s |                2.87 gb/s |                0.24 gb/s |
@@ -304,7 +308,7 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_dot_u4_v128relaxed`    |               0.126 gb/s |                2.70 gb/s |                0.08 gb/s |
 | __u1__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dot_u1_serial`         |                1.95 gb/s |                1.53 gb/s |                0.09 gb/s |
-| `nk_dot_u1_v128relaxed`    |               0.548 gb/s |                1.88 gb/s |                0.13 gb/s |
+| `nk_dot_u1_v128`           |               0.548 gb/s |                1.88 gb/s |                0.13 gb/s |
 
 ### Apple M5
 
@@ -411,6 +415,7 @@ Measured with Wasmtime v43 (Cranelift backend).
 | __bf16__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dot_bf16_serial`       |         9.53 gb/s, 0 ulp |       7.42 gb/s, 0.6 ulp |       7.20 gb/s, 5.9 ulp |
 | `nk_dot_bf16_v128relaxed`  |         41.9 gb/s, 0 ulp |       28.3 gb/s, 0.4 ulp |       21.5 gb/s, 3.7 ulp |
+| `nk_dot_bf16_v128`         |                        … |                        … |                        … |
 | __f16__                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dot_f16_serial`        |        3.31 gb/s, 16 ulp |        3.63 gb/s, 26 ulp |        3.66 gb/s, 53 ulp |
 | `nk_dot_f16_v128relaxed`   |       11.4 gb/s, 9.0 ulp |        11.2 gb/s, 23 ulp |        12.0 gb/s, 39 ulp |
@@ -429,9 +434,11 @@ Measured with Wasmtime v43 (Cranelift backend).
 | __i8__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dot_i8_serial`         |                22.2 gb/s |                19.6 gb/s |                17.8 gb/s |
 | `nk_dot_i8_v128relaxed`    |                42.0 gb/s |                49.0 gb/s |                49.7 gb/s |
+| `nk_dot_i8_v128`           |                        … |                        … |                        … |
 | __u8__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dot_u8_serial`         |                23.0 gb/s |                19.9 gb/s |                17.8 gb/s |
 | `nk_dot_u8_v128relaxed`    |                29.3 gb/s |                33.0 gb/s |                35.1 gb/s |
+| `nk_dot_u8_v128`           |                        … |                        … |                        … |
 | __i4__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dot_i4_serial`         |               0.990 gb/s |               0.923 gb/s |               0.985 gb/s |
 | `nk_dot_i4_v128relaxed`    |                15.2 gb/s |                17.9 gb/s |                19.2 gb/s |
@@ -440,4 +447,4 @@ Measured with Wasmtime v43 (Cranelift backend).
 | `nk_dot_u4_v128relaxed`    |                30.2 gb/s |                32.1 gb/s |                33.8 gb/s |
 | __u1__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dot_u1_serial`         |                5.26 gb/s |                5.80 gb/s |                6.48 gb/s |
-| `nk_dot_u1_v128relaxed`    |                21.2 gb/s |                47.4 gb/s |                67.3 gb/s |
+| `nk_dot_u1_v128`           |                21.2 gb/s |                47.4 gb/s |                67.3 gb/s |

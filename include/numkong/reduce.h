@@ -36,7 +36,7 @@
  *  - Arm: NEON, NEON+F16, NEON+FHM, NEON+BF16, NEON+SDOT
  *  - x86: Haswell, Skylake, Ice Lake, Genoa, Sierra Forest
  *  - RISC-V: RVV
- *  - WASM: V128Relaxed
+ *  - WASM: V128, V128Relaxed
  *
  *  @section numerical_stability Numerical stability
  *
@@ -836,32 +836,34 @@ NK_API_COMPTIME void nk_reduce_minmax_e3m2_rvv(nk_e3m2_t const *, nk_size_t, nk_
                                                nk_e3m2_t *, nk_size_t *);
 #endif // NK_TARGET_RVV
 
+#if NK_TARGET_V128
+/** @copydoc nk_reduce_moments_f64 */
+NK_API_COMPTIME void nk_reduce_moments_f64_v128(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NK_API_COMPTIME void nk_reduce_moments_bf16_v128(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NK_API_COMPTIME void nk_reduce_moments_i8_v128(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NK_API_COMPTIME void nk_reduce_moments_u8_v128(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NK_API_COMPTIME void nk_reduce_moments_i16_v128(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NK_API_COMPTIME void nk_reduce_moments_u16_v128(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NK_API_COMPTIME void nk_reduce_moments_i32_v128(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NK_API_COMPTIME void nk_reduce_moments_u32_v128(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+#endif // NK_TARGET_V128
+
 #if NK_TARGET_V128RELAXED
 /** @copydoc nk_reduce_moments_f64 */
 NK_API_COMPTIME void nk_reduce_moments_f32_v128relaxed(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f64_v128relaxed(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i8_v128relaxed(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u8_v128relaxed(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i16_v128relaxed(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u16_v128relaxed(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i32_v128relaxed(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u32_v128relaxed(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
 /** @copydoc nk_reduce_moments_f64 */
 NK_API_COMPTIME void nk_reduce_moments_i64_v128relaxed(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
 /** @copydoc nk_reduce_moments_f64 */
 NK_API_COMPTIME void nk_reduce_moments_u64_v128relaxed(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
 /** @copydoc nk_reduce_moments_f64 */
 NK_API_COMPTIME void nk_reduce_moments_f16_v128relaxed(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_bf16_v128relaxed(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *,
-                                                        nk_f32_t *);
 /** @copydoc nk_reduce_moments_f64 */
 NK_API_COMPTIME void nk_reduce_moments_e4m3_v128relaxed(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
                                                         nk_f32_t *);
@@ -1014,6 +1016,7 @@ NK_HELPER_INLINE nk_dtype_t nk_reduce_minmax_value_dtype(nk_dtype_t dtype) {
 #include "numkong/reduce/alder.h"
 #include "numkong/reduce/sierra.h"
 #include "numkong/reduce/rvv.h"
+#include "numkong/reduce/v128.h"
 #include "numkong/reduce/v128relaxed.h"
 
 #ifdef __cplusplus
@@ -1066,8 +1069,8 @@ NK_API_COMPTIME void nk_reduce_moments_f64(nk_f64_t const *d, nk_size_t n, nk_si
     nk_reduce_moments_f64_neon(d, n, s, sum, sumsq);
 #elif NK_TARGET_RVV
     nk_reduce_moments_f64_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
-    nk_reduce_moments_f64_v128relaxed(d, n, s, sum, sumsq);
+#elif NK_TARGET_V128
+    nk_reduce_moments_f64_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_f64_serial(d, n, s, sum, sumsq);
 #endif
@@ -1105,8 +1108,8 @@ NK_API_COMPTIME void nk_reduce_moments_i8(nk_i8_t const *d, nk_size_t n, nk_size
     nk_reduce_moments_i8_neon(d, n, s, sum, sumsq);
 #elif NK_TARGET_RVV
     nk_reduce_moments_i8_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
-    nk_reduce_moments_i8_v128relaxed(d, n, s, sum, sumsq);
+#elif NK_TARGET_V128
+    nk_reduce_moments_i8_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_i8_serial(d, n, s, sum, sumsq);
 #endif
@@ -1146,8 +1149,8 @@ NK_API_COMPTIME void nk_reduce_moments_u8(nk_u8_t const *d, nk_size_t n, nk_size
     nk_reduce_moments_u8_neon(d, n, s, sum, sumsq);
 #elif NK_TARGET_RVV
     nk_reduce_moments_u8_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
-    nk_reduce_moments_u8_v128relaxed(d, n, s, sum, sumsq);
+#elif NK_TARGET_V128
+    nk_reduce_moments_u8_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_u8_serial(d, n, s, sum, sumsq);
 #endif
@@ -1184,8 +1187,8 @@ NK_API_COMPTIME void nk_reduce_moments_i16(nk_i16_t const *d, nk_size_t n, nk_si
     nk_reduce_moments_i16_neon(d, n, s, sum, sumsq);
 #elif NK_TARGET_RVV
     nk_reduce_moments_i16_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
-    nk_reduce_moments_i16_v128relaxed(d, n, s, sum, sumsq);
+#elif NK_TARGET_V128
+    nk_reduce_moments_i16_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_i16_serial(d, n, s, sum, sumsq);
 #endif
@@ -1220,8 +1223,8 @@ NK_API_COMPTIME void nk_reduce_moments_u16(nk_u16_t const *d, nk_size_t n, nk_si
     nk_reduce_moments_u16_neon(d, n, s, sum, sumsq);
 #elif NK_TARGET_RVV
     nk_reduce_moments_u16_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
-    nk_reduce_moments_u16_v128relaxed(d, n, s, sum, sumsq);
+#elif NK_TARGET_V128
+    nk_reduce_moments_u16_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_u16_serial(d, n, s, sum, sumsq);
 #endif
@@ -1254,8 +1257,8 @@ NK_API_COMPTIME void nk_reduce_moments_i32(nk_i32_t const *d, nk_size_t n, nk_si
     nk_reduce_moments_i32_neon(d, n, s, sum, sumsq);
 #elif NK_TARGET_RVV
     nk_reduce_moments_i32_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
-    nk_reduce_moments_i32_v128relaxed(d, n, s, sum, sumsq);
+#elif NK_TARGET_V128
+    nk_reduce_moments_i32_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_i32_serial(d, n, s, sum, sumsq);
 #endif
@@ -1288,8 +1291,8 @@ NK_API_COMPTIME void nk_reduce_moments_u32(nk_u32_t const *d, nk_size_t n, nk_si
     nk_reduce_moments_u32_neon(d, n, s, sum, sumsq);
 #elif NK_TARGET_RVV
     nk_reduce_moments_u32_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
-    nk_reduce_moments_u32_v128relaxed(d, n, s, sum, sumsq);
+#elif NK_TARGET_V128
+    nk_reduce_moments_u32_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_u32_serial(d, n, s, sum, sumsq);
 #endif
@@ -1426,8 +1429,8 @@ NK_API_COMPTIME void nk_reduce_moments_bf16(nk_bf16_t const *d, nk_size_t n, nk_
     nk_reduce_moments_bf16_neonbfdot(d, n, s, sum, sumsq);
 #elif NK_TARGET_RVV
     nk_reduce_moments_bf16_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
-    nk_reduce_moments_bf16_v128relaxed(d, n, s, sum, sumsq);
+#elif NK_TARGET_V128
+    nk_reduce_moments_bf16_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_bf16_serial(d, n, s, sum, sumsq);
 #endif

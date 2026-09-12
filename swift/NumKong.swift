@@ -315,4 +315,5 @@ public enum Capabilities {
     public static let diamond: UInt64 = 1 << 38
     public static let neonFp8: UInt64 = 1 << 39
     public static let diamondAmx: UInt64 = 1 << 40
+    public static let v128: UInt64 = 1 << 41
 }

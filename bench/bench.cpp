@@ -206,6 +206,7 @@ int main(int argc, char **argv) {
     // Power
     print_isa("Power VSX", NK_TARGET_POWERVSX, nk_cap_powervsx_k, runtime_caps);
     // WASM
+    print_isa("V128", NK_TARGET_V128, nk_cap_v128_k, runtime_caps);
     print_isa("V128 Relaxed", NK_TARGET_V128RELAXED, nk_cap_v128relaxed_k, runtime_caps);
     std::printf("\n");
 

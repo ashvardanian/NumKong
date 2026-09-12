@@ -1,25 +1,20 @@
 /**
  *  @brief SIMD-accelerated Set Similarity Measures for WASM.
- *  @file include/numkong/set/v128relaxed.h
+ *  @file include/numkong/set/v128.h
  *  @author Ash Vardanian
- *  @date February 1, 2026
+ *  @date September 12, 2026
  *
- *  This file contains windowed implementations of Hamming and Jaccard distance
- *  for bit-level operations (u1 packed bits). The windowing optimization reduces
- *  widening overhead by 96.7%, providing 5-10× speedup over naive implementations.
- *
- *  Algorithm: Accumulate popcount results in u8 for 31 iterations, then widen
- *  to u16 → u32 once. Since max(popcount(u8)) = 8, we can safely accumulate
- *  31 × 8 = 248 < 255 (u8 max) without overflow.
+ *  Hamming and Jaccard over packed bits accumulate byte popcounts in u8 for 31 steps before widening once, since
+ *  31 × 8 = 248 stays below 255; the u8, u16 and u32 kernels count equal lanes with a compare and a shift.
  */
 
-#ifndef NK_SET_V128RELAXED_H
-#define NK_SET_V128RELAXED_H
+#ifndef NK_SET_V128_H
+#define NK_SET_V128_H
 
-#if NK_TARGET_V128RELAXED
+#if NK_TARGET_V128
 
 #include "numkong/types.h"
-#include "numkong/reduce/v128relaxed.h"
+#include "numkong/reduce/v128.h" // `nk_reduce_add_u8x16_v128_`, `nk_reduce_add_u32x4_v128_`
 #include "numkong/set/serial.h"
 
 #if defined(__cplusplus)
@@ -27,12 +22,12 @@ extern "C" {
 #endif
 
 #if defined(__clang__)
-#pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
+#pragma clang attribute push(__attribute__((target("simd128"))), apply_to = function)
 #endif
 
 #pragma region Binary Sets
 
-NK_API_COMPTIME void nk_hamming_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
     nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
@@ -44,24 +39,18 @@ NK_API_COMPTIME void nk_hamming_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t con
     while (i + 16 <= n_bytes) {
         v128_t popcount_u8x16 = wasm_i8x16_splat(0);
 
-        // Inner loop: accumulate 31 iterations in u8 before widening
         nk_size_t cycle = 0;
+        // Accumulate 31 iterations in u8 before widening: 31 × 8 = 248 < 255
         for (; cycle < 31 && i + 16 <= n_bytes; ++cycle, i += 16) {
             v128_t a_u8x16 = wasm_v128_load(a_bytes + i);
             v128_t b_u8x16 = wasm_v128_load(b_bytes + i);
-
-            // XOR to find differing bits
             v128_t xor_u8x16 = wasm_v128_xor(a_u8x16, b_u8x16);
-
-            // Popcount each byte
             v128_t popcnt_u8x16 = wasm_i8x16_popcnt(xor_u8x16);
-
-            // Accumulate in u8 (safe: 31 × 8 = 248 < 255)
             popcount_u8x16 = wasm_i8x16_add(popcount_u8x16, popcnt_u8x16);
         }
 
         // Widen once per window: u8 → u16 → u32
-        differences += nk_reduce_add_u8x16_v128relaxed_(popcount_u8x16);
+        differences += nk_reduce_add_u8x16_v128_(popcount_u8x16);
     }
 
     // Handle tail bytes
@@ -73,7 +62,7 @@ NK_API_COMPTIME void nk_hamming_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t con
     *result = differences;
 }
 
-NK_API_COMPTIME void nk_jaccard_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
     nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
@@ -87,26 +76,22 @@ NK_API_COMPTIME void nk_jaccard_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t con
         v128_t popcount_and_u8x16 = wasm_i8x16_splat(0);
         v128_t popcount_or_u8x16 = wasm_i8x16_splat(0);
 
-        // Inner loop: accumulate 31 iterations in u8 before widening
         nk_size_t cycle = 0;
+        // Accumulate 31 iterations in u8 before widening: 31 × 8 = 248 < 255
         for (; cycle < 31 && i + 16 <= n_bytes; ++cycle, i += 16) {
             v128_t a_u8x16 = wasm_v128_load(a_bytes + i);
             v128_t b_u8x16 = wasm_v128_load(b_bytes + i);
-
-            // Intersection: a AND b
             v128_t and_u8x16 = wasm_v128_and(a_u8x16, b_u8x16);
             v128_t popcnt_and_u8x16 = wasm_i8x16_popcnt(and_u8x16);
             popcount_and_u8x16 = wasm_i8x16_add(popcount_and_u8x16, popcnt_and_u8x16);
-
-            // Union: a OR b
             v128_t or_u8x16 = wasm_v128_or(a_u8x16, b_u8x16);
             v128_t popcnt_or_u8x16 = wasm_i8x16_popcnt(or_u8x16);
             popcount_or_u8x16 = wasm_i8x16_add(popcount_or_u8x16, popcnt_or_u8x16);
         }
 
         // Widen once per window
-        intersection += nk_reduce_add_u8x16_v128relaxed_(popcount_and_u8x16);
-        union_count += nk_reduce_add_u8x16_v128relaxed_(popcount_or_u8x16);
+        intersection += nk_reduce_add_u8x16_v128_(popcount_and_u8x16);
+        union_count += nk_reduce_add_u8x16_v128_(popcount_or_u8x16);
     }
 
     // Handle tail bytes
@@ -125,7 +110,7 @@ NK_API_COMPTIME void nk_jaccard_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t con
 
 #pragma region Integer Sets
 
-NK_API_COMPTIME void nk_hamming_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NK_API_COMPTIME void nk_hamming_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_u32_t sum_total = 0;
     nk_size_t i = 0;
 
@@ -133,24 +118,18 @@ NK_API_COMPTIME void nk_hamming_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *
     while (i + 16 <= n) {
         v128_t sum_u8x16 = wasm_i8x16_splat(0);
 
-        // Inner loop: accumulate up to 31 iterations in u8 (safe: 31 × 1 = 31 < 255)
         nk_size_t cycle = 0;
+        // Accumulate up to 31 iterations in u8: 31 × 1 = 31 < 255
         for (; cycle < 31 && i + 16 <= n; ++cycle, i += 16) {
             v128_t a_u8x16 = wasm_v128_load(a + i);
             v128_t b_u8x16 = wasm_v128_load(b + i);
-
-            // Compare for inequality: 0xFF where different, 0x00 where same
             v128_t neq_mask_u8x16 = wasm_i8x16_ne(a_u8x16, b_u8x16);
-
-            // Convert mask to count: 0xFF → 1, 0x00 → 0
             v128_t neq_count_u8x16 = wasm_v128_and(neq_mask_u8x16, wasm_i8x16_splat(1));
-
-            // Accumulate counts
             sum_u8x16 = wasm_i8x16_add(sum_u8x16, neq_count_u8x16);
         }
 
         // Widen and reduce once per window
-        sum_total += nk_reduce_add_u8x16_v128relaxed_(sum_u8x16);
+        sum_total += nk_reduce_add_u8x16_v128_(sum_u8x16);
     }
 
     // Traditional tail loop: handle remaining bytes (0-15) scalar-style
@@ -159,7 +138,7 @@ NK_API_COMPTIME void nk_hamming_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *
     *result = sum_total;
 }
 
-NK_API_COMPTIME void nk_jaccard_u32_v128relaxed(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u32_v128(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t matches = 0;
     nk_size_t i = 0;
     v128_t matches_u32x4 = wasm_i32x4_splat(0);
@@ -172,13 +151,13 @@ NK_API_COMPTIME void nk_jaccard_u32_v128relaxed(nk_u32_t const *a, nk_u32_t cons
         matches_u32x4 = wasm_i32x4_add(matches_u32x4, match_u32x4);
     }
 
-    matches += nk_reduce_add_u32x4_v128relaxed_(matches_u32x4);
+    matches += nk_reduce_add_u32x4_v128_(matches_u32x4);
     for (; i < n; ++i) matches += (a[i] == b[i]);
 
     *result = (n != 0) ? 1.0f - (nk_f32_t)matches / (nk_f32_t)n : 0.0f;
 }
 
-NK_API_COMPTIME void nk_jaccard_u16_v128relaxed(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NK_API_COMPTIME void nk_jaccard_u16_v128(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t matches = 0;
     nk_size_t i = 0;
     v128_t matches_u32x4 = wasm_i32x4_splat(0);
@@ -191,7 +170,7 @@ NK_API_COMPTIME void nk_jaccard_u16_v128relaxed(nk_u16_t const *a, nk_u16_t cons
         matches_u32x4 = wasm_i32x4_add(matches_u32x4, wasm_u32x4_extadd_pairwise_u16x8(match_u16x8));
     }
 
-    matches += nk_reduce_add_u32x4_v128relaxed_(matches_u32x4);
+    matches += nk_reduce_add_u32x4_v128_(matches_u32x4);
     for (; i < n; ++i) matches += (a[i] == b[i]);
 
     *result = (n != 0) ? 1.0f - (nk_f32_t)matches / (nk_f32_t)n : 0.0f;
@@ -201,7 +180,7 @@ NK_API_COMPTIME void nk_jaccard_u16_v128relaxed(nk_u16_t const *a, nk_u16_t cons
 
 #pragma region Binary Sets from Dot
 
-NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_v128relaxed_( //
+NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_v128_( //
     nk_b128_vec_t const *dots_vec, nk_u32_t query_pop, nk_b128_vec_t const *target_pops_vec,
     nk_b128_vec_t *result_vec) {
     v128_t dots_u32x4 = dots_vec->v128;
@@ -210,7 +189,7 @@ NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_v128relaxed_( //
     result_vec->v128 = wasm_i32x4_sub(wasm_i32x4_add(query_u32x4, target_u32x4), wasm_i32x4_shl(dots_u32x4, 1));
 }
 
-NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_v128relaxed_( //
+NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_v128_( //
     nk_b128_vec_t const *dots_vec, nk_u32_t query_pop, nk_b128_vec_t const *target_pops_vec,
     nk_b128_vec_t *result_vec) {
     v128_t dot_f32x4 = wasm_f32x4_convert_u32x4(dots_vec->v128);
@@ -221,11 +200,11 @@ NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_v128relaxed_( //
     v128_t zero_f32x4 = wasm_f32x4_splat(0.0f);
     v128_t one_f32x4 = wasm_f32x4_splat(1.0f);
     v128_t zero_mask_u32x4 = wasm_f32x4_eq(union_f32x4, zero_f32x4);
-    v128_t safe_union_f32x4 = wasm_i32x4_relaxed_laneselect(one_f32x4, union_f32x4, zero_mask_u32x4);
+    v128_t safe_union_f32x4 = wasm_v128_bitselect(one_f32x4, union_f32x4, zero_mask_u32x4);
 
     v128_t ratio_f32x4 = wasm_f32x4_div(dot_f32x4, safe_union_f32x4);
     v128_t jaccard_f32x4 = wasm_f32x4_sub(one_f32x4, ratio_f32x4);
-    result_vec->v128 = wasm_i32x4_relaxed_laneselect(zero_f32x4, jaccard_f32x4, zero_mask_u32x4);
+    result_vec->v128 = wasm_v128_bitselect(zero_f32x4, jaccard_f32x4, zero_mask_u32x4);
 }
 
 #pragma endregion Binary Sets from Dot
@@ -238,5 +217,5 @@ NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_v128relaxed_( //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_V128RELAXED
-#endif // NK_SET_V128RELAXED_H
+#endif // NK_TARGET_V128
+#endif // NK_SET_V128_H

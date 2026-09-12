@@ -370,20 +370,12 @@ void test_reduce() {
 #if NK_TARGET_V128RELAXED
     check.section("Reductions V128 Relaxed", nk_cap_v128relaxed_k);
     check("reduce_moments_f32_v128relaxed", test_reduce_moments<f32_t>, nk_reduce_moments_f32_v128relaxed);
-    check("reduce_moments_f64_v128relaxed", test_reduce_moments<f64_t>, nk_reduce_moments_f64_v128relaxed);
-    check("reduce_moments_i8_v128relaxed", test_reduce_moments<i8_t>, nk_reduce_moments_i8_v128relaxed);
-    check("reduce_moments_u8_v128relaxed", test_reduce_moments<u8_t>, nk_reduce_moments_u8_v128relaxed);
-    check("reduce_moments_i16_v128relaxed", test_reduce_moments<i16_t>, nk_reduce_moments_i16_v128relaxed);
-    check("reduce_moments_u16_v128relaxed", test_reduce_moments<u16_t>, nk_reduce_moments_u16_v128relaxed);
-    check("reduce_moments_i32_v128relaxed", test_reduce_moments<i32_t>, nk_reduce_moments_i32_v128relaxed);
-    check("reduce_moments_u32_v128relaxed", test_reduce_moments<u32_t>, nk_reduce_moments_u32_v128relaxed);
     check("reduce_moments_i64_v128relaxed", test_reduce_moments<i64_t>, nk_reduce_moments_i64_v128relaxed);
     check("reduce_moments_u64_v128relaxed", test_reduce_moments<u64_t>, nk_reduce_moments_u64_v128relaxed);
     check("reduce_moments_e4m3_v128relaxed", test_reduce_moments<e4m3_t>, nk_reduce_moments_e4m3_v128relaxed);
     check("reduce_moments_e5m2_v128relaxed", test_reduce_moments<e5m2_t>, nk_reduce_moments_e5m2_v128relaxed);
     check("reduce_moments_e2m3_v128relaxed", test_reduce_moments<e2m3_t>, nk_reduce_moments_e2m3_v128relaxed);
     check("reduce_moments_e3m2_v128relaxed", test_reduce_moments<e3m2_t>, nk_reduce_moments_e3m2_v128relaxed);
-    check("reduce_moments_bf16_v128relaxed", test_reduce_moments<bf16_t>, nk_reduce_moments_bf16_v128relaxed);
     check("reduce_moments_f16_v128relaxed", test_reduce_moments<f16_t>, nk_reduce_moments_f16_v128relaxed);
     check("reduce_minmax_f32_v128relaxed", test_reduce_minmax<f32_t>, nk_reduce_minmax_f32_v128relaxed);
     check("reduce_minmax_f64_v128relaxed", test_reduce_minmax<f64_t>, nk_reduce_minmax_f64_v128relaxed);
@@ -402,4 +394,16 @@ void test_reduce() {
     check("reduce_minmax_bf16_v128relaxed", test_reduce_minmax<bf16_t>, nk_reduce_minmax_bf16_v128relaxed);
     check("reduce_minmax_f16_v128relaxed", test_reduce_minmax<f16_t>, nk_reduce_minmax_f16_v128relaxed);
 #endif // NK_TARGET_V128RELAXED
+
+#if NK_TARGET_V128
+    check.section("Reductions V128", nk_cap_v128_k);
+    check("reduce_moments_f64_v128", test_reduce_moments<f64_t>, nk_reduce_moments_f64_v128);
+    check("reduce_moments_bf16_v128", test_reduce_moments<bf16_t>, nk_reduce_moments_bf16_v128);
+    check("reduce_moments_i8_v128", test_reduce_moments<i8_t>, nk_reduce_moments_i8_v128);
+    check("reduce_moments_u8_v128", test_reduce_moments<u8_t>, nk_reduce_moments_u8_v128);
+    check("reduce_moments_i16_v128", test_reduce_moments<i16_t>, nk_reduce_moments_i16_v128);
+    check("reduce_moments_u16_v128", test_reduce_moments<u16_t>, nk_reduce_moments_u16_v128);
+    check("reduce_moments_i32_v128", test_reduce_moments<i32_t>, nk_reduce_moments_i32_v128);
+    check("reduce_moments_u32_v128", test_reduce_moments<u32_t>, nk_reduce_moments_u32_v128);
+#endif // NK_TARGET_V128
 }

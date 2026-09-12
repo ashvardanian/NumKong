@@ -748,49 +748,49 @@ NK_API_COMPTIME void nk_attention_packed_i8_rvv(nk_i8_t const *queries, void con
                                                 nk_size_t end);
 #endif // NK_TARGET_RVV
 
-#if NK_TARGET_V128RELAXED
+#if NK_TARGET_V128
 /** @copydoc nk_attention_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                  nk_u32_t const *segment_lengths,
-                                                                  nk_size_t segment_count);
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_v128(nk_size_t key_value_head_count, nk_size_t depth,
+                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count);
 /** @copydoc nk_attention_packed_shape_bf16 */
-NK_API_COMPTIME void nk_attention_packed_shape_bf16_v128relaxed(void const *key_value_packed, nk_size_t *heads,
-                                                                nk_size_t *depth, nk_size_t *segments);
+NK_API_COMPTIME void nk_attention_packed_shape_bf16_v128(void const *key_value_packed, nk_size_t *heads,
+                                                         nk_size_t *depth, nk_size_t *segments);
 /** @copydoc nk_attention_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                  nk_u32_t const *segment_lengths,
-                                                                  nk_size_t segment_count);
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_v128(nk_size_t key_value_head_count, nk_size_t depth,
+                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count);
 /** @copydoc nk_attention_packed_shape_e4m3 */
-NK_API_COMPTIME void nk_attention_packed_shape_e4m3_v128relaxed(void const *key_value_packed, nk_size_t *heads,
-                                                                nk_size_t *depth, nk_size_t *segments);
+NK_API_COMPTIME void nk_attention_packed_shape_e4m3_v128(void const *key_value_packed, nk_size_t *heads,
+                                                         nk_size_t *depth, nk_size_t *segments);
 /** @copydoc nk_attention_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                nk_u32_t const *segment_lengths,
-                                                                nk_size_t segment_count);
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_v128(nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count);
 /** @copydoc nk_attention_packed_shape_i8 */
-NK_API_COMPTIME void nk_attention_packed_shape_i8_v128relaxed(void const *key_value_packed, nk_size_t *heads,
-                                                              nk_size_t *depth, nk_size_t *segments);
+NK_API_COMPTIME void nk_attention_packed_shape_i8_v128(void const *key_value_packed, nk_size_t *heads, nk_size_t *depth,
+                                                       nk_size_t *segments);
 /** @copydoc nk_attention_pack_bf16 */
-NK_API_COMPTIME void nk_attention_pack_bf16_v128relaxed(nk_bf16_t const *keys, nk_bf16_t const *values,
-                                                        nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_offsets,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                                                        nk_size_t key_stride_bytes, nk_size_t value_stride_bytes,
-                                                        void *key_value_packed, nk_size_t begin, nk_size_t end);
+NK_API_COMPTIME void nk_attention_pack_bf16_v128(nk_bf16_t const *keys, nk_bf16_t const *values,
+                                                 nk_size_t key_value_head_count, nk_size_t depth,
+                                                 nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                 nk_size_t segment_count, nk_size_t key_stride_bytes,
+                                                 nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t begin,
+                                                 nk_size_t end);
 /** @copydoc nk_attention_pack_bf16 */
-NK_API_COMPTIME void nk_attention_pack_e4m3_v128relaxed(nk_e4m3_t const *keys, nk_e4m3_t const *values,
-                                                        nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_offsets,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                                                        nk_size_t key_stride_bytes, nk_size_t value_stride_bytes,
-                                                        void *key_value_packed, nk_size_t begin, nk_size_t end);
+NK_API_COMPTIME void nk_attention_pack_e4m3_v128(nk_e4m3_t const *keys, nk_e4m3_t const *values,
+                                                 nk_size_t key_value_head_count, nk_size_t depth,
+                                                 nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                 nk_size_t segment_count, nk_size_t key_stride_bytes,
+                                                 nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t begin,
+                                                 nk_size_t end);
 /** @copydoc nk_attention_pack_bf16 */
-NK_API_COMPTIME void nk_attention_pack_i8_v128relaxed(nk_i8_t const *keys, nk_i8_t const *values,
-                                                      nk_size_t key_value_head_count, nk_size_t depth,
-                                                      nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
-                                                      nk_size_t segment_count, nk_size_t key_stride_bytes,
-                                                      nk_size_t value_stride_bytes, void *key_value_packed,
-                                                      nk_size_t begin, nk_size_t end);
+NK_API_COMPTIME void nk_attention_pack_i8_v128(nk_i8_t const *keys, nk_i8_t const *values,
+                                               nk_size_t key_value_head_count, nk_size_t depth,
+                                               nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                               nk_size_t segment_count, nk_size_t key_stride_bytes,
+                                               nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t begin,
+                                               nk_size_t end);
+#endif // NK_TARGET_V128
+
+#if NK_TARGET_V128RELAXED
 /** @copydoc nk_attention_packed_bf16 */
 NK_API_COMPTIME void nk_attention_packed_bf16_v128relaxed(nk_bf16_t const *queries, void const *key_value_packed,
                                                           nk_f32_t *output, nk_size_t head_count,
@@ -842,6 +842,7 @@ NK_HELPER_INLINE nk_dtype_t nk_attention_output_dtype(nk_dtype_t dtype) {
 #include "numkong/attention/neonfhm.h"
 #include "numkong/attention/neonsdot.h"
 #include "numkong/attention/rvv.h"
+#include "numkong/attention/v128.h"
 #include "numkong/attention/v128relaxed.h"
 
 #if defined(__cplusplus)
@@ -866,8 +867,8 @@ NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16(nk_size_t key_value_head_c
     return nk_attention_pack_size_bf16_neonbfdot(key_value_head_count, depth, segment_lengths, segment_count);
 #elif NK_TARGET_RVV
     return nk_attention_pack_size_bf16_rvv(key_value_head_count, depth, segment_lengths, segment_count);
-#elif NK_TARGET_V128RELAXED
-    return nk_attention_pack_size_bf16_v128relaxed(key_value_head_count, depth, segment_lengths, segment_count);
+#elif NK_TARGET_V128
+    return nk_attention_pack_size_bf16_v128(key_value_head_count, depth, segment_lengths, segment_count);
 #else
     return nk_attention_pack_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
 #endif
@@ -889,8 +890,8 @@ NK_API_COMPTIME void nk_attention_packed_shape_bf16(void const *key_value_packed
     nk_attention_packed_shape_bf16_neonbfdot(key_value_packed, heads, depth, segments);
 #elif NK_TARGET_RVV
     nk_attention_packed_shape_bf16_rvv(key_value_packed, heads, depth, segments);
-#elif NK_TARGET_V128RELAXED
-    nk_attention_packed_shape_bf16_v128relaxed(key_value_packed, heads, depth, segments);
+#elif NK_TARGET_V128
+    nk_attention_packed_shape_bf16_v128(key_value_packed, heads, depth, segments);
 #else
     nk_attention_packed_shape_bf16_serial(key_value_packed, heads, depth, segments);
 #endif
@@ -914,8 +915,8 @@ NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3(nk_size_t key_value_head_c
     return nk_attention_pack_size_e4m3_neonfhm(key_value_head_count, depth, segment_lengths, segment_count);
 #elif NK_TARGET_RVV
     return nk_attention_pack_size_e4m3_rvv(key_value_head_count, depth, segment_lengths, segment_count);
-#elif NK_TARGET_V128RELAXED
-    return nk_attention_pack_size_e4m3_v128relaxed(key_value_head_count, depth, segment_lengths, segment_count);
+#elif NK_TARGET_V128
+    return nk_attention_pack_size_e4m3_v128(key_value_head_count, depth, segment_lengths, segment_count);
 #else
     return nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
 #endif
@@ -939,8 +940,8 @@ NK_API_COMPTIME void nk_attention_packed_shape_e4m3(void const *key_value_packed
     nk_attention_packed_shape_e4m3_neonfhm(key_value_packed, heads, depth, segments);
 #elif NK_TARGET_RVV
     nk_attention_packed_shape_e4m3_rvv(key_value_packed, heads, depth, segments);
-#elif NK_TARGET_V128RELAXED
-    nk_attention_packed_shape_e4m3_v128relaxed(key_value_packed, heads, depth, segments);
+#elif NK_TARGET_V128
+    nk_attention_packed_shape_e4m3_v128(key_value_packed, heads, depth, segments);
 #else
     nk_attention_packed_shape_e4m3_serial(key_value_packed, heads, depth, segments);
 #endif
@@ -974,10 +975,9 @@ NK_API_COMPTIME void nk_attention_pack_bf16(nk_bf16_t const *keys, nk_bf16_t con
 #elif NK_TARGET_RVV
     nk_attention_pack_bf16_rvv(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
-#elif NK_TARGET_V128RELAXED
-    nk_attention_pack_bf16_v128relaxed(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                       segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
-                                       end);
+#elif NK_TARGET_V128
+    nk_attention_pack_bf16_v128(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
+                                segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
 #else
     nk_attention_pack_bf16_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                   segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
@@ -1016,10 +1016,9 @@ NK_API_COMPTIME void nk_attention_pack_e4m3(nk_e4m3_t const *keys, nk_e4m3_t con
 #elif NK_TARGET_RVV
     nk_attention_pack_e4m3_rvv(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
-#elif NK_TARGET_V128RELAXED
-    nk_attention_pack_e4m3_v128relaxed(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                       segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
-                                       end);
+#elif NK_TARGET_V128
+    nk_attention_pack_e4m3_v128(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
+                                segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
 #else
     nk_attention_pack_e4m3_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                   segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
@@ -1113,8 +1112,8 @@ NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8(nk_size_t key_value_head_cou
     return nk_attention_pack_size_i8_neonsdot(key_value_head_count, depth, segment_lengths, segment_count);
 #elif NK_TARGET_RVV
     return nk_attention_pack_size_i8_rvv(key_value_head_count, depth, segment_lengths, segment_count);
-#elif NK_TARGET_V128RELAXED
-    return nk_attention_pack_size_i8_v128relaxed(key_value_head_count, depth, segment_lengths, segment_count);
+#elif NK_TARGET_V128
+    return nk_attention_pack_size_i8_v128(key_value_head_count, depth, segment_lengths, segment_count);
 #else
     return nk_attention_pack_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
 #endif
@@ -1134,8 +1133,8 @@ NK_API_COMPTIME void nk_attention_packed_shape_i8(void const *key_value_packed, 
     nk_attention_packed_shape_i8_neonsdot(key_value_packed, heads, depth, segments);
 #elif NK_TARGET_RVV
     nk_attention_packed_shape_i8_rvv(key_value_packed, heads, depth, segments);
-#elif NK_TARGET_V128RELAXED
-    nk_attention_packed_shape_i8_v128relaxed(key_value_packed, heads, depth, segments);
+#elif NK_TARGET_V128
+    nk_attention_packed_shape_i8_v128(key_value_packed, heads, depth, segments);
 #else
     nk_attention_packed_shape_i8_serial(key_value_packed, heads, depth, segments);
 #endif
@@ -1164,9 +1163,9 @@ NK_API_COMPTIME void nk_attention_pack_i8(nk_i8_t const *keys, nk_i8_t const *va
 #elif NK_TARGET_RVV
     nk_attention_pack_i8_rvv(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
                              key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
-#elif NK_TARGET_V128RELAXED
-    nk_attention_pack_i8_v128relaxed(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                     segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
+#elif NK_TARGET_V128
+    nk_attention_pack_i8_v128(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
+                              segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
 #else
     nk_attention_pack_i8_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
                                 segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);

@@ -128,6 +128,7 @@ export const Capability = {
   DIAMOND: 1n << 38n,        // 2025+: Intel AVX10.2
   NEONFP8: 1n << 39n,        // ARM NEON FP8
   DIAMONDAMX: 1n << 40n,     // 2025+: Intel Diamond Rapids AMX
+  V128: 1n << 41n,           // 2021: WASM SIMD128
 } as const;
 
 export { Float16Array, BFloat16Array, E4M3Array, E5M2Array, BinaryArray, TensorBase, VectorBase, VectorView, Vector, MatrixBase, Matrix, PackedMatrix, outputDtype };

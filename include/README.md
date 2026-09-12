@@ -149,9 +149,9 @@ They encode raw layout, default output types, and the kernel function pointer si
 | `nk_e5m2_t` | 1+5+2            | 1     | ±57344          | yes | yes |
 | `nk_e2m3_t` | 1+2+3            | 1     | ±7.5            | no  | no  |
 | `nk_e3m2_t` | 1+3+2            | 1     | ±28             | no  | no  |
-| `nk_u1x8_t` | 8 packed bits    | 1     | 0 or 1 per bit  | —   | —   |
-| `nk_u4x2_t` | 2x4-bit unsigned | 1     | 0-15 per nibble | —   | —   |
-| `nk_i4x2_t` | 2x4-bit signed   | 1     | -8-7 per nibble | —   | —   |
+| `nk_u1x8_t` | 8 packed bits    | 1     | 0 or 1 per bit  | …   | …   |
+| `nk_u4x2_t` | 2x4-bit unsigned | 1     | 0-15 per nibble | …   | …   |
+| `nk_i4x2_t` | 2x4-bit signed   | 1     | -8-7 per nibble | …   | …   |
 
 The layout column shows sign, exponent, and mantissa bit counts for floating-point types.
 For `nk_f16_t`, 1+5+10 means one sign bit, five exponent bits, and ten mantissa bits, totaling 16 bits stored in 2 bytes.
@@ -538,12 +538,12 @@ It must be called once per thread before using AMX operations and returns 1 on s
 
 Capabilities are reported along two independent axes, plus the sets derived from them:
 
-| Accessor | Meaning |
-| :--- | :--- |
-| `nk_capabilities_detected()` | what this CPU can execute, from CPUID or HWCAP |
-| `nk_capabilities_compiled()` | what this binary contains, from the ISA probes at build time |
-| `nk_capabilities_available()` | the intersection, i.e. what can actually run here |
-| `nk_capabilities_enabled()` | the subset dispatch is restricted to, always within `available` |
+| Accessor                      | Meaning                                                         |
+| :---------------------------- | :-------------------------------------------------------------- |
+| `nk_capabilities_detected()`  | what this CPU can execute, from CPUID or HWCAP                  |
+| `nk_capabilities_compiled()`  | what this binary contains, from the ISA probes at build time    |
+| `nk_capabilities_available()` | the intersection, i.e. what can actually run here               |
+| `nk_capabilities_enabled()`   | the subset dispatch is restricted to, always within `available` |
 
 Ask for `available` unless you specifically mean one of the raw axes.
 The two are independent, and conflating them fails quietly rather than loudly: a binary whose ISA probes failed still reports this machine's full `detected` mask while containing no SIMD kernels at all.
@@ -629,7 +629,7 @@ Toolchain files for cross-compilation live in `cmake/`:
 - `cmake/toolchain-aarch64-gnu.cmake`, `toolchain-ppc64le-gnu.cmake`, `toolchain-loongarch64-gnu.cmake`, and `toolchain-riscv64-gnu.cmake` for Linux with the GNU cross toolchains.
 - `cmake/toolchain-android-arm64.cmake` and `toolchain-android-armv7.cmake` for Android via the NDK.
 - `cmake/toolchain-x86_64-llvm.cmake` and `cmake/toolchain-riscv64-llvm.cmake` for Clang/LLD builds.
-- `cmake/toolchain-wasm.cmake`, `toolchain-wasm64.cmake`, and `toolchain-wasi.cmake` for WebAssembly targets.
+- `cmake/toolchain-wasm32-emscripten.cmake`, `toolchain-wasm64-emscripten.cmake`, `toolchain-wasm32-wasi.cmake`, and `toolchain-wasm32-wasi-threads.cmake` for WebAssembly targets.
 
 ```sh
 cmake -B build -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64-gnu.cmake

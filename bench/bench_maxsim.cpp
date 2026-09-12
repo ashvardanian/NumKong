@@ -135,12 +135,21 @@ void bench_maxsim() {
 #endif
 
 #if NK_TARGET_V128RELAXED
-    run_maxsim_packed<bf16_k>("maxsim_bf16_v128relaxed", nk_maxsim_pack_size_bf16_v128relaxed,
-                              nk_maxsim_pack_bf16_v128relaxed, nk_maxsim_packed_bf16_v128relaxed);
-    run_maxsim_packed<f32_k>("maxsim_f32_v128relaxed", nk_maxsim_pack_size_f32_v128relaxed,
-                             nk_maxsim_pack_f32_v128relaxed, nk_maxsim_packed_f32_v128relaxed);
-    run_maxsim_packed<f16_k>("maxsim_f16_v128relaxed", nk_maxsim_pack_size_f16_v128relaxed,
-                             nk_maxsim_pack_f16_v128relaxed, nk_maxsim_packed_f16_v128relaxed);
+    run_maxsim_packed<bf16_k>("maxsim_bf16_v128relaxed", nk_maxsim_pack_size_bf16_v128, nk_maxsim_pack_bf16_v128,
+                              nk_maxsim_packed_bf16_v128relaxed);
+    run_maxsim_packed<f32_k>("maxsim_f32_v128relaxed", nk_maxsim_pack_size_f32_v128, nk_maxsim_pack_f32_v128,
+                             nk_maxsim_packed_f32_v128relaxed);
+    run_maxsim_packed<f16_k>("maxsim_f16_v128relaxed", nk_maxsim_pack_size_f16_v128, nk_maxsim_pack_f16_v128,
+                             nk_maxsim_packed_f16_v128relaxed);
+#endif
+
+#if NK_TARGET_V128
+    run_maxsim_packed<bf16_k>("maxsim_bf16_v128", nk_maxsim_pack_size_bf16_v128, nk_maxsim_pack_bf16_v128,
+                              nk_maxsim_packed_bf16_serial);
+    run_maxsim_packed<f32_k>("maxsim_f32_v128", nk_maxsim_pack_size_f32_v128, nk_maxsim_pack_f32_v128,
+                             nk_maxsim_packed_f32_serial);
+    run_maxsim_packed<f16_k>("maxsim_f16_v128", nk_maxsim_pack_size_f16_v128, nk_maxsim_pack_f16_v128,
+                             nk_maxsim_packed_f16_serial);
 #endif
 
 #if NK_TARGET_SME

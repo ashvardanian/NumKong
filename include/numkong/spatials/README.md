@@ -321,6 +321,10 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_bf16_v128relaxed`   |        4.78 gso/s, 0 ulp |      9.61 gso/s, 0.2 ulp |      12.5 gso/s, 0.6 ulp |
 | `nk_euclideans_packed_bf16_v128relaxed`    |      22.2 gso/s, 0.7 ulp |      24.1 gso/s, 6.1 ulp |       24.8 gso/s, 32 ulp |
 | `nk_euclideans_symmetric_bf16_v128relaxed` |      4.72 gso/s, 0.3 ulp |      9.53 gso/s, 5.1 ulp |       12.4 gso/s, 28 ulp |
+| `nk_angulars_packed_bf16_v128`             |                        … |                        … |                        … |
+| `nk_angulars_symmetric_bf16_v128`          |                        … |                        … |                        … |
+| `nk_euclideans_packed_bf16_v128`           |                        … |                        … |                        … |
+| `nk_euclideans_symmetric_bf16_v128`        |                        … |                        … |                        … |
 | __e2m3__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_e2m3_serial`           |        2.66 gso/s, 0 ulp |        2.71 gso/s, 0 ulp |        2.63 gso/s, 0 ulp |
 | `nk_angulars_symmetric_e2m3_serial`        |      0.0400 gso/s, 0 ulp |      0.0413 gso/s, 0 ulp |       0.238 gso/s, 0 ulp |
@@ -339,6 +343,10 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_i8_v128relaxed`     |      0.0304 gso/s, 0 ulp |      0.0680 gso/s, 0 ulp |       0.298 gso/s, 0 ulp |
 | `nk_euclideans_packed_i8_v128relaxed`      |        31.5 gso/s, 0 ulp |        32.3 gso/s, 0 ulp |        30.8 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_i8_v128relaxed`   |       0.224 gso/s, 0 ulp |       0.222 gso/s, 0 ulp |       0.143 gso/s, 0 ulp |
+| `nk_angulars_packed_i8_v128`               |                        … |                        … |                        … |
+| `nk_angulars_symmetric_i8_v128`            |                        … |                        … |                        … |
+| `nk_euclideans_packed_i8_v128`             |                        … |                        … |                        … |
+| `nk_euclideans_symmetric_i8_v128`          |                        … |                        … |                        … |
 | __u8__                                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_u8_serial`             |      4.26 gso/s, 0.4 ulp |      5.07 gso/s, 0.3 ulp |      5.11 gso/s, 0.3 ulp |
 | `nk_angulars_symmetric_u8_serial`          |      2.64 gso/s, 0.4 ulp |      4.02 gso/s, 0.3 ulp |      4.34 gso/s, 0.3 ulp |
@@ -348,6 +356,10 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_u8_v128relaxed`     |      19.6 gso/s, 0.3 ulp |      23.2 gso/s, 0.3 ulp |      24.1 gso/s, 0.3 ulp |
 | `nk_euclideans_packed_u8_v128relaxed`      |        23.8 gso/s, 0 ulp |        25.3 gso/s, 0 ulp |        25.8 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_u8_v128relaxed`   |        19.5 gso/s, 0 ulp |        23.0 gso/s, 0 ulp |        24.6 gso/s, 0 ulp |
+| `nk_angulars_packed_u8_v128`               |                        … |                        … |                        … |
+| `nk_angulars_symmetric_u8_v128`            |                        … |                        … |                        … |
+| `nk_euclideans_packed_u8_v128`             |                        … |                        … |                        … |
+| `nk_euclideans_symmetric_u8_v128`          |                        … |                        … |                        … |
 | __i4__                                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_i4_serial`             |     6.22 gso/s, 0.35 ulp |     6.41 gso/s, 0.34 ulp |     6.55 gso/s, 0.35 ulp |
 | `nk_angulars_symmetric_i4_serial`          |     2.64 gso/s, 0.34 ulp |     3.69 gso/s, 0.34 ulp |     4.18 gso/s, 0.34 ulp |
@@ -551,6 +563,10 @@ Measured with Wasmtime v43 (Cranelift backend).
 | `nk_angulars_symmetric_bf16_v128relaxed`   |      36.9 gso/s, 0.3 ulp |      44.9 gso/s, 0.3 ulp |      47.3 gso/s, 0.3 ulp |
 | `nk_euclideans_packed_bf16_v128relaxed`    |      76.4 gso/s, 5.3 ulp |      87.3 gso/s, 5.3 ulp |      89.7 gso/s, 5.3 ulp |
 | `nk_euclideans_symmetric_bf16_v128relaxed` |      37.1 gso/s, 5.3 ulp |      43.1 gso/s, 5.3 ulp |      45.5 gso/s, 5.3 ulp |
+| `nk_angulars_packed_bf16_v128`             |                        … |                        … |                        … |
+| `nk_angulars_symmetric_bf16_v128`          |                        … |                        … |                        … |
+| `nk_euclideans_packed_bf16_v128`           |                        … |                        … |                        … |
+| `nk_euclideans_symmetric_bf16_v128`        |                        … |                        … |                        … |
 | __e2m3__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_e2m3_serial`           |        5.78 gso/s, 0 ulp |        5.93 gso/s, 0 ulp |        6.28 gso/s, 0 ulp |
 | `nk_angulars_symmetric_e2m3_serial`        |        6.52 gso/s, 0 ulp |        8.09 gso/s, 0 ulp |        8.52 gso/s, 0 ulp |
@@ -569,6 +585,10 @@ Measured with Wasmtime v43 (Cranelift backend).
 | `nk_angulars_symmetric_i8_v128relaxed`     |        37.7 gso/s, 0 ulp |        47.5 gso/s, 0 ulp |        50.4 gso/s, 0 ulp |
 | `nk_euclideans_packed_i8_v128relaxed`      |        45.6 gso/s, 0 ulp |        50.2 gso/s, 0 ulp |        52.0 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_i8_v128relaxed`   |        37.4 gso/s, 0 ulp |        46.8 gso/s, 0 ulp |        50.4 gso/s, 0 ulp |
+| `nk_angulars_packed_i8_v128`               |                        … |                        … |                        … |
+| `nk_angulars_symmetric_i8_v128`            |                        … |                        … |                        … |
+| `nk_euclideans_packed_i8_v128`             |                        … |                        … |                        … |
+| `nk_euclideans_symmetric_i8_v128`          |                        … |                        … |                        … |
 | __u8__                                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_u8_serial`             |      14.7 gso/s, 0.3 ulp |      17.0 gso/s, 0.3 ulp |      17.8 gso/s, 0.3 ulp |
 | `nk_angulars_symmetric_u8_serial`          |      10.9 gso/s, 0.3 ulp |      13.2 gso/s, 0.3 ulp |      13.9 gso/s, 0.3 ulp |
@@ -578,3 +598,7 @@ Measured with Wasmtime v43 (Cranelift backend).
 | `nk_angulars_symmetric_u8_v128relaxed`     |      34.7 gso/s, 0.3 ulp |      45.6 gso/s, 0.3 ulp |      48.4 gso/s, 0.3 ulp |
 | `nk_euclideans_packed_u8_v128relaxed`      |        44.8 gso/s, 0 ulp |        49.0 gso/s, 0 ulp |        50.7 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_u8_v128relaxed`   |        35.0 gso/s, 0 ulp |        44.2 gso/s, 0 ulp |        48.5 gso/s, 0 ulp |
+| `nk_angulars_packed_u8_v128`               |                        … |                        … |                        … |
+| `nk_angulars_symmetric_u8_v128`            |                        … |                        … |                        … |
+| `nk_euclideans_packed_u8_v128`             |                        … |                        … |                        … |
+| `nk_euclideans_symmetric_u8_v128`          |                        … |                        … |                        … |

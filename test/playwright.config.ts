@@ -8,6 +8,11 @@ export default defineConfig({
     use: {
         baseURL: 'http://localhost:8888',
     },
+    // WebKit is the one engine without Relaxed SIMD, so it is the one that loads the strict module.
+    projects: [
+        { name: 'chromium', use: { browserName: 'chromium' } },
+        { name: 'webkit', use: { browserName: 'webkit' } },
+    ],
     webServer: {
         command: 'npx http-server .. -p 8888 -c-1 --silent',
         port: 8888,

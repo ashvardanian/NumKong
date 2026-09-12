@@ -342,20 +342,12 @@ void bench_reduce() {
 
 #if NK_TARGET_V128RELAXED
     run_reduce_moments<f32_k>("reduce_moments_f32_v128relaxed", nk_reduce_moments_f32_v128relaxed);
-    run_reduce_moments<f64_k>("reduce_moments_f64_v128relaxed", nk_reduce_moments_f64_v128relaxed);
-    run_reduce_moments<i8_k>("reduce_moments_i8_v128relaxed", nk_reduce_moments_i8_v128relaxed);
-    run_reduce_moments<u8_k>("reduce_moments_u8_v128relaxed", nk_reduce_moments_u8_v128relaxed);
-    run_reduce_moments<i16_k>("reduce_moments_i16_v128relaxed", nk_reduce_moments_i16_v128relaxed);
-    run_reduce_moments<u16_k>("reduce_moments_u16_v128relaxed", nk_reduce_moments_u16_v128relaxed);
-    run_reduce_moments<i32_k>("reduce_moments_i32_v128relaxed", nk_reduce_moments_i32_v128relaxed);
-    run_reduce_moments<u32_k>("reduce_moments_u32_v128relaxed", nk_reduce_moments_u32_v128relaxed);
     run_reduce_moments<i64_k>("reduce_moments_i64_v128relaxed", nk_reduce_moments_i64_v128relaxed);
     run_reduce_moments<u64_k>("reduce_moments_u64_v128relaxed", nk_reduce_moments_u64_v128relaxed);
     run_reduce_moments<e4m3_k>("reduce_moments_e4m3_v128relaxed", nk_reduce_moments_e4m3_v128relaxed);
     run_reduce_moments<e5m2_k>("reduce_moments_e5m2_v128relaxed", nk_reduce_moments_e5m2_v128relaxed);
     run_reduce_moments<e2m3_k>("reduce_moments_e2m3_v128relaxed", nk_reduce_moments_e2m3_v128relaxed);
     run_reduce_moments<e3m2_k>("reduce_moments_e3m2_v128relaxed", nk_reduce_moments_e3m2_v128relaxed);
-    run_reduce_moments<bf16_k>("reduce_moments_bf16_v128relaxed", nk_reduce_moments_bf16_v128relaxed);
     run_reduce_moments<f16_k>("reduce_moments_f16_v128relaxed", nk_reduce_moments_f16_v128relaxed);
     run_reduce_minmax<f32_k>("reduce_minmax_f32_v128relaxed", nk_reduce_minmax_f32_v128relaxed);
     run_reduce_minmax<f64_k>("reduce_minmax_f64_v128relaxed", nk_reduce_minmax_f64_v128relaxed);
@@ -373,6 +365,17 @@ void bench_reduce() {
     run_reduce_minmax<e3m2_k>("reduce_minmax_e3m2_v128relaxed", nk_reduce_minmax_e3m2_v128relaxed);
     run_reduce_minmax<bf16_k>("reduce_minmax_bf16_v128relaxed", nk_reduce_minmax_bf16_v128relaxed);
     run_reduce_minmax<f16_k>("reduce_minmax_f16_v128relaxed", nk_reduce_minmax_f16_v128relaxed);
+#endif
+
+#if NK_TARGET_V128
+    run_reduce_moments<f64_k>("reduce_moments_f64_v128", nk_reduce_moments_f64_v128);
+    run_reduce_moments<bf16_k>("reduce_moments_bf16_v128", nk_reduce_moments_bf16_v128);
+    run_reduce_moments<i8_k>("reduce_moments_i8_v128", nk_reduce_moments_i8_v128);
+    run_reduce_moments<u8_k>("reduce_moments_u8_v128", nk_reduce_moments_u8_v128);
+    run_reduce_moments<i16_k>("reduce_moments_i16_v128", nk_reduce_moments_i16_v128);
+    run_reduce_moments<u16_k>("reduce_moments_u16_v128", nk_reduce_moments_u16_v128);
+    run_reduce_moments<i32_k>("reduce_moments_i32_v128", nk_reduce_moments_i32_v128);
+    run_reduce_moments<u32_k>("reduce_moments_u32_v128", nk_reduce_moments_u32_v128);
 #endif
 
     run_reduce_moments<f32_k>("reduce_moments_f32_serial", nk_reduce_moments_f32_serial);

@@ -29,7 +29,7 @@
  *  - Arm: NEON, NEON+F16, NEON+BF16, NEON+SDOT, SVE, SVE+F16, SVE+BF16
  *  - x86: Haswell, Skylake, Ice Lake, Genoa, Sapphire Rapids, Sierra Forest
  *  - RISC-V: RVV, RVV+BF16, RVV+HALF
- *  - WASM: V128Relaxed
+ *  - WASM: V128, V128Relaxed
  *
  *  @section numerical_stability Numerical Stability
  *
@@ -687,6 +687,27 @@ NK_API_COMPTIME void nk_euclidean_e3m2_alder(nk_e3m2_t const *a, nk_e3m2_t const
 NK_API_COMPTIME void nk_sqeuclidean_e3m2_alder(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_ALDER
 
+#if NK_TARGET_V128
+/** @copydoc nk_sqeuclidean_f64 */
+NK_API_COMPTIME void nk_sqeuclidean_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NK_API_COMPTIME void nk_euclidean_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_angular_f64 */
+NK_API_COMPTIME void nk_angular_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NK_API_COMPTIME void nk_sqeuclidean_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NK_API_COMPTIME void nk_euclidean_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_angular_f64 */
+NK_API_COMPTIME void nk_angular_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NK_API_COMPTIME void nk_sqeuclidean_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NK_API_COMPTIME void nk_euclidean_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_angular_f64 */
+NK_API_COMPTIME void nk_angular_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+#endif // NK_TARGET_V128
+
 #if NK_TARGET_V128RELAXED
 /** @copydoc nk_sqeuclidean_f64 */
 NK_API_COMPTIME void nk_sqeuclidean_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
@@ -927,6 +948,7 @@ NK_HELPER_INLINE nk_dtype_t nk_angular_output_dtype(nk_dtype_t dtype) {
 #include "numkong/spatial/rvv.h"
 #include "numkong/spatial/rvvhalf.h"
 #include "numkong/spatial/rvvbf16.h"
+#include "numkong/spatial/v128.h"
 #include "numkong/spatial/v128relaxed.h"
 #include "numkong/spatial/powervsx.h"
 #include "numkong/spatial/loongsonasx.h"
@@ -1144,6 +1166,8 @@ NK_API_COMPTIME void nk_angular_f16(nk_f16_t const *a, nk_f16_t const *b, nk_siz
 NK_API_COMPTIME void nk_euclidean_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
 #if NK_TARGET_V128RELAXED
     nk_euclidean_bf16_v128relaxed(a, b, n, result);
+#elif NK_TARGET_V128
+    nk_euclidean_bf16_v128(a, b, n, result);
 #elif NK_TARGET_POWERVSX
     nk_euclidean_bf16_powervsx(a, b, n, result);
 #elif NK_TARGET_LOONGSONASX
@@ -1168,6 +1192,8 @@ NK_API_COMPTIME void nk_euclidean_bf16(nk_bf16_t const *a, nk_bf16_t const *b, n
 NK_API_COMPTIME void nk_sqeuclidean_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
 #if NK_TARGET_V128RELAXED
     nk_sqeuclidean_bf16_v128relaxed(a, b, n, result);
+#elif NK_TARGET_V128
+    nk_sqeuclidean_bf16_v128(a, b, n, result);
 #elif NK_TARGET_POWERVSX
     nk_sqeuclidean_bf16_powervsx(a, b, n, result);
 #elif NK_TARGET_LOONGSONASX
@@ -1192,6 +1218,8 @@ NK_API_COMPTIME void nk_sqeuclidean_bf16(nk_bf16_t const *a, nk_bf16_t const *b,
 NK_API_COMPTIME void nk_angular_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
 #if NK_TARGET_V128RELAXED
     nk_angular_bf16_v128relaxed(a, b, n, result);
+#elif NK_TARGET_V128
+    nk_angular_bf16_v128(a, b, n, result);
 #elif NK_TARGET_POWERVSX
     nk_angular_bf16_powervsx(a, b, n, result);
 #elif NK_TARGET_LOONGSONASX
@@ -1468,6 +1496,8 @@ NK_API_COMPTIME void nk_euclidean_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size
     nk_euclidean_i8_haswell(a, b, n, result);
 #elif NK_TARGET_V128RELAXED
     nk_euclidean_i8_v128relaxed(a, b, n, result);
+#elif NK_TARGET_V128
+    nk_euclidean_i8_v128(a, b, n, result);
 #else
     nk_euclidean_i8_serial(a, b, n, result);
 #endif
@@ -1494,6 +1524,8 @@ NK_API_COMPTIME void nk_sqeuclidean_i8(nk_i8_t const *a, nk_i8_t const *b, nk_si
     nk_sqeuclidean_i8_haswell(a, b, n, result);
 #elif NK_TARGET_V128RELAXED
     nk_sqeuclidean_i8_v128relaxed(a, b, n, result);
+#elif NK_TARGET_V128
+    nk_sqeuclidean_i8_v128(a, b, n, result);
 #else
     nk_sqeuclidean_i8_serial(a, b, n, result);
 #endif
@@ -1520,6 +1552,8 @@ NK_API_COMPTIME void nk_angular_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t
     nk_angular_i8_haswell(a, b, n, result);
 #elif NK_TARGET_V128RELAXED
     nk_angular_i8_v128relaxed(a, b, n, result);
+#elif NK_TARGET_V128
+    nk_angular_i8_v128(a, b, n, result);
 #else
     nk_angular_i8_serial(a, b, n, result);
 #endif
@@ -1546,6 +1580,8 @@ NK_API_COMPTIME void nk_euclidean_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size
     nk_euclidean_u8_haswell(a, b, n, result);
 #elif NK_TARGET_V128RELAXED
     nk_euclidean_u8_v128relaxed(a, b, n, result);
+#elif NK_TARGET_V128
+    nk_euclidean_u8_v128(a, b, n, result);
 #else
     nk_euclidean_u8_serial(a, b, n, result);
 #endif
@@ -1572,6 +1608,8 @@ NK_API_COMPTIME void nk_sqeuclidean_u8(nk_u8_t const *a, nk_u8_t const *b, nk_si
     nk_sqeuclidean_u8_haswell(a, b, n, result);
 #elif NK_TARGET_V128RELAXED
     nk_sqeuclidean_u8_v128relaxed(a, b, n, result);
+#elif NK_TARGET_V128
+    nk_sqeuclidean_u8_v128(a, b, n, result);
 #else
     nk_sqeuclidean_u8_serial(a, b, n, result);
 #endif
@@ -1598,6 +1636,8 @@ NK_API_COMPTIME void nk_angular_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t
     nk_angular_u8_haswell(a, b, n, result);
 #elif NK_TARGET_V128RELAXED
     nk_angular_u8_v128relaxed(a, b, n, result);
+#elif NK_TARGET_V128
+    nk_angular_u8_v128(a, b, n, result);
 #else
     nk_angular_u8_serial(a, b, n, result);
 #endif

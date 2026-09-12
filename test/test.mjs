@@ -24,6 +24,7 @@ import test from "node:test";
 import assert from "node:assert";
 
 import * as numkong from "../javascript/dist/esm/numkong.js";
+import { relaxedProbe, simd128Probe } from "../javascript/dist/esm/wasm-probes.js";
 
 function assertAlmostEqual(actual, expected, tolerance = 1e-6) {
   const lowerBound = expected - tolerance;
@@ -405,4 +406,10 @@ test("dotsPackedSize", () => {
   const size = numkong.dotsPackedSize(5, 3, numkong.DType.F32);
   assert(size > 0, "Packed size should be positive");
   assert(typeof size === "number", "Packed size should be a number");
+});
+
+test("WASM SIMD probes validate", () => {
+  // The loader and the in-module `nk_has_*` probes carry these bytes; Node 22 implements both tiers.
+  assert(WebAssembly.validate(simd128Probe), "The SIMD128 probe should validate");
+  assert(WebAssembly.validate(relaxedProbe), "The Relaxed SIMD probe should validate");
 });

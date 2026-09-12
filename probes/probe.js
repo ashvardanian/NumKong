@@ -90,7 +90,8 @@ const PROBES = [
     // Power
     ["NK_TARGET_POWERVSX", "probes/power_vsx.c", ["-mcpu=power9", "-mvsx"], []],
     // WASM
-    ["NK_TARGET_V128RELAXED", "probes/wasm_v128relaxed.c", ["-mrelaxed-simd"], []],
+    ["NK_TARGET_V128", "probes/wasm_v128.c", ["-msimd128"], []],
+    ["NK_TARGET_V128RELAXED", "probes/wasm_v128relaxed.c", ["-msimd128", "-mrelaxed-simd"], []],
 ];
 
 function main() {

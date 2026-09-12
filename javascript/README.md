@@ -32,7 +32,7 @@ This binding stays centered on the vector families it actually exports.
 ## Ecosystem Comparison
 
 | Feature                      | NumKong                                                        | [mathjs][mathjs]                           | [tensorflow.js][tensorflow-js]                    |
-| ---------------------------- | -------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------- |
+| :--------------------------- | :------------------------------------------------------------- | :----------------------------------------- | :------------------------------------------------ |
 | Operation families           | dots, distances, binary, probability, cast, packed, symmetric  | general arithmetic, matrix ops, statistics | matmul, elementwise, reductions                   |
 | Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation | Float64 only; standard accuracy            | Float32 primarily; no sub-byte; standard accuracy |
 | Runtime SIMD dispatch        | auto-selects best ISA per-thread across x86, ARM, RISC-V       | none; pure JS                              | fixed at build time via WASM SIMD or WebGL        |
@@ -59,7 +59,8 @@ If you build from source, the package uses `node-gyp-build` on install and TypeS
 
 ## Browser and WASM
 
-The npm package includes a pre-built WASM bundle under `wasm/`.
+The npm package includes pre-built WASM modules under `wasm/`, one per SIMD tier and address width: `numkong-wasm32-v128`, `numkong-wasm32-v128relaxed`, and `numkong-wasm64-v128relaxed`.
+The `wasm/numkong.js` loader validates two tiny probe modules on import and picks the best wasm32 tier the engine accepts, so Chrome, Firefox, and Node get Relaxed SIMD while Safari and iOS WebKit get strict SIMD128.
 The simplest way to use it in a browser is via a CDN — no build step required:
 
 ```html
@@ -73,7 +74,8 @@ The simplest way to use it in a browser is via a CDN — no build step required:
 </script>
 ```
 
-For self-hosted WASM, download the binaries from a [GitHub Release](https://github.com/ashvardanian/NumKong/releases) and serve them from the same directory:
+For self-hosted WASM, download the loader and the modules from a [GitHub Release](https://github.com/ashvardanian/NumKong/releases) and serve them from one directory.
+The loader resolves the glue and binary of the chosen tier relative to its own URL:
 
 ```html
 <script type="module">
@@ -85,8 +87,7 @@ For self-hosted WASM, download the binaries from a [GitHub Release](https://gith
 </script>
 ```
 
-The release archive ships `numkong.js`, `numkong-emscripten.js`, and `numkong.wasm`.
-Only `numkong.js` is imported — it locates the other two next to itself and instantiates the module before any export is used.
+An engine that validates neither probe rejects the import with a `NumKongWasmSimdError`, since no serial module is shipped.
 
 Or import the subpath from a bundler or Node.js (without the native addon):
 

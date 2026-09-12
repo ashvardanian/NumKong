@@ -85,6 +85,7 @@ const (
 	CapDiamond     uint64 = 1 << 38 // 2025+: Intel AVX10.2
 	CapNeonFp8     uint64 = 1 << 39 // ARM NEON FP8
 	CapDiamondAmx  uint64 = 1 << 40 // Intel Diamond Rapids AMX
+	CapV128        uint64 = 1 << 41 // 2021: WASM SIMD128
 )
 
 // CapabilitiesDetected returns a bitmask of the SIMD capabilities this CPU supports,

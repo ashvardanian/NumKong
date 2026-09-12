@@ -320,7 +320,6 @@ void test_dot() {
     check("dot_u8_v128relaxed", test_dot<u8_t>, nk_dot_u8_v128relaxed);
     check("dot_e2m3_v128relaxed", test_dot<e2m3_t>, nk_dot_e2m3_v128relaxed);
     check("dot_e3m2_v128relaxed", test_dot<e3m2_t>, nk_dot_e3m2_v128relaxed);
-    check("dot_u1_v128relaxed", test_dot<u1x8_t>, nk_dot_u1_v128relaxed);
     check("dot_e4m3_v128relaxed", test_dot<e4m3_t>, nk_dot_e4m3_v128relaxed);
     check("dot_e5m2_v128relaxed", test_dot<e5m2_t>, nk_dot_e5m2_v128relaxed);
     check("dot_i4_v128relaxed", test_dot<i4x2_t>, nk_dot_i4_v128relaxed);
@@ -330,6 +329,14 @@ void test_dot() {
     check("dot_f64c_v128relaxed", test_dot<f64c_t>, nk_dot_f64c_v128relaxed);
     check("vdot_f64c_v128relaxed", test_vdot<f64c_t>, nk_vdot_f64c_v128relaxed);
 #endif // NK_TARGET_V128RELAXED
+
+#if NK_TARGET_V128
+    check.section("Dot Products V128", nk_cap_v128_k);
+    check("dot_bf16_v128", test_dot<bf16_t>, nk_dot_bf16_v128);
+    check("dot_i8_v128", test_dot<i8_t>, nk_dot_i8_v128);
+    check("dot_u8_v128", test_dot<u8_t>, nk_dot_u8_v128);
+    check("dot_u1_v128", test_dot<u1x8_t>, nk_dot_u1_v128);
+#endif // NK_TARGET_V128
 
 #if NK_TARGET_RVVHALF
     check.section("Dot Products RVV HALF", nk_cap_rvvhalf_k);

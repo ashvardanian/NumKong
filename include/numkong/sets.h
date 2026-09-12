@@ -222,26 +222,24 @@ NK_API_COMPTIME void nk_jaccards_symmetric_u1_neon(nk_u1x8_t const *vectors, nk_
 
 /*  WASM Relaxed SIMD backends using wasm_i8x16_popcnt for popcount-based set distances.
  */
-#if NK_TARGET_V128RELAXED
+#if NK_TARGET_V128
 /** @copydoc nk_hammings_packed_u1 */
-NK_API_COMPTIME void nk_hammings_packed_u1_v128relaxed(nk_u1x8_t const *v, void const *q_packed, nk_u32_t *result,
-                                                       nk_size_t rows, nk_size_t cols, nk_size_t d,
-                                                       nk_size_t v_stride_in_bytes, nk_size_t r_stride_in_bytes);
+NK_API_COMPTIME void nk_hammings_packed_u1_v128(nk_u1x8_t const *v, void const *q_packed, nk_u32_t *result,
+                                                nk_size_t rows, nk_size_t cols, nk_size_t d,
+                                                nk_size_t v_stride_in_bytes, nk_size_t r_stride_in_bytes);
 /** @copydoc nk_hammings_symmetric_u1 */
-NK_API_COMPTIME void nk_hammings_symmetric_u1_v128relaxed(nk_u1x8_t const *vectors, nk_size_t vectors_count,
-                                                          nk_size_t d, nk_size_t stride, nk_u32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
+NK_API_COMPTIME void nk_hammings_symmetric_u1_v128(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+                                                   nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
+                                                   nk_size_t row_start, nk_size_t row_count);
 /** @copydoc nk_jaccards_packed_u1 */
-NK_API_COMPTIME void nk_jaccards_packed_u1_v128relaxed(nk_u1x8_t const *v, void const *q_packed, nk_f32_t *result,
-                                                       nk_size_t rows, nk_size_t cols, nk_size_t d,
-                                                       nk_size_t v_stride_in_bytes, nk_size_t r_stride_in_bytes);
+NK_API_COMPTIME void nk_jaccards_packed_u1_v128(nk_u1x8_t const *v, void const *q_packed, nk_f32_t *result,
+                                                nk_size_t rows, nk_size_t cols, nk_size_t d,
+                                                nk_size_t v_stride_in_bytes, nk_size_t r_stride_in_bytes);
 /** @copydoc nk_jaccards_symmetric_u1 */
-NK_API_COMPTIME void nk_jaccards_symmetric_u1_v128relaxed(nk_u1x8_t const *vectors, nk_size_t vectors_count,
-                                                          nk_size_t d, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
-#endif // NK_TARGET_V128RELAXED
+NK_API_COMPTIME void nk_jaccards_symmetric_u1_v128(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+                                                   nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                   nk_size_t row_start, nk_size_t row_count);
+#endif // NK_TARGET_V128
 
 /*  Loongson LASX backends using 256-bit SIMD with XVPCNT.W for popcount-based set distances.
  */
@@ -275,7 +273,7 @@ NK_API_COMPTIME void nk_jaccards_symmetric_u1_loongsonasx(nk_u1x8_t const *vecto
 #include "numkong/sets/icelake.h"
 #include "numkong/sets/haswell.h"
 #include "numkong/sets/smebi32.h"
-#include "numkong/sets/v128relaxed.h"
+#include "numkong/sets/v128.h"
 #include "numkong/sets/powervsx.h"
 #include "numkong/sets/loongsonasx.h"
 
@@ -300,8 +298,8 @@ NK_API_COMPTIME void nk_hammings_packed_u1(nk_u1x8_t const *v, void const *q_pac
     nk_hammings_packed_u1_powervsx(v, q_packed, result, rows, cols, d, v_stride_in_bytes, r_stride_in_bytes);
 #elif NK_TARGET_LOONGSONASX
     nk_hammings_packed_u1_loongsonasx(v, q_packed, result, rows, cols, d, v_stride_in_bytes, r_stride_in_bytes);
-#elif NK_TARGET_V128RELAXED
-    nk_hammings_packed_u1_v128relaxed(v, q_packed, result, rows, cols, d, v_stride_in_bytes, r_stride_in_bytes);
+#elif NK_TARGET_V128
+    nk_hammings_packed_u1_v128(v, q_packed, result, rows, cols, d, v_stride_in_bytes, r_stride_in_bytes);
 #else
     nk_hammings_packed_u1_serial(v, q_packed, result, rows, cols, d, v_stride_in_bytes, r_stride_in_bytes);
 #endif
@@ -323,9 +321,8 @@ NK_API_COMPTIME void nk_hammings_symmetric_u1(nk_u1x8_t const *vectors, nk_size_
 #elif NK_TARGET_LOONGSONASX
     nk_hammings_symmetric_u1_loongsonasx(vectors, vectors_count, d, stride, result, result_stride, row_start,
                                          row_count);
-#elif NK_TARGET_V128RELAXED
-    nk_hammings_symmetric_u1_v128relaxed(vectors, vectors_count, d, stride, result, result_stride, row_start,
-                                         row_count);
+#elif NK_TARGET_V128
+    nk_hammings_symmetric_u1_v128(vectors, vectors_count, d, stride, result, result_stride, row_start, row_count);
 #else
     nk_hammings_symmetric_u1_serial(vectors, vectors_count, d, stride, result, result_stride, row_start, row_count);
 #endif
@@ -346,8 +343,8 @@ NK_API_COMPTIME void nk_jaccards_packed_u1(nk_u1x8_t const *v, void const *q_pac
     nk_jaccards_packed_u1_powervsx(v, q_packed, result, rows, cols, d, v_stride_in_bytes, r_stride_in_bytes);
 #elif NK_TARGET_LOONGSONASX
     nk_jaccards_packed_u1_loongsonasx(v, q_packed, result, rows, cols, d, v_stride_in_bytes, r_stride_in_bytes);
-#elif NK_TARGET_V128RELAXED
-    nk_jaccards_packed_u1_v128relaxed(v, q_packed, result, rows, cols, d, v_stride_in_bytes, r_stride_in_bytes);
+#elif NK_TARGET_V128
+    nk_jaccards_packed_u1_v128(v, q_packed, result, rows, cols, d, v_stride_in_bytes, r_stride_in_bytes);
 #else
     nk_jaccards_packed_u1_serial(v, q_packed, result, rows, cols, d, v_stride_in_bytes, r_stride_in_bytes);
 #endif
@@ -369,9 +366,8 @@ NK_API_COMPTIME void nk_jaccards_symmetric_u1(nk_u1x8_t const *vectors, nk_size_
 #elif NK_TARGET_LOONGSONASX
     nk_jaccards_symmetric_u1_loongsonasx(vectors, vectors_count, d, stride, result, result_stride, row_start,
                                          row_count);
-#elif NK_TARGET_V128RELAXED
-    nk_jaccards_symmetric_u1_v128relaxed(vectors, vectors_count, d, stride, result, result_stride, row_start,
-                                         row_count);
+#elif NK_TARGET_V128
+    nk_jaccards_symmetric_u1_v128(vectors, vectors_count, d, stride, result, result_stride, row_start, row_count);
 #else
     nk_jaccards_symmetric_u1_serial(vectors, vectors_count, d, stride, result, result_stride, row_start, row_count);
 #endif

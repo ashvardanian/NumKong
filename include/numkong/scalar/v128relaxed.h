@@ -1,10 +1,11 @@
 /**
- *  @brief SIMD-accelerated Scalar Math Helpers for WASM.
+ *  @brief Relaxed-SIMD Scalar Math Helpers for WASM: fused multiply-add.
  *  @file include/numkong/scalar/v128relaxed.h
  *  @author Ash Vardanian
  *  @date March 1, 2026
  *
  *  @sa include/numkong/scalar.h
+ *  @sa include/numkong/scalar/v128.h for the square roots every SIMD128 engine runs.
  */
 #ifndef NK_SCALAR_V128RELAXED_H
 #define NK_SCALAR_V128RELAXED_H
@@ -21,20 +22,6 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
 
-NK_API_COMPTIME nk_f32_t nk_f32_sqrt_v128relaxed(nk_f32_t x) {
-    return wasm_f32x4_extract_lane(wasm_f32x4_sqrt(wasm_f32x4_splat(x)), 0);
-}
-NK_API_COMPTIME nk_f64_t nk_f64_sqrt_v128relaxed(nk_f64_t x) {
-    return wasm_f64x2_extract_lane(wasm_f64x2_sqrt(wasm_f64x2_splat(x)), 0);
-}
-NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_v128relaxed(nk_f32_t x) {
-    v128_t sqrt_f32x4 = wasm_f32x4_sqrt(wasm_f32x4_splat(x));
-    return wasm_f32x4_extract_lane(wasm_f32x4_div(wasm_f32x4_splat(1.0f), sqrt_f32x4), 0);
-}
-NK_API_COMPTIME nk_f64_t nk_f64_rsqrt_v128relaxed(nk_f64_t x) {
-    v128_t sqrt_f64x2 = wasm_f64x2_sqrt(wasm_f64x2_splat(x));
-    return wasm_f64x2_extract_lane(wasm_f64x2_div(wasm_f64x2_splat(1.0), sqrt_f64x2), 0);
-}
 NK_API_COMPTIME nk_f32_t nk_f32_fma_v128relaxed(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
     v128_t result_f32x4 = wasm_f32x4_relaxed_madd(wasm_f32x4_splat(a), wasm_f32x4_splat(b), wasm_f32x4_splat(c));
     return wasm_f32x4_extract_lane(result_f32x4, 0);

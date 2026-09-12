@@ -8,6 +8,12 @@
 
 void nk_dispatch_cast_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punned_t *m, nk_capability_t *c) {
     typedef nk_kernel_punned_t m_t;
+#if NK_TARGET_V128RELAXED
+    if (v & nk_cap_v128relaxed_k) switch (k) {
+        case nk_kernel_cast_k: *m = (m_t)&nk_cast_v128relaxed, *c = nk_cap_v128relaxed_k; return;
+        default: break;
+        }
+#endif
 #if NK_TARGET_NEON
     if (v & nk_cap_neon_k) switch (k) {
         case nk_kernel_cast_k: *m = (m_t)&nk_cast_neon, *c = nk_cap_neon_k; return;
@@ -130,10 +136,16 @@ void nk_dispatch_math_init_(nk_capability_t caps) {
 
 #if NK_TARGET_V128RELAXED
     if (caps & nk_cap_v128relaxed_k) {
-        t->f64_rsqrt = &nk_f64_rsqrt_v128relaxed;
         t->f64_fma = &nk_f64_fma_v128relaxed;
-        t->f32_rsqrt = &nk_f32_rsqrt_v128relaxed;
         t->f32_fma = &nk_f32_fma_v128relaxed;
+    }
+#endif
+#if NK_TARGET_V128
+    if (caps & nk_cap_v128_k) {
+        t->f64_sqrt = &nk_f64_sqrt_v128;
+        t->f64_rsqrt = &nk_f64_rsqrt_v128;
+        t->f32_sqrt = &nk_f32_sqrt_v128;
+        t->f32_rsqrt = &nk_f32_rsqrt_v128;
     }
 #endif
 

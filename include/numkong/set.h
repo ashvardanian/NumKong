@@ -16,7 +16,7 @@
  *  - Arm: NEON, SVE
  *  - x86: Haswell, Ice Lake
  *  - RISC-V: RVV, RVV+BB
- *  - WASM: V128Relaxed
+ *  - WASM: V128
  *
  *  @section numerical_stability Numerical Stability
  *
@@ -299,18 +299,18 @@ NK_API_COMPTIME void nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk
 NK_API_COMPTIME void nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_RVV
 
-#if NK_TARGET_V128RELAXED
+#if NK_TARGET_V128
 /** @copydoc nk_hamming_u1 */
-NK_API_COMPTIME void nk_hamming_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_hamming_u8 */
-NK_API_COMPTIME void nk_hamming_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NK_API_COMPTIME void nk_hamming_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_jaccard_u1 */
-NK_API_COMPTIME void nk_jaccard_u1_v128relaxed(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u16 */
-NK_API_COMPTIME void nk_jaccard_u16_v128relaxed(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
+NK_API_COMPTIME void nk_jaccard_u16_v128(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_jaccard_u32 */
-NK_API_COMPTIME void nk_jaccard_u32_v128relaxed(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_V128RELAXED
+NK_API_COMPTIME void nk_jaccard_u32_v128(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
+#endif // NK_TARGET_V128
 
 /**
  *  @brief  Returns the output dtype for Hamming distance.
@@ -345,7 +345,7 @@ NK_HELPER_INLINE nk_dtype_t nk_jaccard_output_dtype(nk_dtype_t dtype) {
 #include "numkong/set/icelake.h"
 #include "numkong/set/haswell.h"
 #include "numkong/set/powervsx.h"
-#include "numkong/set/v128relaxed.h"
+#include "numkong/set/v128.h"
 #include "numkong/set/rvv.h"
 #include "numkong/set/rvvbb.h"
 #include "numkong/set/loongsonasx.h"
@@ -357,8 +357,8 @@ extern "C" {
 #if !NK_RUNTIME_DISPATCH
 
 NK_API_COMPTIME void nk_hamming_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
-#if NK_TARGET_V128RELAXED
-    nk_hamming_u1_v128relaxed(a, b, n, result);
+#if NK_TARGET_V128
+    nk_hamming_u1_v128(a, b, n, result);
 #elif NK_TARGET_SVE
     nk_hamming_u1_sve(a, b, n, result);
 #elif NK_TARGET_NEON
@@ -381,8 +381,8 @@ NK_API_COMPTIME void nk_hamming_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_si
 }
 
 NK_API_COMPTIME void nk_jaccard_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_V128RELAXED
-    nk_jaccard_u1_v128relaxed(a, b, n, result);
+#if NK_TARGET_V128
+    nk_jaccard_u1_v128(a, b, n, result);
 #elif NK_TARGET_SVE
     nk_jaccard_u1_sve(a, b, n, result);
 #elif NK_TARGET_NEON
@@ -405,8 +405,8 @@ NK_API_COMPTIME void nk_jaccard_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_si
 }
 
 NK_API_COMPTIME void nk_jaccard_u32(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_V128RELAXED
-    nk_jaccard_u32_v128relaxed(a, b, n, result);
+#if NK_TARGET_V128
+    nk_jaccard_u32_v128(a, b, n, result);
 #elif NK_TARGET_SVE
     nk_jaccard_u32_sve(a, b, n, result);
 #elif NK_TARGET_NEON
@@ -423,8 +423,8 @@ NK_API_COMPTIME void nk_jaccard_u32(nk_u32_t const *a, nk_u32_t const *b, nk_siz
 }
 
 NK_API_COMPTIME void nk_hamming_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
-#if NK_TARGET_V128RELAXED
-    nk_hamming_u8_v128relaxed(a, b, n, result);
+#if NK_TARGET_V128
+    nk_hamming_u8_v128(a, b, n, result);
 #elif NK_TARGET_SVE
     nk_hamming_u8_sve(a, b, n, result);
 #elif NK_TARGET_NEON
@@ -445,8 +445,8 @@ NK_API_COMPTIME void nk_hamming_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t
 }
 
 NK_API_COMPTIME void nk_jaccard_u16(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_V128RELAXED
-    nk_jaccard_u16_v128relaxed(a, b, n, result);
+#if NK_TARGET_V128
+    nk_jaccard_u16_v128(a, b, n, result);
 #elif NK_TARGET_SVE
     nk_jaccard_u16_sve(a, b, n, result);
 #elif NK_TARGET_NEON
