@@ -7,13 +7,9 @@
 set(nk_native_flags_ "")
 include(cmake/nk_isa_probe.cmake)
 
-nk_isa_probes_begin_()
+nk_instruction_set_probe_(nk_target_rvv "" "-march=rv64gcv" "probes/riscv_rvv.c")
+nk_instruction_set_probe_(nk_target_rvvhalf "" "-march=rv64gcv_zvfh" "probes/riscv_rvv_half.c")
+nk_instruction_set_probe_(nk_target_rvvbf16 "" "-march=rv64gcv_zvfbfwma" "probes/riscv_rvv_bf16.c")
+nk_instruction_set_probe_(nk_target_rvvbb "" "-march=rv64gcv_zvbb" "probes/riscv_rvv_bb.c")
 
-nk_isa_probe_(nk_target_rvv "" "-march=rv64gcv" "probes/riscv_rvv.c")
-nk_isa_probe_(nk_target_rvvhalf "" "-march=rv64gcv_zvfh" "probes/riscv_rvv_half.c")
-nk_isa_probe_(nk_target_rvvbf16 "" "-march=rv64gcv_zvfbfwma" "probes/riscv_rvv_bf16.c")
-nk_isa_probe_(nk_target_rvvbb "" "-march=rv64gcv_zvbb" "probes/riscv_rvv_bb.c")
-
-nk_isa_probes_end_()
-
-nk_build_isa_defs_(riscv "RISC-V" "RVV;RVVHALF;RVVBF16;RVVBB")
+nk_build_instruction_set_definitions_("RISC-V" "RVV;RVVHALF;RVVBF16;RVVBB")

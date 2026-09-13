@@ -6,10 +6,6 @@
 set(nk_native_flags_ "-march=native")
 include(cmake/nk_isa_probe.cmake)
 
-nk_isa_probes_begin_()
+nk_instruction_set_probe_(nk_target_loongsonasx "" "-mlasx" "probes/loongarch_lasx.c")
 
-nk_isa_probe_(nk_target_loongsonasx "" "-mlasx" "probes/loongarch_lasx.c")
-
-nk_isa_probes_end_()
-
-nk_build_isa_defs_(loongarch "LoongArch" "LOONGSONASX")
+nk_build_instruction_set_definitions_("LoongArch" "LOONGSONASX")

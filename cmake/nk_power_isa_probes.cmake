@@ -6,10 +6,6 @@
 set(nk_native_flags_ "-mcpu=native")
 include(cmake/nk_isa_probe.cmake)
 
-nk_isa_probes_begin_()
+nk_instruction_set_probe_(nk_target_powervsx "" "-mcpu=power9 -mvsx" "probes/power_vsx.c")
 
-nk_isa_probe_(nk_target_powervsx "" "-mcpu=power9 -mvsx" "probes/power_vsx.c")
-
-nk_isa_probes_end_()
-
-nk_build_isa_defs_(power "Power" "POWERVSX")
+nk_build_instruction_set_definitions_("Power" "POWERVSX")

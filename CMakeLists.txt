@@ -361,36 +361,22 @@ if (CMAKE_C_COMPILER_ID MATCHES "Clang")
     message(STATUS "Clang C modules enabled: cache at ${CMAKE_BINARY_DIR}/module-cache")
 endif ()
 
-# x86 ISA runtime probes — detect host CPU capabilities at configure time.
-# See cmake/nk_x86_isa_probes.cmake for details and probe definitions.
-include(cmake/nk_x86_isa_probes.cmake)
-
-# Arm ISA runtime probes — detect host CPU capabilities at configure time.
-# See cmake/nk_arm_isa_probes.cmake for details and probe definitions.
-include(cmake/nk_arm_isa_probes.cmake)
-
-# LoongArch ISA runtime probes — detect LASX capability at configure time.
-# See cmake/nk_loongarch_isa_probes.cmake for details and probe definitions.
-include(cmake/nk_loongarch_isa_probes.cmake)
-
-# Power ISA runtime probes — detect VSX capability at configure time.
-# See cmake/nk_power_isa_probes.cmake for details and probe definitions.
-include(cmake/nk_power_isa_probes.cmake)
-
-# RISC-V ISA runtime probes — detect RVV capability at configure time.
-# See cmake/nk_riscv_isa_probes.cmake for details and probe definitions.
-include(cmake/nk_riscv_isa_probes.cmake)
-
-# The kits carry their own target attributes, so one translation unit holds every kit its compiler can
-# build and the runtime dispatch picks among them. The probes above say which; the header-only target
-# hands that answer to every consumer - the same set the dispatch library compiles for itself. Build
-# interface only: an installed package must not pin the answer of the compiler that built it.
-target_compile_definitions(
-    numkong_header
-    INTERFACE "$<BUILD_INTERFACE:${nk_x86_compile_defs_}>" "$<BUILD_INTERFACE:${nk_arm_compile_defs_}>"
-              "$<BUILD_INTERFACE:${nk_riscv_compile_defs_}>" "$<BUILD_INTERFACE:${nk_loongarch_compile_defs_}>"
-              "$<BUILD_INTERFACE:${nk_power_compile_defs_}>"
-)
+# One compile probe per kit under `probes/`, `NK_TARGET_<KIT>=0/1`: the verdicts reach the units that
+# admit kits at runtime, never `numkong_header`, whose consumers derive each kit from their own flags
+# in `types.h`.
+if (NK_IS_64BIT_X86_)
+    include(cmake/nk_x86_isa_probes.cmake)
+elseif (NK_IS_64BIT_ARM_)
+    include(cmake/nk_arm_isa_probes.cmake)
+elseif (NK_IS_64BIT_LOONGARCH_)
+    include(cmake/nk_loongarch_isa_probes.cmake)
+elseif (NK_IS_64BIT_POWER_)
+    include(cmake/nk_power_isa_probes.cmake)
+elseif (NK_IS_64BIT_RISCV_)
+    include(cmake/nk_riscv_isa_probes.cmake)
+else ()
+    include(cmake/nk_isa_probe.cmake)
+endif ()
 
 # BLAS/MKL detection (shared by tests and benchmarks)
 # Options can be: ON (require), OFF (disable), AUTO (detect if available)
@@ -584,25 +570,8 @@ if (NK_BUILD_BENCH)
         target_link_libraries(numkong_bench ${NK_MKL_LIBRARIES})
     endif ()
 
-    if (nk_x86_native_defs_)
-        target_compile_definitions(numkong_bench PRIVATE ${nk_x86_native_defs_})
-    endif ()
-
-    if (nk_arm_native_defs_)
-        target_compile_definitions(numkong_bench PRIVATE ${nk_arm_native_defs_})
-    endif ()
-
-    if (nk_riscv_native_defs_)
-        target_compile_definitions(numkong_bench PRIVATE ${nk_riscv_native_defs_})
-    endif ()
-
-    if (nk_loongarch_native_defs_)
-        target_compile_definitions(numkong_bench PRIVATE ${nk_loongarch_native_defs_})
-    endif ()
-
-    if (nk_power_native_defs_)
-        target_compile_definitions(numkong_bench PRIVATE ${nk_power_native_defs_})
-    endif ()
+    # Comptime-dispatched, so only the kits this machine runs.
+    target_compile_definitions(numkong_bench PRIVATE ${nk_run_definitions_})
 endif ()
 
 # Dtype-specific dispatch sources (for parallel compilation)
@@ -661,25 +630,8 @@ if (NK_BUILD_TEST)
         target_link_libraries(numkong_test ${NK_MKL_LIBRARIES})
     endif ()
 
-    if (nk_x86_native_defs_)
-        target_compile_definitions(numkong_test PRIVATE ${nk_x86_native_defs_})
-    endif ()
-
-    if (nk_arm_native_defs_)
-        target_compile_definitions(numkong_test PRIVATE ${nk_arm_native_defs_})
-    endif ()
-
-    if (nk_riscv_native_defs_)
-        target_compile_definitions(numkong_test PRIVATE ${nk_riscv_native_defs_})
-    endif ()
-
-    if (nk_loongarch_native_defs_)
-        target_compile_definitions(numkong_test PRIVATE ${nk_loongarch_native_defs_})
-    endif ()
-
-    if (nk_power_native_defs_)
-        target_compile_definitions(numkong_test PRIVATE ${nk_power_native_defs_})
-    endif ()
+    # Comptime-dispatched, so only the kits this machine runs.
+    target_compile_definitions(numkong_test PRIVATE ${nk_run_definitions_})
 
     add_test(NAME numkong_test COMMAND numkong_test)
 endif ()
@@ -807,32 +759,9 @@ if (NK_BUILD_SHARED)
                 set_target_properties(${nk_library_} PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
             endif ()
 
-            # NK_TARGET_* defines — driven by ISA compiler probes.
-            # Probes test compiler capability (can emit instructions); runtime dispatch
-            # via nk_capabilities_available() selects the best backend at execution time.
-            # Platform-specific overrides applied AFTER probes for OS/runtime constraints.
-
-            # Apply compile-only probe results for each architecture
-            if (nk_x86_compile_defs_)
-                target_compile_definitions(${nk_library_} PRIVATE ${nk_x86_compile_defs_})
-            endif ()
-            if (nk_arm_compile_defs_)
-                target_compile_definitions(${nk_library_} PRIVATE ${nk_arm_compile_defs_})
-            endif ()
-            if (nk_riscv_compile_defs_)
-                target_compile_definitions(${nk_library_} PRIVATE ${nk_riscv_compile_defs_})
-            endif ()
-            if (nk_loongarch_compile_defs_)
-                target_compile_definitions(${nk_library_} PRIVATE ${nk_loongarch_compile_defs_})
-            endif ()
-            if (nk_power_compile_defs_)
-                target_compile_definitions(${nk_library_} PRIVATE ${nk_power_compile_defs_})
-            endif ()
+            # Every kit the toolchain builds; `nk_capabilities_available()` picks among them at load.
+            target_compile_definitions(${nk_library_} PRIVATE ${nk_compile_definitions_})
         endforeach ()
-
-        # Platform-specific overrides are no longer needed here — the probe .c
-        # files contain `#error` guards that cause check_source_compiles() to
-        # fail on unsupported OS/runtime combinations.
     endif ()
 
     if (NK_INSTALL)
@@ -880,7 +809,7 @@ if (NK_BUILD_SHARED_TEST)
     # the test binary at the platform baseline (no SIMD extensions).  This prevents
     # types.h auto-detection (e.g. MSVC _MSC_VER >= 1920 → NK_TARGET_SKYLAKE=1) from
     # pulling in inline AVX-512 code the CPU may not support.  All ISA-specific
-    # kernel coverage comes from numkong_test (header-only, with native probe defs).
+    # kernel coverage comes from numkong_test (header-only, with `nk_run_definitions_`).
     target_compile_definitions(
         numkong_shared_test
         PRIVATE NK_TARGET_HASWELL=0 NK_TARGET_SKYLAKE=0 NK_TARGET_ICELAKE=0 NK_TARGET_GENOA=0 NK_TARGET_SAPPHIRE=0
@@ -924,21 +853,8 @@ if (NK_BUILD_CUDA_TEST)
                                       -Xcompiler=-fno-tree-slp-vectorize
         )
     endif ()
-    if (nk_x86_native_defs_)
-        target_compile_definitions(numkong_cuda_test PRIVATE ${nk_x86_native_defs_})
-    endif ()
-    if (nk_arm_native_defs_)
-        target_compile_definitions(numkong_cuda_test PRIVATE ${nk_arm_native_defs_})
-    endif ()
-    if (nk_riscv_native_defs_)
-        target_compile_definitions(numkong_cuda_test PRIVATE ${nk_riscv_native_defs_})
-    endif ()
-    if (nk_loongarch_native_defs_)
-        target_compile_definitions(numkong_cuda_test PRIVATE ${nk_loongarch_native_defs_})
-    endif ()
-    if (nk_power_native_defs_)
-        target_compile_definitions(numkong_cuda_test PRIVATE ${nk_power_native_defs_})
-    endif ()
+    # Comptime-dispatched, so only the kits this machine runs.
+    target_compile_definitions(numkong_cuda_test PRIVATE ${nk_run_definitions_})
     add_test(NAME numkong_cuda_test COMMAND numkong_cuda_test)
 endif ()
 
