@@ -27,6 +27,7 @@
 
 #include "numkong/types.h"
 #include "numkong/attention/serial.h" // `nk_attention_packed_header_t`, `nk_attention_pack_directory_`
+#include "numkong/each/neon.h"        // `nk_exp2_f32x4_neon_`, `nk_exp2_u8_i32x4_neon_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -45,41 +46,6 @@ enum {
     /** Deepest head this backend handles in scratch; deeper heads route to the serial tier. */
     nk_attention_max_depth_neonsdot_k_ = 256,
 };
-
-/** @brief Fast vectorized 2^x: exact range reduction + the family's shared degree-4 polynomial. */
-NK_HELPER_INLINE float32x4_t nk_attention_exp2_f32x4_neonsdot_(float32x4_t x_f32x4) {
-    x_f32x4 = vmaxq_f32(vminq_f32(x_f32x4, vdupq_n_f32(127.0f)), vdupq_n_f32(-125.0f));
-    float32x4_t const whole_f32x4 = vrndnq_f32(x_f32x4);
-    float32x4_t const reduced_f32x4 = vsubq_f32(x_f32x4, whole_f32x4);
-    float32x4_t poly_f32x4 = vdupq_n_f32(9.61812910e-3f);
-    poly_f32x4 = vfmaq_f32(vdupq_n_f32(5.55041087e-2f), poly_f32x4, reduced_f32x4);
-    poly_f32x4 = vfmaq_f32(vdupq_n_f32(2.40226507e-1f), poly_f32x4, reduced_f32x4);
-    poly_f32x4 = vfmaq_f32(vdupq_n_f32(6.93147181e-1f), poly_f32x4, reduced_f32x4);
-    poly_f32x4 = vfmaq_f32(vdupq_n_f32(1.0f), poly_f32x4, reduced_f32x4);
-    int32x4_t const whole_i32x4 = vcvtq_s32_f32(whole_f32x4); // integral and clamped, so exact
-    float32x4_t const power_f32x4 = vreinterpretq_f32_s32(vshlq_n_s32(vaddq_s32(whole_i32x4, vdupq_n_s32(127)), 23));
-    return vmulq_f32(poly_f32x4, power_f32x4);
-}
-
-/**
- *  @brief I-BERT-style integer exponential for the I8 weight path: takes the base-2 argument as a
- *         Q15 fixed-point value in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8 weight in
- *         the low byte of each I32 lane — the NEON mirror of the SME/x86 helper, bit-identical math.
- *         A degree-3 fixed-point polynomial covers the fraction; a lane-variable shift (`vshlq_s32`
- *         with a negated count = arithmetic right shift) applies the integer part. No floating point.
- */
-NK_HELPER_INLINE int32x4_t nk_attention_iexp2_weight_i32x4_neonsdot_(int32x4_t t_q15_i32x4) {
-    int32x4_t const whole_i32x4 = vshrq_n_s32(t_q15_i32x4, 15); // floor, in [-10, 0]
-    int32x4_t const fraction_i32x4 = vandq_s32(t_q15_i32x4, vdupq_n_s32(0x7FFF));
-    int32x4_t poly_i32x4 = vdupq_n_s32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
-    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(3678));
-    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(11410));
-    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(16382));
-    int32x4_t const scaled_i32x4 = vsubq_s32(vshlq_n_s32(poly_i32x4, 8), poly_i32x4); // (poly<<8)−poly = poly·255
-    int32x4_t const shift_i32x4 = vsubq_s32(vdupq_n_s32(14), whole_i32x4);            // in [14, 24]
-    int32x4_t const bias_i32x4 = vshlq_s32(vdupq_n_s32(1), vsubq_s32(vdupq_n_s32(13), whole_i32x4)); // 1 << (13−whole)
-    return vshlq_s32(vaddq_s32(scaled_i32x4, bias_i32x4), vnegq_s32(shift_i32x4)); // round-half-up, then ≫ shift
-}
 
 NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_neonsdot(nk_size_t key_value_head_count, nk_size_t depth,
                                                              nk_u32_t const *segment_lengths, nk_size_t segment_count) {
@@ -291,9 +257,8 @@ NK_API_COMPTIME void nk_attention_packed_i8_neonsdot(                           
                 }
 
                 nk_i32_t const new_max = running_max > panel_max ? running_max : panel_max;
-                nk_f32_t const correction = vgetq_lane_f32(nk_attention_exp2_f32x4_neonsdot_(vdupq_n_f32(
-                                                               ((nk_f32_t)running_max - (nk_f32_t)new_max) * scale2)),
-                                                           0);
+                nk_f32_t const correction = vgetq_lane_f32(
+                    nk_exp2_f32x4_neon_(vdupq_n_f32(((nk_f32_t)running_max - (nk_f32_t)new_max) * scale2)), 0);
                 running_max = new_max;
 
                 int32x4_t const new_max_i32x4 = vdupq_n_s32(new_max);
@@ -305,7 +270,7 @@ NK_API_COMPTIME void nk_attention_packed_i8_neonsdot(                           
                     int32x4_t const delta_i32x4 = vmaxq_s32(vsubq_s32(vld1q_s32(scores + position_idx), new_max_i32x4),
                                                             delta_floor_i32x4);
                     uint32x4_t const weight_u32x4 = vreinterpretq_u32_s32(
-                        nk_attention_iexp2_weight_i32x4_neonsdot_(vmulq_s32(delta_i32x4, scale_fixed_i32x4)));
+                        nk_exp2_u8_i32x4_neon_(vmulq_s32(delta_i32x4, scale_fixed_i32x4)));
                     panel_sum_u32x4 = vaddq_u32(panel_sum_u32x4, weight_u32x4);
                     uint8x8_t const weight_u8x8 = vmovn_u16(vcombine_u16(vmovn_u32(weight_u32x4), vdup_n_u16(0)));
                     vst1_lane_u32((nk_u32_t *)(weights + position_idx), vreinterpret_u32_u8(weight_u8x8), 0);
@@ -318,8 +283,7 @@ NK_API_COMPTIME void nk_attention_packed_i8_neonsdot(                           
                     int32x4_t const delta_i32x4 = vmaxq_s32(vsubq_s32(vld1q_s32(scores + position_idx), new_max_i32x4),
                                                             delta_floor_i32x4);
                     uint32x4_t const weight_u32x4 = vandq_u32(
-                        vreinterpretq_u32_s32(
-                            nk_attention_iexp2_weight_i32x4_neonsdot_(vmulq_s32(delta_i32x4, scale_fixed_i32x4))),
+                        vreinterpretq_u32_s32(nk_exp2_u8_i32x4_neon_(vmulq_s32(delta_i32x4, scale_fixed_i32x4))),
                         tail_mask_u32x4);
                     panel_sum_u32x4 = vaddq_u32(panel_sum_u32x4, weight_u32x4);
                     uint8x8_t const weight_u8x8 = vmovn_u16(vcombine_u16(vmovn_u32(weight_u32x4), vdup_n_u16(0)));

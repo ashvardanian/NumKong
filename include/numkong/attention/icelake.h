@@ -58,10 +58,10 @@
 #if NK_TARGET_X8664_
 #if NK_TARGET_ICELAKE
 
-#include "numkong/attention/serial.h"  // shared packed-KV header/directory, width-agnostic fallback
-#include "numkong/attention/skylake.h" // `nk_attention_exp2_f32x16_skylake_`, panel constants
-#include "numkong/reduce/skylake.h"    // `nk_reduce_add_f32x16_skylake_`, `nk_reduce_max_f32x16_skylake_`
-#include "numkong/dot/icelake.h"       // VNNI DPBUSD + SAD correction precedent
+#include "numkong/attention/serial.h" // shared packed-KV header/directory, width-agnostic fallback
+#include "numkong/each/skylake.h"     // `nk_exp2_f32x16_skylake_`, `nk_exp2_u8_i32x16_skylake_`
+#include "numkong/reduce/skylake.h"   // `nk_reduce_add_f32x16_skylake_`, `nk_reduce_max_f32x16_skylake_`
+#include "numkong/dot/icelake.h"      // VNNI DPBUSD + SAD correction precedent
 
 #if defined(__cplusplus)
 extern "C" {
@@ -334,30 +334,6 @@ NK_HELPER_INLINE void nk_attention_score_block_icelake_(nk_u8_t const *queries_b
 }
 
 /**
- *  @brief I-BERT-style integer exponential for the I8 weight path: takes the base-2 argument as
- *         a Q15 fixed-point value in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8 weight
- *         in the low byte of each I32 lane. A degree-3 fixed-point polynomial covers the fraction
- *         and a lane-variable shift applies the integer part, so no floating-point instruction
- *         touches the weights — the AVX-512 mirror of `nk_attention_iexp2_weight_i32x_sme_`.
- */
-NK_HELPER_INLINE __m512i nk_attention_iexp2_weight_i32x16_icelake_(__m512i t_q15_i32x16) {
-    __m512i const whole_i32x16 = _mm512_srai_epi32(t_q15_i32x16, 15); // floor, in [-10, 0]
-    __m512i const fraction_i32x16 = _mm512_and_si512(t_q15_i32x16, _mm512_set1_epi32(0x7FFF));
-    __m512i poly_i32x16 = _mm512_set1_epi32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
-    poly_i32x16 = _mm512_add_epi32(_mm512_srai_epi32(_mm512_mullo_epi32(fraction_i32x16, poly_i32x16), 15),
-                                   _mm512_set1_epi32(3678));
-    poly_i32x16 = _mm512_add_epi32(_mm512_srai_epi32(_mm512_mullo_epi32(fraction_i32x16, poly_i32x16), 15),
-                                   _mm512_set1_epi32(11410));
-    poly_i32x16 = _mm512_add_epi32(_mm512_srai_epi32(_mm512_mullo_epi32(fraction_i32x16, poly_i32x16), 15),
-                                   _mm512_set1_epi32(16382));
-    __m512i const scaled_i32x16 = _mm512_sub_epi32(_mm512_slli_epi32(poly_i32x16, 8), poly_i32x16); // 255 = (x<<8)-x
-    __m512i const shift_i32x16 = _mm512_sub_epi32(_mm512_set1_epi32(14), whole_i32x16);
-    __m512i const bias_i32x16 = _mm512_sllv_epi32(_mm512_set1_epi32(1),
-                                                  _mm512_sub_epi32(_mm512_set1_epi32(13), whole_i32x16));
-    return _mm512_srav_epi32(_mm512_add_epi32(scaled_i32x16, bias_i32x16), shift_i32x16);
-}
-
-/**
  *  @brief Streaming base-2 softmax over one panel, entirely in integer arithmetic: the row max is
  *         an exact `_mm512_max_epi32` over live columns only, weights come from the integer i-exp
  *         over `(score − max)·scale₂` in Q15, and the weight sum accumulates in I32. Only the
@@ -380,7 +356,7 @@ NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *sc
     nk_i32_t const panel_max = _mm512_reduce_max_epi32(max_i32x16);
     nk_i32_t const new_max = *running_max > panel_max ? *running_max : panel_max;
     nk_f32_t const correction = _mm512_cvtss_f32(
-        nk_attention_exp2_f32x16_skylake_(_mm512_set1_ps(((nk_f32_t)*running_max - (nk_f32_t)new_max) * scale2)));
+        nk_exp2_f32x16_skylake_(_mm512_set1_ps(((nk_f32_t)*running_max - (nk_f32_t)new_max) * scale2)));
     *running_max = new_max;
 
     __m512i const new_max_i32x16 = _mm512_set1_epi32(new_max);
@@ -395,11 +371,11 @@ NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *sc
     for (position_idx = 0; position_idx < full2; position_idx += 32) {
         __m512i const delta_a_i32x16 = _mm512_max_epi32(
             _mm512_sub_epi32(_mm512_load_si512(scores + position_idx), new_max_i32x16), delta_floor_i32x16);
-        __m512i const weight_a_i32x16 = nk_attention_iexp2_weight_i32x16_icelake_(
+        __m512i const weight_a_i32x16 = nk_exp2_u8_i32x16_skylake_(
             _mm512_mullo_epi32(delta_a_i32x16, scale_fixed_i32x16));
         __m512i const delta_b_i32x16 = _mm512_max_epi32(
             _mm512_sub_epi32(_mm512_load_si512(scores + position_idx + 16), new_max_i32x16), delta_floor_i32x16);
-        __m512i const weight_b_i32x16 = nk_attention_iexp2_weight_i32x16_icelake_(
+        __m512i const weight_b_i32x16 = nk_exp2_u8_i32x16_skylake_(
             _mm512_mullo_epi32(delta_b_i32x16, scale_fixed_i32x16));
         sum_a_i32x16 = _mm512_add_epi32(sum_a_i32x16, weight_a_i32x16);
         sum_b_i32x16 = _mm512_add_epi32(sum_b_i32x16, weight_b_i32x16);
@@ -410,8 +386,7 @@ NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *sc
     for (; position_idx < full; position_idx += 16) { // trailing odd 16-group, if any
         __m512i const delta_i32x16 = _mm512_max_epi32(
             _mm512_sub_epi32(_mm512_load_si512(scores + position_idx), new_max_i32x16), delta_floor_i32x16);
-        __m512i const weight_i32x16 = nk_attention_iexp2_weight_i32x16_icelake_(
-            _mm512_mullo_epi32(delta_i32x16, scale_fixed_i32x16));
+        __m512i const weight_i32x16 = nk_exp2_u8_i32x16_skylake_(_mm512_mullo_epi32(delta_i32x16, scale_fixed_i32x16));
         sum_i32x16 = _mm512_add_epi32(sum_i32x16, weight_i32x16);
         _mm_storeu_si128((__m128i *)(weights + position_idx), _mm512_cvtusepi32_epi8(weight_i32x16));
     }
@@ -419,7 +394,7 @@ NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *sc
         __m512i const delta_i32x16 = _mm512_max_epi32(
             _mm512_sub_epi32(_mm512_load_si512(scores + position_idx), new_max_i32x16), delta_floor_i32x16);
         __m512i const weight_i32x16 = _mm512_maskz_mov_epi32(
-            tail_m16, nk_attention_iexp2_weight_i32x16_icelake_(_mm512_mullo_epi32(delta_i32x16, scale_fixed_i32x16)));
+            tail_m16, nk_exp2_u8_i32x16_skylake_(_mm512_mullo_epi32(delta_i32x16, scale_fixed_i32x16)));
         sum_i32x16 = _mm512_add_epi32(sum_i32x16, weight_i32x16);
         _mm_storeu_si128((__m128i *)(weights + position_idx), _mm512_cvtusepi32_epi8(weight_i32x16));
         position_idx += 16;

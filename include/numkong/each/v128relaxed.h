@@ -35,6 +35,21 @@ extern "C" {
 
 #pragma region F32 Floats
 
+/** @brief Vectorized `2^x` (Relaxed SIMD); matches `nk_f32_exp2_serial_` to polynomial precision. */
+NK_HELPER_INLINE v128_t nk_exp2_f32x4_v128relaxed_(v128_t x_f32x4) {
+    x_f32x4 = wasm_f32x4_max(wasm_f32x4_min(x_f32x4, wasm_f32x4_splat(127.0f)), wasm_f32x4_splat(-125.0f));
+    v128_t whole_f32x4 = wasm_f32x4_nearest(x_f32x4);
+    v128_t reduced_f32x4 = wasm_f32x4_sub(x_f32x4, whole_f32x4);
+    v128_t poly_f32x4 = wasm_f32x4_splat(9.61812910e-3f);
+    poly_f32x4 = wasm_f32x4_relaxed_madd(poly_f32x4, reduced_f32x4, wasm_f32x4_splat(5.55041087e-2f));
+    poly_f32x4 = wasm_f32x4_relaxed_madd(poly_f32x4, reduced_f32x4, wasm_f32x4_splat(2.40226507e-1f));
+    poly_f32x4 = wasm_f32x4_relaxed_madd(poly_f32x4, reduced_f32x4, wasm_f32x4_splat(6.93147181e-1f));
+    poly_f32x4 = wasm_f32x4_relaxed_madd(poly_f32x4, reduced_f32x4, wasm_f32x4_splat(1.0f));
+    v128_t whole_i32x4 = wasm_i32x4_trunc_sat_f32x4(whole_f32x4); // integral and clamped, so exact
+    v128_t power_f32x4 = wasm_i32x4_shl(wasm_i32x4_add(whole_i32x4, wasm_i32x4_splat(127)), 23);
+    return wasm_f32x4_mul(poly_f32x4, power_f32x4);
+}
+
 NK_API_COMPTIME void nk_each_scale_f32_v128relaxed(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
                                                    nk_f32_t const *beta, nk_f32_t *result) {
     nk_f32_t alpha_val = *alpha;

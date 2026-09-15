@@ -11,7 +11,7 @@
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"   // `nk_f16_to_f32_serial`
-#include "numkong/scalar/serial.h" // `nk_silu_f32_serial_`
+#include "numkong/scalar/serial.h" // `nk_f32_silu_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -307,7 +307,7 @@ NK_API_COMPTIME void nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t const
             for (nk_size_t col = 0; col != cols; ++col) {                                                       \
                 nk_f32_t gate_value;                                                                            \
                 load_and_convert(gate_row + col, &gate_value);                                                  \
-                nk_f32_t result = nk_silu_f32_serial_(gate_value * input_scale);                                \
+                nk_f32_t result = nk_f32_silu_serial_(gate_value * input_scale);                                \
                 if (up_row) {                                                                                   \
                     nk_f32_t up_value;                                                                          \
                     load_and_convert(up_row + col, &up_value);                                                  \

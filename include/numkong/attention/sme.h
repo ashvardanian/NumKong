@@ -45,6 +45,7 @@
 #include "numkong/types.h"
 #include "numkong/attention/serial.h" // `nk_attention_packed_header_t`, `nk_attention_pack_directory_`
 #include "numkong/dots/sme.h"         // `nk_sme_zero_za32_tile_0_` and the ZA transpose pack idiom
+#include "numkong/each/sme.h"         // `nk_exp2_f32x_sme_`, `nk_exp2_polynomial_f16x_sme_`, `nk_exp2_u8_i32x_sme_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -65,23 +66,6 @@ enum {
     /** Widest ZA32 tile dimension the stack scratch is sized for (SVL ≤ 512); larger routes to serial. */
     nk_attention_max_tile_sme_k_ = 16,
 };
-
-/** @brief Fast vectorized 2^x: exact range reduction + the family's shared degree-4 polynomial. */
-NK_HELPER_INLINE svfloat32_t nk_attention_exp2_f32x_sme_(svfloat32_t x_f32x) NK_STREAMING_ {
-    svbool_t const predicate_all_b32x = svptrue_b32();
-    x_f32x = svmax_f32_x(predicate_all_b32x, svmin_f32_x(predicate_all_b32x, x_f32x, svdup_f32(127.0f)),
-                         svdup_f32(-125.0f));
-    svfloat32_t const n_f32x = svrintn_f32_x(predicate_all_b32x, x_f32x);
-    svfloat32_t const r_f32x = svsub_f32_x(predicate_all_b32x, x_f32x, n_f32x);
-    svfloat32_t p_f32x = svdup_f32(9.61812910e-3f);
-    p_f32x = svmad_f32_x(predicate_all_b32x, p_f32x, r_f32x, svdup_f32(5.55041087e-2f));
-    p_f32x = svmad_f32_x(predicate_all_b32x, p_f32x, r_f32x, svdup_f32(2.40226507e-1f));
-    p_f32x = svmad_f32_x(predicate_all_b32x, p_f32x, r_f32x, svdup_f32(6.93147181e-1f));
-    p_f32x = svmad_f32_x(predicate_all_b32x, p_f32x, r_f32x, svdup_f32(1.0f));
-    svint32_t n_i32x = svcvt_s32_f32_x(predicate_all_b32x, n_f32x);
-    n_i32x = svlsl_n_s32_x(predicate_all_b32x, svadd_n_s32_x(predicate_all_b32x, n_i32x, 127), 23);
-    return svmul_f32_x(predicate_all_b32x, p_f32x, svreinterpret_f32_s32(n_i32x));
-}
 
 /**
  *  @brief Rounds two F32 weight vectors to BF16 and interleaves them pair-wise in one `TRN2`:
@@ -112,51 +96,6 @@ NK_HELPER_INLINE svuint16_t nk_attention_e4m3_to_bf16_sme_(svbool_t predicate_b1
         predicate_all_b32x,
         svreinterpret_f16_u32(svlsr_n_u32_x(predicate_all_b32x, svreinterpret_u32_f16(halves_f16x), 16)));
     return nk_attention_bf16_pair_sme_(even_f32x, odd_f32x);
-}
-
-/**
- *  @brief Degree-3 evaluation of `2^r` over the reduced fraction `r ∈ [-0.5, 0.5]`, 32 lanes
- *         at a time: the family coefficients with the degree-4 term dropped, which falls
- *         below the F16 resolution of the probability quantization this feeds. Callers keep
- *         the range reduction and the power-of-two application in F32, so the F16 rounding
- *         touches only the bounded fraction and the weight error stays near 1e-3 regardless
- *         of the argument magnitude.
- */
-NK_HELPER_INLINE svfloat16_t nk_attention_exp2_fraction_f16x_sme_(svfloat16_t reduced_f16x) NK_STREAMING_ {
-    svbool_t const predicate_all_b16x = svptrue_b16();
-    svfloat16_t poly_f16x = svdup_f16((__fp16)5.55041087e-2f);
-    poly_f16x = svmad_f16_x(predicate_all_b16x, poly_f16x, reduced_f16x, svdup_f16((__fp16)2.40226507e-1f));
-    poly_f16x = svmad_f16_x(predicate_all_b16x, poly_f16x, reduced_f16x, svdup_f16((__fp16)6.93147181e-1f));
-    poly_f16x = svmad_f16_x(predicate_all_b16x, poly_f16x, reduced_f16x, svdup_f16((__fp16)1.0f));
-    return poly_f16x;
-}
-
-/**
- *  @brief I-BERT-style integer exponential for the I8 weight path: takes the base-2 argument
- *         as a Q15 fixed-point value in `[-10·2^15, 0]` and returns `round(2^t · 255)` as U8
- *         weights in I32 lanes. A degree-3 fixed-point polynomial covers the fraction (error
- *         ~0.03 of a weight step) and a lane-variable shift applies the integer part, so no
- *         floating-point instruction touches the weights at all.
- */
-NK_HELPER_INLINE svint32_t nk_attention_iexp2_weight_i32x_sme_(svint32_t t_q15_i32x) NK_STREAMING_ {
-    svbool_t const predicate_all_b32x = svptrue_b32();
-    svint32_t const whole_i32x = svasr_n_s32_x(predicate_all_b32x, t_q15_i32x, 15); // floor, in [-10, 0]
-    svint32_t const fraction_i32x = svand_n_s32_x(predicate_all_b32x, t_q15_i32x, 0x7FFF);
-    svint32_t poly_i32x = svdup_s32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
-    poly_i32x = svadd_n_s32_x(
-        predicate_all_b32x,
-        svasr_n_s32_x(predicate_all_b32x, svmul_s32_x(predicate_all_b32x, fraction_i32x, poly_i32x), 15), 3678);
-    poly_i32x = svadd_n_s32_x(
-        predicate_all_b32x,
-        svasr_n_s32_x(predicate_all_b32x, svmul_s32_x(predicate_all_b32x, fraction_i32x, poly_i32x), 15), 11410);
-    poly_i32x = svadd_n_s32_x(
-        predicate_all_b32x,
-        svasr_n_s32_x(predicate_all_b32x, svmul_s32_x(predicate_all_b32x, fraction_i32x, poly_i32x), 15), 16382);
-    svint32_t const scaled_i32x = svmul_n_s32_x(predicate_all_b32x, poly_i32x, 255); // Q14 of 2^r · 255
-    svuint32_t const shift_u32x = svreinterpret_u32_s32(svsubr_n_s32_x(predicate_all_b32x, whole_i32x, 14));
-    svint32_t const bias_i32x = svlsl_s32_x(predicate_all_b32x, svdup_s32(1),
-                                            svreinterpret_u32_s32(svsubr_n_s32_x(predicate_all_b32x, whole_i32x, 13)));
-    return svasr_s32_x(predicate_all_b32x, svadd_s32_x(predicate_all_b32x, scaled_i32x, bias_i32x), shift_u32x);
 }
 
 NK_HELPER_INLINE nk_size_t nk_attention_pack_size_b16_sme_(nk_size_t key_value_head_count, nk_size_t depth,
@@ -566,9 +505,9 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
                 svfloat32_t const new_max2_high_f32x = svmax_f32_x(
                     predicate_all_b32x, running_max2_high_f32x,
                     svmul_f32_x(predicate_all_b32x, panel_max_high_f32x, scale2_f32x));
-                svfloat32_t const correction_low_f32x = nk_attention_exp2_f32x_sme_(
+                svfloat32_t const correction_low_f32x = nk_exp2_f32x_sme_(
                     svsub_f32_x(predicate_all_b32x, running_max2_low_f32x, new_max2_low_f32x));
-                svfloat32_t const correction_high_f32x = nk_attention_exp2_f32x_sme_(
+                svfloat32_t const correction_high_f32x = nk_exp2_f32x_sme_(
                     svsub_f32_x(predicate_all_b32x, running_max2_high_f32x, new_max2_high_f32x));
                 running_max2_low_f32x = new_max2_low_f32x;
                 running_max2_high_f32x = new_max2_high_f32x;
@@ -610,8 +549,8 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
                         svcvt_f16_f32_x(predicate_all_b32x,
                                         svsub_f32_x(predicate_all_b32x, odd_low_f32x, whole_odd_low_f32x)),
                         predicate_all_b32x, svsub_f32_x(predicate_all_b32x, odd_high_f32x, whole_odd_high_f32x));
-                    svfloat16_t const poly_even_f16x = nk_attention_exp2_fraction_f16x_sme_(fraction_even_f16x);
-                    svfloat16_t const poly_odd_f16x = nk_attention_exp2_fraction_f16x_sme_(fraction_odd_f16x);
+                    svfloat16_t const poly_even_f16x = nk_exp2_polynomial_f16x_sme_(fraction_even_f16x);
+                    svfloat16_t const poly_odd_f16x = nk_exp2_polynomial_f16x_sme_(fraction_odd_f16x);
                     svfloat32_t const weight_even_low_f32x = svscale_f32_x(
                         predicate_all_b32x, svcvt_f32_f16_x(predicate_all_b32x, poly_even_f16x),
                         svcvt_s32_f32_x(predicate_all_b32x, whole_even_low_f32x));
@@ -1132,13 +1071,13 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                                                                panel_max_low_i32x);
                 svint32_t const new_max_high_i32x = svmax_s32_x(predicate_all_b32x, running_max_high_i32x,
                                                                 panel_max_high_i32x);
-                svfloat32_t const correction_low_f32x = nk_attention_exp2_f32x_sme_(svmul_f32_x( // exact I32→F32
+                svfloat32_t const correction_low_f32x = nk_exp2_f32x_sme_(svmul_f32_x( // exact I32→F32
 
                     predicate_all_b32x,
                     svsub_f32_x(predicate_all_b32x, svcvt_f32_s32_x(predicate_all_b32x, running_max_low_i32x),
                                 svcvt_f32_s32_x(predicate_all_b32x, new_max_low_i32x)),
                     scale2_f32x));
-                svfloat32_t const correction_high_f32x = nk_attention_exp2_f32x_sme_(svmul_f32_x(
+                svfloat32_t const correction_high_f32x = nk_exp2_f32x_sme_(svmul_f32_x(
                     predicate_all_b32x,
                     svsub_f32_x(predicate_all_b32x, svcvt_f32_s32_x(predicate_all_b32x, running_max_high_i32x),
                                 svcvt_f32_s32_x(predicate_all_b32x, new_max_high_i32x)),
@@ -1168,10 +1107,10 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                                 svld1_s32(predicate_all_b32x, (int32_t const *)(position_scores + tile_dimension)),
                                 new_max_high_i32x),
                             delta_floor);
-                        svuint32_t const weight_low_u32x = svreinterpret_u32_s32(nk_attention_iexp2_weight_i32x_sme_(
-                            svmul_n_s32_x(predicate_all_b32x, delta_low_i32x, scale_fixed)));
-                        svuint32_t const weight_high_u32x = svreinterpret_u32_s32(nk_attention_iexp2_weight_i32x_sme_(
-                            svmul_n_s32_x(predicate_all_b32x, delta_high_i32x, scale_fixed)));
+                        svuint32_t const weight_low_u32x = svreinterpret_u32_s32(
+                            nk_exp2_u8_i32x_sme_(svmul_n_s32_x(predicate_all_b32x, delta_low_i32x, scale_fixed)));
+                        svuint32_t const weight_high_u32x = svreinterpret_u32_s32(
+                            nk_exp2_u8_i32x_sme_(svmul_n_s32_x(predicate_all_b32x, delta_high_i32x, scale_fixed)));
                         panel_sum_low_u32x = svadd_u32_x(predicate_all_b32x, panel_sum_low_u32x, weight_low_u32x);
                         panel_sum_high_u32x = svadd_u32_x(predicate_all_b32x, panel_sum_high_u32x, weight_high_u32x);
                         quantized_low_u32x = svorr_u32_x(

@@ -1549,7 +1549,7 @@ nk_each_fma_f16_skylake_cycle:
     if (n) goto nk_each_fma_f16_skylake_cycle;
 }
 
-/** @brief Vectorized `2^x` (Skylake AVX-512); matches `nk_exp2_f32_serial_` to polynomial precision. */
+/** @brief Vectorized `2^x` (Skylake AVX-512); matches `nk_f32_exp2_serial_` to polynomial precision. */
 NK_HELPER_INLINE __m512 nk_exp2_f32x16_skylake_(__m512 x_f32x16) {
     x_f32x16 = _mm512_max_ps(_mm512_min_ps(x_f32x16, _mm512_set1_ps(127.0f)), _mm512_set1_ps(-125.0f));
     __m512 n_f32x16 = _mm512_roundscale_ps(x_f32x16, _MM_FROUND_TO_NEAREST_INT);
@@ -1562,6 +1562,27 @@ NK_HELPER_INLINE __m512 nk_exp2_f32x16_skylake_(__m512 x_f32x16) {
     __m512i n_i32x16 = _mm512_cvtps_epi32(n_f32x16);
     n_i32x16 = _mm512_slli_epi32(_mm512_add_epi32(n_i32x16, _mm512_set1_epi32(127)), 23);
     return _mm512_mul_ps(p_f32x16, _mm512_castsi512_ps(n_i32x16));
+}
+
+/**
+ *  @brief I-BERT-style integer `2^t`: takes a Q15 exponent in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8
+ *         weight in each I32 lane, through a degree-3 Q14 polynomial and a lane-variable shift, with no float.
+ */
+NK_HELPER_INLINE __m512i nk_exp2_u8_i32x16_skylake_(__m512i t_q15_i32x16) {
+    __m512i const whole_i32x16 = _mm512_srai_epi32(t_q15_i32x16, 15); // floor, in [-10, 0]
+    __m512i const fraction_i32x16 = _mm512_and_si512(t_q15_i32x16, _mm512_set1_epi32(0x7FFF));
+    __m512i poly_i32x16 = _mm512_set1_epi32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
+    poly_i32x16 = _mm512_add_epi32(_mm512_srai_epi32(_mm512_mullo_epi32(fraction_i32x16, poly_i32x16), 15),
+                                   _mm512_set1_epi32(3678));
+    poly_i32x16 = _mm512_add_epi32(_mm512_srai_epi32(_mm512_mullo_epi32(fraction_i32x16, poly_i32x16), 15),
+                                   _mm512_set1_epi32(11410));
+    poly_i32x16 = _mm512_add_epi32(_mm512_srai_epi32(_mm512_mullo_epi32(fraction_i32x16, poly_i32x16), 15),
+                                   _mm512_set1_epi32(16382));
+    __m512i const scaled_i32x16 = _mm512_sub_epi32(_mm512_slli_epi32(poly_i32x16, 8), poly_i32x16); // 255 = (x<<8)-x
+    __m512i const shift_i32x16 = _mm512_sub_epi32(_mm512_set1_epi32(14), whole_i32x16);
+    __m512i const bias_i32x16 = _mm512_sllv_epi32(_mm512_set1_epi32(1),
+                                                  _mm512_sub_epi32(_mm512_set1_epi32(13), whole_i32x16));
+    return _mm512_srav_epi32(_mm512_add_epi32(scaled_i32x16, bias_i32x16), shift_i32x16);
 }
 
 /** @brief Vectorized SiLU `x · sigmoid(x) = x / (1 + 2^(-x·log2e))` (Skylake AVX-512). */

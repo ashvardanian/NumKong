@@ -387,12 +387,12 @@ NK_HELPER_INLINE nk_f32_t nk_f32_exp2_serial_(nk_f32_t x) {
 }
 
 /** @brief Scalar logistic sigmoid `1 / (1 + e^-x)`, built on the shared fast exponent. */
-NK_HELPER_INLINE nk_f32_t nk_sigmoid_f32_serial_(nk_f32_t x) {
+NK_HELPER_INLINE nk_f32_t nk_f32_sigmoid_serial_(nk_f32_t x) {
     return 1.0f / (1.0f + nk_f32_exp2_serial_(-x * NK_F32_LOG2E_));
 }
 
 /** @brief Scalar SiLU / swish `x · sigmoid(x)`, built on the shared fast exponent. */
-NK_HELPER_INLINE nk_f32_t nk_silu_f32_serial_(nk_f32_t x) { return x * nk_sigmoid_f32_serial_(x); }
+NK_HELPER_INLINE nk_f32_t nk_f32_silu_serial_(nk_f32_t x) { return x * nk_f32_sigmoid_serial_(x); }
 
 #if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC pop_options

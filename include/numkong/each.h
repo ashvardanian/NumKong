@@ -1339,6 +1339,7 @@ NK_HELPER_INLINE nk_dtype_t nk_each_scale_input_dtype(nk_dtype_t dtype) {
 #include "numkong/each/neon.h"
 #include "numkong/each/neonhalf.h"
 #include "numkong/each/neonbfdot.h"
+#include "numkong/each/sme.h"
 #include "numkong/each/haswell.h"
 #include "numkong/each/skylake.h"
 #include "numkong/each/icelake.h"

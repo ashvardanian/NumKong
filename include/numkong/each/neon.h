@@ -1123,6 +1123,38 @@ NK_API_COMPTIME void nk_each_sum_i8_neon(nk_i8_t const *a, nk_i8_t const *b, nk_
     }
 }
 
+/** @brief Vectorized `2^x` (NEON); matches `nk_f32_exp2_serial_` to polynomial precision. */
+NK_HELPER_INLINE float32x4_t nk_exp2_f32x4_neon_(float32x4_t x_f32x4) {
+    x_f32x4 = vmaxq_f32(vminq_f32(x_f32x4, vdupq_n_f32(127.0f)), vdupq_n_f32(-125.0f));
+    float32x4_t const whole_f32x4 = vrndnq_f32(x_f32x4);
+    float32x4_t const reduced_f32x4 = vsubq_f32(x_f32x4, whole_f32x4);
+    float32x4_t poly_f32x4 = vdupq_n_f32(9.61812910e-3f);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(5.55041087e-2f), poly_f32x4, reduced_f32x4);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(2.40226507e-1f), poly_f32x4, reduced_f32x4);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(6.93147181e-1f), poly_f32x4, reduced_f32x4);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(1.0f), poly_f32x4, reduced_f32x4);
+    int32x4_t const whole_i32x4 = vcvtq_s32_f32(whole_f32x4); // integral and clamped, so exact
+    float32x4_t const power_f32x4 = vreinterpretq_f32_s32(vshlq_n_s32(vaddq_s32(whole_i32x4, vdupq_n_s32(127)), 23));
+    return vmulq_f32(poly_f32x4, power_f32x4);
+}
+
+/**
+ *  @brief I-BERT-style integer `2^t`: takes a Q15 exponent in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8
+ *         weight in each I32 lane, through a degree-3 Q14 polynomial and a lane-variable shift, with no float.
+ */
+NK_HELPER_INLINE int32x4_t nk_exp2_u8_i32x4_neon_(int32x4_t t_q15_i32x4) {
+    int32x4_t const whole_i32x4 = vshrq_n_s32(t_q15_i32x4, 15); // floor, in [-10, 0]
+    int32x4_t const fraction_i32x4 = vandq_s32(t_q15_i32x4, vdupq_n_s32(0x7FFF));
+    int32x4_t poly_i32x4 = vdupq_n_s32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
+    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(3678));
+    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(11410));
+    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(16382));
+    int32x4_t const scaled_i32x4 = vsubq_s32(vshlq_n_s32(poly_i32x4, 8), poly_i32x4); // (poly<<8)−poly = poly·255
+    int32x4_t const shift_i32x4 = vsubq_s32(vdupq_n_s32(14), whole_i32x4);            // in [14, 24]
+    int32x4_t const bias_i32x4 = vshlq_s32(vdupq_n_s32(1), vsubq_s32(vdupq_n_s32(13), whole_i32x4)); // 1 << (13−whole)
+    return vshlq_s32(vaddq_s32(scaled_i32x4, bias_i32x4), vnegq_s32(shift_i32x4)); // round-half-up, then ≫ shift
+}
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)

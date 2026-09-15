@@ -1106,6 +1106,29 @@ NK_API_COMPTIME void nk_each_fma_f64c_rvv(nk_f64c_t const *a, nk_f64c_t const *b
     }
 }
 
+/** @brief Vectorized `2^x` at e32m4 (RVV); matches `nk_f32_exp2_serial_` to polynomial precision. */
+NK_HELPER_INLINE vfloat32m4_t nk_exp2_f32m4_rvv_(vfloat32m4_t x_f32m4, nk_size_t vector_length) {
+    // Clamp to [-125, 127] like `nk_f32_exp2_serial_`: the lower bound keeps the smallest
+    // result a normal float, so downstream multiplies never hit denormal assists.
+    x_f32m4 = __riscv_vfmin_vf_f32m4(x_f32m4, 127.0f, vector_length);
+    x_f32m4 = __riscv_vfmax_vf_f32m4(x_f32m4, -125.0f, vector_length);
+    vint32m4_t whole_i32m4 = __riscv_vfcvt_x_f_v_i32m4(x_f32m4, vector_length);
+    vfloat32m4_t reduced_f32m4 = __riscv_vfsub_vv_f32m4(x_f32m4, __riscv_vfcvt_f_x_v_f32m4(whole_i32m4, vector_length),
+                                                        vector_length);
+    vfloat32m4_t poly_f32m4 = __riscv_vfmv_v_f_f32m4(9.61812910e-3f, vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(5.55041087e-2f, vector_length), vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(2.40226507e-1f, vector_length), vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(6.93147181e-1f, vector_length), vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4, __riscv_vfmv_v_f_f32m4(1.0f, vector_length),
+                                         vector_length);
+    vint32m4_t power_i32m4 = __riscv_vsll_vx_i32m4(__riscv_vadd_vx_i32m4(whole_i32m4, 127, vector_length), 23,
+                                                   vector_length);
+    return __riscv_vfmul_vv_f32m4(poly_f32m4, __riscv_vreinterpret_v_i32m4_f32m4(power_i32m4), vector_length);
+}
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif

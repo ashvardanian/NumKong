@@ -38,9 +38,11 @@
 
 #include <wasm_simd128.h>
 
-#include "numkong/attention/v128.h"   // `nk_attention_iexp2_weight_i32x4_v128_`, `nk_attention_load_bf16x4_v128_`
+#include "numkong/attention/v128.h"   // `nk_attention_load_bf16x4_v128_`
 #include "numkong/attention/serial.h" // shared packed-KV header/directory, width-agnostic fallback
 #include "numkong/cast/v128relaxed.h" // `nk_e4m3x4_to_f32x4_v128relaxed_`
+#include "numkong/each/v128.h"        // `nk_exp2_u8_i32x4_v128_`
+#include "numkong/each/v128relaxed.h" // `nk_exp2_f32x4_v128relaxed_`
 #include "numkong/reduce/v128.h"      // `nk_reduce_add_f32x4_v128_`, `nk_reduce_max_f32x4_v128_`
 
 #if defined(__cplusplus)
@@ -50,21 +52,6 @@ extern "C" {
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
-
-/** @brief Fast vectorized 2^x: exact range reduction + the family's shared degree-4 polynomial. */
-NK_HELPER_INLINE v128_t nk_attention_exp2_f32x4_v128relaxed_(v128_t x_f32x4) {
-    x_f32x4 = wasm_f32x4_max(wasm_f32x4_min(x_f32x4, wasm_f32x4_splat(127.0f)), wasm_f32x4_splat(-125.0f));
-    v128_t whole_f32x4 = wasm_f32x4_nearest(x_f32x4);
-    v128_t reduced_f32x4 = wasm_f32x4_sub(x_f32x4, whole_f32x4);
-    v128_t poly_f32x4 = wasm_f32x4_splat(9.61812910e-3f);
-    poly_f32x4 = wasm_f32x4_relaxed_madd(poly_f32x4, reduced_f32x4, wasm_f32x4_splat(5.55041087e-2f));
-    poly_f32x4 = wasm_f32x4_relaxed_madd(poly_f32x4, reduced_f32x4, wasm_f32x4_splat(2.40226507e-1f));
-    poly_f32x4 = wasm_f32x4_relaxed_madd(poly_f32x4, reduced_f32x4, wasm_f32x4_splat(6.93147181e-1f));
-    poly_f32x4 = wasm_f32x4_relaxed_madd(poly_f32x4, reduced_f32x4, wasm_f32x4_splat(1.0f));
-    v128_t whole_i32x4 = wasm_i32x4_trunc_sat_f32x4(whole_f32x4); // integral and clamped, so exact
-    v128_t power_f32x4 = wasm_i32x4_shl(wasm_i32x4_add(whole_i32x4, wasm_i32x4_splat(127)), 23);
-    return wasm_f32x4_mul(poly_f32x4, power_f32x4);
-}
 
 /** @brief Widens 4 raw plane scalars (BF16 or E4M3 at rest) to F32 inside the hot loops. */
 typedef v128_t (*nk_attention_load_v128relaxed_t_)(void const *plane_chunk);
@@ -164,14 +151,14 @@ NK_HELPER_INLINE void nk_attention_packed_float_v128relaxed_(                   
                 }
                 nk_f32_t const new_max2 = running_max2 > panel_max2 ? running_max2 : panel_max2;
                 nk_f32_t const correction = wasm_f32x4_extract_lane(
-                    nk_attention_exp2_f32x4_v128relaxed_(wasm_f32x4_splat(running_max2 - new_max2)), 0);
+                    nk_exp2_f32x4_v128relaxed_(wasm_f32x4_splat(running_max2 - new_max2)), 0);
                 running_max2 = new_max2;
 
                 v128_t const new_max2_f32x4 = wasm_f32x4_splat(new_max2);
                 v128_t panel_sum_f32x4 = wasm_f32x4_splat(0.0f);
                 nk_f32_t panel_sum = 0;
                 for (position_idx = 0; position_idx + 4 <= panel_length; position_idx += 4) {
-                    v128_t weight_f32x4 = nk_attention_exp2_f32x4_v128relaxed_(wasm_f32x4_sub(
+                    v128_t weight_f32x4 = nk_exp2_f32x4_v128relaxed_(wasm_f32x4_sub(
                         wasm_f32x4_mul(wasm_v128_load(scores + position_idx), scale2_f32x4), new_max2_f32x4));
                     panel_sum_f32x4 = wasm_f32x4_add(panel_sum_f32x4, weight_f32x4);
                     wasm_v128_store(scores + position_idx, weight_f32x4);
@@ -360,8 +347,7 @@ NK_API_COMPTIME void nk_attention_packed_i8_v128relaxed(                        
                     if (scores[position_idx] > panel_max) panel_max = scores[position_idx];
                 nk_i32_t const new_max = running_max > panel_max ? running_max : panel_max;
                 nk_f32_t const correction = wasm_f32x4_extract_lane(
-                    nk_attention_exp2_f32x4_v128relaxed_(
-                        wasm_f32x4_splat(((nk_f32_t)running_max - (nk_f32_t)new_max) * scale2)),
+                    nk_exp2_f32x4_v128relaxed_(wasm_f32x4_splat(((nk_f32_t)running_max - (nk_f32_t)new_max) * scale2)),
                     0);
                 running_max = new_max;
 
@@ -372,8 +358,7 @@ NK_API_COMPTIME void nk_attention_packed_i8_v128relaxed(                        
                 for (position_idx = 0; position_idx + 4 <= panel_length; position_idx += 4) {
                     v128_t delta_i32x4 = wasm_i32x4_max(
                         wasm_i32x4_sub(wasm_v128_load(scores + position_idx), new_max_i32x4), delta_floor_i32x4);
-                    v128_t weight_i32x4 = nk_attention_iexp2_weight_i32x4_v128_(
-                        wasm_i32x4_mul(delta_i32x4, scale_fixed_i32x4));
+                    v128_t weight_i32x4 = nk_exp2_u8_i32x4_v128_(wasm_i32x4_mul(delta_i32x4, scale_fixed_i32x4));
                     panel_sum_i32x4 = wasm_i32x4_add(panel_sum_i32x4, weight_i32x4);
                     v128_t weight_i16x8 = wasm_i16x8_narrow_i32x4(weight_i32x4, weight_i32x4);
                     wasm_v128_store32_lane(weights + position_idx, wasm_u8x16_narrow_i16x8(weight_i16x8, weight_i16x8),
@@ -386,8 +371,7 @@ NK_API_COMPTIME void nk_attention_packed_i8_v128relaxed(                        
                     v128_t delta_i32x4 = wasm_i32x4_max(
                         wasm_i32x4_sub(wasm_v128_load(scores + position_idx), new_max_i32x4), delta_floor_i32x4);
                     v128_t weight_i32x4 = wasm_v128_and(
-                        nk_attention_iexp2_weight_i32x4_v128_(wasm_i32x4_mul(delta_i32x4, scale_fixed_i32x4)),
-                        tail_mask_i32x4);
+                        nk_exp2_u8_i32x4_v128_(wasm_i32x4_mul(delta_i32x4, scale_fixed_i32x4)), tail_mask_i32x4);
                     panel_sum_i32x4 = wasm_i32x4_add(panel_sum_i32x4, weight_i32x4);
                     v128_t weight_i16x8 = wasm_i16x8_narrow_i32x4(weight_i32x4, weight_i32x4);
                     wasm_v128_store32_lane(weights + position_idx, wasm_u8x16_narrow_i16x8(weight_i16x8, weight_i16x8),

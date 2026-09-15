@@ -27,6 +27,7 @@
 
 #include "numkong/attention/serial.h" // shared packed-KV header/offsets, width-agnostic fallback
 #include "numkong/cast/haswell.h"     // widening helpers like `nk_bf16x8_to_f32x8_haswell_`
+#include "numkong/each/haswell.h"     // `nk_exp2_f32x8_haswell_`, `nk_exp2_u8_i32x8_haswell_`
 #include "numkong/reduce/haswell.h"   // `nk_reduce_add_f32x8_haswell_`, `nk_reduce_max_f32x8_haswell_`
 
 #if defined(__cplusplus)
@@ -46,21 +47,6 @@ enum {
     /** Widest head this backend handles in registers; larger heads route to the serial tier. */
     nk_attention_max_depth_haswell_k_ = 256,
 };
-
-/** @brief Fast vectorized 2^x: exact range reduction + the family's shared degree-4 polynomial. */
-NK_HELPER_INLINE __m256 nk_attention_exp2_f32x8_haswell_(__m256 x_f32x8) {
-    x_f32x8 = _mm256_max_ps(_mm256_min_ps(x_f32x8, _mm256_set1_ps(127.0f)), _mm256_set1_ps(-125.0f));
-    __m256 n_f32x8 = _mm256_round_ps(x_f32x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
-    __m256 r_f32x8 = _mm256_sub_ps(x_f32x8, n_f32x8);
-    __m256 p_f32x8 = _mm256_set1_ps(9.61812910e-3f);
-    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(5.55041087e-2f));
-    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(2.40226507e-1f));
-    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(6.93147181e-1f));
-    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(1.0f));
-    __m256i n_i32x8 = _mm256_cvtps_epi32(n_f32x8);
-    n_i32x8 = _mm256_slli_epi32(_mm256_add_epi32(n_i32x8, _mm256_set1_epi32(127)), 23);
-    return _mm256_mul_ps(p_f32x8, _mm256_castsi256_ps(n_i32x8));
-}
 
 /** @brief Widens 8 raw plane scalars (BF16 or E4M3 at rest) to F32 inside the hot loops. */
 typedef __m256 (*nk_attention_load_haswell_t_)(void const *plane_chunk);
@@ -332,14 +318,14 @@ NK_HELPER_INLINE void nk_attention_packed_haswell_(                             
                 }
                 nk_f32_t const new_max2 = running_max2 > panel_max2 ? running_max2 : panel_max2;
                 nk_f32_t const correction = _mm256_cvtss_f32(
-                    nk_attention_exp2_f32x8_haswell_(_mm256_set1_ps(running_max2 - new_max2)));
+                    nk_exp2_f32x8_haswell_(_mm256_set1_ps(running_max2 - new_max2)));
                 running_max2 = new_max2;
 
                 __m256 const scale2_f32x8 = _mm256_set1_ps(scale2);
                 __m256 const max2_f32x8 = _mm256_set1_ps(new_max2);
                 __m256 sum_f32x8 = _mm256_setzero_ps();
                 for (position_idx = 0; position_idx + 8 <= panel_length; position_idx += 8) {
-                    __m256 weights_f32x8 = nk_attention_exp2_f32x8_haswell_(
+                    __m256 weights_f32x8 = nk_exp2_f32x8_haswell_(
                         _mm256_fmsub_ps(_mm256_loadu_ps(scores + position_idx), scale2_f32x8, max2_f32x8));
                     sum_f32x8 = _mm256_add_ps(sum_f32x8, weights_f32x8);
                     _mm256_storeu_ps(scores + position_idx, weights_f32x8);
@@ -348,7 +334,7 @@ NK_HELPER_INLINE void nk_attention_packed_haswell_(                             
                     __m256i const lane_index_i32x8 = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
                     __m256i const tail_mask_i32x8 = _mm256_cmpgt_epi32(
                         _mm256_set1_epi32((int)(panel_length - position_idx)), lane_index_i32x8);
-                    __m256 weights_f32x8 = nk_attention_exp2_f32x8_haswell_(_mm256_fmsub_ps(
+                    __m256 weights_f32x8 = nk_exp2_f32x8_haswell_(_mm256_fmsub_ps(
                         _mm256_maskload_ps(scores + position_idx, tail_mask_i32x8), scale2_f32x8, max2_f32x8));
                     weights_f32x8 = _mm256_and_ps(weights_f32x8, _mm256_castsi256_ps(tail_mask_i32x8));
                     sum_f32x8 = _mm256_add_ps(sum_f32x8, weights_f32x8);
@@ -489,29 +475,6 @@ NK_HELPER_INLINE void nk_attention_score_block_i8_haswell_(nk_i16_t const *queri
 }
 
 /**
- *  @brief I-BERT-style integer exponential for the I8 weight path: takes the base-2 argument as a
- *         Q15 fixed-point value in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8 weight in
- *         the low byte of each I32 lane. A degree-3 fixed-point polynomial covers the fraction and a
- *         lane-variable shift applies the integer part — the AVX2 mirror of the SME/Ice Lake helper.
- */
-NK_HELPER_INLINE __m256i nk_attention_iexp2_weight_i32x8_haswell_(__m256i t_q15_i32x8) {
-    __m256i const whole_i32x8 = _mm256_srai_epi32(t_q15_i32x8, 15); // floor, in [-10, 0]
-    __m256i const fraction_i32x8 = _mm256_and_si256(t_q15_i32x8, _mm256_set1_epi32(0x7FFF));
-    __m256i poly_i32x8 = _mm256_set1_epi32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
-    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
-                                  _mm256_set1_epi32(3678));
-    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
-                                  _mm256_set1_epi32(11410));
-    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
-                                  _mm256_set1_epi32(16382));
-    __m256i const scaled_i32x8 = _mm256_sub_epi32(_mm256_slli_epi32(poly_i32x8, 8), poly_i32x8); // 255 = (x<<8)-x
-    __m256i const shift_i32x8 = _mm256_sub_epi32(_mm256_set1_epi32(14), whole_i32x8);
-    __m256i const bias_i32x8 = _mm256_sllv_epi32(_mm256_set1_epi32(1),
-                                                 _mm256_sub_epi32(_mm256_set1_epi32(13), whole_i32x8));
-    return _mm256_srav_epi32(_mm256_add_epi32(scaled_i32x8, bias_i32x8), shift_i32x8);
-}
-
-/**
  *  @brief Streaming base-2 softmax over one panel for a single query row, entirely in integer
  *         arithmetic: the row max is an exact `_mm256_max_epi32` over live columns, weights come from
  *         the integer i-exp over `(score − max)·scale₂` in Q15, and the weight sum accumulates in I32.
@@ -530,7 +493,7 @@ NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_i8_haswell_(nk_i32_t const 
         if (scores[position_idx] > panel_max) panel_max = scores[position_idx];
     nk_i32_t const new_max = *running_max > panel_max ? *running_max : panel_max;
     nk_f32_t const correction = _mm256_cvtss_f32(
-        nk_attention_exp2_f32x8_haswell_(_mm256_set1_ps(((nk_f32_t)*running_max - (nk_f32_t)new_max) * scale2)));
+        nk_exp2_f32x8_haswell_(_mm256_set1_ps(((nk_f32_t)*running_max - (nk_f32_t)new_max) * scale2)));
     *running_max = new_max;
 
     __m256i const new_max_i32x8 = _mm256_set1_epi32(new_max);
@@ -549,10 +512,8 @@ NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_i8_haswell_(nk_i32_t const 
         __m256i const delta1_i32x8 = _mm256_max_epi32(
             _mm256_sub_epi32(_mm256_loadu_si256((__m256i const *)(scores + position_idx + 8)), new_max_i32x8),
             delta_floor_i32x8);
-        __m256i const weight0_i32x8 = nk_attention_iexp2_weight_i32x8_haswell_(
-            _mm256_mullo_epi32(delta0_i32x8, scale_fixed_i32x8));
-        __m256i const weight1_i32x8 = nk_attention_iexp2_weight_i32x8_haswell_(
-            _mm256_mullo_epi32(delta1_i32x8, scale_fixed_i32x8));
+        __m256i const weight0_i32x8 = nk_exp2_u8_i32x8_haswell_(_mm256_mullo_epi32(delta0_i32x8, scale_fixed_i32x8));
+        __m256i const weight1_i32x8 = nk_exp2_u8_i32x8_haswell_(_mm256_mullo_epi32(delta1_i32x8, scale_fixed_i32x8));
         sum_i32x8 = _mm256_add_epi32(sum_i32x8, weight0_i32x8);
         sum2_i32x8 = _mm256_add_epi32(sum2_i32x8, weight1_i32x8);
         __m128i const weight0_i16x8 = _mm_packus_epi32(_mm256_castsi256_si128(weight0_i32x8),
@@ -567,8 +528,7 @@ NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_i8_haswell_(nk_i32_t const 
         __m256i const delta_i32x8 = _mm256_max_epi32(
             _mm256_sub_epi32(_mm256_loadu_si256((__m256i const *)(scores + position_idx)), new_max_i32x8),
             delta_floor_i32x8);
-        __m256i const weight_i32x8 = nk_attention_iexp2_weight_i32x8_haswell_(
-            _mm256_mullo_epi32(delta_i32x8, scale_fixed_i32x8));
+        __m256i const weight_i32x8 = nk_exp2_u8_i32x8_haswell_(_mm256_mullo_epi32(delta_i32x8, scale_fixed_i32x8));
         sum_i32x8 = _mm256_add_epi32(sum_i32x8, weight_i32x8);
         __m128i const weight_i16x8 = _mm_packus_epi32(_mm256_castsi256_si128(weight_i32x8),
                                                       _mm256_extracti128_si256(weight_i32x8, 1));
@@ -580,8 +540,7 @@ NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_i8_haswell_(nk_i32_t const 
                                                            lane_index_i32x8);
         __m256i const scores_i32x8 = _mm256_maskload_epi32((int const *)(scores + position_idx), tail_mask_i32x8);
         __m256i const delta_i32x8 = _mm256_max_epi32(_mm256_sub_epi32(scores_i32x8, new_max_i32x8), delta_floor_i32x8);
-        __m256i weight_i32x8 = nk_attention_iexp2_weight_i32x8_haswell_(
-            _mm256_mullo_epi32(delta_i32x8, scale_fixed_i32x8));
+        __m256i weight_i32x8 = nk_exp2_u8_i32x8_haswell_(_mm256_mullo_epi32(delta_i32x8, scale_fixed_i32x8));
         weight_i32x8 = _mm256_and_si256(weight_i32x8, tail_mask_i32x8);
         sum_i32x8 = _mm256_add_epi32(sum_i32x8, weight_i32x8);
         __m128i const weight_i16x8 = _mm_packus_epi32(_mm256_castsi256_si128(weight_i32x8),

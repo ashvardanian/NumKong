@@ -28,7 +28,7 @@
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"    // `nk_f32_to_i8_serial`
 #include "numkong/reduce/haswell.h" // `nk_e4m3x8_to_f32x8_haswell_`
-#include "numkong/scalar/serial.h"  // `nk_silu_f32_serial_`
+#include "numkong/scalar/serial.h"  // `nk_f32_silu_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -1644,7 +1644,7 @@ NK_API_COMPTIME void nk_each_fma_f64c_haswell(nk_f64c_t const *a, nk_f64c_t cons
     }
 }
 
-/** @brief Vectorized `2^x` (Haswell AVX2); matches `nk_exp2_f32_serial_` to polynomial precision. */
+/** @brief Vectorized `2^x` (Haswell AVX2); matches `nk_f32_exp2_serial_` to polynomial precision. */
 NK_HELPER_INLINE __m256 nk_exp2_f32x8_haswell_(__m256 x_f32x8) {
     x_f32x8 = _mm256_max_ps(_mm256_min_ps(x_f32x8, _mm256_set1_ps(127.0f)), _mm256_set1_ps(-125.0f));
     __m256 n_f32x8 = _mm256_round_ps(x_f32x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
@@ -1657,6 +1657,27 @@ NK_HELPER_INLINE __m256 nk_exp2_f32x8_haswell_(__m256 x_f32x8) {
     __m256i n_i32x8 = _mm256_cvtps_epi32(n_f32x8);
     n_i32x8 = _mm256_slli_epi32(_mm256_add_epi32(n_i32x8, _mm256_set1_epi32(127)), 23);
     return _mm256_mul_ps(p_f32x8, _mm256_castsi256_ps(n_i32x8));
+}
+
+/**
+ *  @brief I-BERT-style integer `2^t`: takes a Q15 exponent in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8
+ *         weight in each I32 lane, through a degree-3 Q14 polynomial and a lane-variable shift, with no float.
+ */
+NK_HELPER_INLINE __m256i nk_exp2_u8_i32x8_haswell_(__m256i t_q15_i32x8) {
+    __m256i const whole_i32x8 = _mm256_srai_epi32(t_q15_i32x8, 15); // floor, in [-10, 0]
+    __m256i const fraction_i32x8 = _mm256_and_si256(t_q15_i32x8, _mm256_set1_epi32(0x7FFF));
+    __m256i poly_i32x8 = _mm256_set1_epi32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
+    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
+                                  _mm256_set1_epi32(3678));
+    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
+                                  _mm256_set1_epi32(11410));
+    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
+                                  _mm256_set1_epi32(16382));
+    __m256i const scaled_i32x8 = _mm256_sub_epi32(_mm256_slli_epi32(poly_i32x8, 8), poly_i32x8); // 255 = (x<<8)-x
+    __m256i const shift_i32x8 = _mm256_sub_epi32(_mm256_set1_epi32(14), whole_i32x8);
+    __m256i const bias_i32x8 = _mm256_sllv_epi32(_mm256_set1_epi32(1),
+                                                 _mm256_sub_epi32(_mm256_set1_epi32(13), whole_i32x8));
+    return _mm256_srav_epi32(_mm256_add_epi32(scaled_i32x8, bias_i32x8), shift_i32x8);
 }
 
 /** @brief Vectorized SiLU `x / (1 + 2^(-x·log2e))` (Haswell AVX2). */
@@ -1681,7 +1702,7 @@ NK_API_COMPTIME void nk_each_swiglu_f32_haswell(nk_f32_t const *gate, nk_f32_t c
             _mm256_storeu_ps(y_row + col, result_f32x8);
         }
         for (; col != cols; ++col) {
-            nk_f32_t result = nk_silu_f32_serial_(gate_row[col] * input_scale);
+            nk_f32_t result = nk_f32_silu_serial_(gate_row[col] * input_scale);
             if (up_row) result *= up_row[col] * input_scale;
             y_row[col] = result;
         }
@@ -1712,7 +1733,7 @@ NK_API_COMPTIME void nk_each_swiglu_bf16_haswell(nk_bf16_t const *gate, nk_bf16_
         for (; col != cols; ++col) {
             nk_f32_t gate_value;
             nk_bf16_to_f32_serial(gate_row + col, &gate_value);
-            nk_f32_t result = nk_silu_f32_serial_(gate_value * input_scale);
+            nk_f32_t result = nk_f32_silu_serial_(gate_value * input_scale);
             if (up_row) {
                 nk_f32_t up_value;
                 nk_bf16_to_f32_serial(up_row + col, &up_value);
@@ -1747,7 +1768,7 @@ NK_API_COMPTIME void nk_each_swiglu_e4m3_haswell(nk_e4m3_t const *gate, nk_e4m3_
         for (; col != cols; ++col) {
             nk_f32_t gate_value;
             nk_e4m3_to_f32_serial(gate_row + col, &gate_value);
-            nk_f32_t result = nk_silu_f32_serial_(gate_value * input_scale);
+            nk_f32_t result = nk_f32_silu_serial_(gate_value * input_scale);
             if (up_row) {
                 nk_f32_t up_value;
                 nk_e4m3_to_f32_serial(up_row + col, &up_value);

@@ -7,7 +7,7 @@
  *  @sa include/numkong/attention.h
  *
  *  Portable 128-bit packing side of the WebAssembly backend: the packed-KV layout, its size and
- *  shape queries, the raw strided-row repack, and the integer exponent the I8 weight path uses.
+ *  shape queries, and the raw strided-row repack.
  *  Storage follows the `attention/haswell.h` conventions exactly: BF16, E4M3, and I8 stay in
  *  their source encoding at rest — packing is a raw strided-row copy with channels zero-padded
  *  to a multiple of 8. The compute kernels over that layout live in `attention/v128relaxed.h`.
@@ -36,44 +36,6 @@ enum {
     /** @brief Deepest head this backend handles in scratch; deeper heads route to the serial tier. */
     nk_attention_max_depth_v128_k_ = 256,
 };
-
-/**
- *  @brief I-BERT-style integer exponential for the I8 weight path: takes the base-2 argument as a Q15
- *         fixed-point value in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8 weight in each i32
- *         lane. Pure integer — SIMD128 has no per-lane variable shift, so the `1 << (13−whole)` bias and
- *         the `>> (14−whole)` are synthesized with a 4-stage `bitselect` barrel network keyed on
- *         `nlz = −whole ∈ [0,10]`, in integer arithmetic throughout.
- */
-NK_HELPER_INLINE v128_t nk_attention_iexp2_weight_i32x4_v128_(v128_t t_q15_i32x4) {
-    v128_t const zero_i32x4 = wasm_i32x4_splat(0);
-    v128_t const whole_i32x4 = wasm_i32x4_shr(t_q15_i32x4, 15); // arithmetic floor, in [-10,0]
-    v128_t const fraction_i32x4 = wasm_v128_and(t_q15_i32x4, wasm_i32x4_splat(0x7FFF));
-    v128_t poly_i32x4 = wasm_i32x4_splat(1296); // Q14 Chebyshev coefficients, degree 3
-    poly_i32x4 = wasm_i32x4_add(wasm_i32x4_shr(wasm_i32x4_mul(fraction_i32x4, poly_i32x4), 15), wasm_i32x4_splat(3678));
-    poly_i32x4 = wasm_i32x4_add(wasm_i32x4_shr(wasm_i32x4_mul(fraction_i32x4, poly_i32x4), 15),
-                                wasm_i32x4_splat(11410));
-    poly_i32x4 = wasm_i32x4_add(wasm_i32x4_shr(wasm_i32x4_mul(fraction_i32x4, poly_i32x4), 15),
-                                wasm_i32x4_splat(16382));
-    v128_t const scaled_i32x4 = wasm_i32x4_sub(wasm_i32x4_shl(poly_i32x4, 8), poly_i32x4); // poly·255
-    v128_t const nlz_i32x4 = wasm_i32x4_sub(zero_i32x4, whole_i32x4);                      // -whole, in [0,10]
-    v128_t const mask1_i32x4 = wasm_i32x4_ne(wasm_v128_and(nlz_i32x4, wasm_i32x4_splat(1)), zero_i32x4);
-    v128_t const mask2_i32x4 = wasm_i32x4_ne(wasm_v128_and(nlz_i32x4, wasm_i32x4_splat(2)), zero_i32x4);
-    v128_t const mask4_i32x4 = wasm_i32x4_ne(wasm_v128_and(nlz_i32x4, wasm_i32x4_splat(4)), zero_i32x4);
-    v128_t const mask8_i32x4 = wasm_i32x4_ne(wasm_v128_and(nlz_i32x4, wasm_i32x4_splat(8)), zero_i32x4);
-    v128_t bias_i32x4 = wasm_i32x4_splat(1 << 13);
-    // bias = 1 << (13 + nlz) = (1<<13) << nlz — round-half-up bias, added before the full shift
-    bias_i32x4 = wasm_v128_bitselect(wasm_i32x4_shl(bias_i32x4, 1), bias_i32x4, mask1_i32x4);
-    bias_i32x4 = wasm_v128_bitselect(wasm_i32x4_shl(bias_i32x4, 2), bias_i32x4, mask2_i32x4);
-    bias_i32x4 = wasm_v128_bitselect(wasm_i32x4_shl(bias_i32x4, 4), bias_i32x4, mask4_i32x4);
-    bias_i32x4 = wasm_v128_bitselect(wasm_i32x4_shl(bias_i32x4, 8), bias_i32x4, mask8_i32x4);
-    v128_t r_i32x4 = wasm_i32x4_shr(wasm_i32x4_add(scaled_i32x4, bias_i32x4), 14);
-    // result = (scaled + bias) >> (14 + nlz) = ((scaled+bias) >> 14) >> nlz (exact for non-negatives)
-    r_i32x4 = wasm_v128_bitselect(wasm_i32x4_shr(r_i32x4, 1), r_i32x4, mask1_i32x4);
-    r_i32x4 = wasm_v128_bitselect(wasm_i32x4_shr(r_i32x4, 2), r_i32x4, mask2_i32x4);
-    r_i32x4 = wasm_v128_bitselect(wasm_i32x4_shr(r_i32x4, 4), r_i32x4, mask4_i32x4);
-    r_i32x4 = wasm_v128_bitselect(wasm_i32x4_shr(r_i32x4, 8), r_i32x4, mask8_i32x4);
-    return r_i32x4; // U8 weight (0..255) per i32 lane
-}
 
 NK_HELPER_INLINE v128_t nk_attention_load_bf16x4_v128_(void const *plane_chunk) {
     nk_b64_vec_t raw_vec;

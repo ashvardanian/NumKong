@@ -28,9 +28,10 @@
 #if NK_TARGET_X8664_
 #if NK_TARGET_DIAMONDAMX
 
-#include "numkong/attention/serial.h"  // shared packed-KV offsets, width-agnostic fallback
-#include "numkong/attention/skylake.h" // `nk_attention_exp2_f32x16_skylake_`, reduces
-#include "numkong/dots/sapphireamx.h"  // tile config, BF16/I8 tile structs, load_a, transposers
+#include "numkong/attention/serial.h" // shared packed-KV offsets, width-agnostic fallback
+#include "numkong/each/skylake.h"     // `nk_exp2_f32x16_skylake_`
+#include "numkong/reduce/skylake.h"   // `nk_reduce_add_f32x16_skylake_`, `nk_reduce_max_f32x16_skylake_`
+#include "numkong/dots/sapphireamx.h" // tile config, BF16/I8 tile structs, load_a, transposers
 
 #if defined(__cplusplus)
 extern "C" {
@@ -320,7 +321,7 @@ NK_HELPER_INLINE void nk_attention_exp_panel_e4m3_diamondamx_(nk_f32_t const *sc
         nk_size_t position_idx = 0;
         for (; position_idx < full_cols; position_idx += 16) {
             __m512 const exp_f32x16 = _mm512_mul_ps(
-                nk_attention_exp2_f32x16_skylake_(
+                nk_exp2_f32x16_skylake_(
                     _mm512_fmsub_ps(_mm512_loadu_ps(scores_row + position_idx), scale_f32x16, max_f32x16)),
                 amplitude_f32x16);
             __m128i const weight_e4m3x16 = nk_attention_quantize_e4m3x16_diamondamx_(exp_f32x16);
@@ -329,7 +330,7 @@ NK_HELPER_INLINE void nk_attention_exp_panel_e4m3_diamondamx_(nk_f32_t const *sc
         }
         if (position_idx < valid_cols) {
             __m512 const exp_f32x16 = _mm512_maskz_mov_ps(
-                tail_mask, _mm512_mul_ps(nk_attention_exp2_f32x16_skylake_(_mm512_fmsub_ps(
+                tail_mask, _mm512_mul_ps(nk_exp2_f32x16_skylake_(_mm512_fmsub_ps(
                                              _mm512_loadu_ps(scores_row + position_idx), scale_f32x16, max_f32x16)),
                                          amplitude_f32x16));
             __m128i const weight_e4m3x16 = nk_attention_quantize_e4m3x16_diamondamx_(exp_f32x16);
@@ -441,8 +442,7 @@ NK_HELPER_INLINE void nk_attention_task_e4m3_diamondamx_(
                     __m512 const old_max_f32x16 = row_max2_f32x16[row_block_idx][row_tile_idx];
                     __m512 const new_max_f32x16 = _mm512_max_ps(
                         old_max_f32x16, _mm512_mul_ps(_mm512_load_ps(panel_max[row_tile_idx]), scale2_f32x16));
-                    __m512 const corr_f32x16 = nk_attention_exp2_f32x16_skylake_(
-                        _mm512_sub_ps(old_max_f32x16, new_max_f32x16));
+                    __m512 const corr_f32x16 = nk_exp2_f32x16_skylake_(_mm512_sub_ps(old_max_f32x16, new_max_f32x16));
                     row_max2_f32x16[row_block_idx][row_tile_idx] = new_max_f32x16;
                     _mm512_store_ps(corrections[row_tile_idx], corr_f32x16);
                     _mm512_store_ps(new_max_arr[row_tile_idx], new_max_f32x16);
