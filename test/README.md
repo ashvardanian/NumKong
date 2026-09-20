@@ -70,20 +70,17 @@ Foreign flag mapping for muscle-memory compatibility:
 
 Each kernel is assigned a __comparison family__ that determines which error metrics are reported and what constitutes failure.
 Families are defined in `test.hpp` as `comparison_family_t`.
-All floating-point families report `max_abs`, `max_rel`, `mean_ulp`, `max_ulp`, and `exact` match counts; some also add `mean_abs` or `mean_rel`.
+All floating-point families report `max_abs`, `max_rel`, and `mean_ulp`; most also report `max_ulp` and `exact` match counts, and some substitute `mean_abs` or `mean_rel`.
 
 - __`exact_k`__ — integer and binary metrics: Hamming, Jaccard, set intersections, integer min/max.
-  Reports `max_dist`, `mean_dist`, `mismatch`, `exact`.
+  Reports `max_dist`, `mean_dist`, `max_abs`, `mismatch`, `exact`.
   Fails on any `max_dist > 0`.
-- __`narrow_arithmetic_k`__ — elementwise float ops: sum, scale, blend, fma, sin, cos, atan, cast.
+- __`approximate_k`__ — everything measured against a ULP budget: elementwise float ops, reductions and dot products.
   Fails on `max_ulp > NK_ULP_THRESHOLD_{F32,F16,BF16}`.
-- __`mixed_precision_reduction_k`__ — reductions and dot products: dot, angular, euclidean, sqeuclidean, reduce_moments, reduce_minmax.
-  Wider tolerance than `narrow_arithmetic_k` due to accumulation error.
 - __`probability_k`__ — probability divergences: KL, Jensen-Shannon.
   Also reports `mean_abs` and `mean_rel`.
 - __`geospatial_k`__ — geographic distances: Haversine, Vincenty.
   Also reports `mean_abs`.
-- __`external_baseline_k`__ — cross-backend comparison against system BLAS — OpenBLAS, MKL, Accelerate.
 
 ### Reference Baselines
 
@@ -139,7 +136,7 @@ The toolchain files configure memory limits appropriate for each target:
 | ------ | -------------- | ---------- | ------------- | ------------------ |
 | wasm32 | 64 MB          | 2 GB       | 32-bit        | 3.1.27+            |
 | wasm64 | 256 MB         | 16 GB      | 64-bit        | 3.1.35+            |
-| WASI   | —              | 256 MB     | 32-bit        | —                  |
+| WASI   | —              | 2 GB       | 32-bit        | —                  |
 
 All three targets enable `-msimd128` and `-mrelaxed-simd` automatically.
 Stack size is 5 MB across all Emscripten targets.
@@ -156,7 +153,7 @@ For up-to-date engine support, see [WebAssembly Roadmap](https://webassembly.org
 
 ### Cross-Compilation
 
-NumKong ships 8 toolchain files in `cmake/` for cross-compiling to non-native targets.
+NumKong ships 11 toolchain files in `cmake/` for cross-compiling to non-native targets.
 Tests run transparently under QEMU via `CMAKE_CROSSCOMPILING_EMULATOR`.
 Set `NK_IN_QEMU=1` to relax half-precision accuracy thresholds under emulation.
 
@@ -166,16 +163,14 @@ __ARM64 Linux__
 cmake -B build_arm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64-gnu.cmake \
       -DNK_BUILD_TEST=1
 cmake --build build_arm64 --parallel
-NK_IN_QEMU=1 ctest --test-dir build_arm64    # runs under qemu-aarch64 -cpu max
+NK_IN_QEMU=1 ctest --test-dir build_arm64 # runs under qemu-aarch64 -cpu max
 ```
 
-Default arch: `armv9-a+sve2+fp16+bf16+i8mm+dotprod+fp16fml`.
+The ISA floor is `armv8-a`; individual kernels are gated by the compile probes in `cmake/`.
 
 __RISC-V 64 with GCC__
 
 ```sh
-export RISCV_TOOLCHAIN_PATH=/path/to/riscv-gnu-toolchain    # optional
-# export RISCV_SYSROOT=/path/to/riscv-sysroot               # optional override
 cmake -B build_riscv -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-gnu.cmake \
       -DNK_BUILD_TEST=1
 cmake --build build_riscv --parallel
@@ -183,17 +178,19 @@ NK_IN_QEMU=1 ctest --test-dir build_riscv    # runs under qemu-riscv64 -cpu max
 ```
 
 Default arch: `rv64gcv_zvfh_zvfbfwma_zvbb`.
+Needs GCC 16 or newer for the RVV kernels.
 
 __RISC-V 64 with LLVM__
 
 ```sh
-export RISCV_SYSROOT=/path/to/riscv-sysroot
-export LLVM_ROOT=/path/to/llvm                           # optional
+export LLVM_ROOT=/path/to/llvm # optional
 cmake -B build_riscv_llvm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
       -DNK_BUILD_TEST=1
 cmake --build build_riscv_llvm --parallel
 NK_IN_QEMU=1 ctest --test-dir build_riscv_llvm
 ```
+
+Set `RISCV_SYSROOT` only for a self-contained toolchain; distribution cross packages need none.
 
 __Android ARM64__
 

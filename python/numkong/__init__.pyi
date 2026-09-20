@@ -779,6 +779,20 @@ def hash(
 ) -> Tensor:
     """Tensor filled with deterministic pseudo-random bits (shape, dtype, seed → reproducible bytes)."""
     ...
+def astype(
+    a: _BufferType,
+    dtype: _DtypeLike,
+    /,
+    *,
+    out: _BufferType | None = None,
+) -> Tensor:
+    """Cast an N-D buffer to ``dtype`` without first copying it into a Tensor.
+
+    A supplied ``out`` must be writable, C-contiguous, have the exact input
+    shape and requested dtype, and must not overlap ``a``. Returns ``out`` when
+    provided, otherwise a new Tensor.
+    """
+    ...
 
 # endregion Tensor Constructors
 

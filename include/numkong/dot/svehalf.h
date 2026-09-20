@@ -1,6 +1,6 @@
 /**
  *  @brief SIMD-accelerated Dot Products for SVE FP16.
- *  @file include/numkong/dot/sve.h
+ *  @file include/numkong/dot/svehalf.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
  *

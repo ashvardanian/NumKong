@@ -294,13 +294,8 @@ NK_INTERNAL void nk_jaccard_f32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_v
     nk_vu32x4_t zero_union_mask_u32x4 = (nk_vu32x4_t)vec_cmpeq(union_f32x4, zero_f32x4);
     nk_vf32x4_t safe_union_f32x4 = vec_sel(union_f32x4, one_f32x4, zero_union_mask_u32x4);
 
-    // Fast reciprocal with Newton-Raphson
-    nk_vf32x4_t union_reciprocal_f32x4 = vec_re(safe_union_f32x4);
-    nk_vf32x4_t two_f32x4 = vec_splats(2.0f);
-    union_reciprocal_f32x4 = vec_mul(union_reciprocal_f32x4,
-                                     vec_sub(two_f32x4, vec_mul(safe_union_f32x4, union_reciprocal_f32x4)));
-
-    nk_vf32x4_t ratio_f32x4 = vec_mul(dot_f32x4, union_reciprocal_f32x4);
+    // Exact division rather than `vec_re` — batched results must match the serial reference bit-for-bit.
+    nk_vf32x4_t ratio_f32x4 = vec_div(dot_f32x4, safe_union_f32x4);
     nk_vf32x4_t jaccard_f32x4 = vec_sub(one_f32x4, ratio_f32x4);
     result_vec->vf32x4 = vec_sel(jaccard_f32x4, zero_f32x4, zero_union_mask_u32x4);
 }

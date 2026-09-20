@@ -60,9 +60,9 @@ extern "C" {
  *  Marked `__arm_streaming_compatible` so the helper is callable from both streaming
  *  (SME) and non-streaming (SVE) contexts without mode transitions.
  *
- *  @param predicate Active-lane mask
- *  @param x         Input vector (must be positive for meaningful results)
- *  @return          Approximate 1/sqrt(x) with ~23-bit mantissa accuracy
+ *  @param predicate_b32x Active-lane mask
+ *  @param x Input vector (must be positive for meaningful results)
+ *  @return Approximate 1/sqrt(x) with ~23-bit mantissa accuracy
  */
 NK_INTERNAL svfloat32_t nk_rsqrt_f32x_sve_(svbool_t predicate_b32x, svfloat32_t x) NK_STREAMING_COMPATIBLE_ {
     svfloat32_t r = svrsqrte_f32(x);
@@ -80,9 +80,9 @@ NK_INTERNAL svfloat32_t nk_rsqrt_f32x_sve_(svbool_t predicate_b32x, svfloat32_t 
  *  Marked `__arm_streaming_compatible` so the helper is callable from both streaming
  *  (SME) and non-streaming (SVE) contexts without mode transitions.
  *
- *  @param predicate_b32x Active-lane mask
- *  @param x         Input vector (must be positive for meaningful results)
- *  @return          Approximate 1/sqrt(x) with ~52-bit mantissa accuracy
+ *  @param predicate_b64x Active-lane mask
+ *  @param x Input vector (must be positive for meaningful results)
+ *  @return Approximate 1/sqrt(x) with ~52-bit mantissa accuracy
  */
 NK_INTERNAL svfloat64_t nk_rsqrt_f64x_sve_(svbool_t predicate_b64x, svfloat64_t x) NK_STREAMING_COMPATIBLE_ {
     svfloat64_t r = svrsqrte_f64(x);

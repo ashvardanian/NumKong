@@ -463,30 +463,30 @@
 #endif // !defined(NK_TARGET_SMEBI32) || ...
 
 #if !defined(NK_TARGET_SMEHALF) || (NK_TARGET_SMEHALF && !NK_TARGET_ARM64_)
-#if defined(__ARM_FEATURE_SME_F16F16) || nk_has_builtin_(__builtin_sme_svmopa_za32_f16_m)
+#if defined(__ARM_FEATURE_SME_F16F16) || nk_has_builtin_(__builtin_sme_svmopa_za16_f16_m)
 #define NK_TARGET_SMEHALF 1
 #else
 #undef NK_TARGET_SMEHALF
 #define NK_TARGET_SMEHALF 0
-#endif // nk_has_builtin_(__builtin_sme_svmopa_za32_f16_m)
+#endif // nk_has_builtin_(__builtin_sme_svmopa_za16_f16_m)
 #endif // !defined(NK_TARGET_SMEHALF) || ...
 
 #if !defined(NK_TARGET_SMEBF16) || (NK_TARGET_SMEBF16 && !NK_TARGET_ARM64_)
-#if nk_has_builtin_(__builtin_sme_svmopa_za32_bf16_m)
+#if defined(__ARM_FEATURE_SME_B16B16) || nk_has_builtin_(__builtin_sme_svmopa_za16_bf16_m)
 #define NK_TARGET_SMEBF16 1
 #else
 #undef NK_TARGET_SMEBF16
 #define NK_TARGET_SMEBF16 0
-#endif // nk_has_builtin_(__builtin_sme_svmopa_za32_bf16_m)
+#endif // nk_has_builtin_(__builtin_sme_svmopa_za16_bf16_m)
 #endif // !defined(NK_TARGET_SMEBF16) || ...
 
 #if !defined(NK_TARGET_SMELUT2) || (NK_TARGET_SMELUT2 && !NK_TARGET_ARM64_)
-#if nk_has_builtin_(__builtin_sme_svluti2_lane_zt_u8)
+#if nk_has_builtin_(__builtin_sme_svluti4_zt_u8_x4)
 #define NK_TARGET_SMELUT2 1
 #else
 #undef NK_TARGET_SMELUT2
 #define NK_TARGET_SMELUT2 0
-#endif // nk_has_builtin_(__builtin_sme_svluti2_lane_zt_u8)
+#endif // nk_has_builtin_(__builtin_sme_svluti4_zt_u8_x4)
 #endif // !defined(NK_TARGET_SMELUT2) || ...
 
 // Compiling for Arm: NK_TARGET_SMEFA64 (FEAT_SME_FA64, full SVE2 in streaming mode)
@@ -694,6 +694,7 @@
  *  ARM Streaming attributes (require SME-capable compiler: GCC 14+, Clang 16+).
  *  NK_STREAMING_ marks functions that require streaming SVE mode (e.g. FCVTLT).
  *  NK_STREAMING_COMPATIBLE_ marks helpers callable from both streaming and non-streaming mode.
+ *  NK_STREAMING_OUTLINED_ replaces `static` where GCC would frame an inlined body by VL, spilling at SVL.
  */
 #if NK_TARGET_ARM64_ && NK_TARGET_SME
 #define NK_STREAMING_            __arm_streaming
@@ -701,6 +702,11 @@
 #else
 #define NK_STREAMING_
 #define NK_STREAMING_COMPATIBLE_
+#endif
+#if NK_TARGET_ARM64_ && NK_TARGET_SME && defined(__GNUC__) && !defined(__clang__)
+#define NK_STREAMING_OUTLINED_ __attribute__((noinline)) static
+#else
+#define NK_STREAMING_OUTLINED_ static
 #endif
 
 /**
@@ -1655,27 +1661,33 @@ NK_INTERNAL void nk_sme_stop_streaming_(void) { __asm__ __volatile__("smstop sm"
  *  - __arm_tpidr2_save / __arm_tpidr2_restore: lazy ZA save/restore protocol
  *    used in __arm_new("za") prologues. Always no-ops in NumKong because no
  *    NK_PUBLIC function carries ZA state (TPIDR2_EL0 is always null at entry).
+ *    `used` is load-bearing under LTO: the prologue call is synthesized by the
+ *    backend, long after IPA would drop these as unreferenced.
  *
  *  - __arm_sc_memset / __arm_sc_memcpy / __arm_sc_memmove: streaming-compatible
  *    memory routines the compiler may emit inside __arm_streaming functions.
- *    Apple Clang provides these in its runtime; upstream LLVM does not.
+ *    Apple Clang provides these in its runtime; upstream LLVM does not. GCC
+ *    needs no stub because it never emits calls to them — and must not get one,
+ *    as its `arm_sme.h` declares them with C++ linkage.
  */
-__attribute__((weak)) void __arm_tpidr2_save(void) {}
-__attribute__((weak)) void __arm_tpidr2_restore(void *blk) { nk_unused_(blk); }
-__attribute__((weak, target("+sme"))) void *__arm_sc_memset(void *d, int c, __SIZE_TYPE__ n) __arm_streaming_compatible {
+__attribute__((weak, used)) void __arm_tpidr2_save(void) {}
+__attribute__((weak, used)) void __arm_tpidr2_restore(void *blk) { nk_unused_(blk); }
+#if defined(__clang__) // GCC's `arm_sme.h` declares these with C++ linkage, which collides here
+__attribute__((weak, target("+sme"))) void *__arm_sc_memset(void *d, int c,
+                                                            __SIZE_TYPE__ n) __arm_streaming_compatible {
     unsigned char *p = (unsigned char *)d;
     for (__SIZE_TYPE__ i = 0; i < n; i++) p[i] = (unsigned char)c;
     return d;
 }
 __attribute__((weak, target("+sme"))) void *__arm_sc_memcpy(void *d, void const *s,
-                                                           __SIZE_TYPE__ n) __arm_streaming_compatible {
+                                                            __SIZE_TYPE__ n) __arm_streaming_compatible {
     unsigned char *dp = (unsigned char *)d;
     unsigned char const *sp = (unsigned char const *)s;
     for (__SIZE_TYPE__ i = 0; i < n; i++) dp[i] = sp[i];
     return d;
 }
 __attribute__((weak, target("+sme"))) void *__arm_sc_memmove(void *d, void const *s,
-                                                            __SIZE_TYPE__ n) __arm_streaming_compatible {
+                                                             __SIZE_TYPE__ n) __arm_streaming_compatible {
     unsigned char *dp = (unsigned char *)d;
     unsigned char const *sp = (unsigned char const *)s;
     if (dp < sp) {
@@ -1686,6 +1698,7 @@ __attribute__((weak, target("+sme"))) void *__arm_sc_memmove(void *d, void const
     }
     return d;
 }
+#endif
 #endif
 
 #ifdef __cplusplus

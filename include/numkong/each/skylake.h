@@ -28,6 +28,7 @@
 
 #include "numkong/types.h"
 #include "numkong/cast/skylake.h" // `nk_e4m3x16_to_f32x16_skylake_`
+#include "numkong/each/haswell.h" // `nk_each_sum_f16_haswell`
 
 #if defined(__cplusplus)
 extern "C" {

@@ -15,6 +15,7 @@
 #include "numkong/spatial/haswell.h"
 #include "numkong/spatial/serial.h"
 #include "numkong/dots/sierra.h"
+#include "numkong/reduce/haswell.h" // `nk_reduce_add_i32x8_haswell_`
 
 #if defined(__cplusplus)
 extern "C" {

@@ -1,6 +1,6 @@
 # Batched Dot Products in NumKong
 
-NumKong implements batched GEMM computing C = A × Bᵀ (packed) and C = A × Aᵀ (symmetric). B is pre-packed once and reused across queries. This is the foundation for the spatials, sets, and maxsim modules.
+NumKong implements batched GEMM computing C = A × Bᵀ (packed) and C = A × Aᵀ (symmetric). B is pre-packed once and reused across queries. This is the foundation for the spatials and sets modules.
 
 Packed dot product computes the full cross-product matrix:
 
@@ -28,21 +28,21 @@ def dots_symmetric(a: np.ndarray) -> np.ndarray:
 
 ## Input & Output Types
 
-| Input Type | Output Type | Description                                    |
-| ---------- | ----------- | ---------------------------------------------- |
-| `f64`      | `f64`       | 64-bit IEEE 754 double precision               |
-| `f32`      | `f32`       | 32-bit IEEE 754 single precision               |
-| `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output |
-| `bf16`     | `f32`       | 16-bit brain float, widened output             |
-| `e4m3`     | `f32`       | 8-bit Float8: 4 exponent, 3 mantissa bits      |
-| `e5m2`     | `f32`       | 8-bit Float8: 5 exponent, 2 mantissa bits      |
-| `e2m3`     | `f32`       | 8-bit MX format: 2 exponent, 3 mantissa bits   |
-| `e3m2`     | `f32`       | 8-bit MX format: 3 exponent, 2 mantissa bits   |
-| `i8`       | `i32`       | 8-bit signed integers                          |
-| `u8`       | `u32`       | 8-bit unsigned integers                        |
-| `i4`       | `i32`       | 4-bit signed integers, packed nibble pairs     |
-| `u4`       | `u32`       | 4-bit unsigned integers, packed nibble pairs   |
-| `u1`       | `u32`       | 1-bit binary packed octets, popcount of AND    |
+| Input Type | Output Type | Description                                      |
+| ---------- | ----------- | ------------------------------------------------ |
+| `f64`      | `f64`       | 64-bit IEEE 754 double precision                 |
+| `f32`      | `f64`       | 32-bit IEEE 754 single precision, widened output |
+| `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output   |
+| `bf16`     | `f32`       | 16-bit brain float, widened output               |
+| `e4m3`     | `f32`       | 8-bit Float8: 4 exponent, 3 mantissa bits        |
+| `e5m2`     | `f32`       | 8-bit Float8: 5 exponent, 2 mantissa bits        |
+| `e2m3`     | `f32`       | 8-bit MX format: 2 exponent, 3 mantissa bits     |
+| `e3m2`     | `f32`       | 8-bit MX format: 3 exponent, 2 mantissa bits     |
+| `i8`       | `i32`       | 8-bit signed integers                            |
+| `u8`       | `u32`       | 8-bit unsigned integers                          |
+| `i4`       | `i32`       | 4-bit signed integers, packed nibble pairs       |
+| `u4`       | `u32`       | 4-bit unsigned integers, packed nibble pairs     |
+| `u1`       | `u32`       | 1-bit binary packed octets, popcount of AND      |
 
 ## Optimizations
 
@@ -73,7 +73,7 @@ Tile configuration via `LDTILECFG` sets row counts and column byte-widths per ti
 Morton Z-curve ordering for tile traversal improves cache reuse when both A and B exceed L2.
 This eliminates the explicit M×N×K loop nesting and register file pressure of vector ISAs — the entire dot-product reduction happens inside the tile instruction.
 FP8 inputs on Sapphire AMX go through an on-the-fly E4M3/E5M2 → BF16 pack via the Ice Lake `VPERMI2W` LUT helpers — port-5-bound but the simplest correct route to feed `TDPBF16PS` tiles.
-Granite Rapids adds `TDPFP16PS` (same tile shape, FP16 operands); the E5M2 variant widens inputs with a single `VPUNPCK*BW` against zero into FP16 tiles at pack time and then reuses the native FP16 compute loop — keeps the intermediate at FP16 precision instead of truncating to BF16 like the Sapphire path.
+Granite Rapids adds `TDPFP16PS` (same tile shape, FP16 operands); the E5M2 variant widens inputs with `VPMOVZXBW` and a left shift by 8 into FP16 tiles at pack time and then reuses the native FP16 compute loop — keeps the intermediate at FP16 precision instead of truncating to BF16 like the Sapphire path.
 
 ### SME Outer-Product Streaming
 
@@ -359,8 +359,8 @@ Measured with Wasmtime v42 (Cranelift backend).
 | __f16__                            | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_f16_serial`        |      14.8 gso/s, 204 ulp |       14.2 gso/s, 36 ulp |      14.8 gso/s, 326 ulp |
 | `nk_dots_symmetric_f16_serial`     |       24.3 gso/s, 13 ulp |     24.9 gso/s, 24.6 ulp |      26.7 gso/s, 506 ulp |
-| `nk_dots_packed_f16_neonhalf`      |     77.0 gso/s, 16.8 ulp |     79.1 gso/s, 25.5 ulp |      84.2 gso/s, 618 ulp |
-| `nk_dots_symmetric_f16_neonhalf`   |     20.5 gso/s, 12.1 ulp |     20.4 gso/s, 25.0 ulp |      22.5 gso/s, 506 ulp |
+| `nk_dots_packed_f16_neon`          |     77.0 gso/s, 16.8 ulp |     79.1 gso/s, 25.5 ulp |      84.2 gso/s, 618 ulp |
+| `nk_dots_symmetric_f16_neon`       |     20.5 gso/s, 12.1 ulp |     20.4 gso/s, 25.0 ulp |      22.5 gso/s, 506 ulp |
 | `nk_dots_packed_f16_neonfhm`       |      104 gso/s, 16.7 ulp |      110 gso/s, 25.5 ulp |       118 gso/s, 618 ulp |
 | `nk_dots_symmetric_f16_neonfhm`    |     34.5 gso/s, 12.1 ulp |     40.4 gso/s, 25.0 ulp |      41.5 gso/s, 506 ulp |
 | `nk_dots_packed_f16_sme`           |    1,106 gso/s, 14.8 ulp |    1,213 gso/s, 28.2 ulp |    1,190 gso/s, 28.2 ulp |

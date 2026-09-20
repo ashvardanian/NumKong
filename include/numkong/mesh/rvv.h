@@ -884,7 +884,7 @@ NK_PUBLIC void nk_umeyama_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_
         optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
         optimal_rotation[8] = 1;
         trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
-        scale_factor = centered_norm_squared_a > 0.0 ? trace_rotation_covariance / centered_norm_squared_a : 0.0;
+        scale_factor = trace_rotation_covariance / centered_norm_squared_a;
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
@@ -894,7 +894,7 @@ NK_PUBLIC void nk_umeyama_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_
         nk_f64_t sign_det = det < 0 ? -1.0 : 1.0;
         nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8],
                                                        sign_det);
-        scale_factor = centered_norm_squared_a > 0.0 ? trace_ds / centered_norm_squared_a : 0.0;
+        scale_factor = trace_ds / centered_norm_squared_a;
         if (det < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
@@ -944,7 +944,7 @@ NK_PUBLIC void nk_umeyama_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_
         optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
         optimal_rotation[8] = 1;
         trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
-        scale_factor = centered_norm_squared_a > 0.0 ? trace_rotation_covariance / centered_norm_squared_a : 0.0;
+        scale_factor = trace_rotation_covariance / centered_norm_squared_a;
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
@@ -954,7 +954,7 @@ NK_PUBLIC void nk_umeyama_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_
         nk_f64_t sign_det = det < 0 ? -1.0 : 1.0;
         nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8],
                                                        sign_det);
-        scale_factor = centered_norm_squared_a > 0.0 ? trace_ds / centered_norm_squared_a : 0.0;
+        scale_factor = trace_ds / centered_norm_squared_a;
         if (det < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);

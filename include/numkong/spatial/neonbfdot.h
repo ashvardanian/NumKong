@@ -49,7 +49,7 @@ extern "C" {
 
 NK_PUBLIC void nk_angular_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
 
-    // Similar to `nk_angular_i8_neon`, we can use the `BFMMLA` instruction through
+    // Similar to `nk_angular_i8_neonsdot`, we can use the `BFMMLA` instruction through
     // the `vbfmmlaq_f32` intrinsic to compute matrix products and later drop 1/4 of values.
     // The only difference is that `zip` isn't provided for `bf16` and we need to reinterpret back
     // and forth before zipping. Same as with integers, on modern Arm CPUs, this "smart"

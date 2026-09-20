@@ -39,6 +39,58 @@ int buffers_shapes_match(Py_buffer const *first, Py_buffer const *second) {
     return 1;
 }
 
+/**
+ *  @brief Conservatively report whether two strided buffers share any byte of address range.
+ *
+ *  Accumulates the per-dimension extents into signed minimum and maximum byte offsets, so a
+ *  reversed view with negative strides widens the range below its base pointer rather than above.
+ */
+static int py_buffers_may_overlap(Py_buffer const *first, Py_buffer const *second) {
+    if (!first->len || !second->len) return 0;
+
+    Py_ssize_t first_min_offset = 0, first_max_offset = 0;
+    for (int dimension = 0; dimension < first->ndim; ++dimension) {
+        Py_ssize_t const extent = (first->shape[dimension] - 1) * first->strides[dimension];
+        if (extent < 0) first_min_offset += extent;
+        else first_max_offset += extent;
+    }
+    Py_ssize_t second_min_offset = 0, second_max_offset = 0;
+    for (int dimension = 0; dimension < second->ndim; ++dimension) {
+        Py_ssize_t const extent = (second->shape[dimension] - 1) * second->strides[dimension];
+        if (extent < 0) second_min_offset += extent;
+        else second_max_offset += extent;
+    }
+
+    char const *first_begin = (char const *)first->buf + first_min_offset;
+    char const *first_end = (char const *)first->buf + first_max_offset + first->itemsize;
+    char const *second_begin = (char const *)second->buf + second_min_offset;
+    char const *second_end = (char const *)second->buf + second_max_offset + second->itemsize;
+    return first_begin < second_end && second_begin < first_end;
+}
+
+char *validate_out_py_buffer(Py_buffer const *out_buffer, Py_buffer const *input_buffer, nk_dtype_t expected_dtype) {
+    if (!buffers_shapes_match(input_buffer, out_buffer)) return NULL;
+    nk_dtype_t const out_dtype = resolve_nk_dtype_in_py_buffer(out_buffer);
+    if (out_dtype != expected_dtype) {
+        PyErr_Format(PyExc_TypeError, "out dtype '%s' does not match expected '%s'", nk_dtype_name(out_dtype),
+                     nk_dtype_name(expected_dtype));
+        return NULL;
+    }
+    if (!PyBuffer_IsContiguous(out_buffer, 'C')) {
+        PyErr_SetString(PyExc_ValueError, "out must be C-contiguous");
+        return NULL;
+    }
+    if (out_buffer->readonly) {
+        PyErr_SetString(PyExc_ValueError, "out must be writable");
+        return NULL;
+    }
+    if (py_buffers_may_overlap(input_buffer, out_buffer)) {
+        PyErr_SetString(PyExc_ValueError, "out must not overlap the input");
+        return NULL;
+    }
+    return (char *)out_buffer->buf;
+}
+
 size_t shared_contiguous_tail_dimensions(Py_buffer const *buffers[], size_t num_buffers, size_t num_dims) {
     size_t num_contiguous_dims = 0;
     for (size_t dimension = num_dims; dimension-- > 0;) {
@@ -360,60 +412,83 @@ void compute_contiguous_strides(size_t rank, Py_ssize_t const *shape, size_t ite
 }
 
 /**
- *  @brief Recursive stride walker for linearize_cast_into.
+ *  @brief Recursive stride walker shared by linearize_cast_into and cast_into_strided.
  *
- *  Walks non-contiguous outer dimensions recursively. Once only contiguous tail
- *  dimensions remain, processes the entire contiguous slice with memcpy or nk_cast.
+ *  Both sides carry explicit strides, matching each_scale_recursive. Walks the outer
+ *  dimensions that either side leaves unpacked; once only jointly contiguous tail
+ *  dimensions remain, converts the whole slice with one memcpy or nk_cast.
  */
-static void linearize_cast_recursive(                                         //
-    char const *src_data, nk_dtype_t src_dtype, char *dest_data,              //
-    nk_dtype_t dest_dtype, size_t src_element_size, size_t dest_element_size, //
-    Py_ssize_t const *shape, Py_ssize_t const *strides,                       //
+static void cast_strided_recursive(                                            //
+    char const *src_data, nk_dtype_t src_dtype, Py_ssize_t const *src_strides, //
+    char *dest_data, nk_dtype_t dest_dtype, Py_ssize_t const *dest_strides,    //
+    size_t element_size, Py_ssize_t const *shape,                              //
     size_t remaining_dims, size_t contiguous_tail_dims) {
 
-    // Base case: all remaining dimensions are contiguous — one operation
+    // Base case: both sides pack the remaining dimensions — one operation
     if (remaining_dims <= contiguous_tail_dims) {
         size_t slice_elements = 1;
-        for (size_t dim = 0; dim < remaining_dims; ++dim) slice_elements *= (size_t)shape[dim];
-        if (src_dtype == dest_dtype) memcpy(dest_data, src_data, slice_elements * src_element_size);
+        for (size_t dimension = 0; dimension < remaining_dims; ++dimension) slice_elements *= (size_t)shape[dimension];
+        if (src_dtype == dest_dtype) memcpy(dest_data, src_data, slice_elements * element_size);
         else nk_cast(src_data, src_dtype, (nk_size_t)slice_elements, dest_data, dest_dtype);
         return;
     }
 
-    // Recursive case: iterate outermost non-contiguous dimension
+    // Recursive case: iterate the outermost dimension that is not jointly packed
     size_t const dim_extent = (size_t)shape[0];
-    // Compute the contiguous dest stride for this level
-    size_t inner_elements = 1;
-    for (size_t dim = 1; dim < remaining_dims; ++dim) inner_elements *= (size_t)shape[dim];
-    size_t const dest_row_bytes = inner_elements * dest_element_size;
-
     for (size_t position = 0; position < dim_extent; ++position) {
-        linearize_cast_recursive(                                          //
-            src_data + (Py_ssize_t)position * strides[0], src_dtype,       //
-            dest_data + (Py_ssize_t)position * (Py_ssize_t)dest_row_bytes, //
-            dest_dtype, src_element_size, dest_element_size,               //
-            shape + 1, strides + 1,                                        //
+        Py_ssize_t const signed_position = (Py_ssize_t)position;
+        cast_strided_recursive(                                                      //
+            src_data + signed_position * src_strides[0], src_dtype, src_strides + 1, //
+            dest_data + signed_position * dest_strides[0], dest_dtype,               //
+            dest_strides + 1, element_size, shape + 1,                               //
             remaining_dims - 1, contiguous_tail_dims);
     }
+}
+
+/** @brief Count trailing dimensions that both stride arrays pack at their own element width. */
+static size_t jointly_contiguous_tail_dimensions(size_t rank, Py_ssize_t const *shape, Py_ssize_t const *src_strides,
+                                                 size_t src_element_size, Py_ssize_t const *dest_strides,
+                                                 size_t dest_element_size) {
+    size_t contiguous_tail_dims = 0;
+    Py_ssize_t expected_src_stride = (Py_ssize_t)src_element_size;
+    Py_ssize_t expected_dest_stride = (Py_ssize_t)dest_element_size;
+    for (size_t dimension = rank; dimension-- > 0;) {
+        if (src_strides[dimension] != expected_src_stride) break;
+        if (dest_strides[dimension] != expected_dest_stride) break;
+        expected_src_stride *= shape[dimension];
+        expected_dest_stride *= shape[dimension];
+        contiguous_tail_dims++;
+    }
+    return contiguous_tail_dims;
 }
 
 void linearize_cast_into(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype,
                          size_t rank, Py_ssize_t const *shape, Py_ssize_t const *strides, size_t total_elements) {
     nk_unused_(total_elements);
-    size_t src_element_size = nk_dtype_bytes_per_value(src_dtype);
-    size_t dest_element_size = nk_dtype_bytes_per_value(dest_dtype);
+    size_t const src_element_size = nk_dtype_bytes_per_value(src_dtype);
+    size_t const dest_element_size = nk_dtype_bytes_per_value(dest_dtype);
 
-    // Count how many trailing dims are contiguous in src
-    size_t contiguous_tail_dims = 0;
-    Py_ssize_t expected_stride = (Py_ssize_t)src_element_size;
-    for (size_t dim = rank; dim-- > 0;) {
-        if (strides[dim] != expected_stride) break;
-        expected_stride *= shape[dim];
-        contiguous_tail_dims++;
-    }
+    Py_ssize_t dense_dest_strides[NK_TENSOR_MAX_RANK];
+    compute_contiguous_strides(rank, shape, dest_element_size, dense_dest_strides);
+    size_t const contiguous_tail_dims = jointly_contiguous_tail_dimensions(rank, shape, strides, src_element_size,
+                                                                           dense_dest_strides, dest_element_size);
 
-    linearize_cast_recursive(src_data, src_dtype, dest_data, dest_dtype, src_element_size, dest_element_size, shape,
-                             strides, rank, contiguous_tail_dims);
+    cast_strided_recursive(src_data, src_dtype, strides, dest_data, dest_dtype, dense_dest_strides, dest_element_size,
+                           shape, rank, contiguous_tail_dims);
+}
+
+void cast_into_strided(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype, size_t rank,
+                       Py_ssize_t const *shape, Py_ssize_t const *dest_strides) {
+    size_t const src_element_size = nk_dtype_bytes_per_value(src_dtype);
+    size_t const dest_element_size = nk_dtype_bytes_per_value(dest_dtype);
+
+    Py_ssize_t dense_src_strides[NK_TENSOR_MAX_RANK];
+    compute_contiguous_strides(rank, shape, src_element_size, dense_src_strides);
+    size_t const contiguous_tail_dims = jointly_contiguous_tail_dimensions(
+        rank, shape, dense_src_strides, src_element_size, dest_strides, dest_element_size);
+
+    cast_strided_recursive(src_data, src_dtype, dense_src_strides, dest_data, dest_dtype, dest_strides,
+                           dest_element_size, shape, rank, contiguous_tail_dims);
 }
 
 char *ensure_contiguous_buffer(char const *src_data, nk_dtype_t src_dtype, nk_dtype_t target_dtype, size_t rank,
@@ -1972,6 +2047,93 @@ PyObject *Tensor_astype(PyObject *self, PyObject *dtype_arg) {
     linearize_cast_into(tensor->data, tensor->dtype, result->data, target_dtype, tensor->rank, tensor->shape,
                         tensor->strides, (size_t)total);
     return (PyObject *)result;
+}
+
+char const doc_astype[] =                                                                  //
+    "Cast a buffer-protocol input to a NumKong dtype.\n\n"                                 //
+    "Parameters:\n"                                                                        //
+    "    a: Input buffer with arbitrary rank and strides.\n"                               //
+    "    dtype: Target NumKong dtype name.\n"                                              //
+    "    out: Optional writable C-contiguous output buffer with the exact input shape\n"   //
+    "        and requested dtype. It must not overlap `a`.\n\n"                            //
+    "Returns:\n"                                                                           //
+    "    Tensor: A new tensor with the input shape and requested dtype, or `out` itself\n" //
+    "        when provided.\n\n"                                                           //
+    "Notes:\n"                                                                             //
+    "    Unlike `Tensor(a).astype(dtype)`, the input is never staged through a Tensor.\n"  //
+    "    Narrower floating formats round ties to even. Float-to-integer casts round\n"     //
+    "    ties to even, saturate overflow and infinity, and map NaN to zero.\n\n"           //
+    "Signature:\n"                                                                         //
+    "    >>> def astype(a, dtype, /, *, out=None) -> Tensor: ...";
+
+PyObject *api_astype(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
+    nk_unused_(self);
+    if (nargs != 2) {
+        PyErr_SetString(PyExc_TypeError, "astype(a, dtype, /, *, out=None) requires exactly two positional arguments");
+        return NULL;
+    }
+
+    PyObject *out_obj = NULL;
+    Py_ssize_t const keyword_count = kwnames ? PyTuple_Size(kwnames) : 0;
+    for (Py_ssize_t i = 0; i < keyword_count; ++i) {
+        PyObject *name = PyTuple_GET_ITEM(kwnames, i);
+        if (PyUnicode_CompareWithASCIIString(name, "out") == 0) out_obj = args[nargs + i];
+        else {
+            PyErr_Format(PyExc_TypeError, "astype() got an unexpected keyword argument '%S'", name);
+            return NULL;
+        }
+    }
+    if (out_obj == Py_None) out_obj = NULL;
+
+    PyObject *return_obj = NULL;
+    Py_buffer input_buffer, out_buffer;
+    nk_buffer_backing_t input_backing, out_backing;
+    memset(&input_buffer, 0, sizeof(input_buffer));
+    memset(&out_buffer, 0, sizeof(out_buffer));
+
+    if (!nk_get_buffer(args[0], &input_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &input_backing)) return NULL;
+    if (input_buffer.ndim > NK_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "Tensor rank %d exceeds maximum supported rank %d", input_buffer.ndim,
+                     NK_TENSOR_MAX_RANK);
+        goto cleanup;
+    }
+
+    nk_dtype_t const input_dtype = resolve_nk_dtype_in_py_buffer(&input_buffer);
+    if (input_dtype == nk_dtype_unknown_k) {
+        PyErr_Format(PyExc_TypeError, "Unsupported input dtype '%s'", input_buffer.format);
+        goto cleanup;
+    }
+    nk_dtype_t const output_dtype = py_object_to_nk_dtype(args[1]);
+    if (output_dtype == nk_dtype_unknown_k) goto cleanup;
+
+    char *result_data = NULL;
+    if (!out_obj) {
+        Tensor *result = Tensor_new(output_dtype, (size_t)input_buffer.ndim, input_buffer.shape);
+        if (!result) goto cleanup;
+        return_obj = (PyObject *)result;
+        result_data = result->data;
+    }
+    else {
+        if (!nk_get_buffer(out_obj, &out_buffer, PyBUF_STRIDES | PyBUF_FORMAT | PyBUF_WRITABLE, &out_backing))
+            goto cleanup;
+        result_data = validate_out_py_buffer(&out_buffer, &input_buffer, output_dtype);
+        if (!result_data) goto cleanup;
+        return_obj = out_obj;
+        Py_INCREF(out_obj);
+    }
+
+    size_t total_elements = 1;
+    for (int dim = 0; dim < input_buffer.ndim; ++dim) total_elements *= (size_t)input_buffer.shape[dim];
+
+    PyThreadState *gil = PyEval_SaveThread();
+    linearize_cast_into(input_buffer.buf, input_dtype, result_data, output_dtype, (size_t)input_buffer.ndim,
+                        input_buffer.shape, input_buffer.strides, total_elements);
+    PyEval_RestoreThread(gil);
+
+cleanup:
+    PyBuffer_Release(&input_buffer);
+    PyBuffer_Release(&out_buffer);
+    return return_obj;
 }
 
 char const doc_method___array__[] =                                                       //

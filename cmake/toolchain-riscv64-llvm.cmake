@@ -1,36 +1,47 @@
 # RISC-V 64 LLVM Clang toolchain for NumKong.
 #
 # Usage:
-#   cmake -B build_riscv_llvm -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
-#         -D RISCV_SYSROOT=/path/to/riscv64/sysroot
-#
-# Required inputs:
-#   -D RISCV_SYSROOT=/path/to/riscv64/sysroot
+#   sudo apt install clang lld gcc-riscv64-linux-gnu g++-riscv64-linux-gnu libc6-dev-riscv64-cross qemu-user
+#   cmake -B build_riscv_llvm -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake
 #
 # Optional inputs:
 #   -D LLVM_ROOT=/path/to/llvm
-#   -D RISCV_TARGET=riscv64-unknown-linux-gnu
+#   -D RISCV_SYSROOT=/path/to/riscv64/sysroot
+#   -D RISCV_QEMU_LD_PREFIX=/usr/riscv64-linux-gnu
+#   -D RISCV_TARGET=riscv64-linux-gnu
 #   -D RISCV_MARCH=rv64gcv_zvfh_zvfbfwma_zvbb
 #   -D RISCV_MABI=lp64d
 
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR riscv64)
 
-if (NOT DEFINED RISCV_SYSROOT)
-    if (DEFINED ENV{RISCV_SYSROOT})
-        set(RISCV_SYSROOT "$ENV{RISCV_SYSROOT}")
+# Only a self-contained rootfs is a sysroot. Distribution cross packages install into the build
+# root, so the sysroot is `/` — Clang's default — and `--target` alone finds the multiarch paths.
+if (NOT DEFINED RISCV_SYSROOT AND DEFINED ENV{RISCV_SYSROOT})
+    set(RISCV_SYSROOT "$ENV{RISCV_SYSROOT}")
+endif ()
+if (DEFINED RISCV_SYSROOT)
+    set(ENV{RISCV_SYSROOT} "${RISCV_SYSROOT}")
+    set(RISCV_SYSROOT "${RISCV_SYSROOT}" CACHE PATH "RISC-V sysroot for LLVM cross-compilation")
+endif ()
+
+# `qemu-user`'s `-L` is the guest *interpreter* prefix, not a sysroot: it is where
+# `ld-linux-riscv64-lp64d.so.1` and the guest shared libraries live. On Debian that is
+# `/usr/<triple>` even though the compiler sysroot is `/`, so it is its own input.
+if (NOT DEFINED RISCV_QEMU_LD_PREFIX)
+    if (DEFINED ENV{QEMU_LD_PREFIX})
+        set(RISCV_QEMU_LD_PREFIX "$ENV{QEMU_LD_PREFIX}")
     else ()
-        message(FATAL_ERROR "RISCV_SYSROOT must point to a riscv64 Linux sysroot for LLVM cross-compilation.")
+        set(RISCV_QEMU_LD_PREFIX "/usr/riscv64-linux-gnu")
     endif ()
 endif ()
-set(RISCV_SYSROOT "${RISCV_SYSROOT}" CACHE PATH "RISC-V sysroot for LLVM cross-compilation")
-set(ENV{RISCV_SYSROOT} "${RISCV_SYSROOT}")
+set(RISCV_QEMU_LD_PREFIX "${RISCV_QEMU_LD_PREFIX}" CACHE PATH "Guest loader prefix for `qemu-riscv64 -L`")
 
 if (NOT DEFINED RISCV_TARGET)
     if (DEFINED ENV{RISCV_TARGET})
         set(RISCV_TARGET "$ENV{RISCV_TARGET}")
     else ()
-        set(RISCV_TARGET "riscv64-unknown-linux-gnu")
+        set(RISCV_TARGET "riscv64-linux-gnu")
     endif ()
 endif ()
 set(RISCV_TARGET "${RISCV_TARGET}" CACHE STRING "RISC-V target triple for LLVM cross-compilation")
@@ -70,12 +81,10 @@ if (DEFINED LLVM_ROOT)
     set(ENV{LLVM_ROOT} "${LLVM_ROOT}")
 endif ()
 
-# Nested try_compile() projects re-enter this toolchain file, so forward the
-# custom cross-compilation settings explicitly.
-list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES LLVM_ROOT RISCV_SYSROOT RISCV_TARGET RISCV_MARCH RISCV_MABI)
-
-# Toolchain validation only needs to prove the project compiles.
-set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+# `check_ipo_supported()` uses try_compile's whole-project signature, which ignores
+# `CMAKE_TRY_COMPILE_PLATFORM_VARIABLES` — hence the duplicate `set(ENV{...})` above.
+list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES LLVM_ROOT RISCV_SYSROOT RISCV_QEMU_LD_PREFIX
+     RISCV_TARGET RISCV_MARCH RISCV_MABI)
 
 if (DEFINED LLVM_ROOT)
     set(_NK_LLVM_BIN "${LLVM_ROOT}/bin")
@@ -94,20 +103,24 @@ else ()
     find_program(CMAKE_LINKER ld.lld)
 endif ()
 
-set(CMAKE_SYSROOT "${RISCV_SYSROOT}")
+if (DEFINED RISCV_SYSROOT)
+    set(CMAKE_SYSROOT "${RISCV_SYSROOT}")
+endif ()
 set(CMAKE_C_COMPILER_TARGET "${RISCV_TARGET}")
 set(CMAKE_CXX_COMPILER_TARGET "${RISCV_TARGET}")
 
-set(_NK_RISCV_FLAGS "--target=${RISCV_TARGET} --sysroot=${RISCV_SYSROOT} -march=${RISCV_MARCH} -mabi=${RISCV_MABI}")
+set(_NK_RISCV_FLAGS "-march=${RISCV_MARCH} -mabi=${RISCV_MABI}")
 set(CMAKE_C_FLAGS_INIT "${_NK_RISCV_FLAGS}")
 set(CMAKE_CXX_FLAGS_INIT "${_NK_RISCV_FLAGS}")
 
 find_program(_NK_QEMU_RISCV64 qemu-riscv64)
 if (_NK_QEMU_RISCV64)
-    set(CMAKE_CROSSCOMPILING_EMULATOR "${_NK_QEMU_RISCV64};-L;${RISCV_SYSROOT};-cpu;max")
+    set(CMAKE_CROSSCOMPILING_EMULATOR "${_NK_QEMU_RISCV64};-L;${RISCV_QEMU_LD_PREFIX};-cpu;max")
 endif ()
 
-set(CMAKE_FIND_ROOT_PATH "${RISCV_SYSROOT}")
+if (DEFINED RISCV_SYSROOT)
+    set(CMAKE_FIND_ROOT_PATH "${RISCV_SYSROOT}")
+endif ()
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)

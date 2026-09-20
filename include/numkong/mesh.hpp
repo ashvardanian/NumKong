@@ -319,8 +319,8 @@ void svd3x3_(scalar_type_ const *a, scalar_type_ *svd_u, scalar_type_ *svd_s, sc
 
 /**
  *  @brief Root Mean Square Deviation between two 3D point clouds (no alignment)
- *  @param[in] a,b Point clouds [d x 3] interleaved (x0,y0,z0, x1,y1,z1, ...)
- *  @param[in] d Number of 3D points
+ *  @param[in] a,b Point clouds [n x 3] interleaved (x0,y0,z0, x1,y1,z1, ...)
+ *  @param[in] n Number of 3D points
  *  @param[out] a_centroid,b_centroid Centroids (3 values each), can be nullptr
  *  @param[out] rotation 3x3 rotation matrix (9 values), always identity, can be nullptr
  *  @param[out] scale Scale factor, always 1.0, can be nullptr

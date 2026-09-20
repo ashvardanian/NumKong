@@ -60,6 +60,8 @@ Real and integer element-wise operations:
 | `bf16`     | `bf16`      | 16-bit brain float                        |
 | `e4m3`     | `e4m3`      | 8-bit Float8: 4 exponent, 3 mantissa bits |
 | `e5m2`     | `e5m2`      | 8-bit Float8: 5 exponent, 2 mantissa bits |
+| `e3m2`     | `e3m2`      | 6-bit Float6: 3 exponent, 2 mantissa bits |
+| `e2m3`     | `e2m3`      | 6-bit Float6: 2 exponent, 3 mantissa bits |
 | `i8`       | `i8`        | 8-bit signed integers, saturating         |
 | `u8`       | `u8`        | 8-bit unsigned integers, saturating       |
 | `i16`      | `i16`       | 16-bit signed integers                    |
@@ -86,7 +88,7 @@ Haswell processes 8 Float16 elements per cycle: `VCVTPH2PS` (widen) -> `VFMADD23
 
 ### Saturating Integer Arithmetic
 
-`nk_each_sum_i8_haswell`, `nk_each_sum_u8_neonhalf` use saturating addition — clamping to type bounds instead of wrapping on overflow.
+`nk_each_sum_i8_haswell`, `nk_each_sum_u8_neon` use saturating addition — clamping to type bounds instead of wrapping on overflow.
 Haswell uses `VPADDSB` / `VPADDUSB` for signed/unsigned 8-bit saturation in a single instruction (32 elements per cycle at YMM width).
 Serial fallback implements saturation via branch-free min/max: `result = min(max(a + b, TYPE_MIN), TYPE_MAX)` with overflow detection through sign-bit comparison.
 
@@ -387,7 +389,7 @@ Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run 
 | `nk_each_fma_e3m2_serial`      |        0.506 gb/s, ? ulp |        0.433 gb/s, ? ulp |        0.436 gb/s, ? ulp |
 | __i8__                         | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_each_sum_i8_serial`        |                94.6 gb/s |                55.5 gb/s |                42.7 gb/s |
-| `nk_each_sum_i8_neonhalf`      |                85.5 gb/s |                60.5 gb/s |                39.6 gb/s |
+| `nk_each_sum_i8_neon`          |                85.5 gb/s |                60.5 gb/s |                39.6 gb/s |
 | `nk_each_scale_i8_serial`      |               0.171 gb/s |               0.145 gb/s |               0.148 gb/s |
 | `nk_each_scale_i8_neonhalf`    |                22.6 gb/s |                22.4 gb/s |                20.8 gb/s |
 | `nk_each_blend_i8_serial`      |               0.302 gb/s |               0.254 gb/s |               0.272 gb/s |
@@ -395,7 +397,7 @@ Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run 
 | `nk_each_fma_i8_serial`        |               0.436 gb/s |               0.359 gb/s |               0.376 gb/s |
 | __u8__                         | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_each_sum_u8_serial`        |                13.2 gb/s |                12.3 gb/s |                12.3 gb/s |
-| `nk_each_sum_u8_neonhalf`      |                85.3 gb/s |                84.8 gb/s |                67.3 gb/s |
+| `nk_each_sum_u8_neon`          |                85.3 gb/s |                84.8 gb/s |                67.3 gb/s |
 | `nk_each_scale_u8_serial`      |               0.135 gb/s |               0.120 gb/s |               0.119 gb/s |
 | `nk_each_scale_u8_neonhalf`    |                23.0 gb/s |                21.9 gb/s |                21.2 gb/s |
 | `nk_each_blend_u8_serial`      |               0.256 gb/s |               0.218 gb/s |               0.220 gb/s |

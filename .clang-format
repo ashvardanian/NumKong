@@ -88,6 +88,7 @@ StatementMacros:
   - nk_define_vdot_complex_
   - nk_define_kld_
   - nk_define_jsd_
+  - nk_define_sparse_intersect_helpers_
   - nk_define_sparse_intersect_
   - nk_define_sparse_dot_
   - nk_define_each_scale_

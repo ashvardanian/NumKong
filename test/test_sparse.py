@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """Test sparse operations: nk.sparse_dot, nk.intersect.
 
-Dtypes: float32 values with uint16/uint32 indices.
+Dtypes: float32/bfloat16 values with uint32/uint16 indices.
 Baselines: manual weighted intersection, NumPy intersect1d.
 Matches C++ suite: test_sparse.cpp.
 """
 
 import atexit
-import platform
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -30,9 +29,10 @@ from test_base import (
     NK_RTOL,
     assert_allclose,
     collect_errors,
+    downcast_f32_to_dtype,
     create_stats,
-    is_running_under_qemu,
     keep_one_capability,
+    make_nk,
     numpy_available,
     possible_capabilities,
     print_stats_report,
@@ -67,38 +67,38 @@ KERNELS_SPARSE: dict[str, tuple[Callable, Callable, None]] = {
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(randomized_repetitions_count)
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_sparse_dot(capability: str):
+@pytest.mark.parametrize("index_dtype,weight_dtype", [("uint32", "float32"), ("uint16", "bfloat16")])
+def test_sparse_dot(capability: str, index_dtype: str, weight_dtype: str):
     """Test nk.sparse_dot against manual weighted intersection."""
     baseline_kernel, simd_kernel, _ = KERNELS_SPARSE["sparse_dot"]
     sparse_dim = sparse_dimensions[0]
-    a_idx = np.unique(np.random.randint(0, sparse_dim, size=min(50, sparse_dim))).astype(np.uint32)
-    b_idx = np.unique(np.random.randint(0, sparse_dim, size=min(50, sparse_dim))).astype(np.uint32)
-    a_val = np.random.randn(len(a_idx)).astype(np.float32)
-    b_val = np.random.randn(len(b_idx)).astype(np.float32)
+    # Random lengths on both sides, kept above the 64 below which the x86 kernels redirect to serial.
+    a_length, b_length = np.random.randint(64, sparse_dim, size=2)
+    a_idx = np.sort(np.random.choice(sparse_dim, size=a_length, replace=False)).astype(index_dtype)
+    b_idx = np.sort(np.random.choice(sparse_dim, size=b_length, replace=False)).astype(index_dtype)
+    a_val, a_f64 = downcast_f32_to_dtype(np.random.randn(len(a_idx)).astype(np.float32), weight_dtype)
+    b_val, b_f64 = downcast_f32_to_dtype(np.random.randn(len(b_idx)).astype(np.float32), weight_dtype)
 
     keep_one_capability(capability)
-    result_dt, result = profile(simd_kernel, a_idx, a_val, b_idx, b_val)
+    result_dt, result = profile(simd_kernel, a_idx, make_nk(a_val, weight_dtype), b_idx, make_nk(b_val, weight_dtype))
 
-    accurate_dt, accurate = profile(baseline_kernel, a_idx, a_val.astype(np.float64), b_idx, b_val.astype(np.float64))
-    expected_dt, expected = profile(baseline_kernel, a_idx, a_val, b_idx, b_val)
+    accurate_dt, accurate = profile(baseline_kernel, a_idx, a_f64, b_idx, b_f64)
+    expected_dt, expected = profile(baseline_kernel, a_idx, a_f64.astype(np.float32), b_idx, b_f64.astype(np.float32))
 
     assert_allclose(result, accurate, atol=NK_ATOL, rtol=NK_RTOL)
     collect_errors(
-        "sparse_dot", len(a_idx), "float32", accurate, accurate_dt, expected, expected_dt, result, result_dt, stats
+        "sparse_dot", len(a_idx), weight_dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats
     )
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("dtype", ["uint16", "uint32"])
+@pytest.mark.parametrize("dtype", ["uint16", "uint32", "uint64"])
 @pytest.mark.parametrize("first_length_bound", [10, 100, 1000])
 @pytest.mark.parametrize("second_length_bound", [10, 100, 1000])
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_intersect(dtype: str, first_length_bound: int, second_length_bound: int, capability: str):
     """Compares the nk.intersect() function with numpy.intersect1d."""
-    if is_running_under_qemu() and (platform.machine() == "aarch64" or platform.machine() == "arm64"):
-        pytest.skip("In QEMU `aarch64` emulation on `x86_64` the `intersect` function is not reliable")
-
     a_length = np.random.randint(1, first_length_bound)
     b_length = np.random.randint(1, second_length_bound)
     a = np.random.randint(first_length_bound * 2, size=a_length, dtype=dtype)

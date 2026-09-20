@@ -21,15 +21,6 @@
 extern "C" {
 #endif
 
-/*  Keep the serial instantiations below actually scalar, regardless of build type.
- *  See dots/serial.h for rationale. */
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
-
 NK_INTERNAL nk_f64_t nk_reduce_sum_f64_serial_(nk_f64_t const *values, nk_f64_t const *compensations, int count) {
     nk_f64_t running_sum = 0, accumulated_error = 0;
     for (int i = 0; i < count; i++) {
@@ -46,6 +37,15 @@ NK_INTERNAL nk_f64_t nk_reduce_sum_f64_serial_(nk_f64_t const *values, nk_f64_t 
     }
     return running_sum + accumulated_error;
 }
+
+/*  Keep the serial instantiations below actually scalar, regardless of build type.
+ *  See dots/serial.h for rationale. */
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
 
 NK_PUBLIC void nk_reduce_moments_f32_serial(                       //
     nk_f32_t const *data, nk_size_t count, nk_size_t stride_bytes, //

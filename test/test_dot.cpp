@@ -19,7 +19,7 @@ error_stats_t test_dot(typename scalar_type_::dot_kernel_t kernel) {
     using result_t = typename scalar_t::dot_result_t;
     using reference_t = reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
@@ -50,7 +50,7 @@ error_stats_t test_vdot(typename scalar_type_::vdot_kernel_t kernel) {
     using result_t = typename scalar_t::vdot_result_t;
     using reference_t = reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::mixed_precision_reduction_k);
+    error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
     auto a = make_vector<scalar_t>(global_config.dense_dimensions),
          b = make_vector<scalar_t>(global_config.dense_dimensions);
@@ -72,10 +72,33 @@ error_stats_t test_vdot(typename scalar_type_::vdot_kernel_t kernel) {
 }
 
 void test_dot() {
-    error_stats_section_t check("Dot Products");
+    error_stats_section_t check;
+
+    check.section("Dot Products Serial", nk_cap_serial_k);
+    check("dot_f32_serial", test_dot<f32_t>, nk_dot_f32_serial);
+    check("dot_f64_serial", test_dot<f64_t>, nk_dot_f64_serial);
+    check("dot_f16_serial", test_dot<f16_t>, nk_dot_f16_serial);
+    check("dot_bf16_serial", test_dot<bf16_t>, nk_dot_bf16_serial);
+    check("dot_e4m3_serial", test_dot<e4m3_t>, nk_dot_e4m3_serial);
+    check("dot_e5m2_serial", test_dot<e5m2_t>, nk_dot_e5m2_serial);
+    check("dot_e2m3_serial", test_dot<e2m3_t>, nk_dot_e2m3_serial);
+    check("dot_e3m2_serial", test_dot<e3m2_t>, nk_dot_e3m2_serial);
+    check("dot_i8_serial", test_dot<i8_t>, nk_dot_i8_serial);
+    check("dot_u8_serial", test_dot<u8_t>, nk_dot_u8_serial);
+    check("dot_i4_serial", test_dot<i4x2_t>, nk_dot_i4_serial);
+    check("dot_u4_serial", test_dot<u4x2_t>, nk_dot_u4_serial);
+    check("dot_u1_serial", test_dot<u1x8_t>, nk_dot_u1_serial);
+    check("dot_f32c_serial", test_dot<f32c_t>, nk_dot_f32c_serial);
+    check("vdot_f32c_serial", test_vdot<f32c_t>, nk_vdot_f32c_serial);
+    check("dot_f64c_serial", test_dot<f64c_t>, nk_dot_f64c_serial);
+    check("vdot_f64c_serial", test_vdot<f64c_t>, nk_vdot_f64c_serial);
+    check("dot_f16c_serial", test_dot<f16c_t>, nk_dot_f16c_serial);
+    check("vdot_f16c_serial", test_vdot<f16c_t>, nk_vdot_f16c_serial);
+    check("dot_bf16c_serial", test_dot<bf16c_t>, nk_dot_bf16c_serial);
+    check("vdot_bf16c_serial", test_vdot<bf16c_t>, nk_vdot_bf16c_serial);
 
 #if NK_DYNAMIC_DISPATCH
-    // Dynamic dispatch - only test the dispatcher itself
+    check.section("Dot Products Dynamic", nk_cap_serial_k);
     check("dot_f32", test_dot<f32_t>, nk_dot_f32);
     check("dot_f64", test_dot<f64_t>, nk_dot_f64);
     check("dot_f16", test_dot<f16_t>, nk_dot_f16);
@@ -97,10 +120,10 @@ void test_dot() {
     check("vdot_f16c", test_vdot<f16c_t>, nk_vdot_f16c);
     check("dot_bf16c", test_dot<bf16c_t>, nk_dot_bf16c);
     check("vdot_bf16c", test_vdot<bf16c_t>, nk_vdot_bf16c);
-#else
-    // Static compilation - test all available ISA variants
+#endif
 
 #if NK_TARGET_NEON
+    check.section("Dot Products NEON", nk_cap_neon_k);
     check("dot_f32_neon", test_dot<f32_t>, nk_dot_f32_neon);
     check("dot_f64_neon", test_dot<f64_t>, nk_dot_f64_neon);
     check("dot_f32c_neon", test_dot<f32c_t>, nk_dot_f32c_neon);
@@ -119,6 +142,7 @@ void test_dot() {
 #endif // NK_TARGET_NEON
 
 #if NK_TARGET_NEONSDOT
+    check.section("Dot Products NEON I8", nk_cap_neonsdot_k);
     check("dot_i8_neonsdot", test_dot<i8_t>, nk_dot_i8_neonsdot);
     check("dot_u8_neonsdot", test_dot<u8_t>, nk_dot_u8_neonsdot);
     check("dot_i4_neonsdot", test_dot<i4x2_t>, nk_dot_i4_neonsdot);
@@ -128,6 +152,7 @@ void test_dot() {
 #endif // NK_TARGET_NEONSDOT
 
 #if NK_TARGET_NEONFHM
+    check.section("Dot Products NEON FHM", nk_cap_neonfhm_k);
     check("dot_f16_neonfhm", test_dot<f16_t>, nk_dot_f16_neonfhm);
     check("dot_f16c_neonfhm", test_dot<f16c_t>, nk_dot_f16c_neonfhm);
     check("vdot_f16c_neonfhm", test_vdot<f16c_t>, nk_vdot_f16c_neonfhm);
@@ -136,6 +161,7 @@ void test_dot() {
 #endif // NK_TARGET_NEONFHM
 
 #if NK_TARGET_NEONBFDOT
+    check.section("Dot Products NEON BF16", nk_cap_neonbfdot_k);
     check("dot_bf16_neonbfdot", test_dot<bf16_t>, nk_dot_bf16_neonbfdot);
     check("dot_bf16c_neonbfdot", test_dot<bf16c_t>, nk_dot_bf16c_neonbfdot);
     check("vdot_bf16c_neonbfdot", test_vdot<bf16c_t>, nk_vdot_bf16c_neonbfdot);
@@ -144,6 +170,7 @@ void test_dot() {
 #endif // NK_TARGET_NEONBFDOT
 
 #if NK_TARGET_NEONFP8
+    check.section("Dot Products NEON FP8", nk_cap_neonfp8_k);
     check("dot_e4m3_neonfp8", test_dot<e4m3_t>, nk_dot_e4m3_neonfp8);
     check("dot_e5m2_neonfp8", test_dot<e5m2_t>, nk_dot_e5m2_neonfp8);
     check("dot_e2m3_neonfp8", test_dot<e2m3_t>, nk_dot_e2m3_neonfp8);
@@ -151,6 +178,7 @@ void test_dot() {
 #endif // NK_TARGET_NEONFP8
 
 #if NK_TARGET_SVE
+    check.section("Dot Products SVE", nk_cap_sve_k);
     check("dot_f32_sve", test_dot<f32_t>, nk_dot_f32_sve);
     check("dot_f64_sve", test_dot<f64_t>, nk_dot_f64_sve);
     check("dot_f32c_sve", test_dot<f32c_t>, nk_dot_f32c_sve);
@@ -160,21 +188,25 @@ void test_dot() {
 #endif // NK_TARGET_SVE
 
 #if NK_TARGET_SVEHALF
+    check.section("Dot Products SVE HALF", nk_cap_svehalf_k);
     check("dot_f16_svehalf", test_dot<f16_t>, nk_dot_f16_svehalf);
     check("dot_f16c_svehalf", test_dot<f16c_t>, nk_dot_f16c_svehalf);
     check("vdot_f16c_svehalf", test_vdot<f16c_t>, nk_vdot_f16c_svehalf);
 #endif // NK_TARGET_SVEHALF
 
 #if NK_TARGET_SVEBFDOT
+    check.section("Dot Products SVE BF16", nk_cap_svebfdot_k);
     check("dot_bf16_svebfdot", test_dot<bf16_t>, nk_dot_bf16_svebfdot);
 #endif // NK_TARGET_SVEBFDOT
 
 #if NK_TARGET_SVESDOT
+    check.section("Dot Products SVE I8", nk_cap_svesdot_k);
     check("dot_i8_svesdot", test_dot<i8_t>, nk_dot_i8_svesdot);
     check("dot_u8_svesdot", test_dot<u8_t>, nk_dot_u8_svesdot);
 #endif // NK_TARGET_SVESDOT
 
 #if NK_TARGET_HASWELL
+    check.section("Dot Products Haswell", nk_cap_haswell_k);
     check("dot_f64c_haswell", test_dot<f64c_t>, nk_dot_f64c_haswell);
     check("vdot_f64c_haswell", test_vdot<f64c_t>, nk_vdot_f64c_haswell);
     check("dot_f32c_haswell", test_dot<f32c_t>, nk_dot_f32c_haswell);
@@ -199,6 +231,7 @@ void test_dot() {
 #endif // NK_TARGET_HASWELL
 
 #if NK_TARGET_SKYLAKE
+    check.section("Dot Products Skylake", nk_cap_skylake_k);
     check("dot_f32_skylake", test_dot<f32_t>, nk_dot_f32_skylake);
     check("dot_f64_skylake", test_dot<f64_t>, nk_dot_f64_skylake);
     check("dot_f16_skylake", test_dot<f16_t>, nk_dot_f16_skylake);
@@ -216,6 +249,7 @@ void test_dot() {
 #endif // NK_TARGET_SKYLAKE
 
 #if NK_TARGET_ICELAKE
+    check.section("Dot Products Ice Lake", nk_cap_icelake_k);
     check("dot_i8_icelake", test_dot<i8_t>, nk_dot_i8_icelake);
     check("dot_u8_icelake", test_dot<u8_t>, nk_dot_u8_icelake);
     check("dot_i4_icelake", test_dot<i4x2_t>, nk_dot_i4_icelake);
@@ -227,18 +261,21 @@ void test_dot() {
 #endif // NK_TARGET_ICELAKE
 
 #if NK_TARGET_ALDER
+    check.section("Dot Products Alder", nk_cap_alder_k);
     check("dot_i8_alder", test_dot<i8_t>, nk_dot_i8_alder);
     check("dot_u8_alder", test_dot<u8_t>, nk_dot_u8_alder);
     check("dot_e2m3_alder", test_dot<e2m3_t>, nk_dot_e2m3_alder);
 #endif // NK_TARGET_ALDER
 
 #if NK_TARGET_SIERRA
+    check.section("Dot Products Sierra", nk_cap_sierra_k);
     check("dot_i8_sierra", test_dot<i8_t>, nk_dot_i8_sierra);
     check("dot_u8_sierra", test_dot<u8_t>, nk_dot_u8_sierra);
     check("dot_e2m3_sierra", test_dot<e2m3_t>, nk_dot_e2m3_sierra);
 #endif // NK_TARGET_SIERRA
 
 #if NK_TARGET_GENOA
+    check.section("Dot Products Genoa", nk_cap_genoa_k);
     check("dot_bf16_genoa", test_dot<bf16_t>, nk_dot_bf16_genoa);
     check("dot_e5m2_genoa", test_dot<e5m2_t>, nk_dot_e5m2_genoa);
     check("dot_bf16c_genoa", test_dot<bf16c_t>, nk_dot_bf16c_genoa);
@@ -246,12 +283,14 @@ void test_dot() {
 #endif // NK_TARGET_GENOA
 
 #if NK_TARGET_DIAMOND
+    check.section("Dot Products Diamond", nk_cap_diamond_k);
     check("dot_f16_diamond", test_dot<f16_t>, nk_dot_f16_diamond);
     check("dot_e4m3_diamond", test_dot<e4m3_t>, nk_dot_e4m3_diamond);
     check("dot_e5m2_diamond", test_dot<e5m2_t>, nk_dot_e5m2_diamond);
 #endif // NK_TARGET_DIAMOND
 
 #if NK_TARGET_RVV
+    check.section("Dot Products RVV", nk_cap_rvv_k);
     check("dot_f64c_rvv", test_dot<f64c_t>, nk_dot_f64c_rvv);
     check("vdot_f64c_rvv", test_vdot<f64c_t>, nk_vdot_f64c_rvv);
     check("dot_f32c_rvv", test_dot<f32c_t>, nk_dot_f32c_rvv);
@@ -272,6 +311,7 @@ void test_dot() {
 #endif // NK_TARGET_RVV
 
 #if NK_TARGET_V128RELAXED
+    check.section("Dot Products V128 Relaxed", nk_cap_v128relaxed_k);
     check("dot_f32_v128relaxed", test_dot<f32_t>, nk_dot_f32_v128relaxed);
     check("dot_f64_v128relaxed", test_dot<f64_t>, nk_dot_f64_v128relaxed);
     check("dot_f16_v128relaxed", test_dot<f16_t>, nk_dot_f16_v128relaxed);
@@ -292,22 +332,26 @@ void test_dot() {
 #endif // NK_TARGET_V128RELAXED
 
 #if NK_TARGET_RVVHALF
+    check.section("Dot Products RVV HALF", nk_cap_rvvhalf_k);
     check("dot_f16_rvvhalf", test_dot<f16_t>, nk_dot_f16_rvvhalf);
     check("dot_e4m3_rvvhalf", test_dot<e4m3_t>, nk_dot_e4m3_rvvhalf);
     check("dot_e5m2_rvvhalf", test_dot<e5m2_t>, nk_dot_e5m2_rvvhalf);
 #endif // NK_TARGET_RVVHALF
 
 #if NK_TARGET_RVVBF16
+    check.section("Dot Products RVV BF16", nk_cap_rvvbf16_k);
     check("dot_bf16_rvvbf16", test_dot<bf16_t>, nk_dot_bf16_rvvbf16);
     check("dot_e4m3_rvvbf16", test_dot<e4m3_t>, nk_dot_e4m3_rvvbf16);
     check("dot_e5m2_rvvbf16", test_dot<e5m2_t>, nk_dot_e5m2_rvvbf16);
 #endif // NK_TARGET_RVVBF16
 
 #if NK_TARGET_RVVBB
+    check.section("Dot Products RVV BB", nk_cap_rvvbb_k);
     check("dot_u1_rvvbb", test_dot<u1x8_t>, nk_dot_u1_rvvbb);
 #endif // NK_TARGET_RVVBB
 
 #if NK_TARGET_LOONGSONASX
+    check.section("Dot Products LoongArch LASX", nk_cap_loongsonasx_k);
     check("dot_f64_loongsonasx", test_dot<f64_t>, nk_dot_f64_loongsonasx);
     check("dot_f32_loongsonasx", test_dot<f32_t>, nk_dot_f32_loongsonasx);
     check("dot_bf16_loongsonasx", test_dot<bf16_t>, nk_dot_bf16_loongsonasx);
@@ -316,6 +360,7 @@ void test_dot() {
 #endif // NK_TARGET_LOONGSONASX
 
 #if NK_TARGET_POWERVSX
+    check.section("Dot Products Power VSX", nk_cap_powervsx_k);
     check("dot_f64_powervsx", test_dot<f64_t>, nk_dot_f64_powervsx);
     check("dot_f32_powervsx", test_dot<f32_t>, nk_dot_f32_powervsx);
     check("dot_f16_powervsx", test_dot<f16_t>, nk_dot_f16_powervsx);
@@ -324,30 +369,4 @@ void test_dot() {
     check("dot_u8_powervsx", test_dot<u8_t>, nk_dot_u8_powervsx);
     check("dot_u1_powervsx", test_dot<u1x8_t>, nk_dot_u1_powervsx);
 #endif // NK_TARGET_POWERVSX
-
-    // Serial always runs - baseline test
-    check("dot_f32_serial", test_dot<f32_t>, nk_dot_f32_serial);
-    check("dot_f64_serial", test_dot<f64_t>, nk_dot_f64_serial);
-    check("dot_f16_serial", test_dot<f16_t>, nk_dot_f16_serial);
-    check("dot_bf16_serial", test_dot<bf16_t>, nk_dot_bf16_serial);
-    check("dot_e4m3_serial", test_dot<e4m3_t>, nk_dot_e4m3_serial);
-    check("dot_e5m2_serial", test_dot<e5m2_t>, nk_dot_e5m2_serial);
-    check("dot_e2m3_serial", test_dot<e2m3_t>, nk_dot_e2m3_serial);
-    check("dot_e3m2_serial", test_dot<e3m2_t>, nk_dot_e3m2_serial);
-    check("dot_i8_serial", test_dot<i8_t>, nk_dot_i8_serial);
-    check("dot_u8_serial", test_dot<u8_t>, nk_dot_u8_serial);
-    check("dot_i4_serial", test_dot<i4x2_t>, nk_dot_i4_serial);
-    check("dot_u4_serial", test_dot<u4x2_t>, nk_dot_u4_serial);
-    check("dot_u1_serial", test_dot<u1x8_t>, nk_dot_u1_serial);
-    check("dot_f32c_serial", test_dot<f32c_t>, nk_dot_f32c_serial);
-    check("vdot_f32c_serial", test_vdot<f32c_t>, nk_vdot_f32c_serial);
-    check("dot_f64c_serial", test_dot<f64c_t>, nk_dot_f64c_serial);
-    check("vdot_f64c_serial", test_vdot<f64c_t>, nk_vdot_f64c_serial);
-    check("dot_f16c_serial", test_dot<f16c_t>, nk_dot_f16c_serial);
-    check("vdot_f16c_serial", test_vdot<f16c_t>, nk_vdot_f16c_serial);
-    check("dot_bf16c_serial", test_dot<bf16c_t>, nk_dot_bf16c_serial);
-    check("vdot_bf16c_serial", test_vdot<bf16c_t>, nk_vdot_bf16c_serial);
-
-#endif // NK_DYNAMIC_DISPATCH
-    // BLAS/MKL/Accelerate precision comparisons are in test_cross_blas.cpp
 }

@@ -206,10 +206,6 @@ def precise_decimal(dtype: str | None = None) -> Generator[tuple[Callable, Calla
             yield decimal.Decimal.from_float, decimal.Decimal.sqrt, decimal.Decimal.ln
 
 
-def is_running_under_qemu() -> bool:
-    return "NK_IN_QEMU" in os.environ
-
-
 def profile(callable: Callable | None, *args: Any, **kwargs: Any) -> tuple[int, Any]:
     if callable is None:
         return 0, None

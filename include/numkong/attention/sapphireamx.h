@@ -117,7 +117,7 @@ typedef struct {
  *  2. Polynomial approximation: exp(r) ≈ 1 + r + r²/2 + ... (degree 6)
  *  3. Reconstruction: exp(x) = 2ⁿ × exp(r)
  *
- *  @param x Input vector (16 floats)
+ *  @param x_f32x16 Input vector (16 floats)
  *  @return exp(x) for each element
  */
 NK_INTERNAL __m512 nk_exp_ps_avx512_(__m512 x_f32x16) {
@@ -169,7 +169,7 @@ NK_INTERNAL __m512 nk_exp_ps_avx512_(__m512 x_f32x16) {
  *
  *  Performance: ~12-15 cycles for 16 floats (vs ~18-22 for degree-6)
  *
- *  @param x Input vector (16 floats)
+ *  @param x_f32x16 Input vector (16 floats)
  *  @return exp(x) approximation
  */
 NK_INTERNAL __m512 nk_exp_ps_fast_avx512_(__m512 x_f32x16) {
@@ -475,10 +475,10 @@ NK_INTERNAL void nk_attention_softmax_update_(nk_attention_softmax_row_state_t *
  *  When processing a new KV block with larger scores, previous O accumulator
  *  needs rescaling: O = O × exp(oldₘₐₓ - newₘₐₓ)
  *
- *  @param output       Output accumulator [16][head_dim] in F32
- *  @param head_dim     Head dimension
- *  @param old_max      Previous running max per row (16 values)
- *  @param new_max      New running max per row (16 values)
+ *  @param output          Output accumulator [16][head_dim] in F32
+ *  @param head_dim        Head dimension
+ *  @param old_max_f32x16  Previous running max per row (16 values)
+ *  @param new_max_f32x16  New running max per row (16 values)
  */
 NK_INTERNAL void nk_attention_rescale_output_(nk_f32_t *output, nk_size_t head_dim, __m512 old_max_f32x16,
                                               __m512 new_max_f32x16) {

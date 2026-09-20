@@ -1,6 +1,8 @@
 {
     "variables": {
-        "openssl_fips": ""
+        "openssl_fips": "",
+        # `NK_MARCH_NATIVE=1` opts into a host-tuned, non-portable build, as in CMakeLists.txt.
+        "nk_march_native%": "<!(node -p \"['1','true','TRUE'].includes(process.env.NK_MARCH_NATIVE||'')?1:0\")"
     },
     "targets": [
         {
@@ -8,6 +10,7 @@
             "sources": [
                 "javascript/numkong.c",
                 "c/numkong.c",
+                "c/parallel.c",
                 "c/dispatch_f64.c",
                 "c/dispatch_f32.c",
                 "c/dispatch_f16.c",
@@ -34,18 +37,17 @@
                 "c/dispatch_e3m2.c",
             ],
             "include_dirs": [
-                "include"
+                "include",
+                "c"
             ],
             "defines": [
                 "NK_NATIVE_F16=0",
                 "NK_NATIVE_BF16=0",
-                "NK_DYNAMIC_DISPATCH=1",
-                "NK_USE_OPENMP=1"
+                "NK_DYNAMIC_DISPATCH=1"
             ],
             "cflags": [
                 "-std=c11",
                 "-O3",
-                "-fopenmp",
                 "-Wno-unknown-pragmas",
                 "-Wno-maybe-uninitialized",
                 "-Wno-cast-function-type",
@@ -54,25 +56,35 @@
                 "-include",
                 "<(module_root_dir)/nk_probes.h",
             ],
-            "ldflags": [
-                "-fopenmp"
-            ],
             "msvs_settings": {
                 "VCCLCompilerTool": {
                     "ForcedIncludeFiles": [
                         "<(module_root_dir)/nk_probes.h"
                     ],
                     "AdditionalOptions": [
-                        "/Zc:preprocessor",
-                        "/openmp:llvm"
+                        "/Zc:preprocessor"
                     ],
                 },
             },
             "conditions": [
-                # Pin TU baseline to each arch's ABI floor; SIMD kernels use per-function pragmas.
-                # Keep per-arch table in sync with cmake/nk_compiler_flags.cmake, build.rs, setup.py.
+                # Only this branch gets OpenMP; macOS and Windows use their own pools.
                 [
-                    "OS!='win' and target_arch=='arm64'",
+                    "OS!='mac' and OS!='win'",
+                    {
+                        "cflags": [
+                            "-fopenmp"
+                        ],
+                        "ldflags": [
+                            "-fopenmp"
+                        ]
+                    }
+                ],
+                # Pin TU baseline to each arch's ABI floor; SIMD kernels use per-function pragmas.
+                # Keep per-arch table in sync with CMakeLists.txt, build.rs, setup.py.
+                # macOS is excluded: `-arch` already pins the slice, and a per-arch `-march=`
+                # conflicts with the other slice of a universal build.
+                [
+                    "nk_march_native==0 and OS!='win' and OS!='mac' and target_arch=='arm64'",
                     {
                         "cflags": [
                             "-march=armv8-a"
@@ -80,7 +92,7 @@
                     }
                 ],
                 [
-                    "OS!='win' and target_arch=='x64'",
+                    "nk_march_native==0 and OS!='win' and OS!='mac' and target_arch=='x64'",
                     {
                         "cflags": [
                             "-march=x86-64"
@@ -88,7 +100,7 @@
                     }
                 ],
                 [
-                    "OS!='win' and target_arch=='riscv64'",
+                    "nk_march_native==0 and OS!='win' and OS!='mac' and target_arch=='riscv64'",
                     {
                         "cflags": [
                             "-march=rv64gc"
@@ -96,7 +108,7 @@
                     }
                 ],
                 [
-                    "OS!='win' and target_arch=='ppc64'",
+                    "nk_march_native==0 and OS!='win' and OS!='mac' and target_arch=='ppc64'",
                     {
                         "cflags": [
                             "-mcpu=power8"
@@ -104,11 +116,19 @@
                     }
                 ],
                 [
-                    "OS!='win' and target_arch=='loong64'",
+                    "nk_march_native==0 and OS!='win' and OS!='mac' and target_arch=='loong64'",
                     {
                         "cflags": [
                             "-march=loongarch64",
                             "-mlasx"
+                        ]
+                    }
+                ],
+                [
+                    "nk_march_native==1 and OS!='win' and OS!='mac'",
+                    {
+                        "cflags": [
+                            "-march=native"
                         ]
                     }
                 ],
@@ -125,27 +145,23 @@
                         ]
                     }
                 ],
+                # gyp ignores `cflags` on the mac flavor, so every flag above must be
+                # repeated here or the addon builds unoptimized and without the probes.
                 [
                     "OS=='mac'",
                     {
                         "xcode_settings": {
                             "MACOSX_DEPLOYMENT_TARGET": "11.0",
-                            # Apple Clang ships no `omp.h`; the CI step
-                            # `brew install libomp` makes it keg-only under
-                            # `/opt/homebrew/opt/libomp` (arm64) or
-                            # `/usr/local/opt/libomp` (x86_64). Clang silently
-                            # ignores `-I` / `-L` dirs that don't exist, so
-                            # listing both keeps the file arch-agnostic.
                             "OTHER_CFLAGS": [
-                                "-Xpreprocessor",
-                                "-fopenmp",
-                                "-I/opt/homebrew/opt/libomp/include",
-                                "-I/usr/local/opt/libomp/include"
-                            ],
-                            "OTHER_LDFLAGS": [
-                                "-lomp",
-                                "-L/opt/homebrew/opt/libomp/lib",
-                                "-L/usr/local/opt/libomp/lib"
+                                "-std=c11",
+                                "-O3",
+                                "-fno-tree-vectorize",
+                                "-fno-tree-slp-vectorize",
+                                "-Wno-unknown-pragmas",
+                                "-Wno-cast-function-type",
+                                "-Wno-switch",
+                                "-include",
+                                "<(module_root_dir)/nk_probes.h"
                             ]
                         }
                     }

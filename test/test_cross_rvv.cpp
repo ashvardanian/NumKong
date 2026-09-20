@@ -10,6 +10,7 @@
 void test_cross_rvv() {
     [[maybe_unused]] error_stats_section_t check;
 #if NK_TARGET_RVV
+    check.section("Cross RVV", nk_cap_rvv_k);
     check("dots_packed_f64_rvv", test_dots_packed<f64_t>, nk_dots_packed_size_f64_rvv, nk_dots_pack_f64_rvv,
           nk_dots_packed_f64_rvv);
     check("dots_packed_f32_rvv", test_dots_packed<f32_t>, nk_dots_packed_size_f32_rvv, nk_dots_pack_f32_rvv,
@@ -105,5 +106,5 @@ void test_cross_rvv() {
     check("euclideans_symmetric_e3m2_rvv", test_euclideans_symmetric<e3m2_t>, nk_euclideans_symmetric_e3m2_rvv);
     check("euclideans_symmetric_i8_rvv", test_euclideans_symmetric<i8_t>, nk_euclideans_symmetric_i8_rvv);
     check("euclideans_symmetric_u8_rvv", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_rvv);
-#endif
+#endif // NK_TARGET_RVV
 }

@@ -10,6 +10,26 @@
 #include "each.h"
 #include "tensor.h"
 
+/**
+ *  @brief Reject a packed output whose layout the writeback cannot address.
+ *
+ *  Sub-byte dtypes hold several logical values per byte, so a per-value byte stride does not
+ *  exist and only a fully packed destination can be filled. Call before releasing the GIL.
+ */
+static int validate_cast_writeback_target(Py_buffer const *out_buffer, nk_dtype_t out_dtype) {
+    if (nk_dimensions_per_value(out_dtype) <= 1) return 1;
+    if (PyBuffer_IsContiguous(out_buffer, 'C')) return 1;
+    PyErr_Format(PyExc_ValueError, "out must be C-contiguous for packed dtype '%s'", nk_dtype_name(out_dtype));
+    return 0;
+}
+
+/** @brief Convert the compute-dtype staging buffer into the caller's possibly-strided output. */
+static void flush_cast_staging(char const *staging, nk_dtype_t compute_dtype, Py_buffer const *out_buffer,
+                               nk_dtype_t out_dtype) {
+    cast_into_strided(staging, compute_dtype, out_buffer->buf, out_dtype, (size_t)out_buffer->ndim, out_buffer->shape,
+                      out_buffer->strides);
+}
+
 char const doc_fma[] =                                                                                 //
     "Fused-Multiply-Add between 3 input vectors.\n\n"                                                  //
     "Parameters:\n"                                                                                    //
@@ -575,6 +595,7 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
     // → kernel computes int16, then casts int16→float64 into output buffer
     else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
              out_buf_dtype != dtype) {
+        if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
         cast_staging = PyMem_Malloc(total_elements * element_size + NK_TENSOR_PADDING_);
         if (!cast_staging) {
             PyErr_NoMemory();
@@ -600,7 +621,7 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
     each_scale_recursive(scale_kernel, a_buffer.buf, result_data, &alpha_buf, &beta_buf, //
                          a_buffer.shape, a_buffer.strides, result_strides,               //
                          a_buffer.ndim, contiguous_tail);
-    if (cast_staging) { nk_cast(cast_staging, dtype, (nk_size_t)total_elements, out_buffer.buf, out_buf_dtype); }
+    if (cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
     PyEval_RestoreThread(gil);
 
 cleanup:
@@ -699,6 +720,7 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
     // → kernel computes int32, then casts int32→float64 into output buffer
     else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
              out_buf_dtype != dtype) {
+        if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
         cast_staging = PyMem_Malloc(total_elements * element_size + NK_TENSOR_PADDING_);
         if (!cast_staging) {
             PyErr_NoMemory();
@@ -723,7 +745,7 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
     PyThreadState *gil = PyEval_SaveThread();
     each_sum_recursive(sum_kernel, a_promoted, b_promoted, result_data, a_buffer.shape, promoted_strides,
                        promoted_strides, result_strides, num_dims, contiguous_tail);
-    if (cast_staging) { nk_cast(cast_staging, dtype, (nk_size_t)total_elements, out_buffer.buf, out_buf_dtype); }
+    if (cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
     PyEval_RestoreThread(gil);
 
 cleanup:
@@ -866,6 +888,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     // → kernel computes int16, then casts int16→float64 into output buffer
     else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
              out_buf_dtype != dtype) {
+        if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
         cast_staging = PyMem_Malloc(total_elements * element_size + NK_TENSOR_PADDING_);
         if (!cast_staging) {
             PyErr_NoMemory();
@@ -891,7 +914,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     each_scale_recursive(scale_kernel, a_buffer.buf, result_data, &alpha_buf, &beta_buf, //
                          a_buffer.shape, a_buffer.strides, result_strides,               //
                          a_buffer.ndim, contiguous_tail);
-    if (cast_staging) { nk_cast(cast_staging, dtype, (nk_size_t)total_elements, out_buffer.buf, out_buf_dtype); }
+    if (cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
     PyEval_RestoreThread(gil);
 
 cleanup:
@@ -997,6 +1020,7 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     // → kernel computes int32, then casts int32→float64 into output buffer
     else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
              out_buf_dtype != dtype) {
+        if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
         cast_staging = PyMem_Malloc(total_elements * element_size + NK_TENSOR_PADDING_);
         if (!cast_staging) {
             PyErr_NoMemory();
@@ -1023,7 +1047,7 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     each_fma_recursive(fma_kernel, a_promoted, b_promoted, result_data, result_data, &alpha_buf, &beta_buf,
                        a_buffer.shape, promoted_strides, promoted_strides, result_strides, result_strides, num_dims,
                        contiguous_tail);
-    if (cast_staging) { nk_cast(cast_staging, dtype, (nk_size_t)total_elements, out_buffer.buf, out_buf_dtype); }
+    if (cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
     PyEval_RestoreThread(gil);
 
 cleanup:

@@ -38,11 +38,11 @@ def maxsim(queries: np.ndarray, documents: np.ndarray) -> float:
 
 ## Input & Output Types
 
-| Input Type | Output Type | Description                        |
-| ---------- | ----------- | ---------------------------------- |
-| `bf16`     | `f32`       | 16-bit brain float, widened output |
-| `f32`      | `f32`       | 32-bit IEEE 754 single precision   |
-| `f16`      | `f32`       | 16-bit IEEE 754 half precision     |
+| Input Type | Output Type | Description                                      |
+| ---------- | ----------- | ------------------------------------------------ |
+| `bf16`     | `f32`       | 16-bit brain float, widened output               |
+| `f32`      | `f64`       | 32-bit IEEE 754 single precision, widened output |
+| `f16`      | `f32`       | 16-bit IEEE 754 half precision                   |
 
 ## Optimizations
 

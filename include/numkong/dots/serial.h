@@ -8,8 +8,8 @@
  *
  *  This file provides two macro families for generating GEMM kernels:
  *
- *  - nk_define_dots_packed_: vectorized inner-products between rows of A and Bᵀ
- *  - nk_define_dots_symmetric_: vectorized inner-products between rows and columns of A
+ *  - nk_define_cross_packed_: vectorized inner-products between rows of A and Bᵀ
+ *  - nk_define_cross_symmetric_: vectorized inner-products between rows and columns of A
  *
  *  Both use the same B packing format (see below), enabling pack-once-use-anywhere.
  *
@@ -229,15 +229,15 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
  *  @brief Generates function to calculate packed B matrix buffer size for GEMM micro-kernels.
  *
  *  Memory layout: B_packed[column_count, depth_padded] with header storing metadata.
- *  Buffer size: sizeof(header) + column_count × depth_padded × sizeof(intermediate_type) + column_count × sizeof(norm)
+ *  Buffer size: sizeof(header) + column_count × depth_padded × sizeof(packed_value_type) + column_count × sizeof(norm)
  *  Depth padding logic: Round up to `depth_simd_dimensions` multiple, then add `depth_simd_dimensions`
  *  if stride is power-of-2.
  *
  *  @param api_name Operation name (hammings, dots)
  *  @param input_type_name Original type's name of B matrix values (i4, f16, bf16, e4m3, e5m2, f32, etc.)
  *  @param isa_suffix Platform Instruct Set Architecture suffix (serial, haswell, icelake, etc.)
- *  @param input_type Original type of B matrix values (i4x2, f16, bf16, e4m3, e5m2, f32, etc.)
- *  @param intermediate_type Internal storage type in packed buffer (often bf16 or f32 for mixed precision)
+ *  @param input_value_type Original type of B matrix values (i4x2, f16, bf16, e4m3, e5m2, f32, etc.)
+ *  @param packed_value_type Internal storage type in packed buffer (often bf16 or f32 for mixed precision)
  *  @param norm_value_type Type of per-column norm values (f32, f64, u32) appended after packed data
  *  @param depth_simd_dimensions SIMD vector width in values for this platform/type combination
  *  @param dimensions_per_value Number of logical dimensions in a single value of input_type_name.
@@ -492,20 +492,19 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
  *  @param api_name Operation family (dots, hammings, jaccards) for codegen namespace
  *  @param input_type_name Type identifier for codegen (f32, bf16, i8, u1, etc.)
  *  @param isa_suffix ISA backend identifier (serial, haswell, neon, sve, icelake, etc.)
- *  @param input_type C type of input matrix values (f32, bf16, i8, u1x8, etc.)
- *  @param intermediate_type Storage type in packed B buffer (often bf16 or f32 for mixed precision)
- *  @param output_type C type of output matrix C values (f32, u32, f64, etc.)
- *  @param vec_type SIMD vector type for depth dimension (e.g., __m256, nk_f32x8_t)
+ *  @param input_value_type C type of input matrix values (f32, bf16, i8, u1x8, etc.)
+ *  @param packed_value_type Storage type in packed B buffer (often bf16 or f32 for mixed precision)
+ *  @param result_value_type C type of output matrix C values (f32, u32, f64, etc.)
+ *  @param vec_type SIMD vector type for depth dimension (e.g., __m256, nk_b256_vec_t)
  *  @param state_type Accumulator state type (often vec_type or wider, e.g., __m256 or __m512)
  *  @param result_vec_type SIMD vector type for reduction results (e.g., __m128 for 4 f32 results)
  *  @param init_accumulator_fn Initialize accumulator: void fn(state_type*)
- *  @param load_a_vec_fn Full A vector load: vec_type fn(input_type const*, nk_size_t offset)
+ *  @param load_a_vec_fn Full A vector load: vec_type fn(input_value_type const*, nk_size_t offset)
  *  @param partial_load_a_vec_fn Partial A load for remainder
- *  @param load_b_vec_fn Full B vector load: vec_type fn(intermediate_type const*, nk_size_t offset)
+ *  @param load_b_vec_fn Full B vector load: vec_type fn(packed_value_type const*, nk_size_t offset)
  *  @param partial_load_b_vec_fn Partial B load for remainder
  *  @param inner_product_fn Inner product accumulate
  *  @param reduce_accumulators_fn Reduce 4 accumulators
- *  @param store_fn Full-width store for results
  *  @param store_fn Full-width store for results
  *  @param partial_store_fn Partial store for results
  *  @param depth_simd_dimensions SIMD vector width in logical dimensions (e.g., 8 for f32 on AVX2, 128 for u1 on serial)
@@ -2016,13 +2015,13 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
  *  @param api_name Operation family (dots, hammings, jaccards) for codegen namespace
  *  @param input_type_name Type identifier for codegen (f32, bf16, i8, u1, etc.)
  *  @param isa_suffix ISA backend identifier (serial, haswell, neon, sve, icelake, etc.)
- *  @param input_type C type of input matrix values (f32, bf16, i8, u1x8, etc.)
- *  @param output_type C type of output matrix values (f32, u32, f64, etc.)
- *  @param vec_type SIMD vector type for input vectors (e.g., __m256, nk_f32x8_t)
+ *  @param input_value_type C type of input matrix values (f32, bf16, i8, u1x8, etc.)
+ *  @param result_value_type C type of output matrix values (f32, u32, f64, etc.)
+ *  @param vec_type SIMD vector type for input vectors (e.g., __m256, nk_b256_vec_t)
  *  @param state_type Accumulator state type (often vec_type or wider, e.g., __m256 or __m512)
  *  @param result_vec_type SIMD vector type for reduction results (e.g., __m128 for 4 f32 results)
  *  @param init_accumulator_fn Initialize accumulator: void fn(state_type*)
- *  @param load_vec_fn Full vector load: vec_type fn(input_type const*, nk_size_t offset)
+ *  @param load_vec_fn Full vector load: vec_type fn(input_value_type const*, nk_size_t offset)
  *  @param partial_load_vec_fn Partial vector load for remainder
  *  @param inner_product_fn Inner product accumulate
  *  @param reduce_accumulators_fn Reduce 4 accumulators
@@ -2435,10 +2434,12 @@ NK_INTERNAL nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t cou
  *  Without this, -O3 + LTO can vectorize or clone the serial kernels under AVX-512
  *  callers in dispatch_*.c, which wastes ~1 MB of binary and — more importantly —
  *  breaks the nk_*_serial-as-scalar-oracle contract that tests and the numerical-
- *  stability docs in this header rely on. */
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
+ *  stability docs in this header rely on.
+ *
+ *  Clang gets no blanket region here: one expansion of `nk_define_cross_packed_` /
+ *  `nk_define_cross_symmetric_` emits `always_inline` `_aligned_` fast paths next to the kernel, and
+ *  clang rejects `noinline` on those. `no-ipa-cp-clone` is the knob that stops the cloning anyway. */
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC push_options
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
@@ -2698,9 +2699,7 @@ nk_define_cross_packed_(dots, u1, serial, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot
 #endif
 #endif
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC pop_options
 #endif
 

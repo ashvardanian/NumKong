@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build_native:
-    name: Build ${{ matrix.platform }}
+    name: Build Native Package, ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
@@ -36,12 +36,12 @@ jobs:
             cxx: clang++
             node-gyp-args: "--arch=x64"
           - platform: win32-x64
-            os: windows-latest
+            os: windows-2025
             cc: cl.exe
             cxx: cl.exe
             node-gyp-args: ""
           - platform: win32-arm64
-            os: windows-latest
+            os: windows-2025
             cc: cl.exe
             cxx: cl.exe
             node-gyp-args: "--arch=arm64"
@@ -52,27 +52,21 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Update Git Submodules
-        run: git submodule update --init --recursive
 
       - name: Set Up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
 
-      - name: Install System Dependencies (Ubuntu)
+      - name: Install System Dependencies on Ubuntu
         if: runner.os == 'Linux'
         run: |
           sudo apt update
           sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev
           sudo apt install -y gcc-14-aarch64-linux-gnu g++-14-aarch64-linux-gnu binutils-aarch64-linux-gnu
-
-      - name: Install System Dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: brew install libomp
 
       - name: Set Up MSVC ARM64 Cross-Compiler
         if: matrix.platform == 'win32-arm64'
@@ -108,23 +102,6 @@ jobs:
         shell: bash
         run: cp build/Release/numkong.node javascript/@numkong-${{ matrix.platform }}/numkong.node
 
-      # npm has no `delocate` equivalent: copy `libomp.dylib` next to the
-      # `.node`, rewrite the install name to `@loader_path/libomp.dylib`,
-      # then re-sign both (install_name_tool invalidates arm64 signatures).
-      - name: Bundle libomp (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          set -euo pipefail
-          pkg="javascript/@numkong-${{ matrix.platform }}"
-          libomp_src="$(brew --prefix libomp)/lib/libomp.dylib"
-          cp "$libomp_src" "$pkg/libomp.dylib"
-          chmod u+w "$pkg/libomp.dylib"
-          install_name_tool -id "@loader_path/libomp.dylib" "$pkg/libomp.dylib"
-          install_name_tool -change "$libomp_src" "@loader_path/libomp.dylib" "$pkg/numkong.node"
-          codesign --force --sign - "$pkg/libomp.dylib"
-          codesign --force --sign - "$pkg/numkong.node"
-
       - name: Upload Platform Package
         uses: actions/upload-artifact@v7
         with:
@@ -137,11 +114,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Update Git Submodules
-        run: git submodule update --init --recursive
       - name: Install Emscripten
         uses: nick-fields/retry@v4
         with:
@@ -184,7 +159,7 @@ jobs:
           overwrite: true
 
   publish_platform_packages:
-    name: Publish Platform Packages
+    name: Publish Platform Package, ${{ matrix.platform }}
     needs: [build_native]
     if: always()
     runs-on: ubuntu-24.04
@@ -199,7 +174,7 @@ jobs:
         platform: [linux-x64, linux-arm64, darwin-x64, darwin-arm64, win32-x64, win32-arm64]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: "main"
 
@@ -225,7 +200,7 @@ jobs:
   publish_main:
     name: Publish Main Package to NPM
     needs: [publish_platform_packages, build_wasm]
-    if: always() && needs.build_wasm.result == 'success'
+    if: always()
     runs-on: ubuntu-24.04
     environment:
       name: npm-numkong
@@ -234,12 +209,18 @@ jobs:
       contents: read
       id-token: write
     steps:
+      # npm versions are immutable: shipping without the advertised
+      # `numkong/wasm` subpath would strand this version permanently.
+      - name: Require WASM Bundle
+        if: needs.build_wasm.result != 'success'
+        run: |
+          echo "::error title=WASM bundle missing::build_wasm result is '${{ needs.build_wasm.result }}'. The main npm package cannot ship without wasm/, which its exports map advertises. Re-run build_wasm, then re-run this workflow."
+          exit 1
+
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Update Git Submodules
-        run: git submodule update --init --recursive
 
       - name: Set Up Node.js Environment
         uses: actions/setup-node@v6
@@ -252,9 +233,6 @@ jobs:
         with:
           name: wasm-bundle
           path: wasm
-
-      - name: Install Build Tools
-        run: sudo apt-get install -y cmake build-essential
 
       - name: Install Node.js Dependencies
         uses: nick-fields/retry@v4

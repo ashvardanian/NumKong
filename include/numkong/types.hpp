@@ -481,9 +481,11 @@ struct f32_t {
     inline f32_t clamp(f32_t lo, f32_t hi) const noexcept { return max(lo).min(hi); }
 
     static constexpr f32_t clamped_to_finite_(float x) noexcept {
-        if (x == std::numeric_limits<float>::infinity()) return finite_max();
-        if (x == -std::numeric_limits<float>::infinity()) return finite_min();
-        return f32_t {x};
+        f32_t const value {x};
+        // Classify by bit pattern: arithmetic comparisons against infinity are folded away
+        // under `-ffinite-math-only`, silently disabling the clamp.
+        if (value.is_infinite()) return value.is_sign_negative() ? finite_min() : finite_max();
+        return value;
     }
 
     /** @brief Saturating addition: clamps to finite range on overflow. */
@@ -751,9 +753,11 @@ struct f64_t {
     inline f64_t clamp(f64_t lo, f64_t hi) const noexcept { return max(lo).min(hi); }
 
     static constexpr f64_t clamped_to_finite_(double x) noexcept {
-        if (x == std::numeric_limits<double>::infinity()) return finite_max();
-        if (x == -std::numeric_limits<double>::infinity()) return finite_min();
-        return f64_t {x};
+        f64_t const value {x};
+        // Classify by bit pattern: arithmetic comparisons against infinity are folded away
+        // under `-ffinite-math-only`, silently disabling the clamp.
+        if (value.is_infinite()) return value.is_sign_negative() ? finite_min() : finite_max();
+        return value;
     }
 
     /** @brief Saturating addition: clamps to finite range on overflow. */
@@ -3062,11 +3066,16 @@ struct f118_t {
 
     /** @brief Returns true if the value is positive or negative infinity. */
     constexpr bool is_infinite() const noexcept {
-        return high_ == std::numeric_limits<double>::infinity() || high_ == -std::numeric_limits<double>::infinity();
+        // Classify by bit pattern: arithmetic comparisons against infinity are folded away
+        // under `-ffinite-math-only`.
+        return (std::bit_cast<std::uint64_t>(high_) & 0x7FFFFFFFFFFFFFFFull) == 0x7FF0000000000000ull;
     }
 
     /** @brief Returns true if the value is neither infinite nor NaN. */
-    inline bool is_finite() const noexcept { return std::isfinite(high_); }
+    constexpr bool is_finite() const noexcept {
+        // Classify by bit pattern: `std::isfinite` constant-folds to true under `-ffinite-math-only`.
+        return (std::bit_cast<std::uint64_t>(high_) & 0x7FF0000000000000ull) != 0x7FF0000000000000ull;
+    }
 
     /** @brief Returns true if the sign bit is positive (includes +0). */
     inline bool is_sign_positive() const noexcept { return high_ > 0.0 || (high_ == 0.0 && !std::signbit(high_)); }

@@ -92,3 +92,4 @@ target/
 Cargo.lock
 uv.lock
 package-lock.json
+CLAUDE.local.md

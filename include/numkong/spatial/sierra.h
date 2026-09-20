@@ -26,9 +26,10 @@
 #if NK_TARGET_SIERRA
 
 #include "numkong/types.h"
-#include "numkong/scalar/haswell.h" // `nk_f32_sqrt_haswell`
-#include "numkong/reduce/haswell.h" // `nk_reduce_add_i32x8_haswell_`
-#include "numkong/cast/serial.h"    // `nk_partial_load_b8x32_serial_`
+#include "numkong/scalar/haswell.h"  // `nk_f32_sqrt_haswell`
+#include "numkong/reduce/haswell.h"  // `nk_reduce_add_i32x8_haswell_`
+#include "numkong/spatial/haswell.h" // `nk_angular_normalize_f32_haswell_`
+#include "numkong/cast/serial.h"     // `nk_partial_load_b8x32_serial_`
 
 #if defined(__cplusplus)
 extern "C" {

@@ -11,6 +11,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  WASI_SDK_VERSION: "33"
+
 jobs:
   test_nodejs:
     name: Test Node.js
@@ -21,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Print Machine Specs
         shell: bash
@@ -61,7 +64,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Print Machine Specs
         shell: bash
@@ -103,12 +106,12 @@ jobs:
         run: NK_RUNTIME=emscripten node --test test/test-wasm.mjs
 
   test_wasm_emscripten64:
-    name: Test WASM64 via Emscripten (memory64)
+    name: Test WASM64 via Emscripten with memory64
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Print Machine Specs
         shell: bash
@@ -150,12 +153,12 @@ jobs:
         run: NK_RUNTIME=emscripten64 node --test test/test-wasm.mjs
 
   test_wasm_wasi:
-    name: Test WASM via WASI Node.js
+    name: Test WASM under WASI Node.js
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Print Machine Specs
         shell: bash
@@ -173,8 +176,8 @@ jobs:
           retry_wait_seconds: 15
           timeout_minutes: 180
           command: |
-            wget -q https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-x86_64-linux.tar.gz
-            tar xzf wasi-sdk-24.0-x86_64-linux.tar.gz -C ~
+            wget -q https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${{ env.WASI_SDK_VERSION }}/wasi-sdk-${{ env.WASI_SDK_VERSION }}.0-x86_64-linux.tar.gz
+            tar xzf wasi-sdk-${{ env.WASI_SDK_VERSION }}.0-x86_64-linux.tar.gz -C ~
             mv ~/wasi-sdk-* ~/wasi-sdk
 
       - name: Build WASI
@@ -192,12 +195,12 @@ jobs:
         run: NK_RUNTIME=wasi-node node --test test/test-wasm.mjs
 
   test_wasm_browser:
-    name: Test WASM via Browser
+    name: Test WASM under Browser
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Print Machine Specs
         shell: bash
@@ -262,12 +265,12 @@ jobs:
           retention-days: 7
 
   test_wasm_wasmer:
-    name: Test WASM via Wasmer
+    name: Test WASM under Wasmer
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Print Machine Specs
         shell: bash
@@ -288,8 +291,8 @@ jobs:
           retry_wait_seconds: 15
           timeout_minutes: 180
           command: |
-            wget -q https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-x86_64-linux.tar.gz
-            tar xzf wasi-sdk-24.0-x86_64-linux.tar.gz -C ~
+            wget -q https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${{ env.WASI_SDK_VERSION }}/wasi-sdk-${{ env.WASI_SDK_VERSION }}.0-x86_64-linux.tar.gz
+            tar xzf wasi-sdk-${{ env.WASI_SDK_VERSION }}.0-x86_64-linux.tar.gz -C ~
             mv ~/wasi-sdk-* ~/wasi-sdk
 
       - name: Build WASI
@@ -298,7 +301,9 @@ jobs:
           cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasi.cmake -DNK_BUILD_TEST=ON
           cmake --build build-wasi
 
-      - name: Install Wasmer (HEAD for relaxed-SIMD support, not yet in stable)
+      # The run below needs `--enable-relaxed-simd`, which no released Wasmer supports yet,
+      # so build the CLI from the `main` branch instead of installing a tagged version.
+      - name: Install Wasmer from main
         uses: nick-fields/retry@v4
         with:
           max_attempts: 2
@@ -312,12 +317,12 @@ jobs:
           NK_BUDGET_SECS: 0.1
 
   test_wasm_wasmtime:
-    name: Test WASM via Wasmtime
+    name: Test WASM under Wasmtime
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Print Machine Specs
         shell: bash
@@ -338,8 +343,8 @@ jobs:
           retry_wait_seconds: 15
           timeout_minutes: 180
           command: |
-            wget -q https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-x86_64-linux.tar.gz
-            tar xzf wasi-sdk-24.0-x86_64-linux.tar.gz -C ~
+            wget -q https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${{ env.WASI_SDK_VERSION }}/wasi-sdk-${{ env.WASI_SDK_VERSION }}.0-x86_64-linux.tar.gz
+            tar xzf wasi-sdk-${{ env.WASI_SDK_VERSION }}.0-x86_64-linux.tar.gz -C ~
             mv ~/wasi-sdk-* ~/wasi-sdk
 
       - name: Build WASI
@@ -362,7 +367,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Print Machine Specs
         shell: bash
@@ -413,7 +418,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Print Machine Specs
         shell: bash

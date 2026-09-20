@@ -13,18 +13,19 @@ env:
 
 jobs:
   build_wheels_linux_x86:
-    name: Build Python Wheels (Linux x86)
+    name: Build Python Wheels for Linux x86, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Install cibuildwheel
@@ -33,7 +34,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -43,7 +44,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: linux
           CIBW_ARCHS: x86_64
           NK_REPETITIONS: 1
@@ -54,38 +54,20 @@ jobs:
           path: wheelhouse/*.whl
           overwrite: true
 
-  # These are maintained by Arm, not GitHub, so we need to include
-  # extra steps, like installing Docker and starting the service
   build_wheels_linux_arm:
-    name: Build Python Wheels (Linux ARM)
+    name: Build Python Wheels for Linux ARM, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04-arm
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - name: Install Docker CE from Official Repository
-        uses: nick-fields/retry@v4
-        with:
-          max_attempts: 3
-          retry_wait_seconds: 15
-          timeout_minutes: 180
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y ca-certificates curl gnupg lsb-release
-            sudo mkdir -p /etc/apt/keyrings
-            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-            sudo apt-get update
-            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-            sudo systemctl start docker
-            sudo chmod 666 /var/run/docker.sock
-            docker version
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Install cibuildwheel
@@ -94,7 +76,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -104,7 +86,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: linux
           CIBW_ARCHS: aarch64
           NK_REPETITIONS: 1
@@ -116,20 +97,21 @@ jobs:
           overwrite: true
 
   build_wheels_macos_x86:
-    name: Build Python Wheels (macOS x86)
+    name: Build Python Wheels for macOS x86, cp${{ matrix.python-version }}
     runs-on: macos-26
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Print Machine Specs
         run: sysctl hw.optional.arm hw.optional machdep.cpu || true
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Install cibuildwheel
@@ -138,7 +120,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -148,7 +130,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: macos
           CIBW_ARCHS: x86_64
           NK_REPETITIONS: 1
@@ -160,20 +141,21 @@ jobs:
           overwrite: true
 
   build_wheels_macos_arm:
-    name: Build Python Wheels (macOS ARM)
+    name: Build Python Wheels for macOS ARM, cp${{ matrix.python-version }}
     runs-on: macos-26
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Print Machine Specs
         run: sysctl hw.optional.arm hw.optional machdep.cpu || true
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Install cibuildwheel
@@ -182,7 +164,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -192,7 +174,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: macos
           CIBW_ARCHS: arm64
           NK_REPETITIONS: 1
@@ -204,30 +185,16 @@ jobs:
           overwrite: true
 
   build_wheels_windows:
-    name: Build Python Wheels (Windows)
+    name: Build Python Wheels for Windows, ${{ matrix.architecture }}, cp${{ matrix.python-version }}
     runs-on: windows-2025
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
-        architecture: [AMD64]
-        include:
-          - python-version: "310"
-            architecture: ARM64
-          - python-version: "311"
-            architecture: ARM64
-          - python-version: "312"
-            architecture: ARM64
-          - python-version: "313"
-            architecture: ARM64
-          - python-version: "313t"
-            architecture: ARM64
-          - python-version: "314"
-            architecture: ARM64
-          - python-version: "314t"
-            architecture: ARM64
+        python-version: ["310", "311", "312", "313", "314", "314t"]
+        architecture: [AMD64, ARM64]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Print Machine Specs
@@ -236,7 +203,7 @@ jobs:
           Get-CimInstance Win32_Processor | Format-List Name,Manufacturer,NumberOfCores,NumberOfLogicalProcessors,Description,Architecture
           Get-ComputerInfo | Format-List CsProcessors,OsArchitecture,WindowsVersion
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Set Up MSVC
@@ -249,7 +216,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -259,7 +226,6 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-win_${{ matrix.architecture }}
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: windows
           NK_REPETITIONS: 1
       - name: Upload Wheels
@@ -270,19 +236,20 @@ jobs:
           overwrite: true
 
   build_wheels_other:
-    name: Build Python Wheels (Other Platforms)
+    name: Build Python Wheels for Linux, ${{ matrix.architecture }}, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        python-version: ["310", "311", "312", "313", "314", "314t"]
         architecture: [ppc64le, s390x, i686]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Set Up QEMU
@@ -293,7 +260,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -303,9 +270,9 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading # No-GIL 3.13t builds
           CIBW_PLATFORM: linux
           CIBW_ARCHS: ${{ matrix.architecture }}
+          NK_IN_QEMU: 1
           NK_REPETITIONS: 1
       - name: Upload Wheels
         uses: actions/upload-artifact@v7
@@ -314,22 +281,62 @@ jobs:
           path: wheelhouse/*.whl
           overwrite: true
 
-  build_wheels_linux_riscv:
-    name: Build Python Wheels (Linux RISC-V)
-    # Temporarily disabled until the official PyPA riscv64 images expose a
-    # packaged LLVM 23 toolchain, or until we switch to custom images.
-    if: ${{ false }}
+  build_wheels_pyodide:
+    name: Build Python Wheels for Pyodide, cp${{ matrix.python-version }}
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["310", "311", "312", "313", "313t", "314", "314t"]
+        # Every non-prerelease Pyodide identifier cibuildwheel offers.
+        python-version: ["313", "314"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install cibuildwheel
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 10
+          timeout_minutes: 180
+          command: python -m pip install 'cibuildwheel~=4.2'
+      - name: Build Wheels
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 2
+          retry_wait_seconds: 30
+          timeout_minutes: 180
+          command: cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_BUILD: cp${{ matrix.python-version }}-pyodide_wasm32
+          CIBW_PLATFORM: pyodide
+          NK_REPETITIONS: 1
+      - name: Upload Wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: cibw-wheels-pyodide-cp${{ matrix.python-version }}
+          path: wheelhouse/*.whl
+          overwrite: true
+
+  build_wheels_linux_riscv:
+    name: Build Python Wheels for Linux RISC-V, cp${{ matrix.python-version }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["310", "311", "312", "313", "314", "314t"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: Install Python
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Set Up QEMU
@@ -340,7 +347,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install cibuildwheel
+          command: python -m pip install 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -350,10 +357,10 @@ jobs:
           command: cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
-          CIBW_ENABLE: cpython-freethreading
           CIBW_PLATFORM: linux
           CIBW_ARCHS: riscv64
           QEMU_CPU: max
+          NK_IN_QEMU: 1
           NK_REPETITIONS: 1
       - name: Upload Wheels
         uses: actions/upload-artifact@v7
@@ -364,14 +371,14 @@ jobs:
 
   build_sdist:
     name: Build Python Source Distribution
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Set Up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Install Build Tools

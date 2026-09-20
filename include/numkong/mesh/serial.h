@@ -272,17 +272,6 @@ extern "C" {
                m[2] * (m[3] * m[7] - m[4] * m[6]);                                       \
     }
 
-/*  Keep the serial instantiations below actually scalar, regardless of build type.
- *  Without this, -O3 + LTO can vectorize or clone the serial kernels under AVX-512
- *  callers in dispatch_*.c, which wastes binary and breaks the nk_*_serial-as-scalar-oracle
- *  contract that tests and numerical-stability docs rely on. See dots/serial.h. */
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
-
 /* Size bias for release. Gated on NDEBUG so Debug builds keep -O0 for stepping. */
 #if defined(NDEBUG)
 #if defined(_MSC_VER)
@@ -701,6 +690,17 @@ nk_define_det3x3_(f64)
         *result = (nk_##result_type##_t)compute_sqrt((sum_squared + sum_squared_compensation) * inv_n);               \
     }
 
+/*  Keep the serial instantiations below actually scalar, regardless of build type.
+ *  Without this, -O3 + LTO can vectorize or clone the serial kernels under AVX-512
+ *  callers in dispatch_*.c, which wastes binary and breaks the nk_*_serial-as-scalar-oracle
+ *  contract that tests and numerical-stability docs rely on. See dots/serial.h. */
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
 nk_define_rmsd_(f64, f64, f64, f64, nk_assign_from_to_, nk_f64_sqrt_serial)         // nk_rmsd_f64_serial
 nk_define_kabsch_(f64, f64, f64, f64, f64, nk_assign_from_to_, nk_f64_sqrt_serial)  // nk_kabsch_f64_serial
 nk_define_umeyama_(f64, f64, f64, f64, f64, nk_assign_from_to_, nk_f64_sqrt_serial) // nk_umeyama_f64_serial
@@ -740,6 +740,12 @@ nk_define_umeyama_(bf16, f32, f32, f32, f32, nk_bf16_to_f32_serial, nk_f32_sqrt_
 #undef nk_define_kabsch_
 #undef nk_define_umeyama_
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 #if defined(NDEBUG)
 #if defined(_MSC_VER)
 #pragma optimize("", on)
@@ -748,12 +754,6 @@ nk_define_umeyama_(bf16, f32, f32, f32, f32, nk_bf16_to_f32_serial, nk_f32_sqrt_
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-#endif
-
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
 #endif
 
 #if defined(__cplusplus)

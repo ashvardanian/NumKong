@@ -38,9 +38,29 @@ error_stats_t test_cast(cast_t kernel) {
 }
 
 void test_casts() {
-    error_stats_section_t check("Type Casts");
+    error_stats_section_t check;
+
+    check.section("Type Casts Serial", nk_cap_serial_k);
+    check("cast_bf16_to_f32_serial", test_cast<bf16_t, f32_t>, nk_cast_serial);
+    check("cast_f32_to_bf16_serial", test_cast<f32_t, bf16_t>, nk_cast_serial);
+    check("cast_e4m3_to_f32_serial", test_cast<e4m3_t, f32_t>, nk_cast_serial);
+    check("cast_f32_to_e4m3_serial", test_cast<f32_t, e4m3_t>, nk_cast_serial);
+    check("cast_e5m2_to_f32_serial", test_cast<e5m2_t, f32_t>, nk_cast_serial);
+    check("cast_f32_to_e5m2_serial", test_cast<f32_t, e5m2_t>, nk_cast_serial);
+    check("cast_f16_to_f32_serial", test_cast<f16_t, f32_t>, nk_cast_serial);
+    check("cast_f32_to_f16_serial", test_cast<f32_t, f16_t>, nk_cast_serial);
+    check("cast_f32_to_f64_serial", test_cast<f32_t, f64_t>, nk_cast_serial);
+    check("cast_f64_to_f32_serial", test_cast<f64_t, f32_t>, nk_cast_serial);
+    check("cast_f64_to_i32_serial", test_cast<f64_t, i32_t>, nk_cast_serial);
+    check("cast_i16_to_i64_serial", test_cast<i16_t, i64_t>, nk_cast_serial);
+    check("cast_i32_to_f64_serial", test_cast<i32_t, f64_t>, nk_cast_serial);
+    check("cast_i32_to_i8_serial", test_cast<i32_t, i8_t>, nk_cast_serial);
+    check("cast_i8_to_f64_serial", test_cast<i8_t, f64_t>, nk_cast_serial);
+    check("cast_i8_to_i32_serial", test_cast<i8_t, i32_t>, nk_cast_serial);
+    check("cast_u8_to_f32_serial", test_cast<u8_t, f32_t>, nk_cast_serial);
 
 #if NK_DYNAMIC_DISPATCH
+    check.section("Type Casts Dynamic", nk_cap_serial_k);
     check("cast_f32_to_f16", test_cast<f32_t, f16_t>, nk_cast);
     check("cast_f16_to_f32", test_cast<f16_t, f32_t>, nk_cast);
     check("cast_f32_to_bf16", test_cast<f32_t, bf16_t>, nk_cast);
@@ -79,6 +99,7 @@ void test_casts() {
 #endif
 
 #if NK_TARGET_HASWELL
+    check.section("Type Casts Haswell", nk_cap_haswell_k);
     check("cast_f32_to_f16_haswell", test_cast<f32_t, f16_t>, nk_cast_haswell);
     check("cast_f16_to_f32_haswell", test_cast<f16_t, f32_t>, nk_cast_haswell);
     check("cast_f32_to_bf16_haswell", test_cast<f32_t, bf16_t>, nk_cast_haswell);
@@ -102,9 +123,10 @@ void test_casts() {
     // Verify serial fallbacks for rare paths
     check("cast_i32_to_f64_haswell", test_cast<i32_t, f64_t>, nk_cast_haswell);
     check("cast_f64_to_f32_haswell", test_cast<f64_t, f32_t>, nk_cast_haswell);
-#endif
+#endif // NK_TARGET_HASWELL
 
 #if NK_TARGET_SKYLAKE
+    check.section("Type Casts Skylake", nk_cap_skylake_k);
     check("cast_f32_to_f16_skylake", test_cast<f32_t, f16_t>, nk_cast_skylake);
     check("cast_f16_to_f32_skylake", test_cast<f16_t, f32_t>, nk_cast_skylake);
     check("cast_f32_to_bf16_skylake", test_cast<f32_t, bf16_t>, nk_cast_skylake);
@@ -148,10 +170,10 @@ void test_casts() {
     // Verify serial fallbacks for rare paths
     check("cast_i8_to_f64_skylake", test_cast<i8_t, f64_t>, nk_cast_skylake);
     check("cast_f64_to_bf16_skylake", test_cast<f64_t, bf16_t>, nk_cast_skylake);
-#endif
+#endif // NK_TARGET_SKYLAKE
 
 #if NK_TARGET_ICELAKE
-
+    check.section("Type Casts Ice Lake", nk_cap_icelake_k);
     check("cast_e4m3_to_bf16_icelake", test_cast<e4m3_t, bf16_t>, nk_cast_icelake);
     check("cast_bf16_to_e4m3_icelake", test_cast<bf16_t, e4m3_t>, nk_cast_icelake);
     check("cast_e5m2_to_bf16_icelake", test_cast<e5m2_t, bf16_t>, nk_cast_icelake);
@@ -162,25 +184,28 @@ void test_casts() {
     check("cast_f32_to_e4m3_icelake", test_cast<f32_t, e4m3_t>, nk_cast_icelake);
     check("cast_f16_to_f32_icelake", test_cast<f16_t, f32_t>, nk_cast_icelake);
     check("cast_f32_to_f16_icelake", test_cast<f32_t, f16_t>, nk_cast_icelake);
-#endif
+#endif // NK_TARGET_ICELAKE
 
 #if NK_TARGET_SAPPHIRE
+    check.section("Type Casts Sapphire", nk_cap_sapphire_k);
     check("cast_e4m3_to_f16_sapphire", test_cast<e4m3_t, f16_t>, nk_cast_sapphire);
     check("cast_f16_to_e4m3_sapphire", test_cast<f16_t, e4m3_t>, nk_cast_sapphire);
     check("cast_e5m2_to_f16_sapphire", test_cast<e5m2_t, f16_t>, nk_cast_sapphire);
     check("cast_f16_to_e5m2_sapphire", test_cast<f16_t, e5m2_t>, nk_cast_sapphire);
     check("cast_f16_to_f32_sapphire", test_cast<f16_t, f32_t>, nk_cast_sapphire);
     check("cast_f32_to_f16_sapphire", test_cast<f32_t, f16_t>, nk_cast_sapphire);
-#endif
+#endif // NK_TARGET_SAPPHIRE
 
 #if NK_TARGET_NEON
+    check.section("Type Casts NEON", nk_cap_neon_k);
     check("cast_e4m3_to_f32_neon", test_cast<e4m3_t, f32_t>, nk_cast_neon);
     check("cast_f32_to_e4m3_neon", test_cast<f32_t, e4m3_t>, nk_cast_neon);
     check("cast_e5m2_to_f32_neon", test_cast<e5m2_t, f32_t>, nk_cast_neon);
     check("cast_f32_to_e5m2_neon", test_cast<f32_t, e5m2_t>, nk_cast_neon);
-#endif
+#endif // NK_TARGET_NEON
 
 #if NK_TARGET_V128RELAXED
+    check.section("Type Casts V128 Relaxed", nk_cap_v128relaxed_k);
     check("cast_f32_to_f16_v128relaxed", test_cast<f32_t, f16_t>, nk_cast_v128relaxed);
     check("cast_f16_to_f32_v128relaxed", test_cast<f16_t, f32_t>, nk_cast_v128relaxed);
     check("cast_f32_to_bf16_v128relaxed", test_cast<f32_t, bf16_t>, nk_cast_v128relaxed);
@@ -197,16 +222,18 @@ void test_casts() {
     check("cast_f32_to_i8_v128relaxed", test_cast<f32_t, i8_t>, nk_cast_v128relaxed);
     check("cast_u8_to_f32_v128relaxed", test_cast<u8_t, f32_t>, nk_cast_v128relaxed);
     check("cast_f32_to_u8_v128relaxed", test_cast<f32_t, u8_t>, nk_cast_v128relaxed);
-#endif
+#endif // NK_TARGET_V128RELAXED
 
 #if NK_TARGET_RVV
+    check.section("Type Casts RVV", nk_cap_rvv_k);
     check("cast_bf16_to_f32_rvv", test_cast<bf16_t, f32_t>, nk_cast_rvv);
     check("cast_f32_to_bf16_rvv", test_cast<f32_t, bf16_t>, nk_cast_rvv);
     check("cast_e4m3_to_f32_rvv", test_cast<e4m3_t, f32_t>, nk_cast_rvv);
     check("cast_e5m2_to_f32_rvv", test_cast<e5m2_t, f32_t>, nk_cast_rvv);
-#endif
+#endif // NK_TARGET_RVV
 
 #if NK_TARGET_POWERVSX
+    check.section("Type Casts Power VSX", nk_cap_powervsx_k);
     check("cast_f32_to_f16_powervsx", test_cast<f32_t, f16_t>, nk_cast_powervsx);
     check("cast_f16_to_f32_powervsx", test_cast<f16_t, f32_t>, nk_cast_powervsx);
     check("cast_f32_to_bf16_powervsx", test_cast<f32_t, bf16_t>, nk_cast_powervsx);
@@ -219,24 +246,5 @@ void test_casts() {
     check("cast_f32_to_i16_powervsx", test_cast<f32_t, i16_t>, nk_cast_powervsx);
     check("cast_u16_to_f32_powervsx", test_cast<u16_t, f32_t>, nk_cast_powervsx);
     check("cast_f32_to_u16_powervsx", test_cast<f32_t, u16_t>, nk_cast_powervsx);
-#endif
-
-    // Serial always runs - baseline test
-    check("cast_bf16_to_f32_serial", test_cast<bf16_t, f32_t>, nk_cast_serial);
-    check("cast_f32_to_bf16_serial", test_cast<f32_t, bf16_t>, nk_cast_serial);
-    check("cast_e4m3_to_f32_serial", test_cast<e4m3_t, f32_t>, nk_cast_serial);
-    check("cast_f32_to_e4m3_serial", test_cast<f32_t, e4m3_t>, nk_cast_serial);
-    check("cast_e5m2_to_f32_serial", test_cast<e5m2_t, f32_t>, nk_cast_serial);
-    check("cast_f32_to_e5m2_serial", test_cast<f32_t, e5m2_t>, nk_cast_serial);
-    check("cast_f16_to_f32_serial", test_cast<f16_t, f32_t>, nk_cast_serial);
-    check("cast_f32_to_f16_serial", test_cast<f32_t, f16_t>, nk_cast_serial);
-    check("cast_f32_to_f64_serial", test_cast<f32_t, f64_t>, nk_cast_serial);
-    check("cast_f64_to_f32_serial", test_cast<f64_t, f32_t>, nk_cast_serial);
-    check("cast_f64_to_i32_serial", test_cast<f64_t, i32_t>, nk_cast_serial);
-    check("cast_i16_to_i64_serial", test_cast<i16_t, i64_t>, nk_cast_serial);
-    check("cast_i32_to_f64_serial", test_cast<i32_t, f64_t>, nk_cast_serial);
-    check("cast_i32_to_i8_serial", test_cast<i32_t, i8_t>, nk_cast_serial);
-    check("cast_i8_to_f64_serial", test_cast<i8_t, f64_t>, nk_cast_serial);
-    check("cast_i8_to_i32_serial", test_cast<i8_t, i32_t>, nk_cast_serial);
-    check("cast_u8_to_f32_serial", test_cast<u8_t, f32_t>, nk_cast_serial);
+#endif // NK_TARGET_POWERVSX
 }

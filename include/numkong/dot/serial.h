@@ -273,6 +273,12 @@ typedef struct nk_dot_f64x2_state_serial_t {
     nk_f64_t compensations[2];
 } nk_dot_f64x2_state_serial_t;
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
 NK_INTERNAL void nk_dot_f64x2_init_serial(nk_dot_f64x2_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0;
     state->compensations[0] = 0, state->compensations[1] = 0;
@@ -808,6 +814,13 @@ NK_INTERNAL void nk_dot_i4x16_finalize_serial(nk_dot_i4x16_state_serial_t const 
 
 #pragma region Binary
 
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
 NK_PUBLIC void nk_dot_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
     nk_u32_t dot = 0;
     nk_size_t bytes = nk_size_divide_round_up_(n_bits, NK_BITS_PER_BYTE);
@@ -818,6 +831,12 @@ NK_PUBLIC void nk_dot_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_
 typedef struct nk_dot_u1x128_state_serial_t {
     nk_u32_t dot_count;
 } nk_dot_u1x128_state_serial_t;
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 NK_INTERNAL void nk_dot_u1x128_init_serial(nk_dot_u1x128_state_serial_t *state) { state->dot_count = 0; }
 
@@ -875,12 +894,6 @@ NK_INTERNAL nk_i32_t nk_sum_i4x32_finalize_serial(nk_sum_i4x32_state_serial_t co
 }
 
 #pragma endregion Stateful Element Sum Helpers
-
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
-#endif
 
 #if defined(__cplusplus)
 } // extern "C"

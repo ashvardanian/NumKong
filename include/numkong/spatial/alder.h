@@ -31,7 +31,8 @@
 #include "numkong/dot/alder.h"      // VEX compat macros + dpbusd helpers
 #include "numkong/scalar/haswell.h" // `nk_f32_sqrt_haswell`
 #include "numkong/reduce/haswell.h"
-#include "numkong/cast/serial.h" // `nk_partial_load_b8x32_serial_`
+#include "numkong/spatial/haswell.h" // `nk_angular_normalize_f32_haswell_`
+#include "numkong/cast/serial.h"     // `nk_partial_load_b8x32_serial_`
 
 #if defined(__cplusplus)
 extern "C" {

@@ -13,15 +13,15 @@ env:
 jobs:
   versioning:
     name: Update Version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Run TinySemVer
-        uses: ashvardanian/tinysemver@v2.1.1
+        uses: ashvardanian/tinysemver@v3
         with:
           verbose: "true"
           version-file: "VERSION"
@@ -54,14 +54,18 @@ jobs:
           github-token: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
 
   rebase:
-    name: Rebase Dev. Branch
+    name: Rebase Development Branch
     needs: versioning
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          # Checkout persists its credential as an `extraheader`, which the push below inherits and
+          # which outranks the action's own `token`. Left unset, the force-push arrives as
+          # `github-actions[bot]`, which holds no repository role to bypass the `main*` ruleset with.
+          token: ${{ secrets.SEMANTIC_REBASE_TOKEN }}
       - name: Perform Rebase
         run: |
           git config user.name "github-actions[bot]"

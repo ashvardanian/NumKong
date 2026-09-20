@@ -15,6 +15,8 @@
 #include "numkong/spatial/skylake.h"
 #include "numkong/spatial/serial.h"
 #include "numkong/dots/graniteamx.h"
+#include "numkong/dots/sapphireamx.h"     // `nk_compiler_barrier_sapphireamx_`
+#include "numkong/spatials/sapphireamx.h" // `nk_angulars_row_f32dots_sapphireamx_`
 
 #if defined(__cplusplus)
 extern "C" {

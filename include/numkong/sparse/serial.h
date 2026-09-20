@@ -16,39 +16,42 @@
 extern "C" {
 #endif
 
+#define nk_define_sparse_intersect_helpers_(input_type)                                                     \
+    NK_INTERNAL nk_size_t nk_sparse_intersect_##input_type##_galloping_search_(                             \
+        nk_##input_type##_t const *array, nk_size_t start, nk_size_t length, nk_##input_type##_t val) {     \
+        nk_size_t low = start;                                                                              \
+        nk_size_t high = start + 1 < length ? start + 1 : length;                                           \
+        if (low >= high) return length; /* `start == length` would otherwise read `array[length]` */        \
+        while (high < length && array[high] < val) {                                                        \
+            low = high;                                                                                     \
+            high = (2 * high < length) ? 2 * high : length;                                                 \
+        }                                                                                                   \
+        while (low < high) {                                                                                \
+            nk_size_t mid = low + (high - low) / 2;                                                         \
+            if (array[mid] < val) { low = mid + 1; }                                                        \
+            else { high = mid; }                                                                            \
+        }                                                                                                   \
+        return low;                                                                                         \
+    }                                                                                                       \
+    NK_INTERNAL nk_size_t nk_sparse_intersect_##input_type##_linear_scan_(                                  \
+        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t a_length, nk_size_t b_length, \
+        nk_##input_type##_t *result) {                                                                      \
+        nk_size_t intersection_size = 0;                                                                    \
+        nk_size_t i = 0, j = 0;                                                                             \
+        while (i != a_length && j != b_length) {                                                            \
+            nk_##input_type##_t ai = a[i];                                                                  \
+            nk_##input_type##_t bj = b[j];                                                                  \
+            if (ai == bj) {                                                                                 \
+                if (result) result[intersection_size] = ai;                                                 \
+                intersection_size++;                                                                        \
+            }                                                                                               \
+            i += ai <= bj;                                                                                  \
+            j += ai >= bj;                                                                                  \
+        }                                                                                                   \
+        return intersection_size;                                                                           \
+    }
+
 #define nk_define_sparse_intersect_(input_type)                                                                      \
-    NK_INTERNAL nk_size_t nk_sparse_intersect_##input_type##_galloping_search_(                                      \
-        nk_##input_type##_t const *array, nk_size_t start, nk_size_t length, nk_##input_type##_t val) {              \
-        nk_size_t low = start;                                                                                       \
-        nk_size_t high = start + 1;                                                                                  \
-        while (high < length && array[high] < val) {                                                                 \
-            low = high;                                                                                              \
-            high = (2 * high < length) ? 2 * high : length;                                                          \
-        }                                                                                                            \
-        while (low < high) {                                                                                         \
-            nk_size_t mid = low + (high - low) / 2;                                                                  \
-            if (array[mid] < val) { low = mid + 1; }                                                                 \
-            else { high = mid; }                                                                                     \
-        }                                                                                                            \
-        return low;                                                                                                  \
-    }                                                                                                                \
-    NK_INTERNAL nk_size_t nk_sparse_intersect_##input_type##_linear_scan_(                                           \
-        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t a_length, nk_size_t b_length,          \
-        nk_##input_type##_t *result) {                                                                               \
-        nk_size_t intersection_size = 0;                                                                             \
-        nk_size_t i = 0, j = 0;                                                                                      \
-        while (i != a_length && j != b_length) {                                                                     \
-            nk_##input_type##_t ai = a[i];                                                                           \
-            nk_##input_type##_t bj = b[j];                                                                           \
-            if (ai == bj) {                                                                                          \
-                if (result) result[intersection_size] = ai;                                                          \
-                intersection_size++;                                                                                 \
-            }                                                                                                        \
-            i += ai <= bj;                                                                                           \
-            j += ai >= bj;                                                                                           \
-        }                                                                                                            \
-        return intersection_size;                                                                                    \
-    }                                                                                                                \
     NK_PUBLIC void nk_sparse_intersect_##input_type##_serial(                                                        \
         nk_##input_type##_t const *shorter, nk_##input_type##_t const *longer, nk_size_t shorter_length,             \
         nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count) {                                    \
@@ -103,7 +106,12 @@ extern "C" {
         *product = weights_product;                                                                        \
     }
 
-/*  Keep the serial instantiations below actually scalar, regardless of build type.
+nk_define_sparse_intersect_helpers_(u16)
+nk_define_sparse_intersect_helpers_(u32)
+nk_define_sparse_intersect_helpers_(u64)
+
+/*  Keep the serial instantiations below actually scalar, regardless of build type. The search helpers
+ *  above stay outside: they are `always_inline`, which clang refuses to combine with a pushed `noinline`.
  *  See dots/serial.h for rationale. */
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)

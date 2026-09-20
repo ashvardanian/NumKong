@@ -2218,7 +2218,7 @@ NK_INTERNAL void nk_reduce_moments_i64_neon_contiguous_( //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     uint64x2_t sum_low_u64x2 = vdupq_n_u64(0);
     int64x2_t sum_high_i64x2 = vdupq_n_s64(0);
-    // NEON can still load/extract i64 vectors for sumsq via scalar nk_i64_smul_
+    // NEON can still load/extract i64 vectors for sumsq via nk_i64_smul_sq_i64x2_neon_
     uint64x2_t sumsq_u64x2 = vdupq_n_u64(0);
     int sumsq_overflow = 0;
     int64x2_t sign_bit_i64x2 = vdupq_n_s64((nk_i64_t)0x8000000000000000ULL);

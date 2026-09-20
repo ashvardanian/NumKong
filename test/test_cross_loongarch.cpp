@@ -10,6 +10,7 @@
 void test_cross_loongarch() {
     [[maybe_unused]] error_stats_section_t check;
 #if NK_TARGET_LOONGSONASX
+    check.section("Cross LoongArch LASX", nk_cap_loongsonasx_k);
     check("dots_packed_f64_loongsonasx", test_dots_packed<f64_t>, nk_dots_packed_size_f64_loongsonasx,
           nk_dots_pack_f64_loongsonasx, nk_dots_packed_f64_loongsonasx);
     check("dots_packed_f32_loongsonasx", test_dots_packed<f32_t>, nk_dots_packed_size_f32_loongsonasx,
@@ -86,5 +87,5 @@ void test_cross_loongarch() {
     check("jaccards_packed_u1_loongsonasx", test_jaccards_packed<u1x8_t>, nk_dots_packed_size_u1_serial,
           nk_dots_pack_u1_serial, nk_jaccards_packed_u1_loongsonasx);
     check("jaccards_symmetric_u1_loongsonasx", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1_loongsonasx);
-#endif
+#endif // NK_TARGET_LOONGSONASX
 }

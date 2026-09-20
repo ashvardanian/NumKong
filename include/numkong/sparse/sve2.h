@@ -101,6 +101,9 @@ NK_PUBLIC void nk_sparse_intersect_u16_sve2( //
         nk_u64_t a_step = svcntp_b16(a_progress_b16x, a_mask_b16x);
         nk_u64_t b_step = svcntp_b16(b_progress_b16x, b_mask_b16x);
 
+        // `svmatch`/`svhistcnt` ignore the predicate on their second operand; replace the zero tail with a real member.
+        b_u16x = svsel_u16(b_progress_b16x, b_u16x, svdup_n_u16(b_max));
+
         // Compare `a_u16x` with each lane of `b_u16x`
         svbool_t equal_mask_b16x = svmatch_u16(a_progress_b16x, a_u16x, b_u16x);
         for (nk_size_t i = 1; i < lanes_count; i++) {
@@ -109,17 +112,16 @@ NK_PUBLIC void nk_sparse_intersect_u16_sve2( //
         }
         nk_size_t equal_count = svcntp_b16(svptrue_b16(), equal_mask_b16x);
 
-        // Manually compact and store matching elements (svcompact_u16 is not defined)
+        // `svcompact` has no 16-bit form before SVE2p2, so compact each half at 32 bits and store
+        // back narrowed. This is a single output stream, so the halves simply append — none of the
+        // merge that pairing two compacted streams would need.
         if (result) {
-            nk_u16_t a_data[16];
-            nk_u16_t mask_data[16];
-
-            svst1_u16(svptrue_b16(), a_data, a_u16x);
-            svst1_u16(svptrue_b16(), mask_data, svdup_n_u16_z(equal_mask_b16x, 1));
-
-            for (nk_size_t i = 0; i < svcnth(); i++)
-                if (mask_data[i]) result[c++] = a_data[i];
-            c -= equal_count;
+            svbool_t low_b32x = svunpklo_b(equal_mask_b16x);
+            svbool_t high_b32x = svunpkhi_b(equal_mask_b16x);
+            nk_u64_t low_count = svcntp_b32(svptrue_b32(), low_b32x);
+            svst1h_u32(svwhilelt_b32_u64(0u, low_count), result + c, svcompact_u32(low_b32x, svunpklo_u32(a_u16x)));
+            svst1h_u32(svwhilelt_b32_u64(0u, equal_count - low_count), result + c + low_count,
+                       svcompact_u32(high_b32x, svunpkhi_u32(a_u16x)));
         }
 
         // Advance
@@ -182,6 +184,9 @@ NK_PUBLIC void nk_sparse_intersect_u32_sve2( //
         svbool_t b_mask_b32x = svcmple_n_u32(b_progress_b32x, b_u32x, a_max);
         nk_u64_t a_step = svcntp_b32(a_progress_b32x, a_mask_b32x);
         nk_u64_t b_step = svcntp_b32(b_progress_b32x, b_mask_b32x);
+
+        // `svmatch`/`svhistcnt` ignore the predicate on their second operand; replace the zero tail with a real member.
+        b_u32x = svsel_u32(b_progress_b32x, b_u32x, svdup_n_u32(b_max));
 
         // Comparing `a_u32x` with each lane of `b_u32x` can't be done with `svmatch`,
         // the same way as in `nk_sparse_intersect_u16_sve2`, as that instruction is only
@@ -281,6 +286,9 @@ NK_PUBLIC void nk_sparse_intersect_u64_sve2( //
         nk_u64_t a_step = svcntp_b64(a_progress_b64x, a_mask_b64x);
         nk_u64_t b_step = svcntp_b64(b_progress_b64x, b_mask_b64x);
 
+        // `svmatch`/`svhistcnt` ignore the predicate on their second operand; replace the zero tail with a real member.
+        b_u64x = svsel_u64(b_progress_b64x, b_u64x, svdup_n_u64(b_max));
+
         // Use histogram instructions like `svhistcnt_u64_z` to compute intersection.
         // They compute the prefix-matching count, equivalent to the lower triangle
         // of the row-major intersection matrix.
@@ -355,6 +363,11 @@ NK_PUBLIC void nk_sparse_dot_u32f32_sve2(                 //
         nk_u64_t a_step = svcntp_b32(a_progress_b32x, a_mask_b32x);
         nk_u64_t b_step = svcntp_b32(b_progress_b32x, b_mask_b32x);
 
+        // `svmatch`/`svhistcnt` ignore the predicate on their second operand; replace the zero tail with a real member.
+        // Each vector is the other's ungoverned second operand here.
+        a_u32x = svsel_u32(a_progress_b32x, a_u32x, svdup_n_u32(a_max));
+        b_u32x = svsel_u32(b_progress_b32x, b_u32x, svdup_n_u32(b_max));
+
         // Use histogram-based intersection (svmatch_u32 doesn't exist)
         svuint32_t hist_low_u32x = svhistcnt_u32_z(a_progress_b32x, a_u32x, b_u32x);
         svuint32_t a_rev_u32x = svrev_u32(a_u32x);
@@ -387,9 +400,9 @@ NK_PUBLIC void nk_sparse_dot_u32f32_sve2(                 //
         nk_size_t match_count = svcntp_b32(a_progress_b32x, a_overlap_mask_b32x);
         svbool_t pred_even_b64x = svwhilelt_b64_u64(0u, (match_count + 1) / 2);
         svbool_t pred_odd_b64x = svwhilelt_b64_u64(0u, match_count / 2);
-        product_f64x = svmla_f64_x(pred_even_b64x, product_f64x, svcvt_f64_f32_x(pred_even_b64x, a_matched_f32x),
+        product_f64x = svmla_f64_m(pred_even_b64x, product_f64x, svcvt_f64_f32_x(pred_even_b64x, a_matched_f32x),
                                    svcvt_f64_f32_x(pred_even_b64x, b_matched_f32x));
-        product_f64x = svmla_f64_x(pred_odd_b64x, product_f64x, svcvtlt_f64_f32_x(pred_odd_b64x, a_matched_f32x),
+        product_f64x = svmla_f64_m(pred_odd_b64x, product_f64x, svcvtlt_f64_f32_x(pred_odd_b64x, a_matched_f32x),
                                    svcvtlt_f64_f32_x(pred_odd_b64x, b_matched_f32x));
 
         // Advance
@@ -399,90 +412,85 @@ NK_PUBLIC void nk_sparse_dot_u32f32_sve2(                 //
     *product = nk_svaddv_f64_(predicate_all_b64x, product_f64x);
 }
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
-#endif
-#endif // NK_TARGET_SVE2
-
-#if NK_TARGET_SVE2 && NK_TARGET_SVEBFDOT
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((target("arch=armv8.6-a+sve+sve2+bf16"))), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC target("arch=armv8.6-a+sve+sve2+bf16")
-#endif
-
 NK_PUBLIC void nk_sparse_dot_u16bf16_sve2(                  //
     nk_u16_t const *a, nk_u16_t const *b,                   //
     nk_bf16_t const *a_weights, nk_bf16_t const *b_weights, //
     nk_size_t a_length, nk_size_t b_length,                 //
     nk_f32_t *product) {
 
-    // A single SVE lane is 128 bits wide, so one lane fits 8 values.
-    nk_size_t const register_size = svcnth();
-    nk_size_t const lanes_count = register_size / 8;
+    // Mirrors `nk_sparse_dot_u32f32_sve2`, widening the 16-bit indices on load. `svmatch_u16`
+    // only reports THAT a lane matched, never which, so pairing weights by lane index is wrong;
+    // `svhistcnt_u32_z` is whole-vector and yields both overlap masks, and compacting each
+    // weight vector by its own mask aligns the k-th survivors because both inputs are sorted.
+    nk_size_t const register_size = svcntw();
     nk_size_t a_idx = 0, b_idx = 0;
-    svfloat32_t product_f32x = svdupq_n_f32(0.f, 0.f, 0.f, 0.f);
+    svbool_t const predicate_all_b32x = svptrue_b32();
+    svfloat32_t product_f32x = svdup_f32(0.f);
 
     while (a_idx < a_length && b_idx < b_length) {
-        // Load `a_member` and broadcast it, load `b_members_vec` from memory
-        svbool_t a_progress_b16x = svwhilelt_b16_u64(a_idx, a_length);
-        svbool_t b_progress_b16x = svwhilelt_b16_u64(b_idx, b_length);
-        svuint16_t a_u16x = svld1_u16(a_progress_b16x, a + a_idx);
-        svuint16_t b_u16x = svld1_u16(b_progress_b16x, b + b_idx);
+        svbool_t a_progress_b32x = svwhilelt_b32_u64(a_idx, a_length);
+        svbool_t b_progress_b32x = svwhilelt_b32_u64(b_idx, b_length);
+        svuint32_t a_u32x = svld1uh_u32(a_progress_b32x, a + a_idx);
+        svuint32_t b_u32x = svld1uh_u32(b_progress_b32x, b + b_idx);
 
-        // Intersecting registers with `svmatch_u16` involves a lot of shuffling
-        // and comparisons, so we want to avoid it if the slices don't overlap at all..
-        nk_u16_t a_min;
-        nk_u16_t a_max = svlastb(a_progress_b16x, a_u16x);
-        nk_u16_t b_min = svlasta(svpfalse_b(), b_u16x);
-        nk_u16_t b_max = svlastb(b_progress_b16x, b_u16x);
-
-        // If the slices don't overlap, advance the appropriate pointer
+        // Avoid the intersection entirely when the slices cannot overlap.
+        nk_u32_t a_min;
+        nk_u32_t a_max = svlastb(a_progress_b32x, a_u32x);
+        nk_u32_t b_min = svlasta(svpfalse_b(), b_u32x);
+        nk_u32_t b_max = svlastb(b_progress_b32x, b_u32x);
         while (a_max < b_min && (a_idx + register_size) <= a_length) {
             a_idx += register_size;
-            a_progress_b16x = svwhilelt_b16_u64(a_idx, a_length);
-            a_u16x = svld1_u16(a_progress_b16x, a + a_idx);
-            a_max = svlastb(a_progress_b16x, a_u16x);
+            a_progress_b32x = svwhilelt_b32_u64(a_idx, a_length);
+            a_u32x = svld1uh_u32(a_progress_b32x, a + a_idx);
+            a_max = svlastb(a_progress_b32x, a_u32x);
         }
-        a_min = svlasta(svpfalse_b(), a_u16x);
+        a_min = svlasta(svpfalse_b(), a_u32x);
         while (b_max < a_min && (b_idx + register_size) <= b_length) {
             b_idx += register_size;
-            b_progress_b16x = svwhilelt_b16_u64(b_idx, b_length);
-            b_u16x = svld1_u16(b_progress_b16x, b + b_idx);
-            b_max = svlastb(b_progress_b16x, b_u16x);
+            b_progress_b32x = svwhilelt_b32_u64(b_idx, b_length);
+            b_u32x = svld1uh_u32(b_progress_b32x, b + b_idx);
+            b_max = svlastb(b_progress_b32x, b_u32x);
         }
-        b_min = svlasta(svpfalse_b(), b_u16x);
+        b_min = svlasta(svpfalse_b(), b_u32x);
 
-        // Before we evaluate the intersection size, obfurscating the order in `b_u16x`,
-        // let's estimate how much we will need to advance the pointers afterwards.
-        // For that, we don't even need to broadcast the values in SVE, as the whole
-        // register can be compared against a scalar:
-        //
-        //      svuint16_t a_last_broadcasted =  svdup_n_u16(a_max);
-        //      svuint16_t b_last_broadcasted =  svdup_n_u16(b_max);
-        svbool_t a_mask_b16x = svcmple_n_u16(a_progress_b16x, a_u16x, b_max);
-        svbool_t b_mask_b16x = svcmple_n_u16(b_progress_b16x, b_u16x, a_max);
-        nk_u64_t a_step = svcntp_b16(a_progress_b16x, a_mask_b16x);
-        nk_u64_t b_step = svcntp_b16(b_progress_b16x, b_mask_b16x);
+        svbool_t a_mask_b32x = svcmple_n_u32(a_progress_b32x, a_u32x, b_max);
+        svbool_t b_mask_b32x = svcmple_n_u32(b_progress_b32x, b_u32x, a_max);
+        nk_u64_t a_step = svcntp_b32(a_progress_b32x, a_mask_b32x);
+        nk_u64_t b_step = svcntp_b32(b_progress_b32x, b_mask_b32x);
 
-        // Compare `a_u16x` with each lane of `b_u16x`
-        svbfloat16_t a_weights_bf16x = svld1_bf16(a_progress_b16x, (__bf16 const *)a_weights + a_idx);
-        svbfloat16_t b_weights_bf16x = svld1_bf16(b_progress_b16x, (__bf16 const *)b_weights + b_idx);
-        for (nk_size_t i = 0; i < lanes_count; i++) {
-            svbool_t equal_mask_b16x = svmatch_u16(a_progress_b16x, a_u16x, b_u16x);
-            //! The `svsel_bf16` intrinsic is broken in many compilers, not returning the correct type.
-            //! So we reinterprete floats as integers and apply `svsel_s16`, but the `svreinterpret_s16_bs16`
-            //! and `svreinterpret_bf16_s16` are not always properly defined!
-            svint16_t b_equal_weights_s16x = svsel_s16(equal_mask_b16x, svreinterpret_s16_bf16(b_weights_bf16x),
-                                                       svdup_n_s16(0));
-            product_f32x = svbfdot_f32(product_f32x, a_weights_bf16x, svreinterpret_bf16_s16(b_equal_weights_s16x));
-            b_u16x = svext_u16(b_u16x, b_u16x, 8);
+        // `svhistcnt` ignores the predicate on its second operand; replace the zero tail with a real member.
+        a_u32x = svsel_u32(a_progress_b32x, a_u32x, svdup_n_u32(a_max));
+        b_u32x = svsel_u32(b_progress_b32x, b_u32x, svdup_n_u32(b_max));
+
+        svuint32_t a_rev_u32x = svrev_u32(a_u32x);
+        svuint32_t b_rev_u32x = svrev_u32(b_u32x);
+        svuint32_t hist_low_u32x = svhistcnt_u32_z(a_progress_b32x, a_u32x, b_u32x);
+        svuint32_t hist_high_u32x = svrev_u32(svhistcnt_u32_z(predicate_all_b32x, a_rev_u32x, b_rev_u32x));
+        svuint32_t hist_u32x = svorr_u32_x(a_progress_b32x, hist_low_u32x, hist_high_u32x);
+        svbool_t a_overlap_b32x = svcmpne_n_u32(a_progress_b32x, hist_u32x, 0);
+
+        if (!svptest_any(a_progress_b32x, a_overlap_b32x)) {
+            a_idx += a_step;
+            b_idx += b_step;
+            continue;
         }
 
-        // Advance
+        svuint32_t b_hist_low_u32x = svhistcnt_u32_z(b_progress_b32x, b_u32x, a_u32x);
+        svuint32_t b_hist_high_u32x = svrev_u32(svhistcnt_u32_z(predicate_all_b32x, b_rev_u32x, a_rev_u32x));
+        svuint32_t b_hist_u32x = svorr_u32_x(b_progress_b32x, b_hist_low_u32x, b_hist_high_u32x);
+        svbool_t b_overlap_b32x = svcmpne_n_u32(b_progress_b32x, b_hist_u32x, 0);
+
+        // `bf16` is the top half of `f32`, so a widening load plus a 16-bit shift is exact.
+        svfloat32_t a_w_f32x = svreinterpret_f32_u32(
+            svlsl_n_u32_x(a_progress_b32x, svld1uh_u32(a_progress_b32x, (nk_u16_t const *)a_weights + a_idx), 16));
+        svfloat32_t b_w_f32x = svreinterpret_f32_u32(
+            svlsl_n_u32_x(b_progress_b32x, svld1uh_u32(b_progress_b32x, (nk_u16_t const *)b_weights + b_idx), 16));
+
+        // Both inputs are sorted, so compaction preserves order and the k-th survivors pair up.
+        svfloat32_t a_matched_f32x = svcompact_f32(a_overlap_b32x, a_w_f32x);
+        svfloat32_t b_matched_f32x = svcompact_f32(b_overlap_b32x, b_w_f32x);
+        product_f32x = svmla_f32_m(predicate_all_b32x, product_f32x, a_matched_f32x, b_matched_f32x);
+
         a_idx += a_step;
         b_idx += b_step;
     }
@@ -494,7 +502,7 @@ NK_PUBLIC void nk_sparse_dot_u16bf16_sve2(                  //
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-#endif // NK_TARGET_SVE2 && NK_TARGET_SVEBFDOT
+#endif // NK_TARGET_SVE2
 
 #if defined(__cplusplus)
 } // extern "C"

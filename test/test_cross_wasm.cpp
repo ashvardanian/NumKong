@@ -10,6 +10,7 @@
 void test_cross_wasm() {
     [[maybe_unused]] error_stats_section_t check;
 #if NK_TARGET_V128RELAXED
+    check.section("Cross V128 Relaxed", nk_cap_v128relaxed_k);
     check("dots_packed_f64_v128relaxed", test_dots_packed<f64_t>, nk_dots_packed_size_f64_v128relaxed,
           nk_dots_pack_f64_v128relaxed, nk_dots_packed_f64_v128relaxed);
     check("dots_packed_f32_v128relaxed", test_dots_packed<f32_t>, nk_dots_packed_size_f32_v128relaxed,
@@ -137,5 +138,5 @@ void test_cross_wasm() {
     check("hammings_symmetric_u1_v128relaxed", test_hammings_symmetric<u1x8_t>, nk_hammings_symmetric_u1_v128relaxed);
     check("jaccards_symmetric_u1_v128relaxed", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1_v128relaxed);
 
-#endif
+#endif // NK_TARGET_V128RELAXED
 }

@@ -136,6 +136,15 @@ void linearize_cast_into(char const *src_data, nk_dtype_t src_dtype, char *dest_
                          size_t rank, Py_ssize_t const *shape, Py_ssize_t const *strides, size_t total_elements);
 
 /**
+ *  @brief Convert a dense source into an arbitrarily-strided destination — the mirror of
+ *         linearize_cast_into, for writing results back into a caller's non-contiguous buffer.
+ *
+ *  Collapses to a single nk_cast when the destination is fully packed. Zero allocations.
+ */
+void cast_into_strided(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype, size_t rank,
+                       Py_ssize_t const *shape, Py_ssize_t const *dest_strides);
+
+/**
  *  @brief Produce a contiguous buffer in the target dtype from arbitrary-strided input.
  *  @return Contiguous data pointer, or NULL on error. Caller must PyMem_Free if *needs_free is set.
  */
@@ -148,6 +157,17 @@ char *ensure_contiguous_buffer(char const *src_data, nk_dtype_t src_dtype, nk_dt
  *  @return 1 if shapes match, 0 otherwise (with Python exception set).
  */
 int buffers_shapes_match(Py_buffer const *first, Py_buffer const *second);
+
+/**
+ *  @brief Validate a caller-supplied `out` buffer for an operation that writes it densely.
+ *
+ *  Requires the exact input shape, the expected dtype, C-contiguity — the layout
+ *  linearize_cast_into writes, as it derives destination offsets from shape alone —
+ *  writability, and no address overlap with @p input_buffer.
+ *
+ *  @return The output base pointer, or NULL on error with a Python exception set.
+ */
+char *validate_out_py_buffer(Py_buffer const *out_buffer, Py_buffer const *input_buffer, nk_dtype_t expected_dtype);
 
 /**
  *  @brief Compute the number of trailing contiguous dimensions shared across multiple buffers.
@@ -206,6 +226,7 @@ PyObject *api_full(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyOb
 PyObject *api_iota(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_diagonal(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_hash(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+PyObject *api_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 PyObject *api_moments(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_minmax(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
@@ -224,6 +245,7 @@ extern char const doc_full[];
 extern char const doc_iota[];
 extern char const doc_diagonal[];
 extern char const doc_hash[];
+extern char const doc_astype[];
 
 extern char const doc_reduce_moments[];
 extern char const doc_reduce_minmax[];

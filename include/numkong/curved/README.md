@@ -42,19 +42,19 @@ def bilinear_complex(a: np.ndarray, b: np.ndarray, C: np.ndarray) -> complex:
 
 Real bilinear and Mahalanobis:
 
-| Input Type | Output Type | Description                                    |
-| ---------- | ----------- | ---------------------------------------------- |
-| `f64`      | `f64`       | 64-bit IEEE 754 double precision               |
-| `f32`      | `f32`       | 32-bit IEEE 754 single precision               |
-| `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output |
-| `bf16`     | `f32`       | 16-bit brain float, widened output             |
+| Input Type | Output Type | Description                                      |
+| ---------- | ----------- | ------------------------------------------------ |
+| `f64`      | `f64`       | 64-bit IEEE 754 double precision                 |
+| `f32`      | `f64`       | 32-bit IEEE 754 single precision, widened output |
+| `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output   |
+| `bf16`     | `f32`       | 16-bit brain float, widened output               |
 
 Complex bilinear:
 
 | Input Type | Output Type | Description                                |
 | ---------- | ----------- | ------------------------------------------ |
 | `f64c`     | `f64c`      | 64-bit complex pairs                       |
-| `f32c`     | `f32c`      | 32-bit complex pairs                       |
+| `f32c`     | `f64c`      | 32-bit complex pairs, widened output       |
 | `f16c`     | `f32c`      | 16-bit complex pairs, widened output       |
 | `bf16c`    | `f32c`      | 16-bit brain complex pairs, widened output |
 
@@ -179,7 +179,7 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_bilinear_bf16c_neonbfdot`   |     5.05 gso/s, 17.0 ulp |     4.20 gso/s, 17.0 ulp |     4.04 gso/s, 17.0 ulp |
 | __f16c__                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_bilinear_f16c_serial`       |     2.81 gso/s, 51.8 ulp |     2.54 gso/s, 51.8 ulp |     2.48 gso/s, 51.8 ulp |
-| `nk_bilinear_f16c_neonhalf`     |     5.00 gso/s, 17.3 ulp |     4.16 gso/s, 17.3 ulp |     4.00 gso/s, 16.4 ulp |
+| `nk_bilinear_f16c_neon`         |     5.00 gso/s, 17.3 ulp |     4.16 gso/s, 17.3 ulp |     4.00 gso/s, 16.4 ulp |
 | __f64__                         | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_bilinear_f64_serial`        |     0.717 gso/s, 0.4 ulp |     0.711 gso/s, 0.4 ulp |     0.721 gso/s, 0.4 ulp |
 | `nk_mahalanobis_f64_serial`     |     0.664 gso/s, 0.5 ulp |     0.667 gso/s, 0.5 ulp |     0.672 gso/s, 0.5 ulp |
@@ -196,8 +196,8 @@ Measured with Wasmtime v42 (Cranelift backend).
 | __f16__                         | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_bilinear_f16_serial`        |           ? gso/s, ? ulp |           ? gso/s, ? ulp |           ? gso/s, ? ulp |
 | `nk_mahalanobis_f16_serial`     |           ? gso/s, ? ulp |           ? gso/s, ? ulp |           ? gso/s, ? ulp |
-| `nk_bilinear_f16_neonhalf`      |           ? gso/s, ? ulp |           ? gso/s, ? ulp |           ? gso/s, ? ulp |
-| `nk_mahalanobis_f16_neonhalf`   |           ? gso/s, ? ulp |           ? gso/s, ? ulp |           ? gso/s, ? ulp |
+| `nk_bilinear_f16_neon`          |           ? gso/s, ? ulp |           ? gso/s, ? ulp |           ? gso/s, ? ulp |
+| `nk_mahalanobis_f16_neon`       |           ? gso/s, ? ulp |           ? gso/s, ? ulp |           ? gso/s, ? ulp |
 
 #### WASM
 

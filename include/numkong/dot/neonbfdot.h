@@ -63,6 +63,7 @@
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_partial_load_b8x8_serial_`
 #include "numkong/cast/neon.h"   // `nk_e4m3x8_to_bf16x8_neon_`
+#include "numkong/dot/serial.h"  // `nk_dot_bf16c_serial`, `nk_vdot_bf16c_serial`
 
 #if defined(__cplusplus)
 extern "C" {

@@ -49,16 +49,16 @@ def atan(a: np.ndarray) -> np.ndarray:
 
 ### Cody-Waite Range Reduction
 
-All trigonometric kernels reduce the input angle to $[-\pi/4, \pi/4]$ before polynomial evaluation using Cody-Waite argument reduction.
+All trigonometric kernels reduce the input angle to $[-\pi/2, \pi/2]$ before polynomial evaluation using Cody-Waite argument reduction.
 The constant $\pi$ is split into high and low parts ($\pi_{\text{hi}} + \pi_{\text{lo}}$) to maintain precision during the subtraction $x - n\pi$: `reduced = (x - n * pi_hi) - n * pi_lo`.
 Single-part subtraction would lose ~3 bits of precision for large multiples of $\pi$; the two-part split preserves the full mantissa.
-The quadrant index $n = \text{round}(x / \pi)$ selects which trigonometric identity to apply (sin-cos swap, sign flip) via a 2-bit branch.
+The multiple $n = \text{round}(x / \pi)$ decides the sign of the result through its parity alone; cosine reuses the same sine polynomial by folding an extra $\pi/2$ into the reduction offset.
 
 ### Minimax Polynomial Approximation
 
 `nk_each_sin_f32_serial`, `nk_each_cos_f32_serial` evaluate degree-9 minimax polynomials via Horner's method after range reduction.
-The polynomial coefficients are precomputed to minimize maximum error over $[-\pi/4, \pi/4]$ — Chebyshev-optimal, not Taylor truncation.
-Horner evaluation: `p = c9*x^2 + c7; p = p*x^2 + c5; p = p*x^2 + c3; p = p*x^2 + c1; p = p*x` — 4 FMA operations plus 1 multiply for the final odd-power term.
+The polynomial coefficients are precomputed to minimize maximum error over $[-\pi/2, \pi/2]$ — a minimax fit rather than a plain Taylor truncation.
+Horner evaluation: `p = c9; p = p*x^2 + c7; p = p*x^2 + c5; p = p*x^2 + c3; result = p*x^3 + x` — 3 FMA operations for the polynomial plus one more against the cubed angle.
 `nk_each_sin_f64_serial` uses degree-19 polynomials for 52-bit mantissa coverage.
 
 ### Vectorized Polynomial Evaluation

@@ -10,12 +10,8 @@
 #include <math.h>
 
 #include "distance.h"
-#include "matrix.h" // NK_PARALLEL_PACKED_TILE, NK_PARALLEL_SYMMETRIC_TILE
+#include "parallel.h" // `nk_parallel_for_tiles`, tile sizes
 #include "tensor.h"
-
-#if defined(NK_USE_OPENMP)
-#include <omp.h>
-#endif
 
 static PyObject *implement_dense_metric( //
     nk_kernel_kind_t metric_kind,        //
@@ -591,15 +587,16 @@ static int metric_to_batch_kinds( //
 /**
  *  @brief Pairwise loop fallback: compute one pair at a time via a scalar metric kernel.
  */
-static void cdist_pairwise_loop(                          //
-    nk_metric_dense_punned_t metric,                      //
-    char const *a_start, size_t a_count, size_t a_stride, //
-    char const *b_start, size_t b_count, size_t b_stride, //
-    size_t dimensions,                                    //
-    nk_dtype_t kernel_out_dtype, nk_dtype_t out_dtype,    //
-    char *out, size_t out_row_stride, size_t out_col_stride, int const is_symmetric) {
-    for (size_t i = 0; i < a_count; ++i)
-        for (size_t j = 0; j < b_count; ++j) {
+static void cdist_pairwise_loop(                                   //
+    nk_metric_dense_punned_t metric,                               //
+    char const *a_start, nk_size_t a_count, nk_size_t a_stride,    //
+    char const *b_start, nk_size_t b_count, nk_size_t b_stride,    //
+    nk_size_t dimensions,                                          //
+    nk_dtype_t kernel_out_dtype, nk_dtype_t out_dtype,             //
+    char *out, nk_size_t out_row_stride, nk_size_t out_col_stride, //
+    int const is_symmetric) {
+    for (nk_size_t i = 0; i < a_count; ++i)
+        for (nk_size_t j = 0; j < b_count; ++j) {
             if (is_symmetric && i > j) continue;
             nk_scalar_buffer_t result;
             metric(a_start + i * a_stride, b_start + j * b_stride, dimensions, &result);
@@ -612,51 +609,86 @@ static void cdist_pairwise_loop(                          //
         }
 }
 
+/** @brief One tile of rows of C = A × Aᵀ. */
+typedef struct cdist_symmetric_task_t {
+    nk_dots_symmetric_punned_t kernel;
+    char const *vectors;
+    char *result;
+    nk_size_t vectors_count;
+    nk_size_t depth;
+    nk_size_t stride_bytes;
+    nk_size_t result_stride_bytes;
+} cdist_symmetric_task_t;
+
+static void cdist_symmetric_tile_(nk_size_t tile_index, void *context) {
+    cdist_symmetric_task_t const *task = (cdist_symmetric_task_t const *)context;
+    nk_size_t const tile_start = tile_index * NK_PARALLEL_SYMMETRIC_TILE;
+    nk_size_t const tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= task->vectors_count)
+                                    ? NK_PARALLEL_SYMMETRIC_TILE
+                                    : (task->vectors_count - tile_start);
+    task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
+                 task->result_stride_bytes, tile_start, tile_rows);
+}
+
 /**
- *  @brief Batch symmetric path: compute A x A^T via a SIMD-optimized symmetric kernel.
+ *  @brief Batch symmetric path: compute C = A × Aᵀ via a SIMD-optimized symmetric kernel.
  *  @return 0 on success, -1 if the kernel was not found.
  */
-static int cdist_batch_symmetric(                             //
-    nk_kernel_kind_t symmetric_kind, nk_dtype_t dtype,        //
-    char const *vectors, size_t n_vectors, size_t dimensions, //
-    size_t stride, char *out, size_t out_row_stride,          //
+static int cdist_batch_symmetric(                                   //
+    nk_kernel_kind_t symmetric_kind, nk_dtype_t dtype,              //
+    char const *vectors, nk_size_t n_vectors, nk_size_t dimensions, //
+    nk_size_t stride, char *out, nk_size_t out_row_stride,          //
     nk_size_t threads) {
     nk_dots_symmetric_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
     nk_find_kernel_punned(symmetric_kind, dtype, static_capabilities, //
                           (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) return -1;
-#if defined(NK_USE_OPENMP)
-    if (threads == 0) threads = (nk_size_t)omp_get_max_threads();
-    omp_set_num_threads((int)threads);
-#endif
 
-    // `int` loop counter declared *outside* the `for` statement: MSVC's
-    // OpenMP (`/openmp` and `/openmp:llvm` alike) stays at 2.0 canonical
-    // form, which forbids in-init declarations and rejects 64-bit
-    // iterators — either would trip C3015.
-    int const tile_count = (int)nk_size_divide_round_up_(n_vectors, NK_PARALLEL_SYMMETRIC_TILE);
-    int tile_idx;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
-    for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
-        nk_size_t tile_start = (nk_size_t)tile_idx * NK_PARALLEL_SYMMETRIC_TILE;
-        nk_size_t tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= n_vectors) ? NK_PARALLEL_SYMMETRIC_TILE
-                                                                                     : (n_vectors - tile_start);
-        kernel(vectors, n_vectors, dimensions, stride, out, out_row_stride, tile_start, tile_rows);
-    }
-
+    cdist_symmetric_task_t task;
+    task.kernel = kernel;
+    task.vectors = vectors;
+    task.result = out;
+    task.vectors_count = n_vectors;
+    task.depth = dimensions;
+    task.stride_bytes = stride;
+    task.result_stride_bytes = out_row_stride;
+    nk_parallel_for_tiles(nk_size_divide_round_up_(n_vectors, NK_PARALLEL_SYMMETRIC_TILE), threads,
+                          cdist_symmetric_tile_, &task);
     return 0;
 }
 
+/** @brief One tile of rows of C = A × Bᵀ with B pre-packed. */
+typedef struct cdist_packed_task_t {
+    nk_dots_packed_punned_t kernel;
+    char const *a;
+    void const *b_packed;
+    char *c;
+    nk_size_t rows;
+    nk_size_t columns;
+    nk_size_t depth;
+    nk_size_t a_stride_bytes;
+    nk_size_t c_stride_bytes;
+} cdist_packed_task_t;
+
+static void cdist_packed_tile_(nk_size_t tile_index, void *context) {
+    cdist_packed_task_t const *task = (cdist_packed_task_t const *)context;
+    nk_size_t const row = tile_index * NK_PARALLEL_PACKED_TILE;
+    nk_size_t const chunk = (row + NK_PARALLEL_PACKED_TILE <= task->rows) ? NK_PARALLEL_PACKED_TILE
+                                                                          : (task->rows - row);
+    task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes, chunk,
+                 task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes);
+}
+
 /**
- *  @brief Batch packed path: pack B, then compute A x B_packed via a SIMD-optimized kernel.
+ *  @brief Batch packed path: pack B, then compute C = A × Bᵀ via a SIMD-optimized kernel.
  *  @return 0 on success, -1 on allocation failure, -2 if a kernel was not found.
  */
-static int cdist_batch_packed(                                               //
-    nk_kernel_kind_t packed_kind, nk_dtype_t dtype,                          //
-    char const *a_start, size_t a_count, size_t a_stride,                    //
-    char const *b_start, size_t b_count, size_t b_stride, size_t dimensions, //
-    char *out, size_t out_row_stride, nk_size_t threads) {
+static int cdist_batch_packed(                                                        //
+    nk_kernel_kind_t packed_kind, nk_dtype_t dtype,                                   //
+    char const *a_start, nk_size_t a_count, nk_size_t a_stride,                       //
+    char const *b_start, nk_size_t b_count, nk_size_t b_stride, nk_size_t dimensions, //
+    char *out, nk_size_t out_row_stride, nk_size_t threads) {
 
     // All metric families reuse the dots pack_size / pack kernels
     nk_dots_packed_size_punned_t size_fn = NULL;
@@ -682,21 +714,19 @@ static int cdist_batch_packed(                                               //
     if (!b_packed) return -1;
 
     pack_fn(b_start, b_count, dimensions, b_stride, b_packed);
-#if defined(NK_USE_OPENMP)
-    if (threads == 0) threads = (nk_size_t)omp_get_max_threads();
-    omp_set_num_threads((int)threads);
-#endif
 
-    // `int` loop counter pre-declared: see note at `cdist_batch_symmetric`.
-    int const tile_count = (int)nk_size_divide_round_up_(a_count, NK_PARALLEL_PACKED_TILE);
-    int tile_idx;
-#pragma omp parallel for schedule(dynamic, 1) if (threads > 1)
-    for (tile_idx = 0; tile_idx < tile_count; tile_idx++) {
-        nk_size_t row = (nk_size_t)tile_idx * NK_PARALLEL_PACKED_TILE;
-        nk_size_t chunk = (row + NK_PARALLEL_PACKED_TILE <= a_count) ? NK_PARALLEL_PACKED_TILE : (a_count - row);
-        kernel(a_start + row * a_stride, b_packed, out + row * out_row_stride, chunk, b_count, dimensions, a_stride,
-               out_row_stride);
-    }
+    cdist_packed_task_t task;
+    task.kernel = kernel;
+    task.a = a_start;
+    task.b_packed = b_packed;
+    task.c = out;
+    task.rows = a_count;
+    task.columns = b_count;
+    task.depth = dimensions;
+    task.a_stride_bytes = a_stride;
+    task.c_stride_bytes = out_row_stride;
+    nk_parallel_for_tiles(nk_size_divide_round_up_(a_count, NK_PARALLEL_PACKED_TILE), threads, cdist_packed_tile_,
+                          &task);
 
     free(b_packed);
     return 0;

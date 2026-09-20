@@ -39,7 +39,7 @@
 #
 # To cross-compile for RISC-V:
 #
-#     cmake -B build_riscv -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-gnu.cmake \
+#     cmake -B build_riscv -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
 #           -D NK_BUILD_TEST=ON
 #
 # To cross-compile for Android ARM64 (requires ANDROID_NDK_ROOT):
@@ -85,7 +85,7 @@ endif ()
 #
 project(
     numkong
-    VERSION 7.7.0
+    VERSION 7.8.2
     LANGUAGES C CXX
     DESCRIPTION "Portable mixed-precision BLAS-like vector math library for x86 and ARM"
     HOMEPAGE_URL "https://github.com/ashvardanian/NumKong"
@@ -125,6 +125,7 @@ option(NK_BUILD_SHARED_TEST "Compile shared-library tests, requires NK_BUILD_SHA
 option(NK_WASI_HOSTED "Import capability probes from WASI host environment" OFF)
 
 option(NK_MARCH_NATIVE "Build with -march=native (host-tuned, not portable)" OFF)
+option(NK_ENABLE_ASAN "Enable AddressSanitizer in Debug builds" ${NK_IS_MAIN_PROJECT_})
 
 # `add_test()` entries are only generated when testing is enabled.
 if (NK_BUILD_TEST OR NK_BUILD_SHARED_TEST OR NK_BUILD_CUDA_TEST)
@@ -204,18 +205,24 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "Windows" OR WIN32)
 endif ()
 
 # Global compiler flags for debug and release
-include(CheckCXXSourceCompiles)
-set(CMAKE_REQUIRED_FLAGS "-fsanitize=address")
-check_cxx_source_compiles("int main(){return 0;}" NK_HAS_ASAN_)
-unset(CMAKE_REQUIRED_FLAGS)
+if (NK_ENABLE_ASAN)
+    if (MSVC)
+        # `cl.exe` reports an unknown `-f...` as warning D9002 and still exits 0, so the probe
+        # below would pass and then replace `/Zi /Ob0 /Od /RTC1` with flags it ignores.
+        set(NK_HAS_ASAN_ FALSE)
+    else ()
+        include(CheckCXXSourceCompiles)
+        set(CMAKE_REQUIRED_FLAGS "-fsanitize=address")
+        check_cxx_source_compiles("int main(){return 0;}" NK_HAS_ASAN_)
+        unset(CMAKE_REQUIRED_FLAGS)
+    endif ()
 
-if (NK_HAS_ASAN_)
-    set(CMAKE_CXX_FLAGS_DEBUG "-g -fsanitize=address")
-    set(CMAKE_C_FLAGS_DEBUG "-g -fsanitize=address")
-else ()
-    set(CMAKE_CXX_FLAGS_DEBUG "-g")
-    set(CMAKE_C_FLAGS_DEBUG "-g")
-    message(STATUS "AddressSanitizer not available, Debug builds without ASAN")
+    if (NK_HAS_ASAN_)
+        set(CMAKE_CXX_FLAGS_DEBUG "-g -fsanitize=address")
+        set(CMAKE_C_FLAGS_DEBUG "-g -fsanitize=address")
+    else ()
+        message(STATUS "AddressSanitizer not available, Debug builds without ASAN")
+    endif ()
 endif ()
 
 if (MSVC)
@@ -256,7 +263,11 @@ if (NK_MARCH_NATIVE AND NOT MSVC AND NOT CMAKE_CROSSCOMPILING)
 elseif (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
     # Clang and IntelLLVM accept the GCC spellings as aliases, so one pair covers all three compilers.
     add_compile_options(-fno-tree-vectorize -fno-tree-slp-vectorize)
-    if (NK_IS_64BIT_ARM_)
+    if (APPLE)
+        # `-arch` already pins the ABI floor per slice, and a universal build passes both
+        # to one clang invocation, where a per-arch `-march=` conflicts with the other slice.
+        # `CMAKE_SYSTEM_PROCESSOR` names the host, so it cannot pick the flag here.
+    elseif (NK_IS_64BIT_ARM_)
         add_compile_options(-march=armv8-a)
     elseif (NK_IS_64BIT_X86_)
         add_compile_options(-march=x86-64)

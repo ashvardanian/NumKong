@@ -11,9 +11,9 @@
  *  - `f16` & `bf16` ↔ `f32` - often used for half-precision dot-products on older CPUs,
  *
  *  Unlike most operation classes in NumKong, these are dependent on two input types: "from" & "to".
- *  It contains scalar helpers named like `nk_f16_to_f32_serial_` as well as buffer-to-buffer
- *  `memcpy`-like vectorized operations, such as `nk_cast_f16_to_f32` with `nk_cast_f16_to_f32_serial`,
- *  `nk_cast_f16_to_f32_neon`, `nk_cast_f16_to_f32_skylake`, and other platform-specific variants.
+ *  It contains scalar helpers named like `nk_f16_to_f32_serial` as well as buffer-to-buffer
+ *  `memcpy`-like vectorized operations, such as `nk_cast` with `nk_cast_serial`,
+ *  `nk_cast_neon`, `nk_cast_skylake`, and other platform-specific variants.
  *
  *  It also includes "partial load" and "partial store" type-punned helper functions for handling
  *  IO between memory and registers, that are extensively reused in reductions, elementwise ops, and

@@ -29,6 +29,8 @@
 
 #include "numkong/types.h"
 #include "numkong/cast/sapphire.h" // `nk_f32_to_f16_sapphire`
+#include "numkong/cast/icelake.h"  // `nk_cast_icelake`
+#include "numkong/each/icelake.h"  // `nk_each_sum_i8_icelake`, `nk_each_sum_u8_icelake`
 
 #if defined(__cplusplus)
 extern "C" {
