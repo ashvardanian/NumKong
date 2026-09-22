@@ -94,6 +94,18 @@ NK_INTERNAL nk_vf64x2_t nk_rsqrt_f64x2_powervsx_(nk_vf64x2_t x) {
     return rsqrt_f64x2;
 }
 
+/** @brief Zeroes negative lanes and keeps NaN, which `vec_max` would drop. */
+NK_INTERNAL nk_vf32x4_t nk_nonnegative_f32x4_powervsx_(nk_vf32x4_t x) {
+    nk_vf32x4_t zeros_f32x4 = vec_splats(0.0f);
+    return vec_sel(x, zeros_f32x4, vec_cmplt(x, zeros_f32x4));
+}
+
+/** @brief Zeroes negative lanes and keeps NaN, which `vec_max` would drop. */
+NK_INTERNAL nk_vf64x2_t nk_nonnegative_f64x2_powervsx_(nk_vf64x2_t x) {
+    nk_vf64x2_t zeros_f64x2 = vec_splats(0.0);
+    return vec_sel(x, zeros_f64x2, vec_cmplt(x, zeros_f64x2));
+}
+
 NK_INTERNAL nk_f32_t nk_angular_normalize_f32_powervsx_(nk_f32_t ab, nk_f32_t a2, nk_f32_t b2) {
     if (a2 == 0 && b2 == 0) return 0;
     if (ab == 0) return 1;
@@ -104,7 +116,7 @@ NK_INTERNAL nk_f32_t nk_angular_normalize_f32_powervsx_(nk_f32_t ab, nk_f32_t a2
     nk_f32_t a2_rsqrt = vec_extract(rsqrts_f32x4, 0);
     nk_f32_t b2_rsqrt = vec_extract(rsqrts_f32x4, 1);
     nk_f32_t result = 1 - ab * a2_rsqrt * b2_rsqrt;
-    return result > 0 ? result : 0;
+    return result < 0 ? 0 : result;
 }
 
 NK_INTERNAL nk_f64_t nk_angular_normalize_f64_powervsx_(nk_f64_t ab, nk_f64_t a2, nk_f64_t b2) {
@@ -117,7 +129,7 @@ NK_INTERNAL nk_f64_t nk_angular_normalize_f64_powervsx_(nk_f64_t ab, nk_f64_t a2
     nk_f64_t a2_rsqrt = vec_extract(rsqrts_f64x2, 0);
     nk_f64_t b2_rsqrt = vec_extract(rsqrts_f64x2, 1);
     nk_f64_t result = 1 - ab * a2_rsqrt * b2_rsqrt;
-    return result > 0 ? result : 0;
+    return result < 0 ? 0 : result;
 }
 
 #pragma region F32 and F64 Floats
@@ -604,8 +616,10 @@ NK_INTERNAL void nk_angular_through_f64_from_dot_powervsx_(nk_b256_vec_t const *
 
     nk_vf64x2_t ones_f64x2 = vec_splats(1.0);
     nk_vf64x2_t zeros_f64x2 = vec_splats(0.0);
-    nk_vf64x2_t result_ab_f64x2 = vec_max(vec_sub(ones_f64x2, vec_mul(dots_ab_f64x2, rsqrt_ab_f64x2)), zeros_f64x2);
-    nk_vf64x2_t result_cd_f64x2 = vec_max(vec_sub(ones_f64x2, vec_mul(dots_cd_f64x2, rsqrt_cd_f64x2)), zeros_f64x2);
+    nk_vf64x2_t result_ab_f64x2 = nk_nonnegative_f64x2_powervsx_(
+        vec_sub(ones_f64x2, vec_mul(dots_ab_f64x2, rsqrt_ab_f64x2)));
+    nk_vf64x2_t result_cd_f64x2 = nk_nonnegative_f64x2_powervsx_(
+        vec_sub(ones_f64x2, vec_mul(dots_cd_f64x2, rsqrt_cd_f64x2)));
 
     nk_vu64x2_t prodzero_ab_u64x2 = (nk_vu64x2_t)vec_cmpeq(products_ab_f64x2, zeros_f64x2);
     nk_vu64x2_t dotzero_ab_u64x2 = (nk_vu64x2_t)vec_cmpeq(dots_ab_f64x2, zeros_f64x2);
@@ -627,12 +641,13 @@ NK_INTERNAL void nk_euclidean_through_f64_from_dot_powervsx_(nk_b256_vec_t const
                                                              nk_b256_vec_t *result_vec) {
     nk_vf64x2_t query_f64x2 = vec_splats(query_sumsq);
     nk_vf64x2_t neg_two_f64x2 = vec_splats(-2.0);
-    nk_vf64x2_t zeros_f64x2 = vec_splats(0.0);
 
     nk_vf64x2_t sum_sq_ab_f64x2 = vec_add(query_f64x2, target_sumsqs_vec->vf64x2s[0]);
     nk_vf64x2_t sum_sq_cd_f64x2 = vec_add(query_f64x2, target_sumsqs_vec->vf64x2s[1]);
-    nk_vf64x2_t dist_sq_ab_f64x2 = vec_max(vec_madd(neg_two_f64x2, dots_vec->vf64x2s[0], sum_sq_ab_f64x2), zeros_f64x2);
-    nk_vf64x2_t dist_sq_cd_f64x2 = vec_max(vec_madd(neg_two_f64x2, dots_vec->vf64x2s[1], sum_sq_cd_f64x2), zeros_f64x2);
+    nk_vf64x2_t dist_sq_ab_f64x2 = nk_nonnegative_f64x2_powervsx_(
+        vec_madd(neg_two_f64x2, dots_vec->vf64x2s[0], sum_sq_ab_f64x2));
+    nk_vf64x2_t dist_sq_cd_f64x2 = nk_nonnegative_f64x2_powervsx_(
+        vec_madd(neg_two_f64x2, dots_vec->vf64x2s[1], sum_sq_cd_f64x2));
 
     result_vec->vf64x2s[0] = vec_sqrt(dist_sq_ab_f64x2);
     result_vec->vf64x2s[1] = vec_sqrt(dist_sq_cd_f64x2);
@@ -648,7 +663,7 @@ NK_INTERNAL void nk_angular_through_f32_from_dot_powervsx_(nk_b128_vec_t const *
     nk_vf32x4_t rsqrt_f32x4 = nk_rsqrt_f32x4_powervsx_(products_f32x4);
     nk_vf32x4_t normalized_f32x4 = vec_mul(dots_f32x4, rsqrt_f32x4);
     nk_vf32x4_t angular_f32x4 = vec_sub(vec_splats(1.0f), normalized_f32x4);
-    nk_vf32x4_t result_f32x4 = vec_max(angular_f32x4, vec_splats(0.0f));
+    nk_vf32x4_t result_f32x4 = nk_nonnegative_f32x4_powervsx_(angular_f32x4);
     result_vec->vf32x4 = result_f32x4;
 }
 
@@ -662,7 +677,7 @@ NK_INTERNAL void nk_euclidean_through_f32_from_dot_powervsx_(nk_b128_vec_t const
     // dist_sq = sum_sq − 2 × dot
     nk_vf32x4_t dist_sq_f32x4 = vec_madd(vec_splats(-2.0f), dots_f32x4, sum_sq_f32x4);
     // Clamp and sqrt
-    dist_sq_f32x4 = vec_max(dist_sq_f32x4, vec_splats(0.0f));
+    dist_sq_f32x4 = nk_nonnegative_f32x4_powervsx_(dist_sq_f32x4);
     nk_vf32x4_t dist_f32x4 = vec_sqrt(dist_sq_f32x4);
     result_vec->vf32x4 = dist_f32x4;
 }
@@ -679,7 +694,7 @@ NK_INTERNAL void nk_angular_through_i32_from_dot_powervsx_(nk_b128_vec_t const *
     nk_vf32x4_t rsqrt_f32x4 = nk_rsqrt_f32x4_powervsx_(products_f32x4);
     nk_vf32x4_t normalized_f32x4 = vec_mul(dots_f32x4, rsqrt_f32x4);
     nk_vf32x4_t angular_f32x4 = vec_sub(vec_splats(1.0f), normalized_f32x4);
-    nk_vf32x4_t result_f32x4 = vec_max(angular_f32x4, vec_splats(0.0f));
+    nk_vf32x4_t result_f32x4 = nk_nonnegative_f32x4_powervsx_(angular_f32x4);
     result_vec->vf32x4 = result_f32x4;
 }
 
@@ -693,7 +708,7 @@ NK_INTERNAL void nk_euclidean_through_i32_from_dot_powervsx_(nk_b128_vec_t const
     nk_vi32x4_t targets_i32x4 = target_sumsqs_vec->vi32x4;
     nk_vf32x4_t sum_sq_f32x4 = vec_add(query_f32x4, vec_ctf(targets_i32x4, 0));
     nk_vf32x4_t dist_sq_f32x4 = vec_madd(vec_splats(-2.0f), dots_f32x4, sum_sq_f32x4);
-    dist_sq_f32x4 = vec_max(dist_sq_f32x4, vec_splats(0.0f));
+    dist_sq_f32x4 = nk_nonnegative_f32x4_powervsx_(dist_sq_f32x4);
     nk_vf32x4_t dist_f32x4 = vec_sqrt(dist_sq_f32x4);
     result_vec->vf32x4 = dist_f32x4;
 }
@@ -710,7 +725,7 @@ NK_INTERNAL void nk_angular_through_u32_from_dot_powervsx_(nk_b128_vec_t const *
     nk_vf32x4_t rsqrt_f32x4 = nk_rsqrt_f32x4_powervsx_(products_f32x4);
     nk_vf32x4_t normalized_f32x4 = vec_mul(dots_f32x4, rsqrt_f32x4);
     nk_vf32x4_t angular_f32x4 = vec_sub(vec_splats(1.0f), normalized_f32x4);
-    nk_vf32x4_t result_f32x4 = vec_max(angular_f32x4, vec_splats(0.0f));
+    nk_vf32x4_t result_f32x4 = nk_nonnegative_f32x4_powervsx_(angular_f32x4);
     result_vec->vf32x4 = result_f32x4;
 }
 
@@ -724,7 +739,7 @@ NK_INTERNAL void nk_euclidean_through_u32_from_dot_powervsx_(nk_b128_vec_t const
     nk_vu32x4_t targets_u32x4 = target_sumsqs_vec->vu32x4;
     nk_vf32x4_t sum_sq_f32x4 = vec_add(query_f32x4, vec_ctf(targets_u32x4, 0));
     nk_vf32x4_t dist_sq_f32x4 = vec_madd(vec_splats(-2.0f), dots_f32x4, sum_sq_f32x4);
-    dist_sq_f32x4 = vec_max(dist_sq_f32x4, vec_splats(0.0f));
+    dist_sq_f32x4 = nk_nonnegative_f32x4_powervsx_(dist_sq_f32x4);
     nk_vf32x4_t dist_f32x4 = vec_sqrt(dist_sq_f32x4);
     result_vec->vf32x4 = dist_f32x4;
 }

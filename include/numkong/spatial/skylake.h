@@ -115,7 +115,7 @@ NK_INTERNAL nk_f64_t nk_angular_normalize_f64_skylake_(nk_f64_t ab, nk_f64_t a2,
     nk_f64_t a_sqrt = _mm_cvtsd_f64(_mm_unpackhi_pd(sqrts_f64x2, sqrts_f64x2));
     nk_f64_t b_sqrt = _mm_cvtsd_f64(sqrts_f64x2);
     nk_f64_t result = 1 - ab / (a_sqrt * b_sqrt);
-    return result > 0 ? result : 0;
+    return result < 0 ? 0 : result;
 }
 
 NK_PUBLIC void nk_angular_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
@@ -235,7 +235,7 @@ NK_INTERNAL void nk_angular_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_ve
     __m256d normalized_f64x4 = _mm256_div_pd(dots_f64x4, sqrt_products_f64x4);
     __m256d ones_f64x4 = _mm256_set1_pd(1.0);
     __m256d angular_f64x4 = _mm256_sub_pd(ones_f64x4, normalized_f64x4);
-    result_vec->ymm_pd = _mm256_max_pd(angular_f64x4, _mm256_setzero_pd());
+    result_vec->ymm_pd = _mm256_max_pd(_mm256_setzero_pd(), angular_f64x4);
 }
 
 /** @brief Euclidean from_dot for native f64: √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs. */
@@ -248,7 +248,7 @@ NK_INTERNAL void nk_euclidean_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_
     __m256d sum_sq_f64x4 = _mm256_add_pd(query_sumsq_f64x4, target_sumsqs_vec->ymm_pd);
     __m256d dist_sq_f64x4 = _mm256_fnmadd_pd(two_f64x4, dots_f64x4, sum_sq_f64x4);
     __m256d zeros_f64x4 = _mm256_setzero_pd();
-    __m256d clamped_f64x4 = _mm256_max_pd(dist_sq_f64x4, zeros_f64x4);
+    __m256d clamped_f64x4 = _mm256_max_pd(zeros_f64x4, dist_sq_f64x4);
     result_vec->ymm_pd = _mm256_sqrt_pd(clamped_f64x4);
 }
 
@@ -265,7 +265,7 @@ NK_INTERNAL void nk_angular_through_f64_from_dot_skylake_(nk_b128_vec_t const *d
     __m256d normalized_f64x4 = _mm256_div_pd(dots_f64x4, sqrt_products_f64x4);
     __m256d ones_f64x4 = _mm256_set1_pd(1.0);
     __m256d angular_f64x4 = _mm256_sub_pd(ones_f64x4, normalized_f64x4);
-    angular_f64x4 = _mm256_max_pd(angular_f64x4, _mm256_setzero_pd());
+    angular_f64x4 = _mm256_max_pd(_mm256_setzero_pd(), angular_f64x4);
     result_vec->xmm_ps = _mm256_cvtpd_ps(angular_f64x4);
 }
 
@@ -281,7 +281,7 @@ NK_INTERNAL void nk_euclidean_through_f64_from_dot_skylake_(nk_b128_vec_t const 
     __m256d sum_sq_f64x4 = _mm256_add_pd(query_sumsq_f64x4, target_sumsqs_f64x4);
     __m256d dist_sq_f64x4 = _mm256_fnmadd_pd(two_f64x4, dots_f64x4, sum_sq_f64x4);
     __m256d zeros_f64x4 = _mm256_setzero_pd();
-    __m256d clamped_f64x4 = _mm256_max_pd(dist_sq_f64x4, zeros_f64x4);
+    __m256d clamped_f64x4 = _mm256_max_pd(zeros_f64x4, dist_sq_f64x4);
     __m256d dist_f64x4 = _mm256_sqrt_pd(clamped_f64x4);
     result_vec->xmm_ps = _mm256_cvtpd_ps(dist_f64x4);
 }

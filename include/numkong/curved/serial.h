@@ -119,7 +119,7 @@ extern "C" {
             outer_sum += difference_row * inner_sum;                                                                \
         }                                                                                                           \
         nk_##accumulator_type##_t quadratic = outer_sum;                                                            \
-        *result = nk_##accumulator_type##_sqrt_serial(quadratic > 0 ? quadratic : 0);                               \
+        *result = nk_##accumulator_type##_sqrt_serial(quadratic);                                                   \
     }
 
 // f32 → f64 accumulator → f64 output
@@ -197,7 +197,7 @@ NK_PUBLIC void nk_mahalanobis_f64_serial(nk_f64_t const *a, nk_f64_t const *b, n
         nk_f64_dot2_(&outer_sum, &outer_comp, diff_row, cb_j);
     }
     nk_f64_t quadratic = outer_sum + outer_comp;
-    *result = nk_f64_sqrt_serial(quadratic > 0 ? quadratic : 0);
+    *result = nk_f64_sqrt_serial(quadratic);
 }
 
 #if defined(__cplusplus)

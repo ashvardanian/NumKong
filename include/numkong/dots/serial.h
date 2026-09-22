@@ -2737,11 +2737,11 @@ NK_PUBLIC void nk_dots_compact_i8_serial(void *c, nk_size_t row_count, nk_size_t
         nk_i8_t *destination_row = c_i8 + row_index * column_count;
 
         nk_f32_t a_norm_f32_value = (nk_f32_t)a_squared_norms[row_index];
-        nk_f32_t a_rsqrt_value = (a_norm_f32_value > 0) ? (1.0f / nk_f32_sqrt_serial(a_norm_f32_value)) : 0.0f;
+        nk_f32_t a_rsqrt_value = a_norm_f32_value <= 0 ? 0.0f : (1.0f / nk_f32_sqrt_serial(a_norm_f32_value));
 
         for (nk_size_t column_index = 0; column_index < column_count; column_index++) {
             nk_f32_t b_norm_f32_value = (nk_f32_t)b_squared_norms[column_index];
-            nk_f32_t b_rsqrt_value = (b_norm_f32_value > 0) ? (1.0f / nk_f32_sqrt_serial(b_norm_f32_value)) : 0.0f;
+            nk_f32_t b_rsqrt_value = b_norm_f32_value <= 0 ? 0.0f : (1.0f / nk_f32_sqrt_serial(b_norm_f32_value));
 
             nk_f32_t normalized_value = (nk_f32_t)source_row[column_index] * 127.0f * a_rsqrt_value * b_rsqrt_value;
             nk_i32_t clamped_value = (nk_i32_t)normalized_value;

@@ -78,6 +78,18 @@ NK_INTERNAL vfloat64m1_t nk_rsqrt_f64m1_rvv_(vfloat64m1_t values_f64m1, size_t v
     return rsqrt_f64m1;
 }
 
+/** @brief Zeroes negative lanes and keeps NaN, which `vfmax` would drop. */
+NK_INTERNAL vfloat32m1_t nk_nonnegative_f32m1_rvv_(vfloat32m1_t values_f32m1, size_t vector_length) {
+    vbool32_t negative_b32 = __riscv_vmflt_vf_f32m1_b32(values_f32m1, 0.0f, vector_length);
+    return __riscv_vfmerge_vfm_f32m1(values_f32m1, 0.0f, negative_b32, vector_length);
+}
+
+/** @brief Zeroes negative lanes and keeps NaN, which `vfmax` would drop. */
+NK_INTERNAL vfloat64m1_t nk_nonnegative_f64m1_rvv_(vfloat64m1_t values_f64m1, size_t vector_length) {
+    vbool64_t negative_b64 = __riscv_vmflt_vf_f64m1_b64(values_f64m1, 0.0, vector_length);
+    return __riscv_vfmerge_vfm_f64m1(values_f64m1, 0.0, negative_b64, vector_length);
+}
+
 /**
  *  @brief Approximate reciprocal of f32 vector (m4) using vfrec7 + 2 Newton-Raphson steps.
  *  Achieves ~28-bit precision, sufficient for f32 (24-bit mantissa).
@@ -277,7 +289,7 @@ NK_PUBLIC void nk_angular_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scal
     else {
         nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_i32 * nk_f32_rsqrt_rvv((nk_f32_t)a_norm_sq_i32) *
                                         nk_f32_rsqrt_rvv((nk_f32_t)b_norm_sq_i32);
-        *result = unclipped > 0 ? unclipped : 0;
+        *result = unclipped < 0 ? 0 : unclipped;
     }
 }
 
@@ -316,7 +328,7 @@ NK_PUBLIC void nk_angular_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scal
     else {
         nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_u32 * nk_f32_rsqrt_rvv((nk_f32_t)a_norm_sq_u32) *
                                         nk_f32_rsqrt_rvv((nk_f32_t)b_norm_sq_u32);
-        *result = unclipped > 0 ? unclipped : 0;
+        *result = unclipped < 0 ? 0 : unclipped;
     }
 }
 
@@ -356,7 +368,7 @@ NK_PUBLIC void nk_angular_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_s
     else if (dot_f64 == 0.0) { *result = 1.0; }
     else {
         nk_f64_t unclipped = 1.0 - dot_f64 * nk_f64_rsqrt_rvv(a_norm_sq_f64) * nk_f64_rsqrt_rvv(b_norm_sq_f64);
-        *result = unclipped > 0 ? unclipped : 0.0;
+        *result = unclipped < 0 ? 0.0 : unclipped;
     }
 }
 
@@ -410,7 +422,7 @@ NK_PUBLIC void nk_angular_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_s
     else if (dot_f64 == 0.0) { *result = 1.0; }
     else {
         nk_f64_t unclipped = 1.0 - dot_f64 * nk_f64_rsqrt_rvv(a_norm_sq_f64) * nk_f64_rsqrt_rvv(b_norm_sq_f64);
-        *result = unclipped > 0 ? unclipped : 0;
+        *result = unclipped < 0 ? 0 : unclipped;
     }
 }
 
@@ -482,7 +494,7 @@ NK_PUBLIC void nk_angular_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t const *b_s
     else if (dot_f32 == 0.0f) { *result = 1.0f; }
     else {
         nk_f32_t unclipped = 1.0f - dot_f32 * nk_f32_rsqrt_rvv(a_norm_sq_f32) * nk_f32_rsqrt_rvv(b_norm_sq_f32);
-        *result = unclipped > 0.0f ? unclipped : 0.0f;
+        *result = unclipped < 0.0f ? 0.0f : unclipped;
     }
 }
 
@@ -551,7 +563,7 @@ NK_PUBLIC void nk_angular_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t const *
     else if (dot_f32 == 0.0f) { *result = 1.0f; }
     else {
         nk_f32_t unclipped = 1.0f - dot_f32 * nk_f32_rsqrt_rvv(a_norm_sq_f32) * nk_f32_rsqrt_rvv(b_norm_sq_f32);
-        *result = unclipped > 0.0f ? unclipped : 0.0f;
+        *result = unclipped < 0.0f ? 0.0f : unclipped;
     }
 }
 
@@ -620,7 +632,7 @@ NK_PUBLIC void nk_angular_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t const *
     else if (dot_f32 == 0.0f) { *result = 1.0f; }
     else {
         nk_f32_t unclipped = 1.0f - dot_f32 * nk_f32_rsqrt_rvv(a_norm_sq_f32) * nk_f32_rsqrt_rvv(b_norm_sq_f32);
-        *result = unclipped > 0.0f ? unclipped : 0.0f;
+        *result = unclipped < 0.0f ? 0.0f : unclipped;
     }
 }
 
@@ -689,7 +701,7 @@ NK_PUBLIC void nk_angular_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t const *
     else if (dot_f32 == 0.0f) { *result = 1.0f; }
     else {
         nk_f32_t unclipped = 1.0f - dot_f32 * nk_f32_rsqrt_rvv(a_norm_sq_f32) * nk_f32_rsqrt_rvv(b_norm_sq_f32);
-        *result = unclipped > 0.0f ? unclipped : 0.0f;
+        *result = unclipped < 0.0f ? 0.0f : unclipped;
     }
 }
 
@@ -832,7 +844,7 @@ NK_PUBLIC void nk_angular_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_
     else {
         nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_i32 * nk_f32_rsqrt_rvv((nk_f32_t)a_norm_sq_u32) *
                                         nk_f32_rsqrt_rvv((nk_f32_t)b_norm_sq_u32);
-        *result = unclipped > 0 ? unclipped : 0;
+        *result = unclipped < 0 ? 0 : unclipped;
     }
 }
 
@@ -971,7 +983,7 @@ NK_PUBLIC void nk_angular_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_
     else {
         nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_u32 * nk_f32_rsqrt_rvv((nk_f32_t)a_norm_sq_u32) *
                                         nk_f32_rsqrt_rvv((nk_f32_t)b_norm_sq_u32);
-        *result = unclipped > 0 ? unclipped : 0;
+        *result = unclipped < 0 ? 0 : unclipped;
     }
 }
 

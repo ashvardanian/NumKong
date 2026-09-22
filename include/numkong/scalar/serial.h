@@ -30,7 +30,9 @@ NK_PUBLIC nk_f32_t nk_f32_rsqrt_serial(nk_f32_t number) {
     return y;
 }
 
-NK_PUBLIC nk_f32_t nk_f32_sqrt_serial(nk_f32_t number) { return number > 0 ? number * nk_f32_rsqrt_serial(number) : 0; }
+NK_PUBLIC nk_f32_t nk_f32_sqrt_serial(nk_f32_t number) {
+    return number <= 0 ? 0 : number * nk_f32_rsqrt_serial(number);
+}
 
 NK_PUBLIC nk_f64_t nk_f64_rsqrt_serial(nk_f64_t number) {
     nk_fui64_t conv;
@@ -44,7 +46,9 @@ NK_PUBLIC nk_f64_t nk_f64_rsqrt_serial(nk_f64_t number) {
     return y;
 }
 
-NK_PUBLIC nk_f64_t nk_f64_sqrt_serial(nk_f64_t number) { return number > 0 ? number * nk_f64_rsqrt_serial(number) : 0; }
+NK_PUBLIC nk_f64_t nk_f64_sqrt_serial(nk_f64_t number) {
+    return number <= 0 ? 0 : number * nk_f64_rsqrt_serial(number);
+}
 
 NK_PUBLIC nk_f16_t nk_f16_sqrt_serial(nk_f16_t x) {
     nk_f32_t x_f32;
