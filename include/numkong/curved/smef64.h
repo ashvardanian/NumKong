@@ -193,7 +193,7 @@ NK_PUBLIC void nk_mahalanobis_f32_smef64( //
     nk_sme_start_streaming_();
     nk_f64_t quadratic = nk_mahalanobis_f32_smef64_streaming_(a, b, c, dimensions);
     nk_sme_stop_streaming_();
-    *result = nk_f64_sqrt_neon(quadratic > 0 ? quadratic : 0);
+    *result = nk_f64_sqrt_neon(quadratic < 0 ? 0 : quadratic);
 }
 
 /**
@@ -352,7 +352,7 @@ NK_PUBLIC void nk_mahalanobis_f64_smef64( //
     nk_sme_start_streaming_();
     nk_f64_t quadratic = nk_mahalanobis_f64_smef64_ssve_(a, b, c, dimensions);
     nk_sme_stop_streaming_();
-    *result = nk_f64_sqrt_neon(quadratic > 0 ? quadratic : 0);
+    *result = nk_f64_sqrt_neon(quadratic < 0 ? 0 : quadratic);
 }
 
 /**

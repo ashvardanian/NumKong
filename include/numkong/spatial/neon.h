@@ -93,7 +93,7 @@ NK_INTERNAL nk_f32_t nk_angular_normalize_f32_neon_(nk_f32_t ab, nk_f32_t a2, nk
     rsqrts_f32x2 = vmul_f32(rsqrts_f32x2, vrsqrts_f32(vmul_f32(squares_f32x2, rsqrts_f32x2), rsqrts_f32x2));
     vst1_f32(squares_arr, rsqrts_f32x2);
     nk_f32_t result = 1 - ab * squares_arr[0] * squares_arr[1];
-    return result > 0 ? result : 0;
+    return result < 0 ? 0 : result;
 }
 
 NK_INTERNAL nk_f64_t nk_angular_normalize_f64_neon_(nk_f64_t ab, nk_f64_t a2, nk_f64_t b2) {
@@ -115,7 +115,7 @@ NK_INTERNAL nk_f64_t nk_angular_normalize_f64_neon_(nk_f64_t ab, nk_f64_t a2, nk
     rsqrts_f64x2 = vmulq_f64(rsqrts_f64x2, vrsqrtsq_f64(vmulq_f64(squares_f64x2, rsqrts_f64x2), rsqrts_f64x2));
     vst1q_f64(squares_arr, rsqrts_f64x2);
     nk_f64_t result = 1 - ab * squares_arr[0] * squares_arr[1];
-    return result > 0 ? result : 0;
+    return result < 0 ? 0 : result;
 }
 
 #pragma region F32 and F64 Floats

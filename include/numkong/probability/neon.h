@@ -124,7 +124,7 @@ nk_jsd_f32_neon_cycle:
 
     nk_f64_t log2_normalizer = 0.6931471805599453;
     nk_f64_t sum = vaddvq_f64(vaddq_f64(sum_low_f64x2, sum_high_f64x2)) * log2_normalizer / 2.0;
-    *result = sum > 0 ? nk_f64_sqrt_neon(sum) : 0;
+    *result = sum < 0 ? 0 : nk_f64_sqrt_neon(sum);
 }
 
 #if defined(__clang__)
@@ -237,7 +237,7 @@ nk_jsd_f16_neon_cycle:
 
     nk_f32_t log2_normalizer = 0.693147181f;
     nk_f32_t sum = vaddvq_f32(sum_f32x4) * log2_normalizer / 2;
-    *result = sum > 0 ? nk_f32_sqrt_neon(sum) : 0;
+    *result = sum < 0 ? 0 : nk_f32_sqrt_neon(sum);
 }
 
 #if defined(__clang__)

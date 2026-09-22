@@ -53,7 +53,7 @@ NK_PUBLIC nk_f32_t nk_f32_rsqrt_loongsonasx(nk_f32_t x) {
     return c.f;
 }
 
-NK_PUBLIC nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) { return x > 0 ? x * nk_f32_rsqrt_loongsonasx(x) : 0; }
+NK_PUBLIC nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) { return x <= 0 ? 0 : x * nk_f32_rsqrt_loongsonasx(x); }
 
 NK_PUBLIC nk_f64_t nk_f64_sqrt_loongsonasx(nk_f64_t x) {
     __m256d x_f64x4 = nk_xvfreplgr2vr_d_(x);

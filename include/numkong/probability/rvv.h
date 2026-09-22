@@ -286,7 +286,7 @@ NK_PUBLIC void nk_jsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
     nk_f64_t sum = __riscv_vfmv_f_s_f64m1_f64(
                        __riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, vector_length_max)) *
                    0.6931471805599453 / 2.0;
-    *result = sum > 0 ? nk_f64_sqrt_rvv(sum) : 0;
+    *result = sum < 0 ? 0 : nk_f64_sqrt_rvv(sum);
 }
 
 NK_PUBLIC void nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
@@ -320,7 +320,7 @@ NK_PUBLIC void nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
                        __riscv_vfadd_vv_f64m4(sum_a_f64m4, sum_b_f64m4, max_vector_length), zero_f64m1,
                        max_vector_length)) *
                    0.6931471805599453 / 2;
-    *result = sum > 0 ? nk_f64_sqrt_rvv(sum) : 0;
+    *result = sum < 0 ? 0 : nk_f64_sqrt_rvv(sum);
 }
 
 NK_PUBLIC void nk_jsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
@@ -357,7 +357,7 @@ NK_PUBLIC void nk_jsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
     nk_f32_t sum = __riscv_vfmv_f_s_f32m1_f32(
                        __riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)) *
                    0.693147181f / 2;
-    *result = sum > 0 ? nk_f32_sqrt_rvv(sum) : 0;
+    *result = sum < 0 ? 0 : nk_f32_sqrt_rvv(sum);
 }
 
 NK_PUBLIC void nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
@@ -394,7 +394,7 @@ NK_PUBLIC void nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t
     nk_f32_t sum = __riscv_vfmv_f_s_f32m1_f32(
                        __riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)) *
                    0.693147181f / 2;
-    *result = sum > 0 ? nk_f32_sqrt_rvv(sum) : 0;
+    *result = sum < 0 ? 0 : nk_f32_sqrt_rvv(sum);
 }
 
 #pragma endregion Jensen Shannon Divergence

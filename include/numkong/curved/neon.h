@@ -125,7 +125,7 @@ NK_PUBLIC void nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_
     }
 
     // Take square root of the result (clamp to 0 for numerical stability)
-    *result = nk_f64_sqrt_neon(outer_sum_f64 > 0 ? outer_sum_f64 : 0);
+    *result = nk_f64_sqrt_neon(outer_sum_f64 < 0 ? 0 : outer_sum_f64);
 }
 
 NK_PUBLIC void nk_bilinear_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_f32c_t const *c_pairs,
@@ -258,7 +258,7 @@ NK_PUBLIC void nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_
         outer_sum += diff_row * inner_sum;
     }
     nk_f32_t quadratic = outer_sum;
-    *result = nk_f32_sqrt_neon(quadratic > 0 ? quadratic : 0);
+    *result = nk_f32_sqrt_neon(quadratic < 0 ? 0 : quadratic);
 }
 
 NK_PUBLIC void nk_bilinear_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_f16c_t const *c_pairs,

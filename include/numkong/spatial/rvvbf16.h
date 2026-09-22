@@ -68,7 +68,7 @@ NK_PUBLIC void nk_euclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t c
                                          nk_size_t count_scalars, nk_f32_t *result) {
     nk_sqeuclidean_bf16_rvvbf16(a_scalars, b_scalars, count_scalars, result);
     // Handle potential negative values from floating point errors
-    *result = *result > 0.0f ? nk_f32_sqrt_rvv(*result) : 0.0f;
+    *result = *result < 0.0f ? 0.0f : nk_f32_sqrt_rvv(*result);
 }
 
 NK_PUBLIC void nk_angular_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars, nk_size_t count_scalars,
@@ -109,7 +109,7 @@ NK_PUBLIC void nk_angular_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t con
     else if (dot == 0.0f) { *result = 1.0f; }
     else {
         nk_f32_t unclipped = 1.0f - dot * nk_f32_rsqrt_rvv(a_sq) * nk_f32_rsqrt_rvv(b_sq);
-        *result = unclipped > 0.0f ? unclipped : 0.0f;
+        *result = unclipped < 0.0f ? 0.0f : unclipped;
     }
 }
 

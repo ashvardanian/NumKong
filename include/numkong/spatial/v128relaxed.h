@@ -61,7 +61,7 @@ NK_INTERNAL nk_f64_t nk_angular_normalize_f64_v128relaxed_(nk_f64_t ab, nk_f64_t
     nk_f64_t result = 1.0 - ab / (a_sqrt * b_sqrt);
 
     // Clamp negative results to 0 (can occur due to floating-point rounding)
-    return result > 0.0 ? result : 0.0;
+    return result < 0.0 ? 0.0 : result;
 }
 
 #pragma region F32 and F64 Floats

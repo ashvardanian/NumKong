@@ -104,7 +104,78 @@ error_stats_t test_euclidean(typename scalar_type_::euclidean_kernel_t kernel) {
     return stats;
 }
 
+/**
+ *  @brief Verify Euclidean distance returns NaN on floating-point overflow instead of 0.
+ *  @see https://github.com/ashvardanian/NumKong/issues/384
+ */
+void test_euclidean_overflow() {
+    // 1. Float64 overflow: 1e154 ^ 2 overflows f64 accumulator
+    double a_f64[4] = {1e154, 1e154, 1e154, 1e154};
+    double b_f64[4] = {0.0, 0.0, 0.0, 0.0};
+    double dist_f64 = 0.0;
+    nk_euclidean_f64_serial(a_f64, b_f64, 4, &dist_f64);
+
+    // 2. BFloat16 overflow: 1e19 ^ 2 overflows f32 intermediate accumulator
+    nk_bf16_t a_bf16[4], b_bf16[4];
+    nk_f32_t val_large = 1e19f, val_zero = 0.0f;
+    for (int i = 0; i < 4; ++i) {
+        nk_f32_to_bf16_serial(&val_large, &a_bf16[i]);
+        nk_f32_to_bf16_serial(&val_zero, &b_bf16[i]);
+    }
+    nk_f32_t dist_bf16 = 0.0f;
+    nk_euclidean_bf16_serial(a_bf16, b_bf16, 4, &dist_bf16);
+
+    // 3. Float32 with large inputs: accumulates in f64 without overflow
+    nk_f32_t a_f32[4] = {1e20f, 1e20f, 1e20f, 1e20f};
+    nk_f32_t b_f32[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    nk_f64_t dist_f32 = 0.0;
+    nk_euclidean_f32_serial(a_f32, b_f32, 4, &dist_f32);
+
+    if (!std::isnan(dist_f64) || !std::isnan(dist_bf16) || std::isnan(dist_f32)) {
+        std::fprintf(stderr, "test_euclidean_overflow failed: expected NaN on overflow for f64/bf16\n");
+        std::abort();
+    }
+
+    // 4. Angular overflow / NaN: dot product overflow or NaN input should yield NaN, never 0.0
+    double ang_dist_f64 = 0.0;
+    nk_angular_f64_serial(a_f64, b_f64, 4, &ang_dist_f64);
+    // b_f64 is zero vector, dot = 0 -> ang_dist is 1.0. Now test with NaN vectors:
+    double nan_vec_a[4] = {std::numeric_limits<double>::quiet_NaN(), 1.0, 2.0, 3.0};
+    double nan_vec_b[4] = {1.0, 2.0, 3.0, 4.0};
+    nk_angular_f64_serial(nan_vec_a, nan_vec_b, 4, &ang_dist_f64);
+    if (!std::isnan(ang_dist_f64)) {
+        std::fprintf(stderr, "test_euclidean_overflow failed: expected NaN for angular_f64 with NaN inputs\n");
+        std::abort();
+    }
+
+    nk_f32_t nan_vec_f32_a[4] = {std::numeric_limits<float>::quiet_NaN(), 1.0f, 2.0f, 3.0f};
+    nk_f32_t nan_vec_f32_b[4] = {1.0f, 2.0f, 3.0f, 4.0f};
+    nk_f64_t ang_dist_f32 = 0.0;
+    nk_angular_f32_serial(nan_vec_f32_a, nan_vec_f32_b, 4, &ang_dist_f32);
+    if (!std::isnan(ang_dist_f32)) {
+        std::fprintf(stderr, "test_euclidean_overflow failed: expected NaN for angular_f32 with NaN inputs\n");
+        std::abort();
+    }
+
+    // 5. Streaming Euclidean & Angular from_dot: NaN should yield NaN, never 0.0
+    nk_b128_vec_t dots_f32, targets_f32, result_f32;
+    dots_f32.f32s[0] = std::numeric_limits<float>::quiet_NaN();
+    targets_f32.f32s[0] = 1.0f;
+    nk_euclidean_through_f32_from_dot_serial_(&dots_f32, 1.0f, &targets_f32, &result_f32);
+    if (!std::isnan(result_f32.f32s[0])) {
+        std::fprintf(stderr, "test_euclidean_overflow failed: expected NaN for euclidean_from_dot with NaN\n");
+        std::abort();
+    }
+
+    nk_angular_through_f32_from_dot_serial_(&dots_f32, 1.0f, &targets_f32, &result_f32);
+    if (!std::isnan(result_f32.f32s[0])) {
+        std::fprintf(stderr, "test_euclidean_overflow failed: expected NaN for angular_from_dot with NaN\n");
+        std::abort();
+    }
+}
+
 void test_spatial() {
+    test_euclidean_overflow();
     error_stats_section_t check;
 
     check.section("Spatial Distances Serial", nk_cap_serial_k);

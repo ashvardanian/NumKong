@@ -126,16 +126,32 @@ NK_INTERNAL void nk_partial_load_f16x8_to_f32x8_loongsonasx_(nk_f16_t const *src
 
 #pragma region Vectorized From Dot Helpers
 
+/** @brief Zeroes negative lanes and keeps NaN, which `xvfmax` would drop (LASX 256-bit). */
+NK_INTERNAL __m256 nk_nonnegative_f32x8_loongsonasx_(__m256 x_f32x8) {
+    __m256i negative_mask = __lasx_xvfcmp_clt_s(x_f32x8, (__m256)__lasx_xvreplgr2vr_w(0));
+    return (__m256)__lasx_xvandn_v(negative_mask, (__m256i)x_f32x8);
+}
+
+/** @brief Zeroes negative lanes and keeps NaN, which `vfmax` would drop (LSX 128-bit). */
+NK_INTERNAL __m128 nk_nonnegative_f32x4_loongsonasx_(__m128 x_f32x4) {
+    __m128i negative_mask = __lsx_vfcmp_clt_s(x_f32x4, (__m128)__lsx_vreplgr2vr_w(0));
+    return (__m128)__lsx_vandn_v(negative_mask, (__m128i)x_f32x4);
+}
+
+/** @brief Zeroes negative lanes and keeps NaN, which `xvfmax` would drop (LASX 256-bit). */
+NK_INTERNAL __m256d nk_nonnegative_f64x4_loongsonasx_(__m256d x_f64x4) {
+    __m256i negative_mask = __lasx_xvfcmp_clt_d(x_f64x4, (__m256d)__lasx_xvreplgr2vr_d(0));
+    return (__m256d)__lasx_xvandn_v(negative_mask, (__m256i)x_f64x4);
+}
+
 /** @brief Safe square root of 8 floats with zero-clamping for numerical stability (LASX 256-bit). */
 NK_INTERNAL __m256 nk_sqrt_f32x8_loongsonasx_(__m256 x_f32x8) {
-    __m256 zero_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
-    return __lasx_xvfsqrt_s(__lasx_xvfmax_s(x_f32x8, zero_f32x8));
+    return __lasx_xvfsqrt_s(nk_nonnegative_f32x8_loongsonasx_(x_f32x8));
 }
 
 /** @brief Safe square root of 4 floats with zero-clamping for numerical stability (LSX 128-bit). */
 NK_INTERNAL __m128 nk_sqrt_f32x4_loongsonasx_(__m128 x_f32x4) {
-    __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
-    return __lsx_vfsqrt_s(__lsx_vfmax_s(x_f32x4, zero_f32x4));
+    return __lsx_vfsqrt_s(nk_nonnegative_f32x4_loongsonasx_(x_f32x4));
 }
 
 /** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq × target_sumsq) for 4 pairs (LSX 128-bit f32). */
@@ -149,8 +165,7 @@ NK_INTERNAL void nk_angular_through_f32_from_dot_loongsonasx_(nk_b128_vec_t cons
     __m128 normalized_f32x4 = __lsx_vfmul_s(dots_f32x4, rsqrt_f32x4);
     __m128 one_f32x4 = nk_xvreplgr2vr_s_128_(1.0f);
     __m128 angular_f32x4 = __lsx_vfsub_s(one_f32x4, normalized_f32x4);
-    __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
-    result_vec->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
+    result_vec->xmm_ps = nk_nonnegative_f32x4_loongsonasx_(angular_f32x4);
 }
 
 /** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs (LSX 128-bit f32). */
@@ -177,8 +192,7 @@ NK_INTERNAL void nk_angular_through_f64_from_dot_loongsonasx_(nk_b256_vec_t cons
     __m256d normalized_f64x4 = __lasx_xvfdiv_d(dots_f64x4, sqrt_products_f64x4);
     __m256d one_f64x4 = nk_xvfreplgr2vr_d_(1.0);
     __m256d angular_f64x4 = __lasx_xvfsub_d(one_f64x4, normalized_f64x4);
-    __m256d zero_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
-    result_vec->ymm_pd = __lasx_xvfmax_d(angular_f64x4, zero_f64x4);
+    result_vec->ymm_pd = nk_nonnegative_f64x4_loongsonasx_(angular_f64x4);
 }
 
 /** @brief Euclidean from_dot for native f64: √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs (LASX 256-bit). */
@@ -191,8 +205,7 @@ NK_INTERNAL void nk_euclidean_through_f64_from_dot_loongsonasx_(nk_b256_vec_t co
     __m256d two_f64x4 = nk_xvfreplgr2vr_d_(2.0);
     // dist_sq = sum_sq − 2 × dots = -(2 × dots − sum_sq)
     __m256d dist_sq_f64x4 = __lasx_xvfnmsub_d(two_f64x4, dots_f64x4, sum_sq_f64x4);
-    __m256d zero_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
-    result_vec->ymm_pd = __lasx_xvfsqrt_d(__lasx_xvfmax_d(dist_sq_f64x4, zero_f64x4));
+    result_vec->ymm_pd = __lasx_xvfsqrt_d(nk_nonnegative_f64x4_loongsonasx_(dist_sq_f64x4));
 }
 
 /** @brief Angular from_dot for i32 accumulators: cast i32 → f32, rsqrt+NR, clamp. 4 pairs (LSX 128-bit). */
@@ -206,8 +219,7 @@ NK_INTERNAL void nk_angular_through_i32_from_dot_loongsonasx_(nk_b128_vec_t cons
     __m128 normalized_f32x4 = __lsx_vfmul_s(dots_f32x4, rsqrt_f32x4);
     __m128 one_f32x4 = nk_xvreplgr2vr_s_128_(1.0f);
     __m128 angular_f32x4 = __lsx_vfsub_s(one_f32x4, normalized_f32x4);
-    __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
-    result_vec->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
+    result_vec->xmm_ps = nk_nonnegative_f32x4_loongsonasx_(angular_f32x4);
 }
 
 /** @brief Euclidean from_dot for i32 accumulators: cast i32 → f32, then √(a² + b² − 2ab). 4 pairs (LSX 128-bit). */
@@ -233,8 +245,7 @@ NK_INTERNAL void nk_angular_through_u32_from_dot_loongsonasx_(nk_b128_vec_t cons
     __m128 normalized_f32x4 = __lsx_vfmul_s(dots_f32x4, rsqrt_f32x4);
     __m128 one_f32x4 = nk_xvreplgr2vr_s_128_(1.0f);
     __m128 angular_f32x4 = __lsx_vfsub_s(one_f32x4, normalized_f32x4);
-    __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
-    result_vec->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
+    result_vec->xmm_ps = nk_nonnegative_f32x4_loongsonasx_(angular_f32x4);
 }
 
 /** @brief Euclidean from_dot for u32 accumulators: cast u32 → f32, then √(a² + b² − 2ab). 4 pairs (LSX 128-bit). */

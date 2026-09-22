@@ -101,7 +101,7 @@ NK_PUBLIC void nk_angular_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const 
     else if (dot == 0.0f) { *result = 1.0f; }
     else {
         nk_f32_t unclipped = 1.0f - dot * nk_f32_rsqrt_rvv(a_sq) * nk_f32_rsqrt_rvv(b_sq);
-        *result = unclipped > 0.0f ? unclipped : 0.0f;
+        *result = unclipped < 0.0f ? 0.0f : unclipped;
     }
 }
 

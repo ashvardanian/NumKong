@@ -166,7 +166,7 @@ nk_jsd_f16_haswell_cycle:
     nk_f32_t log2_normalizer = 0.6931471805599453f;
     nk_f32_t sum = nk_reduce_add_f32x8_haswell_(sum_f32x8);
     sum *= log2_normalizer / 2;
-    *result = sum > 0 ? nk_f32_sqrt_haswell(sum) : 0;
+    *result = sum < 0 ? 0 : nk_f32_sqrt_haswell(sum);
 }
 
 NK_PUBLIC void nk_kld_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
@@ -249,7 +249,7 @@ nk_jsd_f64_haswell_cycle:
     nk_f64_t log2_normalizer = 0.6931471805599453;
     nk_f64_t sum = nk_reduce_add_f64x4_haswell_(sum_f64x4);
     sum *= log2_normalizer / 2;
-    *result = sum > 0 ? nk_f64_sqrt_haswell(sum) : 0;
+    *result = sum < 0 ? 0 : nk_f64_sqrt_haswell(sum);
 }
 
 #if defined(__clang__)

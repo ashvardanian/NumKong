@@ -120,7 +120,7 @@ nk_jsd_f32_skylake_cycle:
                    0.6931471805599453 / 2.0;
     nk_f64_t log2_normalizer = 0.6931471805599453;
     nk_unused_(log2_normalizer);
-    *result = sum > 0 ? nk_f64_sqrt_haswell(sum) : 0;
+    *result = sum < 0 ? 0 : nk_f64_sqrt_haswell(sum);
 }
 
 NK_INTERNAL __m512d nk_log2_f64x8_skylake_(__m512d x) {
@@ -240,7 +240,7 @@ nk_jsd_f64_skylake_cycle:
     nk_f64_t log2_normalizer = 0.6931471805599453;
     nk_f64_t sum = _mm512_reduce_add_pd(sum_f64x8);
     sum *= log2_normalizer / 2;
-    *result = sum > 0 ? nk_f64_sqrt_haswell(sum) : 0;
+    *result = sum < 0 ? 0 : nk_f64_sqrt_haswell(sum);
 }
 
 NK_PUBLIC void nk_kld_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
@@ -306,7 +306,7 @@ nk_jsd_f16_skylake_cycle:
     nk_f32_t log2_normalizer = 0.6931471805599453f;
     nk_f32_t sum = _mm512_reduce_add_ps(_mm512_add_ps(sum_a_f32x16, sum_b_f32x16));
     sum *= log2_normalizer / 2;
-    *result = sum > 0 ? nk_f32_sqrt_haswell(sum) : 0;
+    *result = sum < 0 ? 0 : nk_f32_sqrt_haswell(sum);
 }
 
 #if defined(__clang__)
