@@ -45,7 +45,7 @@ extern "C" {
             sum += b_value * compute_log((b_value + epsilon) / (midpoint_value + epsilon));                 \
         }                                                                                                   \
         output_type sum_half = ((output_type)sum / 2);                                                      \
-        *result = sum_half > 0 ? compute_sqrt(sum_half) : 0;                                                \
+        *result = compute_sqrt(sum_half);                                                                   \
     }
 
 /**
@@ -171,7 +171,7 @@ NK_PUBLIC void nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t
         sum = provisional_sum;
     }
     nk_f64_t sum_half = (sum + compensation) / 2;
-    *result = sum_half > 0 ? nk_f64_sqrt_serial(sum_half) : 0;
+    *result = nk_f64_sqrt_serial(sum_half);
 }
 
 #if defined(__cplusplus)

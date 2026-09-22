@@ -260,7 +260,7 @@ NK_PUBLIC void nk_maxsim_pack_bf16_serial( //
         nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f,
                                    (nk_maxsim_to_f32_t)nk_bf16_to_f32_serial,
                                    &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index], &norm_sq);
-        metadata[vector_index].inverse_norm_f32 = norm_sq > 0.0f ? nk_f32_rsqrt_serial(norm_sq) : 0.0f;
+        metadata[vector_index].inverse_norm_f32 = norm_sq <= 0.0f ? 0.0f : nk_f32_rsqrt_serial(norm_sq);
         char *destination_original = originals + vector_index * original_stride;
         nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
         for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
@@ -285,7 +285,7 @@ NK_PUBLIC void nk_maxsim_pack_f32_serial( //
         nk_f32_t norm_sq;
         nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f, nk_f32_to_f32_,
                                    &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index], &norm_sq);
-        metadata[vector_index].inverse_norm_f32 = norm_sq > 0.0f ? nk_f32_rsqrt_serial(norm_sq) : 0.0f;
+        metadata[vector_index].inverse_norm_f32 = norm_sq <= 0.0f ? 0.0f : nk_f32_rsqrt_serial(norm_sq);
         char *destination_original = originals + vector_index * original_stride;
         nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
         for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
@@ -315,7 +315,7 @@ NK_PUBLIC void nk_maxsim_pack_f16_serial( //
         nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f,
                                    (nk_maxsim_to_f32_t)nk_f16_to_f32_serial,
                                    &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index], &norm_sq);
-        metadata[vector_index].inverse_norm_f32 = norm_sq > 0.0f ? nk_f32_rsqrt_serial(norm_sq) : 0.0f;
+        metadata[vector_index].inverse_norm_f32 = norm_sq <= 0.0f ? 0.0f : nk_f32_rsqrt_serial(norm_sq);
         char *destination_original = originals + vector_index * original_stride;
         nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
         for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)

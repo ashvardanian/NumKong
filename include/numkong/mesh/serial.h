@@ -432,7 +432,7 @@ nk_define_det3x3_(f64)
             nk_accumulate_square_##accumulator_type##_(&sum_squared, &sum_squared_compensation, dz);               \
         }                                                                                                          \
         nk_##accumulator_type##_t msd = (sum_squared + sum_squared_compensation) / (nk_##accumulator_type##_t)n;   \
-        *result = msd > 0 ? (nk_##result_type##_t)compute_sqrt(msd) : 0;                                           \
+        *result = (nk_##result_type##_t)compute_sqrt(msd);                                                         \
     }
 
 /*  Kabsch algorithm for optimal rigid body superposition.

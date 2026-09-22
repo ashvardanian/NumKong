@@ -37,7 +37,7 @@
  *  dimension. `f32` public outputs widen to `f64`, so widened paths use `f64` arithmetic and `sqrt64`.
  *  Angular finalization uses rsqrt via magic constant + 3 Newton-Raphson iterations (f32,
  *  ~34.9 correct bits) or 4 iterations (f64, ~69.3 correct bits), then clamps result ≥ 0.
- *  L2 uses conditional `dist_sq > 0 ? sqrt(dist_sq) : 0` to avoid NaN from rounding.
+ *  L2 clamps negative `dist_sq` from rounding to 0 before the square root, while NaN still propagates.
  *  Integer types (i8/u8/i4/u4) accumulate squared differences in i32 — overflows at
  *  n > 2^31/65,025 ≈ 33K for i8 (max diff² = 255²). Output is cast to f32.
  *

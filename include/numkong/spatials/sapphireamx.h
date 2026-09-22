@@ -44,7 +44,7 @@ NK_INTERNAL void nk_angulars_row_f32dots_sapphireamx_(nk_f32_t *results, nk_f32_
         __m512 rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(products_f32x16);
         __m512 normalized_f32x16 = _mm512_mul_ps(dots_f32x16, rsqrt_f32x16);
         __m512 angular_f32x16 = _mm512_sub_ps(_mm512_set1_ps(1.0f), normalized_f32x16);
-        _mm512_storeu_ps(results + i, _mm512_max_ps(angular_f32x16, _mm512_setzero_ps()));
+        _mm512_storeu_ps(results + i, _mm512_max_ps(_mm512_setzero_ps(), angular_f32x16));
     }
     if (i < count) {
         __mmask16 tail = (__mmask16)((1u << (count - i)) - 1);
@@ -54,7 +54,7 @@ NK_INTERNAL void nk_angulars_row_f32dots_sapphireamx_(nk_f32_t *results, nk_f32_
         __m512 rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(products_f32x16);
         __m512 normalized_f32x16 = _mm512_mul_ps(dots_f32x16, rsqrt_f32x16);
         __m512 angular_f32x16 = _mm512_sub_ps(_mm512_set1_ps(1.0f), normalized_f32x16);
-        _mm512_mask_storeu_ps(results + i, tail, _mm512_max_ps(angular_f32x16, _mm512_setzero_ps()));
+        _mm512_mask_storeu_ps(results + i, tail, _mm512_max_ps(_mm512_setzero_ps(), angular_f32x16));
     }
 }
 
@@ -68,7 +68,7 @@ NK_INTERNAL void nk_euclideans_row_f32dots_sapphireamx_(nk_f32_t *results, nk_f3
         __m512 norms_f32x16 = _mm512_loadu_ps(norms + i);
         __m512 sum_norms_f32x16 = _mm512_add_ps(query_norm_sq_f32x16, norms_f32x16);
         __m512 dist_sq_f32x16 = _mm512_fnmadd_ps(two_f32x16, dots_f32x16, sum_norms_f32x16);
-        dist_sq_f32x16 = _mm512_max_ps(dist_sq_f32x16, _mm512_setzero_ps());
+        dist_sq_f32x16 = _mm512_max_ps(_mm512_setzero_ps(), dist_sq_f32x16);
         _mm512_storeu_ps(results + i, _mm512_sqrt_ps(dist_sq_f32x16));
     }
     if (i < count) {
@@ -77,7 +77,7 @@ NK_INTERNAL void nk_euclideans_row_f32dots_sapphireamx_(nk_f32_t *results, nk_f3
         __m512 norms_f32x16 = _mm512_maskz_loadu_ps(tail, norms + i);
         __m512 sum_norms_f32x16 = _mm512_add_ps(query_norm_sq_f32x16, norms_f32x16);
         __m512 dist_sq_f32x16 = _mm512_fnmadd_ps(two_f32x16, dots_f32x16, sum_norms_f32x16);
-        dist_sq_f32x16 = _mm512_max_ps(dist_sq_f32x16, _mm512_setzero_ps());
+        dist_sq_f32x16 = _mm512_max_ps(_mm512_setzero_ps(), dist_sq_f32x16);
         _mm512_mask_storeu_ps(results + i, tail, _mm512_sqrt_ps(dist_sq_f32x16));
     }
 }
@@ -94,7 +94,7 @@ NK_INTERNAL void nk_angulars_row_i32dots_sapphireamx_(nk_f32_t *results, nk_u32_
         __m512 rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(products_f32x16);
         __m512 normalized_f32x16 = _mm512_mul_ps(dots_f32x16, rsqrt_f32x16);
         __m512 angular_f32x16 = _mm512_sub_ps(_mm512_set1_ps(1.0f), normalized_f32x16);
-        _mm512_storeu_ps(results + i, _mm512_max_ps(angular_f32x16, _mm512_setzero_ps()));
+        _mm512_storeu_ps(results + i, _mm512_max_ps(_mm512_setzero_ps(), angular_f32x16));
     }
     if (i < count) {
         __mmask16 tail = (__mmask16)((1u << (count - i)) - 1);
@@ -104,7 +104,7 @@ NK_INTERNAL void nk_angulars_row_i32dots_sapphireamx_(nk_f32_t *results, nk_u32_
         __m512 rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(products_f32x16);
         __m512 normalized_f32x16 = _mm512_mul_ps(dots_f32x16, rsqrt_f32x16);
         __m512 angular_f32x16 = _mm512_sub_ps(_mm512_set1_ps(1.0f), normalized_f32x16);
-        _mm512_mask_storeu_ps(results + i, tail, _mm512_max_ps(angular_f32x16, _mm512_setzero_ps()));
+        _mm512_mask_storeu_ps(results + i, tail, _mm512_max_ps(_mm512_setzero_ps(), angular_f32x16));
     }
 }
 
@@ -119,7 +119,7 @@ NK_INTERNAL void nk_euclideans_row_i32dots_sapphireamx_(nk_f32_t *results, nk_u3
         __m512 norms_f32x16 = _mm512_cvtepu32_ps(_mm512_loadu_si512((__m512i const *)(norms + i)));
         __m512 sum_norms_f32x16 = _mm512_add_ps(query_norm_sq_f32x16, norms_f32x16);
         __m512 dist_sq_f32x16 = _mm512_fnmadd_ps(two_f32x16, dots_f32x16, sum_norms_f32x16);
-        dist_sq_f32x16 = _mm512_max_ps(dist_sq_f32x16, _mm512_setzero_ps());
+        dist_sq_f32x16 = _mm512_max_ps(_mm512_setzero_ps(), dist_sq_f32x16);
         _mm512_storeu_ps(results + i, _mm512_sqrt_ps(dist_sq_f32x16));
     }
     if (i < count) {
@@ -128,7 +128,7 @@ NK_INTERNAL void nk_euclideans_row_i32dots_sapphireamx_(nk_f32_t *results, nk_u3
         __m512 norms_f32x16 = _mm512_cvtepu32_ps(_mm512_maskz_loadu_epi32(tail, norms + i));
         __m512 sum_norms_f32x16 = _mm512_add_ps(query_norm_sq_f32x16, norms_f32x16);
         __m512 dist_sq_f32x16 = _mm512_fnmadd_ps(two_f32x16, dots_f32x16, sum_norms_f32x16);
-        dist_sq_f32x16 = _mm512_max_ps(dist_sq_f32x16, _mm512_setzero_ps());
+        dist_sq_f32x16 = _mm512_max_ps(_mm512_setzero_ps(), dist_sq_f32x16);
         _mm512_mask_storeu_ps(results + i, tail, _mm512_sqrt_ps(dist_sq_f32x16));
     }
 }
@@ -145,7 +145,7 @@ NK_INTERNAL void nk_angulars_row_u32dots_sapphireamx_(nk_f32_t *results, nk_u32_
         __m512 rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(products_f32x16);
         __m512 normalized_f32x16 = _mm512_mul_ps(dots_f32x16, rsqrt_f32x16);
         __m512 angular_f32x16 = _mm512_sub_ps(_mm512_set1_ps(1.0f), normalized_f32x16);
-        _mm512_storeu_ps(results + i, _mm512_max_ps(angular_f32x16, _mm512_setzero_ps()));
+        _mm512_storeu_ps(results + i, _mm512_max_ps(_mm512_setzero_ps(), angular_f32x16));
     }
     if (i < count) {
         __mmask16 tail = (__mmask16)((1u << (count - i)) - 1);
@@ -155,7 +155,7 @@ NK_INTERNAL void nk_angulars_row_u32dots_sapphireamx_(nk_f32_t *results, nk_u32_
         __m512 rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(products_f32x16);
         __m512 normalized_f32x16 = _mm512_mul_ps(dots_f32x16, rsqrt_f32x16);
         __m512 angular_f32x16 = _mm512_sub_ps(_mm512_set1_ps(1.0f), normalized_f32x16);
-        _mm512_mask_storeu_ps(results + i, tail, _mm512_max_ps(angular_f32x16, _mm512_setzero_ps()));
+        _mm512_mask_storeu_ps(results + i, tail, _mm512_max_ps(_mm512_setzero_ps(), angular_f32x16));
     }
 }
 
@@ -170,7 +170,7 @@ NK_INTERNAL void nk_euclideans_row_u32dots_sapphireamx_(nk_f32_t *results, nk_u3
         __m512 norms_f32x16 = _mm512_cvtepu32_ps(_mm512_loadu_si512((__m512i const *)(norms + i)));
         __m512 sum_norms_f32x16 = _mm512_add_ps(query_norm_sq_f32x16, norms_f32x16);
         __m512 dist_sq_f32x16 = _mm512_fnmadd_ps(two_f32x16, dots_f32x16, sum_norms_f32x16);
-        dist_sq_f32x16 = _mm512_max_ps(dist_sq_f32x16, _mm512_setzero_ps());
+        dist_sq_f32x16 = _mm512_max_ps(_mm512_setzero_ps(), dist_sq_f32x16);
         _mm512_storeu_ps(results + i, _mm512_sqrt_ps(dist_sq_f32x16));
     }
     if (i < count) {
@@ -179,7 +179,7 @@ NK_INTERNAL void nk_euclideans_row_u32dots_sapphireamx_(nk_f32_t *results, nk_u3
         __m512 norms_f32x16 = _mm512_cvtepu32_ps(_mm512_maskz_loadu_epi32(tail, norms + i));
         __m512 sum_norms_f32x16 = _mm512_add_ps(query_norm_sq_f32x16, norms_f32x16);
         __m512 dist_sq_f32x16 = _mm512_fnmadd_ps(two_f32x16, dots_f32x16, sum_norms_f32x16);
-        dist_sq_f32x16 = _mm512_max_ps(dist_sq_f32x16, _mm512_setzero_ps());
+        dist_sq_f32x16 = _mm512_max_ps(_mm512_setzero_ps(), dist_sq_f32x16);
         _mm512_mask_storeu_ps(results + i, tail, _mm512_sqrt_ps(dist_sq_f32x16));
     }
 }

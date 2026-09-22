@@ -39,7 +39,7 @@ NK_INTERNAL nk_f64_t nk_angular_normalize_f64_loongsonasx_(nk_f64_t ab, nk_f64_t
     if (a2 == 0 && b2 == 0) return 0;
     else if (ab == 0) return 1;
     nk_f64_t result = 1 - ab / (nk_f64_sqrt_loongsonasx(a2) * nk_f64_sqrt_loongsonasx(b2));
-    return result > 0 ? result : 0;
+    return result < 0 ? 0 : result;
 }
 
 NK_INTERNAL nk_f32_t nk_angular_normalize_i32_loongsonasx_(nk_i32_t ab, nk_i32_t a2, nk_i32_t b2) {
@@ -47,7 +47,7 @@ NK_INTERNAL nk_f32_t nk_angular_normalize_i32_loongsonasx_(nk_i32_t ab, nk_i32_t
     else if (ab == 0) return 1;
     nk_f32_t result = 1.0f -
                       (nk_f32_t)ab * nk_f32_rsqrt_loongsonasx((nk_f32_t)a2) * nk_f32_rsqrt_loongsonasx((nk_f32_t)b2);
-    return result > 0 ? result : 0;
+    return result < 0 ? 0 : result;
 }
 
 #pragma endregion Angular Normalize Helpers
@@ -334,7 +334,7 @@ NK_INTERNAL nk_f32_t nk_angular_normalize_f32_loongsonasx_(nk_f32_t ab, nk_f32_t
     if (a2 == 0.0f && b2 == 0.0f) return 0.0f;
     else if (ab == 0.0f) return 1.0f;
     nk_f32_t result = 1.0f - ab * nk_f32_rsqrt_loongsonasx(a2) * nk_f32_rsqrt_loongsonasx(b2);
-    return result > 0.0f ? result : 0.0f;
+    return result < 0.0f ? 0.0f : result;
 }
 
 /** @brief Horizontal sum of 8 × f32 lanes in a 256-bit LASX register. */

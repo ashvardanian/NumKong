@@ -128,7 +128,7 @@ NK_PUBLIC void nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const
     }
 
     nk_f32_t quadratic = outer_sum;
-    *result = nk_f32_sqrt_neon(quadratic > 0 ? quadratic : 0);
+    *result = nk_f32_sqrt_neon(quadratic < 0 ? 0 : quadratic);
 }
 
 NK_PUBLIC void nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,

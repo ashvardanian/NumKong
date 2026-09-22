@@ -100,11 +100,12 @@ NK_INTERNAL void nk_haversine_f64_rvv_kernel_(      //
     vfloat64m4_t haversine_term = __riscv_vfmadd_vv_f64m4(cos_product, sin_sq_half_dlon, sin_sq_half_dlat,
                                                           vector_length);
 
-    // Clamp haversine_term to [0, 1] to prevent NaN from sqrt of negative values
-    vfloat64m4_t zero = __riscv_vfmv_v_f_f64m4(0.0, vector_length);
+    // Clamp haversine_term to [0, 1] against rounding; NaN inputs stay NaN
     vfloat64m4_t one = __riscv_vfmv_v_f_f64m4(1.0, vector_length);
-    haversine_term = __riscv_vfmax_vv_f64m4(zero, haversine_term, vector_length);
-    haversine_term = __riscv_vfmin_vv_f64m4(one, haversine_term, vector_length);
+    vbool16_t below_zero_b16 = __riscv_vmflt_vf_f64m4_b16(haversine_term, 0.0, vector_length);
+    haversine_term = __riscv_vfmerge_vfm_f64m4(haversine_term, 0.0, below_zero_b16, vector_length);
+    vbool16_t above_one_b16 = __riscv_vmfgt_vf_f64m4_b16(haversine_term, 1.0, vector_length);
+    haversine_term = __riscv_vfmerge_vfm_f64m4(haversine_term, 1.0, above_one_b16, vector_length);
 
     // Central angle: c = 2 * atan2(sqrt(a), sqrt(1-a))
     vfloat64m4_t sqrt_haversine = __riscv_vfsqrt_v_f64m4(haversine_term, vector_length);
@@ -165,11 +166,12 @@ NK_INTERNAL void nk_haversine_f32_rvv_kernel_(      //
     vfloat32m4_t haversine_term = __riscv_vfmadd_vv_f32m4(cos_product, sin_sq_half_dlon, sin_sq_half_dlat,
                                                           vector_length);
 
-    // Clamp haversine_term to [0, 1] to prevent NaN from sqrt of negative values
-    vfloat32m4_t zero = __riscv_vfmv_v_f_f32m4(0.0f, vector_length);
+    // Clamp haversine_term to [0, 1] against rounding; NaN inputs stay NaN
     vfloat32m4_t one = __riscv_vfmv_v_f_f32m4(1.0f, vector_length);
-    haversine_term = __riscv_vfmax_vv_f32m4(zero, haversine_term, vector_length);
-    haversine_term = __riscv_vfmin_vv_f32m4(one, haversine_term, vector_length);
+    vbool8_t below_zero_b8 = __riscv_vmflt_vf_f32m4_b8(haversine_term, 0.0f, vector_length);
+    haversine_term = __riscv_vfmerge_vfm_f32m4(haversine_term, 0.0f, below_zero_b8, vector_length);
+    vbool8_t above_one_b8 = __riscv_vmfgt_vf_f32m4_b8(haversine_term, 1.0f, vector_length);
+    haversine_term = __riscv_vfmerge_vfm_f32m4(haversine_term, 1.0f, above_one_b8, vector_length);
 
     // Central angle: c = 2 * atan2(sqrt(a), sqrt(1-a))
     vfloat32m4_t sqrt_haversine = __riscv_vfsqrt_v_f32m4(haversine_term, vector_length);

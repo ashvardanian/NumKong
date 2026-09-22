@@ -101,7 +101,7 @@ NK_PUBLIC void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b,
     }
 
     nk_f32_t quadratic = _mm512_reduce_add_ps(sum_f32x16);
-    *result = nk_f32_sqrt_haswell(quadratic > 0 ? quadratic : 0);
+    *result = nk_f32_sqrt_haswell(quadratic < 0 ? 0 : quadratic);
 }
 
 NK_PUBLIC void nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c, nk_size_t n,
