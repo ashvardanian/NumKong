@@ -86,7 +86,7 @@ static PyObject *AttentionPackedMatrix_repr(PyObject *self) {
     return PyUnicode_FromFormat(
         "<AttentionPackedMatrix segments=%zu heads=%zu depth=%zu tokens=%zu dtype='%s' nbytes=%zu>",
         (size_t)kv->segment_count, (size_t)kv->heads, (size_t)kv->depth, (size_t)kv->total_tokens,
-        nk_dtype_name(kv->dtype), (size_t)kv->nbytes);
+        nk_dtype_python_name(kv->dtype), (size_t)kv->nbytes);
 }
 
 static PyObject *AttentionPackedMatrix_get_segments(PyObject *self, void *closure) {
@@ -111,7 +111,7 @@ static PyObject *AttentionPackedMatrix_get_tokens(PyObject *self, void *closure)
 
 static PyObject *AttentionPackedMatrix_get_dtype(PyObject *self, void *closure) {
     nk_unused_(closure);
-    return PyUnicode_FromString(nk_dtype_name(((AttentionPackedMatrix *)self)->dtype));
+    return PyUnicode_FromString(nk_dtype_python_name(((AttentionPackedMatrix *)self)->dtype));
 }
 
 static PyObject *AttentionPackedMatrix_get_nbytes(PyObject *self, void *closure) {
@@ -349,7 +349,7 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
     nk_find_kernel_punned(nk_kernel_attention_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (size_fn && cap) nk_find_kernel_punned(nk_kernel_attention_pack_k, dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
     if (!size_fn || !pack_fn || !cap) {
-        PyErr_Format(PyExc_LookupError, "No attention pack kernels for dtype '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_LookupError, "No attention pack kernels for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
 
@@ -507,7 +507,7 @@ static PyObject *attention_packed_(attention_mode_t mode, char const *name, char
     int owns_result = 0, offsets_held = 0;
 
     if (resolve_nk_dtype_in_py_buffer(&q_buffer) != kv->dtype) {
-        PyErr_Format(PyExc_TypeError, "q dtype must match the packed KV-cache ('%s')", nk_dtype_name(kv->dtype));
+        PyErr_Format(PyExc_TypeError, "q dtype must match the packed KV-cache ('%s')", nk_dtype_python_name(kv->dtype));
         goto cleanup;
     }
     nk_size_t q_tokens, num_heads, q_stride;
@@ -566,7 +566,7 @@ static PyObject *attention_packed_(attention_mode_t mode, char const *name, char
         nk_find_kernel_punned(nk_kernel_attention_bidirectional_packed_k, kv->dtype,
                               (nk_kernel_punned_t *)&task.bidirectional_kernel, &cap);
     if ((!task.causal_kernel && !task.bidirectional_kernel) || !cap) {
-        PyErr_Format(PyExc_LookupError, "No %s kernel for dtype '%s'", name, nk_dtype_name(kv->dtype));
+        PyErr_Format(PyExc_LookupError, "No %s kernel for dtype '%s'", name, nk_dtype_python_name(kv->dtype));
         goto cleanup;
     }
 

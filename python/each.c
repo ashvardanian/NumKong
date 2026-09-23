@@ -19,7 +19,7 @@
 static int validate_cast_writeback_target(Py_buffer const *out_buffer, nk_dtype_t out_dtype) {
     if (nk_dimensions_per_value(out_dtype) <= 1) return 1;
     if (PyBuffer_IsContiguous(out_buffer, 'C')) return 1;
-    PyErr_Format(PyExc_ValueError, "out must be C-contiguous for packed dtype '%s'", nk_dtype_name(out_dtype));
+    PyErr_Format(PyExc_ValueError, "out must be C-contiguous for packed dtype '%s'", nk_dtype_python_name(out_dtype));
     return 0;
 }
 
@@ -167,7 +167,7 @@ PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positi
     nk_capability_t capability = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_each_fma_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
-        PyErr_Format(PyExc_LookupError, "No fma kernel for dtype '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_LookupError, "No fma kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
 
@@ -314,7 +314,7 @@ PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     nk_capability_t capability = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_each_blend_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
-        PyErr_Format(PyExc_LookupError, "No blend kernel for dtype '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_LookupError, "No blend kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
 
@@ -448,7 +448,7 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     nk_capability_t capability = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_each_scale_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
-        PyErr_Format(PyExc_LookupError, "No scale kernel for dtype '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_LookupError, "No scale kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
 
@@ -559,7 +559,7 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
     }
     nk_dtype_t dtype = resolve_nk_dtype_in_py_buffer(&x_buffer);
     if (dtype != nk_f32_k && dtype != nk_bf16_k && dtype != nk_e4m3_k) {
-        PyErr_Format(PyExc_TypeError, "rmsnorm supports f32, bf16, e4m3; got '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_TypeError, "rmsnorm supports f32, bf16, e4m3; got '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
     int const ndim = x_buffer.ndim;
@@ -605,7 +605,7 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
     nk_capability_t capability = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_reduce_rmsnorm_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
-        PyErr_Format(PyExc_LookupError, "No rmsnorm kernel for dtype '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_LookupError, "No rmsnorm kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
 
@@ -696,7 +696,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
     }
     nk_dtype_t dtype = resolve_nk_dtype_in_py_buffer(&gate_buffer);
     if (dtype != nk_f32_k && dtype != nk_bf16_k && dtype != nk_e4m3_k) {
-        PyErr_Format(PyExc_TypeError, "swiglu supports f32, bf16, e4m3; got '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_TypeError, "swiglu supports f32, bf16, e4m3; got '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
     int const ndim = gate_buffer.ndim;
@@ -738,7 +738,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
     nk_capability_t capability = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_each_swiglu_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
-        PyErr_Format(PyExc_LookupError, "No swiglu kernel for dtype '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_LookupError, "No swiglu kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
 
@@ -811,7 +811,7 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
     nk_capability_t capability = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_each_scale_k, dtype, (nk_kernel_punned_t *)&scale_kernel, &capability);
     if (!scale_kernel || !capability) {
-        PyErr_Format(PyExc_LookupError, "No scale kernel for dtype '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_LookupError, "No scale kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
 
@@ -921,8 +921,8 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
     else {
         dtype = nk_dtype_promote(a_dtype, b_dtype);
         if (dtype == nk_dtype_unknown_k) {
-            PyErr_Format(PyExc_TypeError, "Cannot promote dtypes '%s' and '%s'", nk_dtype_name(a_dtype),
-                         nk_dtype_name(b_dtype));
+            PyErr_Format(PyExc_TypeError, "Cannot promote dtypes '%s' and '%s'", nk_dtype_python_name(a_dtype),
+                         nk_dtype_python_name(b_dtype));
             goto cleanup;
         }
     }
@@ -938,7 +938,7 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
     nk_capability_t capability = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_each_sum_k, dtype, (nk_kernel_punned_t *)&sum_kernel, &capability);
     if (!sum_kernel || !capability) {
-        PyErr_Format(PyExc_LookupError, "No sum kernel for dtype '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_LookupError, "No sum kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
 
@@ -1118,7 +1118,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     nk_capability_t capability = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_each_scale_k, dtype, (nk_kernel_punned_t *)&scale_kernel, &capability);
     if (!scale_kernel || !capability) {
-        PyErr_Format(PyExc_LookupError, "No scale kernel for dtype '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_LookupError, "No scale kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
 
@@ -1228,8 +1228,8 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     else {
         dtype = nk_dtype_promote(a_dtype, b_dtype);
         if (dtype == nk_dtype_unknown_k) {
-            PyErr_Format(PyExc_TypeError, "Cannot promote dtypes '%s' and '%s'", nk_dtype_name(a_dtype),
-                         nk_dtype_name(b_dtype));
+            PyErr_Format(PyExc_TypeError, "Cannot promote dtypes '%s' and '%s'", nk_dtype_python_name(a_dtype),
+                         nk_dtype_python_name(b_dtype));
             goto cleanup;
         }
     }
@@ -1245,7 +1245,7 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     nk_capability_t capability = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_each_fma_k, dtype, (nk_kernel_punned_t *)&fma_kernel, &capability);
     if (!fma_kernel || !capability) {
-        PyErr_Format(PyExc_LookupError, "No fma kernel for dtype '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_LookupError, "No fma kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
 

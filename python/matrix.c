@@ -82,7 +82,7 @@ static PyObject *PackedMatrix_repr(PyObject *self) {
     PackedMatrix *mm = (PackedMatrix *)self;
     size_t packed_size = packed_matrix_nbytes(mm);
     return PyUnicode_FromFormat("<PackedMatrix width=%zu depth=%zu dtype='%s' nbytes=%zu>", (size_t)mm->width,
-                                (size_t)mm->depth, nk_dtype_name(mm->dtype), packed_size);
+                                (size_t)mm->depth, nk_dtype_python_name(mm->dtype), packed_size);
 }
 
 static PyObject *PackedMatrix_get_width(PyObject *self, void *closure) {
@@ -97,7 +97,7 @@ static PyObject *PackedMatrix_get_depth(PyObject *self, void *closure) {
 
 static PyObject *PackedMatrix_get_dtype(PyObject *self, void *closure) {
     nk_unused_(closure);
-    return PyUnicode_FromString(nk_dtype_name(((PackedMatrix *)self)->dtype));
+    return PyUnicode_FromString(nk_dtype_python_name(((PackedMatrix *)self)->dtype));
 }
 
 static PyObject *PackedMatrix_get_nbytes(PyObject *self, void *closure) {

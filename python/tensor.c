@@ -72,8 +72,8 @@ char *validate_out_py_buffer(Py_buffer const *out_buffer, Py_buffer const *input
     if (!buffers_shapes_match(input_buffer, out_buffer)) return NULL;
     nk_dtype_t const out_dtype = resolve_nk_dtype_in_py_buffer(out_buffer);
     if (out_dtype != expected_dtype) {
-        PyErr_Format(PyExc_TypeError, "out dtype '%s' does not match expected '%s'", nk_dtype_name(out_dtype),
-                     nk_dtype_name(expected_dtype));
+        PyErr_Format(PyExc_TypeError, "out dtype '%s' does not match expected '%s'", nk_dtype_python_name(out_dtype),
+                     nk_dtype_python_name(expected_dtype));
         return NULL;
     }
     if (!PyBuffer_IsContiguous(out_buffer, 'C')) {
@@ -919,7 +919,7 @@ static PyObject *Tensor_get_shape(PyObject *self, void *closure) {
 static PyObject *Tensor_get_dtype(PyObject *self, void *closure) {
     nk_unused_(closure);
     Tensor *tensor = (Tensor *)self;
-    return PyUnicode_FromString(nk_dtype_name(tensor->dtype));
+    return PyUnicode_FromString(nk_dtype_python_name(tensor->dtype));
 }
 
 static PyObject *Tensor_get_ndim(PyObject *self, void *closure) {
@@ -2447,7 +2447,7 @@ static PyObject *Tensor_encode_block_scaled(Tensor *tensor, nk_dtype_t target_dt
     Py_ssize_t last_dim = tensor->shape[tensor->rank - 1];
     if (block_size == 0 || (size_t)last_dim % block_size != 0) {
         PyErr_Format(PyExc_ValueError, "last dimension %zd must be a multiple of block size %zu for '%s'", last_dim,
-                     block_size, nk_dtype_name(target_dtype));
+                     block_size, nk_dtype_python_name(target_dtype));
         return NULL;
     }
 
@@ -2988,7 +2988,8 @@ static PyObject *Tensor_repr(PyObject *self) {
     PyObject *shape_str = Tensor_get_shape(self, NULL);
     if (!shape_str) return NULL;
 
-    PyObject *repr = PyUnicode_FromFormat("Tensor(shape=%R, dtype='%s')", shape_str, nk_dtype_name(tensor->dtype));
+    PyObject *repr = PyUnicode_FromFormat("Tensor(shape=%R, dtype='%s')", shape_str,
+                                          nk_dtype_python_name(tensor->dtype));
     Py_DECREF(shape_str);
     return repr;
 }
@@ -3223,7 +3224,7 @@ static char const *scaled_dtype_name(nk_dtype_t dtype) {
     case nk_mxfp8_e4m3_k: return "mxfp8_e4m3";
     case nk_mxfp8_e5m2_k: return "mxfp8_e5m2";
     case nk_mxint8_k: return "mxint8";
-    default: return nk_dtype_name(dtype);
+    default: return nk_dtype_python_name(dtype);
     }
 }
 
@@ -3351,7 +3352,7 @@ static PyObject *ScaledTensor_transcode(ScaledTensor *scaled, nk_dtype_t target_
     Py_ssize_t last_dim = rank ? out_shape[rank - 1] : 0;
     if (to_block_size == 0 || (size_t)last_dim % to_block_size != 0) {
         PyErr_Format(PyExc_ValueError, "last dimension %zd must be a multiple of block size %zu for '%s'", last_dim,
-                     to_block_size, nk_dtype_name(target_dtype));
+                     to_block_size, nk_dtype_python_name(target_dtype));
         return NULL;
     }
 

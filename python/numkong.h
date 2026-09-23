@@ -108,7 +108,7 @@ size_t nk_dtype_bytes_per_value(nk_dtype_t dtype);
  *  @param[in] dtype Logical dtype.
  *  @return Name string (e.g., "float32"), or "unknown" if not found.
  */
-char const *nk_dtype_name(nk_dtype_t dtype);
+char const *nk_dtype_python_name(nk_dtype_t dtype);
 
 /**
  *  @brief Get NumPy array interface typestr for a dtype.

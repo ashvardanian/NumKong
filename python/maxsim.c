@@ -29,7 +29,7 @@ static PyObject *MaxSimPackedMatrix_repr(PyObject *self) {
     MaxSimPackedMatrix *mm = (MaxSimPackedMatrix *)self;
     size_t packed_size = maxsim_packed_matrix_nbytes(mm);
     return PyUnicode_FromFormat("<MaxSimPackedMatrix vectors=%zu depth=%zu dtype='%s' nbytes=%zu>", (size_t)mm->vectors,
-                                (size_t)mm->depth, nk_dtype_name(mm->dtype), packed_size);
+                                (size_t)mm->depth, nk_dtype_python_name(mm->dtype), packed_size);
 }
 
 static PyObject *MaxSimPackedMatrix_get_vectors(PyObject *self, void *closure) {
@@ -44,7 +44,7 @@ static PyObject *MaxSimPackedMatrix_get_depth(PyObject *self, void *closure) {
 
 static PyObject *MaxSimPackedMatrix_get_dtype(PyObject *self, void *closure) {
     nk_unused_(closure);
-    return PyUnicode_FromString(nk_dtype_name(((MaxSimPackedMatrix *)self)->dtype));
+    return PyUnicode_FromString(nk_dtype_python_name(((MaxSimPackedMatrix *)self)->dtype));
 }
 
 static PyObject *MaxSimPackedMatrix_get_nbytes(PyObject *self, void *closure) {

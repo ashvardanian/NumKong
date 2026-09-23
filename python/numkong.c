@@ -162,7 +162,7 @@ size_t nk_dtype_bytes_per_value(nk_dtype_t dtype) {
     return info ? info->item_size : 0;
 }
 
-char const *nk_dtype_name(nk_dtype_t dtype) {
+char const *nk_dtype_python_name(nk_dtype_t dtype) {
     nk_dtype_conversion_info_t const *info = nk_dtype_conversion_info(dtype);
     return info ? info->name : "unknown";
 }

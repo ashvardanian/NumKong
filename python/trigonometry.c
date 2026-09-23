@@ -93,7 +93,7 @@ PyObject *api_rope(PyObject *self, PyObject *const *args, Py_ssize_t const posit
     }
     nk_dtype_t dtype = resolve_nk_dtype_in_py_buffer(&x_buffer);
     if (dtype != nk_f32_k && dtype != nk_bf16_k && dtype != nk_e4m3_k) {
-        PyErr_Format(PyExc_TypeError, "rope supports f32, bf16, e4m3; got '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_TypeError, "rope supports f32, bf16, e4m3; got '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
     int const ndim = x_buffer.ndim;
@@ -157,7 +157,7 @@ PyObject *api_rope(PyObject *self, PyObject *const *args, Py_ssize_t const posit
     nk_capability_t capability = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_trig_rope_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
-        PyErr_Format(PyExc_LookupError, "No rope kernel for dtype '%s'", nk_dtype_name(dtype));
+        PyErr_Format(PyExc_LookupError, "No rope kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
 
@@ -290,7 +290,7 @@ static PyObject *implement_trigonometry(nk_kernel_kind_t kernel_kind, PyObject *
     nk_capability_t capability = nk_cap_serial_k;
     nk_find_kernel_punned(kernel_kind, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
-        PyErr_Format(PyExc_LookupError, "No '%c' kernel for dtype '%s'", kernel_kind, nk_dtype_name(dtype));
+        PyErr_Format(PyExc_LookupError, "No '%c' kernel for dtype '%s'", kernel_kind, nk_dtype_python_name(dtype));
         goto cleanup;
     }
 
