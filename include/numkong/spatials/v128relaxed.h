@@ -77,6 +77,27 @@ nk_define_cross_normalized_symmetric_(euclidean, e2m3, v128relaxed, e2m3, f32, /
                                       nk_load_b128_v128_, nk_partial_load_b32x4_serial_, nk_store_b128_v128_,
                                       nk_partial_store_b32x4_serial_, 1)
 
+nk_define_cross_normalized_packed_(angular, e2m1, v128relaxed, e2m1x2, e2m1x2, f32, /*norm_value_type=*/f32, f32,
+                                   nk_b128_vec_t, nk_dots_packed_e2m1_v128relaxed,
+                                   nk_angular_through_f32_from_dot_v128_, nk_dots_reduce_sumsq_e2m1_,
+                                   nk_load_b128_v128_, nk_partial_load_b32x4_serial_, nk_store_b128_v128_,
+                                   nk_partial_store_b32x4_serial_, 2)
+nk_define_cross_normalized_symmetric_(angular, e2m1, v128relaxed, e2m1x2, f32, /*norm_value_type=*/f32, f32,
+                                      nk_b128_vec_t, nk_dots_symmetric_e2m1_v128relaxed,
+                                      nk_angular_through_f32_from_dot_v128_, nk_dots_reduce_sumsq_e2m1_,
+                                      nk_load_b128_v128_, nk_partial_load_b32x4_serial_, nk_store_b128_v128_,
+                                      nk_partial_store_b32x4_serial_, 2)
+nk_define_cross_normalized_packed_(euclidean, e2m1, v128relaxed, e2m1x2, e2m1x2, f32, /*norm_value_type=*/f32, f32,
+                                   nk_b128_vec_t, nk_dots_packed_e2m1_v128relaxed,
+                                   nk_euclidean_through_f32_from_dot_v128_, nk_dots_reduce_sumsq_e2m1_,
+                                   nk_load_b128_v128_, nk_partial_load_b32x4_serial_, nk_store_b128_v128_,
+                                   nk_partial_store_b32x4_serial_, 2)
+nk_define_cross_normalized_symmetric_(euclidean, e2m1, v128relaxed, e2m1x2, f32, /*norm_value_type=*/f32, f32,
+                                      nk_b128_vec_t, nk_dots_symmetric_e2m1_v128relaxed,
+                                      nk_euclidean_through_f32_from_dot_v128_, nk_dots_reduce_sumsq_e2m1_,
+                                      nk_load_b128_v128_, nk_partial_load_b32x4_serial_, nk_store_b128_v128_,
+                                      nk_partial_store_b32x4_serial_, 2)
+
 nk_define_cross_normalized_packed_(angular, e3m2, v128relaxed, e3m2, e3m2, f32, /*norm_value_type=*/f32, f32,
                                    nk_b128_vec_t, nk_dots_packed_e3m2_v128relaxed,
                                    nk_angular_through_f32_from_dot_v128_, nk_dots_reduce_sumsq_e3m2_,

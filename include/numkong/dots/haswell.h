@@ -183,6 +183,25 @@ nk_define_cross_packed_(dots, e2m3, haswell, e2m3, e2m3, f32, nk_b256_vec_t, nk_
                         nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 
+/* E2M1 GEMM: integer LUT path, depth_simd_dimensions=64 (32 bytes = 64 nibbles = AVX2 register width) */
+nk_define_cross_pack_size_(dots, e2m1, haswell, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/64,
+                           /*dimensions_per_value=*/2)
+nk_define_cross_packed_shape_(dots, e2m1, haswell)
+nk_define_cross_pack_(dots, e2m1, haswell, e2m1x2, e2m1x2, nk_b256_vec_t, nk_load_b256_haswell_,
+                      nk_partial_load_b8x32_serial_, nk_store_b256_haswell_, nk_partial_store_b8x32_serial_,
+                      /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_,
+                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
+nk_define_cross_symmetric_(dots, e2m1, haswell, e2m1x2, f32, nk_b256_vec_t, nk_dot_e2m1x64_state_haswell_t,
+                           nk_b128_vec_t, nk_dot_e2m1x64_init_haswell, nk_load_b256_haswell_,
+                           nk_partial_load_e2m1x64_serial_, nk_dot_e2m1x64_update_haswell,
+                           nk_dot_e2m1x64_finalize_haswell, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
+                           /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
+nk_define_cross_packed_(dots, e2m1, haswell, e2m1x2, e2m1x2, f32, nk_b256_vec_t, nk_dot_e2m1x64_state_haswell_t,
+                        nk_b128_vec_t, nk_dot_e2m1x64_init_haswell, nk_load_b256_haswell_,
+                        nk_partial_load_e2m1x64_serial_, nk_load_b256_haswell_, nk_partial_load_e2m1x64_serial_,
+                        nk_dot_e2m1x64_update_haswell, nk_dot_e2m1x64_finalize_haswell, nk_store_b128_haswell_,
+                        nk_partial_store_b32x4_haswell_, /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
+
 /* E3M2 GEMM: integer LUT path, depth_simd_dimensions=32 (32 e3m2s = 32 bytes = AVX2 register width) */
 nk_define_cross_pack_size_(dots, e3m2, haswell, e3m2, e3m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/1)

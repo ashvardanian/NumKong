@@ -333,6 +333,7 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
         .file("c/dispatch_e4m3.c")
         .file("c/dispatch_e3m2.c")
         .file("c/dispatch_e2m3.c")
+        .file("c/dispatch_e2m1.c")
         // Signed integer dispatch files
         .file("c/dispatch_i64.c")
         .file("c/dispatch_i32.c")

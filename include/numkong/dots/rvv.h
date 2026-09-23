@@ -70,6 +70,12 @@ static nk_u8_t const nk_e2m3_magnitude_lut_rvv_[32] = {0,  2,  4,  6,  8,  10, 1
                                                        56, 60, 64, 72, 80, 88, 96, 104, 112, 120};
 
 /**
+ *  @brief  E2M1 LUT: 4-bit code → signed value×2 (i8), sign included.
+ *          Shared across the pack, packed, and symmetric kernels.
+ */
+static nk_i8_t const nk_e2m1_doubled_lut_rvv_[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
+
+/**
  *  @brief  E3M2 magnitude LUT: 5-bit magnitude → unsigned value×16 (u16).
  *          Shared across scalar helper, packed kernel, and symmetric kernel.
  */
@@ -837,6 +843,276 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_siz
 }
 
 #pragma endregion E2M3 Floats
+
+#pragma region E2M1 Floats
+
+/*  B packs every column as two i8 halves of `depth_padded_values / 2` bytes each: the values of the high nibbles,
+ *  then those of the low nibbles. A decodes both halves of each byte on the fly, so byte `k` of A meets entry `k` of
+ *  each half, and the unused low nibble of an odd depth meets a packed zero.
+ */
+
+NK_API_COMPTIME nk_size_t nk_dots_pack_size_e2m1_rvv(nk_size_t column_count, nk_size_t depth) {
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
+    nk_size_t half_padded = nk_size_round_up_to_multiple_(nk_size_divide_round_up_(depth, 2), max_vector_length);
+    nk_size_t stride_bytes = 2 * half_padded * sizeof(nk_i8_t);
+    if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) half_padded += max_vector_length;
+    return sizeof(nk_cross_packed_buffer_header_t) + column_count * 2 * half_padded * sizeof(nk_i8_t) +
+           column_count * sizeof(nk_f32_t); // per-column norms
+}
+
+NK_API_COMPTIME void nk_dots_packed_shape_e2m1_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    *width = header->column_count;
+    *depth = header->depth_dimensions;
+}
+
+/**
+ *  @brief  Pack B matrix from e2m1 nibbles to signed i8 (value × 2) halves for integer dot product.
+ *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
+ */
+NK_API_COMPTIME void nk_dots_pack_e2m1_rvv(nk_e2m1x2_t const *b, nk_size_t column_count, nk_size_t depth,
+                                           nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                           nk_size_t columns_end) {
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
+    nk_size_t half_padded = nk_size_round_up_to_multiple_(nk_size_divide_round_up_(depth, 2), max_vector_length);
+    nk_size_t stride_bytes = 2 * half_padded * sizeof(nk_i8_t);
+    if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) half_padded += max_vector_length;
+    nk_size_t const depth_padded = 2 * half_padded;
+
+    nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
+    if (columns_begin == 0) {
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            ((nk_u32_t *)header)[word_index] = 0;
+        header->column_count = (nk_u32_t)column_count;
+        header->depth_dimensions = (nk_u32_t)depth;
+        header->depth_padded_values = (nk_u32_t)depth_padded;
+    }
+
+    nk_i8_t *packed = (nk_i8_t *)((char *)b_packed + sizeof(nk_cross_packed_buffer_header_t));
+    nk_size_t total = column_count * depth_padded;
+    {
+        nk_u8_t *zero_ptr = (nk_u8_t *)(packed + columns_begin * depth_padded);
+        nk_size_t total_bytes = (columns_end - columns_begin) * depth_padded * sizeof(nk_i8_t);
+        for (nk_size_t i = 0; i < total_bytes;) {
+            nk_size_t vector_length = __riscv_vsetvl_e8m8(total_bytes - i);
+            __riscv_vse8_v_u8m8(zero_ptr + i, __riscv_vmv_v_x_u8m8(0, vector_length), vector_length);
+            i += vector_length;
+        }
+    }
+
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
+        nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride_in_bytes);
+        nk_i8_t *high_values = packed + column * depth_padded;
+        nk_i8_t *low_values = high_values + half_padded;
+        for (nk_size_t k = 0; k < depth / 2; ++k) {
+            high_values[k] = nk_e2m1_doubled_lut_rvv_[src[k] >> 4];
+            low_values[k] = nk_e2m1_doubled_lut_rvv_[src[k] & 0x0F];
+        }
+        if (depth & 1) high_values[depth / 2] = nk_e2m1_doubled_lut_rvv_[src[depth / 2] >> 4];
+    }
+
+    // Append per-column norms after packed data
+    nk_f32_t *norms = (nk_f32_t *)(packed + total);
+    for (nk_size_t column = columns_begin; column < columns_end; ++column) {
+        nk_e2m1x2_t const *src = (nk_e2m1x2_t const *)((char const *)b + column * b_stride_in_bytes);
+        norms[column] = nk_dots_reduce_sumsq_e2m1_(src, depth);
+    }
+}
+
+/**
+ *  @brief  e2m1 packed GEMM kernel: C = A * B_packed^T with integer i8 LUT arithmetic.
+ *
+ *  Vectorizes over the bytes of A. Each byte's nibbles gather their signed values via `vluxei8`,
+ *  meet the matching entries of the two packed B halves in `vwmul` and `vwmacc`, whose paired products stay within 288
+ *  in i16, and widen-accumulate into i32. The final result is scaled by 1/4.
+ *  Register tile: 4 rows per iteration.
+ */
+NK_HELPER_INLINE void nk_dots_packed_e2m1_rvv_aligned_(nk_e2m1x2_t const *a_matrix, void const *b_packed_buffer,
+                                                       nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                       nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                       nk_size_t c_stride_in_bytes) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
+    nk_size_t const depth_padded = header->depth_padded_values;
+    nk_size_t const half_padded = depth_padded / 2;
+    nk_size_t const depth_bytes = nk_size_divide_round_up_(depth, 2);
+    nk_i8_t const *packed_data = (nk_i8_t const *)((char const *)b_packed_buffer +
+                                                   sizeof(nk_cross_packed_buffer_header_t));
+
+    nk_size_t row = 0;
+    for (; row + 4 <= row_count; row += 4) {
+        nk_u8_t const *a_row_0 = (nk_u8_t const *)((char const *)a_matrix + (row + 0) * a_stride_in_bytes);
+        nk_u8_t const *a_row_1 = (nk_u8_t const *)((char const *)a_matrix + (row + 1) * a_stride_in_bytes);
+        nk_u8_t const *a_row_2 = (nk_u8_t const *)((char const *)a_matrix + (row + 2) * a_stride_in_bytes);
+        nk_u8_t const *a_row_3 = (nk_u8_t const *)((char const *)a_matrix + (row + 3) * a_stride_in_bytes);
+        nk_f32_t *c_row_0 = (nk_f32_t *)((char *)c_matrix + (row + 0) * c_stride_in_bytes);
+        nk_f32_t *c_row_1 = (nk_f32_t *)((char *)c_matrix + (row + 1) * c_stride_in_bytes);
+        nk_f32_t *c_row_2 = (nk_f32_t *)((char *)c_matrix + (row + 2) * c_stride_in_bytes);
+        nk_f32_t *c_row_3 = (nk_f32_t *)((char *)c_matrix + (row + 3) * c_stride_in_bytes);
+
+        for (nk_size_t column = 0; column < column_count; ++column) {
+            nk_i8_t const *b_high = packed_data + column * depth_padded;
+            nk_i8_t const *b_low = b_high + half_padded;
+            nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
+            vint32m4_t accumulator_0_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
+            vint32m4_t accumulator_1_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
+            vint32m4_t accumulator_2_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
+            vint32m4_t accumulator_3_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
+
+            for (nk_size_t vector_length, k = 0; k < depth_bytes; k += vector_length) {
+                vector_length = __riscv_vsetvl_e8m1(depth_bytes - k);
+                vint8m1_t b_high_i8m1 = __riscv_vle8_v_i8m1(b_high + k, vector_length);
+                vint8m1_t b_low_i8m1 = __riscv_vle8_v_i8m1(b_low + k, vector_length);
+
+                vuint8m1_t raw_0_u8m1 = __riscv_vle8_v_u8m1(a_row_0 + k, vector_length);
+                vuint8m1_t raw_1_u8m1 = __riscv_vle8_v_u8m1(a_row_1 + k, vector_length);
+                vuint8m1_t raw_2_u8m1 = __riscv_vle8_v_u8m1(a_row_2 + k, vector_length);
+                vuint8m1_t raw_3_u8m1 = __riscv_vle8_v_u8m1(a_row_3 + k, vector_length);
+
+                vint8m1_t a_high_0_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vsrl_vx_u8m1(raw_0_u8m1, 4, vector_length), vector_length);
+                vint8m1_t a_high_1_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vsrl_vx_u8m1(raw_1_u8m1, 4, vector_length), vector_length);
+                vint8m1_t a_high_2_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vsrl_vx_u8m1(raw_2_u8m1, 4, vector_length), vector_length);
+                vint8m1_t a_high_3_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vsrl_vx_u8m1(raw_3_u8m1, 4, vector_length), vector_length);
+                vint8m1_t a_low_0_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vand_vx_u8m1(raw_0_u8m1, 0x0F, vector_length), vector_length);
+                vint8m1_t a_low_1_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vand_vx_u8m1(raw_1_u8m1, 0x0F, vector_length), vector_length);
+                vint8m1_t a_low_2_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vand_vx_u8m1(raw_2_u8m1, 0x0F, vector_length), vector_length);
+                vint8m1_t a_low_3_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vand_vx_u8m1(raw_3_u8m1, 0x0F, vector_length), vector_length);
+
+                vint16m2_t product_0_i16m2 = __riscv_vwmacc_vv_i16m2(
+                    __riscv_vwmul_vv_i16m2(a_high_0_i8m1, b_high_i8m1, vector_length), a_low_0_i8m1, b_low_i8m1,
+                    vector_length);
+                vint16m2_t product_1_i16m2 = __riscv_vwmacc_vv_i16m2(
+                    __riscv_vwmul_vv_i16m2(a_high_1_i8m1, b_high_i8m1, vector_length), a_low_1_i8m1, b_low_i8m1,
+                    vector_length);
+                vint16m2_t product_2_i16m2 = __riscv_vwmacc_vv_i16m2(
+                    __riscv_vwmul_vv_i16m2(a_high_2_i8m1, b_high_i8m1, vector_length), a_low_2_i8m1, b_low_i8m1,
+                    vector_length);
+                vint16m2_t product_3_i16m2 = __riscv_vwmacc_vv_i16m2(
+                    __riscv_vwmul_vv_i16m2(a_high_3_i8m1, b_high_i8m1, vector_length), a_low_3_i8m1, b_low_i8m1,
+                    vector_length);
+                accumulator_0_i32m4 = __riscv_vwadd_wv_i32m4_tu(accumulator_0_i32m4, accumulator_0_i32m4,
+                                                                product_0_i16m2, vector_length);
+                accumulator_1_i32m4 = __riscv_vwadd_wv_i32m4_tu(accumulator_1_i32m4, accumulator_1_i32m4,
+                                                                product_1_i16m2, vector_length);
+                accumulator_2_i32m4 = __riscv_vwadd_wv_i32m4_tu(accumulator_2_i32m4, accumulator_2_i32m4,
+                                                                product_2_i16m2, vector_length);
+                accumulator_3_i32m4 = __riscv_vwadd_wv_i32m4_tu(accumulator_3_i32m4, accumulator_3_i32m4,
+                                                                product_3_i16m2, vector_length);
+            }
+
+            vint32m1_t zero_i32m1 = __riscv_vmv_v_x_i32m1(0, 1);
+            c_row_0[column] = (nk_f32_t)__riscv_vmv_x_s_i32m1_i32(
+                                  __riscv_vredsum_vs_i32m4_i32m1(accumulator_0_i32m4, zero_i32m1, max_vector_length)) *
+                              0.25f;
+            c_row_1[column] = (nk_f32_t)__riscv_vmv_x_s_i32m1_i32(
+                                  __riscv_vredsum_vs_i32m4_i32m1(accumulator_1_i32m4, zero_i32m1, max_vector_length)) *
+                              0.25f;
+            c_row_2[column] = (nk_f32_t)__riscv_vmv_x_s_i32m1_i32(
+                                  __riscv_vredsum_vs_i32m4_i32m1(accumulator_2_i32m4, zero_i32m1, max_vector_length)) *
+                              0.25f;
+            c_row_3[column] = (nk_f32_t)__riscv_vmv_x_s_i32m1_i32(
+                                  __riscv_vredsum_vs_i32m4_i32m1(accumulator_3_i32m4, zero_i32m1, max_vector_length)) *
+                              0.25f;
+        }
+    }
+    // Remainder rows (mr < 4)
+    for (; row < row_count; ++row) {
+        nk_u8_t const *a_row = (nk_u8_t const *)((char const *)a_matrix + row * a_stride_in_bytes);
+        nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + row * c_stride_in_bytes);
+        for (nk_size_t column = 0; column < column_count; ++column) {
+            nk_i8_t const *b_high = packed_data + column * depth_padded;
+            nk_i8_t const *b_low = b_high + half_padded;
+            nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
+            vint32m4_t accumulator_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
+            for (nk_size_t vector_length, k = 0; k < depth_bytes; k += vector_length) {
+                vector_length = __riscv_vsetvl_e8m1(depth_bytes - k);
+                vint8m1_t b_high_i8m1 = __riscv_vle8_v_i8m1(b_high + k, vector_length);
+                vint8m1_t b_low_i8m1 = __riscv_vle8_v_i8m1(b_low + k, vector_length);
+                vuint8m1_t raw_a_u8m1 = __riscv_vle8_v_u8m1(a_row + k, vector_length);
+                vint8m1_t a_high_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vsrl_vx_u8m1(raw_a_u8m1, 4, vector_length), vector_length);
+                vint8m1_t a_low_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vand_vx_u8m1(raw_a_u8m1, 0x0F, vector_length), vector_length);
+                vint16m2_t product_i16m2 = __riscv_vwmacc_vv_i16m2(
+                    __riscv_vwmul_vv_i16m2(a_high_i8m1, b_high_i8m1, vector_length), a_low_i8m1, b_low_i8m1,
+                    vector_length);
+                accumulator_i32m4 = __riscv_vwadd_wv_i32m4_tu(accumulator_i32m4, accumulator_i32m4, product_i16m2,
+                                                              vector_length);
+            }
+            vint32m1_t zero_i32m1 = __riscv_vmv_v_x_i32m1(0, 1);
+            c_row[column] = (nk_f32_t)__riscv_vmv_x_s_i32m1_i32(
+                                __riscv_vredsum_vs_i32m4_i32m1(accumulator_i32m4, zero_i32m1, max_vector_length)) *
+                            0.25f;
+        }
+    }
+}
+
+/**
+ *  @brief  Public e2m1 packed GEMM wrapper matching the declared signature in dots.h.
+ */
+NK_API_COMPTIME void nk_dots_packed_e2m1_rvv(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                             nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                             nk_size_t c_stride_in_bytes) {
+    nk_dots_packed_e2m1_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
+}
+
+/**
+ *  @brief  Symmetric e2m1 GEMM: C = A * A^T, upper triangle.
+ *
+ *  Uses integer i8 LUT arithmetic with i32 accumulation, scaled by 1/4.
+ *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
+ */
+NK_API_COMPTIME void nk_dots_symmetric_e2m1_rvv(nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                nk_size_t stride_in_bytes, nk_f32_t *result,
+                                                nk_size_t result_stride_in_bytes, nk_size_t row_start,
+                                                nk_size_t row_count) {
+    nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
+    nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
+    nk_size_t const full_bytes = depth / 2;
+
+    for (nk_size_t i = row_start; i < row_end; ++i) {
+        nk_u8_t const *a_i = (nk_u8_t const *)vectors + i * stride_in_bytes;
+        for (nk_size_t j = i; j < vectors_count; ++j) {
+            nk_u8_t const *a_j = (nk_u8_t const *)vectors + j * stride_in_bytes;
+            nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
+            vint32m4_t accumulator_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
+            for (nk_size_t vector_length, k = 0; k < full_bytes; k += vector_length) {
+                vector_length = __riscv_vsetvl_e8m1(full_bytes - k);
+                vuint8m1_t raw_i_u8m1 = __riscv_vle8_v_u8m1(a_i + k, vector_length);
+                vuint8m1_t raw_j_u8m1 = __riscv_vle8_v_u8m1(a_j + k, vector_length);
+                vint8m1_t high_i_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vsrl_vx_u8m1(raw_i_u8m1, 4, vector_length), vector_length);
+                vint8m1_t high_j_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vsrl_vx_u8m1(raw_j_u8m1, 4, vector_length), vector_length);
+                vint8m1_t low_i_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vand_vx_u8m1(raw_i_u8m1, 0x0F, vector_length), vector_length);
+                vint8m1_t low_j_i8m1 = __riscv_vluxei8_v_i8m1(
+                    nk_e2m1_doubled_lut_rvv_, __riscv_vand_vx_u8m1(raw_j_u8m1, 0x0F, vector_length), vector_length);
+                vint16m2_t product_i16m2 = __riscv_vwmacc_vv_i16m2(
+                    __riscv_vwmul_vv_i16m2(high_i_i8m1, high_j_i8m1, vector_length), low_i_i8m1, low_j_i8m1,
+                    vector_length);
+                accumulator_i32m4 = __riscv_vwadd_wv_i32m4_tu(accumulator_i32m4, accumulator_i32m4, product_i16m2,
+                                                              vector_length);
+            }
+            vint32m1_t zero_i32m1 = __riscv_vmv_v_x_i32m1(0, 1);
+            nk_i32_t sum = __riscv_vmv_x_s_i32m1_i32(
+                __riscv_vredsum_vs_i32m4_i32m1(accumulator_i32m4, zero_i32m1, max_vector_length));
+            // At odd depth only the high nibble of the last byte is a dimension
+            if (depth & 1)
+                sum += nk_e2m1_doubled_lut_rvv_[a_i[full_bytes] >> 4] * nk_e2m1_doubled_lut_rvv_[a_j[full_bytes] >> 4];
+            result[i * result_stride_elements + j] = (nk_f32_t)sum * 0.25f;
+        }
+    }
+}
+
+#pragma endregion E2M1 Floats
 
 #pragma region E3M2 Floats
 

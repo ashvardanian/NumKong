@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Test batch distance operations: nk.dots_symmetric, nk.dots_packed, nk.cdist.
 
-Dtypes: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e3m2, int8, uint8, complex64, complex128.
+Dtypes: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e2m1, e3m2, int8, uint8, complex64, complex128.
 Baselines: high-precision Decimal matrix multiplication, NumPy matmul.
 Matches C++ suite: test_cross_*.cpp.
 """
@@ -27,6 +27,7 @@ from test_base import (
     NATIVE_COMPUTE_DTYPE,
     NK_ATOL,
     NK_RTOL,
+    PACKING_GRANULARITY,
     assert_allclose,
     collect_errors,
     create_stats,
@@ -195,6 +196,7 @@ def test_batch_sqeuclidean_broadcasting(ndim: int, dtype: str, capability: str, 
         "e4m3",
         "e5m2",
         "e2m3",
+        "e2m1",
         "e3m2",
         "int8",
         "uint8",
@@ -277,6 +279,7 @@ def test_hammings_symmetric(capability: str):
         "e4m3",
         "e5m2",
         "e2m3",
+        "e2m1",
         "e3m2",
         "int8",
         "uint8",
@@ -293,9 +296,9 @@ def test_dots_pack_and_packed(rows: int, columns: int, depth: int, dtype: str, c
 
     keep_one_capability(capability)
 
-    # SIMD path — wrap in nk.Tensor so dots_packed can infer dtype
-    a_tensor = make_nk(a_raw, dtype)
-    b_tensor = make_nk(b_raw, dtype)
+    # SIMD path — wrap in nk.Tensor so dots_packed can infer dtype; packed nibbles pass as raw bytes
+    a_tensor = a_raw if dtype in PACKING_GRANULARITY else make_nk(a_raw, dtype)
+    b_tensor = b_raw if dtype in PACKING_GRANULARITY else make_nk(b_raw, dtype)
     b_packed = nk.dots_pack(b_tensor, dtype=dtype)
     result_dt, result = profile(nk.dots_packed, a_tensor, b_packed)
     result = np.asarray(result)

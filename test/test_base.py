@@ -149,6 +149,7 @@ NATIVE_COMPUTE_DTYPE: dict[str, type] = (
         "e4m3": np.float32,
         "e5m2": np.float32,
         "e2m3": np.float32,
+        "e2m1": np.float32,
         "e3m2": np.float32,
         "int8": np.int64,
         "uint8": np.int64,
@@ -169,6 +170,7 @@ NATIVE_COMPUTE_DTYPE: dict[str, type] = (
 
 
 PACKING_GRANULARITY: dict[str, int] = {
+    "e2m1": 2,
     "int4": 2,
     "uint4": 2,
     "uint1": 8,
@@ -241,6 +243,7 @@ _DTYPE_TOLERANCES: dict[str, tuple[float, float]] = {
     "e4m3": (NK_ATOL, NK_RTOL),
     "e5m2": (NK_ATOL, NK_RTOL),
     "e2m3": (NK_ATOL, NK_RTOL),
+    "e2m1": (NK_ATOL, NK_RTOL),
     "e3m2": (NK_ATOL, NK_RTOL),
     "complex128": (1e-6, 1e-6),
     "complex64": (1e-4, 1e-4),
@@ -349,6 +352,17 @@ def u8_downcast_to_u4(array):
     return _pack_nibbles(array)
 
 
+def e2m1_codes_to_e2m1x2(codes):
+    """Pack E2M1 nibble codes along the last axis, matching C ``nk_e2m1x2_t``: high nibble = even index.
+
+    Odd-length rows are zero-padded. Returns a uint8 array.
+    """
+    codes = np.asarray(codes, dtype=np.uint8) & 0x0F
+    if codes.shape[-1] % 2:
+        codes = np.concatenate([codes, np.zeros((*codes.shape[:-1], 1), dtype=np.uint8)], axis=-1)
+    return ((codes[..., 0::2] << 4) | codes[..., 1::2]).astype(np.uint8)
+
+
 def hex_array(arr: Any) -> str:
     """Converts numerical array into a string of comma-separated hexadecimal values for debugging."""
     arr = np.asarray(arr)
@@ -416,6 +430,7 @@ def build_subbyte_float_lookup_table(
 
 
 LOOKUP_TABLE_E2M3 = build_subbyte_float_lookup_table(sign_bit=5, exp_bits=2, mant_bits=3, bias=1, total_bits=6)
+LOOKUP_TABLE_E2M1 = build_subbyte_float_lookup_table(sign_bit=3, exp_bits=2, mant_bits=1, bias=1, total_bits=4)
 LOOKUP_TABLE_E3M2 = build_subbyte_float_lookup_table(sign_bit=5, exp_bits=3, mant_bits=2, bias=3, total_bits=6)
 LOOKUP_TABLE_E4M3 = build_subbyte_float_lookup_table(
     sign_bit=7, exp_bits=4, mant_bits=3, bias=7, total_bits=8, nan_only_max_mant=True
@@ -475,6 +490,11 @@ def _make_random_numpy(shape, dtype):
         raw = valid_bytes[np.random.randint(0, len(valid_bytes), size=shape)]
         baseline = lut[raw.astype(int)]
         return raw, baseline
+
+    if dtype == "e2m1":
+        codes = np.random.randint(0, 16, size=shape).astype(np.uint8)
+        baseline = np.array(LOOKUP_TABLE_E2M1)[codes.astype(int)]
+        return e2m1_codes_to_e2m1x2(codes), baseline
 
     if dtype == "int4":
         values = np.random.randint(-8, 8, size=shape, dtype=np.int8)

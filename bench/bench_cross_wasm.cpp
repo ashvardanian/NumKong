@@ -24,6 +24,7 @@ void bench_cross_wasm() {
     constexpr nk_dtype_t e4m3_k = nk_e4m3_k;
     constexpr nk_dtype_t e3m2_k = nk_e3m2_k;
     constexpr nk_dtype_t e2m3_k = nk_e2m3_k;
+    constexpr nk_dtype_t e2m1_k = nk_e2m1_k;
     constexpr nk_dtype_t i8_k = nk_i8_k;
     constexpr nk_dtype_t u8_k = nk_u8_k;
     constexpr nk_dtype_t i4_k = nk_i4_k;
@@ -47,6 +48,8 @@ void bench_cross_wasm() {
                             nk_dots_pack_e3m2_v128relaxed, nk_dots_packed_e3m2_v128relaxed);
     run_dots_packed<e2m3_k>("dots_packed_e2m3_v128relaxed", nk_dots_pack_size_e2m3_v128relaxed,
                             nk_dots_pack_e2m3_v128relaxed, nk_dots_packed_e2m3_v128relaxed);
+    run_dots_packed<e2m1_k>("dots_packed_e2m1_v128relaxed", nk_dots_pack_size_e2m1_v128relaxed,
+                            nk_dots_pack_e2m1_v128relaxed, nk_dots_packed_e2m1_v128relaxed);
     run_dots_packed<i8_k>("dots_packed_i8_v128relaxed", nk_dots_pack_size_i8_v128relaxed, nk_dots_pack_i8_v128relaxed,
                           nk_dots_packed_i8_v128relaxed);
     run_dots_packed<u8_k>("dots_packed_u8_v128relaxed", nk_dots_pack_size_u8_v128relaxed, nk_dots_pack_u8_v128relaxed,
@@ -64,6 +67,7 @@ void bench_cross_wasm() {
     run_dots_symmetric<e4m3_k>("dots_symmetric_e4m3_v128relaxed", nk_dots_symmetric_e4m3_v128relaxed);
     run_dots_symmetric<e3m2_k>("dots_symmetric_e3m2_v128relaxed", nk_dots_symmetric_e3m2_v128relaxed);
     run_dots_symmetric<e2m3_k>("dots_symmetric_e2m3_v128relaxed", nk_dots_symmetric_e2m3_v128relaxed);
+    run_dots_symmetric<e2m1_k>("dots_symmetric_e2m1_v128relaxed", nk_dots_symmetric_e2m1_v128relaxed);
     run_dots_symmetric<i8_k>("dots_symmetric_i8_v128relaxed", nk_dots_symmetric_i8_v128relaxed);
     run_dots_symmetric<u8_k>("dots_symmetric_u8_v128relaxed", nk_dots_symmetric_u8_v128relaxed);
     run_dots_symmetric<i4_k>("dots_symmetric_i4_v128relaxed", nk_dots_symmetric_i4_v128relaxed);
@@ -85,6 +89,8 @@ void bench_cross_wasm() {
                                 nk_dots_pack_e3m2_v128relaxed, nk_angulars_packed_e3m2_v128relaxed);
     run_angulars_packed<e2m3_k>("angulars_packed_e2m3_v128relaxed", nk_dots_pack_size_e2m3_v128relaxed,
                                 nk_dots_pack_e2m3_v128relaxed, nk_angulars_packed_e2m3_v128relaxed);
+    run_angulars_packed<e2m1_k>("angulars_packed_e2m1_v128relaxed", nk_dots_pack_size_e2m1_v128relaxed,
+                                nk_dots_pack_e2m1_v128relaxed, nk_angulars_packed_e2m1_v128relaxed);
     run_angulars_packed<i8_k>("angulars_packed_i8_v128relaxed", nk_dots_pack_size_i8_v128relaxed,
                               nk_dots_pack_i8_v128relaxed, nk_angulars_packed_i8_v128relaxed);
     run_angulars_packed<u8_k>("angulars_packed_u8_v128relaxed", nk_dots_pack_size_u8_v128relaxed,
@@ -98,6 +104,7 @@ void bench_cross_wasm() {
     run_angulars_symmetric<e4m3_k>("angulars_symmetric_e4m3_v128relaxed", nk_angulars_symmetric_e4m3_v128relaxed);
     run_angulars_symmetric<e3m2_k>("angulars_symmetric_e3m2_v128relaxed", nk_angulars_symmetric_e3m2_v128relaxed);
     run_angulars_symmetric<e2m3_k>("angulars_symmetric_e2m3_v128relaxed", nk_angulars_symmetric_e2m3_v128relaxed);
+    run_angulars_symmetric<e2m1_k>("angulars_symmetric_e2m1_v128relaxed", nk_angulars_symmetric_e2m1_v128relaxed);
     run_angulars_symmetric<i8_k>("angulars_symmetric_i8_v128relaxed", nk_angulars_symmetric_i8_v128relaxed);
     run_angulars_symmetric<u8_k>("angulars_symmetric_u8_v128relaxed", nk_angulars_symmetric_u8_v128relaxed);
 
@@ -117,6 +124,8 @@ void bench_cross_wasm() {
                                   nk_dots_pack_e3m2_v128relaxed, nk_euclideans_packed_e3m2_v128relaxed);
     run_euclideans_packed<e2m3_k>("euclideans_packed_e2m3_v128relaxed", nk_dots_pack_size_e2m3_v128relaxed,
                                   nk_dots_pack_e2m3_v128relaxed, nk_euclideans_packed_e2m3_v128relaxed);
+    run_euclideans_packed<e2m1_k>("euclideans_packed_e2m1_v128relaxed", nk_dots_pack_size_e2m1_v128relaxed,
+                                  nk_dots_pack_e2m1_v128relaxed, nk_euclideans_packed_e2m1_v128relaxed);
     run_euclideans_packed<i8_k>("euclideans_packed_i8_v128relaxed", nk_dots_pack_size_i8_v128relaxed,
                                 nk_dots_pack_i8_v128relaxed, nk_euclideans_packed_i8_v128relaxed);
     run_euclideans_packed<u8_k>("euclideans_packed_u8_v128relaxed", nk_dots_pack_size_u8_v128relaxed,
@@ -130,6 +139,7 @@ void bench_cross_wasm() {
     run_euclideans_symmetric<e4m3_k>("euclideans_symmetric_e4m3_v128relaxed", nk_euclideans_symmetric_e4m3_v128relaxed);
     run_euclideans_symmetric<e3m2_k>("euclideans_symmetric_e3m2_v128relaxed", nk_euclideans_symmetric_e3m2_v128relaxed);
     run_euclideans_symmetric<e2m3_k>("euclideans_symmetric_e2m3_v128relaxed", nk_euclideans_symmetric_e2m3_v128relaxed);
+    run_euclideans_symmetric<e2m1_k>("euclideans_symmetric_e2m1_v128relaxed", nk_euclideans_symmetric_e2m1_v128relaxed);
     run_euclideans_symmetric<i8_k>("euclideans_symmetric_i8_v128relaxed", nk_euclideans_symmetric_i8_v128relaxed);
     run_euclideans_symmetric<u8_k>("euclideans_symmetric_u8_v128relaxed", nk_euclideans_symmetric_u8_v128relaxed);
 

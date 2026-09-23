@@ -22,6 +22,8 @@ void test_cross_amx() {
           nk_dots_pack_e3m2_sapphireamx, nk_dots_packed_e3m2_sapphireamx);
     check("dots_packed_e2m3_sapphireamx", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_sapphireamx,
           nk_dots_pack_e2m3_sapphireamx, nk_dots_packed_e2m3_sapphireamx);
+    check("dots_packed_e2m1_sapphireamx", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_sapphireamx,
+          nk_dots_pack_e2m1_sapphireamx, nk_dots_packed_e2m1_sapphireamx);
     check("dots_packed_i8_sapphireamx", test_dots_packed<i8_t>, nk_dots_pack_size_i8_sapphireamx,
           nk_dots_pack_i8_sapphireamx, nk_dots_packed_i8_sapphireamx);
     check("dots_packed_u8_sapphireamx", test_dots_packed<u8_t>, nk_dots_pack_size_u8_sapphireamx,
@@ -32,6 +34,7 @@ void test_cross_amx() {
     check("dots_symmetric_e4m3_sapphireamx", test_dots_symmetric<e4m3_t>, nk_dots_symmetric_e4m3_sapphireamx);
     check("dots_symmetric_e3m2_sapphireamx", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2_sapphireamx);
     check("dots_symmetric_e2m3_sapphireamx", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3_sapphireamx);
+    check("dots_symmetric_e2m1_sapphireamx", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1_sapphireamx);
     check("dots_symmetric_i8_sapphireamx", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8_sapphireamx);
     check("dots_symmetric_u8_sapphireamx", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_sapphireamx);
 

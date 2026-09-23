@@ -34,6 +34,7 @@
                 "c/dispatch_i4.c",
                 "c/dispatch_u4.c",
                 "c/dispatch_e2m3.c",
+                "c/dispatch_e2m1.c",
                 "c/dispatch_e3m2.c",
             ],
             "include_dirs": [

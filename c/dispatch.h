@@ -50,6 +50,7 @@ typedef struct {
     nk_metric_dense_punned_t dot_e4m3;
     nk_metric_dense_punned_t dot_e3m2;
     nk_metric_dense_punned_t dot_e2m3;
+    nk_metric_dense_punned_t dot_e2m1;
     nk_metric_dense_punned_t dot_i8;
     nk_metric_dense_punned_t dot_u8;
     nk_metric_dense_punned_t dot_i4;
@@ -295,6 +296,7 @@ typedef struct {
     nk_dots_pack_size_punned_t dots_pack_size_e4m3;
     nk_dots_pack_size_punned_t dots_pack_size_e3m2;
     nk_dots_pack_size_punned_t dots_pack_size_e2m3;
+    nk_dots_pack_size_punned_t dots_pack_size_e2m1;
     nk_dots_pack_size_punned_t dots_pack_size_i8;
     nk_dots_pack_size_punned_t dots_pack_size_i4;
     nk_dots_pack_size_punned_t dots_pack_size_u8;
@@ -308,6 +310,7 @@ typedef struct {
     nk_dots_packed_shape_punned_t dots_packed_shape_e4m3;
     nk_dots_packed_shape_punned_t dots_packed_shape_e3m2;
     nk_dots_packed_shape_punned_t dots_packed_shape_e2m3;
+    nk_dots_packed_shape_punned_t dots_packed_shape_e2m1;
     nk_dots_packed_shape_punned_t dots_packed_shape_i8;
     nk_dots_packed_shape_punned_t dots_packed_shape_i4;
     nk_dots_packed_shape_punned_t dots_packed_shape_u8;
@@ -322,6 +325,7 @@ typedef struct {
     nk_dots_pack_punned_t dots_pack_e4m3;
     nk_dots_pack_punned_t dots_pack_e3m2;
     nk_dots_pack_punned_t dots_pack_e2m3;
+    nk_dots_pack_punned_t dots_pack_e2m1;
     nk_dots_pack_punned_t dots_pack_i8;
     nk_dots_pack_punned_t dots_pack_i4;
     nk_dots_pack_punned_t dots_pack_u8;
@@ -336,6 +340,7 @@ typedef struct {
     nk_dots_packed_punned_t dots_packed_e4m3;
     nk_dots_packed_punned_t dots_packed_e3m2;
     nk_dots_packed_punned_t dots_packed_e2m3;
+    nk_dots_packed_punned_t dots_packed_e2m1;
     nk_dots_packed_punned_t dots_packed_i8;
     nk_dots_packed_punned_t dots_packed_i4;
     nk_dots_packed_punned_t dots_packed_u8;
@@ -353,6 +358,7 @@ typedef struct {
     nk_dots_symmetric_punned_t dots_symmetric_e4m3;
     nk_dots_symmetric_punned_t dots_symmetric_e3m2;
     nk_dots_symmetric_punned_t dots_symmetric_e2m3;
+    nk_dots_symmetric_punned_t dots_symmetric_e2m1;
     nk_dots_symmetric_punned_t dots_symmetric_i8;
     nk_dots_symmetric_punned_t dots_symmetric_i4;
     nk_dots_symmetric_punned_t dots_symmetric_u8;
@@ -370,6 +376,7 @@ typedef struct {
     nk_angulars_packed_punned_t angulars_packed_e4m3;
     nk_angulars_packed_punned_t angulars_packed_e3m2;
     nk_angulars_packed_punned_t angulars_packed_e2m3;
+    nk_angulars_packed_punned_t angulars_packed_e2m1;
     nk_angulars_packed_punned_t angulars_packed_i8;
     nk_angulars_packed_punned_t angulars_packed_i4;
     nk_angulars_packed_punned_t angulars_packed_u8;
@@ -383,6 +390,7 @@ typedef struct {
     nk_angulars_symmetric_punned_t angulars_symmetric_e4m3;
     nk_angulars_symmetric_punned_t angulars_symmetric_e3m2;
     nk_angulars_symmetric_punned_t angulars_symmetric_e2m3;
+    nk_angulars_symmetric_punned_t angulars_symmetric_e2m1;
     nk_angulars_symmetric_punned_t angulars_symmetric_i8;
     nk_angulars_symmetric_punned_t angulars_symmetric_i4;
     nk_angulars_symmetric_punned_t angulars_symmetric_u8;
@@ -396,6 +404,7 @@ typedef struct {
     nk_euclideans_packed_punned_t euclideans_packed_e4m3;
     nk_euclideans_packed_punned_t euclideans_packed_e3m2;
     nk_euclideans_packed_punned_t euclideans_packed_e2m3;
+    nk_euclideans_packed_punned_t euclideans_packed_e2m1;
     nk_euclideans_packed_punned_t euclideans_packed_i8;
     nk_euclideans_packed_punned_t euclideans_packed_i4;
     nk_euclideans_packed_punned_t euclideans_packed_u8;
@@ -409,6 +418,7 @@ typedef struct {
     nk_euclideans_symmetric_punned_t euclideans_symmetric_e4m3;
     nk_euclideans_symmetric_punned_t euclideans_symmetric_e3m2;
     nk_euclideans_symmetric_punned_t euclideans_symmetric_e2m3;
+    nk_euclideans_symmetric_punned_t euclideans_symmetric_e2m1;
     nk_euclideans_symmetric_punned_t euclideans_symmetric_i8;
     nk_euclideans_symmetric_punned_t euclideans_symmetric_i4;
     nk_euclideans_symmetric_punned_t euclideans_symmetric_u8;
@@ -560,6 +570,7 @@ extern void nk_dispatch_e5m2_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_
 extern void nk_dispatch_e4m3_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);
 extern void nk_dispatch_e3m2_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);
 extern void nk_dispatch_e2m3_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);
+extern void nk_dispatch_e2m1_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);
 extern void nk_dispatch_i64_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);
 extern void nk_dispatch_i32_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);
 extern void nk_dispatch_i16_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);

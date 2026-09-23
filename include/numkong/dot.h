@@ -19,6 +19,7 @@
  *  - e5m2: 8-bit e5m2 floating point numbers → 32-bit floats
  *  - e2m3: 8-bit e2m3 floating point numbers (MX) → 32-bit floats
  *  - e3m2: 8-bit e3m2 floating point numbers (MX) → 32-bit floats
+ *  - e2m1: 4-bit e2m1 floating point numbers (packed pairs) → 32-bit floats
  *  - i8: 8-bit signed integers → 32-bit signed integers
  *  - u8: 8-bit unsigned integers → 32-bit unsigned integers
  *  - i4: 4-bit signed integers (packed nibble pairs) → 32-bit signed integers
@@ -170,6 +171,8 @@ NK_API_RUNTIME void nk_dot_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_
 /** @copydoc nk_dot_f32 */
 NK_API_RUNTIME void nk_dot_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_f32 */
+NK_API_RUNTIME void nk_dot_e2m1(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_dot_f32 */
 NK_API_RUNTIME void nk_dot_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
 
 /**
@@ -257,6 +260,8 @@ NK_API_COMPTIME void nk_dot_e4m3_serial(nk_e4m3_t const *a, nk_e4m3_t const *b, 
 NK_API_COMPTIME void nk_dot_e5m2_serial(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_e2m3 */
 NK_API_COMPTIME void nk_dot_e2m3_serial(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_dot_e2m1 */
+NK_API_COMPTIME void nk_dot_e2m1_serial(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_e3m2 */
 NK_API_COMPTIME void nk_dot_e3m2_serial(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
 
@@ -324,6 +329,8 @@ NK_API_COMPTIME void nk_dot_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, 
 NK_API_COMPTIME void nk_dot_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_dot_e2m3 */
 NK_API_COMPTIME void nk_dot_e2m3_neonsdot(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_dot_e2m1 */
+NK_API_COMPTIME void nk_dot_e2m1_neonsdot(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_e3m2 */
 NK_API_COMPTIME void nk_dot_e3m2_neonsdot(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_NEONSDOT
@@ -421,6 +428,8 @@ NK_API_COMPTIME void nk_dot_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b,
 NK_API_COMPTIME void nk_dot_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_e2m3 */
 NK_API_COMPTIME void nk_dot_e2m3_haswell(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_dot_e2m1 */
+NK_API_COMPTIME void nk_dot_e2m1_haswell(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_e3m2 */
 NK_API_COMPTIME void nk_dot_e3m2_haswell(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
 
@@ -463,6 +472,8 @@ NK_API_COMPTIME void nk_dot_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b,
 NK_API_COMPTIME void nk_dot_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_e2m3 */
 NK_API_COMPTIME void nk_dot_e2m3_skylake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_dot_e2m1 */
+NK_API_COMPTIME void nk_dot_e2m1_skylake(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_e3m2 */
 NK_API_COMPTIME void nk_dot_e3m2_skylake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
 
@@ -519,6 +530,8 @@ NK_API_COMPTIME void nk_dot_i8_alder(nk_i8_t const *a, nk_i8_t const *b, nk_size
 NK_API_COMPTIME void nk_dot_u8_alder(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_dot_e2m3 */
 NK_API_COMPTIME void nk_dot_e2m3_alder(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_dot_e2m1 */
+NK_API_COMPTIME void nk_dot_e2m1_alder(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_ALDER
 
 #if NK_TARGET_SIERRA
@@ -528,6 +541,8 @@ NK_API_COMPTIME void nk_dot_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_siz
 NK_API_COMPTIME void nk_dot_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_dot_e2m3 */
 NK_API_COMPTIME void nk_dot_e2m3_sierra(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_dot_e2m1 */
+NK_API_COMPTIME void nk_dot_e2m1_sierra(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_SIERRA
 
 #if NK_TARGET_RVV
@@ -549,6 +564,8 @@ NK_API_COMPTIME void nk_dot_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_
 NK_API_COMPTIME void nk_dot_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_e2m3 */
 NK_API_COMPTIME void nk_dot_e2m3_rvv(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_dot_e2m1 */
+NK_API_COMPTIME void nk_dot_e2m1_rvv(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_e3m2 */
 NK_API_COMPTIME void nk_dot_e3m2_rvv(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_i4 */
@@ -616,6 +633,8 @@ NK_API_COMPTIME void nk_dot_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, n
 NK_API_COMPTIME void nk_dot_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_dot_e2m3 */
 NK_API_COMPTIME void nk_dot_e2m3_v128relaxed(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_dot_e2m1 */
+NK_API_COMPTIME void nk_dot_e2m1_v128relaxed(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_e3m2 */
 NK_API_COMPTIME void nk_dot_e3m2_v128relaxed(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_dot_f32 */
@@ -648,6 +667,7 @@ NK_HELPER_INLINE nk_dtype_t nk_dot_output_dtype(nk_dtype_t dtype) {
     case nk_e4m3_k: return nk_f32_k;
     case nk_e5m2_k: return nk_f32_k;
     case nk_e2m3_k: return nk_f32_k;
+    case nk_e2m1_k: return nk_f32_k;
     case nk_e3m2_k: return nk_f32_k;
     case nk_f64c_k: return nk_f64c_k;
     case nk_f32c_k: return nk_f64c_k;
@@ -950,6 +970,26 @@ NK_API_COMPTIME void nk_dot_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size
     nk_dot_e2m3_v128relaxed(a, b, n, result);
 #else
     nk_dot_e2m3_serial(a, b, n, result);
+#endif
+}
+
+NK_API_COMPTIME void nk_dot_e2m1(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NK_TARGET_SKYLAKE
+    nk_dot_e2m1_skylake(a, b, n, result);
+#elif NK_TARGET_SIERRA
+    nk_dot_e2m1_sierra(a, b, n, result);
+#elif NK_TARGET_ALDER
+    nk_dot_e2m1_alder(a, b, n, result);
+#elif NK_TARGET_RVV
+    nk_dot_e2m1_rvv(a, b, n, result);
+#elif NK_TARGET_HASWELL
+    nk_dot_e2m1_haswell(a, b, n, result);
+#elif NK_TARGET_NEONSDOT
+    nk_dot_e2m1_neonsdot(a, b, n, result);
+#elif NK_TARGET_V128RELAXED
+    nk_dot_e2m1_v128relaxed(a, b, n, result);
+#else
+    nk_dot_e2m1_serial(a, b, n, result);
 #endif
 }
 

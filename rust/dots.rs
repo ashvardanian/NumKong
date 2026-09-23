@@ -11,6 +11,7 @@
 //! `DotsPackedMatrix` and validators re-exported here.
 use core::marker::PhantomData;
 
+use crate::cast::e2m1x2;
 use crate::tensor::{Allocator, Global, PackedBuffer, Tensor, TensorError, TensorMut, TensorRef, TensorView};
 use crate::types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2, StorageElement};
 
@@ -218,6 +219,28 @@ extern "C" {
         output_stride: usize,
     );
 
+    fn nk_dots_pack_size_e2m1(width: usize, depth: usize) -> usize;
+    fn nk_dots_packed_shape_e2m1(packed: *const u8, width: *mut usize, depth: *mut usize);
+    fn nk_dots_pack_e2m1(
+        matrix: *const u8,
+        width: usize,
+        depth: usize,
+        matrix_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    );
+    fn nk_dots_packed_e2m1(
+        queries: *const u8,
+        packed: *const u8,
+        output: *mut f32,
+        height: usize,
+        width: usize,
+        depth: usize,
+        query_stride: usize,
+        output_stride: usize,
+    );
+
     fn nk_dots_pack_size_e3m2(width: usize, depth: usize) -> usize;
     fn nk_dots_packed_shape_e3m2(packed: *const u8, width: *mut usize, depth: *mut usize);
     fn nk_dots_pack_e3m2(
@@ -375,6 +398,16 @@ extern "C" {
         row_start: usize,
         row_count: usize,
     );
+    fn nk_dots_symmetric_e2m1(
+        vectors: *const u8,
+        vector_count: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut f32,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    );
     fn nk_dots_symmetric_e3m2(
         vectors: *const u8,
         vector_count: usize,
@@ -473,6 +506,7 @@ mod private {
     impl Sealed for super::e4m3 {}
     impl Sealed for super::e5m2 {}
     impl Sealed for super::e2m3 {}
+    impl Sealed for super::e2m1x2 {}
     impl Sealed for super::e3m2 {}
     impl Sealed for i8 {}
     impl Sealed for u8 {}
@@ -1178,6 +1212,81 @@ impl Dots for e2m3 {
         row_count: usize,
     ) {
         nk_dots_symmetric_e2m3(
+            vectors as *const u8,
+            vector_count,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Dots for e2m1x2 {
+    type Accumulator = f32;
+
+    fn dots_pack_size(width: usize, depth: usize) -> usize { unsafe { nk_dots_pack_size_e2m1(width, depth) } }
+    unsafe fn dots_packed_shape(packed: *const u8) -> (usize, usize) {
+        let (mut width, mut depth) = (0usize, 0usize);
+        nk_dots_packed_shape_e2m1(packed, &mut width, &mut depth);
+        (width, depth)
+    }
+
+    unsafe fn dots_pack(
+        matrix: *const Self,
+        width: usize,
+        depth: usize,
+        matrix_stride: usize,
+        packed: *mut u8,
+        columns_begin: usize,
+        columns_end: usize,
+    ) {
+        nk_dots_pack_e2m1(
+            matrix as *const u8,
+            width,
+            depth,
+            matrix_stride,
+            packed,
+            columns_begin,
+            columns_end,
+        )
+    }
+
+    unsafe fn dots_packed(
+        queries: *const Self,
+        packed: *const u8,
+        output: *mut Self::Accumulator,
+        height: usize,
+        width: usize,
+        depth: usize,
+        query_stride: usize,
+        output_stride: usize,
+    ) {
+        nk_dots_packed_e2m1(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
+    }
+
+    unsafe fn dots_symmetric(
+        vectors: *const Self,
+        vector_count: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::Accumulator,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_dots_symmetric_e2m1(
             vectors as *const u8,
             vector_count,
             depth,

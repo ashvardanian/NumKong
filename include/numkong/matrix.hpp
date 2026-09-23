@@ -50,6 +50,7 @@ NK_API_COMPTIME size_t dots_pack_size(size_t row_count, size_t depth) {
     else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd) return nk_dots_pack_size_e4m3(row_count, depth);
     else if constexpr (std::is_same_v<in_type_, e5m2_t> && simd) return nk_dots_pack_size_e5m2(row_count, depth);
     else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd) return nk_dots_pack_size_e2m3(row_count, depth);
+    else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && simd) return nk_dots_pack_size_e2m1(row_count, depth);
     else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd) return nk_dots_pack_size_e3m2(row_count, depth);
     else if constexpr (std::is_same_v<in_type_, u4x2_t> && simd) return nk_dots_pack_size_u4(row_count, depth);
     else if constexpr (std::is_same_v<in_type_, i4x2_t> && simd) return nk_dots_pack_size_i4(row_count, depth);
@@ -102,6 +103,9 @@ NK_API_COMPTIME void dots_pack(in_type_ const *b, size_t row_count, size_t depth
                           row_count);
     else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd)
         nk_dots_pack_e2m3(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
+                          row_count);
+    else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && simd)
+        nk_dots_pack_e2m1(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
                           row_count);
     else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd)
         nk_dots_pack_e3m2(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,

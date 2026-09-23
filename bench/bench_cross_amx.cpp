@@ -19,6 +19,7 @@ void bench_cross_amx() {
     constexpr nk_dtype_t e4m3_k = nk_e4m3_k;
     constexpr nk_dtype_t e3m2_k = nk_e3m2_k;
     constexpr nk_dtype_t e2m3_k = nk_e2m3_k;
+    constexpr nk_dtype_t e2m1_k = nk_e2m1_k;
     constexpr nk_dtype_t i8_k = nk_i8_k;
     constexpr nk_dtype_t u8_k = nk_u8_k;
 
@@ -34,6 +35,8 @@ void bench_cross_amx() {
                             nk_dots_pack_e3m2_sapphireamx, nk_dots_packed_e3m2_sapphireamx);
     run_dots_packed<e2m3_k>("dots_packed_e2m3_sapphireamx", nk_dots_pack_size_e2m3_sapphireamx,
                             nk_dots_pack_e2m3_sapphireamx, nk_dots_packed_e2m3_sapphireamx);
+    run_dots_packed<e2m1_k>("dots_packed_e2m1_sapphireamx", nk_dots_pack_size_e2m1_sapphireamx,
+                            nk_dots_pack_e2m1_sapphireamx, nk_dots_packed_e2m1_sapphireamx);
     run_dots_packed<i8_k>("dots_packed_i8_sapphireamx", nk_dots_pack_size_i8_sapphireamx, nk_dots_pack_i8_sapphireamx,
                           nk_dots_packed_i8_sapphireamx);
     run_dots_packed<u8_k>("dots_packed_u8_sapphireamx", nk_dots_pack_size_u8_sapphireamx, nk_dots_pack_u8_sapphireamx,
@@ -44,6 +47,7 @@ void bench_cross_amx() {
     run_dots_symmetric<e4m3_k>("dots_symmetric_e4m3_sapphireamx", nk_dots_symmetric_e4m3_sapphireamx);
     run_dots_symmetric<e3m2_k>("dots_symmetric_e3m2_sapphireamx", nk_dots_symmetric_e3m2_sapphireamx);
     run_dots_symmetric<e2m3_k>("dots_symmetric_e2m3_sapphireamx", nk_dots_symmetric_e2m3_sapphireamx);
+    run_dots_symmetric<e2m1_k>("dots_symmetric_e2m1_sapphireamx", nk_dots_symmetric_e2m1_sapphireamx);
     run_dots_symmetric<i8_k>("dots_symmetric_i8_sapphireamx", nk_dots_symmetric_i8_sapphireamx);
     run_dots_symmetric<u8_k>("dots_symmetric_u8_sapphireamx", nk_dots_symmetric_u8_sapphireamx);
 

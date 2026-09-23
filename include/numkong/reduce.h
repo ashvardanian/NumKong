@@ -344,6 +344,8 @@ NK_API_COMPTIME void nk_reduce_moments_e5m2_serial(nk_e5m2_t const *, nk_size_t,
 /** @copydoc nk_reduce_moments_f64 */
 NK_API_COMPTIME void nk_reduce_moments_e2m3_serial(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
 /** @copydoc nk_reduce_moments_f64 */
+NK_API_COMPTIME void nk_reduce_moments_e2m1_serial(nk_e2m1x2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
 NK_API_COMPTIME void nk_reduce_moments_e3m2_serial(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
 /** @copydoc nk_reduce_moments_f64 */
 NK_API_COMPTIME void nk_reduce_moments_i4_serial(nk_i4x2_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);

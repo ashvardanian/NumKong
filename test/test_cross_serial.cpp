@@ -24,6 +24,8 @@ void test_cross_serial() {
           nk_dots_packed_e5m2_serial);
     check("dots_packed_e2m3_serial", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_serial, nk_dots_pack_e2m3_serial,
           nk_dots_packed_e2m3_serial);
+    check("dots_packed_e2m1_serial", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_serial,
+          nk_dots_pack_e2m1_serial, nk_dots_packed_e2m1_serial);
     check("dots_packed_e3m2_serial", test_dots_packed<e3m2_t>, nk_dots_pack_size_e3m2_serial, nk_dots_pack_e3m2_serial,
           nk_dots_packed_e3m2_serial);
     check("dots_packed_i8_serial", test_dots_packed<i8_t>, nk_dots_pack_size_i8_serial, nk_dots_pack_i8_serial,
@@ -45,6 +47,7 @@ void test_cross_serial() {
     check("dots_symmetric_e4m3_serial", test_dots_symmetric<e4m3_t>, nk_dots_symmetric_e4m3_serial);
     check("dots_symmetric_e5m2_serial", test_dots_symmetric<e5m2_t>, nk_dots_symmetric_e5m2_serial);
     check("dots_symmetric_e2m3_serial", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3_serial);
+    check("dots_symmetric_e2m1_serial", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1_serial);
     check("dots_symmetric_e3m2_serial", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2_serial);
     check("dots_symmetric_i8_serial", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8_serial);
     check("dots_symmetric_u8_serial", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_serial);
@@ -104,6 +107,8 @@ void test_cross_serial() {
           nk_dots_pack_e5m2_serial, nk_angulars_packed_e5m2_serial);
     check("angulars_packed_e2m3_serial", test_angulars_packed<e2m3_t>, nk_dots_pack_size_e2m3_serial,
           nk_dots_pack_e2m3_serial, nk_angulars_packed_e2m3_serial);
+    check("angulars_packed_e2m1_serial", test_angulars_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_serial,
+          nk_dots_pack_e2m1_serial, nk_angulars_packed_e2m1_serial);
     check("angulars_packed_e3m2_serial", test_angulars_packed<e3m2_t>, nk_dots_pack_size_e3m2_serial,
           nk_dots_pack_e3m2_serial, nk_angulars_packed_e3m2_serial);
     check("angulars_packed_i8_serial", test_angulars_packed<i8_t>, nk_dots_pack_size_i8_serial, nk_dots_pack_i8_serial,
@@ -117,6 +122,7 @@ void test_cross_serial() {
 
     check("angulars_symmetric_e5m2_serial", test_angulars_symmetric<e5m2_t>, nk_angulars_symmetric_e5m2_serial);
     check("angulars_symmetric_e2m3_serial", test_angulars_symmetric<e2m3_t>, nk_angulars_symmetric_e2m3_serial);
+    check("angulars_symmetric_e2m1_serial", test_angulars_symmetric<e2m1x2_t>, nk_angulars_symmetric_e2m1_serial);
     check("angulars_symmetric_e3m2_serial", test_angulars_symmetric<e3m2_t>, nk_angulars_symmetric_e3m2_serial);
     check("angulars_symmetric_i8_serial", test_angulars_symmetric<i8_t>, nk_angulars_symmetric_i8_serial);
     check("angulars_symmetric_u8_serial", test_angulars_symmetric<u8_t>, nk_angulars_symmetric_u8_serial);
@@ -127,6 +133,8 @@ void test_cross_serial() {
           nk_dots_pack_e5m2_serial, nk_euclideans_packed_e5m2_serial);
     check("euclideans_packed_e2m3_serial", test_euclideans_packed<e2m3_t>, nk_dots_pack_size_e2m3_serial,
           nk_dots_pack_e2m3_serial, nk_euclideans_packed_e2m3_serial);
+    check("euclideans_packed_e2m1_serial", test_euclideans_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_serial,
+          nk_dots_pack_e2m1_serial, nk_euclideans_packed_e2m1_serial);
     check("euclideans_packed_e3m2_serial", test_euclideans_packed<e3m2_t>, nk_dots_pack_size_e3m2_serial,
           nk_dots_pack_e3m2_serial, nk_euclideans_packed_e3m2_serial);
     check("euclideans_packed_i8_serial", test_euclideans_packed<i8_t>, nk_dots_pack_size_i8_serial,
@@ -140,6 +148,7 @@ void test_cross_serial() {
 
     check("euclideans_symmetric_e5m2_serial", test_euclideans_symmetric<e5m2_t>, nk_euclideans_symmetric_e5m2_serial);
     check("euclideans_symmetric_e2m3_serial", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3_serial);
+    check("euclideans_symmetric_e2m1_serial", test_euclideans_symmetric<e2m1x2_t>, nk_euclideans_symmetric_e2m1_serial);
     check("euclideans_symmetric_e3m2_serial", test_euclideans_symmetric<e3m2_t>, nk_euclideans_symmetric_e3m2_serial);
     check("euclideans_symmetric_i8_serial", test_euclideans_symmetric<i8_t>, nk_euclideans_symmetric_i8_serial);
     check("euclideans_symmetric_u8_serial", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_serial);
@@ -193,18 +202,23 @@ void test_cross_serial() {
     check("jaccards_symmetric_u1", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1);
 
     check("dots_packed_e2m3", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3, nk_dots_pack_e2m3, nk_dots_packed_e2m3);
+    check("dots_packed_e2m1", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1, nk_dots_pack_e2m1,
+          nk_dots_packed_e2m1);
     check("dots_packed_e3m2", test_dots_packed<e3m2_t>, nk_dots_pack_size_e3m2, nk_dots_pack_e3m2, nk_dots_packed_e3m2);
     check("dots_packed_e4m3", test_dots_packed<e4m3_t>, nk_dots_pack_size_e4m3, nk_dots_pack_e4m3, nk_dots_packed_e4m3);
     check("dots_packed_e5m2", test_dots_packed<e5m2_t>, nk_dots_pack_size_e5m2, nk_dots_pack_e5m2, nk_dots_packed_e5m2);
     check("dots_packed_u8", test_dots_packed<u8_t>, nk_dots_pack_size_u8, nk_dots_pack_u8, nk_dots_packed_u8);
 
     check("dots_symmetric_e2m3", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3);
+    check("dots_symmetric_e2m1", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1);
     check("dots_symmetric_e3m2", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2);
 
     check("angulars_packed_bf16", test_angulars_packed<bf16_t>, nk_dots_pack_size_bf16, nk_dots_pack_bf16,
           nk_angulars_packed_bf16);
     check("angulars_packed_e2m3", test_angulars_packed<e2m3_t>, nk_dots_pack_size_e2m3, nk_dots_pack_e2m3,
           nk_angulars_packed_e2m3);
+    check("angulars_packed_e2m1", test_angulars_packed<e2m1x2_t>, nk_dots_pack_size_e2m1, nk_dots_pack_e2m1,
+          nk_angulars_packed_e2m1);
     check("angulars_packed_e3m2", test_angulars_packed<e3m2_t>, nk_dots_pack_size_e3m2, nk_dots_pack_e3m2,
           nk_angulars_packed_e3m2);
     check("angulars_packed_e4m3", test_angulars_packed<e4m3_t>, nk_dots_pack_size_e4m3, nk_dots_pack_e4m3,
@@ -228,6 +242,7 @@ void test_cross_serial() {
 
     check("angulars_symmetric_bf16", test_angulars_symmetric<bf16_t>, nk_angulars_symmetric_bf16);
     check("angulars_symmetric_e2m3", test_angulars_symmetric<e2m3_t>, nk_angulars_symmetric_e2m3);
+    check("angulars_symmetric_e2m1", test_angulars_symmetric<e2m1x2_t>, nk_angulars_symmetric_e2m1);
     check("angulars_symmetric_e3m2", test_angulars_symmetric<e3m2_t>, nk_angulars_symmetric_e3m2);
     check("angulars_symmetric_e4m3", test_angulars_symmetric<e4m3_t>, nk_angulars_symmetric_e4m3);
     check("angulars_symmetric_e5m2", test_angulars_symmetric<e5m2_t>, nk_angulars_symmetric_e5m2);
@@ -243,6 +258,8 @@ void test_cross_serial() {
           nk_euclideans_packed_bf16);
     check("euclideans_packed_e2m3", test_euclideans_packed<e2m3_t>, nk_dots_pack_size_e2m3, nk_dots_pack_e2m3,
           nk_euclideans_packed_e2m3);
+    check("euclideans_packed_e2m1", test_euclideans_packed<e2m1x2_t>, nk_dots_pack_size_e2m1, nk_dots_pack_e2m1,
+          nk_euclideans_packed_e2m1);
     check("euclideans_packed_e3m2", test_euclideans_packed<e3m2_t>, nk_dots_pack_size_e3m2, nk_dots_pack_e3m2,
           nk_euclideans_packed_e3m2);
     check("euclideans_packed_e4m3", test_euclideans_packed<e4m3_t>, nk_dots_pack_size_e4m3, nk_dots_pack_e4m3,
@@ -266,6 +283,7 @@ void test_cross_serial() {
 
     check("euclideans_symmetric_bf16", test_euclideans_symmetric<bf16_t>, nk_euclideans_symmetric_bf16);
     check("euclideans_symmetric_e2m3", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3);
+    check("euclideans_symmetric_e2m1", test_euclideans_symmetric<e2m1x2_t>, nk_euclideans_symmetric_e2m1);
     check("euclideans_symmetric_e3m2", test_euclideans_symmetric<e3m2_t>, nk_euclideans_symmetric_e3m2);
     check("euclideans_symmetric_e4m3", test_euclideans_symmetric<e4m3_t>, nk_euclideans_symmetric_e4m3);
     check("euclideans_symmetric_e5m2", test_euclideans_symmetric<e5m2_t>, nk_euclideans_symmetric_e5m2);

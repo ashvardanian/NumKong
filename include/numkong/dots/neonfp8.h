@@ -73,6 +73,25 @@ nk_define_cross_packed_(dots, e2m3, neonfp8, e2m3, e2m3, f32, nk_b128_vec_t, nk_
                         nk_load_b128_neon_, nk_partial_load_b8x16_serial_, nk_dot_e2m3x16_update_neonfp8,
                         nk_dot_e2m3x16_finalize_neonfp8, nk_store_b128_neon_, nk_partial_store_b32x4_serial_, 16, 1)
 
+/* E2M1: depth_simd_dimensions=32 (16 bytes = 32 nibbles = NEON register width) */
+nk_define_cross_pack_size_(dots, e2m1, neonfp8, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
+                           /*dimensions_per_value=*/2)
+nk_define_cross_packed_shape_(dots, e2m1, neonfp8)
+nk_define_cross_pack_(dots, e2m1, neonfp8, e2m1x2, e2m1x2, nk_b128_vec_t, nk_load_b128_neon_,
+                      nk_partial_load_b8x16_serial_, nk_store_b128_neon_, nk_partial_store_b8x16_serial_,
+                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_,
+                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
+nk_define_cross_symmetric_(dots, e2m1, neonfp8, e2m1x2, f32, nk_b128_vec_t, nk_dot_e2m1x32_state_neonfp8_t,
+                           nk_b128_vec_t, nk_dot_e2m1x32_init_neonfp8, nk_load_b128_neon_,
+                           nk_partial_load_e2m1x32_serial_, nk_dot_e2m1x32_update_neonfp8,
+                           nk_dot_e2m1x32_finalize_neonfp8, nk_store_b128_neon_, nk_partial_store_b32x4_serial_,
+                           /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
+nk_define_cross_packed_(dots, e2m1, neonfp8, e2m1x2, e2m1x2, f32, nk_b128_vec_t, nk_dot_e2m1x32_state_neonfp8_t,
+                        nk_b128_vec_t, nk_dot_e2m1x32_init_neonfp8, nk_load_b128_neon_, nk_partial_load_e2m1x32_serial_,
+                        nk_load_b128_neon_, nk_partial_load_e2m1x32_serial_, nk_dot_e2m1x32_update_neonfp8,
+                        nk_dot_e2m1x32_finalize_neonfp8, nk_store_b128_neon_, nk_partial_store_b32x4_serial_,
+                        /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
+
 nk_define_cross_pack_size_(dots, e3m2, neonfp8, e3m2, e3m2, f32, 16, 1)
 nk_define_cross_packed_shape_(dots, e3m2, neonfp8)
 nk_define_cross_pack_(dots, e3m2, neonfp8, e3m2, e3m2, nk_b128_vec_t, nk_load_b128_neon_, nk_partial_load_b8x16_serial_,

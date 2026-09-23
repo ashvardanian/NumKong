@@ -546,6 +546,83 @@ NK_HELPER_INLINE void nk_dot_e2m3x16_finalize_neonsdot(                         
     result->f32x4 = vmulq_n_f32(vcvtq_f32_s32(sums_i32x4), scale);
 }
 
+NK_API_COMPTIME void nk_dot_e2m1_neonsdot(nk_e2m1x2_t const *a_pairs, nk_e2m1x2_t const *b_pairs,
+                                          nk_size_t count_dimensions, nk_f32_t *result) {
+    // Twice every E2M1 value is an exact i8 in [-12, +12], so one signed LUT feeds SDOT directly.
+    static nk_i8_t const lut_data[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
+    int8x16_t lut_i8x16 = vld1q_s8(lut_data);
+    uint8x16_t nibble_mask_u8x16 = vdupq_n_u8(0x0F);
+    int32x4_t sum_i32x4 = vdupq_n_s32(0);
+    uint8x16_t a_e2m1_u8x16, b_e2m1_u8x16;
+
+nk_dot_e2m1_neonsdot_cycle:
+    if (count_dimensions < 32) {
+        nk_b128_vec_t a_vec, b_vec;
+        nk_partial_load_e2m1x32_serial_(a_pairs, &a_vec, count_dimensions);
+        nk_partial_load_e2m1x32_serial_(b_pairs, &b_vec, count_dimensions);
+        a_e2m1_u8x16 = a_vec.u8x16;
+        b_e2m1_u8x16 = b_vec.u8x16;
+        count_dimensions = 0;
+    }
+    else {
+        a_e2m1_u8x16 = vld1q_u8((nk_u8_t const *)a_pairs);
+        b_e2m1_u8x16 = vld1q_u8((nk_u8_t const *)b_pairs);
+        a_pairs += 16, b_pairs += 16, count_dimensions -= 32;
+    }
+
+    int8x16_t a_low_i8x16 = vqtbl1q_s8(lut_i8x16, vandq_u8(a_e2m1_u8x16, nibble_mask_u8x16));
+    int8x16_t b_low_i8x16 = vqtbl1q_s8(lut_i8x16, vandq_u8(b_e2m1_u8x16, nibble_mask_u8x16));
+    int8x16_t a_high_i8x16 = vqtbl1q_s8(lut_i8x16, vshrq_n_u8(a_e2m1_u8x16, 4));
+    int8x16_t b_high_i8x16 = vqtbl1q_s8(lut_i8x16, vshrq_n_u8(b_e2m1_u8x16, 4));
+    sum_i32x4 = vdotq_s32(sum_i32x4, a_low_i8x16, b_low_i8x16);
+    sum_i32x4 = vdotq_s32(sum_i32x4, a_high_i8x16, b_high_i8x16);
+
+    if (count_dimensions) goto nk_dot_e2m1_neonsdot_cycle;
+    *result = (nk_f32_t)vaddvq_s32(sum_i32x4) * 0.25f;
+}
+
+/**
+ *  @brief Running state for 128-bit dot accumulation over e2m1 nibble pairs on NEON SDOT.
+ *
+ *  One signed LUT maps each nibble to twice its value, an exact i8 in [-12, +12].
+ *  Accumulator is i32; finalize multiplies by 0.25f.
+ */
+typedef struct nk_dot_e2m1x32_state_neonsdot_t {
+    int32x4_t sum_i32x4;
+} nk_dot_e2m1x32_state_neonsdot_t;
+
+NK_HELPER_INLINE void nk_dot_e2m1x32_init_neonsdot(nk_dot_e2m1x32_state_neonsdot_t *state) {
+    state->sum_i32x4 = vdupq_n_s32(0);
+}
+
+NK_HELPER_INLINE void nk_dot_e2m1x32_update_neonsdot(nk_dot_e2m1x32_state_neonsdot_t *state, nk_b128_vec_t a,
+                                                     nk_b128_vec_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    static nk_i8_t const lut_data[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
+    int8x16_t lut_i8x16 = vld1q_s8(lut_data);
+    uint8x16_t nibble_mask_u8x16 = vdupq_n_u8(0x0F);
+
+    int8x16_t a_low_i8x16 = vqtbl1q_s8(lut_i8x16, vandq_u8(a.u8x16, nibble_mask_u8x16));
+    int8x16_t b_low_i8x16 = vqtbl1q_s8(lut_i8x16, vandq_u8(b.u8x16, nibble_mask_u8x16));
+    int8x16_t a_high_i8x16 = vqtbl1q_s8(lut_i8x16, vshrq_n_u8(a.u8x16, 4));
+    int8x16_t b_high_i8x16 = vqtbl1q_s8(lut_i8x16, vshrq_n_u8(b.u8x16, 4));
+    int32x4_t sum_i32x4 = vdotq_s32(state->sum_i32x4, a_low_i8x16, b_low_i8x16);
+    state->sum_i32x4 = vdotq_s32(sum_i32x4, a_high_i8x16, b_high_i8x16);
+}
+
+NK_HELPER_INLINE void nk_dot_e2m1x32_finalize_neonsdot(                                             //
+    nk_dot_e2m1x32_state_neonsdot_t const *state_a, nk_dot_e2m1x32_state_neonsdot_t const *state_b, //
+    nk_dot_e2m1x32_state_neonsdot_t const *state_c, nk_dot_e2m1x32_state_neonsdot_t const *state_d, //
+    nk_size_t total_dimensions, nk_b128_vec_t *result) {
+    nk_unused_(total_dimensions);
+    int32x4_t ab_i32x4 = vpaddq_s32(state_a->sum_i32x4, state_b->sum_i32x4);
+    int32x4_t cd_i32x4 = vpaddq_s32(state_c->sum_i32x4, state_d->sum_i32x4);
+    int32x4_t sums_i32x4 = vpaddq_s32(ab_i32x4, cd_i32x4);
+    result->f32x4 = vmulq_n_f32(vcvtq_f32_s32(sums_i32x4), 0.25f);
+}
+
 /**
  *  @brief Running state for 128-bit dot accumulation over e3m2 scalars on NEON SMLAL.
  *

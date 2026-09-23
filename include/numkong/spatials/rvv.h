@@ -994,6 +994,200 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e2m3_rvv(                          
 
 #pragma endregion E2M3 Floats
 
+#pragma region E2M1 Floats
+
+NK_HELPER_INLINE void nk_angulars_packed_e2m1_rvv_finalize_(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                            nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                            nk_size_t a_stride_elements, nk_size_t c_stride_elements) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    nk_f32_t const *target_norms = (nk_f32_t const *)((char const *)b_packed + sizeof(nk_cross_packed_buffer_header_t) +
+                                                      header->column_count * header->depth_padded_values *
+                                                          sizeof(nk_e2m1x2_t));
+    for (nk_size_t row_index = 0; row_index < rows; row_index++) {
+        nk_e2m1x2_t const *a_row = a + row_index * a_stride_elements;
+        nk_f32_t *result_row = c + row_index * c_stride_elements;
+        nk_f32_t query_norm_sq_f32 = nk_dots_reduce_sumsq_e2m1_(a_row, depth);
+        nk_size_t count_columns = columns;
+        nk_f32_t *result_ptr = result_row;
+        nk_f32_t const *norms_ptr = target_norms;
+        // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+        while (count_columns > 0) {
+            size_t vector_length = __riscv_vsetvl_e32m1(count_columns);
+            vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
+            vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
+            vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+            vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1, nk_f32_rsqrt_rvv(query_norm_sq_f32),
+                                                              vector_length);
+            vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
+            vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
+            angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
+            __riscv_vse32_v_f32m1(result_ptr, angular_f32m1, vector_length);
+            result_ptr += vector_length;
+            norms_ptr += vector_length;
+            count_columns -= vector_length;
+        }
+    }
+}
+
+NK_API_COMPTIME void nk_angulars_packed_e2m1_rvv(            //
+    nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m1x2_t);
+    nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
+    nk_dots_packed_e2m1_rvv(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
+    nk_angulars_packed_e2m1_rvv_finalize_(a, b_packed, c, rows, columns, depth, a_stride_elements, c_stride_elements);
+}
+
+NK_HELPER_INLINE void nk_euclideans_packed_e2m1_rvv_finalize_(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                              nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                              nk_size_t a_stride_elements,
+                                                              nk_size_t c_stride_elements) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    nk_f32_t const *target_norms = (nk_f32_t const *)((char const *)b_packed + sizeof(nk_cross_packed_buffer_header_t) +
+                                                      header->column_count * header->depth_padded_values *
+                                                          sizeof(nk_e2m1x2_t));
+    for (nk_size_t row_index = 0; row_index < rows; row_index++) {
+        nk_e2m1x2_t const *a_row = a + row_index * a_stride_elements;
+        nk_f32_t *result_row = c + row_index * c_stride_elements;
+        nk_f32_t query_norm_sq_f32 = nk_dots_reduce_sumsq_e2m1_(a_row, depth);
+        nk_size_t count_columns = columns;
+        nk_f32_t *result_ptr = result_row;
+        nk_f32_t const *norms_ptr = target_norms;
+        while (count_columns > 0) {
+            size_t vector_length = __riscv_vsetvl_e32m1(count_columns);
+            vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
+            vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
+            vfloat32m1_t sum_sq_f32m1 = __riscv_vfadd_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32, vector_length);
+            vfloat32m1_t dist_sq_f32m1 = __riscv_vfsub_vv_f32m1(
+                sum_sq_f32m1, __riscv_vfmul_vf_f32m1(dots_f32m1, 2.0f, vector_length), vector_length);
+            dist_sq_f32m1 = __riscv_vfmax_vf_f32m1(dist_sq_f32m1, 0.0f, vector_length);
+            __riscv_vse32_v_f32m1(result_ptr, __riscv_vfsqrt_v_f32m1(dist_sq_f32m1, vector_length), vector_length);
+            result_ptr += vector_length;
+            norms_ptr += vector_length;
+            count_columns -= vector_length;
+        }
+    }
+}
+
+NK_API_COMPTIME void nk_euclideans_packed_e2m1_rvv(          //
+    nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m1x2_t);
+    nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
+    nk_dots_packed_e2m1_rvv(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
+    nk_euclideans_packed_e2m1_rvv_finalize_(a, b_packed, c, rows, columns, depth, a_stride_elements, c_stride_elements);
+}
+
+NK_HELPER_INLINE void nk_angulars_symmetric_e2m1_rvv_finalize_(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride_elements,
+                                                               nk_f32_t *result, nk_size_t result_stride_elements,
+                                                               nk_size_t row_start, nk_size_t row_count) {
+    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        nk_f32_t *result_row = result + row_index * result_stride_elements;
+        result_row[row_index] = nk_dots_reduce_sumsq_e2m1_(vectors + row_index * stride_elements, depth);
+    }
+    nk_f32_t norms_cache[256];
+    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+        for (nk_size_t col = chunk_start; col < chunk_end; ++col)
+            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e2m1_(vectors + col * stride_elements, depth);
+        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (col_start >= chunk_end) continue;
+            nk_f32_t *result_row = result + row_index * result_stride_elements;
+            nk_f32_t query_norm_sq_f32 = result_row[row_index];
+            nk_size_t count_remaining = chunk_end - col_start;
+            nk_f32_t *result_ptr = result_row + col_start;
+            nk_f32_t const *norms_ptr = norms_cache + (col_start - chunk_start);
+            // Separate reciprocal square roots avoid overflowing the product of two finite norms (cosine → 0).
+            while (count_remaining > 0) {
+                size_t vector_length = __riscv_vsetvl_e32m1(count_remaining);
+                vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
+                vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
+                vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
+                vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1,
+                                                                  nk_f32_rsqrt_rvv(query_norm_sq_f32), vector_length);
+                vfloat32m1_t normalized_dots_f32m1 = __riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length);
+                vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(normalized_dots_f32m1, 1.0f, vector_length);
+                angular_f32m1 = __riscv_vfmax_vf_f32m1(angular_f32m1, 0.0f, vector_length);
+                __riscv_vse32_v_f32m1(result_ptr, angular_f32m1, vector_length);
+                result_ptr += vector_length;
+                norms_ptr += vector_length;
+                count_remaining -= vector_length;
+            }
+        }
+    }
+    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+        result[row_index * result_stride_elements + row_index] = 0;
+}
+
+NK_API_COMPTIME void nk_angulars_symmetric_e2m1_rvv(                                                 //
+    nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+    nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_e2m1x2_t);
+    nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
+    nk_dots_symmetric_e2m1_rvv(vectors, vectors_count, depth, stride_in_bytes, result, result_stride_in_bytes,
+                               row_start, row_count);
+    nk_angulars_symmetric_e2m1_rvv_finalize_(vectors, vectors_count, depth, stride_elements, result,
+                                             result_stride_elements, row_start, row_count);
+}
+
+NK_HELPER_INLINE void nk_euclideans_symmetric_e2m1_rvv_finalize_(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                                 nk_size_t depth, nk_size_t stride_elements,
+                                                                 nk_f32_t *result, nk_size_t result_stride_elements,
+                                                                 nk_size_t row_start, nk_size_t row_count) {
+    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        nk_f32_t *result_row = result + row_index * result_stride_elements;
+        result_row[row_index] = nk_dots_reduce_sumsq_e2m1_(vectors + row_index * stride_elements, depth);
+    }
+    nk_f32_t norms_cache[256];
+    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+        for (nk_size_t col = chunk_start; col < chunk_end; ++col)
+            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e2m1_(vectors + col * stride_elements, depth);
+        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (col_start >= chunk_end) continue;
+            nk_f32_t *result_row = result + row_index * result_stride_elements;
+            nk_f32_t query_norm_sq_f32 = result_row[row_index];
+            nk_size_t count_remaining = chunk_end - col_start;
+            nk_f32_t *result_ptr = result_row + col_start;
+            nk_f32_t const *norms_ptr = norms_cache + (col_start - chunk_start);
+            while (count_remaining > 0) {
+                size_t vector_length = __riscv_vsetvl_e32m1(count_remaining);
+                vfloat32m1_t dots_f32m1 = __riscv_vle32_v_f32m1(result_ptr, vector_length);
+                vfloat32m1_t target_norms_sq_f32m1 = __riscv_vle32_v_f32m1(norms_ptr, vector_length);
+                vfloat32m1_t sum_sq_f32m1 = __riscv_vfadd_vf_f32m1(target_norms_sq_f32m1, query_norm_sq_f32,
+                                                                   vector_length);
+                vfloat32m1_t dist_sq_f32m1 = __riscv_vfsub_vv_f32m1(
+                    sum_sq_f32m1, __riscv_vfmul_vf_f32m1(dots_f32m1, 2.0f, vector_length), vector_length);
+                dist_sq_f32m1 = __riscv_vfmax_vf_f32m1(dist_sq_f32m1, 0.0f, vector_length);
+                __riscv_vse32_v_f32m1(result_ptr, __riscv_vfsqrt_v_f32m1(dist_sq_f32m1, vector_length), vector_length);
+                result_ptr += vector_length;
+                norms_ptr += vector_length;
+                count_remaining -= vector_length;
+            }
+        }
+    }
+    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+        result[row_index * result_stride_elements + row_index] = 0;
+}
+
+NK_API_COMPTIME void nk_euclideans_symmetric_e2m1_rvv(                                               //
+    nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+    nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_e2m1x2_t);
+    nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
+    nk_dots_symmetric_e2m1_rvv(vectors, vectors_count, depth, stride_in_bytes, result, result_stride_in_bytes,
+                               row_start, row_count);
+    nk_euclideans_symmetric_e2m1_rvv_finalize_(vectors, vectors_count, depth, stride_elements, result,
+                                               result_stride_elements, row_start, row_count);
+}
+
+#pragma endregion E2M1 Floats
+
 #pragma region E3M2 Floats
 
 NK_HELPER_INLINE void nk_angulars_packed_e3m2_rvv_finalize_(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,

@@ -5552,7 +5552,7 @@ struct i4x2_t {
 
     constexpr component_t low() const noexcept { return sign_extend(raw_ & 0x0F); }
     constexpr component_t high() const noexcept { return sign_extend((raw_ >> 4) & 0x0F); }
-    constexpr component_t nibble(unsigned i) const noexcept { return i ? high() : low(); }
+    constexpr component_t nibble(unsigned i) const noexcept { return i ? low() : high(); }
     constexpr component_t operator[](unsigned i) const & noexcept { return nibble(i); }
     constexpr sub_byte_ref_t operator[](unsigned i) & noexcept { return {&raw_, i}; }
 
@@ -5673,7 +5673,7 @@ struct u4x2_t {
 
     constexpr component_t low() const noexcept { return component_t(static_cast<nk_u8_t>(raw_ & 0x0F)); }
     constexpr component_t high() const noexcept { return component_t(static_cast<nk_u8_t>((raw_ >> 4) & 0x0F)); }
-    constexpr component_t nibble(unsigned i) const noexcept { return i ? high() : low(); }
+    constexpr component_t nibble(unsigned i) const noexcept { return i ? low() : high(); }
     constexpr component_t operator[](unsigned i) const & noexcept { return nibble(i); }
     constexpr sub_byte_ref_t operator[](unsigned i) & noexcept { return {&raw_, i}; }
 
@@ -5721,6 +5721,25 @@ struct e2m1x2_t {
     using raw_t = nk_e2m1x2_t;
     using component_t = f32_t;
 
+    using dot_result_t = f32_t;           // `nk_dot_e2m1` output
+    using euclidean_result_t = f32_t;     // `nk_euclideans_packed_e2m1` output
+    using angular_result_t = f32_t;       // `nk_angulars_packed_e2m1` output
+    using reduce_moments_sum_t = f32_t;   // `nk_reduce_moments_e2m1_serial` sum output
+    using reduce_moments_sumsq_t = f32_t; // `nk_reduce_moments_e2m1_serial` sumsq output
+
+    using dot_kernel_t = void (*)(raw_t const *, raw_t const *, nk_size_t, nk_f32_t *);
+    using reduce_moments_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+    using dots_pack_size_kernel_t = nk_size_t (*)(nk_size_t, nk_size_t);
+    using dots_pack_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_size_t);
+    using dots_packed_kernel_t = void (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t,
+                                          nk_size_t, nk_size_t);
+    using dots_symmetric_kernel_t = void (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t,
+                                             nk_size_t, nk_size_t);
+    using angulars_packed_kernel_t = dots_packed_kernel_t;
+    using euclideans_packed_kernel_t = dots_packed_kernel_t;
+    using angulars_symmetric_kernel_t = dots_symmetric_kernel_t;
+    using euclideans_symmetric_kernel_t = dots_symmetric_kernel_t;
+
     static constexpr nk_dtype_t dtype() noexcept { return nk_e2m1_k; }
     static constexpr char const *dtype_name() noexcept { return "e2m1x2"; }
     static constexpr unsigned bits_per_word() noexcept { return 8; }
@@ -5752,6 +5771,16 @@ struct e2m1x2_t {
     static constexpr e2m1x2_t finite_min() noexcept { return e2m1x2_t {raw_t(0xFF)}; } // (−6, −6)
 
     constexpr sub_byte_ref<e2m1x2_t> operator[](unsigned i) & noexcept { return {&raw_, i}; }
+
+    /** @brief Decodes one nibble (low 4 bits) of sign, 2 exponent and 1 mantissa bits. */
+    static constexpr float nibble_to_f32(nk_u8_t nibble) noexcept {
+        constexpr float magnitudes[8] = {0.0f, 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f};
+        return (nibble & 0x08) ? -magnitudes[nibble & 0x07] : magnitudes[nibble & 0x07];
+    }
+    /** @brief The odd element, stored in the low nibble. */
+    constexpr float low() const noexcept { return nibble_to_f32(raw_ & 0x0F); }
+    /** @brief The even element, stored in the high nibble. */
+    constexpr float high() const noexcept { return nibble_to_f32((raw_ >> 4) & 0x0F); }
 
     constexpr std::strong_ordering operator<=>(e2m1x2_t const &o) const noexcept = default;
 };
@@ -6313,6 +6342,12 @@ constexpr accumulator_type_ fma(i4x2_t a, i4x2_t b, accumulator_type_ acc) noexc
 template <typename accumulator_type_>
 constexpr accumulator_type_ fma(u4x2_t a, u4x2_t b, accumulator_type_ acc) noexcept {
     return acc + accumulator_type_(nk_u32_t(a.low()) * nk_u32_t(b.low()) + nk_u32_t(a.high()) * nk_u32_t(b.high()));
+}
+
+/** @brief FMA specialization for e2m1x2_t (FP4 packed pairs); both nibble products are exact in f32. */
+template <typename accumulator_type_>
+constexpr accumulator_type_ fma(e2m1x2_t a, e2m1x2_t b, accumulator_type_ acc) noexcept {
+    return acc + accumulator_type_(a.high() * b.high() + a.low() * b.low());
 }
 
 /** @brief FMA specialization for u1x8_t (8 packed bits). Counts matching set bits (popcount of AND). */

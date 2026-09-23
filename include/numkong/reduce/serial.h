@@ -351,6 +351,19 @@ NK_API_COMPTIME void nk_reduce_moments_e2m3_serial(                 //
     *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
 }
 
+NK_API_COMPTIME void nk_reduce_moments_e2m1_serial(                   //
+    nk_e2m1x2_t const *data, nk_size_t count, nk_size_t stride_bytes, //
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
+    nk_i64_t doubled_sum = 0, quadrupled_sumsq = 0; // twice every E2M1 value is an integer, so both are exact
+    unsigned char const *ptr = (unsigned char const *)data;
+    for (nk_size_t i = 0; i < count; ++i) {
+        unsigned char byte_val = ptr[(i / 2) * stride_bytes];
+        nk_i64_t doubled = nk_e2m1_nibble_to_i8x2_serial_((i & 1) ? (byte_val & 0x0F) : (byte_val >> 4));
+        doubled_sum += doubled, quadrupled_sumsq += doubled * doubled;
+    }
+    *sum_ptr = (nk_f32_t)doubled_sum * 0.5f, *sumsq_ptr = (nk_f32_t)quadrupled_sumsq * 0.25f;
+}
+
 NK_API_COMPTIME void nk_reduce_moments_e3m2_serial(                 //
     nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {

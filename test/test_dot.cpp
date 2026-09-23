@@ -82,6 +82,7 @@ void test_dot() {
     check("dot_e4m3_serial", test_dot<e4m3_t>, nk_dot_e4m3_serial);
     check("dot_e5m2_serial", test_dot<e5m2_t>, nk_dot_e5m2_serial);
     check("dot_e2m3_serial", test_dot<e2m3_t>, nk_dot_e2m3_serial);
+    check("dot_e2m1_serial", test_dot<e2m1x2_t>, nk_dot_e2m1_serial);
     check("dot_e3m2_serial", test_dot<e3m2_t>, nk_dot_e3m2_serial);
     check("dot_i8_serial", test_dot<i8_t>, nk_dot_i8_serial);
     check("dot_u8_serial", test_dot<u8_t>, nk_dot_u8_serial);
@@ -106,6 +107,7 @@ void test_dot() {
     check("dot_e4m3", test_dot<e4m3_t>, nk_dot_e4m3);
     check("dot_e5m2", test_dot<e5m2_t>, nk_dot_e5m2);
     check("dot_e2m3", test_dot<e2m3_t>, nk_dot_e2m3);
+    check("dot_e2m1", test_dot<e2m1x2_t>, nk_dot_e2m1);
     check("dot_e3m2", test_dot<e3m2_t>, nk_dot_e3m2);
     check("dot_i8", test_dot<i8_t>, nk_dot_i8);
     check("dot_u8", test_dot<u8_t>, nk_dot_u8);
@@ -148,6 +150,7 @@ void test_dot() {
     check("dot_i4_neonsdot", test_dot<i4x2_t>, nk_dot_i4_neonsdot);
     check("dot_u4_neonsdot", test_dot<u4x2_t>, nk_dot_u4_neonsdot);
     check("dot_e2m3_neonsdot", test_dot<e2m3_t>, nk_dot_e2m3_neonsdot);
+    check("dot_e2m1_neonsdot", test_dot<e2m1x2_t>, nk_dot_e2m1_neonsdot);
     check("dot_e3m2_neonsdot", test_dot<e3m2_t>, nk_dot_e3m2_neonsdot);
 #endif // NK_TARGET_NEONSDOT
 
@@ -223,6 +226,7 @@ void test_dot() {
     check("dot_e4m3_haswell", test_dot<e4m3_t>, nk_dot_e4m3_haswell);
     check("dot_e3m2_haswell", test_dot<e3m2_t>, nk_dot_e3m2_haswell);
     check("dot_e2m3_haswell", test_dot<e2m3_t>, nk_dot_e2m3_haswell);
+    check("dot_e2m1_haswell", test_dot<e2m1x2_t>, nk_dot_e2m1_haswell);
     check("dot_i8_haswell", test_dot<i8_t>, nk_dot_i8_haswell);
     check("dot_u8_haswell", test_dot<u8_t>, nk_dot_u8_haswell);
     check("dot_i4_haswell", test_dot<i4x2_t>, nk_dot_i4_haswell);
@@ -239,6 +243,7 @@ void test_dot() {
     check("dot_e4m3_skylake", test_dot<e4m3_t>, nk_dot_e4m3_skylake);
     check("dot_e5m2_skylake", test_dot<e5m2_t>, nk_dot_e5m2_skylake);
     check("dot_e2m3_skylake", test_dot<e2m3_t>, nk_dot_e2m3_skylake);
+    check("dot_e2m1_skylake", test_dot<e2m1x2_t>, nk_dot_e2m1_skylake);
     check("dot_e3m2_skylake", test_dot<e3m2_t>, nk_dot_e3m2_skylake);
     check("dot_i8_skylake", test_dot<i8_t>, nk_dot_i8_skylake);
     check("dot_u8_skylake", test_dot<u8_t>, nk_dot_u8_skylake);
@@ -265,6 +270,7 @@ void test_dot() {
     check("dot_i8_alder", test_dot<i8_t>, nk_dot_i8_alder);
     check("dot_u8_alder", test_dot<u8_t>, nk_dot_u8_alder);
     check("dot_e2m3_alder", test_dot<e2m3_t>, nk_dot_e2m3_alder);
+    check("dot_e2m1_alder", test_dot<e2m1x2_t>, nk_dot_e2m1_alder);
 #endif // NK_TARGET_ALDER
 
 #if NK_TARGET_SIERRA
@@ -272,6 +278,7 @@ void test_dot() {
     check("dot_i8_sierra", test_dot<i8_t>, nk_dot_i8_sierra);
     check("dot_u8_sierra", test_dot<u8_t>, nk_dot_u8_sierra);
     check("dot_e2m3_sierra", test_dot<e2m3_t>, nk_dot_e2m3_sierra);
+    check("dot_e2m1_sierra", test_dot<e2m1x2_t>, nk_dot_e2m1_sierra);
 #endif // NK_TARGET_SIERRA
 
 #if NK_TARGET_GENOA
@@ -303,6 +310,7 @@ void test_dot() {
     check("dot_e4m3_rvv", test_dot<e4m3_t>, nk_dot_e4m3_rvv);
     check("dot_e3m2_rvv", test_dot<e3m2_t>, nk_dot_e3m2_rvv);
     check("dot_e2m3_rvv", test_dot<e2m3_t>, nk_dot_e2m3_rvv);
+    check("dot_e2m1_rvv", test_dot<e2m1x2_t>, nk_dot_e2m1_rvv);
     check("dot_i8_rvv", test_dot<i8_t>, nk_dot_i8_rvv);
     check("dot_u8_rvv", test_dot<u8_t>, nk_dot_u8_rvv);
     check("dot_i4_rvv", test_dot<i4x2_t>, nk_dot_i4_rvv);
@@ -319,6 +327,7 @@ void test_dot() {
     check("dot_i8_v128relaxed", test_dot<i8_t>, nk_dot_i8_v128relaxed);
     check("dot_u8_v128relaxed", test_dot<u8_t>, nk_dot_u8_v128relaxed);
     check("dot_e2m3_v128relaxed", test_dot<e2m3_t>, nk_dot_e2m3_v128relaxed);
+    check("dot_e2m1_v128relaxed", test_dot<e2m1x2_t>, nk_dot_e2m1_v128relaxed);
     check("dot_e3m2_v128relaxed", test_dot<e3m2_t>, nk_dot_e3m2_v128relaxed);
     check("dot_e4m3_v128relaxed", test_dot<e4m3_t>, nk_dot_e4m3_v128relaxed);
     check("dot_e5m2_v128relaxed", test_dot<e5m2_t>, nk_dot_e5m2_v128relaxed);

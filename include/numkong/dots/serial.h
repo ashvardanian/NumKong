@@ -146,6 +146,11 @@ NK_HELPER_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_(nk_e2m3_t const *data, nk_s
     nk_reduce_moments_e2m3(data, count, sizeof(nk_e2m3_t), &sum, &sumsq);
     return sumsq;
 }
+NK_HELPER_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_(nk_e2m1x2_t const *data, nk_size_t count) {
+    nk_f32_t sum, sumsq;
+    nk_reduce_moments_e2m1_serial(data, count, sizeof(nk_e2m1x2_t), &sum, &sumsq);
+    return sumsq;
+}
 NK_HELPER_INLINE nk_f32_t nk_dots_reduce_sumsq_e3m2_(nk_e3m2_t const *data, nk_size_t count) {
     nk_f32_t sum, sumsq;
     nk_reduce_moments_e3m2(data, count, sizeof(nk_e3m2_t), &sum, &sumsq);
@@ -2653,6 +2658,25 @@ nk_define_cross_packed_(dots, e2m3, serial, e2m3, e2m3, f32, nk_b128_vec_t, nk_d
                         nk_load_b128_serial_, nk_partial_load_b8x16_serial_, nk_dot_e2m3x16_update_serial,
                         nk_dot_e2m3x16_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+
+/* E2M1 GEMM: depth_simd_dimensions=16 (8 bytes = 16 nibbles), doubled values in an I32 accumulator */
+nk_define_cross_pack_size_(dots, e2m1, serial, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/16,
+                           /*dimensions_per_value=*/2)
+nk_define_cross_packed_shape_(dots, e2m1, serial)
+nk_define_cross_pack_(dots, e2m1, serial, e2m1x2, e2m1x2, nk_b128_vec_t, nk_load_b128_serial_,
+                      nk_partial_load_b8x16_serial_, nk_store_b128_serial_, nk_partial_store_b8x16_serial_,
+                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_,
+                      /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
+nk_define_cross_symmetric_(dots, e2m1, serial, e2m1x2, f32, nk_b64_vec_t, nk_dot_e2m1x16_state_serial_t, nk_b128_vec_t,
+                           nk_dot_e2m1x16_init_serial, nk_load_b64_serial_, nk_partial_load_e2m1x16_serial_,
+                           nk_dot_e2m1x16_update_serial, nk_dot_e2m1x16_finalize_serial, nk_store_b128_serial_,
+                           nk_partial_store_b32x4_serial_,
+                           /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
+nk_define_cross_packed_(dots, e2m1, serial, e2m1x2, e2m1x2, f32, nk_b64_vec_t, nk_dot_e2m1x16_state_serial_t,
+                        nk_b128_vec_t, nk_dot_e2m1x16_init_serial, nk_load_b64_serial_, nk_partial_load_e2m1x16_serial_,
+                        nk_load_b64_serial_, nk_partial_load_e2m1x16_serial_, nk_dot_e2m1x16_update_serial,
+                        nk_dot_e2m1x16_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                        /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
 
 /* E3M2 GEMM: depth_simd_dimensions=16 (16 e3m2s = 16 bytes), F32 accumulator */
 nk_define_cross_pack_size_(dots, e3m2, serial, e3m2, e3m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/16,

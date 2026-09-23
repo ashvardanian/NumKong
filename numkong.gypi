@@ -53,6 +53,7 @@
                 "<(numkong_root)/c/dispatch_i4.c",
                 "<(numkong_root)/c/dispatch_u4.c",
                 "<(numkong_root)/c/dispatch_e2m3.c",
+                "<(numkong_root)/c/dispatch_e2m1.c",
                 "<(numkong_root)/c/dispatch_e3m2.c",
             ],
             "include_dirs": [

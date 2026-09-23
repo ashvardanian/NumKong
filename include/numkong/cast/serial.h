@@ -532,6 +532,24 @@ NK_HELPER_INLINE void nk_partial_load_b4x16_serial_(void const *src, nk_b64_vec_
     for (nk_size_t i = 0; i < n_bytes && i < 8; i++) ((nk_u8_t *)&dst->u64)[i] = s[i];
 }
 
+/** @brief Partial load for E2M1 nibbles (16 max), zeroing the unused low nibble of the last byte at odd @p n. */
+NK_HELPER_INLINE void nk_partial_load_e2m1x16_serial_(void const *src, nk_b64_vec_t *dst, nk_size_t n) {
+    nk_partial_load_b4x16_serial_(src, dst, n);
+    if (n & 1) ((nk_u8_t *)&dst->u64)[(n / 2) & 7] &= 0xF0;
+}
+
+/** @brief Partial load for E2M1 nibbles (32 max), zeroing the unused low nibble of the last byte at odd @p n. */
+NK_HELPER_INLINE void nk_partial_load_e2m1x32_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+    nk_partial_load_b4x32_serial_(src, dst, n);
+    if (n & 1) dst->u8s[(n / 2) & 15] &= 0xF0;
+}
+
+/** @brief Partial load for E2M1 nibbles (64 max), zeroing the unused low nibble of the last byte at odd @p n. */
+NK_HELPER_INLINE void nk_partial_load_e2m1x64_serial_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
+    nk_partial_load_b4x64_serial_(src, dst, n);
+    if (n & 1) dst->u8s[(n / 2) & 31] &= 0xF0;
+}
+
 /** @brief Strided partial load for 32-bit elements (4 max) into 128-bit vector. */
 NK_HELPER_INLINE void nk_strided_load_b32x4_serial_(void const *src, nk_size_t stride_elements, nk_b128_vec_t *dst,
                                                     nk_size_t n) {
@@ -1628,6 +1646,12 @@ NK_HELPER_INLINE void nk_e2m1_nibble_to_f32_serial_(nk_u8_t nibble, nk_f32_t *de
     static nk_f32_t const magnitudes[8] = {0.0f, 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f};
     nk_f32_t magnitude = magnitudes[nibble & 0x7];
     *dest = (nibble & 0x8) ? -magnitude : magnitude;
+}
+
+/** @brief Twice a single E2M1 nibble (low 4 bits) as an exact i8 in [-12, +12]. */
+NK_HELPER_INLINE nk_i8_t nk_e2m1_nibble_to_i8x2_serial_(nk_u8_t nibble) {
+    static nk_i8_t const doubled_values[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
+    return doubled_values[nibble & 0x0F];
 }
 
 /** @brief Convert a single f32 to an E2M1 nibble (returned in low 4 bits of @p nibble_out).

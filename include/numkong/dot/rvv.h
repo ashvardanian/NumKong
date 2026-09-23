@@ -294,6 +294,40 @@ NK_API_COMPTIME void nk_dot_e2m3_rvv(nk_e2m3_t const *a_scalars, nk_e2m3_t const
     *result = (nk_f32_t)sum / 256.0f;
 }
 
+NK_API_COMPTIME void nk_dot_e2m1_rvv(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result) {
+    // Every e2m1 value × 2 is an exact integer in [-12, +12]; `n` counts nibbles.
+    static nk_i8_t const lut_doubled[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
+    nk_u8_t const *a_bytes = (nk_u8_t const *)a, *b_bytes = (nk_u8_t const *)b;
+    nk_size_t const full_bytes = n / 2;
+
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
+    vint32m4_t sum_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
+    for (nk_size_t vector_length, offset = 0; offset < full_bytes; offset += vector_length) {
+        vector_length = __riscv_vsetvl_e8m1(full_bytes - offset);
+        vuint8m1_t a_packed_u8m1 = __riscv_vle8_v_u8m1(a_bytes + offset, vector_length);
+        vuint8m1_t b_packed_u8m1 = __riscv_vle8_v_u8m1(b_bytes + offset, vector_length);
+
+        vint8m1_t a_high_i8m1 = __riscv_vluxei8_v_i8m1(
+            lut_doubled, __riscv_vsrl_vx_u8m1(a_packed_u8m1, 4, vector_length), vector_length);
+        vint8m1_t b_high_i8m1 = __riscv_vluxei8_v_i8m1(
+            lut_doubled, __riscv_vsrl_vx_u8m1(b_packed_u8m1, 4, vector_length), vector_length);
+        vint8m1_t a_low_i8m1 = __riscv_vluxei8_v_i8m1(
+            lut_doubled, __riscv_vand_vx_u8m1(a_packed_u8m1, 0x0F, vector_length), vector_length);
+        vint8m1_t b_low_i8m1 = __riscv_vluxei8_v_i8m1(
+            lut_doubled, __riscv_vand_vx_u8m1(b_packed_u8m1, 0x0F, vector_length), vector_length);
+
+        vint16m2_t high_i16m2 = __riscv_vwmul_vv_i16m2(a_high_i8m1, b_high_i8m1, vector_length);
+        vint16m2_t low_i16m2 = __riscv_vwmul_vv_i16m2(a_low_i8m1, b_low_i8m1, vector_length);
+        sum_i32m4 = __riscv_vwadd_wv_i32m4_tu(sum_i32m4, sum_i32m4, high_i16m2, vector_length);
+        sum_i32m4 = __riscv_vwadd_wv_i32m4_tu(sum_i32m4, sum_i32m4, low_i16m2, vector_length);
+    }
+    vint32m1_t zero_i32m1 = __riscv_vmv_v_x_i32m1(0, max_vector_length);
+    nk_i32_t sum = __riscv_vmv_x_s_i32m1_i32(__riscv_vredsum_vs_i32m4_i32m1(sum_i32m4, zero_i32m1, max_vector_length));
+    // At odd `n` only the high nibble of the last byte is a dimension
+    if (n & 1) sum += lut_doubled[a_bytes[full_bytes] >> 4] * lut_doubled[b_bytes[full_bytes] >> 4];
+    *result = (nk_f32_t)sum * 0.25f;
+}
+
 NK_API_COMPTIME void nk_dot_e3m2_rvv(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars, nk_size_t count_scalars,
                                      nk_f32_t *result) {
     // Integer dot product for e3m2 using i16 gather LUT + widening multiply.

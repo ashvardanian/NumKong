@@ -137,6 +137,9 @@ void dots_packed(in_type_ const *a, void const *b_packed, result_type_ *c, size_
     else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
         nk_dots_packed_e2m3(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride_in_bytes,
                             c_stride_in_bytes);
+    else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && dispatch)
+        nk_dots_packed_e2m1(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride_in_bytes,
+                            c_stride_in_bytes);
     else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
         nk_dots_packed_e3m2(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride_in_bytes,
                             c_stride_in_bytes);
@@ -205,6 +208,9 @@ void dots_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_t de
                                row_start, row_count);
     else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
         nk_dots_symmetric_e2m3(&a->raw_, vectors_count, depth, a_stride_in_bytes, &c->raw_, c_stride_in_bytes,
+                               row_start, row_count);
+    else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && dispatch)
+        nk_dots_symmetric_e2m1(&a->raw_, vectors_count, depth, a_stride_in_bytes, &c->raw_, c_stride_in_bytes,
                                row_start, row_count);
     else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
         nk_dots_symmetric_e3m2(&a->raw_, vectors_count, depth, a_stride_in_bytes, &c->raw_, c_stride_in_bytes,

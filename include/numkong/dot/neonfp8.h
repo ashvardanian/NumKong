@@ -26,6 +26,7 @@
  *  Defines stateful init/update/finalize helpers for tiled GEMM via the dots/ macros:
  *  - nk_dot_e4m3x16_state_neonfp8_t, nk_dot_e5m2x16_state_neonfp8_t
  *  - nk_dot_e2m3x16_state_neonfp8_t, nk_dot_e3m2x16_state_neonfp8_t
+ *  - nk_dot_e2m1x32_state_neonfp8_t
  */
 #ifndef NK_DOT_NEONFP8_H
 #define NK_DOT_NEONFP8_H
@@ -282,6 +283,45 @@ NK_HELPER_INLINE void nk_dot_e2m3x16_finalize_neonfp8(                          
     float32x4_t ab_f32x4 = vpaddq_f32(state_a->sum_f32x4, state_b->sum_f32x4);
     float32x4_t cd_f32x4 = vpaddq_f32(state_c->sum_f32x4, state_d->sum_f32x4);
     result->f32x4 = vpaddq_f32(ab_f32x4, cd_f32x4);
+}
+
+/** @brief E2M1 state: doubled nibbles through one signed TBL, then widening i8 products into i32 lanes. */
+typedef struct nk_dot_e2m1x32_state_neonfp8_t {
+    int32x4_t sum_i32x4;
+} nk_dot_e2m1x32_state_neonfp8_t;
+
+NK_HELPER_INLINE void nk_dot_e2m1x32_init_neonfp8(nk_dot_e2m1x32_state_neonfp8_t *state) {
+    state->sum_i32x4 = vdupq_n_s32(0);
+}
+
+/** Products of doubled E2M1 values reach 144, so a pair of them still fits i16 before widening into i32. */
+NK_HELPER_INLINE void nk_dot_e2m1x32_update_neonfp8(nk_dot_e2m1x32_state_neonfp8_t *state, nk_b128_vec_t a,
+                                                    nk_b128_vec_t b, nk_size_t depth_offset,
+                                                    nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    static nk_i8_t const lut_data[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
+    int8x16_t lut_i8x16 = vld1q_s8(lut_data);
+    uint8x16_t nibble_mask_u8x16 = vdupq_n_u8(0x0F);
+    int8x16_t a_low_i8x16 = vqtbl1q_s8(lut_i8x16, vandq_u8(a.u8x16, nibble_mask_u8x16));
+    int8x16_t b_low_i8x16 = vqtbl1q_s8(lut_i8x16, vandq_u8(b.u8x16, nibble_mask_u8x16));
+    int8x16_t a_high_i8x16 = vqtbl1q_s8(lut_i8x16, vshrq_n_u8(a.u8x16, 4));
+    int8x16_t b_high_i8x16 = vqtbl1q_s8(lut_i8x16, vshrq_n_u8(b.u8x16, 4));
+    int16x8_t products_i16x8 = vmull_s8(vget_low_s8(a_low_i8x16), vget_low_s8(b_low_i8x16));
+    products_i16x8 = vmlal_s8(products_i16x8, vget_low_s8(a_high_i8x16), vget_low_s8(b_high_i8x16));
+    int16x8_t products_high_i16x8 = vmull_high_s8(a_low_i8x16, b_low_i8x16);
+    products_high_i16x8 = vmlal_high_s8(products_high_i16x8, a_high_i8x16, b_high_i8x16);
+    state->sum_i32x4 = vpadalq_s16(vpadalq_s16(state->sum_i32x4, products_i16x8), products_high_i16x8);
+}
+
+NK_HELPER_INLINE void nk_dot_e2m1x32_finalize_neonfp8(                                            //
+    nk_dot_e2m1x32_state_neonfp8_t const *state_a, nk_dot_e2m1x32_state_neonfp8_t const *state_b, //
+    nk_dot_e2m1x32_state_neonfp8_t const *state_c, nk_dot_e2m1x32_state_neonfp8_t const *state_d, //
+    nk_size_t total_dimensions, nk_b128_vec_t *result) {
+    nk_unused_(total_dimensions);
+    int32x4_t ab_i32x4 = vpaddq_s32(state_a->sum_i32x4, state_b->sum_i32x4);
+    int32x4_t cd_i32x4 = vpaddq_s32(state_c->sum_i32x4, state_d->sum_i32x4);
+    result->f32x4 = vmulq_n_f32(vcvtq_f32_s32(vpaddq_s32(ab_i32x4, cd_i32x4)), 0.25f);
 }
 
 typedef struct nk_dot_e3m2x16_state_neonfp8_t {

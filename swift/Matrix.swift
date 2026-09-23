@@ -1248,6 +1248,91 @@ extension E2M3: NumKongSpatialsMatrixElement {
     }
 }
 
+// MARK: - Kernel Bindings: E2M1x2
+
+extension E2M1x2: NumKongDotsMatrixElement {
+    public typealias DotsOutput = Float32
+
+    public static func _nk_dots_pack_size(_ n: Int, _ k: Int) -> Int {
+        Int(nk_dots_pack_size_e2m1(UInt64(n), UInt64(k * 2)))
+    }
+
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ width: inout Int, _ depth: inout Int) {
+        var w: UInt64 = 0
+        var d: UInt64 = 0
+        nk_dots_packed_shape_e2m1(packed, &w, &d)
+        width = Int(w)
+        depth = Int(d)
+    }
+
+    public static func _nk_dots_pack(
+        _ b: UnsafePointer<E2M1x2>, _ n: Int, _ k: Int, _ bStride: Int, _ packed: UnsafeMutableRawPointer
+    ) {
+        let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_e2m1x2_t.self)
+        nk_dots_pack_e2m1(cPtr, UInt64(n), UInt64(k * 2), UInt64(bStride), packed, 0, UInt64(n))
+    }
+
+    public static func _nk_dots_packed(
+        _ a: UnsafePointer<E2M1x2>, _ bPacked: UnsafeRawPointer, _ c: UnsafeMutablePointer<Float32>, _ m: Int, _ n: Int,
+        _ k: Int, _ aStride: Int, _ cStride: Int
+    ) {
+        let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e2m1x2_t.self)
+        nk_dots_packed_e2m1(cPtr, bPacked, c, UInt64(m), UInt64(n), UInt64(k * 2), UInt64(aStride), UInt64(cStride))
+    }
+
+    public static func _nk_dots_symmetric(
+        _ vectors: UnsafePointer<E2M1x2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
+        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+    ) {
+        let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m1x2_t.self)
+        nk_dots_symmetric_e2m1(
+            cPtr, UInt64(nVectors), UInt64(depth * 2), UInt64(stride), result, UInt64(resultStride), UInt64(rowStart),
+            UInt64(rowCount))
+    }
+}
+
+extension E2M1x2: NumKongSpatialsMatrixElement {
+    public typealias SpatialOutput = Float32
+
+    public static func _nk_angulars_packed(
+        _ a: UnsafePointer<E2M1x2>, _ bPacked: UnsafeRawPointer, _ result: UnsafeMutablePointer<Float32>, _ rows: Int,
+        _ cols: Int, _ depth: Int, _ aStride: Int, _ rStride: Int
+    ) {
+        let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e2m1x2_t.self)
+        nk_angulars_packed_e2m1(
+            cPtr, bPacked, result, UInt64(rows), UInt64(cols), UInt64(depth * 2), UInt64(aStride), UInt64(rStride))
+    }
+
+    public static func _nk_euclideans_packed(
+        _ a: UnsafePointer<E2M1x2>, _ bPacked: UnsafeRawPointer, _ result: UnsafeMutablePointer<Float32>, _ rows: Int,
+        _ cols: Int, _ depth: Int, _ aStride: Int, _ rStride: Int
+    ) {
+        let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e2m1x2_t.self)
+        nk_euclideans_packed_e2m1(
+            cPtr, bPacked, result, UInt64(rows), UInt64(cols), UInt64(depth * 2), UInt64(aStride), UInt64(rStride))
+    }
+
+    public static func _nk_angulars_symmetric(
+        _ vectors: UnsafePointer<E2M1x2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
+        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+    ) {
+        let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m1x2_t.self)
+        nk_angulars_symmetric_e2m1(
+            cPtr, UInt64(nVectors), UInt64(depth * 2), UInt64(stride), result, UInt64(resultStride), UInt64(rowStart),
+            UInt64(rowCount))
+    }
+
+    public static func _nk_euclideans_symmetric(
+        _ vectors: UnsafePointer<E2M1x2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
+        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+    ) {
+        let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m1x2_t.self)
+        nk_euclideans_symmetric_e2m1(
+            cPtr, UInt64(nVectors), UInt64(depth * 2), UInt64(stride), result, UInt64(resultStride), UInt64(rowStart),
+            UInt64(rowCount))
+    }
+}
+
 // MARK: - Kernel Bindings: Int8
 
 extension Int8: NumKongDotsMatrixElement {

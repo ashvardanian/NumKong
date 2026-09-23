@@ -55,6 +55,8 @@ void reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_
         nk_reduce_moments_e5m2(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
     else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd)
         nk_reduce_moments_e2m3(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
+    else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && simd)
+        nk_reduce_moments_e2m1_serial(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
     else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd)
         nk_reduce_moments_e3m2(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
     else if constexpr (std::is_same_v<in_type_, i4x2_t> && simd)
@@ -79,6 +81,20 @@ void reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_
         nk_reduce_moments_i64(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
     else if constexpr (std::is_same_v<in_type_, u64_t> && simd)
         nk_reduce_moments_u64(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
+    // Sub-byte views yield raw FP4 codes, so pairs decode through their nibble accessors
+    else if constexpr (std::is_same_v<in_type_, e2m1x2_t>) {
+        sum_type_ running_sum {};
+        sumsq_type_ running_sumsq {};
+        char const *bytes = reinterpret_cast<char const *>(data);
+        for (std::size_t i = 0; i < count; ++i) {
+            e2m1x2_t const pair = *reinterpret_cast<e2m1x2_t const *>(bytes + (i / 2) * stride_bytes);
+            float const value = (i & 1) ? pair.low() : pair.high();
+            running_sum = saturating_add(running_sum, sum_type_(value));
+            running_sumsq = saturating_add(running_sumsq, sumsq_type_(value * value));
+        }
+        *sum = running_sum;
+        *sumsq = running_sumsq;
+    }
     // Scalar fallback
     else {
         sum_type_ running_sum {};

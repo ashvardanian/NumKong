@@ -8,6 +8,7 @@
 //! - [`SymmetricAngularsOps`] / [`SymmetricEuclideansOps`]: self-distance upper triangle
 //!
 //! The right-hand operand is a [`DotsPackedMatrix`] from the [`crate::dots`] module.
+use crate::cast::e2m1x2;
 use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorMut, TensorRef, TensorView};
 use crate::types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2, StorageElement};
 
@@ -193,6 +194,26 @@ extern "C" {
         output_stride: usize,
     );
     fn nk_angulars_symmetric_e2m3(
+        vectors: *const u8,
+        vector_count: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut f32,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    );
+    fn nk_angulars_packed_e2m1(
+        queries: *const u8,
+        packed: *const u8,
+        output: *mut f32,
+        height: usize,
+        width: usize,
+        depth: usize,
+        query_stride: usize,
+        output_stride: usize,
+    );
+    fn nk_angulars_symmetric_e2m1(
         vectors: *const u8,
         vector_count: usize,
         depth: usize,
@@ -435,6 +456,26 @@ extern "C" {
         output_stride: usize,
     );
     fn nk_euclideans_symmetric_e2m3(
+        vectors: *const u8,
+        vector_count: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut f32,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    );
+    fn nk_euclideans_packed_e2m1(
+        queries: *const u8,
+        packed: *const u8,
+        output: *mut f32,
+        height: usize,
+        width: usize,
+        depth: usize,
+        query_stride: usize,
+        output_stride: usize,
+    );
+    fn nk_euclideans_symmetric_e2m1(
         vectors: *const u8,
         vector_count: usize,
         depth: usize,
@@ -1429,6 +1470,54 @@ impl Angulars for e2m3 {
     }
 }
 
+impl Angulars for e2m1x2 {
+    type SpatialResult = f32;
+
+    unsafe fn angulars_packed(
+        queries: *const Self,
+        packed: *const u8,
+        output: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        query_stride: usize,
+        output_stride: usize,
+    ) {
+        nk_angulars_packed_e2m1(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
+    }
+
+    unsafe fn angulars_symmetric(
+        vectors: *const Self,
+        vector_count: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_angulars_symmetric_e2m1(
+            vectors as *const u8,
+            vector_count,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
 impl Euclideans for e2m3 {
     type SpatialResult = f32;
 
@@ -1465,6 +1554,54 @@ impl Euclideans for e2m3 {
         row_count: usize,
     ) {
         nk_euclideans_symmetric_e2m3(
+            vectors as *const u8,
+            vector_count,
+            depth,
+            stride,
+            result,
+            result_stride,
+            row_start,
+            row_count,
+        )
+    }
+}
+
+impl Euclideans for e2m1x2 {
+    type SpatialResult = f32;
+
+    unsafe fn euclideans_packed(
+        queries: *const Self,
+        packed: *const u8,
+        output: *mut Self::SpatialResult,
+        height: usize,
+        width: usize,
+        depth: usize,
+        query_stride: usize,
+        output_stride: usize,
+    ) {
+        nk_euclideans_packed_e2m1(
+            queries as *const u8,
+            packed,
+            output,
+            height,
+            width,
+            depth,
+            query_stride,
+            output_stride,
+        )
+    }
+
+    unsafe fn euclideans_symmetric(
+        vectors: *const Self,
+        vector_count: usize,
+        depth: usize,
+        stride: usize,
+        result: *mut Self::SpatialResult,
+        result_stride: usize,
+        row_start: usize,
+        row_count: usize,
+    ) {
+        nk_euclideans_symmetric_e2m1(
             vectors as *const u8,
             vector_count,
             depth,

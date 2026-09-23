@@ -341,12 +341,30 @@ public struct U4x2: Equatable, Hashable, Sendable {
     @inlinable public var high: UInt8 { bitPattern >> 4 }
 }
 
+/// Packed pair of 4-bit E2M1 floats, `[high nibble : low nibble]`, each of 1 sign, 2 exponent and 1 mantissa bits.
+@frozen
+public struct E2M1x2: Equatable, Hashable, Sendable {
+    public var bitPattern: UInt8
+    @inlinable public init(_ bits: UInt8) { self.bitPattern = bits }
+    @inlinable public init(bitPattern: UInt8) { self.bitPattern = bitPattern }
+    /// Packs two lane codes, keeping the low four bits of each.
+    @inlinable public init(lowBits: UInt8, highBits: UInt8) { self.bitPattern = (highBits << 4) | (lowBits & 0x0F) }
+    /// The low nibble code.
+    @inlinable public var lowBits: UInt8 { bitPattern & 0x0F }
+    /// The high nibble code.
+    @inlinable public var highBits: UInt8 { bitPattern >> 4 }
+}
+
 extension I4x2: CustomStringConvertible {
     public var description: String { "(\(low), \(high)) [0x\(_hexPad(bitPattern, width: 2))]" }
 }
 
 extension U4x2: CustomStringConvertible {
     public var description: String { "(\(low), \(high)) [0x\(_hexPad(bitPattern, width: 2))]" }
+}
+
+extension E2M1x2: CustomStringConvertible {
+    public var description: String { "E2M1x2(0x\(_hexPad(bitPattern, width: 2)))" }
 }
 
 // MARK: - Binary Storage Type

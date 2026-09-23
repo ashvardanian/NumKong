@@ -63,6 +63,7 @@ let package = Package(
             sources: [
                 "c/dispatch_bf16.c",
                 "c/dispatch_bf16c.c",
+                "c/dispatch_e2m1.c",
                 "c/dispatch_e2m3.c",
                 "c/dispatch_e3m2.c",
                 "c/dispatch_e4m3.c",

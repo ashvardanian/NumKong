@@ -26,6 +26,7 @@ void bench_cross_serial() {
     constexpr nk_dtype_t e4m3_k = nk_e4m3_k;
     constexpr nk_dtype_t e5m2_k = nk_e5m2_k;
     constexpr nk_dtype_t e2m3_k = nk_e2m3_k;
+    constexpr nk_dtype_t e2m1_k = nk_e2m1_k;
     constexpr nk_dtype_t e3m2_k = nk_e3m2_k;
 
     run_dots_packed<f64_k>("dots_packed_f64_serial", nk_dots_pack_size_f64_serial, nk_dots_pack_f64_serial,
@@ -42,6 +43,8 @@ void bench_cross_serial() {
                             nk_dots_packed_e5m2_serial);
     run_dots_packed<e2m3_k>("dots_packed_e2m3_serial", nk_dots_pack_size_e2m3_serial, nk_dots_pack_e2m3_serial,
                             nk_dots_packed_e2m3_serial);
+    run_dots_packed<e2m1_k>("dots_packed_e2m1_serial", nk_dots_pack_size_e2m1_serial, nk_dots_pack_e2m1_serial,
+                            nk_dots_packed_e2m1_serial);
     run_dots_packed<e3m2_k>("dots_packed_e3m2_serial", nk_dots_pack_size_e3m2_serial, nk_dots_pack_e3m2_serial,
                             nk_dots_packed_e3m2_serial);
     run_dots_packed<i8_k>("dots_packed_i8_serial", nk_dots_pack_size_i8_serial, nk_dots_pack_i8_serial,
@@ -62,6 +65,7 @@ void bench_cross_serial() {
     run_dots_symmetric<e4m3_k>("dots_symmetric_e4m3_serial", nk_dots_symmetric_e4m3_serial);
     run_dots_symmetric<e5m2_k>("dots_symmetric_e5m2_serial", nk_dots_symmetric_e5m2_serial);
     run_dots_symmetric<e2m3_k>("dots_symmetric_e2m3_serial", nk_dots_symmetric_e2m3_serial);
+    run_dots_symmetric<e2m1_k>("dots_symmetric_e2m1_serial", nk_dots_symmetric_e2m1_serial);
     run_dots_symmetric<e3m2_k>("dots_symmetric_e3m2_serial", nk_dots_symmetric_e3m2_serial);
     run_dots_symmetric<i8_k>("dots_symmetric_i8_serial", nk_dots_symmetric_i8_serial);
     run_dots_symmetric<u8_k>("dots_symmetric_u8_serial", nk_dots_symmetric_u8_serial);
@@ -107,6 +111,8 @@ void bench_cross_serial() {
                                 nk_angulars_packed_e5m2_serial);
     run_angulars_packed<e2m3_k>("angulars_packed_e2m3_serial", nk_dots_pack_size_e2m3_serial, nk_dots_pack_e2m3_serial,
                                 nk_angulars_packed_e2m3_serial);
+    run_angulars_packed<e2m1_k>("angulars_packed_e2m1_serial", nk_dots_pack_size_e2m1_serial, nk_dots_pack_e2m1_serial,
+                                nk_angulars_packed_e2m1_serial);
     run_angulars_packed<e3m2_k>("angulars_packed_e3m2_serial", nk_dots_pack_size_e3m2_serial, nk_dots_pack_e3m2_serial,
                                 nk_angulars_packed_e3m2_serial);
     run_angulars_packed<i8_k>("angulars_packed_i8_serial", nk_dots_pack_size_i8_serial, nk_dots_pack_i8_serial,
@@ -120,6 +126,7 @@ void bench_cross_serial() {
     run_angulars_symmetric<f64_k>("angulars_symmetric_f64_serial", nk_angulars_symmetric_f64_serial);
     run_angulars_symmetric<e5m2_k>("angulars_symmetric_e5m2_serial", nk_angulars_symmetric_e5m2_serial);
     run_angulars_symmetric<e2m3_k>("angulars_symmetric_e2m3_serial", nk_angulars_symmetric_e2m3_serial);
+    run_angulars_symmetric<e2m1_k>("angulars_symmetric_e2m1_serial", nk_angulars_symmetric_e2m1_serial);
     run_angulars_symmetric<e3m2_k>("angulars_symmetric_e3m2_serial", nk_angulars_symmetric_e3m2_serial);
     run_angulars_symmetric<i8_k>("angulars_symmetric_i8_serial", nk_angulars_symmetric_i8_serial);
     run_angulars_symmetric<u8_k>("angulars_symmetric_u8_serial", nk_angulars_symmetric_u8_serial);
@@ -131,6 +138,8 @@ void bench_cross_serial() {
                                   nk_dots_pack_e5m2_serial, nk_euclideans_packed_e5m2_serial);
     run_euclideans_packed<e2m3_k>("euclideans_packed_e2m3_serial", nk_dots_pack_size_e2m3_serial,
                                   nk_dots_pack_e2m3_serial, nk_euclideans_packed_e2m3_serial);
+    run_euclideans_packed<e2m1_k>("euclideans_packed_e2m1_serial", nk_dots_pack_size_e2m1_serial,
+                                  nk_dots_pack_e2m1_serial, nk_euclideans_packed_e2m1_serial);
     run_euclideans_packed<e3m2_k>("euclideans_packed_e3m2_serial", nk_dots_pack_size_e3m2_serial,
                                   nk_dots_pack_e3m2_serial, nk_euclideans_packed_e3m2_serial);
     run_euclideans_packed<i8_k>("euclideans_packed_i8_serial", nk_dots_pack_size_i8_serial, nk_dots_pack_i8_serial,
@@ -144,6 +153,7 @@ void bench_cross_serial() {
     run_euclideans_symmetric<f64_k>("euclideans_symmetric_f64_serial", nk_euclideans_symmetric_f64_serial);
     run_euclideans_symmetric<e5m2_k>("euclideans_symmetric_e5m2_serial", nk_euclideans_symmetric_e5m2_serial);
     run_euclideans_symmetric<e2m3_k>("euclideans_symmetric_e2m3_serial", nk_euclideans_symmetric_e2m3_serial);
+    run_euclideans_symmetric<e2m1_k>("euclideans_symmetric_e2m1_serial", nk_euclideans_symmetric_e2m1_serial);
     run_euclideans_symmetric<e3m2_k>("euclideans_symmetric_e3m2_serial", nk_euclideans_symmetric_e3m2_serial);
     run_euclideans_symmetric<i8_k>("euclideans_symmetric_i8_serial", nk_euclideans_symmetric_i8_serial);
     run_euclideans_symmetric<u8_k>("euclideans_symmetric_u8_serial", nk_euclideans_symmetric_u8_serial);

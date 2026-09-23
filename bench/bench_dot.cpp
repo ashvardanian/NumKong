@@ -88,6 +88,7 @@ void bench_dot() {
     constexpr nk_dtype_t e4m3_k = nk_e4m3_k;
     constexpr nk_dtype_t e5m2_k = nk_e5m2_k;
     constexpr nk_dtype_t e2m3_k = nk_e2m3_k;
+    constexpr nk_dtype_t e2m1_k = nk_e2m1_k;
     constexpr nk_dtype_t e3m2_k = nk_e3m2_k;
     constexpr nk_dtype_t f64c_k = nk_f64c_k;
     constexpr nk_dtype_t f32c_k = nk_f32c_k;
@@ -124,6 +125,7 @@ void bench_dot() {
 #if NK_TARGET_NEONSDOT
     run_dense<e3m2_k, f32_k>("dot_e3m2_neonsdot", nk_dot_e3m2_neonsdot);
     run_dense<e2m3_k, f32_k>("dot_e2m3_neonsdot", nk_dot_e2m3_neonsdot);
+    run_dense<e2m1_k, f32_k>("dot_e2m1_neonsdot", nk_dot_e2m1_neonsdot);
     run_dense<i8_k, i32_k>("dot_i8_neonsdot", nk_dot_i8_neonsdot);
     run_dense<u8_k, u32_k>("dot_u8_neonsdot", nk_dot_u8_neonsdot);
     run_dense<i4_k, i32_k>("dot_i4_neonsdot", nk_dot_i4_neonsdot);
@@ -194,6 +196,7 @@ void bench_dot() {
     run_dense<e4m3_k, f32_k>("dot_e4m3_haswell", nk_dot_e4m3_haswell);
     run_dense<e3m2_k, f32_k>("dot_e3m2_haswell", nk_dot_e3m2_haswell);
     run_dense<e2m3_k, f32_k>("dot_e2m3_haswell", nk_dot_e2m3_haswell);
+    run_dense<e2m1_k, f32_k>("dot_e2m1_haswell", nk_dot_e2m1_haswell);
     run_dense<i8_k, i32_k>("dot_i8_haswell", nk_dot_i8_haswell);
     run_dense<u8_k, u32_k>("dot_u8_haswell", nk_dot_u8_haswell);
     run_dense<i4_k, i32_k>("dot_i4_haswell", nk_dot_i4_haswell);
@@ -214,6 +217,7 @@ void bench_dot() {
     run_dense<e4m3_k, f32_k>("dot_e4m3_skylake", nk_dot_e4m3_skylake);
     run_dense<e3m2_k, f32_k>("dot_e3m2_skylake", nk_dot_e3m2_skylake);
     run_dense<e2m3_k, f32_k>("dot_e2m3_skylake", nk_dot_e2m3_skylake);
+    run_dense<e2m1_k, f32_k>("dot_e2m1_skylake", nk_dot_e2m1_skylake);
     run_dense<i8_k, i32_k>("dot_i8_skylake", nk_dot_i8_skylake);
     run_dense<u8_k, u32_k>("dot_u8_skylake", nk_dot_u8_skylake);
 #endif
@@ -231,12 +235,14 @@ void bench_dot() {
 
 #if NK_TARGET_ALDER
     run_dense<e2m3_k, f32_k>("dot_e2m3_alder", nk_dot_e2m3_alder);
+    run_dense<e2m1_k, f32_k>("dot_e2m1_alder", nk_dot_e2m1_alder);
     run_dense<i8_k, i32_k>("dot_i8_alder", nk_dot_i8_alder);
     run_dense<u8_k, u32_k>("dot_u8_alder", nk_dot_u8_alder);
 #endif
 
 #if NK_TARGET_SIERRA
     run_dense<e2m3_k, f32_k>("dot_e2m3_sierra", nk_dot_e2m3_sierra);
+    run_dense<e2m1_k, f32_k>("dot_e2m1_sierra", nk_dot_e2m1_sierra);
     run_dense<i8_k, i32_k>("dot_i8_sierra", nk_dot_i8_sierra);
     run_dense<u8_k, u32_k>("dot_u8_sierra", nk_dot_u8_sierra);
 #endif
@@ -275,6 +281,7 @@ void bench_dot() {
     run_dense<e4m3_k, f32_k>("dot_e4m3_v128relaxed", nk_dot_e4m3_v128relaxed);
     run_dense<e3m2_k, f32_k>("dot_e3m2_v128relaxed", nk_dot_e3m2_v128relaxed);
     run_dense<e2m3_k, f32_k>("dot_e2m3_v128relaxed", nk_dot_e2m3_v128relaxed);
+    run_dense<e2m1_k, f32_k>("dot_e2m1_v128relaxed", nk_dot_e2m1_v128relaxed);
     run_dense<i8_k, i32_k>("dot_i8_v128relaxed", nk_dot_i8_v128relaxed);
     run_dense<u8_k, u32_k>("dot_u8_v128relaxed", nk_dot_u8_v128relaxed);
     run_dense<i4_k, i32_k>("dot_i4_v128relaxed", nk_dot_i4_v128relaxed);
@@ -313,6 +320,7 @@ void bench_dot() {
     run_dense<e4m3_k, f32_k>("dot_e4m3_serial", nk_dot_e4m3_serial);
     run_dense<e3m2_k, f32_k>("dot_e3m2_serial", nk_dot_e3m2_serial);
     run_dense<e2m3_k, f32_k>("dot_e2m3_serial", nk_dot_e2m3_serial);
+    run_dense<e2m1_k, f32_k>("dot_e2m1_serial", nk_dot_e2m1_serial);
     run_dense<i8_k, i32_k>("dot_i8_serial", nk_dot_i8_serial);
     run_dense<u8_k, u32_k>("dot_u8_serial", nk_dot_u8_serial);
     run_dense<i4_k, i32_k>("dot_i4_serial", nk_dot_i4_serial);

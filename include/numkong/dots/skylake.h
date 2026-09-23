@@ -185,6 +185,25 @@ nk_define_cross_packed_(dots, e2m3, skylake, e2m3, e2m3, f32, nk_b512_vec_t, nk_
                         nk_partial_store_b32x4_skylake_,
                         /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
 
+/* E2M1 GEMM: integer LUT path, depth_simd_dimensions=128 (64 bytes = 128 nibbles = AVX-512 register width) */
+nk_define_cross_pack_size_(dots, e2m1, skylake, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/128,
+                           /*dimensions_per_value=*/2)
+nk_define_cross_packed_shape_(dots, e2m1, skylake)
+nk_define_cross_pack_(dots, e2m1, skylake, e2m1x2, e2m1x2, nk_b512_vec_t, nk_load_b512_skylake_,
+                      nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
+                      /*simd_width=*/64, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_,
+                      /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
+nk_define_cross_symmetric_(dots, e2m1, skylake, e2m1x2, f32, nk_b512_vec_t, nk_dot_e2m1x128_state_skylake_t,
+                           nk_b128_vec_t, nk_dot_e2m1x128_init_skylake, nk_load_b512_skylake_,
+                           nk_partial_load_e2m1x128_skylake_, nk_dot_e2m1x128_update_skylake,
+                           nk_dot_e2m1x128_finalize_skylake, nk_store_b128_haswell_, nk_partial_store_b32x4_skylake_,
+                           /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
+nk_define_cross_packed_(dots, e2m1, skylake, e2m1x2, e2m1x2, f32, nk_b512_vec_t, nk_dot_e2m1x128_state_skylake_t,
+                        nk_b128_vec_t, nk_dot_e2m1x128_init_skylake, nk_load_b512_skylake_,
+                        nk_partial_load_e2m1x128_skylake_, nk_load_b512_skylake_, nk_partial_load_e2m1x128_skylake_,
+                        nk_dot_e2m1x128_update_skylake, nk_dot_e2m1x128_finalize_skylake, nk_store_b128_haswell_,
+                        nk_partial_store_b32x4_skylake_, /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
+
 /* E3M2 GEMM: integer LUT path, depth_simd_dimensions=64 (64 e3m2s = 64 bytes = AVX-512 register width) */
 nk_define_cross_pack_size_(dots, e3m2, skylake, e3m2, e3m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/64,
                            /*dimensions_per_value=*/1)

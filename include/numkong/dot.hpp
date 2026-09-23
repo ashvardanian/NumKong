@@ -28,6 +28,7 @@ void dot(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r) n
     else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd) nk_dot_e4m3(&a->raw_, &b->raw_, d, &r->raw_);
     else if constexpr (std::is_same_v<in_type_, e5m2_t> && simd) nk_dot_e5m2(&a->raw_, &b->raw_, d, &r->raw_);
     else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd) nk_dot_e2m3(&a->raw_, &b->raw_, d, &r->raw_);
+    else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && simd) nk_dot_e2m1(&a->raw_, &b->raw_, d, &r->raw_);
     else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd) nk_dot_e3m2(&a->raw_, &b->raw_, d, &r->raw_);
     else if constexpr (std::is_same_v<in_type_, i8_t> && simd) nk_dot_i8(&a->raw_, &b->raw_, d, &r->raw_);
     else if constexpr (std::is_same_v<in_type_, u8_t> && simd) nk_dot_u8(&a->raw_, &b->raw_, d, &r->raw_);

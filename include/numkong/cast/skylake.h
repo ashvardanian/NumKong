@@ -77,6 +77,12 @@ NK_HELPER_INLINE void nk_partial_load_b4x128_skylake_(void const *src, nk_b512_v
     dst->zmm = _mm512_maskz_loadu_epi8(mask_m64, src);
 }
 
+/** @brief Partial load for E2M1 nibbles (128 max), zeroing the unused low nibble of the last byte at odd @p n. */
+NK_HELPER_INLINE void nk_partial_load_e2m1x128_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
+    nk_partial_load_b4x128_skylake_(src, dst, n);
+    if (n & 1) dst->u8s[n / 2] &= 0xF0;
+}
+
 /** @brief Type-agnostic partial load for 32-bit elements (8 elements max) into 256-bit vector (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_b32x8_skylake_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFF, (unsigned int)n);

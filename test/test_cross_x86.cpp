@@ -23,6 +23,8 @@ void test_cross_x86() {
           nk_dots_pack_e5m2_haswell, nk_dots_packed_e5m2_haswell);
     check("dots_packed_e2m3_haswell", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_haswell,
           nk_dots_pack_e2m3_haswell, nk_dots_packed_e2m3_haswell);
+    check("dots_packed_e2m1_haswell", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_haswell,
+          nk_dots_pack_e2m1_haswell, nk_dots_packed_e2m1_haswell);
     check("dots_packed_e3m2_haswell", test_dots_packed<e3m2_t>, nk_dots_pack_size_e3m2_haswell,
           nk_dots_pack_e3m2_haswell, nk_dots_packed_e3m2_haswell);
     check("dots_packed_f16_haswell", test_dots_packed<f16_t>, nk_dots_pack_size_f16_haswell, nk_dots_pack_f16_haswell,
@@ -43,6 +45,7 @@ void test_cross_x86() {
     check("dots_symmetric_e4m3_haswell", test_dots_symmetric<e4m3_t>, nk_dots_symmetric_e4m3_haswell);
     check("dots_symmetric_e5m2_haswell", test_dots_symmetric<e5m2_t>, nk_dots_symmetric_e5m2_haswell);
     check("dots_symmetric_e2m3_haswell", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3_haswell);
+    check("dots_symmetric_e2m1_haswell", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1_haswell);
     check("dots_symmetric_e3m2_haswell", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2_haswell);
     check("dots_symmetric_i8_haswell", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8_haswell);
     check("dots_symmetric_u8_haswell", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_haswell);
@@ -70,6 +73,8 @@ void test_cross_x86() {
           nk_dots_pack_e5m2_haswell, nk_angulars_packed_e5m2_haswell);
     check("angulars_packed_e2m3_haswell", test_angulars_packed<e2m3_t>, nk_dots_pack_size_e2m3_haswell,
           nk_dots_pack_e2m3_haswell, nk_angulars_packed_e2m3_haswell);
+    check("angulars_packed_e2m1_haswell", test_angulars_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_haswell,
+          nk_dots_pack_e2m1_haswell, nk_angulars_packed_e2m1_haswell);
     check("angulars_packed_e3m2_haswell", test_angulars_packed<e3m2_t>, nk_dots_pack_size_e3m2_haswell,
           nk_dots_pack_e3m2_haswell, nk_angulars_packed_e3m2_haswell);
     check("angulars_packed_i8_haswell", test_angulars_packed<i8_t>, nk_dots_pack_size_i8_haswell,
@@ -84,6 +89,7 @@ void test_cross_x86() {
     check("angulars_symmetric_e4m3_haswell", test_angulars_symmetric<e4m3_t>, nk_angulars_symmetric_e4m3_haswell);
     check("angulars_symmetric_e5m2_haswell", test_angulars_symmetric<e5m2_t>, nk_angulars_symmetric_e5m2_haswell);
     check("angulars_symmetric_e2m3_haswell", test_angulars_symmetric<e2m3_t>, nk_angulars_symmetric_e2m3_haswell);
+    check("angulars_symmetric_e2m1_haswell", test_angulars_symmetric<e2m1x2_t>, nk_angulars_symmetric_e2m1_haswell);
     check("angulars_symmetric_e3m2_haswell", test_angulars_symmetric<e3m2_t>, nk_angulars_symmetric_e3m2_haswell);
     check("angulars_symmetric_i8_haswell", test_angulars_symmetric<i8_t>, nk_angulars_symmetric_i8_haswell);
     check("angulars_symmetric_u8_haswell", test_angulars_symmetric<u8_t>, nk_angulars_symmetric_u8_haswell);
@@ -102,6 +108,8 @@ void test_cross_x86() {
           nk_dots_pack_e5m2_haswell, nk_euclideans_packed_e5m2_haswell);
     check("euclideans_packed_e2m3_haswell", test_euclideans_packed<e2m3_t>, nk_dots_pack_size_e2m3_haswell,
           nk_dots_pack_e2m3_haswell, nk_euclideans_packed_e2m3_haswell);
+    check("euclideans_packed_e2m1_haswell", test_euclideans_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_haswell,
+          nk_dots_pack_e2m1_haswell, nk_euclideans_packed_e2m1_haswell);
     check("euclideans_packed_e3m2_haswell", test_euclideans_packed<e3m2_t>, nk_dots_pack_size_e3m2_haswell,
           nk_dots_pack_e3m2_haswell, nk_euclideans_packed_e3m2_haswell);
     check("euclideans_packed_i8_haswell", test_euclideans_packed<i8_t>, nk_dots_pack_size_i8_haswell,
@@ -116,6 +124,8 @@ void test_cross_x86() {
     check("euclideans_symmetric_e4m3_haswell", test_euclideans_symmetric<e4m3_t>, nk_euclideans_symmetric_e4m3_haswell);
     check("euclideans_symmetric_e5m2_haswell", test_euclideans_symmetric<e5m2_t>, nk_euclideans_symmetric_e5m2_haswell);
     check("euclideans_symmetric_e2m3_haswell", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3_haswell);
+    check("euclideans_symmetric_e2m1_haswell", test_euclideans_symmetric<e2m1x2_t>,
+          nk_euclideans_symmetric_e2m1_haswell);
     check("euclideans_symmetric_e3m2_haswell", test_euclideans_symmetric<e3m2_t>, nk_euclideans_symmetric_e3m2_haswell);
     check("euclideans_symmetric_i8_haswell", test_euclideans_symmetric<i8_t>, nk_euclideans_symmetric_i8_haswell);
     check("euclideans_symmetric_u8_haswell", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_haswell);
@@ -153,6 +163,8 @@ void test_cross_x86() {
           nk_dots_pack_e5m2_skylake, nk_dots_packed_e5m2_skylake);
     check("dots_packed_e2m3_skylake", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_skylake,
           nk_dots_pack_e2m3_skylake, nk_dots_packed_e2m3_skylake);
+    check("dots_packed_e2m1_skylake", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_skylake,
+          nk_dots_pack_e2m1_skylake, nk_dots_packed_e2m1_skylake);
     check("dots_packed_e3m2_skylake", test_dots_packed<e3m2_t>, nk_dots_pack_size_e3m2_skylake,
           nk_dots_pack_e3m2_skylake, nk_dots_packed_e3m2_skylake);
 
@@ -163,6 +175,7 @@ void test_cross_x86() {
     check("dots_symmetric_e4m3_skylake", test_dots_symmetric<e4m3_t>, nk_dots_symmetric_e4m3_skylake);
     check("dots_symmetric_e5m2_skylake", test_dots_symmetric<e5m2_t>, nk_dots_symmetric_e5m2_skylake);
     check("dots_symmetric_e2m3_skylake", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3_skylake);
+    check("dots_symmetric_e2m1_skylake", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1_skylake);
     check("dots_symmetric_e3m2_skylake", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2_skylake);
 
     check("angulars_packed_f64_skylake", test_angulars_packed<f64_t>, nk_dots_pack_size_f64_skylake,
@@ -179,6 +192,8 @@ void test_cross_x86() {
           nk_dots_pack_e5m2_skylake, nk_angulars_packed_e5m2_skylake);
     check("angulars_packed_e2m3_skylake", test_angulars_packed<e2m3_t>, nk_dots_pack_size_e2m3_skylake,
           nk_dots_pack_e2m3_skylake, nk_angulars_packed_e2m3_skylake);
+    check("angulars_packed_e2m1_skylake", test_angulars_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_skylake,
+          nk_dots_pack_e2m1_skylake, nk_angulars_packed_e2m1_skylake);
     check("angulars_packed_e3m2_skylake", test_angulars_packed<e3m2_t>, nk_dots_pack_size_e3m2_skylake,
           nk_dots_pack_e3m2_skylake, nk_angulars_packed_e3m2_skylake);
 
@@ -189,6 +204,7 @@ void test_cross_x86() {
     check("angulars_symmetric_e4m3_skylake", test_angulars_symmetric<e4m3_t>, nk_angulars_symmetric_e4m3_skylake);
     check("angulars_symmetric_e5m2_skylake", test_angulars_symmetric<e5m2_t>, nk_angulars_symmetric_e5m2_skylake);
     check("angulars_symmetric_e2m3_skylake", test_angulars_symmetric<e2m3_t>, nk_angulars_symmetric_e2m3_skylake);
+    check("angulars_symmetric_e2m1_skylake", test_angulars_symmetric<e2m1x2_t>, nk_angulars_symmetric_e2m1_skylake);
     check("angulars_symmetric_e3m2_skylake", test_angulars_symmetric<e3m2_t>, nk_angulars_symmetric_e3m2_skylake);
 
     check("euclideans_packed_f64_skylake", test_euclideans_packed<f64_t>, nk_dots_pack_size_f64_skylake,
@@ -205,6 +221,8 @@ void test_cross_x86() {
           nk_dots_pack_e5m2_skylake, nk_euclideans_packed_e5m2_skylake);
     check("euclideans_packed_e2m3_skylake", test_euclideans_packed<e2m3_t>, nk_dots_pack_size_e2m3_skylake,
           nk_dots_pack_e2m3_skylake, nk_euclideans_packed_e2m3_skylake);
+    check("euclideans_packed_e2m1_skylake", test_euclideans_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_skylake,
+          nk_dots_pack_e2m1_skylake, nk_euclideans_packed_e2m1_skylake);
     check("euclideans_packed_e3m2_skylake", test_euclideans_packed<e3m2_t>, nk_dots_pack_size_e3m2_skylake,
           nk_dots_pack_e3m2_skylake, nk_euclideans_packed_e3m2_skylake);
 
@@ -215,6 +233,8 @@ void test_cross_x86() {
     check("euclideans_symmetric_e4m3_skylake", test_euclideans_symmetric<e4m3_t>, nk_euclideans_symmetric_e4m3_skylake);
     check("euclideans_symmetric_e5m2_skylake", test_euclideans_symmetric<e5m2_t>, nk_euclideans_symmetric_e5m2_skylake);
     check("euclideans_symmetric_e2m3_skylake", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3_skylake);
+    check("euclideans_symmetric_e2m1_skylake", test_euclideans_symmetric<e2m1x2_t>,
+          nk_euclideans_symmetric_e2m1_skylake);
     check("euclideans_symmetric_e3m2_skylake", test_euclideans_symmetric<e3m2_t>, nk_euclideans_symmetric_e3m2_skylake);
 
     check("attention_bidirectional_packed_bf16_skylake", test_attention_bidirectional_packed<bf16_t>,
@@ -359,12 +379,15 @@ void test_cross_x86() {
     check.section("Cross Alder", nk_cap_alder_k);
     check("dots_packed_e2m3_alder", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_alder, nk_dots_pack_e2m3_alder,
           nk_dots_packed_e2m3_alder);
+    check("dots_packed_e2m1_alder", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_alder, nk_dots_pack_e2m1_alder,
+          nk_dots_packed_e2m1_alder);
     check("dots_packed_i8_alder", test_dots_packed<i8_t>, nk_dots_pack_size_i8_alder, nk_dots_pack_i8_alder,
           nk_dots_packed_i8_alder);
     check("dots_packed_u8_alder", test_dots_packed<u8_t>, nk_dots_pack_size_u8_alder, nk_dots_pack_u8_alder,
           nk_dots_packed_u8_alder);
 
     check("dots_symmetric_e2m3_alder", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3_alder);
+    check("dots_symmetric_e2m1_alder", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1_alder);
     check("dots_symmetric_i8_alder", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8_alder);
     check("dots_symmetric_u8_alder", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_alder);
 
@@ -386,23 +409,32 @@ void test_cross_x86() {
 
     check("angulars_packed_e2m3_alder", test_angulars_packed<e2m3_t>, nk_dots_pack_size_e2m3_alder,
           nk_dots_pack_e2m3_alder, nk_angulars_packed_e2m3_alder);
+    check("angulars_packed_e2m1_alder", test_angulars_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_alder,
+          nk_dots_pack_e2m1_alder, nk_angulars_packed_e2m1_alder);
     check("angulars_symmetric_e2m3_alder", test_angulars_symmetric<e2m3_t>, nk_angulars_symmetric_e2m3_alder);
+    check("angulars_symmetric_e2m1_alder", test_angulars_symmetric<e2m1x2_t>, nk_angulars_symmetric_e2m1_alder);
 
     check("euclideans_packed_e2m3_alder", test_euclideans_packed<e2m3_t>, nk_dots_pack_size_e2m3_alder,
           nk_dots_pack_e2m3_alder, nk_euclideans_packed_e2m3_alder);
+    check("euclideans_packed_e2m1_alder", test_euclideans_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_alder,
+          nk_dots_pack_e2m1_alder, nk_euclideans_packed_e2m1_alder);
     check("euclideans_symmetric_e2m3_alder", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3_alder);
+    check("euclideans_symmetric_e2m1_alder", test_euclideans_symmetric<e2m1x2_t>, nk_euclideans_symmetric_e2m1_alder);
 #endif // NK_TARGET_ALDER
 
 #if NK_TARGET_SIERRA
     check.section("Cross Sierra", nk_cap_sierra_k);
     check("dots_packed_e2m3_sierra", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_sierra, nk_dots_pack_e2m3_sierra,
           nk_dots_packed_e2m3_sierra);
+    check("dots_packed_e2m1_sierra", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_sierra,
+          nk_dots_pack_e2m1_sierra, nk_dots_packed_e2m1_sierra);
     check("dots_packed_i8_sierra", test_dots_packed<i8_t>, nk_dots_pack_size_i8_sierra, nk_dots_pack_i8_sierra,
           nk_dots_packed_i8_sierra);
     check("dots_packed_u8_sierra", test_dots_packed<u8_t>, nk_dots_pack_size_u8_sierra, nk_dots_pack_u8_sierra,
           nk_dots_packed_u8_sierra);
 
     check("dots_symmetric_e2m3_sierra", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3_sierra);
+    check("dots_symmetric_e2m1_sierra", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1_sierra);
     check("dots_symmetric_i8_sierra", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8_sierra);
     check("dots_symmetric_u8_sierra", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_sierra);
 
@@ -424,11 +456,17 @@ void test_cross_x86() {
 
     check("angulars_packed_e2m3_sierra", test_angulars_packed<e2m3_t>, nk_dots_pack_size_e2m3_sierra,
           nk_dots_pack_e2m3_sierra, nk_angulars_packed_e2m3_sierra);
+    check("angulars_packed_e2m1_sierra", test_angulars_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_sierra,
+          nk_dots_pack_e2m1_sierra, nk_angulars_packed_e2m1_sierra);
     check("angulars_symmetric_e2m3_sierra", test_angulars_symmetric<e2m3_t>, nk_angulars_symmetric_e2m3_sierra);
+    check("angulars_symmetric_e2m1_sierra", test_angulars_symmetric<e2m1x2_t>, nk_angulars_symmetric_e2m1_sierra);
 
     check("euclideans_packed_e2m3_sierra", test_euclideans_packed<e2m3_t>, nk_dots_pack_size_e2m3_sierra,
           nk_dots_pack_e2m3_sierra, nk_euclideans_packed_e2m3_sierra);
+    check("euclideans_packed_e2m1_sierra", test_euclideans_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_sierra,
+          nk_dots_pack_e2m1_sierra, nk_euclideans_packed_e2m1_sierra);
     check("euclideans_symmetric_e2m3_sierra", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3_sierra);
+    check("euclideans_symmetric_e2m1_sierra", test_euclideans_symmetric<e2m1x2_t>, nk_euclideans_symmetric_e2m1_sierra);
 #endif // NK_TARGET_SIERRA
 
 #if NK_TARGET_SAPPHIREAMX
@@ -445,6 +483,8 @@ void test_cross_x86() {
           nk_dots_pack_e5m2_sapphireamx, nk_angulars_packed_e5m2_sapphireamx);
     check("angulars_packed_e2m3_sapphireamx", test_angulars_packed<e2m3_t>, nk_dots_pack_size_e2m3_sapphireamx,
           nk_dots_pack_e2m3_sapphireamx, nk_angulars_packed_e2m3_sapphireamx);
+    check("angulars_packed_e2m1_sapphireamx", test_angulars_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_sapphireamx,
+          nk_dots_pack_e2m1_sapphireamx, nk_angulars_packed_e2m1_sapphireamx);
     check("angulars_packed_e3m2_sapphireamx", test_angulars_packed<e3m2_t>, nk_dots_pack_size_e3m2_sapphireamx,
           nk_dots_pack_e3m2_sapphireamx, nk_angulars_packed_e3m2_sapphireamx);
 
@@ -453,6 +493,8 @@ void test_cross_x86() {
     check("angulars_symmetric_i8_sapphireamx", test_angulars_symmetric<i8_t>, nk_angulars_symmetric_i8_sapphireamx);
     check("angulars_symmetric_e2m3_sapphireamx", test_angulars_symmetric<e2m3_t>,
           nk_angulars_symmetric_e2m3_sapphireamx);
+    check("angulars_symmetric_e2m1_sapphireamx", test_angulars_symmetric<e2m1x2_t>,
+          nk_angulars_symmetric_e2m1_sapphireamx);
     check("angulars_symmetric_e3m2_sapphireamx", test_angulars_symmetric<e3m2_t>,
           nk_angulars_symmetric_e3m2_sapphireamx);
     check("angulars_symmetric_e4m3_sapphireamx", test_angulars_symmetric<e4m3_t>,
@@ -473,6 +515,8 @@ void test_cross_x86() {
           nk_dots_pack_e5m2_sapphireamx, nk_euclideans_packed_e5m2_sapphireamx);
     check("euclideans_packed_e2m3_sapphireamx", test_euclideans_packed<e2m3_t>, nk_dots_pack_size_e2m3_sapphireamx,
           nk_dots_pack_e2m3_sapphireamx, nk_euclideans_packed_e2m3_sapphireamx);
+    check("euclideans_packed_e2m1_sapphireamx", test_euclideans_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_sapphireamx,
+          nk_dots_pack_e2m1_sapphireamx, nk_euclideans_packed_e2m1_sapphireamx);
     check("euclideans_packed_e3m2_sapphireamx", test_euclideans_packed<e3m2_t>, nk_dots_pack_size_e3m2_sapphireamx,
           nk_dots_pack_e3m2_sapphireamx, nk_euclideans_packed_e3m2_sapphireamx);
 
@@ -482,6 +526,8 @@ void test_cross_x86() {
           nk_euclideans_symmetric_i8_sapphireamx);
     check("euclideans_symmetric_e2m3_sapphireamx", test_euclideans_symmetric<e2m3_t>,
           nk_euclideans_symmetric_e2m3_sapphireamx);
+    check("euclideans_symmetric_e2m1_sapphireamx", test_euclideans_symmetric<e2m1x2_t>,
+          nk_euclideans_symmetric_e2m1_sapphireamx);
     check("euclideans_symmetric_e3m2_sapphireamx", test_euclideans_symmetric<e3m2_t>,
           nk_euclideans_symmetric_e3m2_sapphireamx);
     check("euclideans_symmetric_e4m3_sapphireamx", test_euclideans_symmetric<e4m3_t>,

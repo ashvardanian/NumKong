@@ -30,6 +30,7 @@
  *  - nk_dot_i8x16 for 8-bit signed integer inputs,
  *  - nk_dot_u8x16 for 8-bit unsigned integer inputs,
  *  - nk_dot_e4m3x16, nk_dot_e5m2x16, nk_dot_e2m3x16, nk_dot_e3m2x16 for FP8/FP6 inputs,
+ *  - nk_dot_e2m1x16 for FP4 inputs,
  *  - nk_dot_i4x16, nk_dot_u4x16 for 4-bit integer inputs.
  *
  *  @code{c}
@@ -176,6 +177,18 @@ nk_define_dot_(e4m3, f32, f32, nk_e4m3_to_f32_serial) // nk_dot_e4m3_serial
 nk_define_dot_(e5m2, f32, f32, nk_e5m2_to_f32_serial) // nk_dot_e5m2_serial
 nk_define_dot_(e2m3, f32, f32, nk_e2m3_to_f32_serial) // nk_dot_e2m3_serial
 nk_define_dot_(e3m2, f32, f32, nk_e3m2_to_f32_serial) // nk_dot_e3m2_serial
+
+/** Twice every E2M1 value is an integer, so products accumulate exactly in i32; `n` counts nibbles. */
+NK_API_COMPTIME void nk_dot_e2m1_serial(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result) {
+    nk_size_t const n_bytes = n / 2;
+    nk_i32_t sum = 0;
+    for (nk_size_t i = 0; i < n_bytes; ++i) {
+        sum += nk_e2m1_nibble_to_i8x2_serial_(a[i] >> 4) * nk_e2m1_nibble_to_i8x2_serial_(b[i] >> 4);
+        sum += nk_e2m1_nibble_to_i8x2_serial_(a[i] & 0x0F) * nk_e2m1_nibble_to_i8x2_serial_(b[i] & 0x0F);
+    }
+    if (n & 1) sum += nk_e2m1_nibble_to_i8x2_serial_(a[n_bytes] >> 4) * nk_e2m1_nibble_to_i8x2_serial_(b[n_bytes] >> 4);
+    *result = (nk_f32_t)sum * 0.25f;
+}
 
 #pragma endregion F16 and BF16 Floats
 
@@ -693,6 +706,37 @@ NK_HELPER_INLINE void nk_dot_e3m2x16_finalize_serial(                           
     result->f32s[1] = state_b->sums[0] + state_b->sums[1] + state_b->sums[2] + state_b->sums[3];
     result->f32s[2] = state_c->sums[0] + state_c->sums[1] + state_c->sums[2] + state_c->sums[3];
     result->f32s[3] = state_d->sums[0] + state_d->sums[1] + state_d->sums[2] + state_d->sums[3];
+}
+
+/** @brief E2M1 state: 16 nibbles (8 bytes) per update, doubled values accumulated exactly in i32. */
+typedef struct nk_dot_e2m1x16_state_serial_t {
+    nk_i32_t sum;
+} nk_dot_e2m1x16_state_serial_t;
+
+NK_HELPER_INLINE void nk_dot_e2m1x16_init_serial(nk_dot_e2m1x16_state_serial_t *state) { state->sum = 0; }
+
+NK_HELPER_INLINE void nk_dot_e2m1x16_update_serial(nk_dot_e2m1x16_state_serial_t *state, nk_b64_vec_t a, nk_b64_vec_t b,
+                                                   nk_size_t depth_offset, nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    nk_u8_t const *a_bytes = (nk_u8_t const *)&a.u64, *b_bytes = (nk_u8_t const *)&b.u64;
+    nk_i32_t sum = state->sum;
+    for (nk_size_t i = 0; i != 8; ++i) {
+        sum += nk_e2m1_nibble_to_i8x2_serial_(a_bytes[i] >> 4) * nk_e2m1_nibble_to_i8x2_serial_(b_bytes[i] >> 4);
+        sum += nk_e2m1_nibble_to_i8x2_serial_(a_bytes[i] & 0x0F) * nk_e2m1_nibble_to_i8x2_serial_(b_bytes[i] & 0x0F);
+    }
+    state->sum = sum;
+}
+
+NK_HELPER_INLINE void nk_dot_e2m1x16_finalize_serial(                                           //
+    nk_dot_e2m1x16_state_serial_t const *state_a, nk_dot_e2m1x16_state_serial_t const *state_b, //
+    nk_dot_e2m1x16_state_serial_t const *state_c, nk_dot_e2m1x16_state_serial_t const *state_d, //
+    nk_size_t total_dimensions, nk_b128_vec_t *result) {
+    nk_unused_(total_dimensions);
+    result->f32s[0] = (nk_f32_t)state_a->sum * 0.25f;
+    result->f32s[1] = (nk_f32_t)state_b->sum * 0.25f;
+    result->f32s[2] = (nk_f32_t)state_c->sum * 0.25f;
+    result->f32s[3] = (nk_f32_t)state_d->sum * 0.25f;
 }
 
 #pragma endregion F16 and BF16 Floats
