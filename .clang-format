@@ -142,6 +142,10 @@ StatementMacros:
   - nk_define_cross_cuda_normalized_symmetric_
   - nk_define_cross_cuda_fma_normalized_packed_
   - nk_define_cross_cuda_fma_normalized_symmetric_
+  - nk_define_attention_cuda_pack_size_
+  - nk_define_attention_cuda_packed_shape_
+  - nk_define_attention_cuda_pack_
+  - nk_define_attention_cuda_packed_
   - nk_define_trig_rope_
   - nk_define_mesh_
   - nk_define_dense_

@@ -20,6 +20,7 @@
  *
  *  - x86: Haswell, Skylake, Genoa, Sapphire Rapids AMX
  *  - Arm: SME, and per-feature NEON tiers (BFDOT for BF16, FHM for E4M3, SDOT for I8)
+ *  - NVIDIA: Ampere and newer, plus native E4M3 on the compute capability 12.x family
  *  - portable serial fallback
  *
  *  @section attention_usage Usage and Benefits
@@ -988,6 +989,122 @@ NK_API_COMPTIME void nk_attention_causal_packed_i8_v128relaxed(
     nk_size_t task_count);
 #endif // NK_TARGET_V128RELAXED
 
+/*  NVIDIA backends from Ampere on, asynchronous on their `stream` and returning the launch status. Only
+ *  `pack_size` reads `segment_lengths` on the host: the pack and both attention kernels read the offsets and lengths on
+ *  the device, so every pointer they take must be device or managed memory.
+ */
+#if NK_TARGET_AMPERE
+/** @copydoc nk_attention_pack_size_bf16 */
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_ampere(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count);
+/** @copydoc nk_attention_packed_shape_bf16 */
+NK_API_COMPTIME cudaError_t nk_attention_packed_shape_bf16_ampere(void const *key_value_packed, nk_size_t *heads,
+                                                                  nk_size_t *depth, nk_size_t *segments,
+                                                                  cudaStream_t stream);
+/** @copydoc nk_attention_pack_bf16 */
+NK_API_COMPTIME cudaError_t nk_attention_pack_bf16_ampere(nk_bf16_t const *keys, nk_bf16_t const *values,
+                                                          nk_size_t key_value_head_count, nk_size_t depth,
+                                                          nk_u32_t const *segment_offsets,
+                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                          nk_size_t key_stride_bytes, nk_size_t value_stride_bytes,
+                                                          void *key_value_packed, nk_size_t task_begin,
+                                                          nk_size_t task_end, cudaStream_t stream);
+/** @copydoc nk_attention_bidirectional_packed_bf16 */
+NK_API_COMPTIME cudaError_t nk_attention_bidirectional_packed_bf16_ampere(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, cudaStream_t stream);
+/** @copydoc nk_attention_causal_packed_bf16 */
+NK_API_COMPTIME cudaError_t nk_attention_causal_packed_bf16_ampere(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
+    nk_size_t task_count, cudaStream_t stream);
+/** @copydoc nk_attention_pack_size_e4m3 */
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_ampere(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count);
+/** @copydoc nk_attention_packed_shape_e4m3 */
+NK_API_COMPTIME cudaError_t nk_attention_packed_shape_e4m3_ampere(void const *key_value_packed, nk_size_t *heads,
+                                                                  nk_size_t *depth, nk_size_t *segments,
+                                                                  cudaStream_t stream);
+/** @copydoc nk_attention_pack_e4m3 */
+NK_API_COMPTIME cudaError_t nk_attention_pack_e4m3_ampere(nk_e4m3_t const *keys, nk_e4m3_t const *values,
+                                                          nk_size_t key_value_head_count, nk_size_t depth,
+                                                          nk_u32_t const *segment_offsets,
+                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                          nk_size_t key_stride_bytes, nk_size_t value_stride_bytes,
+                                                          void *key_value_packed, nk_size_t task_begin,
+                                                          nk_size_t task_end, cudaStream_t stream);
+/** @copydoc nk_attention_bidirectional_packed_e4m3 */
+NK_API_COMPTIME cudaError_t nk_attention_bidirectional_packed_e4m3_ampere(
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, cudaStream_t stream);
+/** @copydoc nk_attention_causal_packed_e4m3 */
+NK_API_COMPTIME cudaError_t nk_attention_causal_packed_e4m3_ampere(
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
+    nk_size_t task_count, cudaStream_t stream);
+/** @copydoc nk_attention_pack_size_i8 */
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_ampere(nk_size_t key_value_head_count, nk_size_t depth,
+                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count);
+/** @copydoc nk_attention_packed_shape_i8 */
+NK_API_COMPTIME cudaError_t nk_attention_packed_shape_i8_ampere(void const *key_value_packed, nk_size_t *heads,
+                                                                nk_size_t *depth, nk_size_t *segments,
+                                                                cudaStream_t stream);
+/** @copydoc nk_attention_pack_i8 */
+NK_API_COMPTIME cudaError_t nk_attention_pack_i8_ampere(nk_i8_t const *keys, nk_i8_t const *values,
+                                                        nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_u32_t const *segment_offsets,
+                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                        nk_size_t key_stride_bytes, nk_size_t value_stride_bytes,
+                                                        void *key_value_packed, nk_size_t task_begin,
+                                                        nk_size_t task_end, cudaStream_t stream);
+/** @copydoc nk_attention_bidirectional_packed_i8 */
+NK_API_COMPTIME cudaError_t nk_attention_bidirectional_packed_i8_ampere(
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, cudaStream_t stream);
+/** @copydoc nk_attention_causal_packed_i8 */
+NK_API_COMPTIME cudaError_t nk_attention_causal_packed_i8_ampere(
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
+    nk_size_t task_count, cudaStream_t stream);
+#endif // NK_TARGET_AMPERE
+
+/*  NVIDIA backends for the compute capability 12.x family, with E4M3 on the tensor cores natively. BF16 and I8 there
+ * use the Ampere kernels, which already run at the native rate.
+ */
+#if NK_TARGET_BLACKWELLRTX
+/** @copydoc nk_attention_pack_size_e4m3 */
+NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_blackwellrtx(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                   nk_u32_t const *segment_lengths,
+                                                                   nk_size_t segment_count);
+/** @copydoc nk_attention_packed_shape_e4m3 */
+NK_API_COMPTIME cudaError_t nk_attention_packed_shape_e4m3_blackwellrtx(void const *key_value_packed, nk_size_t *heads,
+                                                                        nk_size_t *depth, nk_size_t *segments,
+                                                                        cudaStream_t stream);
+/** @copydoc nk_attention_pack_e4m3 */
+NK_API_COMPTIME cudaError_t nk_attention_pack_e4m3_blackwellrtx(
+    nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
+    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t task_begin,
+    nk_size_t task_end, cudaStream_t stream);
+/** @copydoc nk_attention_bidirectional_packed_e4m3 */
+NK_API_COMPTIME cudaError_t nk_attention_bidirectional_packed_e4m3_blackwellrtx(
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, cudaStream_t stream);
+/** @copydoc nk_attention_causal_packed_e4m3 */
+NK_API_COMPTIME cudaError_t nk_attention_causal_packed_e4m3_blackwellrtx(
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
+    nk_size_t task_count, cudaStream_t stream);
+#endif // NK_TARGET_BLACKWELLRTX
+
 /**
  *  @brief Returns the output dtype for attention: accumulator-precision F32 for all inputs.
  */
@@ -1018,6 +1135,8 @@ NK_HELPER_INLINE nk_dtype_t nk_attention_output_dtype(nk_dtype_t dtype) {
 #include "numkong/attention/rvv.h"
 #include "numkong/attention/v128.h"
 #include "numkong/attention/v128relaxed.h"
+#include "numkong/attention/ampere.cuh"
+#include "numkong/attention/blackwellrtx.cuh"
 
 #if defined(__cplusplus)
 extern "C" {
