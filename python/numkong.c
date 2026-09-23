@@ -223,6 +223,38 @@ nk_size_t nk_next_int_bits_(nk_size_t bits) {
     return 0; // overflow
 }
 
+/** @brief Returns the IEEE float dtype at the given bit width, or nk_dtype_unknown_k. */
+nk_dtype_t nk_float_at_bits_(nk_size_t bits) {
+    switch (bits) {
+    case 16: return nk_f16_k;
+    case 32: return nk_f32_k;
+    case 64: return nk_f64_k;
+    default: return nk_dtype_unknown_k;
+    }
+}
+
+/** @brief Returns the complex dtype with components of the given bit width, or nk_dtype_unknown_k. */
+nk_dtype_t nk_complex_at_bits_(nk_size_t bits) {
+    switch (bits) {
+    case 16: return nk_f16c_k;
+    case 32: return nk_f32c_k;
+    case 64: return nk_f64c_k;
+    default: return nk_dtype_unknown_k;
+    }
+}
+
+/** @brief Bit width of the narrowest IEEE float holding every value of a component of `dtype`, or 0. */
+nk_size_t nk_float_bits_holding_(nk_dtype_t dtype) {
+    nk_size_t const bits = nk_dtype_component_bits_(dtype);
+    switch (nk_dtype_family(dtype)) {
+    case nk_dtype_family_float_k: return nk_float_at_bits_(bits) == dtype ? bits : 32;
+    case nk_dtype_family_complex_float_k: return nk_complex_at_bits_(bits) == dtype ? bits : 32;
+    case nk_dtype_family_int_k:
+    case nk_dtype_family_uint_k: return bits >= 32 ? 64 : nk_next_int_bits_(bits < 8 ? 8 : bits);
+    default: return 0;
+    }
+}
+
 nk_dtype_t nk_dtype_promote(nk_dtype_t a, nk_dtype_t b) {
     if (a == b) return a;
 
@@ -230,19 +262,11 @@ nk_dtype_t nk_dtype_promote(nk_dtype_t a, nk_dtype_t b) {
     nk_size_t bits_a = nk_dtype_component_bits_(a), bits_b = nk_dtype_component_bits_(b);
     if (bits_a == 0 || bits_b == 0) return nk_dtype_unknown_k;
 
-    // Same family: return wider
-    if (family_a == family_b) {
-        if (family_a == nk_dtype_family_float_k) {
-            // Exotic floats (e4m3, e5m2, bf16) mixed with standard floats → promote through f32
-            if (bits_a <= 8 || bits_b <= 8 || a == nk_bf16_k || b == nk_bf16_k) {
-                if (bits_a <= 16 && bits_b <= 16) return nk_f32_k;
-            }
-            return bits_a >= bits_b ? a : b;
-        }
-        if (family_a == nk_dtype_family_int_k) return nk_signed_int_at_bits_(bits_a >= bits_b ? bits_a : bits_b);
-        if (family_a == nk_dtype_family_uint_k) return nk_unsigned_int_at_bits_(bits_a >= bits_b ? bits_a : bits_b);
-        if (family_a == nk_dtype_family_complex_float_k) return bits_a >= bits_b ? a : b;
-    }
+    // Same integer family: return wider
+    if (family_a == family_b && family_a == nk_dtype_family_int_k)
+        return nk_signed_int_at_bits_(bits_a >= bits_b ? bits_a : bits_b);
+    if (family_a == family_b && family_a == nk_dtype_family_uint_k)
+        return nk_unsigned_int_at_bits_(bits_a >= bits_b ? bits_a : bits_b);
 
     // Signed + unsigned → next wider signed if needed
     if ((family_a == nk_dtype_family_int_k && family_b == nk_dtype_family_uint_k) ||
@@ -253,22 +277,13 @@ nk_dtype_t nk_dtype_promote(nk_dtype_t a, nk_dtype_t b) {
         return nk_signed_int_at_bits_(signed_bits >= unsigned_bits ? signed_bits : unsigned_bits);
     }
 
-    // Int + float → float wide enough
-    if ((family_a == nk_dtype_family_float_k && family_b != nk_dtype_family_float_k) ||
-        (family_b == nk_dtype_family_float_k && family_a != nk_dtype_family_float_k)) {
-        nk_size_t int_bits = (family_a == nk_dtype_family_float_k) ? bits_b : bits_a;
-        if (int_bits >= 32) return nk_f64_k;
-        if (int_bits >= 8) return nk_f32_k;
-        return nk_f32_k;
-    }
-
-    // Complex + real → complex with promoted component
-    if (family_a == nk_dtype_family_complex_float_k || family_b == nk_dtype_family_complex_float_k) {
-        nk_size_t max_bits = bits_a >= bits_b ? bits_a : bits_b;
-        return max_bits >= 64 ? nk_f64c_k : nk_f32c_k;
-    }
-
-    return nk_dtype_unknown_k;
+    // Any float or complex operand → the narrowest IEEE float holding both, complex if either is
+    nk_size_t const float_bits_a = nk_float_bits_holding_(a), float_bits_b = nk_float_bits_holding_(b);
+    if (float_bits_a == 0 || float_bits_b == 0) return nk_dtype_unknown_k;
+    nk_size_t const float_bits = float_bits_a >= float_bits_b ? float_bits_a : float_bits_b;
+    int const either_complex = family_a == nk_dtype_family_complex_float_k ||
+                               family_b == nk_dtype_family_complex_float_k;
+    return either_complex ? nk_complex_at_bits_(float_bits) : nk_float_at_bits_(float_bits);
 }
 
 int same_string(char const *a, char const *b) { return strcmp(a, b) == 0; }

@@ -382,6 +382,30 @@ def test_fma_random_accuracy(shape: tuple, dtype: str, capability: str, nk_seed:
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(
+    "first_dtype, second_dtype",
+    [
+        ("float64", "int16"),
+        ("float64", "uint8"),
+        ("float32", "int8"),
+        ("float32", "int32"),
+        ("float16", "int8"),
+        ("float16", "uint16"),
+        ("float32", "float64"),
+        ("int16", "uint16"),
+    ],
+)
+@pytest.mark.parametrize("kernel", ["add", "multiply"])
+def test_add_multiply_mixed_dtype_promotion(first_dtype: str, second_dtype: str, kernel):
+    """Mixed-dtype add and multiply promote like `np.result_type`."""
+    _, simd_kernel, _ = KERNELS_EACH[kernel]
+    a = np.ones(4, dtype=first_dtype)
+    b = np.ones(4, dtype=second_dtype)
+    assert np.asarray(simd_kernel(a, b)).dtype == np.result_type(a, b)
+    assert np.asarray(simd_kernel(b, a)).dtype == np.result_type(a, b)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(randomized_repetitions_count)
 @pytest.mark.parametrize(
     "dtype",
