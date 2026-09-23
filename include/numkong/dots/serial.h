@@ -1943,41 +1943,39 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                  * triangle and must be computed. */                                                                   \
                 if (i_block >= j_block_end) continue;                                                                  \
                                                                                                                        \
-                for (nk_size_t i_macro = i_block; i_macro < i_block_end; i_macro += macro_tile_size) {                 \
-                    /* Upper triangle: j_macro starts at max(i_macro, j_block) */                                      \
+                for (nk_size_t i_macro = i_block, macro_i_size; i_macro < i_block_end; i_macro += macro_i_size) {      \
+                    /* Row tiles stop at column-block edges, so only `j_macro == i_macro` meets the diagonal */        \
+                    nk_size_t const column_edge = (i_macro / column_block_size + 1) * column_block_size;               \
+                    macro_i_size = nk_min_of_two(macro_tile_size, nk_min_of_two(i_block_end, column_edge) - i_macro);  \
                     nk_size_t j_start = (i_macro > j_block) ? i_macro : j_block;                                       \
                     for (nk_size_t j_macro = j_start; j_macro < j_block_end; j_macro += macro_tile_size) {             \
-                        nk_size_t macro_i_size = (i_macro + macro_tile_size <= i_block_end) ? macro_tile_size          \
-                                                                                            : (i_block_end - i_macro); \
                         nk_size_t macro_j_size = (j_macro + macro_tile_size <= j_block_end) ? macro_tile_size          \
                                                                                             : (j_block_end - j_macro); \
                                                                                                                        \
-                        /* Build pointer arrays */                                                                     \
                         nk_##input_value_type##_t const *vec_ptrs_i[32];                                               \
                         nk_##input_value_type##_t const *vec_ptrs_j[32];                                               \
                         for (nk_size_t k = 0; k < macro_i_size; k++)                                                   \
                             vec_ptrs_i[k] = (nk_##input_value_type##_t const *)((char const *)vectors +                \
                                                                                 (i_macro + k) * stride_in_bytes);      \
                         for (nk_size_t k = macro_i_size; k < 32; k++) vec_ptrs_i[k] = vec_ptrs_i[0];                   \
+                        for (nk_size_t k = 0; k < macro_j_size; k++)                                                   \
+                            vec_ptrs_j[k] = (nk_##input_value_type##_t const *)((char const *)vectors +                \
+                                                                                (j_macro + k) * stride_in_bytes);      \
+                        for (nk_size_t k = macro_j_size; k < 32; k++) vec_ptrs_j[k] = vec_ptrs_j[0];                   \
                                                                                                                        \
-                        if (i_macro == j_macro && macro_i_size == macro_j_size) {                                      \
-                            /* Diagonal macro-tile */                                                                  \
+                        /* A diagonal tile is a triangle, plus a rectangle when the row range ends early */            \
+                        nk_size_t const skipped_columns = (i_macro == j_macro) ? macro_i_size : 0;                     \
+                        if (i_macro == j_macro)                                                                        \
                             nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_(                    \
                                 vec_ptrs_i, i_macro, macro_i_size, aligned_depth, remainder_depth,                     \
                                 remainder_dimensions, depth_step, dimensions_per_value, result, result_stride_values,  \
                                 4, depth);                                                                             \
-                        }                                                                                              \
-                        else {                                                                                         \
-                            /* Off-diagonal macro-tile */                                                              \
-                            for (nk_size_t k = 0; k < macro_j_size; k++)                                               \
-                                vec_ptrs_j[k] = (nk_##input_value_type##_t const *)((char const *)vectors +            \
-                                                                                    (j_macro + k) * stride_in_bytes);  \
-                            for (nk_size_t k = macro_j_size; k < 32; k++) vec_ptrs_j[k] = vec_ptrs_j[0];               \
+                        if (skipped_columns < macro_j_size)                                                            \
                             nk_##api_name##_symmetric_offdiagonal_##input_type_name##_##isa_suffix##_(                 \
-                                vec_ptrs_i, vec_ptrs_j, i_macro, j_macro, macro_i_size, macro_j_size, aligned_depth,   \
-                                remainder_depth, remainder_dimensions, depth_step, dimensions_per_value, result,       \
-                                result_stride_values, 4, depth);                                                       \
-                        }                                                                                              \
+                                vec_ptrs_i, vec_ptrs_j + skipped_columns, i_macro, j_macro + skipped_columns,          \
+                                macro_i_size, macro_j_size - skipped_columns, aligned_depth, remainder_depth,          \
+                                remainder_dimensions, depth_step, dimensions_per_value, result, result_stride_values,  \
+                                4, depth);                                                                             \
                     }                                                                                                  \
                 }                                                                                                      \
             }                                                                                                          \
@@ -2420,12 +2418,12 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                  * triangle and must be computed. */                                                                   \
                 if (i_block >= j_block_end) continue;                                                                  \
                                                                                                                        \
-                for (nk_size_t i_macro = i_block; i_macro < i_block_end; i_macro += macro_tile_size) {                 \
-                    /* Upper triangle: j_macro starts at max(i_macro, j_block) */                                      \
+                for (nk_size_t i_macro = i_block, macro_i_size; i_macro < i_block_end; i_macro += macro_i_size) {      \
+                    /* Row tiles stop at column-block edges, so only `j_macro == i_macro` meets the diagonal */        \
+                    nk_size_t const column_edge = (i_macro / column_block_size + 1) * column_block_size;               \
+                    macro_i_size = nk_min_of_two(macro_tile_size, nk_min_of_two(i_block_end, column_edge) - i_macro);  \
                     nk_size_t j_start = (i_macro > j_block) ? i_macro : j_block;                                       \
                     for (nk_size_t j_macro = j_start; j_macro < j_block_end; j_macro += macro_tile_size) {             \
-                        nk_size_t macro_i_size = (i_macro + macro_tile_size <= i_block_end) ? macro_tile_size          \
-                                                                                            : (i_block_end - i_macro); \
                         nk_size_t macro_j_size = (j_macro + macro_tile_size <= j_block_end) ? macro_tile_size          \
                                                                                             : (j_block_end - j_macro); \
                                                                                                                        \
@@ -2435,26 +2433,23 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                         for (nk_size_t i = 0; i < macro_i_size; i++) {                                                 \
                             vector_base_ptrs_i[i] = vectors + (i_macro + i) * vectors_stride_values;                   \
                         }                                                                                              \
-                        if (i_macro != j_macro || macro_i_size != macro_j_size) {                                      \
-                            for (nk_size_t j = 0; j < macro_j_size; j++) {                                             \
-                                vector_base_ptrs_j[j] = vectors + (j_macro + j) * vectors_stride_values;               \
-                            }                                                                                          \
+                        for (nk_size_t j = 0; j < macro_j_size; j++) {                                                 \
+                            vector_base_ptrs_j[j] = vectors + (j_macro + j) * vectors_stride_values;                   \
                         }                                                                                              \
                                                                                                                        \
-                        if (i_macro == j_macro && macro_i_size == macro_j_size) {                                      \
-                            /* Diagonal macro-tile: symmetric, upper triangle only */                                  \
+                        /* A diagonal tile is a triangle, plus a rectangle when the row range ends early */            \
+                        nk_size_t const skipped_columns = (i_macro == j_macro) ? macro_i_size : 0;                     \
+                        if (i_macro == j_macro)                                                                        \
                             nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_(                    \
                                 vector_base_ptrs_i, i_macro, macro_i_size, aligned_depth, remainder_depth,             \
                                 remainder_dimensions, depth_step_values, dimensions_per_value, result,                 \
                                 result_stride_values, finalizer_batch_size, depth);                                    \
-                        }                                                                                              \
-                        else {                                                                                         \
-                            /* Off-diagonal macro-tile: full rectangle */                                              \
+                        if (skipped_columns < macro_j_size)                                                            \
                             nk_##api_name##_symmetric_##input_type_name##_##isa_suffix##_offdiagonal##_(               \
-                                vector_base_ptrs_i, vector_base_ptrs_j, i_macro, j_macro, macro_i_size, macro_j_size,  \
+                                vector_base_ptrs_i, vector_base_ptrs_j + skipped_columns, i_macro,                     \
+                                j_macro + skipped_columns, macro_i_size, macro_j_size - skipped_columns,               \
                                 aligned_depth, remainder_depth, remainder_dimensions, depth_step_values,               \
                                 dimensions_per_value, result, result_stride_values, finalizer_batch_size, depth);      \
-                        }                                                                                              \
                     }                                                                                                  \
                 }                                                                                                      \
             }                                                                                                          \
@@ -2874,7 +2869,7 @@ NK_API_COMPTIME void nk_dots_compact_i8_serial(void *c, nk_size_t row_count, nk_
         nk_##input_value_type##_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, \
         nk_##final_result_type##_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start,                     \
         nk_size_t row_count) {                                                                                         \
-                                                                                                                       \
+        row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;               \
         dots_symmetric_fn(vectors, vectors_count, depth, stride_in_bytes, (nk_##dot_result_type##_t *)result,          \
                           result_stride_in_bytes, row_start, row_count);                                               \
                                                                                                                        \

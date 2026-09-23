@@ -108,6 +108,20 @@ enum {
     nk_sme_zero_za64_tiles_1_7_ = 0xFE, /* Accumulators ZA1-7.D (preserves ZA0.D staging) */
 };
 
+/** @brief Clears the lanes of `bound` left of the diagonal on row `row_index`, for a tile starting at `column_start`.
+ */
+NK_HELPER_INLINE svbool_t nk_sme_diagonal_cut_b32x_(svbool_t bound, nk_size_t column_start,
+                                                    nk_size_t row_index) NK_STREAMING_ {
+    return svbic_b_z(bound, bound, svwhilelt_b32_u64(column_start, row_index));
+}
+
+/** @brief Clears the lanes of `bound` left of the diagonal on row `row_index`, for a tile starting at `column_start`.
+ */
+NK_HELPER_INLINE svbool_t nk_sme_diagonal_cut_b64x_(svbool_t bound, nk_size_t column_start,
+                                                    nk_size_t row_index) NK_STREAMING_ {
+    return svbic_b_z(bound, bound, svwhilelt_b64_u64(column_start, row_index));
+}
+
 /*
  *  f16/bf16 → f32 GEMM using FMOPA/BFMOPA with ZA32 tiles.
  *
@@ -788,13 +802,29 @@ __arm_new("za") static void nk_dots_symmetric_f16_sme_streaming_( //
                 }
             }
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dimension;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dimension;
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension,
+                                                                vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dimension;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dimension;
             // Extract results from ZA1-3
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const first_b32x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(first_bound_b32x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b32x;
+                svbool_t const second_b32x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b32x_(second_bound_b32x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
                 nk_f32_t *result_row = result + row_abs * result_stride_elements;
-                svst1_hor_za32(1, row, predicate_all_b32x, result_row + (column_tile_index + 0) * tile_dimension);
-                svst1_hor_za32(2, row, predicate_all_b32x, result_row + (column_tile_index + 1) * tile_dimension);
-                svst1_hor_za32(3, row, predicate_all_b32x, result_row + (column_tile_index + 2) * tile_dimension);
+                svst1_hor_za32(1, row, first_b32x, result_row + (column_tile_index + 0) * tile_dimension);
+                svst1_hor_za32(2, row, second_b32x, result_row + (column_tile_index + 1) * tile_dimension);
+                svst1_hor_za32(3, row, third_bound_b32x, result_row + (column_tile_index + 2) * tile_dimension);
             }
         }
 
@@ -850,10 +880,14 @@ __arm_new("za") static void nk_dots_symmetric_f16_sme_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = column_tile_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const store_b32x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(column_predicate_b32x, column_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
-                svst1_hor_za32(1, row, column_predicate_b32x,
-                               result + row_abs * result_stride_elements + column_tile_start);
+                svst1_hor_za32(1, row, store_b32x, result + row_abs * result_stride_elements + column_tile_start);
             }
         }
     }
@@ -987,12 +1021,28 @@ __arm_new("za") static void nk_dots_symmetric_bf16_sme_streaming_( //
                 }
             }
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dimension;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dimension;
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension,
+                                                                vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dimension;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const first_b32x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(first_bound_b32x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b32x;
+                svbool_t const second_b32x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b32x_(second_bound_b32x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
                 nk_f32_t *result_row = result + row_abs * result_stride_elements;
-                svst1_hor_za32(1, row, predicate_all_b32x, result_row + (column_tile_index + 0) * tile_dimension);
-                svst1_hor_za32(2, row, predicate_all_b32x, result_row + (column_tile_index + 1) * tile_dimension);
-                svst1_hor_za32(3, row, predicate_all_b32x, result_row + (column_tile_index + 2) * tile_dimension);
+                svst1_hor_za32(1, row, first_b32x, result_row + (column_tile_index + 0) * tile_dimension);
+                svst1_hor_za32(2, row, second_b32x, result_row + (column_tile_index + 1) * tile_dimension);
+                svst1_hor_za32(3, row, third_bound_b32x, result_row + (column_tile_index + 2) * tile_dimension);
             }
         }
 
@@ -1045,10 +1095,14 @@ __arm_new("za") static void nk_dots_symmetric_bf16_sme_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = column_tile_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const store_b32x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(column_predicate_b32x, column_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
-                svst1_hor_za32(1, row, column_predicate_b32x,
-                               result + row_abs * result_stride_elements + column_tile_start);
+                svst1_hor_za32(1, row, store_b32x, result + row_abs * result_stride_elements + column_tile_start);
             }
         }
     }
@@ -1403,12 +1457,28 @@ __arm_new("za") static void nk_dots_symmetric_i8_sme_streaming_( //
                 }
             }
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dimension;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dimension;
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension,
+                                                                vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dimension;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const first_b32x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(first_bound_b32x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b32x;
+                svbool_t const second_b32x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b32x_(second_bound_b32x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
                 nk_f32_t *result_row = (nk_f32_t *)(result + row_abs * result_stride_elements);
-                svst1_hor_za32(1, row, predicate_all_b32x, result_row + (column_tile_index + 0) * tile_dimension);
-                svst1_hor_za32(2, row, predicate_all_b32x, result_row + (column_tile_index + 1) * tile_dimension);
-                svst1_hor_za32(3, row, predicate_all_b32x, result_row + (column_tile_index + 2) * tile_dimension);
+                svst1_hor_za32(1, row, first_b32x, result_row + (column_tile_index + 0) * tile_dimension);
+                svst1_hor_za32(2, row, second_b32x, result_row + (column_tile_index + 1) * tile_dimension);
+                svst1_hor_za32(3, row, third_bound_b32x, result_row + (column_tile_index + 2) * tile_dimension);
             }
         }
 
@@ -1457,9 +1527,14 @@ __arm_new("za") static void nk_dots_symmetric_i8_sme_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = column_tile_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const store_b32x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(column_predicate_b32x, column_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
-                svst1_hor_za32(1, row, column_predicate_b32x,
+                svst1_hor_za32(1, row, store_b32x,
                                (nk_f32_t *)(result + row_abs * result_stride_elements) + column_tile_start);
             }
         }
@@ -2004,12 +2079,28 @@ __arm_new("za") static void nk_dots_symmetric_e4m3_sme_streaming_( //
                 }
             }
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dimension;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dimension;
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension,
+                                                                vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dimension;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_actual; row++) {
+                svbool_t const first_b32x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(first_bound_b32x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b32x;
+                svbool_t const second_b32x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b32x_(second_bound_b32x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
                 nk_f32_t *result_row = result + row_abs * result_stride_elements;
-                svst1_hor_za32(1, row, predicate_all_b32x, result_row + (column_tile_index + 0) * tile_dimension);
-                svst1_hor_za32(2, row, predicate_all_b32x, result_row + (column_tile_index + 1) * tile_dimension);
-                svst1_hor_za32(3, row, predicate_all_b32x, result_row + (column_tile_index + 2) * tile_dimension);
+                svst1_hor_za32(1, row, first_b32x, result_row + (column_tile_index + 0) * tile_dimension);
+                svst1_hor_za32(2, row, second_b32x, result_row + (column_tile_index + 1) * tile_dimension);
+                svst1_hor_za32(3, row, third_bound_b32x, result_row + (column_tile_index + 2) * tile_dimension);
             }
         }
 
@@ -2068,10 +2159,14 @@ __arm_new("za") static void nk_dots_symmetric_e4m3_sme_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = column_tile_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_actual; row++) {
+                svbool_t const store_b32x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(column_predicate_b32x, column_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
-                svst1_hor_za32(1, row, column_predicate_b32x,
-                               result + row_abs * result_stride_elements + column_tile_start);
+                svst1_hor_za32(1, row, store_b32x, result + row_abs * result_stride_elements + column_tile_start);
             }
         }
     }
@@ -2442,12 +2537,28 @@ __arm_new("za") static void nk_dots_symmetric_e5m2_sme_streaming_( //
                 }
             }
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dimension;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dimension;
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension,
+                                                                vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dimension;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_actual; row++) {
+                svbool_t const first_b32x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(first_bound_b32x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b32x;
+                svbool_t const second_b32x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b32x_(second_bound_b32x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
                 nk_f32_t *result_row = result + row_abs * result_stride_elements;
-                svst1_hor_za32(1, row, predicate_all_b32x, result_row + (column_tile_index + 0) * tile_dimension);
-                svst1_hor_za32(2, row, predicate_all_b32x, result_row + (column_tile_index + 1) * tile_dimension);
-                svst1_hor_za32(3, row, predicate_all_b32x, result_row + (column_tile_index + 2) * tile_dimension);
+                svst1_hor_za32(1, row, first_b32x, result_row + (column_tile_index + 0) * tile_dimension);
+                svst1_hor_za32(2, row, second_b32x, result_row + (column_tile_index + 1) * tile_dimension);
+                svst1_hor_za32(3, row, third_bound_b32x, result_row + (column_tile_index + 2) * tile_dimension);
             }
         }
 
@@ -2505,10 +2616,14 @@ __arm_new("za") static void nk_dots_symmetric_e5m2_sme_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = column_tile_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_actual; row++) {
+                svbool_t const store_b32x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(column_predicate_b32x, column_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
-                svst1_hor_za32(1, row, column_predicate_b32x,
-                               result + row_abs * result_stride_elements + column_tile_start);
+                svst1_hor_za32(1, row, store_b32x, result + row_abs * result_stride_elements + column_tile_start);
             }
         }
     }
@@ -2968,8 +3083,24 @@ __arm_new("za") static void nk_dots_symmetric_e2m3_sme_streaming_( //
                 }
             }
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dimension;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dimension;
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension,
+                                                                vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dimension;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dimension;
             // Store results: convert i32 → f32 with 1/256 scaling
             for (nk_size_t row = 0; row < rows_actual; row++) {
+                svbool_t const first_b32x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(first_bound_b32x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b32x;
+                svbool_t const second_b32x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b32x_(second_bound_b32x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
                 nk_f32_t *result_row = result + row_abs * result_stride_elements;
 
@@ -2982,9 +3113,9 @@ __arm_new("za") static void nk_dots_symmetric_e2m3_sme_streaming_( //
                                                        svcvt_f32_s32_x(predicate_all_b32x, row_2_i32x), 1.0f / 256.0f);
                 svfloat32_t row_3_f32x = svmul_n_f32_x(predicate_all_b32x,
                                                        svcvt_f32_s32_x(predicate_all_b32x, row_3_i32x), 1.0f / 256.0f);
-                svst1_f32(predicate_all_b32x, result_row + (column_tile_index + 0) * tile_dimension, row_1_f32x);
-                svst1_f32(predicate_all_b32x, result_row + (column_tile_index + 1) * tile_dimension, row_2_f32x);
-                svst1_f32(predicate_all_b32x, result_row + (column_tile_index + 2) * tile_dimension, row_3_f32x);
+                svst1_f32(first_b32x, result_row + (column_tile_index + 0) * tile_dimension, row_1_f32x);
+                svst1_f32(second_b32x, result_row + (column_tile_index + 1) * tile_dimension, row_2_f32x);
+                svst1_f32(third_bound_b32x, result_row + (column_tile_index + 2) * tile_dimension, row_3_f32x);
             }
         }
 
@@ -3040,14 +3171,18 @@ __arm_new("za") static void nk_dots_symmetric_e2m3_sme_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = column_tile_start < row_tile_start + tile_dimension;
             // Store results: convert i32 → f32 with 1/256 scaling
             for (nk_size_t row = 0; row < rows_actual; row++) {
+                svbool_t const store_b32x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(column_predicate_b32x, column_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
                 svint32_t row_i32x = svread_hor_za32_s32_m(svdup_s32(0), column_predicate_b32x, 1, row);
                 svfloat32_t row_f32x = svmul_n_f32_x(column_predicate_b32x,
                                                      svcvt_f32_s32_x(column_predicate_b32x, row_i32x), 1.0f / 256.0f);
-                svst1_f32(column_predicate_b32x, result + row_abs * result_stride_elements + column_tile_start,
-                          row_f32x);
+                svst1_f32(store_b32x, result + row_abs * result_stride_elements + column_tile_start, row_f32x);
             }
         }
     }
@@ -3474,8 +3609,24 @@ __arm_new("za") static void nk_dots_symmetric_e2m1_sme_streaming_( //
                 }
             }
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dimension;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dimension;
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension,
+                                                                vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dimension;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dimension;
             // Store results: convert i32 → f32 with 1/4 scaling
             for (nk_size_t row = 0; row < rows_actual; row++) {
+                svbool_t const first_b32x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(first_bound_b32x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b32x;
+                svbool_t const second_b32x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b32x_(second_bound_b32x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
                 nk_f32_t *result_row = result + row_abs * result_stride_elements;
 
@@ -3488,9 +3639,9 @@ __arm_new("za") static void nk_dots_symmetric_e2m1_sme_streaming_( //
                                                        svcvt_f32_s32_x(predicate_all_b32x, row_2_i32x), 0.25f);
                 svfloat32_t row_3_f32x = svmul_n_f32_x(predicate_all_b32x,
                                                        svcvt_f32_s32_x(predicate_all_b32x, row_3_i32x), 0.25f);
-                svst1_f32(predicate_all_b32x, result_row + (column_tile_index + 0) * tile_dimension, row_1_f32x);
-                svst1_f32(predicate_all_b32x, result_row + (column_tile_index + 1) * tile_dimension, row_2_f32x);
-                svst1_f32(predicate_all_b32x, result_row + (column_tile_index + 2) * tile_dimension, row_3_f32x);
+                svst1_f32(first_b32x, result_row + (column_tile_index + 0) * tile_dimension, row_1_f32x);
+                svst1_f32(second_b32x, result_row + (column_tile_index + 1) * tile_dimension, row_2_f32x);
+                svst1_f32(third_bound_b32x, result_row + (column_tile_index + 2) * tile_dimension, row_3_f32x);
             }
         }
 
@@ -3542,14 +3693,18 @@ __arm_new("za") static void nk_dots_symmetric_e2m1_sme_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = column_tile_start < row_tile_start + tile_dimension;
             // Store results: convert i32 → f32 with 1/4 scaling
             for (nk_size_t row = 0; row < rows_actual; row++) {
+                svbool_t const store_b32x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(column_predicate_b32x, column_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
                 svint32_t row_i32x = svread_hor_za32_s32_m(svdup_s32(0), column_predicate_b32x, 1, row);
                 svfloat32_t row_f32x = svmul_n_f32_x(column_predicate_b32x,
                                                      svcvt_f32_s32_x(column_predicate_b32x, row_i32x), 0.25f);
-                svst1_f32(column_predicate_b32x, result + row_abs * result_stride_elements + column_tile_start,
-                          row_f32x);
+                svst1_f32(store_b32x, result + row_abs * result_stride_elements + column_tile_start, row_f32x);
             }
         }
     }
@@ -4007,12 +4162,28 @@ __arm_new("za") static void nk_dots_symmetric_e3m2_sme_streaming_( //
                 }
             }
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dimension;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dimension;
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension,
+                                                                vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dimension;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_actual; row++) {
+                svbool_t const first_b32x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(first_bound_b32x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b32x;
+                svbool_t const second_b32x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b32x_(second_bound_b32x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
                 nk_f32_t *result_row = result + row_abs * result_stride_elements;
-                svst1_hor_za32(1, row, predicate_all_b32x, result_row + (column_tile_index + 0) * tile_dimension);
-                svst1_hor_za32(2, row, predicate_all_b32x, result_row + (column_tile_index + 1) * tile_dimension);
-                svst1_hor_za32(3, row, predicate_all_b32x, result_row + (column_tile_index + 2) * tile_dimension);
+                svst1_hor_za32(1, row, first_b32x, result_row + (column_tile_index + 0) * tile_dimension);
+                svst1_hor_za32(2, row, second_b32x, result_row + (column_tile_index + 1) * tile_dimension);
+                svst1_hor_za32(3, row, third_bound_b32x, result_row + (column_tile_index + 2) * tile_dimension);
             }
         }
 
@@ -4070,10 +4241,14 @@ __arm_new("za") static void nk_dots_symmetric_e3m2_sme_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = column_tile_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_actual; row++) {
+                svbool_t const store_b32x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(column_predicate_b32x, column_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
-                svst1_hor_za32(1, row, column_predicate_b32x,
-                               result + row_abs * result_stride_elements + column_tile_start);
+                svst1_hor_za32(1, row, store_b32x, result + row_abs * result_stride_elements + column_tile_start);
             }
         }
     }
@@ -4411,12 +4586,28 @@ __arm_new("za") static void nk_dots_symmetric_u8_sme_streaming_( //
                 }
             }
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dimension;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dimension;
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension,
+                                                                vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dimension;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const first_b32x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(first_bound_b32x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b32x;
+                svbool_t const second_b32x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b32x_(second_bound_b32x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
                 nk_f32_t *result_row = (nk_f32_t *)(result + row_abs * result_stride_elements);
-                svst1_hor_za32(1, row, predicate_all_b32x, result_row + (column_tile_index + 0) * tile_dimension);
-                svst1_hor_za32(2, row, predicate_all_b32x, result_row + (column_tile_index + 1) * tile_dimension);
-                svst1_hor_za32(3, row, predicate_all_b32x, result_row + (column_tile_index + 2) * tile_dimension);
+                svst1_hor_za32(1, row, first_b32x, result_row + (column_tile_index + 0) * tile_dimension);
+                svst1_hor_za32(2, row, second_b32x, result_row + (column_tile_index + 1) * tile_dimension);
+                svst1_hor_za32(3, row, third_bound_b32x, result_row + (column_tile_index + 2) * tile_dimension);
             }
         }
 
@@ -4466,9 +4657,14 @@ __arm_new("za") static void nk_dots_symmetric_u8_sme_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = column_tile_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const store_b32x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(column_predicate_b32x, column_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
-                svst1_hor_za32(1, row, column_predicate_b32x,
+                svst1_hor_za32(1, row, store_b32x,
                                (nk_f32_t *)(result + row_abs * result_stride_elements) + column_tile_start);
             }
         }
@@ -5274,12 +5470,28 @@ __arm_new("za") static void nk_dots_symmetric_u4_sme_streaming_( //
                 }
             }
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dimension;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dimension;
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension,
+                                                                vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dimension;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const first_b32x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(first_bound_b32x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b32x;
+                svbool_t const second_b32x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b32x_(second_bound_b32x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
                 nk_f32_t *result_row = (nk_f32_t *)(result + row_abs * result_stride_elements);
-                svst1_hor_za32(1, row, predicate_all_b32x, result_row + (column_tile_index + 0) * tile_dimension);
-                svst1_hor_za32(2, row, predicate_all_b32x, result_row + (column_tile_index + 1) * tile_dimension);
-                svst1_hor_za32(3, row, predicate_all_b32x, result_row + (column_tile_index + 2) * tile_dimension);
+                svst1_hor_za32(1, row, first_b32x, result_row + (column_tile_index + 0) * tile_dimension);
+                svst1_hor_za32(2, row, second_b32x, result_row + (column_tile_index + 1) * tile_dimension);
+                svst1_hor_za32(3, row, third_bound_b32x, result_row + (column_tile_index + 2) * tile_dimension);
             }
         }
 
@@ -5364,9 +5576,14 @@ __arm_new("za") static void nk_dots_symmetric_u4_sme_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = column_tile_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const store_b32x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(column_predicate_b32x, column_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
-                svst1_hor_za32(1, row, column_predicate_b32x,
+                svst1_hor_za32(1, row, store_b32x,
                                (nk_f32_t *)(result + row_abs * result_stride_elements) + column_tile_start);
             }
         }
@@ -5565,12 +5782,28 @@ __arm_new("za") static void nk_dots_symmetric_i4_sme_streaming_( //
                 }
             }
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dimension;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dimension;
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension,
+                                                                vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dimension;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const first_b32x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(first_bound_b32x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b32x;
+                svbool_t const second_b32x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b32x_(second_bound_b32x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
                 nk_f32_t *result_row = (nk_f32_t *)(result + row_abs * result_stride_elements);
-                svst1_hor_za32(1, row, predicate_all_b32x, result_row + (column_tile_index + 0) * tile_dimension);
-                svst1_hor_za32(2, row, predicate_all_b32x, result_row + (column_tile_index + 1) * tile_dimension);
-                svst1_hor_za32(3, row, predicate_all_b32x, result_row + (column_tile_index + 2) * tile_dimension);
+                svst1_hor_za32(1, row, first_b32x, result_row + (column_tile_index + 0) * tile_dimension);
+                svst1_hor_za32(2, row, second_b32x, result_row + (column_tile_index + 1) * tile_dimension);
+                svst1_hor_za32(3, row, third_bound_b32x, result_row + (column_tile_index + 2) * tile_dimension);
             }
         }
 
@@ -5654,9 +5887,14 @@ __arm_new("za") static void nk_dots_symmetric_i4_sme_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = column_tile_start < row_tile_start + tile_dimension;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const store_b32x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(column_predicate_b32x, column_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b32x;
                 nk_size_t const row_abs = row_tile_start + row;
-                svst1_hor_za32(1, row, column_predicate_b32x,
+                svst1_hor_za32(1, row, store_b32x,
                                (nk_f32_t *)(result + row_abs * result_stride_elements) + column_tile_start);
             }
         }

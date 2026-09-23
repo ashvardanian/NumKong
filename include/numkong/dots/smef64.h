@@ -628,38 +628,55 @@ __arm_new("za") static void nk_dots_symmetric_f32_smef64_streaming_( //
                 }
             }
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dimension;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dimension;
+            svbool_t const first_bound_b64x = svwhilelt_b64_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b64x = svwhilelt_b64_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b64x = svwhilelt_b64_u64((column_tile_index + 2) * tile_dimension,
+                                                                vectors_count);
+            svbool_t const fourth_bound_b64x = svwhilelt_b64_u64((column_tile_index + 3) * tile_dimension,
+                                                                 vectors_count);
+            svbool_t const fifth_bound_b64x = svwhilelt_b64_u64((column_tile_index + 4) * tile_dimension,
+                                                                vectors_count);
+            svbool_t const sixth_bound_b64x = svwhilelt_b64_u64((column_tile_index + 5) * tile_dimension,
+                                                                vectors_count);
+            svbool_t const seventh_bound_b64x = svwhilelt_b64_u64((column_tile_index + 6) * tile_dimension,
+                                                                  vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dimension;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dimension;
             // Extract results and store native f64 outputs.
-            svbool_t const predicate_tile_b64x = svwhilelt_b64_u64(0u, tile_dimension);
-            // The 7th tile (index 6) may be partial when it's the last column tile
-            nk_size_t const last_fast_col_start = (column_tile_index + 6) * tile_dimension;
-            nk_size_t const last_fast_cols = (last_fast_col_start + tile_dimension <= vectors_count)
-                                                 ? tile_dimension
-                                                 : (vectors_count - last_fast_col_start);
-            svbool_t const last_tile_pred_b64x = svwhilelt_b64_u64(0u, last_fast_cols);
             for (nk_size_t row = 0; row < rows_actual; row++) {
+                svbool_t const first_b64x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b64x_(first_bound_b64x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b64x;
+                svbool_t const second_b64x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b64x_(second_bound_b64x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b64x;
                 nk_size_t const row_abs = row_tile_start + row;
                 nk_f64_t *result_row = result + row_abs * result_stride_elements;
 
                 svfloat64_t za_row_f64x = svread_hor_za64_f64_m(svdup_f64(0), predicate_all_b64x, 1, row);
-                svst1_f64(predicate_tile_b64x, result_row + (column_tile_index + 0) * tile_dimension, za_row_f64x);
+                svst1_f64(first_b64x, result_row + (column_tile_index + 0) * tile_dimension, za_row_f64x);
 
                 za_row_f64x = svread_hor_za64_f64_m(svdup_f64(0), predicate_all_b64x, 2, row);
-                svst1_f64(predicate_tile_b64x, result_row + (column_tile_index + 1) * tile_dimension, za_row_f64x);
+                svst1_f64(second_b64x, result_row + (column_tile_index + 1) * tile_dimension, za_row_f64x);
 
                 za_row_f64x = svread_hor_za64_f64_m(svdup_f64(0), predicate_all_b64x, 3, row);
-                svst1_f64(predicate_tile_b64x, result_row + (column_tile_index + 2) * tile_dimension, za_row_f64x);
+                svst1_f64(third_bound_b64x, result_row + (column_tile_index + 2) * tile_dimension, za_row_f64x);
 
                 za_row_f64x = svread_hor_za64_f64_m(svdup_f64(0), predicate_all_b64x, 4, row);
-                svst1_f64(predicate_tile_b64x, result_row + (column_tile_index + 3) * tile_dimension, za_row_f64x);
+                svst1_f64(fourth_bound_b64x, result_row + (column_tile_index + 3) * tile_dimension, za_row_f64x);
 
                 za_row_f64x = svread_hor_za64_f64_m(svdup_f64(0), predicate_all_b64x, 5, row);
-                svst1_f64(predicate_tile_b64x, result_row + (column_tile_index + 4) * tile_dimension, za_row_f64x);
+                svst1_f64(fifth_bound_b64x, result_row + (column_tile_index + 4) * tile_dimension, za_row_f64x);
 
                 za_row_f64x = svread_hor_za64_f64_m(svdup_f64(0), predicate_all_b64x, 6, row);
-                svst1_f64(predicate_tile_b64x, result_row + (column_tile_index + 5) * tile_dimension, za_row_f64x);
+                svst1_f64(sixth_bound_b64x, result_row + (column_tile_index + 5) * tile_dimension, za_row_f64x);
 
                 za_row_f64x = svread_hor_za64_f64_m(svdup_f64(0), predicate_all_b64x, 7, row);
-                svst1_f64(last_tile_pred_b64x, result_row + (column_tile_index + 6) * tile_dimension, za_row_f64x);
+                svst1_f64(seventh_bound_b64x, result_row + (column_tile_index + 6) * tile_dimension, za_row_f64x);
             }
         }
 
@@ -726,12 +743,16 @@ __arm_new("za") static void nk_dots_symmetric_f32_smef64_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = column_tile_start < row_tile_start + tile_dimension;
             // Store native f64 outputs for the tail column tile.
             for (nk_size_t row = 0; row < rows_actual; row++) {
+                svbool_t const store_b64x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b64x_(column_predicate_b64x, column_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b64x;
                 nk_size_t const row_abs = row_tile_start + row;
                 svfloat64_t za_row_f64x = svread_hor_za64_f64_m(svdup_f64(0), predicate_all_b64x, 1, row);
-                svst1_f64(column_predicate_b64x, result + row_abs * result_stride_elements + column_tile_start,
-                          za_row_f64x);
+                svst1_f64(store_b64x, result + row_abs * result_stride_elements + column_tile_start, za_row_f64x);
             }
         }
     }
@@ -931,16 +952,20 @@ __arm_new("za") static void nk_dots_symmetric_f64_smef64_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = column_tile_start < row_tile_start + tile_dimension;
             // Sum ZA3 + ZA2 + ZA1 (smallest to largest)
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const store_b64x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b64x_(column_predicate_b64x, column_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b64x;
                 nk_size_t const row_abs = row_tile_start + row;
                 svfloat64_t result_f64x = svread_hor_za64_f64_m(svdup_f64(0.0), predicate_all_b64x, 3, row);
                 result_f64x = svadd_f64_x(predicate_all_b64x, result_f64x,
                                           svread_hor_za64_f64_m(svdup_f64(0.0), predicate_all_b64x, 2, row));
                 result_f64x = svadd_f64_x(predicate_all_b64x, result_f64x,
                                           svread_hor_za64_f64_m(svdup_f64(0.0), predicate_all_b64x, 1, row));
-                svst1_f64(column_predicate_b64x, result + row_abs * result_stride_elements + column_tile_start,
-                          result_f64x);
+                svst1_f64(store_b64x, result + row_abs * result_stride_elements + column_tile_start, result_f64x);
             }
         }
     }

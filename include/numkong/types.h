@@ -2015,6 +2015,11 @@ NK_HELPER_AUTO nk_size_t nk_size_round_up_to_multiple_(nk_size_t number, nk_size
     return nk_size_divide_round_up_(number, divisor) * divisor;
 }
 
+/** @brief The smaller of two values of any comparable type; each argument is evaluated twice. */
+#define nk_min_of_two(first, second) ((first) < (second) ? (first) : (second))
+/** @brief The larger of two values of any comparable type; each argument is evaluated twice. */
+#define nk_max_of_two(first, second) ((first) < (second) ? (second) : (first))
+
 /** @brief Multiplies two sizes with overflow detection. Writes the product and returns 1 on success;
  *         returns 0 (leaving @p product unchanged) when @p a * @p b would overflow `nk_size_t`. */
 NK_HELPER_AUTO int nk_size_mul_checked_(nk_size_t a, nk_size_t b, nk_size_t *product) NK_STREAMING_COMPATIBLE_ {

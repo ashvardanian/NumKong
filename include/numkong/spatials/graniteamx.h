@@ -114,6 +114,7 @@ NK_HELPER_INLINE void nk_angulars_symmetric_f16_graniteamx_finalize_(nk_f16_t co
 NK_API_COMPTIME void nk_angulars_symmetric_f16_graniteamx(                                        //
     nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f16_t);
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
     nk_dots_symmetric_f16_graniteamx(vectors, vectors_count, depth, stride_in_bytes, result, result_stride_in_bytes,
@@ -152,6 +153,7 @@ NK_HELPER_INLINE void nk_euclideans_symmetric_f16_graniteamx_finalize_(nk_f16_t 
 NK_API_COMPTIME void nk_euclideans_symmetric_f16_graniteamx(                                      //
     nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f16_t);
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
     nk_dots_symmetric_f16_graniteamx(vectors, vectors_count, depth, stride_in_bytes, result, result_stride_in_bytes,
@@ -244,6 +246,7 @@ NK_HELPER_INLINE void nk_angulars_symmetric_e5m2_graniteamx_finalize_(nk_e5m2_t 
 NK_API_COMPTIME void nk_angulars_symmetric_e5m2_graniteamx(                                        //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes;
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
     nk_dots_symmetric_e5m2_graniteamx(vectors, vectors_count, depth, stride_in_bytes, result, result_stride_in_bytes,
@@ -282,6 +285,7 @@ NK_HELPER_INLINE void nk_euclideans_symmetric_e5m2_graniteamx_finalize_(nk_e5m2_
 NK_API_COMPTIME void nk_euclideans_symmetric_e5m2_graniteamx(                                      //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes;
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
     nk_dots_symmetric_e5m2_graniteamx(vectors, vectors_count, depth, stride_in_bytes, result, result_stride_in_bytes,

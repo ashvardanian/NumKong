@@ -485,19 +485,34 @@ __arm_new("za") static void nk_hammings_symmetric_u1_smebi32_streaming_( //
                 }
             }
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dim;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dim;
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dim, vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dim;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dim;
             // Extract ZA1-3: hamming = depth_bits - ZA[i][j]
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const first_b32x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(first_bound_b32x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b32x;
+                svbool_t const second_b32x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b32x_(second_bound_b32x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b32x;
                 nk_u32_t *c_row = (nk_u32_t *)((char *)result + (row_tile_start + row) * result_stride_in_bytes);
 
                 svuint32_t za1_u32x = svread_hor_za32_u32_m(svdup_u32(0), predicate_all_b32x, 1, row);
                 svuint32_t za2_u32x = svread_hor_za32_u32_m(svdup_u32(0), predicate_all_b32x, 2, row);
                 svuint32_t za3_u32x = svread_hor_za32_u32_m(svdup_u32(0), predicate_all_b32x, 3, row);
 
-                svst1_u32(predicate_all_b32x, c_row + (column_tile_index + 0) * tile_dim,
+                svst1_u32(first_b32x, c_row + (column_tile_index + 0) * tile_dim,
                           svsub_u32_x(predicate_all_b32x, depth_u32x, za1_u32x));
-                svst1_u32(predicate_all_b32x, c_row + (column_tile_index + 1) * tile_dim,
+                svst1_u32(second_b32x, c_row + (column_tile_index + 1) * tile_dim,
                           svsub_u32_x(predicate_all_b32x, depth_u32x, za2_u32x));
-                svst1_u32(predicate_all_b32x, c_row + (column_tile_index + 2) * tile_dim,
+                svst1_u32(third_bound_b32x, c_row + (column_tile_index + 2) * tile_dim,
                           svsub_u32_x(predicate_all_b32x, depth_u32x, za3_u32x));
             }
         }
@@ -553,11 +568,16 @@ __arm_new("za") static void nk_hammings_symmetric_u1_smebi32_streaming_( //
                 }
             }
 
+            int const crosses_diagonal = col_tile_start < row_tile_start + tile_dim;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const store_b32x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(column_predicate_b32x, col_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b32x;
                 svuint32_t za1_u32x = svread_hor_za32_u32_m(svdup_u32(0), predicate_all_b32x, 1, row);
                 svuint32_t hamming_u32x = svsub_u32_x(predicate_all_b32x, depth_u32x, za1_u32x);
                 nk_u32_t *c_row = (nk_u32_t *)((char *)result + (row_tile_start + row) * result_stride_in_bytes);
-                svst1_u32(column_predicate_b32x, c_row + col_tile_start, hamming_u32x);
+                svst1_u32(store_b32x, c_row + col_tile_start, hamming_u32x);
             }
         }
     }
@@ -982,7 +1002,22 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
             svfloat32_t b_norms_2_f32x = svcvt_f32_u32_x(predicate_all_b32x,
                                                          svld1_u32(predicate_all_b32x, b_tile_norms_2));
 
+            nk_size_t const first_column_start = (column_tile_index + 0) * tile_dim;
+            nk_size_t const second_column_start = (column_tile_index + 1) * tile_dim;
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dim, vectors_count);
+            int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dim;
+            int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dim;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const first_b32x = first_crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(first_bound_b32x, first_column_start,
+                                                                            row_tile_start + row)
+                                                : first_bound_b32x;
+                svbool_t const second_b32x = second_crosses_diagonal
+                                                 ? nk_sme_diagonal_cut_b32x_(second_bound_b32x, second_column_start,
+                                                                             row_tile_start + row)
+                                                 : second_bound_b32x;
                 nk_f32_t *c_row = (nk_f32_t *)((char *)result + (row_tile_start + row) * result_stride_in_bytes);
                 svfloat32_t norm_a_f32x = svdup_f32(a_tile_norms[row]);
 
@@ -1001,7 +1036,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
                     svfloat32_t ratio_f32x = svdiv_f32_x(predicate_all_b32x, intersection_f32x, union_val_f32x);
                     svfloat32_t jaccard_f32x = svsel_f32(
                         nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), one_f32x);
-                    svst1_f32(predicate_all_b32x, c_row + (column_tile_index + 0) * tile_dim, jaccard_f32x);
+                    svst1_f32(first_b32x, c_row + (column_tile_index + 0) * tile_dim, jaccard_f32x);
                 }
                 // ZA2
                 {
@@ -1018,7 +1053,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
                     svfloat32_t ratio_f32x = svdiv_f32_x(predicate_all_b32x, intersection_f32x, union_val_f32x);
                     svfloat32_t jaccard_f32x = svsel_f32(
                         nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), one_f32x);
-                    svst1_f32(predicate_all_b32x, c_row + (column_tile_index + 1) * tile_dim, jaccard_f32x);
+                    svst1_f32(second_b32x, c_row + (column_tile_index + 1) * tile_dim, jaccard_f32x);
                 }
                 // ZA3
                 {
@@ -1035,7 +1070,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
                     svfloat32_t ratio_f32x = svdiv_f32_x(predicate_all_b32x, intersection_f32x, union_val_f32x);
                     svfloat32_t jaccard_f32x = svsel_f32(
                         nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), one_f32x);
-                    svst1_f32(predicate_all_b32x, c_row + (column_tile_index + 2) * tile_dim, jaccard_f32x);
+                    svst1_f32(third_bound_b32x, c_row + (column_tile_index + 2) * tile_dim, jaccard_f32x);
                 }
             }
         }
@@ -1103,7 +1138,12 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
             }
 
             svfloat32_t b_norms_f32x = svcvt_f32_u32_x(predicate_all_b32x, svld1_u32(predicate_all_b32x, b_tile_norms));
+            int const crosses_diagonal = col_tile_start < row_tile_start + tile_dim;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
+                svbool_t const store_b32x = crosses_diagonal
+                                                ? nk_sme_diagonal_cut_b32x_(column_predicate_b32x, col_tile_start,
+                                                                            row_tile_start + row)
+                                                : column_predicate_b32x;
                 svuint32_t za1_u32x = svread_hor_za32_u32_m(svdup_u32(0), predicate_all_b32x, 1, row);
                 svfloat32_t matching_f32x = svcvt_f32_u32_x(predicate_all_b32x, za1_u32x);
                 svfloat32_t norm_a_f32x = svdup_f32(a_tile_norms[row]);
@@ -1119,7 +1159,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
                 svfloat32_t jaccard_f32x = svsel_f32(nonzero_b32x,
                                                      svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), one_f32x);
                 nk_f32_t *c_row = (nk_f32_t *)((char *)result + (row_tile_start + row) * result_stride_in_bytes);
-                svst1_f32(column_predicate_b32x, c_row + col_tile_start, jaccard_f32x);
+                svst1_f32(store_b32x, c_row + col_tile_start, jaccard_f32x);
             }
         }
     }

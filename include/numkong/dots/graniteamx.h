@@ -665,9 +665,7 @@ NK_API_COMPTIME void nk_dots_symmetric_f16_graniteamx(                          
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f16_t);
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
 
-    nk_size_t const row_end = (row_count == 0)
-                                  ? vectors_count
-                                  : (row_start + row_count < vectors_count ? row_start + row_count : vectors_count);
+    nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);
 
     // Round depth up to multiple of 96 (3 tiles × 32 elements)
     nk_size_t const depth_tiles = nk_size_divide_round_up_(depth, 32);
@@ -683,7 +681,7 @@ NK_API_COMPTIME void nk_dots_symmetric_f16_graniteamx(                          
     for (nk_size_t row_tile = row_start; row_tile < row_end; row_tile += 16) {
         nk_size_t const valid_rows = (row_tile + 16 <= row_end) ? 16 : (row_end - row_tile);
 
-        for (nk_size_t col_tile = 0; col_tile < vectors_count; col_tile += 16) {
+        for (nk_size_t col_tile = row_tile; col_tile < vectors_count; col_tile += 16) {
             nk_size_t const valid_cols = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
 
             nk_dots_f16_init_graniteamx_(&state);
@@ -702,7 +700,7 @@ NK_API_COMPTIME void nk_dots_symmetric_f16_graniteamx(                          
                         vectors + row_tile * stride_elements + depth_start, //
                         stride_elements, valid_rows, valid_depth);
 
-                    if (row_tile == col_tile) {
+                    if (row_tile == col_tile && valid_rows == valid_cols) {
                         // Reuse A data as B (self-correlation on diagonal)
                         nk_dots_pack_bf16_transposed_sapphireamx_(
                             (nk_dots_bf16_a16x32_sapphireamx_t const *)&a_tiles[tile_idx],
@@ -724,9 +722,9 @@ NK_API_COMPTIME void nk_dots_symmetric_f16_graniteamx(                          
                     &b_tiles[0], &b_tiles[1], &b_tiles[2]);
             }
 
-            nk_dots_f16_store_graniteamx_(                                     //
-                &state, result + row_tile * result_stride_elements + col_tile, //
-                result_stride_elements, valid_rows, valid_cols);
+            nk_dots_symmetric_store_sapphireamx_(                                  //
+                state.data, result + row_tile * result_stride_elements + col_tile, //
+                result_stride_elements, valid_rows, valid_cols, col_tile - row_tile);
         }
     }
 }
@@ -1116,9 +1114,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e5m2_graniteamx(                         
     nk_size_t const stride_elements = stride_in_bytes; // E5M2: 1 byte per element
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
 
-    nk_size_t const row_end = (row_count == 0)
-                                  ? vectors_count
-                                  : (row_start + row_count < vectors_count ? row_start + row_count : vectors_count);
+    nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);
 
     nk_size_t const depth_tiles = nk_size_divide_round_up_(depth, 32);
     nk_size_t const depth_tile_groups = nk_size_divide_round_up_(depth_tiles, 3);
@@ -1133,7 +1129,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e5m2_graniteamx(                         
     for (nk_size_t row_tile = row_start; row_tile < row_end; row_tile += 16) {
         nk_size_t const valid_rows = (row_tile + 16 <= row_end) ? 16 : (row_end - row_tile);
 
-        for (nk_size_t col_tile = 0; col_tile < vectors_count; col_tile += 16) {
+        for (nk_size_t col_tile = row_tile; col_tile < vectors_count; col_tile += 16) {
             nk_size_t const valid_cols = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
 
             nk_dots_f16_init_graniteamx_(&state);
@@ -1152,7 +1148,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e5m2_graniteamx(                         
                         vectors + row_tile * stride_elements + depth_start, //
                         stride_elements, valid_rows, valid_depth);
 
-                    if (row_tile == col_tile) {
+                    if (row_tile == col_tile && valid_rows == valid_cols) {
                         nk_dots_pack_bf16_transposed_sapphireamx_(
                             (nk_dots_bf16_a16x32_sapphireamx_t const *)&a_tiles[tile_idx],
                             (nk_dots_bf16_b32x16_sapphireamx_t *)&b_tiles[tile_idx]);
@@ -1173,9 +1169,9 @@ NK_API_COMPTIME void nk_dots_symmetric_e5m2_graniteamx(                         
                     &b_tiles[0], &b_tiles[1], &b_tiles[2]);
             }
 
-            nk_dots_f16_store_graniteamx_(                                     //
-                &state, result + row_tile * result_stride_elements + col_tile, //
-                result_stride_elements, valid_rows, valid_cols);
+            nk_dots_symmetric_store_sapphireamx_(                                  //
+                state.data, result + row_tile * result_stride_elements + col_tile, //
+                result_stride_elements, valid_rows, valid_cols, col_tile - row_tile);
         }
     }
 }
