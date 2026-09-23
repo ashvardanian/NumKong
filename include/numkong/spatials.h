@@ -2139,19 +2139,37 @@ NK_API_COMPTIME void nk_euclideans_symmetric_u4_neonsdot(nk_u4x2_t const *vector
                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                          nk_size_t result_stride, nk_size_t row_start,
                                                          nk_size_t row_count);
+/** @copydoc nk_angulars_packed_e2m3 */
+NK_API_COMPTIME void nk_angulars_packed_e2m3_neonsdot(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
 /** @copydoc nk_angulars_packed_e2m1 */
 NK_API_COMPTIME void nk_angulars_packed_e2m1_neonsdot(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
+/** @copydoc nk_angulars_symmetric_e2m3 */
+NK_API_COMPTIME void nk_angulars_symmetric_e2m3_neonsdot(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count);
 /** @copydoc nk_angulars_symmetric_e2m1 */
 NK_API_COMPTIME void nk_angulars_symmetric_e2m1_neonsdot(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                          nk_size_t result_stride, nk_size_t row_start,
                                                          nk_size_t row_count);
+/** @copydoc nk_euclideans_packed_e2m3 */
+NK_API_COMPTIME void nk_euclideans_packed_e2m3_neonsdot(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
 /** @copydoc nk_euclideans_packed_e2m1 */
 NK_API_COMPTIME void nk_euclideans_packed_e2m1_neonsdot(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
+/** @copydoc nk_euclideans_symmetric_e2m3 */
+NK_API_COMPTIME void nk_euclideans_symmetric_e2m3_neonsdot(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count);
 /** @copydoc nk_euclideans_symmetric_e2m1 */
 NK_API_COMPTIME void nk_euclideans_symmetric_e2m1_neonsdot(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
@@ -3256,6 +3274,8 @@ NK_API_COMPTIME void nk_angulars_packed_e2m3(nk_e2m3_t const *a, void const *b_p
     nk_angulars_packed_e2m3_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
 #elif NK_TARGET_NEONFP8
     nk_angulars_packed_e2m3_neonfp8(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
+#elif NK_TARGET_NEONSDOT
+    nk_angulars_packed_e2m3_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
 #elif NK_TARGET_SKYLAKE
     nk_angulars_packed_e2m3_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
 #elif NK_TARGET_SIERRA
@@ -3310,6 +3330,9 @@ NK_API_COMPTIME void nk_angulars_symmetric_e2m3(nk_e2m3_t const *vectors, nk_siz
 #elif NK_TARGET_NEONFP8
     nk_angulars_symmetric_e2m3_neonfp8(vectors, vectors_count, depth, stride, result, result_stride, row_start,
                                        row_count);
+#elif NK_TARGET_NEONSDOT
+    nk_angulars_symmetric_e2m3_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
+                                        row_count);
 #elif NK_TARGET_SKYLAKE
     nk_angulars_symmetric_e2m3_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
                                        row_count);
@@ -3377,6 +3400,8 @@ NK_API_COMPTIME void nk_euclideans_packed_e2m3(nk_e2m3_t const *a, void const *b
     nk_euclideans_packed_e2m3_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
 #elif NK_TARGET_NEONFP8
     nk_euclideans_packed_e2m3_neonfp8(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
+#elif NK_TARGET_NEONSDOT
+    nk_euclideans_packed_e2m3_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
 #elif NK_TARGET_SKYLAKE
     nk_euclideans_packed_e2m3_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
 #elif NK_TARGET_SIERRA
@@ -3432,6 +3457,9 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e2m3(nk_e2m3_t const *vectors, nk_s
 #elif NK_TARGET_NEONFP8
     nk_euclideans_symmetric_e2m3_neonfp8(vectors, vectors_count, depth, stride, result, result_stride, row_start,
                                          row_count);
+#elif NK_TARGET_NEONSDOT
+    nk_euclideans_symmetric_e2m3_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
+                                          row_count);
 #elif NK_TARGET_SKYLAKE
     nk_euclideans_symmetric_e2m3_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
                                          row_count);
