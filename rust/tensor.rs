@@ -7368,7 +7368,7 @@ mod tests {
         assert_eq!(elements.shape(), &[1, 64]);
         assert_eq!(scales.shape(), &[1, 2]);
         let too_few = Tensor::<crate::types::Ue8m0>::try_zeros(&[1, 1]).unwrap();
-        let elements_owned = Tensor::<crate::cast::e2m1x2>::try_zeros(&[1, 64]).unwrap();
+        let elements_owned = Tensor::<crate::types::e2m1x2>::try_zeros(&[1, 64]).unwrap();
         assert!(matches!(
             ScaledTensor::<Mxfp4>::try_from_parts(elements_owned, too_few, None).unwrap_err(),
             TensorError::ShapeMismatch { .. }

@@ -223,31 +223,7 @@ impl<Source: Clone + CastDtype, const R: usize, C: TensorRef<Source, R>> CastOps
 // region: Block-Scaled Formats (OCP MX family + NVIDIA NVFP4)
 
 use crate::tensor::{ScaledTensor, ScaledTensorView};
-use crate::types::{Ue4m3, Ue8m0};
-
-/// Packed FP4 (E2M1) element pair: two 4-bit elements share one byte.
-///
-/// This is the storage scalar for the `elements` tensor of NVFP4 / MXFP4. Like the
-/// other sub-byte packers ([`crate::types::u4x2`]), it reports
-/// `dimensions_per_value() == 2` so a tensor of logical shape `(rows, cols)` allocates
-/// `rows * cols / 2` bytes — exactly `nk_block_scaled_elements_size`. Bytes are produced
-/// and consumed by the C kernel (`element_dtype = nk_e2m1_k`); Rust never unpacks nibbles.
-#[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
-pub struct e2m1x2(pub u8);
-
-impl core::fmt::Debug for e2m1x2 {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { write!(f, "e2m1x2(0x{:02x})", self.0) }
-}
-
-impl StorageElement for e2m1x2 {
-    fn zero() -> Self { e2m1x2(0) }
-    fn one() -> Self {
-        const E2M1_ONE_NIBBLE: u8 = 0x2; // E2M1 encoding of +1.0
-        e2m1x2((E2M1_ONE_NIBBLE << 4) | E2M1_ONE_NIBBLE)
-    }
-    fn dimensions_per_value() -> usize { 2 }
-}
+use crate::types::{e2m1x2, Ue4m3, Ue8m0};
 
 /// `#[repr(C)]` mirror of `nk_block_scaled_format_t`.
 ///
