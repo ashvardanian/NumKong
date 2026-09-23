@@ -10,6 +10,8 @@
 #   -D CMAKE_BUILD_TYPE=<Release|Debug|RelWithDebInfo>
 #   -D NK_BUILD_TEST=<ON|OFF>           (default: OFF)
 #   -D NK_BUILD_BENCH=<ON|OFF>          (default: OFF)
+#   -D NK_BUILD_CUDA_TEST=<ON|OFF>      (default: OFF)
+#   -D NK_CUDA_ARCHITECTURES=<list>     (default: 80-real;90a-real;100f-real;120f-real;80-virtual)
 #   -D NK_COMPARE_TO_BLAS=<ON|OFF>      (default: OFF)
 #   -D NK_COMPARE_TO_MKL=<ON|OFF>       (default: OFF)
 #   -D NK_BUILD_SHARED=<ON|OFF>         (default: OFF)
@@ -314,8 +316,9 @@ elseif (MSVC)
     endif ()
 endif ()
 
+# Not for CUDA: nvcc hands the host compiler line markers that `-pedantic` flags on every line.
 if (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
-    add_compile_options(-pedantic)
+    add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:-pedantic>)
 endif ()
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "^(Clang|AppleClang|IntelLLVM)$")
@@ -826,16 +829,41 @@ if (NK_BUILD_SHARED_TEST)
     add_test(NAME numkong_shared_test COMMAND numkong_shared_test)
 endif ()
 
+# One cubin per device family plus a PTX tail, needing CUDA 12.9 or newer. To iterate on one GPU keep its family,
+# like "120f-real": "native" drops the family suffix and with it the Float6 tensor-core instructions.
+if (NK_BUILD_CUDA_TEST)
+    enable_language(CUDA)
+    set(NK_CUDA_ARCHITECTURES
+        "80-real;90a-real;100f-real;120f-real;80-virtual"
+        CACHE STRING "GPU architectures baked into the CUDA targets"
+    )
+
+    # Each entry reduced to its number, like "120f-real" to "120"; a symbolic entry like "native" or "all" keeps all
+    # families, and every listed architecture runs the Ampere kernels.
+    list(TRANSFORM NK_CUDA_ARCHITECTURES REPLACE "^([0-9]+).*$" "\\1" OUTPUT_VARIABLE nk_cuda_numbers_)
+    set(nk_cuda_families_)
+    if (NOT nk_cuda_numbers_ MATCHES "[a-z]")
+        if (NOT "90" IN_LIST nk_cuda_numbers_)
+            list(APPEND nk_cuda_families_ NK_TARGET_HOPPER=0)
+        endif ()
+        if (NOT "100" IN_LIST nk_cuda_numbers_ AND NOT "103" IN_LIST nk_cuda_numbers_)
+            list(APPEND nk_cuda_families_ NK_TARGET_BLACKWELL=0)
+        endif ()
+        if (NOT "120" IN_LIST nk_cuda_numbers_ AND NOT "121" IN_LIST nk_cuda_numbers_)
+            list(APPEND nk_cuda_families_ NK_TARGET_BLACKWELLRTX=0)
+        endif ()
+    endif ()
+endif ()
+
 # CUDA interop test built from test/test.cu; see that file's docstring for what it covers and the GPU
 # compatibility notes.
 if (NK_BUILD_CUDA_TEST)
-    enable_language(CUDA)
-    if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-        set(CMAKE_CUDA_ARCHITECTURES 75)
-    endif ()
     add_executable(numkong_cuda_test test/test.cu)
     target_include_directories(numkong_cuda_test PRIVATE "${PROJECT_SOURCE_DIR}/include")
-    set_target_properties(numkong_cuda_test PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO)
+    set_target_properties(
+        numkong_cuda_test PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO
+                                     CUDA_ARCHITECTURES "${NK_CUDA_ARCHITECTURES}"
+    )
 
     # Let the `constexpr` host abstractions (tensor_view / vector_view and their accessors) be called
     # from `__device__` code; test.cu's device kernels then exercise them, making this a compile-level
@@ -855,7 +883,7 @@ if (NK_BUILD_CUDA_TEST)
         )
     endif ()
     # Comptime-dispatched, so only the kits this machine runs.
-    target_compile_definitions(numkong_cuda_test PRIVATE ${nk_run_definitions_})
+    target_compile_definitions(numkong_cuda_test PRIVATE ${nk_run_definitions_} ${nk_cuda_families_})
     add_test(NAME numkong_cuda_test COMMAND numkong_cuda_test)
 endif ()
 

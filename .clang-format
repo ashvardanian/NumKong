@@ -82,6 +82,7 @@ AttributeMacros:
   - NK_HELPER_AUTO
   - NK_HELPER_INLINE
   - NK_HELPER_NOINLINE
+  - NK_HELPER_DEVICE_INLINE
 StatementMacros:
   - nk_define_bilinear_
   - nk_define_bilinear_complex_
@@ -131,6 +132,12 @@ StatementMacros:
   - nk_define_cross_compensated_symmetric_
   - nk_define_cross_normalized_packed_
   - nk_define_cross_normalized_symmetric_
+  - nk_define_cross_cuda_packed_shape_
+  - nk_define_cross_cuda_pack_
+  - nk_define_cross_cuda_packed_
+  - nk_define_cross_cuda_symmetric_
+  - nk_define_cross_cuda_fma_packed_
+  - nk_define_cross_cuda_fma_symmetric_
   - nk_define_trig_rope_
   - nk_define_mesh_
   - nk_define_dense_

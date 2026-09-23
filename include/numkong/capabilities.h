@@ -446,6 +446,20 @@ typedef nk_u64_t nk_capability_t;
 #define nk_cap_diamondamx_k  ((nk_capability_t)1 << 40)
 #define nk_cap_v128_k        ((nk_capability_t)1 << 41)
 
+/*  CUDA device families, one cubin each, reported per device by `nk_capabilities_cuda_*` only. */
+#define nk_cap_ampere_k       ((nk_capability_t)1 << 42)
+#define nk_cap_hopper_k       ((nk_capability_t)1 << 43)
+#define nk_cap_blackwell_k    ((nk_capability_t)1 << 44)
+#define nk_cap_blackwellrtx_k ((nk_capability_t)1 << 45)
+
+/*  AMD Instinct device families, one code object each, reported per device by `nk_capabilities_hip_*` only. */
+#define nk_cap_cdna4_k ((nk_capability_t)1 << 46)
+#define nk_cap_cdna5_k ((nk_capability_t)1 << 47)
+
+/*  Apple GPU families, one Metal library each, reported per device by `nk_capabilities_metal_*` only. */
+#define nk_cap_apple9_k  ((nk_capability_t)1 << 48)
+#define nk_cap_apple10_k ((nk_capability_t)1 << 49)
+
 typedef void (*nk_metric_dense_punned_t)(void const *a, void const *b, nk_size_t dimensions, void *result);
 
 typedef void (*nk_sparse_intersect_punned_t)(void const *a, void const *b, nk_size_t a_length, nk_size_t b_length,
@@ -1168,6 +1182,36 @@ NK_API_COMPTIME void nk_capabilities_enable(nk_capability_t caps) { nk_unused_(c
 NK_API_COMPTIME void nk_capabilities_disable(nk_capability_t caps) { nk_unused_(caps); }
 
 #endif
+
+/** CUDA families @p device can run from its compute capability, where every 8.0+ device runs Ampere, else zero. */
+#if NK_TARGET_CUDA_
+NK_API_COMPTIME nk_capability_t nk_capabilities_cuda_detected(int device) {
+    int major = 0;
+    if (cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, device) != cudaSuccess) return 0;
+    if (major < 8) return 0;
+    nk_capability_t capabilities = nk_cap_ampere_k;
+    if (major == 9) capabilities |= nk_cap_hopper_k;
+    if (major == 10) capabilities |= nk_cap_blackwell_k;
+    if (major == 12) capabilities |= nk_cap_blackwellrtx_k;
+    return capabilities;
+}
+#else
+NK_API_COMPTIME nk_capability_t nk_capabilities_cuda_detected(int device) {
+    nk_unused_(device);
+    return 0;
+}
+#endif
+
+/** CUDA families whose kernels this translation unit declares, from the `NK_TARGET_*` macros. */
+NK_API_COMPTIME nk_capability_t nk_capabilities_cuda_compiled(void) {
+    return nk_cap_ampere_k * NK_TARGET_AMPERE | nk_cap_hopper_k * NK_TARGET_HOPPER |
+           nk_cap_blackwell_k * NK_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NK_TARGET_BLACKWELLRTX;
+}
+
+/** CUDA families @p device can run and this translation unit declares. */
+NK_API_COMPTIME nk_capability_t nk_capabilities_cuda_available(int device) {
+    return nk_capabilities_cuda_detected(device) & nk_capabilities_cuda_compiled();
+}
 
 #ifdef __cplusplus
 }

@@ -220,6 +220,27 @@
 #endif
 #endif // !defined(NK_TARGET_WASM_)
 
+// Compiling for NVIDIA GPUs: NK_TARGET_CUDA_, set by both NVCC and Clang CUDA
+#if !defined(NK_TARGET_CUDA_)
+#if defined(__CUDACC__) && !defined(__HIP_PLATFORM_AMD__)
+#define NK_TARGET_CUDA_ 1
+#else
+#define NK_TARGET_CUDA_ 0
+#endif // defined(__CUDACC__) && !defined(__HIP_PLATFORM_AMD__)
+#endif // !defined(NK_TARGET_CUDA_)
+// Compiling for AMD GPUs: NK_TARGET_HIP_, set by HIP-Clang
+#if !defined(NK_TARGET_HIP_)
+#if defined(__HIP__) && defined(__HIP_PLATFORM_AMD__)
+#define NK_TARGET_HIP_ 1
+#else
+#define NK_TARGET_HIP_ 0
+#endif // defined(__HIP__) && defined(__HIP_PLATFORM_AMD__)
+#endif // !defined(NK_TARGET_HIP_)
+// Compiling for Apple GPUs: NK_TARGET_METAL_, set by the build since no C compiler predefines it
+#if !defined(NK_TARGET_METAL_)
+#define NK_TARGET_METAL_ 0
+#endif // !defined(NK_TARGET_METAL_)
+
 // WASI hosted mode: NK_DEFINED_WASI_
 // When NK_WASI_HOSTED=ON in CMake, this is predefined to 1 so the library
 // imports capability probes (nk_has_v128, nk_has_relaxed) from the host.
@@ -665,6 +686,86 @@
 #endif
 #endif // !defined(NK_TARGET_SIERRA) || ...
 
+// Compiling for NVIDIA GPUs from compute capability 8.0, `mma.sync`: NK_TARGET_AMPERE
+#if !defined(NK_TARGET_AMPERE) || (NK_TARGET_AMPERE && !NK_TARGET_CUDA_)
+#if NK_TARGET_CUDA_
+#define NK_TARGET_AMPERE 1
+#else
+#undef NK_TARGET_AMPERE
+#define NK_TARGET_AMPERE 0
+#endif // NK_TARGET_CUDA_
+#endif // !defined(NK_TARGET_AMPERE) || ...
+
+// Compiling for NVIDIA GPUs of compute capability 9.0, warpgroup MMA: NK_TARGET_HOPPER
+#if !defined(NK_TARGET_HOPPER) || (NK_TARGET_HOPPER && !NK_TARGET_CUDA_)
+#if NK_TARGET_CUDA_
+#define NK_TARGET_HOPPER 1
+#else
+#undef NK_TARGET_HOPPER
+#define NK_TARGET_HOPPER 0
+#endif // NK_TARGET_CUDA_
+#endif // !defined(NK_TARGET_HOPPER) || ...
+
+// Compiling for NVIDIA GPUs of compute capability 10.x, tensor memory: NK_TARGET_BLACKWELL
+#if !defined(NK_TARGET_BLACKWELL) || (NK_TARGET_BLACKWELL && !NK_TARGET_CUDA_)
+#if NK_TARGET_CUDA_
+#define NK_TARGET_BLACKWELL 1
+#else
+#undef NK_TARGET_BLACKWELL
+#define NK_TARGET_BLACKWELL 0
+#endif // NK_TARGET_CUDA_
+#endif // !defined(NK_TARGET_BLACKWELL) || ...
+
+// Compiling for NVIDIA GPUs of compute capability 12.x, Float6 and Float4 MMA: NK_TARGET_BLACKWELLRTX
+#if !defined(NK_TARGET_BLACKWELLRTX) || (NK_TARGET_BLACKWELLRTX && !NK_TARGET_CUDA_)
+#if NK_TARGET_CUDA_
+#define NK_TARGET_BLACKWELLRTX 1
+#else
+#undef NK_TARGET_BLACKWELLRTX
+#define NK_TARGET_BLACKWELLRTX 0
+#endif // NK_TARGET_CUDA_
+#endif // !defined(NK_TARGET_BLACKWELLRTX) || ...
+
+// Compiling for AMD Instinct MI350 GPUs, gfx950: NK_TARGET_CDNA4
+#if !defined(NK_TARGET_CDNA4) || (NK_TARGET_CDNA4 && !NK_TARGET_HIP_)
+#if NK_TARGET_HIP_
+#define NK_TARGET_CDNA4 1
+#else
+#undef NK_TARGET_CDNA4
+#define NK_TARGET_CDNA4 0
+#endif // NK_TARGET_HIP_
+#endif // !defined(NK_TARGET_CDNA4) || ...
+
+// Compiling for AMD Instinct MI400 GPUs: NK_TARGET_CDNA5
+#if !defined(NK_TARGET_CDNA5) || (NK_TARGET_CDNA5 && !NK_TARGET_HIP_)
+#if NK_TARGET_HIP_
+#define NK_TARGET_CDNA5 1
+#else
+#undef NK_TARGET_CDNA5
+#define NK_TARGET_CDNA5 0
+#endif // NK_TARGET_HIP_
+#endif // !defined(NK_TARGET_CDNA5) || ...
+
+// Compiling for Apple GPUs of Metal family 9, M3 and M4: NK_TARGET_APPLE9
+#if !defined(NK_TARGET_APPLE9) || (NK_TARGET_APPLE9 && !NK_TARGET_METAL_)
+#if NK_TARGET_METAL_
+#define NK_TARGET_APPLE9 1
+#else
+#undef NK_TARGET_APPLE9
+#define NK_TARGET_APPLE9 0
+#endif // NK_TARGET_METAL_
+#endif // !defined(NK_TARGET_APPLE9) || ...
+
+// Compiling for Apple GPUs of Metal family 10, M5: NK_TARGET_APPLE10
+#if !defined(NK_TARGET_APPLE10) || (NK_TARGET_APPLE10 && !NK_TARGET_METAL_)
+#if NK_TARGET_METAL_
+#define NK_TARGET_APPLE10 1
+#else
+#undef NK_TARGET_APPLE10
+#define NK_TARGET_APPLE10 0
+#endif // NK_TARGET_METAL_
+#endif // !defined(NK_TARGET_APPLE10) || ...
+
 // Include the relevant intrinsics headers
 #if defined(_MSC_VER)
 #include <intrin.h>
@@ -693,6 +794,10 @@
 #endif
 #if NK_TARGET_V128
 #include <wasm_simd128.h>
+#endif
+#if NK_TARGET_CUDA_
+#include <cuda_fp16.h>    // `__half2float`
+#include <cuda_runtime.h> // `cudaLaunchKernel`, `cudaStream_t`
 #endif
 
 #if !defined(NK_F64_DIVISION_EPSILON)
@@ -743,6 +848,14 @@
 #define NK_STREAMING_OUTLINED_ __attribute__((noinline)) static
 #else
 #define NK_STREAMING_OUTLINED_ static
+#endif
+
+/**
+ *  NK_HELPER_DEVICE_INLINE marks helpers that kernels call, forced inline on the device. CUDA and HIP share the
+ *  spelling, and kernels spell their global qualifier directly, so this is the only device qualifier.
+ */
+#if NK_TARGET_CUDA_ || NK_TARGET_HIP_
+#define NK_HELPER_DEVICE_INLINE static __device__ __forceinline__
 #endif
 
 /**
