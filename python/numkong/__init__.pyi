@@ -18,25 +18,25 @@ _IntegralTypeName = Literal[
     "int4",
     "uint4",
     # Signed integers
-    "int8",
-    "int16",
-    "int32",
     "int64",
+    "int32",
+    "int16",
+    "int8",
     # Unsigned integers
-    "uint8",
-    "uint16",
-    "uint32",
     "uint64",
+    "uint32",
+    "uint16",
+    "uint8",
 ]
 _FloatTypeName = Literal[
-    "f32",
-    "float32",
-    "f16",
-    "float16",
     "f64",
     "float64",
+    "f32",
+    "float32",
     "bf16",  #! Not supported by NumPy
     "bfloat16",  #! Not supported by NumPy
+    "f16",
+    "float16",
     "e4m3",  #! FP8 E4M3 format
     "float8_e4m3",  #! FP8 E4M3 format (long-form)
     "e5m2",  #! FP8 E5M2 format
@@ -47,10 +47,10 @@ _FloatTypeName = Literal[
     "float6_e3m2",  #! FP6 E3M2 format (long-form)
 ]
 _ComplexTypeName = Literal[
-    "complex32",  #! Not supported by NumPy
-    "bcomplex32",  #! Not supported by NumPy
-    "complex64",
     "complex128",
+    "complex64",
+    "bcomplex32",  #! Not supported by NumPy
+    "complex32",  #! Not supported by NumPy
 ]
 _MetricName = Literal[
     "euclidean",

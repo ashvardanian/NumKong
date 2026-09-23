@@ -42,15 +42,15 @@ const CONFIG = {
 
 const BENCHMARK_MATRIX = {
     functions: ['dot', 'inner', 'angular', 'sqeuclidean', 'euclidean', 'hamming', 'jaccard', 'kullbackleibler', 'jensenshannon'],
-    dtypes: ['f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2', 'i8', 'u8', 'u1'],
+    dtypes: ['f64', 'f32', 'bf16', 'f16', 'e5m2', 'e4m3', 'e3m2', 'e2m3', 'i8', 'u8', 'u1'],
 };
 
 const FUNCTION_DTYPE_SUPPORT = {
-    'dot': ['f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2', 'i8', 'u8'],
-    'inner': ['f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2', 'i8', 'u8'],
-    'angular': ['f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2', 'i8'],
-    'sqeuclidean': ['f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2', 'i8', 'u8'],
-    'euclidean': ['f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2', 'i8', 'u8'],
+    'dot': ['f64', 'f32', 'bf16', 'f16', 'e5m2', 'e4m3', 'e3m2', 'e2m3', 'i8', 'u8'],
+    'inner': ['f64', 'f32', 'bf16', 'f16', 'e5m2', 'e4m3', 'e3m2', 'e2m3', 'i8', 'u8'],
+    'angular': ['f64', 'f32', 'bf16', 'f16', 'e5m2', 'e4m3', 'e3m2', 'e2m3', 'i8'],
+    'sqeuclidean': ['f64', 'f32', 'bf16', 'f16', 'e5m2', 'e4m3', 'e3m2', 'e2m3', 'i8', 'u8'],
+    'euclidean': ['f64', 'f32', 'bf16', 'f16', 'e5m2', 'e4m3', 'e3m2', 'e2m3', 'i8', 'u8'],
     'hamming': ['u1'],
     'jaccard': ['u1'],
     'kullbackleibler': ['f64', 'f32'],

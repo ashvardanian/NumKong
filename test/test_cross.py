@@ -191,13 +191,13 @@ def test_batch_sqeuclidean_broadcasting(ndim: int, dtype: str, capability: str, 
     [
         "float64",
         "float32",
-        "float16",
         "bfloat16",
-        "e4m3",
+        "float16",
         "e5m2",
+        "e4m3",
+        "e3m2",
         "e2m3",
         "e2m1",
-        "e3m2",
         "int8",
         "uint8",
     ],
@@ -274,13 +274,13 @@ def test_hammings_symmetric(capability: str):
     [
         "float64",
         "float32",
-        "float16",
         "bfloat16",
-        "e4m3",
+        "float16",
         "e5m2",
+        "e4m3",
+        "e3m2",
         "e2m3",
         "e2m1",
-        "e3m2",
         "int8",
         "uint8",
     ],
@@ -322,7 +322,7 @@ def test_dots_pack_and_packed(rows: int, columns: int, depth: int, dtype: str, c
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("numpy_dtype", ["float16", "float32", "float64"])
+@pytest.mark.parametrize("numpy_dtype", ["float64", "float32", "float16"])
 def test_dots_pack_infers_dtype(numpy_dtype, nk_seed):
     """dots_pack() without explicit dtype should infer from the input array."""
     height, width, depth = 4, 8, 32

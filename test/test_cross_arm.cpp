@@ -132,78 +132,78 @@ void test_cross_arm() {
     check.section("Cross NEON I8", nk_cap_neonsdot_k);
     check("dots_packed_i8_neonsdot", test_dots_packed<i8_t>, nk_dots_pack_size_i8_neonsdot, nk_dots_pack_i8_neonsdot,
           nk_dots_packed_i8_neonsdot);
-    check("dots_packed_u8_neonsdot", test_dots_packed<u8_t>, nk_dots_pack_size_u8_neonsdot, nk_dots_pack_u8_neonsdot,
-          nk_dots_packed_u8_neonsdot);
     check("dots_packed_i4_neonsdot", test_dots_packed<i4x2_t>, nk_dots_pack_size_i4_neonsdot, nk_dots_pack_i4_neonsdot,
           nk_dots_packed_i4_neonsdot);
+    check("dots_packed_u8_neonsdot", test_dots_packed<u8_t>, nk_dots_pack_size_u8_neonsdot, nk_dots_pack_u8_neonsdot,
+          nk_dots_packed_u8_neonsdot);
     check("dots_packed_u4_neonsdot", test_dots_packed<u4x2_t>, nk_dots_pack_size_u4_neonsdot, nk_dots_pack_u4_neonsdot,
           nk_dots_packed_u4_neonsdot);
 
     check("dots_symmetric_i8_neonsdot", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8_neonsdot);
-    check("dots_symmetric_u8_neonsdot", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_neonsdot);
     check("dots_symmetric_i4_neonsdot", test_dots_symmetric<i4x2_t>, nk_dots_symmetric_i4_neonsdot);
+    check("dots_symmetric_u8_neonsdot", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_neonsdot);
     check("dots_symmetric_u4_neonsdot", test_dots_symmetric<u4x2_t>, nk_dots_symmetric_u4_neonsdot);
 
     check("angulars_packed_i8_neonsdot", test_angulars_packed<i8_t>, nk_dots_pack_size_i8_neonsdot,
           nk_dots_pack_i8_neonsdot, nk_angulars_packed_i8_neonsdot);
-    check("angulars_packed_u8_neonsdot", test_angulars_packed<u8_t>, nk_dots_pack_size_u8_neonsdot,
-          nk_dots_pack_u8_neonsdot, nk_angulars_packed_u8_neonsdot);
     check("angulars_packed_i4_neonsdot", test_angulars_packed<i4x2_t>, nk_dots_pack_size_i4_neonsdot,
           nk_dots_pack_i4_neonsdot, nk_angulars_packed_i4_neonsdot);
+    check("angulars_packed_u8_neonsdot", test_angulars_packed<u8_t>, nk_dots_pack_size_u8_neonsdot,
+          nk_dots_pack_u8_neonsdot, nk_angulars_packed_u8_neonsdot);
     check("angulars_packed_u4_neonsdot", test_angulars_packed<u4x2_t>, nk_dots_pack_size_u4_neonsdot,
           nk_dots_pack_u4_neonsdot, nk_angulars_packed_u4_neonsdot);
 
     check("angulars_symmetric_i8_neonsdot", test_angulars_symmetric<i8_t>, nk_angulars_symmetric_i8_neonsdot);
-    check("angulars_symmetric_u8_neonsdot", test_angulars_symmetric<u8_t>, nk_angulars_symmetric_u8_neonsdot);
     check("angulars_symmetric_i4_neonsdot", test_angulars_symmetric<i4x2_t>, nk_angulars_symmetric_i4_neonsdot);
+    check("angulars_symmetric_u8_neonsdot", test_angulars_symmetric<u8_t>, nk_angulars_symmetric_u8_neonsdot);
     check("angulars_symmetric_u4_neonsdot", test_angulars_symmetric<u4x2_t>, nk_angulars_symmetric_u4_neonsdot);
 
     check("euclideans_packed_i8_neonsdot", test_euclideans_packed<i8_t>, nk_dots_pack_size_i8_neonsdot,
           nk_dots_pack_i8_neonsdot, nk_euclideans_packed_i8_neonsdot);
-    check("euclideans_packed_u8_neonsdot", test_euclideans_packed<u8_t>, nk_dots_pack_size_u8_neonsdot,
-          nk_dots_pack_u8_neonsdot, nk_euclideans_packed_u8_neonsdot);
     check("euclideans_packed_i4_neonsdot", test_euclideans_packed<i4x2_t>, nk_dots_pack_size_i4_neonsdot,
           nk_dots_pack_i4_neonsdot, nk_euclideans_packed_i4_neonsdot);
+    check("euclideans_packed_u8_neonsdot", test_euclideans_packed<u8_t>, nk_dots_pack_size_u8_neonsdot,
+          nk_dots_pack_u8_neonsdot, nk_euclideans_packed_u8_neonsdot);
     check("euclideans_packed_u4_neonsdot", test_euclideans_packed<u4x2_t>, nk_dots_pack_size_u4_neonsdot,
           nk_dots_pack_u4_neonsdot, nk_euclideans_packed_u4_neonsdot);
 
     check("euclideans_symmetric_i8_neonsdot", test_euclideans_symmetric<i8_t>, nk_euclideans_symmetric_i8_neonsdot);
-    check("euclideans_symmetric_u8_neonsdot", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_neonsdot);
     check("euclideans_symmetric_i4_neonsdot", test_euclideans_symmetric<i4x2_t>, nk_euclideans_symmetric_i4_neonsdot);
+    check("euclideans_symmetric_u8_neonsdot", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_neonsdot);
     check("euclideans_symmetric_u4_neonsdot", test_euclideans_symmetric<u4x2_t>, nk_euclideans_symmetric_u4_neonsdot);
 
+    check("dots_packed_e3m2_neonsdot", test_dots_packed<e3m2_t>, nk_dots_pack_size_e3m2_neonsdot,
+          nk_dots_pack_e3m2_neonsdot, nk_dots_packed_e3m2_neonsdot);
     check("dots_packed_e2m3_neonsdot", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_neonsdot,
           nk_dots_pack_e2m3_neonsdot, nk_dots_packed_e2m3_neonsdot);
     check("dots_packed_e2m1_neonsdot", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_neonsdot,
           nk_dots_pack_e2m1_neonsdot, nk_dots_packed_e2m1_neonsdot);
-    check("dots_packed_e3m2_neonsdot", test_dots_packed<e3m2_t>, nk_dots_pack_size_e3m2_neonsdot,
-          nk_dots_pack_e3m2_neonsdot, nk_dots_packed_e3m2_neonsdot);
+    check("dots_symmetric_e3m2_neonsdot", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2_neonsdot);
     check("dots_symmetric_e2m3_neonsdot", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3_neonsdot);
     check("dots_symmetric_e2m1_neonsdot", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1_neonsdot);
-    check("dots_symmetric_e3m2_neonsdot", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2_neonsdot);
 
+    check("angulars_packed_e3m2_neonsdot", test_angulars_packed<e3m2_t>, nk_dots_pack_size_e3m2_neonsdot,
+          nk_dots_pack_e3m2_neonsdot, nk_angulars_packed_e3m2_neonsdot);
     check("angulars_packed_e2m3_neonsdot", test_angulars_packed<e2m3_t>, nk_dots_pack_size_e2m3_neonsdot,
           nk_dots_pack_e2m3_neonsdot, nk_angulars_packed_e2m3_neonsdot);
     check("angulars_packed_e2m1_neonsdot", test_angulars_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_neonsdot,
           nk_dots_pack_e2m1_neonsdot, nk_angulars_packed_e2m1_neonsdot);
-    check("angulars_packed_e3m2_neonsdot", test_angulars_packed<e3m2_t>, nk_dots_pack_size_e3m2_neonsdot,
-          nk_dots_pack_e3m2_neonsdot, nk_angulars_packed_e3m2_neonsdot);
+    check("angulars_symmetric_e3m2_neonsdot", test_angulars_symmetric<e3m2_t>, nk_angulars_symmetric_e3m2_neonsdot);
     check("angulars_symmetric_e2m3_neonsdot", test_angulars_symmetric<e2m3_t>, nk_angulars_symmetric_e2m3_neonsdot);
     check("angulars_symmetric_e2m1_neonsdot", test_angulars_symmetric<e2m1x2_t>, nk_angulars_symmetric_e2m1_neonsdot);
-    check("angulars_symmetric_e3m2_neonsdot", test_angulars_symmetric<e3m2_t>, nk_angulars_symmetric_e3m2_neonsdot);
 
+    check("euclideans_packed_e3m2_neonsdot", test_euclideans_packed<e3m2_t>, nk_dots_pack_size_e3m2_neonsdot,
+          nk_dots_pack_e3m2_neonsdot, nk_euclideans_packed_e3m2_neonsdot);
     check("euclideans_packed_e2m3_neonsdot", test_euclideans_packed<e2m3_t>, nk_dots_pack_size_e2m3_neonsdot,
           nk_dots_pack_e2m3_neonsdot, nk_euclideans_packed_e2m3_neonsdot);
     check("euclideans_packed_e2m1_neonsdot", test_euclideans_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_neonsdot,
           nk_dots_pack_e2m1_neonsdot, nk_euclideans_packed_e2m1_neonsdot);
-    check("euclideans_packed_e3m2_neonsdot", test_euclideans_packed<e3m2_t>, nk_dots_pack_size_e3m2_neonsdot,
-          nk_dots_pack_e3m2_neonsdot, nk_euclideans_packed_e3m2_neonsdot);
+    check("euclideans_symmetric_e3m2_neonsdot", test_euclideans_symmetric<e3m2_t>,
+          nk_euclideans_symmetric_e3m2_neonsdot);
     check("euclideans_symmetric_e2m3_neonsdot", test_euclideans_symmetric<e2m3_t>,
           nk_euclideans_symmetric_e2m3_neonsdot);
     check("euclideans_symmetric_e2m1_neonsdot", test_euclideans_symmetric<e2m1x2_t>,
           nk_euclideans_symmetric_e2m1_neonsdot);
-    check("euclideans_symmetric_e3m2_neonsdot", test_euclideans_symmetric<e3m2_t>,
-          nk_euclideans_symmetric_e3m2_neonsdot);
 
     check("attention_bidirectional_packed_i8_neonsdot", test_attention_bidirectional_packed<i8_t>,
           nk_attention_pack_size_i8_neonsdot, nk_attention_pack_i8_neonsdot,
@@ -214,56 +214,56 @@ void test_cross_arm() {
 
 #if NK_TARGET_NEONFP8
     check.section("Cross NEON FP8", nk_cap_neonfp8_k);
-    check("dots_packed_e4m3_neonfp8", test_dots_packed<e4m3_t>, nk_dots_pack_size_e4m3_neonfp8,
-          nk_dots_pack_e4m3_neonfp8, nk_dots_packed_e4m3_neonfp8);
     check("dots_packed_e5m2_neonfp8", test_dots_packed<e5m2_t>, nk_dots_pack_size_e5m2_neonfp8,
           nk_dots_pack_e5m2_neonfp8, nk_dots_packed_e5m2_neonfp8);
+    check("dots_packed_e4m3_neonfp8", test_dots_packed<e4m3_t>, nk_dots_pack_size_e4m3_neonfp8,
+          nk_dots_pack_e4m3_neonfp8, nk_dots_packed_e4m3_neonfp8);
+    check("dots_packed_e3m2_neonfp8", test_dots_packed<e3m2_t>, nk_dots_pack_size_e3m2_neonfp8,
+          nk_dots_pack_e3m2_neonfp8, nk_dots_packed_e3m2_neonfp8);
     check("dots_packed_e2m3_neonfp8", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_neonfp8,
           nk_dots_pack_e2m3_neonfp8, nk_dots_packed_e2m3_neonfp8);
     check("dots_packed_e2m1_neonfp8", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_neonfp8,
           nk_dots_pack_e2m1_neonfp8, nk_dots_packed_e2m1_neonfp8);
-    check("dots_packed_e3m2_neonfp8", test_dots_packed<e3m2_t>, nk_dots_pack_size_e3m2_neonfp8,
-          nk_dots_pack_e3m2_neonfp8, nk_dots_packed_e3m2_neonfp8);
 
-    check("dots_symmetric_e4m3_neonfp8", test_dots_symmetric<e4m3_t>, nk_dots_symmetric_e4m3_neonfp8);
     check("dots_symmetric_e5m2_neonfp8", test_dots_symmetric<e5m2_t>, nk_dots_symmetric_e5m2_neonfp8);
+    check("dots_symmetric_e4m3_neonfp8", test_dots_symmetric<e4m3_t>, nk_dots_symmetric_e4m3_neonfp8);
+    check("dots_symmetric_e3m2_neonfp8", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2_neonfp8);
     check("dots_symmetric_e2m3_neonfp8", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3_neonfp8);
     check("dots_symmetric_e2m1_neonfp8", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1_neonfp8);
-    check("dots_symmetric_e3m2_neonfp8", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2_neonfp8);
 
-    check("angulars_packed_e4m3_neonfp8", test_angulars_packed<e4m3_t>, nk_dots_pack_size_e4m3_neonfp8,
-          nk_dots_pack_e4m3_neonfp8, nk_angulars_packed_e4m3_neonfp8);
     check("angulars_packed_e5m2_neonfp8", test_angulars_packed<e5m2_t>, nk_dots_pack_size_e5m2_neonfp8,
           nk_dots_pack_e5m2_neonfp8, nk_angulars_packed_e5m2_neonfp8);
+    check("angulars_packed_e4m3_neonfp8", test_angulars_packed<e4m3_t>, nk_dots_pack_size_e4m3_neonfp8,
+          nk_dots_pack_e4m3_neonfp8, nk_angulars_packed_e4m3_neonfp8);
+    check("angulars_packed_e3m2_neonfp8", test_angulars_packed<e3m2_t>, nk_dots_pack_size_e3m2_neonfp8,
+          nk_dots_pack_e3m2_neonfp8, nk_angulars_packed_e3m2_neonfp8);
     check("angulars_packed_e2m3_neonfp8", test_angulars_packed<e2m3_t>, nk_dots_pack_size_e2m3_neonfp8,
           nk_dots_pack_e2m3_neonfp8, nk_angulars_packed_e2m3_neonfp8);
     check("angulars_packed_e2m1_neonfp8", test_angulars_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_neonfp8,
           nk_dots_pack_e2m1_neonfp8, nk_angulars_packed_e2m1_neonfp8);
-    check("angulars_packed_e3m2_neonfp8", test_angulars_packed<e3m2_t>, nk_dots_pack_size_e3m2_neonfp8,
-          nk_dots_pack_e3m2_neonfp8, nk_angulars_packed_e3m2_neonfp8);
 
-    check("angulars_symmetric_e4m3_neonfp8", test_angulars_symmetric<e4m3_t>, nk_angulars_symmetric_e4m3_neonfp8);
     check("angulars_symmetric_e5m2_neonfp8", test_angulars_symmetric<e5m2_t>, nk_angulars_symmetric_e5m2_neonfp8);
+    check("angulars_symmetric_e4m3_neonfp8", test_angulars_symmetric<e4m3_t>, nk_angulars_symmetric_e4m3_neonfp8);
+    check("angulars_symmetric_e3m2_neonfp8", test_angulars_symmetric<e3m2_t>, nk_angulars_symmetric_e3m2_neonfp8);
     check("angulars_symmetric_e2m3_neonfp8", test_angulars_symmetric<e2m3_t>, nk_angulars_symmetric_e2m3_neonfp8);
     check("angulars_symmetric_e2m1_neonfp8", test_angulars_symmetric<e2m1x2_t>, nk_angulars_symmetric_e2m1_neonfp8);
-    check("angulars_symmetric_e3m2_neonfp8", test_angulars_symmetric<e3m2_t>, nk_angulars_symmetric_e3m2_neonfp8);
 
-    check("euclideans_packed_e4m3_neonfp8", test_euclideans_packed<e4m3_t>, nk_dots_pack_size_e4m3_neonfp8,
-          nk_dots_pack_e4m3_neonfp8, nk_euclideans_packed_e4m3_neonfp8);
     check("euclideans_packed_e5m2_neonfp8", test_euclideans_packed<e5m2_t>, nk_dots_pack_size_e5m2_neonfp8,
           nk_dots_pack_e5m2_neonfp8, nk_euclideans_packed_e5m2_neonfp8);
+    check("euclideans_packed_e4m3_neonfp8", test_euclideans_packed<e4m3_t>, nk_dots_pack_size_e4m3_neonfp8,
+          nk_dots_pack_e4m3_neonfp8, nk_euclideans_packed_e4m3_neonfp8);
+    check("euclideans_packed_e3m2_neonfp8", test_euclideans_packed<e3m2_t>, nk_dots_pack_size_e3m2_neonfp8,
+          nk_dots_pack_e3m2_neonfp8, nk_euclideans_packed_e3m2_neonfp8);
     check("euclideans_packed_e2m3_neonfp8", test_euclideans_packed<e2m3_t>, nk_dots_pack_size_e2m3_neonfp8,
           nk_dots_pack_e2m3_neonfp8, nk_euclideans_packed_e2m3_neonfp8);
     check("euclideans_packed_e2m1_neonfp8", test_euclideans_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_neonfp8,
           nk_dots_pack_e2m1_neonfp8, nk_euclideans_packed_e2m1_neonfp8);
-    check("euclideans_packed_e3m2_neonfp8", test_euclideans_packed<e3m2_t>, nk_dots_pack_size_e3m2_neonfp8,
-          nk_dots_pack_e3m2_neonfp8, nk_euclideans_packed_e3m2_neonfp8);
 
-    check("euclideans_symmetric_e4m3_neonfp8", test_euclideans_symmetric<e4m3_t>, nk_euclideans_symmetric_e4m3_neonfp8);
     check("euclideans_symmetric_e5m2_neonfp8", test_euclideans_symmetric<e5m2_t>, nk_euclideans_symmetric_e5m2_neonfp8);
+    check("euclideans_symmetric_e4m3_neonfp8", test_euclideans_symmetric<e4m3_t>, nk_euclideans_symmetric_e4m3_neonfp8);
+    check("euclideans_symmetric_e3m2_neonfp8", test_euclideans_symmetric<e3m2_t>, nk_euclideans_symmetric_e3m2_neonfp8);
     check("euclideans_symmetric_e2m3_neonfp8", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3_neonfp8);
     check("euclideans_symmetric_e2m1_neonfp8", test_euclideans_symmetric<e2m1x2_t>,
           nk_euclideans_symmetric_e2m1_neonfp8);
-    check("euclideans_symmetric_e3m2_neonfp8", test_euclideans_symmetric<e3m2_t>, nk_euclideans_symmetric_e3m2_neonfp8);
 #endif // NK_TARGET_NEONFP8
 }

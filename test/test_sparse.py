@@ -96,7 +96,7 @@ def test_sparse_dot(capability: str, index_dtype: str, weight_dtype: str):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("dtype", ["uint16", "uint32", "uint64"])
+@pytest.mark.parametrize("dtype", ["uint64", "uint32", "uint16"])
 @pytest.mark.parametrize("first_length_bound", [10, 100, 1000])
 @pytest.mark.parametrize("second_length_bound", [10, 100, 1000])
 @pytest.mark.parametrize("capability", possible_capabilities)

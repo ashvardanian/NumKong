@@ -326,24 +326,24 @@ void test_cross_blas() {
     check.section("Cross External Baselines", nk_cap_serial_k);
 
     // Single-vector dot product BLAS precision comparison
-    check("dot_with_blas_f32", test_dot_blas<f32_t>, dot_f32_with_blas);
     check("dot_with_blas_f64", test_dot_blas<f64_t>, dot_f64_with_blas);
+    check("dot_with_blas_f32", test_dot_blas<f32_t>, dot_f32_with_blas);
     check("dot_with_blas_f32c", test_dot_blas<f32c_t>, dot_f32c_with_blas);
     check("vdot_with_blas_f32c", test_vdot_blas<f32c_t>, vdot_f32c_with_blas);
     check("dot_with_blas_f64c", test_dot_blas<f64c_t>, dot_f64c_with_blas);
     check("vdot_with_blas_f64c", test_vdot_blas<f64c_t>, vdot_f64c_with_blas);
 
     // BLAS/MKL/Accelerate GEMM precision comparison
-    check("dots_with_blas_f32", test_dots_unpacked<f32_t, f64_t, decltype(&dots_f32_with_blas)>, dots_f32_with_blas);
     check("dots_with_blas_f64", test_dots_unpacked<f64_t, f64_t, decltype(&dots_f64_with_blas)>, dots_f64_with_blas);
+    check("dots_with_blas_f32", test_dots_unpacked<f32_t, f64_t, decltype(&dots_f32_with_blas)>, dots_f32_with_blas);
     check("dots_with_blas_f32c", test_dots_unpacked_conjugated<f32c_t, f32c_t, decltype(&dots_f32c_with_blas)>,
           dots_f32c_with_blas);
     check("dots_with_blas_f64c", test_dots_unpacked_conjugated<f64c_t, f64c_t, decltype(&dots_f64c_with_blas)>,
           dots_f64c_with_blas);
 
     // BLAS SYRK precision comparison (symmetric A x A^T)
-    check("dots_symmetric_with_blas_f32", test_dots_symmetric<f32_t>, dots_symmetric_f32_with_blas);
     check("dots_symmetric_with_blas_f64", test_dots_symmetric<f64_t>, dots_symmetric_f64_with_blas);
+    check("dots_symmetric_with_blas_f32", test_dots_symmetric<f32_t>, dots_symmetric_f32_with_blas);
 #endif
 
 #if NK_COMPARE_TO_MKL

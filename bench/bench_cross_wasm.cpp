@@ -26,8 +26,8 @@ void bench_cross_wasm() {
     constexpr nk_dtype_t e2m3_k = nk_e2m3_k;
     constexpr nk_dtype_t e2m1_k = nk_e2m1_k;
     constexpr nk_dtype_t i8_k = nk_i8_k;
-    constexpr nk_dtype_t u8_k = nk_u8_k;
     constexpr nk_dtype_t i4_k = nk_i4_k;
+    constexpr nk_dtype_t u8_k = nk_u8_k;
     constexpr nk_dtype_t u4_k = nk_u4_k;
     constexpr nk_dtype_t u1_k = nk_u1_k;
 
@@ -52,10 +52,10 @@ void bench_cross_wasm() {
                             nk_dots_pack_e2m1_v128relaxed, nk_dots_packed_e2m1_v128relaxed);
     run_dots_packed<i8_k>("dots_packed_i8_v128relaxed", nk_dots_pack_size_i8_v128relaxed, nk_dots_pack_i8_v128relaxed,
                           nk_dots_packed_i8_v128relaxed);
-    run_dots_packed<u8_k>("dots_packed_u8_v128relaxed", nk_dots_pack_size_u8_v128relaxed, nk_dots_pack_u8_v128relaxed,
-                          nk_dots_packed_u8_v128relaxed);
     run_dots_packed<i4_k>("dots_packed_i4_v128relaxed", nk_dots_pack_size_i4_v128relaxed, nk_dots_pack_i4_v128relaxed,
                           nk_dots_packed_i4_v128relaxed);
+    run_dots_packed<u8_k>("dots_packed_u8_v128relaxed", nk_dots_pack_size_u8_v128relaxed, nk_dots_pack_u8_v128relaxed,
+                          nk_dots_packed_u8_v128relaxed);
     run_dots_packed<u4_k>("dots_packed_u4_v128relaxed", nk_dots_pack_size_u4_v128relaxed, nk_dots_pack_u4_v128relaxed,
                           nk_dots_packed_u4_v128relaxed);
 
@@ -69,8 +69,8 @@ void bench_cross_wasm() {
     run_dots_symmetric<e2m3_k>("dots_symmetric_e2m3_v128relaxed", nk_dots_symmetric_e2m3_v128relaxed);
     run_dots_symmetric<e2m1_k>("dots_symmetric_e2m1_v128relaxed", nk_dots_symmetric_e2m1_v128relaxed);
     run_dots_symmetric<i8_k>("dots_symmetric_i8_v128relaxed", nk_dots_symmetric_i8_v128relaxed);
-    run_dots_symmetric<u8_k>("dots_symmetric_u8_v128relaxed", nk_dots_symmetric_u8_v128relaxed);
     run_dots_symmetric<i4_k>("dots_symmetric_i4_v128relaxed", nk_dots_symmetric_i4_v128relaxed);
+    run_dots_symmetric<u8_k>("dots_symmetric_u8_v128relaxed", nk_dots_symmetric_u8_v128relaxed);
     run_dots_symmetric<u4_k>("dots_symmetric_u4_v128relaxed", nk_dots_symmetric_u4_v128relaxed);
 
     run_angulars_packed<f64_k>("angulars_packed_f64_v128relaxed", nk_dots_pack_size_f64_v128relaxed,

@@ -272,7 +272,7 @@ def _make_point_pair(n_points, dtype):
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(reduced_repetitions_count)
 @pytest.mark.parametrize("n_points", [mesh_points])
-@pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "bfloat16"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "bfloat16", "float16"])
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_rmsd_accuracy(n_points: int, dtype: str, capability: str, nk_seed: int):
     """RMSD of random point clouds against high-precision baseline."""
@@ -307,7 +307,7 @@ def test_rmsd_accuracy(n_points: int, dtype: str, capability: str, nk_seed: int)
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(reduced_repetitions_count)
 @pytest.mark.parametrize("n_points", [mesh_points])
-@pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "bfloat16"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "bfloat16", "float16"])
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_kabsch_accuracy(n_points: int, dtype: str, capability: str, nk_seed: int):
     """Kabsch RMSD of random point clouds against high-precision Jacobi SVD baseline."""
@@ -336,7 +336,7 @@ def test_kabsch_accuracy(n_points: int, dtype: str, capability: str, nk_seed: in
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(reduced_repetitions_count)
 @pytest.mark.parametrize("n_points", [mesh_points])
-@pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "bfloat16"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "bfloat16", "float16"])
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_umeyama_accuracy(n_points: int, dtype: str, capability: str, nk_seed: int):
     """Umeyama scale of random point clouds against high-precision baseline."""

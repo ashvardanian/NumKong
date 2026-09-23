@@ -35,8 +35,8 @@ import numkong as nk
 # region Helpers
 
 
-_INTEGER_DTYPES = ["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"]
-_PLAIN_FLOAT_DTYPES = ["float16", "float32", "float64"]
+_INTEGER_DTYPES = ["int64", "int32", "int16", "int8", "uint64", "uint32", "uint16", "uint8"]
+_PLAIN_FLOAT_DTYPES = ["float64", "float32", "float16"]
 _PLAIN_NUMERIC_DTYPES = _PLAIN_FLOAT_DTYPES + _INTEGER_DTYPES
 
 # Per-framework dtype matrices. Each entry is a `(framework_attr_name, nk_dtype_string)` pair so a single

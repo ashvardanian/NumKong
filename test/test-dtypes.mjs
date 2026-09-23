@@ -22,7 +22,7 @@ const builddir = path.join(__dirname, ".."); // Root directory where binding.gyp
 const numkong = build(builddir);
 
 // Dtypes that require explicit dtype argument (not auto-detected from TypedArray type)
-const CUSTOM_DTYPES = new Set(["f16", "bf16", "e4m3", "e5m2", "e2m3", "e3m2"]);
+const CUSTOM_DTYPES = new Set(["bf16", "f16", "e5m2", "e4m3", "e3m2", "e2m3"]);
 
 // Configuration from environment variables
 const CONFIG = {
@@ -35,15 +35,15 @@ const CONFIG = {
 // Test matrix configuration
 const TEST_MATRIX = {
   functions: {
-    dot: ["f64", "f32", "f16", "bf16", "e4m3", "e5m2", "e2m3", "e3m2", "i8", "u8"],
-    inner: ["f64", "f32", "f16", "bf16", "e4m3", "e5m2", "e2m3", "e3m2", "i8", "u8"],
-    angular: ["f64", "f32", "f16", "bf16", "e4m3", "e5m2", "e2m3", "e3m2", "i8"],
-    sqeuclidean: ["f64", "f32", "f16", "bf16", "e4m3", "e5m2", "e2m3", "e3m2", "i8", "u8"],
-    euclidean: ["f64", "f32", "f16", "bf16", "e4m3", "e5m2", "e2m3", "e3m2", "i8", "u8"],
+    dot: ["f64", "f32", "bf16", "f16", "e5m2", "e4m3", "e3m2", "e2m3", "i8", "u8"],
+    inner: ["f64", "f32", "bf16", "f16", "e5m2", "e4m3", "e3m2", "e2m3", "i8", "u8"],
+    angular: ["f64", "f32", "bf16", "f16", "e5m2", "e4m3", "e3m2", "e2m3", "i8"],
+    sqeuclidean: ["f64", "f32", "bf16", "f16", "e5m2", "e4m3", "e3m2", "e2m3", "i8", "u8"],
+    euclidean: ["f64", "f32", "bf16", "f16", "e5m2", "e4m3", "e3m2", "e2m3", "i8", "u8"],
     hamming: ["u1"],
     jaccard: ["u1"],
-    kullbackleibler: ["f64", "f32", "f16", "bf16"],
-    jensenshannon: ["f64", "f32", "f16", "bf16"],
+    kullbackleibler: ["f64", "f32", "bf16", "f16"],
+    jensenshannon: ["f64", "f32", "bf16", "f16"],
   },
   dimensions: CONFIG.dimensions,
 };

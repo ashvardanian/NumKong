@@ -147,12 +147,12 @@ def baseline_swiglu(gate, up, input_scale):
 
 
 _INT_CLIP_RANGES = {
-    "int8": (-128, 127),
-    "uint8": (0, 255),
-    "int16": (-32768, 32767),
-    "uint16": (0, 65535),
     "int32": (-2147483648, 2147483647),
+    "int16": (-32768, 32767),
+    "int8": (-128, 127),
     "uint32": (0, 4294967295),
+    "uint16": (0, 65535),
+    "uint8": (0, 255),
 }
 
 
@@ -221,7 +221,7 @@ def random_coefficients(dtype, alpha_div=2, beta_div=2):
     else:
         alpha = random.uniform(-2.0, 2.0)
         beta = random.uniform(-2.0, 2.0)
-        if dtype in ("int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64"):
+        if dtype in ("int64", "int32", "int16", "int8", "uint64", "uint32", "uint16", "uint8"):
             alpha, beta = abs(alpha) / alpha_div, abs(beta) / beta_div
     return alpha, beta
 
@@ -394,8 +394,8 @@ def test_fma_random_accuracy(shape: tuple, dtype: str, capability: str, nk_seed:
         ("uint8", "uint8", "uint8"),
         ("uint16", "uint16", "uint16"),
         ("uint32", "uint32", "uint32"),
-        ("int16", "uint16", "float64"),
-        ("uint8", "float32", "float32"),
+        ("float64", "int16", "uint16"),
+        ("float32", "float32", "uint8"),
     ],
 )
 @pytest.mark.parametrize("kernel", ["add", "multiply"])
@@ -541,8 +541,8 @@ def test_add_multiply_noncontiguous(dtype: str, kernel, capability: str):
         ("float64", "float64", "float64"),
         ("float32", "float32", "float32"),
         ("float16", "float16", "float16"),
-        ("float32", "float64", "float64"),
-        ("float16", "float32", "float32"),
+        ("float64", "float64", "float32"),
+        ("float32", "float32", "float16"),
     ],
 )
 @pytest.mark.parametrize("kernel", ["add", "multiply"])

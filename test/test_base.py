@@ -143,26 +143,26 @@ NATIVE_COMPUTE_DTYPE: dict[str, type] = (
     {
         "float64": np.float64,
         "float32": np.float32,
-        "float16": np.float32,
         "bfloat16": np.float32,
         "bf16": np.float32,
-        "e4m3": np.float32,
+        "float16": np.float32,
         "e5m2": np.float32,
+        "e4m3": np.float32,
+        "e3m2": np.float32,
         "e2m3": np.float32,
         "e2m1": np.float32,
-        "e3m2": np.float32,
-        "int8": np.int64,
-        "uint8": np.int64,
-        "int16": np.int64,
-        "uint16": np.int64,
-        "int32": np.int64,
-        "uint32": np.int64,
         "int64": np.int64,
-        "uint64": np.int64,
+        "int32": np.int64,
+        "int16": np.int64,
+        "int8": np.int64,
         "int4": np.int64,
+        "uint64": np.int64,
+        "uint32": np.int64,
+        "uint16": np.int64,
+        "uint8": np.int64,
         "uint4": np.int64,
-        "complex64": np.complex128,
         "complex128": np.complex128,
+        "complex64": np.complex128,
     }
     if numpy_available
     else {}
@@ -237,26 +237,26 @@ def to_array(x: Any, dtype: str | None = None) -> np.ndarray:
 _DTYPE_TOLERANCES: dict[str, tuple[float, float]] = {
     "float64": (1e-6, 1e-6),
     "float32": (1e-4, 1e-4),
-    "float16": (NK_ATOL, NK_RTOL),
     "bfloat16": (NK_ATOL, NK_RTOL),
     "bf16": (NK_ATOL, NK_RTOL),
-    "e4m3": (NK_ATOL, NK_RTOL),
+    "float16": (NK_ATOL, NK_RTOL),
     "e5m2": (NK_ATOL, NK_RTOL),
+    "e4m3": (NK_ATOL, NK_RTOL),
+    "e3m2": (NK_ATOL, NK_RTOL),
     "e2m3": (NK_ATOL, NK_RTOL),
     "e2m1": (NK_ATOL, NK_RTOL),
-    "e3m2": (NK_ATOL, NK_RTOL),
+    "int64": (1, 0),
+    "int32": (1, 0),
+    "int16": (1, 0),
+    "int8": (1, 0),
+    "int4": (1, 0),
+    "uint64": (1, 0),
+    "uint32": (1, 0),
+    "uint16": (1, 0),
+    "uint8": (1, 0),
+    "uint4": (1, 0),
     "complex128": (1e-6, 1e-6),
     "complex64": (1e-4, 1e-4),
-    "int8": (1, 0),
-    "uint8": (1, 0),
-    "int16": (1, 0),
-    "uint16": (1, 0),
-    "int32": (1, 0),
-    "uint32": (1, 0),
-    "int64": (1, 0),
-    "uint64": (1, 0),
-    "int4": (1, 0),
-    "uint4": (1, 0),
 }
 
 
@@ -440,10 +440,10 @@ LOOKUP_TABLE_E5M2 = build_subbyte_float_lookup_table(
 )
 
 SUBBYTE_LOOKUP_TABLES = {
-    "e2m3": LOOKUP_TABLE_E2M3,
-    "e3m2": LOOKUP_TABLE_E3M2,
-    "e4m3": LOOKUP_TABLE_E4M3,
     "e5m2": LOOKUP_TABLE_E5M2,
+    "e4m3": LOOKUP_TABLE_E4M3,
+    "e3m2": LOOKUP_TABLE_E3M2,
+    "e2m3": LOOKUP_TABLE_E2M3,
 }
 
 
@@ -460,7 +460,7 @@ def _make_random_numpy(shape, dtype):
         baseline = f32_rounded.astype(np.float64)
         return bf16_raw, baseline
 
-    if dtype in ("int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64"):
+    if dtype in ("int64", "int32", "int16", "int8", "uint64", "uint32", "uint16", "uint8"):
         info = np.iinfo(np.dtype(dtype))
         raw = np.random.randint(info.min, info.max, size=shape, dtype=dtype)
         baseline = raw.astype(np.float64)
@@ -471,7 +471,7 @@ def _make_random_numpy(shape, dtype):
         baseline = raw.astype(np.complex128)
         return raw, baseline
 
-    if dtype in ("e4m3", "e5m2", "e2m3", "e3m2"):
+    if dtype in ("e5m2", "e4m3", "e3m2", "e2m3"):
         lut = np.array(SUBBYTE_LOOKUP_TABLES[dtype])
         # Exclude NaN/±∞ entries from random generation
         finite_mask = np.isfinite(lut)
@@ -1037,8 +1037,8 @@ def nk_seed(seed_rng: int) -> int:
 
 # Map nk dtype → (array.array typecode, low, high)
 ARRAY_TYPECODES = {
-    "float32": ("f", -10.0, 10.0),
     "float64": ("d", -10.0, 10.0),
+    "float32": ("f", -10.0, 10.0),
     "int8": ("b", -128, 127),
     "uint8": ("B", 0, 255),
 }

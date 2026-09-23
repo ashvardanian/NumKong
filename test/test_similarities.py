@@ -202,7 +202,7 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, 
     a_matrix = a_matrix_extended[:, :ndim]
     b_matrix = b_matrix_extended[:, :ndim]
 
-    is_integer_output = out_dtype in ("int32", "int64", "int16", "int8", "uint32", "uint64", "uint16", "uint8")
+    is_integer_output = out_dtype in ("int64", "int32", "int16", "int8", "uint64", "uint32", "uint16", "uint8")
     scipy_metric = scipy_metric_name(metric)
 
     if metric == "dot":
@@ -416,7 +416,7 @@ def test_cdist_probability(ndim, input_dtype, metric, capability):
 @pytest.mark.parametrize("ndim", dense_dimensions)
 @pytest.mark.parametrize(
     "input_dtype",
-    ["bfloat16", "e4m3", "e5m2", "e2m3", "e3m2", "int8", "uint8", "int4", "uint4"],
+    ["bfloat16", "e5m2", "e4m3", "e3m2", "e2m3", "int8", "int4", "uint8", "uint4"],
 )
 @pytest.mark.parametrize("metric", ["dot", "euclidean"])
 def test_cdist_exotic_dtypes(ndim, input_dtype, metric):
