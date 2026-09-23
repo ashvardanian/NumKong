@@ -1,5 +1,5 @@
 /**
- *  @brief Batch operation benchmarks - CUDA kernels against cuBLASLt and cuBLAS.
+ *  @brief Batch operation benchmarks - CUDA kernels against cuBLASLt, cuBLAS, cuDNN and cuVS.
  *  @file bench/bench_cross_cuda.cu
  *  @author Ash Vardanian
  *  @date September 22, 2026
@@ -8,38 +8,39 @@
  *  on `cudaStreamPerThread`, with timed windows of launches bracketed by CUDA events and reported through
  *  `UseManualTime`, so launch latency and host synchronization stay outside the measurement. The Time column is per
  *  window, and the `calls` counter recovers the per-call rate. Input sets rotate until their footprint is at least
- * twice the L2.
+ *  twice the L2.
  *
  *  The `attention` rows time prefill, 4096 queries on 4096 keys, and decode, 1 query on 4096 keys, with 32 query heads
- *  over 8 K and V heads of depth 128. The baselines share the inputs, timing and counters of the NumKong rows.
- *
- *  Environment Variables:
- *    NK_FILTER=<pattern>           - Filter benchmarks by name regex (default: run all)
- *    NK_SEED=N                     - RNG seed (default: 42)
- *    NK_BUDGET_SECS=<seconds>      - Min time per benchmark (default: 10)
- *    NK_BUDGET_MB=N                - Device memory budget in MB for input sets (default: 1024)
- *    NK_MATRIX_HEIGHT=N            - GEMM M dimension (default: 1024)
- *    NK_MATRIX_WIDTH=N             - GEMM N dimension (default: 128)
- *    NK_MATRIX_DEPTH=N             - GEMM K dimension (default: 1536)
+ *  over 8 K and V heads of depth 128. Every baseline enters the same drivers as a kernel callable, so it shares their
+ *  inputs, timing and counters, and compiles in only under its `NK_COMPARE_TO_*` CMake option.
  */
 
-#include <cmath>   // `std::fabs`, `std::sqrt`
+#include <cmath>   // `std::sqrt`, `INFINITY`
 #include <cstdint> // `std::int32_t`, `std::int64_t`
 #include <cstdio>  // `std::printf`
-#include <cstdlib> // `std::getenv`, `std::atoll`
 #include <cstring> // `std::memcpy`
 
-#include <algorithm>     // `std::clamp`
-#include <array>         // `std::array`
-#include <bit>           // `std::bit_ceil`, `std::bit_floor`
-#include <optional>      // `std::optional`
-#include <string>        // `std::string`
-#include <unordered_map> // `std::unordered_map`
-#include <vector>        // `std::vector`
+#include <algorithm>   // `std::clamp`, `std::max`
+#include <array>       // `std::array`
+#include <bit>         // `std::bit_ceil`, `std::bit_floor`
+#include <memory>      // `std::shared_ptr`
+#include <string>      // `std::string`
+#include <type_traits> // `std::remove_pointer_t`
+#include <utility>     // `std::pair`
+#include <vector>      // `std::vector`
 
+#if NK_COMPARE_TO_CUBLAS
 #include <cublasLt.h>
 #include <cublas_v2.h>
+#endif
 #include <cuda_runtime.h>
+#if NK_COMPARE_TO_CUDNN
+#include <cudnn.h>
+#endif
+#if NK_COMPARE_TO_CUVS
+#include <cuvs/core/c_api.h>
+#include <cuvs/distance/pairwise_distance.h>
+#endif
 
 #include "numkong/numkong.h"
 
@@ -48,8 +49,8 @@
 
 using namespace ashvardanian::numkong::bench;
 using nk::test::device_vector;
-
-bench_config_t nk::bench::bench_config;
+using nk::test::print_indicator;
+using nk::test::print_isa;
 
 #pragma region CUDA Backend
 
@@ -109,20 +110,23 @@ struct cuda_backend_t : nk::test::cuda_backend_t {
     static void configure(bm::internal::Benchmark *benchmark) { benchmark->UseManualTime(); }
 };
 
-/** Fills every set with copies of @p a_host and @p b_host, reporting whether every allocation succeeded. */
-template <typename output_type_>
-bool upload_unpacked_sets(cuda_backend_t &backend, std::vector<matrix_set<cuda_backend_t, output_type_>> &sets,
-                          void const *a_host, std::size_t a_bytes, void const *b_host, std::size_t b_bytes,
-                          std::size_t c_count) {
-    for (auto &set : sets) {
-        set.a = device_vector<char>::try_empty(a_bytes);
-        set.b = device_vector<char>::try_empty(b_bytes);
-        set.c = device_vector<output_type_>::try_empty(c_count);
-        if (set.a.empty() || set.b.empty() || set.c.empty()) return false;
-        backend.copy(set.a.raw_values_data(), a_host, a_bytes);
-        backend.copy(set.b.raw_values_data(), b_host, b_bytes);
-    }
-    return true;
+/** Prints once why a baseline row is missing. */
+void print_skipped(std::string const &name, char const *reason) {
+    std::printf("  Skipping %s: %s\n", name.c_str(), reason);
+}
+
+/** Registers a baseline @p kernel over dense B rows through `register_packed`, with a copy of B as its pack. */
+template <nk_dtype_t input_dtype_, typename output_type_, typename kernel_type_>
+void register_unpacked(std::string const &name, reference_metric_t metric, kernel_type_ kernel) {
+    using input_t = typename nk::type_for<input_dtype_>::type;
+    auto const packed_size = [](std::size_t width, std::size_t depth) {
+        return width * nk::divide_round_up(depth, nk::dimensions_per_value<input_t>()) * sizeof(input_t);
+    };
+    auto const copy = [](void const *b, std::size_t width, std::size_t, std::size_t row_bytes, void *packed,
+                         std::size_t, std::size_t, cudaStream_t stream) {
+        return cudaMemcpyAsync(packed, b, width * row_bytes, cudaMemcpyDeviceToDevice, stream);
+    };
+    register_packed<input_dtype_, output_type_, cuda_backend_t>(name, metric, packed_size, copy, kernel);
 }
 
 #pragma endregion CUDA Backend
@@ -130,8 +134,9 @@ bool upload_unpacked_sets(cuda_backend_t &backend, std::vector<matrix_set<cuda_b
 #pragma region Registrations
 
 /** Every Ampere entry point, compiled only when the architecture list includes the family. */
-void bench_cross_ampere() {
+void bench_cross_ampere([[maybe_unused]] nk_capability_t available) {
 #if NK_TARGET_AMPERE
+    if (!(available & nk_cap_ampere_k)) return;
     using backend_t = cuda_backend_t;
     run_dots_packed<nk_f64_k, backend_t>("dots_packed_f64_ampere", nk_dots_pack_size_f64_ampere,
                                          nk_dots_pack_f64_ampere, nk_dots_packed_f64_ampere);
@@ -286,8 +291,9 @@ void bench_cross_ampere() {
 }
 
 /** Every Blackwell RTX entry point, compiled only when the architecture list includes the family. */
-void bench_cross_blackwellrtx() {
+void bench_cross_blackwellrtx([[maybe_unused]] nk_capability_t available) {
 #if NK_TARGET_BLACKWELLRTX
+    if (!(available & nk_cap_blackwellrtx_k)) return;
     using backend_t = cuda_backend_t;
     run_dots_packed<nk_e5m2_k, backend_t>("dots_packed_e5m2_blackwellrtx", nk_dots_pack_size_e5m2_blackwellrtx,
                                           nk_dots_pack_e5m2_blackwellrtx, nk_dots_packed_e5m2_blackwellrtx);
@@ -366,64 +372,49 @@ void bench_cross_blackwellrtx() {
 
 #pragma endregion Registrations
 
-#pragma region cuBLASLt
+#pragma region cuBLAS
+#if NK_COMPARE_TO_CUBLAS
 
-/** How cuBLASLt scales an input: not at all, one UE8M0 exponent per 32 elements, or one UE4M3 per 16. */
-enum class cublaslt_scaling_t { unscaled_k, block32_ue8m0_k, block16_ue4m3_k };
+/** cuBLASLt's storage type for @p dtype. */
+cudaDataType_t cublaslt_input_type(nk_dtype_t dtype) noexcept {
+    switch (dtype) {
+    case nk_f64_k: return CUDA_R_64F;
+    case nk_f32_k: return CUDA_R_32F;
+    case nk_bf16_k: return CUDA_R_16BF;
+    case nk_f16_k: return CUDA_R_16F;
+    case nk_e5m2_k: return CUDA_R_8F_E5M2;
+    case nk_e4m3_k: return CUDA_R_8F_E4M3;
+    case nk_e3m2_k: return CUDA_R_6F_E3M2;
+    case nk_e2m3_k: return CUDA_R_6F_E2M3;
+    case nk_e2m1_k: return CUDA_R_4F_E2M1;
+    case nk_i8_k: return CUDA_R_8I;
+    case nk_i4_k: return CUDA_R_4I;
+    case nk_u8_k: return CUDA_R_8U;
+    default: return CUDA_R_4U;
+    }
+}
 
-/** One cuBLASLt configuration per dtype: storage, accumulation, scalar and output types, and block scaling. */
-struct cublaslt_types_t {
-    cudaDataType_t input;        ///< A and B storage
-    cublasComputeType_t compute; ///< accumulation
-    cudaDataType_t scalar;       ///< alpha and beta
-    cudaDataType_t output;       ///< C storage
-    cublaslt_scaling_t scaling;  ///< block scales applied to A and B
-};
+/** cuBLASLt's accumulator, scalar and output type for @p dtype: F64, I32 for integers, F32 for other floats. */
+cudaDataType_t cublaslt_output_type(nk_dtype_t dtype) noexcept {
+    switch (dtype) {
+    case nk_f64_k: return CUDA_R_64F;
+    case nk_i8_k:
+    case nk_i4_k:
+    case nk_u8_k:
+    case nk_u4_k: return CUDA_R_32I;
+    default: return CUDA_R_32F;
+    }
+}
 
-template <nk_dtype_t input_dtype_>
-constexpr cublaslt_types_t cublaslt_types_k = {};
-template <>
-constexpr cublaslt_types_t cublaslt_types_k<nk_f64_k> = {CUDA_R_64F, CUBLAS_COMPUTE_64F, CUDA_R_64F, CUDA_R_64F,
-                                                         cublaslt_scaling_t::unscaled_k};
-template <>
-constexpr cublaslt_types_t cublaslt_types_k<nk_f32_k> = {CUDA_R_32F, CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_32F,
-                                                         cublaslt_scaling_t::unscaled_k};
-template <>
-constexpr cublaslt_types_t cublaslt_types_k<nk_bf16_k> = {CUDA_R_16BF, CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_32F,
-                                                          cublaslt_scaling_t::unscaled_k};
-template <>
-constexpr cublaslt_types_t cublaslt_types_k<nk_f16_k> = {CUDA_R_16F, CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_32F,
-                                                         cublaslt_scaling_t::unscaled_k};
-template <>
-constexpr cublaslt_types_t cublaslt_types_k<nk_e5m2_k> = {CUDA_R_8F_E5M2, CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_32F,
-                                                          cublaslt_scaling_t::unscaled_k};
-template <>
-constexpr cublaslt_types_t cublaslt_types_k<nk_e4m3_k> = {CUDA_R_8F_E4M3, CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_32F,
-                                                          cublaslt_scaling_t::unscaled_k};
-template <>
-constexpr cublaslt_types_t cublaslt_types_k<nk_e3m2_k> = {CUDA_R_6F_E3M2, CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_32F,
-                                                          cublaslt_scaling_t::block32_ue8m0_k};
-template <>
-constexpr cublaslt_types_t cublaslt_types_k<nk_e2m3_k> = {CUDA_R_6F_E2M3, CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_32F,
-                                                          cublaslt_scaling_t::block32_ue8m0_k};
-template <>
-constexpr cublaslt_types_t cublaslt_types_k<nk_e2m1_k> = {CUDA_R_4F_E2M1, CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_32F,
-                                                          cublaslt_scaling_t::block16_ue4m3_k};
-template <>
-constexpr cublaslt_types_t cublaslt_types_k<nk_i8_k> = {CUDA_R_8I, CUBLAS_COMPUTE_32I, CUDA_R_32I, CUDA_R_32I,
-                                                        cublaslt_scaling_t::unscaled_k};
-template <>
-constexpr cublaslt_types_t cublaslt_types_k<nk_i4_k> = {CUDA_R_4I, CUBLAS_COMPUTE_32I, CUDA_R_32I, CUDA_R_32I,
-                                                        cublaslt_scaling_t::unscaled_k};
-template <>
-constexpr cublaslt_types_t cublaslt_types_k<nk_u8_k> = {CUDA_R_8U, CUBLAS_COMPUTE_32I, CUDA_R_32I, CUDA_R_32I,
-                                                        cublaslt_scaling_t::unscaled_k};
-template <>
-constexpr cublaslt_types_t cublaslt_types_k<nk_u4_k> = {CUDA_R_4U, CUBLAS_COMPUTE_32I, CUDA_R_32I, CUDA_R_32I,
-                                                        cublaslt_scaling_t::unscaled_k};
-
-/** How the operands reach cuBLASLt: as stored, or widened to F64 on the host first. */
-enum class cublaslt_operands_t { native_k, widened_f64_k };
+/** Elements per block scale cuBLASLt requires of @p dtype: 32 for 6-bit floats, 16 for 4-bit ones, 0 for none. */
+std::size_t cublaslt_scale_block(nk_dtype_t dtype) noexcept {
+    switch (dtype) {
+    case nk_e3m2_k:
+    case nk_e2m3_k: return 32;
+    case nk_e2m1_k: return 16;
+    default: return 0;
+    }
+}
 
 /**
  *  @brief One planned `cublasLtMatmul` for row-major C = A × Bᵀ.
@@ -438,11 +429,9 @@ struct cublaslt_plan_t {
     cublasLtMatrixLayout_t second_layout = nullptr; ///< A
     cublasLtMatrixLayout_t output_layout = nullptr; ///< C
     cublasLtMatmulHeuristicResult_t heuristic {};   ///< the chosen algorithm
-    device_vector<char> workspace;                  ///< scratch for the algorithm
-    device_vector<char> first_scales;               ///< unit block scales of B
-    device_vector<char> second_scales;              ///< unit block scales of A
-    cudaDataType_t scalar_type = CUDA_R_32F;        ///< type of alpha and beta
-    std::string failure;                            ///< why `build` failed
+    device_vector<char> workspace;                  ///< scratch the algorithm asked for
+    device_vector<char> scales;                     ///< unit block scales, shared by A and B
+    cudaDataType_t output_type = CUDA_R_32F;        ///< type of alpha, beta and C
 
     ~cublaslt_plan_t() {
         if (output_layout) cublasLtMatrixLayoutDestroy(output_layout);
@@ -452,83 +441,62 @@ struct cublaslt_plan_t {
         if (handle) cublasLtDestroy(handle);
     }
 
-    /** Builds the plan, or leaves the reason in `failure` when cuBLASLt offers no algorithm. */
-    bool build(cublaslt_types_t types, std::size_t height, std::size_t width, std::size_t depth,
-               std::size_t a_leading) {
-        auto fails = [&](char const *step, cublasStatus_t status) {
-            failure = std::string(step) + ": " + cublasLtGetStatusName(status);
-            return false;
-        };
-        scalar_type = types.scalar;
-        cublasStatus_t status;
-        if ((status = cublasLtCreate(&handle)) != CUBLAS_STATUS_SUCCESS) return fails("cublasLtCreate", status);
-        if ((status = cublasLtMatmulDescCreate(&operation, types.compute, types.scalar)) != CUBLAS_STATUS_SUCCESS)
-            return fails("cublasLtMatmulDescCreate", status);
-        cublasOperation_t const transposed = CUBLAS_OP_T, kept = CUBLAS_OP_N;
+    /** Builds the plan for A of @p a_leading elements per row, or returns why cuBLASLt offers no algorithm. */
+    cublasStatus_t build(nk_dtype_t dtype, std::size_t height, std::size_t width, std::size_t depth,
+                         std::size_t a_leading) {
+        cudaDataType_t const input_type = cublaslt_input_type(dtype);
+        output_type = cublaslt_output_type(dtype);
+        cublasComputeType_t const compute = output_type == CUDA_R_64F   ? CUBLAS_COMPUTE_64F
+                                            : output_type == CUDA_R_32I ? CUBLAS_COMPUTE_32I
+                                                                        : CUBLAS_COMPUTE_32F;
+        cublasStatus_t status = cublasLtCreate(&handle);
+        if (!status) status = cublasLtMatmulDescCreate(&operation, compute, output_type);
+        if (!status) status = cublasLtMatrixLayoutCreate(&first_layout, input_type, depth, width, depth);
+        if (!status) status = cublasLtMatrixLayoutCreate(&second_layout, input_type, depth, height, a_leading);
+        if (!status) status = cublasLtMatrixLayoutCreate(&output_layout, output_type, width, height, width);
+        if (status) return status;
+        cublasOperation_t const transposed = CUBLAS_OP_T;
         cublasLtMatmulDescSetAttribute(operation, CUBLASLT_MATMUL_DESC_TRANSA, &transposed, sizeof(transposed));
-        cublasLtMatmulDescSetAttribute(operation, CUBLASLT_MATMUL_DESC_TRANSB, &kept, sizeof(kept));
 
-        if (types.scaling != cublaslt_scaling_t::unscaled_k) {
-            // Unit scales - UE8M0 code 127 is 2⁰, UE4M3 code 0x38 is 1.0 - so the product is the unscaled one.
-            bool const ue8m0 = types.scaling == cublaslt_scaling_t::block32_ue8m0_k;
-            std::size_t const block = ue8m0 ? 32 : 16;
-            int const unit_code = ue8m0 ? 127 : 0x38;
-            auto scales_bytes = [&](std::size_t outer) {
-                return nk::divide_round_up(outer, std::size_t(128)) * 128 *
-                       nk::divide_round_up(nk::divide_round_up(depth, block), std::size_t(4)) * 4;
-            };
-            first_scales = device_vector<char>::try_empty(scales_bytes(width));
-            second_scales = device_vector<char>::try_empty(scales_bytes(height));
-            if (first_scales.empty() || second_scales.empty())
-                return fails("scale allocation", CUBLAS_STATUS_ALLOC_FAILED);
-            cudaMemset(first_scales.raw_values_data(), unit_code, first_scales.size_bytes());
-            cudaMemset(second_scales.raw_values_data(), unit_code, second_scales.size_bytes());
-            void const *first_scales_address = first_scales.raw_values_data();
-            void const *second_scales_address = second_scales.raw_values_data();
-            cublasLtMatmulMatrixScale_t const mode = ue8m0 ? CUBLASLT_MATMUL_MATRIX_SCALE_VEC32_UE8M0
-                                                           : CUBLASLT_MATMUL_MATRIX_SCALE_VEC16_UE4M3;
-            cublasLtMatmulDescSetAttribute(operation, CUBLASLT_MATMUL_DESC_A_SCALE_MODE, &mode, sizeof(mode));
-            cublasLtMatmulDescSetAttribute(operation, CUBLASLT_MATMUL_DESC_B_SCALE_MODE, &mode, sizeof(mode));
-            cublasLtMatmulDescSetAttribute(operation, CUBLASLT_MATMUL_DESC_A_SCALE_POINTER, &first_scales_address,
-                                           sizeof(first_scales_address));
-            cublasLtMatmulDescSetAttribute(operation, CUBLASLT_MATMUL_DESC_B_SCALE_POINTER, &second_scales_address,
-                                           sizeof(second_scales_address));
+        // Unit scales - UE8M0 code 127 is 2⁰, UE4M3 code 0x38 is 1.0 - so the product is the unscaled one.
+        if (std::size_t const block = cublaslt_scale_block(dtype)) {
+            scales = device_vector<char>::try_empty(nk::divide_round_up(std::max(height, width), std::size_t(128)) *
+                                                    128 * nk::divide_round_up(depth, block * 4) * 4);
+            if (scales.empty()) return CUBLAS_STATUS_ALLOC_FAILED;
+            cudaMemset(scales.raw_values_data(), block == 32 ? 127 : 0x38, scales.size_bytes());
+            void const *scales_address = scales.raw_values_data();
+            cublasLtMatmulMatrixScale_t const mode = block == 32 ? CUBLASLT_MATMUL_MATRIX_SCALE_VEC32_UE8M0
+                                                                 : CUBLASLT_MATMUL_MATRIX_SCALE_VEC16_UE4M3;
+            for (cublasLtMatmulDescAttributes_t attribute :
+                 {CUBLASLT_MATMUL_DESC_A_SCALE_MODE, CUBLASLT_MATMUL_DESC_B_SCALE_MODE})
+                cublasLtMatmulDescSetAttribute(operation, attribute, &mode, sizeof(mode));
+            for (cublasLtMatmulDescAttributes_t attribute :
+                 {CUBLASLT_MATMUL_DESC_A_SCALE_POINTER, CUBLASLT_MATMUL_DESC_B_SCALE_POINTER})
+                cublasLtMatmulDescSetAttribute(operation, attribute, &scales_address, sizeof(scales_address));
         }
 
-        if ((status = cublasLtMatrixLayoutCreate(&first_layout, types.input, depth, width, depth)) !=
-            CUBLAS_STATUS_SUCCESS)
-            return fails("first layout", status);
-        if ((status = cublasLtMatrixLayoutCreate(&second_layout, types.input, depth, height, a_leading)) !=
-            CUBLAS_STATUS_SUCCESS)
-            return fails("second layout", status);
-        if ((status = cublasLtMatrixLayoutCreate(&output_layout, types.output, width, height, width)) !=
-            CUBLAS_STATUS_SUCCESS)
-            return fails("output layout", status);
-
-        std::size_t const workspace_bytes = std::size_t(64) << 20;
-        workspace = device_vector<char>::try_empty(workspace_bytes);
-        if (workspace.empty()) return fails("workspace allocation", CUBLAS_STATUS_ALLOC_FAILED);
+        std::size_t const workspace_limit = std::size_t(64) << 20;
         cublasLtMatmulPreference_t preference = nullptr;
         cublasLtMatmulPreferenceCreate(&preference);
-        cublasLtMatmulPreferenceSetAttribute(preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &workspace_bytes,
-                                             sizeof(workspace_bytes));
+        cublasLtMatmulPreferenceSetAttribute(preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &workspace_limit,
+                                             sizeof(workspace_limit));
         int found = 0;
         status = cublasLtMatmulAlgoGetHeuristic(handle, operation, first_layout, second_layout, output_layout,
                                                 output_layout, preference, 1, &heuristic, &found);
         cublasLtMatmulPreferenceDestroy(preference);
-        if (status != CUBLAS_STATUS_SUCCESS) return fails("cublasLtMatmulAlgoGetHeuristic", status);
-        if (found == 0) return fails("cublasLtMatmulAlgoGetHeuristic", CUBLAS_STATUS_NOT_SUPPORTED);
-        return true;
+        if (status || !found) return status ? status : CUBLAS_STATUS_NOT_SUPPORTED;
+        workspace = device_vector<char>::try_empty(std::max<std::size_t>(heuristic.workspaceSize, 1));
+        return workspace.empty() ? CUBLAS_STATUS_ALLOC_FAILED : CUBLAS_STATUS_SUCCESS;
     }
 
     /** Enqueues C = A × Bᵀ on @p stream. */
     cudaError_t launch(void const *a, void const *b, void *c, cudaStream_t stream) noexcept {
-        float const alpha_f32 = 1, beta_f32 = 0;
         double const alpha_f64 = 1, beta_f64 = 0;
+        float const alpha_f32 = 1, beta_f32 = 0;
         std::int32_t const alpha_i32 = 1, beta_i32 = 0;
         void const *alpha = &alpha_f32, *beta = &beta_f32;
-        if (scalar_type == CUDA_R_64F) alpha = &alpha_f64, beta = &beta_f64;
-        if (scalar_type == CUDA_R_32I) alpha = &alpha_i32, beta = &beta_i32;
+        if (output_type == CUDA_R_64F) alpha = &alpha_f64, beta = &beta_f64;
+        if (output_type == CUDA_R_32I) alpha = &alpha_i32, beta = &beta_i32;
         cublasStatus_t const status = cublasLtMatmul(handle, operation, alpha, b, first_layout, a, second_layout, beta,
                                                      c, output_layout, c, output_layout, &heuristic.algo,
                                                      workspace.raw_values_data(), workspace.size_bytes(), stream);
@@ -536,199 +504,487 @@ struct cublaslt_plan_t {
     }
 };
 
-/** A's leading dimension in elements: the backend's padded stride natively, dense rows once widened. */
-template <nk_dtype_t input_dtype_>
-std::size_t cublaslt_a_leading(cublaslt_operands_t operands, std::size_t depth) {
-    using input_t = typename nk::type_for<input_dtype_>::type;
-    if (operands == cublaslt_operands_t::widened_f64_k) return depth;
-    std::size_t const row_bytes = nk::divide_round_up(depth, nk::dimensions_per_value<input_t>()) *
-                                  sizeof(typename input_t::raw_t);
-    return cuda_backend_t {}.row_stride(row_bytes) / sizeof(typename input_t::raw_t) *
-           nk::dimensions_per_value<input_t>();
-}
-
-/** Rows of @p rows decoded into dense F64 rows, the operands a widened cuBLASLt row multiplies. */
-template <nk_dtype_t input_dtype_>
-std::vector<double> decode_rows(nk::tensor_view<typename nk::type_for<input_dtype_>::type, 2> rows, std::size_t depth) {
-    std::vector<double> decoded(rows.extent(0) * depth);
-    for (std::size_t row = 0; row != rows.extent(0); ++row)
-        nk_cast_serial(rows.byte_data() + row * rows.stride_bytes(0), input_dtype_, depth, decoded.data() + row * depth,
-                       nk_f64_k);
-    return decoded;
-}
-
-template <nk_dtype_t input_dtype_, typename output_type_>
-void measure_dots_with_cublaslt(bm::State &state, cublaslt_types_t types, cublaslt_operands_t operands,
-                                std::size_t height, std::size_t width, std::size_t depth) {
-    cuda_backend_t backend;
-    auto const [a, b] = random_matrices<input_dtype_, cuda_backend_t>(height, width, depth);
-    std::size_t const a_bytes = height * a.stride_bytes(0), b_bytes = width * b.stride_bytes(0);
-    cublaslt_plan_t plan;
-    if (!plan.build(types, height, width, depth, cublaslt_a_leading<input_dtype_>(operands, depth)))
-        return state.SkipWithError(plan.failure.c_str());
-
-    std::vector<matrix_set<cuda_backend_t, output_type_>> sets;
-    std::size_t const c_bytes = height * width * sizeof(typename output_type_::raw_t);
-    bool uploaded = false;
-    if (operands == cublaslt_operands_t::widened_f64_k) {
-        std::vector<double> const a_widened = decode_rows<input_dtype_>(a.view(), depth);
-        std::vector<double> const b_widened = decode_rows<input_dtype_>(b.view(), depth);
-        std::size_t const a_widened_bytes = a_widened.size() * sizeof(double),
-                          b_widened_bytes = b_widened.size() * sizeof(double);
-        sets.resize(backend.input_sets(a_widened_bytes + b_widened_bytes + c_bytes));
-        uploaded = upload_unpacked_sets(backend, sets, a_widened.data(), a_widened_bytes, b_widened.data(),
-                                        b_widened_bytes, height * width);
-    }
-    else {
-        sets.resize(backend.input_sets(a_bytes + b_bytes + c_bytes));
-        uploaded = upload_unpacked_sets(backend, sets, a.data(), a_bytes, b.data(), b_bytes, height * width);
-    }
-    if (!uploaded) return state.SkipWithError("set allocation failed");
-    std::size_t const calls = time_rotating(state, backend, sets.size(), [&](std::size_t index) {
-        auto &set = sets[index];
-        backend.call([&](cudaStream_t stream) {
-            return plan.launch(set.a.raw_values_data(), set.b.raw_values_data(), set.c.raw_values_data(), stream);
-        });
-    });
-    if (!calls) return;
-    double const score = sampled_accuracy<input_dtype_, output_type_>(
-        backend, sets[0].c, a.view(), b.view(), depth, reference_metric_t::dot_k, written_entries_t::full_k);
-    report_matrix<output_type_>(state, calls, 2.0 * height * width * depth, score);
-}
-
-/** Registers the cuBLASLt row, or prints once why cuBLASLt has no algorithm for this configuration. */
+/** Registers a cuBLASLt row, or prints why cuBLASLt has no algorithm for it. */
 template <nk_dtype_t input_dtype_, typename output_type_ = typename nk::type_for<input_dtype_>::type::dot_result_t>
-void run_dots_with_cublaslt(std::string const &name, cublaslt_types_t types = cublaslt_types_k<input_dtype_>,
-                            cublaslt_operands_t operands = cublaslt_operands_t::native_k) {
-    std::size_t const height = bench_config.matrix_height, width = bench_config.matrix_width,
-                      depth = bench_config.matrix_depth;
-    cublaslt_plan_t probe;
-    if (!probe.build(types, height, width, depth, cublaslt_a_leading<input_dtype_>(operands, depth))) {
-        std::printf("  Skipping %s: %s\n", name.c_str(), probe.failure.c_str());
-        return;
-    }
-    cuda_backend_t::configure(bm::RegisterBenchmark(matrix_row_name(name, height, width, depth).c_str(),
-                                                    measure_dots_with_cublaslt<input_dtype_, output_type_>, types,
-                                                    operands, height, width, depth));
+void register_dots_with_cublaslt(std::string const &name) {
+    using input_t = typename nk::type_for<input_dtype_>::type;
+    std::size_t const dimensions_per_value = nk::dimensions_per_value<input_t>();
+    std::size_t const a_row_bytes = nk::divide_round_up(bench_config.matrix_depth, dimensions_per_value) *
+                                    sizeof(input_t);
+    auto const plan = std::make_shared<cublaslt_plan_t>();
+    if (cublasStatus_t const status = plan->build(
+            input_dtype_, bench_config.matrix_height, bench_config.matrix_width, bench_config.matrix_depth,
+            cuda_backend_t::row_stride(a_row_bytes) / sizeof(input_t) * dimensions_per_value))
+        return print_skipped(name, cublasLtGetStatusName(status));
+    register_unpacked<input_dtype_, output_type_>(
+        name, reference_metric_t::dot_k,
+        [plan](void const *a, void const *b, void *c, std::size_t, std::size_t, std::size_t, std::size_t, std::size_t,
+               cudaStream_t stream) { return plan->launch(a, b, c, stream); });
 }
 
-#pragma endregion cuBLASLt
-
-#pragma region cuBLAS
-
-/**
- *  @brief DGEMM through cuBLAS's fixed-point emulation on the integer tensor cores, with the mantissa width cuBLAS
- *      derives to match F64 accuracy.
- *
- *  Reached through the handle API: on compute capability 12.0, cuBLASLt accepts the same emulated compute type and
- *  emulation descriptor, then runs native F64.
- */
-void measure_dots_f64_emulated_with_cublas(bm::State &state, std::size_t height, std::size_t width, std::size_t depth) {
-    cuda_backend_t backend;
-    auto const [a, b] = random_matrices<nk_f64_k, cuda_backend_t>(height, width, depth);
-    std::size_t const a_bytes = height * a.stride_bytes(0), b_bytes = width * b.stride_bytes(0);
-    std::vector<matrix_set<cuda_backend_t, nk::f64_t>> sets(
-        backend.input_sets(a_bytes + b_bytes + height * width * sizeof(nk_f64_t)));
-    if (!upload_unpacked_sets(backend, sets, a.data(), a_bytes, b.data(), b_bytes, height * width))
-        return state.SkipWithError("set allocation failed");
-    cublasHandle_t handle = nullptr;
-    if (cublasCreate(&handle) != CUBLAS_STATUS_SUCCESS) return state.SkipWithError("cublasCreate failed");
-    cublasSetStream(handle, backend.stream);
-    cublasSetEmulationStrategy(handle, CUBLAS_EMULATION_STRATEGY_EAGER);
-    cublasSetMathMode(handle, CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH);
-    int const a_leading = int(a.stride_bytes(0) / sizeof(nk_f64_t));
-    std::size_t const calls = time_rotating(state, backend, sets.size(), [&](std::size_t index) {
-        auto &set = sets[index];
-        backend.call([&](cudaStream_t) {
+/** Registers DGEMM through cuBLAS's fixed-point emulation, which only the handle API runs on 12.x devices. */
+void register_dots_f64_with_cublas(std::string const &name) {
+    cublasHandle_t raw_handle = nullptr;
+    if (cublasStatus_t const status = cublasCreate(&raw_handle))
+        return print_skipped(name, cublasGetStatusName(status));
+    std::shared_ptr<std::remove_pointer_t<cublasHandle_t>> const handle(raw_handle, cublasDestroy);
+    cublasSetEmulationStrategy(raw_handle, CUBLAS_EMULATION_STRATEGY_EAGER);
+    cublasSetMathMode(raw_handle, CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH);
+    register_unpacked<nk_f64_k, nk::f64_t>(
+        name, reference_metric_t::dot_k,
+        [handle](void const *a, void const *b, void *c, std::size_t height, std::size_t width, std::size_t depth,
+                 std::size_t a_stride, std::size_t, cudaStream_t stream) {
             double const alpha = 1, beta = 0;
-            cublasStatus_t const status = cublasGemmEx(
-                handle, CUBLAS_OP_T, CUBLAS_OP_N, int(width), int(height), int(depth), &alpha, set.b.raw_values_data(),
-                CUDA_R_64F, int(depth), set.a.raw_values_data(), CUDA_R_64F, a_leading, &beta, set.c.raw_values_data(),
-                CUDA_R_64F, int(width), CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT, CUBLAS_GEMM_DEFAULT);
+            cublasSetStream(handle.get(), stream);
+            cublasStatus_t const status = cublasGemmEx(handle.get(), CUBLAS_OP_T, CUBLAS_OP_N, int(width), int(height),
+                                                       int(depth), &alpha, b, CUDA_R_64F, int(depth), a, CUDA_R_64F,
+                                                       int(a_stride / sizeof(double)), &beta, c, CUDA_R_64F, int(width),
+                                                       CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT, CUBLAS_GEMM_DEFAULT);
             return status == CUBLAS_STATUS_SUCCESS ? cudaSuccess : cudaErrorUnknown;
         });
-    });
-    if (calls) {
-        double const score = sampled_accuracy<nk_f64_k, nk::f64_t>(
-            backend, sets[0].c, a.view(), b.view(), depth, reference_metric_t::dot_k, written_entries_t::full_k);
-        report_matrix<nk::f64_t>(state, calls, 2.0 * height * width * depth, score);
-    }
-    cublasDestroy(handle);
 }
 
+#endif // NK_COMPARE_TO_CUBLAS
+
+/** Every cuBLASLt row, one per dtype, and cuBLAS's emulated DGEMM. */
+void bench_cross_cublas() {
+#if NK_COMPARE_TO_CUBLAS
+    register_dots_with_cublaslt<nk_f64_k>("dots_packed_f64_with_cublaslt");
+    register_dots_f64_with_cublas("dots_packed_f64_with_cublas");
+    register_dots_with_cublaslt<nk_f32_k, nk::f32_t>("dots_packed_f32_with_cublaslt");
+    register_dots_with_cublaslt<nk_bf16_k>("dots_packed_bf16_with_cublaslt");
+    register_dots_with_cublaslt<nk_f16_k>("dots_packed_f16_with_cublaslt");
+    register_dots_with_cublaslt<nk_e5m2_k>("dots_packed_e5m2_with_cublaslt");
+    register_dots_with_cublaslt<nk_e4m3_k>("dots_packed_e4m3_with_cublaslt");
+    register_dots_with_cublaslt<nk_e3m2_k>("dots_packed_e3m2_with_cublaslt");
+    register_dots_with_cublaslt<nk_e2m3_k>("dots_packed_e2m3_with_cublaslt");
+    register_dots_with_cublaslt<nk_e2m1_k>("dots_packed_e2m1_with_cublaslt");
+    register_dots_with_cublaslt<nk_i8_k>("dots_packed_i8_with_cublaslt");
+    register_dots_with_cublaslt<nk_i4_k>("dots_packed_i4_with_cublaslt");
+    register_dots_with_cublaslt<nk_u8_k>("dots_packed_u8_with_cublaslt");
+    register_dots_with_cublaslt<nk_u4_k>("dots_packed_u4_with_cublaslt");
+#endif // NK_COMPARE_TO_CUBLAS
+}
 #pragma endregion cuBLAS
 
-int run_benchmarks(int argc, char **argv) {
-    auto parse_size = [](char const *name, std::size_t &value) {
-        if (char const *text = std::getenv(name))
-            if (std::size_t const parsed = static_cast<std::size_t>(std::atoll(text)); parsed > 0) value = parsed;
-    };
-    parse_size("NK_MATRIX_HEIGHT", bench_config.matrix_height);
-    parse_size("NK_MATRIX_WIDTH", bench_config.matrix_width);
-    parse_size("NK_MATRIX_DEPTH", bench_config.matrix_depth);
-    if (char const *text = std::getenv("NK_SEED")) bench_config.seed = static_cast<std::uint32_t>(std::atoll(text));
-    std::size_t budget_mb = 0;
-    parse_size("NK_BUDGET_MB", budget_mb);
-    if (budget_mb) bench_config.budget_bytes = budget_mb << 20;
+#pragma region cuDNN
+#if NK_COMPARE_TO_CUDNN
 
+/** cuDNN's storage type for Q, K, V and O of @p dtype. */
+cudnnDataType_t cudnn_data_type(nk_dtype_t dtype) noexcept {
+    switch (dtype) {
+    case nk_bf16_k: return CUDNN_DATA_BFLOAT16;
+    case nk_e4m3_k: return CUDNN_DATA_FP8_E4M3;
+    default: return CUDNN_DATA_FLOAT;
+    }
+}
+
+/** Where a graph tensor lives: in device memory, in a host scalar passed by value, or only between operations. */
+enum class cudnn_binding_t { device_k, host_k, virtual_k };
+
+/** Graph tensor identifiers; from `query_length_k` on, each also indexes the 32-bit words of `parameters`. */
+enum class cudnn_uid_t : std::int64_t {
+    queries_k = 1,
+    keys_k,
+    values_k,
+    output_k,
+    scale_k,
+    negative_infinity_k,
+    window_k,
+    scores_k,
+    causal_scores_k,
+    window_scores_k,
+    query_length_k,
+    key_length_k,
+    query_offsets_k,
+    key_offsets_k = query_offsets_k + 2,
+    descale_queries_k = key_offsets_k + 2,
+    descale_keys_k,
+    descale_values_k,
+    descale_probabilities_k,
+    scale_probabilities_k,
+    scale_output_k,
+    amax_probabilities_k,
+    amax_output_k,
+    end_k,
+};
+
+/**
+ *  @brief One cuDNN SDPA forward plan over a ragged segment of queries at the end of a key cache.
+ *
+ *  Query heads are grouped over K and V heads, and causal masks are a bottom-right diagonal-band subgraph.
+ *  E4M3 plans quantize probabilities with a scale of 256, so the 1/4096-sized weights of a flat softmax stay normal.
+ */
+struct cudnn_attention_plan_t {
+    cudnnHandle_t handle = nullptr;                    ///< library context, bound to the per-thread stream
+    std::vector<cudnnBackendDescriptor_t> descriptors; ///< every descriptor built, destroyed in reverse
+    cudnnBackendDescriptor_t plan = nullptr;           ///< the finalized execution plan
+    std::vector<std::int64_t> uids;                    ///< variant-pack identifiers, Q, K, V and O first
+    std::vector<void *> addresses;                     ///< variant-pack addresses matching `uids`
+    device_vector<std::uint32_t> parameters;           ///< lengths, ragged offsets, E4M3 scales and maxima
+    device_vector<char> workspace;                     ///< scratch for the plan
+    float scale = 0;                                   ///< softmax scale, passed by value
+    float negative_infinity = -INFINITY;               ///< what masked scores become, passed by value
+    std::int32_t window = 0;                           ///< visible keys per query of a windowed row, passed by value
+    std::size_t key_bytes = 0;                         ///< bytes of K, and of V after it in the packed cache
+    cudnnStatus_t status = CUDNN_STATUS_SUCCESS;       ///< first failure while building
+
+    ~cudnn_attention_plan_t() {
+        for (auto descriptor = descriptors.rbegin(); descriptor != descriptors.rend(); ++descriptor)
+            cudnnBackendDestroyDescriptor(*descriptor);
+        if (handle) cudnnDestroy(handle);
+    }
+
+    /** A new descriptor of @p type, owned by the plan. */
+    cudnnBackendDescriptor_t create(cudnnBackendDescriptorType_t type) {
+        cudnnBackendDescriptor_t descriptor = nullptr;
+        if (!status) status = cudnnBackendCreateDescriptor(type, &descriptor);
+        if (descriptor) descriptors.push_back(descriptor);
+        return descriptor;
+    }
+
+    /** Sets @p count values of attribute @p name. */
+    void set(cudnnBackendDescriptor_t descriptor, cudnnBackendAttributeName_t name, cudnnBackendAttributeType_t type,
+             std::int64_t count, void const *values) {
+        if (!status) status = cudnnBackendSetAttribute(descriptor, name, type, count, values);
+    }
+
+    /** Sets attribute @p name to the descriptor @p value. */
+    void link(cudnnBackendDescriptor_t descriptor, cudnnBackendAttributeName_t name, cudnnBackendDescriptor_t value) {
+        set(descriptor, name, CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &value);
+    }
+
+    /** Finalizes @p descriptor, so it can be linked or executed. */
+    void finalize(cudnnBackendDescriptor_t descriptor) {
+        if (!status) status = cudnnBackendFinalize(descriptor);
+    }
+
+    /** A finalized tensor, entered into the variant pack at @p address unless that is null. */
+    cudnnBackendDescriptor_t tensor(cudnn_uid_t uid, cudnnDataType_t type, std::array<std::int64_t, 4> dimensions,
+                                    std::array<std::int64_t, 4> strides, cudnn_binding_t binding, void *address,
+                                    cudnnBackendDescriptor_t ragged_offsets = nullptr) {
+        cudnnBackendDescriptor_t const descriptor = create(CUDNN_BACKEND_TENSOR_DESCRIPTOR);
+        std::int64_t const identifier = std::int64_t(uid), alignment = 16;
+        bool const is_virtual = binding == cudnn_binding_t::virtual_k, is_by_value = binding == cudnn_binding_t::host_k;
+        set(descriptor, CUDNN_ATTR_TENSOR_UNIQUE_ID, CUDNN_TYPE_INT64, 1, &identifier);
+        set(descriptor, CUDNN_ATTR_TENSOR_DATA_TYPE, CUDNN_TYPE_DATA_TYPE, 1, &type);
+        set(descriptor, CUDNN_ATTR_TENSOR_DIMENSIONS, CUDNN_TYPE_INT64, 4, dimensions.data());
+        set(descriptor, CUDNN_ATTR_TENSOR_STRIDES, CUDNN_TYPE_INT64, 4, strides.data());
+        set(descriptor, CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT, CUDNN_TYPE_INT64, 1, &alignment);
+        set(descriptor, CUDNN_ATTR_TENSOR_IS_VIRTUAL, CUDNN_TYPE_BOOLEAN, 1, &is_virtual);
+        set(descriptor, CUDNN_ATTR_TENSOR_IS_BY_VALUE, CUDNN_TYPE_BOOLEAN, 1, &is_by_value);
+        if (ragged_offsets) link(descriptor, CUDNN_ATTR_TENSOR_RAGGED_OFFSET_DESC, ragged_offsets);
+        finalize(descriptor);
+        if (address) uids.push_back(identifier), addresses.push_back(address);
+        return descriptor;
+    }
+
+    /** A finalized one-element tensor. */
+    cudnnBackendDescriptor_t scalar(cudnn_uid_t uid, cudnnDataType_t type, cudnn_binding_t binding, void *address) {
+        return tensor(uid, type, {1, 1, 1, 1}, {1, 1, 1, 1}, binding, address);
+    }
+
+    /** Builds the graph and the first plan cuDNN's heuristics offer that finalizes, or returns why none did. */
+    cudnnStatus_t build(nk_dtype_t dtype, attention_visibility_t visibility, attention_shape_t shape) {
+        std::int64_t const heads = shape.head_count, key_value_heads = shape.key_value_head_count, depth = shape.depth,
+                           queries = shape.queries, keys = shape.keys;
+        cudnnDataType_t const io_type = cudnn_data_type(dtype);
+        scale = 1.0f / std::sqrt(float(depth)),
+        window = std::int32_t(std::min<nk_size_t>(attention_window(visibility), shape.keys));
+        key_bytes = std::size_t(keys * key_value_heads * depth) * nk_dtype_bits(dtype) / 8;
+        uids = {std::int64_t(cudnn_uid_t::queries_k), std::int64_t(cudnn_uid_t::keys_k),
+                std::int64_t(cudnn_uid_t::values_k), std::int64_t(cudnn_uid_t::output_k)};
+        addresses.assign(uids.size(), nullptr);
+
+        // Device words: lengths, then the ragged element offsets of the one segment, then the E4M3 scalars.
+        std::size_t const first_word = std::size_t(cudnn_uid_t::query_length_k);
+        std::array<std::uint32_t, std::size_t(cudnn_uid_t::end_k) - first_word> words {};
+        auto const word = [&](cudnn_uid_t uid) -> std::uint32_t & { return words[std::size_t(uid) - first_word]; };
+        word(cudnn_uid_t::query_length_k) = std::uint32_t(queries),
+        word(cudnn_uid_t::key_length_k) = std::uint32_t(keys);
+        (&word(cudnn_uid_t::query_offsets_k))[1] = std::uint32_t(queries * heads * depth);
+        (&word(cudnn_uid_t::key_offsets_k))[1] = std::uint32_t(keys * key_value_heads * depth);
+        float const unit = 1, probability_scale = 256, probability_descale = 1.0f / 256;
+        float const scales[6] = {unit, unit, unit, probability_descale, probability_scale, unit};
+        std::memcpy(&word(cudnn_uid_t::descale_queries_k), scales, sizeof(scales));
+        parameters = device_vector<std::uint32_t>::try_empty(words.size());
+        if (parameters.empty()) return CUDNN_STATUS_ALLOC_FAILED;
+        cudaMemcpy(parameters.raw_values_data(), words.data(), sizeof(words), cudaMemcpyHostToDevice);
+        auto const device = [&](cudnn_uid_t uid) -> void * {
+            return parameters.raw_values_data() + (std::size_t(uid) - first_word);
+        };
+        if ((status = cudnnCreate(&handle))) return status;
+        cudnnSetStream(handle, cudaStreamPerThread);
+
+        auto const offsets = [&](cudnn_uid_t uid) {
+            return tensor(uid, CUDNN_DATA_INT32, {2, 1, 1, 1}, {1, 1, 1, 1}, cudnn_binding_t::device_k, device(uid));
+        };
+        auto const rows = [&](cudnn_uid_t uid, std::int64_t head_count, std::int64_t length,
+                              cudnnBackendDescriptor_t ragged_offsets) {
+            return tensor(uid, io_type, {1, head_count, length, depth},
+                          {length * head_count * depth, depth, head_count * depth, 1}, cudnn_binding_t::device_k,
+                          nullptr, ragged_offsets);
+        };
+        cudnnBackendDescriptor_t const query_offsets = offsets(cudnn_uid_t::query_offsets_k);
+        cudnnBackendDescriptor_t const key_offsets = offsets(cudnn_uid_t::key_offsets_k);
+        cudnnBackendDescriptor_t const query_length = scalar(cudnn_uid_t::query_length_k, CUDNN_DATA_INT32,
+                                                             cudnn_binding_t::device_k,
+                                                             device(cudnn_uid_t::query_length_k));
+        cudnnBackendDescriptor_t const key_length = scalar(
+            cudnn_uid_t::key_length_k, CUDNN_DATA_INT32, cudnn_binding_t::device_k, device(cudnn_uid_t::key_length_k));
+        cudnnBackendDescriptor_t const attention = create(CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR);
+        link(attention, CUDNN_ATTR_OPERATION_SDPA_FWD_QDESC,
+             rows(cudnn_uid_t::queries_k, heads, queries, query_offsets));
+        link(attention, CUDNN_ATTR_OPERATION_SDPA_FWD_KDESC,
+             rows(cudnn_uid_t::keys_k, key_value_heads, keys, key_offsets));
+        link(attention, CUDNN_ATTR_OPERATION_SDPA_FWD_VDESC,
+             rows(cudnn_uid_t::values_k, key_value_heads, keys, key_offsets));
+        link(attention, CUDNN_ATTR_OPERATION_SDPA_FWD_ODESC,
+             rows(cudnn_uid_t::output_k, heads, queries, query_offsets));
+        link(attention, CUDNN_ATTR_OPERATION_SDPA_FWD_SCALEDESC,
+             scalar(cudnn_uid_t::scale_k, CUDNN_DATA_FLOAT, cudnn_binding_t::host_k, &scale));
+        link(attention, CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_QDESC, query_length);
+        link(attention, CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_KVDESC, key_length);
+
+        // Masks run on the scores between the two matmuls: keys past the query's position, then keys past the window.
+        if (visibility != attention_visibility_t::bidirectional_k) {
+            std::size_t const masks_count = visibility == attention_visibility_t::causal_window_1024_k ? 2 : 1;
+            cudnnBackendDescriptor_t const minimum = scalar(cudnn_uid_t::negative_infinity_k, CUDNN_DATA_FLOAT,
+                                                            cudnn_binding_t::host_k, &negative_infinity);
+            std::array<cudnnBackendDescriptor_t, 3> scores {};
+            for (std::size_t index = 0; index <= masks_count; ++index)
+                scores[index] = tensor(cudnn_uid_t(std::int64_t(cudnn_uid_t::scores_k) + index), CUDNN_DATA_FLOAT,
+                                       {1, heads, queries, keys}, {heads * queries * keys, queries * keys, keys, 1},
+                                       cudnn_binding_t::virtual_k, nullptr);
+            std::array<cudnnBackendDescriptor_t, 2> masks {};
+            cudnnPointwiseMode_t const comparisons[2] = {CUDNN_POINTWISE_CMP_GE, CUDNN_POINTWISE_CMP_GT};
+            for (std::size_t index = 0; index != masks_count; ++index) {
+                masks[index] = create(CUDNN_BACKEND_OPERATION_DIAGONAL_BAND_MASK_DESCRIPTOR);
+                link(masks[index], CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_XDESC, scores[index]);
+                link(masks[index], CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_BDESC, minimum);
+                link(masks[index], CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_QDESC, query_length);
+                link(masks[index], CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_KVDESC, key_length);
+                link(masks[index], CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_YDESC, scores[index + 1]);
+                set(masks[index], CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_COMPARISON_MODE, CUDNN_TYPE_POINTWISE_MODE, 1,
+                    &comparisons[index]);
+                if (index == 1)
+                    link(masks[index], CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_LEFT_BOUND_DESC,
+                         scalar(cudnn_uid_t::window_k, CUDNN_DATA_INT32, cudnn_binding_t::host_k, &window));
+                finalize(masks[index]);
+            }
+            cudnnBackendDescriptor_t const subgraph = create(CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR);
+            set(subgraph, CUDNN_ATTR_OPERATIONGRAPH_OPS, CUDNN_TYPE_BACKEND_DESCRIPTOR, masks_count, masks.data());
+            finalize(subgraph);
+            std::int64_t const input_uid = std::int64_t(cudnn_uid_t::scores_k), output_uid = input_uid + masks_count;
+            link(attention, CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH, subgraph);
+            set(attention, CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_INPUT_UID, CUDNN_TYPE_INT64, 1, &input_uid);
+            set(attention, CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_OUTPUT_UID, CUDNN_TYPE_INT64, 1, &output_uid);
+        }
+        std::pair<cudnnBackendAttributeName_t, cudnn_uid_t> const scalings[] = {
+            {CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_QDESC, cudnn_uid_t::descale_queries_k},
+            {CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_KDESC, cudnn_uid_t::descale_keys_k},
+            {CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_VDESC, cudnn_uid_t::descale_values_k},
+            {CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_SDESC, cudnn_uid_t::descale_probabilities_k},
+            {CUDNN_ATTR_OPERATION_SDPA_FWD_SCALE_SDESC, cudnn_uid_t::scale_probabilities_k},
+            {CUDNN_ATTR_OPERATION_SDPA_FWD_SCALE_ODESC, cudnn_uid_t::scale_output_k},
+            {CUDNN_ATTR_OPERATION_SDPA_FWD_AMAX_SDESC, cudnn_uid_t::amax_probabilities_k},
+            {CUDNN_ATTR_OPERATION_SDPA_FWD_AMAX_ODESC, cudnn_uid_t::amax_output_k}};
+        if (io_type == CUDNN_DATA_FP8_E4M3)
+            for (auto [attribute, uid] : scalings)
+                link(attention, attribute, scalar(uid, CUDNN_DATA_FLOAT, cudnn_binding_t::device_k, device(uid)));
+        finalize(attention);
+
+        cudnnBackendDescriptor_t const graph = create(CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR);
+        set(graph, CUDNN_ATTR_OPERATIONGRAPH_OPS, CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &attention);
+        set(graph, CUDNN_ATTR_OPERATIONGRAPH_HANDLE, CUDNN_TYPE_HANDLE, 1, &handle);
+        finalize(graph);
+        cudnnBackendDescriptor_t const heuristics = create(CUDNN_BACKEND_ENGINEHEUR_DESCRIPTOR);
+        cudnnBackendHeurMode_t const mode = CUDNN_HEUR_MODE_A;
+        link(heuristics, CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH, graph);
+        set(heuristics, CUDNN_ATTR_ENGINEHEUR_MODE, CUDNN_TYPE_HEUR_MODE, 1, &mode);
+        finalize(heuristics);
+        std::int64_t configs_count = 0;
+        if (!status)
+            status = cudnnBackendGetAttribute(heuristics, CUDNN_ATTR_ENGINEHEUR_RESULTS, CUDNN_TYPE_BACKEND_DESCRIPTOR,
+                                              0, &configs_count, nullptr);
+        std::vector<cudnnBackendDescriptor_t> configs(static_cast<std::size_t>(configs_count));
+        for (cudnnBackendDescriptor_t &config : configs) config = create(CUDNN_BACKEND_ENGINECFG_DESCRIPTOR);
+        if (!status)
+            status = cudnnBackendGetAttribute(heuristics, CUDNN_ATTR_ENGINEHEUR_RESULTS, CUDNN_TYPE_BACKEND_DESCRIPTOR,
+                                              configs_count, &configs_count, configs.data());
+        for (std::int64_t index = 0; index != configs_count && !status && !plan; ++index) {
+            cudnnBackendDescriptor_t const candidate = create(CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR);
+            link(candidate, CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG, configs[index]);
+            if (!status && cudnnBackendFinalize(candidate) == CUDNN_STATUS_SUCCESS) plan = candidate;
+        }
+        if (!status && !plan) status = CUDNN_STATUS_NOT_SUPPORTED;
+        std::int64_t workspace_bytes = 0;
+        if (!status)
+            status = cudnnBackendGetAttribute(plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64, 1,
+                                              nullptr, &workspace_bytes);
+        workspace = device_vector<char>::try_empty(std::size_t(std::max<std::int64_t>(workspace_bytes, 1)));
+        if (!status && workspace.empty()) status = CUDNN_STATUS_ALLOC_FAILED;
+        return status;
+    }
+
+    /** Enqueues the plan over @p queries and a @p packed cache holding K, then V. */
+    cudaError_t launch(void const *queries, void const *packed, void *output) noexcept {
+        addresses[0] = const_cast<void *>(queries), addresses[1] = const_cast<void *>(packed);
+        addresses[2] = static_cast<char *>(addresses[1]) + key_bytes, addresses[3] = output;
+        void *workspace_address = workspace.raw_values_data();
+        cudnnBackendDescriptor_t pack = nullptr;
+        cudnnStatus_t result = cudnnBackendCreateDescriptor(CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR, &pack);
+        if (!result)
+            result = cudnnBackendSetAttribute(pack, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS, CUDNN_TYPE_INT64,
+                                              std::int64_t(uids.size()), uids.data());
+        if (!result)
+            result = cudnnBackendSetAttribute(pack, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS, CUDNN_TYPE_VOID_PTR,
+                                              std::int64_t(addresses.size()), addresses.data());
+        if (!result)
+            result = cudnnBackendSetAttribute(pack, CUDNN_ATTR_VARIANT_PACK_WORKSPACE, CUDNN_TYPE_VOID_PTR, 1,
+                                              &workspace_address);
+        if (!result) result = cudnnBackendFinalize(pack);
+        if (!result) result = cudnnBackendExecute(handle, plan, pack);
+        if (pack) cudnnBackendDestroyDescriptor(pack);
+        return result == CUDNN_STATUS_SUCCESS ? cudaSuccess : cudaErrorUnknown;
+    }
+};
+
+/** Registers one cuDNN row of @p shape through `register_attention`, with K and V copied into each set's cache. */
+template <nk_dtype_t input_dtype_, attention_visibility_t visibility_>
+void register_attention_with_cudnn(std::string const &name, attention_shape_t shape) {
+    auto const plan = std::make_shared<cudnn_attention_plan_t>();
+    if (cudnnStatus_t const status = plan->build(input_dtype_, visibility_, shape))
+        return print_skipped(attention_row_name(name, visibility_, shape), cudnnGetErrorString(status));
+    auto const packed_size = [](std::size_t key_value_heads, std::size_t depth, nk_u32_t const *lengths, std::size_t) {
+        return 2 * std::size_t(lengths[0]) * key_value_heads * depth * nk_dtype_bits(input_dtype_) / 8;
+    };
+    auto const pack = [key_bytes = plan->key_bytes](void const *keys, void const *values, std::size_t, std::size_t,
+                                                    nk_u32_t const *, nk_u32_t const *, std::size_t, std::size_t,
+                                                    std::size_t, void *packed, std::size_t, std::size_t,
+                                                    cudaStream_t stream) {
+        cudaMemcpyAsync(packed, keys, key_bytes, cudaMemcpyDeviceToDevice, stream);
+        return cudaMemcpyAsync(static_cast<char *>(packed) + key_bytes, values, key_bytes, cudaMemcpyDeviceToDevice,
+                               stream);
+    };
+    register_attention<input_dtype_, visibility_, cuda_backend_t>(
+        name, packed_size, pack,
+        [plan](void const *queries, void const *packed, void *output, auto...) {
+            return plan->launch(queries, packed, output);
+        },
+        shape);
+}
+
+/** Registers cuDNN rows beside the NumKong ones: bidirectional, causal, and windowed where the window clips. */
+template <nk_dtype_t input_dtype_>
+void run_attention_with_cudnn(std::string const &bidirectional_name, std::string const &causal_name) {
+    for (attention_shape_t const shape : cuda_backend_t::attention_shapes()) {
+        register_attention_with_cudnn<input_dtype_, attention_visibility_t::bidirectional_k>(bidirectional_name, shape);
+        register_attention_with_cudnn<input_dtype_, attention_visibility_t::causal_k>(causal_name, shape);
+        if (attention_window_clips(shape))
+            register_attention_with_cudnn<input_dtype_, attention_visibility_t::causal_window_1024_k>(causal_name,
+                                                                                                      shape);
+    }
+}
+
+#endif // NK_COMPARE_TO_CUDNN
+
+/** Every cuDNN row: BF16 and E4M3 attention, bidirectional, causal, and windowed where the window clips. */
+void bench_cross_cudnn() {
+#if NK_COMPARE_TO_CUDNN
+    run_attention_with_cudnn<nk_bf16_k>("attention_bidirectional_bf16_with_cudnn", "attention_causal_bf16_with_cudnn");
+    run_attention_with_cudnn<nk_e4m3_k>("attention_bidirectional_e4m3_with_cudnn", "attention_causal_e4m3_with_cudnn");
+#endif // NK_COMPARE_TO_CUDNN
+}
+#pragma endregion cuDNN
+
+#pragma region cuVS
+#if NK_COMPARE_TO_CUVS
+
+/** A dense row-major floating-point device matrix of @p shape as a DLPack tensor. */
+DLManagedTensor dlpack_matrix(void const *data, std::int64_t *shape, std::uint8_t bits) noexcept {
+    DLManagedTensor tensor {};
+    tensor.dl_tensor.data = const_cast<void *>(data);
+    tensor.dl_tensor.device = {kDLCUDA, 0};
+    tensor.dl_tensor.ndim = 2;
+    tensor.dl_tensor.dtype = {kDLFloat, bits, 1};
+    tensor.dl_tensor.shape = shape;
+    return tensor;
+}
+
+/** Registers `cuvsPairwiseDistance` as a cosine or L2-expanded row beside NumKong's angular or euclidean one. */
+template <nk_dtype_t input_dtype_>
+void register_spatials_with_cuvs(std::string const &name, reference_metric_t metric) {
+    std::shared_ptr<cuvsResources_t> const resources(new cuvsResources_t {}, [](cuvsResources_t *resources) {
+        cuvsResourcesDestroy(*resources);
+        delete resources;
+    });
+    if (cuvsResourcesCreate(resources.get()) != CUVS_SUCCESS) return print_skipped(name, cuvsGetLastErrorText());
+    cuvsDistanceType const distance = metric == reference_metric_t::angular_k ? CosineExpanded : L2SqrtExpanded;
+    std::uint8_t const bits = std::uint8_t(nk_dtype_bits(input_dtype_));
+    register_unpacked<input_dtype_, nk::f32_t>(
+        name, metric,
+        [resources, distance, bits](void const *a, void const *b, void *c, std::size_t height, std::size_t width,
+                                    std::size_t depth, std::size_t a_stride, std::size_t, cudaStream_t stream) {
+            if (a_stride * 8 != depth * bits) return cudaErrorInvalidPitchValue;
+            std::int64_t a_shape[2] = {std::int64_t(height), std::int64_t(depth)};
+            std::int64_t b_shape[2] = {std::int64_t(width), std::int64_t(depth)};
+            std::int64_t c_shape[2] = {std::int64_t(height), std::int64_t(width)};
+            DLManagedTensor a_tensor = dlpack_matrix(a, a_shape, bits), b_tensor = dlpack_matrix(b, b_shape, bits),
+                            c_tensor = dlpack_matrix(c, c_shape, 32);
+            cuvsStreamSet(*resources, stream);
+            return cuvsPairwiseDistance(*resources, &a_tensor, &b_tensor, &c_tensor, distance, 2.0f) == CUVS_SUCCESS
+                       ? cudaSuccess
+                       : cudaErrorUnknown;
+        });
+}
+
+#endif // NK_COMPARE_TO_CUVS
+
+/** Every cuVS row: cosine and L2 distances over F32 and F16. */
+void bench_cross_cuvs() {
+#if NK_COMPARE_TO_CUVS
+    register_spatials_with_cuvs<nk_f32_k>("angulars_packed_f32_with_cuvs", reference_metric_t::angular_k);
+    register_spatials_with_cuvs<nk_f32_k>("euclideans_packed_f32_with_cuvs", reference_metric_t::euclidean_k);
+    register_spatials_with_cuvs<nk_f16_k>("angulars_packed_f16_with_cuvs", reference_metric_t::angular_k);
+    register_spatials_with_cuvs<nk_f16_k>("euclideans_packed_f16_with_cuvs", reference_metric_t::euclidean_k);
+#endif // NK_COMPARE_TO_CUVS
+}
+#pragma endregion cuVS
+
+/** Prints the device, the baselines compiled in, and the kernel families compiled in or runnable on it. */
+void print_cuda_header() {
     cudaDeviceProp properties {};
     int device = 0;
     if (cudaGetDevice(&device) != cudaSuccess || cudaGetDeviceProperties(&properties, device) != cudaSuccess) {
-        std::printf("No usable CUDA device\n");
-        return 1;
+        std::printf("  CUDA: no usable device\n");
+        return;
     }
     nk_capability_t const capabilities = nk_capabilities_cuda_available(device);
-    std::printf("NumKong CUDA Benchmarks v%d.%d.%d\n", NK_VERSION_MAJOR, NK_VERSION_MINOR, NK_VERSION_PATCH);
-    std::printf("  Device: %s, compute capability %d.%d, %d SMs, %d MB L2\n", properties.name, properties.major,
+    std::printf("  CUDA: %s, compute capability %d.%d, %d SMs, %d MB L2\n", properties.name, properties.major,
                 properties.minor, properties.multiProcessorCount, properties.l2CacheSize >> 20);
-    std::printf("  Families: ampere %d, hopper %d, blackwell %d, blackwellrtx %d, cuBLASLt %zu\n\n",
-                (capabilities & nk_cap_ampere_k) != 0, (capabilities & nk_cap_hopper_k) != 0,
-                (capabilities & nk_cap_blackwell_k) != 0, (capabilities & nk_cap_blackwellrtx_k) != 0,
-                cublasLtGetVersion());
-
-    std::vector<std::string> arguments(argv, argv + argc);
-    bool user_set_min_time = false;
-    for (auto const &argument : arguments)
-        if (argument.rfind("--benchmark_min_time", 0) == 0) user_set_min_time = true;
-    if (char const *filter = std::getenv("NK_FILTER")) arguments.push_back(std::string("--benchmark_filter=") + filter);
-    if (!user_set_min_time) {
-        char const *seconds = std::getenv("NK_BUDGET_SECS");
-        arguments.push_back(std::string("--benchmark_min_time=") + (seconds ? seconds : "10") + "s");
-    }
-    std::vector<char *> argument_pointers;
-    for (auto &argument : arguments) argument_pointers.push_back(argument.data());
-    int arguments_count = static_cast<int>(argument_pointers.size());
-    bm::Initialize(&arguments_count, argument_pointers.data());
-    if (bm::ReportUnrecognizedArguments(arguments_count, argument_pointers.data())) return 1;
-
-    if (capabilities & nk_cap_ampere_k) bench_cross_ampere();
-    if (capabilities & nk_cap_blackwellrtx_k) bench_cross_blackwellrtx();
-
-    run_dots_with_cublaslt<nk_f64_k>("dots_packed_f64_with_cublaslt");
-    cuda_backend_t::configure(
-        bm::RegisterBenchmark(matrix_row_name("dots_packed_f64_emulated_with_cublas", bench_config.matrix_height,
-                                              bench_config.matrix_width, bench_config.matrix_depth)
-                                  .c_str(),
-                              measure_dots_f64_emulated_with_cublas, bench_config.matrix_height,
-                              bench_config.matrix_width, bench_config.matrix_depth));
-    run_dots_with_cublaslt<nk_f32_k, nk::f32_t>("dots_packed_f32_with_cublaslt");
-    run_dots_with_cublaslt<nk_f32_k, nk::f64_t>("dots_packed_f32_widened_with_cublaslt", cublaslt_types_k<nk_f64_k>,
-                                                cublaslt_operands_t::widened_f64_k);
-    run_dots_with_cublaslt<nk_bf16_k>("dots_packed_bf16_with_cublaslt");
-    run_dots_with_cublaslt<nk_f16_k>("dots_packed_f16_with_cublaslt");
-    run_dots_with_cublaslt<nk_e5m2_k>("dots_packed_e5m2_with_cublaslt");
-    run_dots_with_cublaslt<nk_e4m3_k>("dots_packed_e4m3_with_cublaslt");
-    run_dots_with_cublaslt<nk_e3m2_k>("dots_packed_e3m2_with_cublaslt");
-    run_dots_with_cublaslt<nk_e2m3_k>("dots_packed_e2m3_with_cublaslt");
-    run_dots_with_cublaslt<nk_e2m1_k>("dots_packed_e2m1_with_cublaslt");
-    run_dots_with_cublaslt<nk_i8_k>("dots_packed_i8_with_cublaslt");
-    run_dots_with_cublaslt<nk_i4_k>("dots_packed_i4_with_cublaslt");
-    run_dots_with_cublaslt<nk_u8_k>("dots_packed_u8_with_cublaslt");
-    run_dots_with_cublaslt<nk_u4_k>("dots_packed_u4_with_cublaslt");
-
-    bm::RunSpecifiedBenchmarks();
-    bm::Shutdown();
-    return 0;
+    std::printf("  CUDA baselines: cuBLAS ");
+    print_indicator(NK_COMPARE_TO_CUBLAS);
+    std::printf("  cuDNN ");
+    print_indicator(NK_COMPARE_TO_CUDNN);
+    std::printf("  cuVS ");
+    print_indicator(NK_COMPARE_TO_CUVS);
+    std::printf("\n  CUDA families:");
+    print_isa("Ampere", NK_TARGET_AMPERE, nk_cap_ampere_k, capabilities);
+    print_isa("Hopper", NK_TARGET_HOPPER, nk_cap_hopper_k, capabilities);
+    print_isa("Blackwell", NK_TARGET_BLACKWELL, nk_cap_blackwell_k, capabilities);
+    print_isa("Blackwell RTX", NK_TARGET_BLACKWELLRTX, nk_cap_blackwellrtx_k, capabilities);
+    std::printf("\n");
 }
 
-int main(int argc, char **argv) { return run_benchmarks(argc, argv); }
+/** Every CUDA row: the kernel families this device runs, then the baselines compiled in. */
+void bench_cross_cuda() {
+    int device = 0;
+    if (cudaGetDevice(&device) != cudaSuccess) return;
+    nk_capability_t const capabilities = nk_capabilities_cuda_available(device);
+    bench_cross_ampere(capabilities);
+    bench_cross_blackwellrtx(capabilities);
+    bench_cross_cublas();
+    bench_cross_cudnn();
+    bench_cross_cuvs();
+}

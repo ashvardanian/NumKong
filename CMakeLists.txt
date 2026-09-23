@@ -11,7 +11,7 @@
 #   -D NK_BUILD_TEST=<ON|OFF>           (default: OFF)
 #   -D NK_BUILD_BENCH=<ON|OFF>          (default: OFF)
 #   -D NK_BUILD_CUDA_TEST=<ON|OFF>      (default: OFF)
-#   -D NK_BUILD_CUDA_BENCH=<ON|OFF>     (default: OFF, compares CUDA kernels against cuBLASLt)
+#   -D NK_BUILD_CUDA_BENCH=<ON|OFF>     (default: OFF, adds CUDA rows to numkong_bench)
 #   -D NK_CUDA_ARCHITECTURES=<list>     (default: 80-real;90a-real;100f-real;120f-real;80-virtual)
 #   -D NK_COMPARE_TO_BLAS=<ON|OFF>      (default: OFF)
 #   -D NK_COMPARE_TO_MKL=<ON|OFF>       (default: OFF)
@@ -66,11 +66,14 @@
 #     cmake --build build_cuda
 #     ctest --test-dir build_cuda -R cuda --output-on-failure
 #
-# To compare the CUDA kernels against cuBLASLt, building only the cubin of the GPU at hand:
+# To add CUDA rows and their cuBLAS baselines to numkong_bench, building only the cubin of the GPU at hand:
 #
 #     cmake -B build_cuda -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_CUDA_BENCH=ON -D NK_CUDA_ARCHITECTURES=120f-real
-#     cmake --build build_cuda --target numkong_cuda_bench
-#     build_cuda/numkong_cuda_bench
+#     cmake --build build_cuda --target numkong_bench
+#     build_cuda/numkong_bench
+#
+# Adding `-D NK_COMPARE_TO_CUDNN=ON -D NK_CUDNN_ROOT=<dir>` also times cuDNN attention.
+# Adding `-D NK_COMPARE_TO_CUVS=ON -D NK_CUVS_ROOTS=<dir;dir>` also times cuVS pairwise distances.
 #
 # If your system CMake is older than 3.20, install a recent release from PyPI or the Kitware APT repo.
 #
@@ -141,7 +144,7 @@ option(NK_INSTALL "Install headers, libraries & the CMake package files" ${NK_IS
 option(NK_BUILD_TEST "Compile precision tests with ULP-based error analysis" OFF)
 option(NK_BUILD_BENCH "Compile micro-benchmarks for current ISA" OFF)
 option(NK_BUILD_CUDA_TEST "Compile CUDA tensors & type system interop tests" OFF)
-option(NK_BUILD_CUDA_BENCH "Compile CUDA kernel benchmarks against cuBLASLt" OFF)
+option(NK_BUILD_CUDA_BENCH "Add CUDA kernel rows to the benchmarks" OFF)
 option(NK_BUILD_SHARED_TEST "Compile shared-library tests, requires NK_BUILD_SHARED" OFF)
 option(NK_WASI_HOSTED "Import capability probes from WASI host environment" OFF)
 
@@ -158,6 +161,13 @@ set(NK_COMPARE_TO_BLAS "AUTO" CACHE STRING "Include BLAS (OpenBLAS/Accelerate) i
 set(NK_COMPARE_TO_MKL "AUTO" CACHE STRING "Include Intel MKL in tests and benchmarks")
 set_property(CACHE NK_COMPARE_TO_BLAS PROPERTY STRINGS "AUTO" "ON" "OFF")
 set_property(CACHE NK_COMPARE_TO_MKL PROPERTY STRINGS "AUTO" "ON" "OFF")
+
+# CUDA baselines for NK_BUILD_CUDA_BENCH
+option(NK_COMPARE_TO_CUBLAS "Include cuBLASLt and cuBLAS in CUDA benchmarks" ON)
+option(NK_COMPARE_TO_CUDNN "Include cuDNN attention in CUDA benchmarks, found under NK_CUDNN_ROOT" OFF)
+option(NK_COMPARE_TO_CUVS "Include cuVS distances in CUDA benchmarks, found under NK_CUVS_ROOTS" OFF)
+set(NK_CUDNN_ROOT "" CACHE PATH "cuDNN 9.26 or newer, holding include/cudnn.h and lib/libcudnn.so*")
+set(NK_CUVS_ROOTS "" CACHE STRING "Prefixes holding libcuvs_c, librmm, librapids_logger and dlpack")
 
 # Default to Release build type if not set
 if (NOT CMAKE_BUILD_TYPE)
@@ -537,7 +547,7 @@ if (NK_BUILD_BENCH OR NK_BUILD_CUDA_BENCH)
 endif ()
 
 # Build benchmarks
-if (NK_BUILD_BENCH)
+if (NK_BUILD_BENCH OR NK_BUILD_CUDA_BENCH)
     add_executable(
         numkong_bench
         bench/bench.cpp bench/bench_dot.cpp bench/bench_spatial.cpp bench/bench_set.cpp bench/bench_curved.cpp
@@ -849,18 +859,13 @@ if (NK_BUILD_CUDA_TEST OR NK_BUILD_CUDA_BENCH)
 
     # Each entry reduced to its number, like "120f-real" to "120"; a symbolic entry like "native" or "all" keeps all
     # families, and every listed architecture runs the Ampere kernels.
-    list(TRANSFORM NK_CUDA_ARCHITECTURES REPLACE "^([0-9]+).*$" "\\1" OUTPUT_VARIABLE nk_cuda_numbers_)
-    set(nk_cuda_families_)
-    if (NOT nk_cuda_numbers_ MATCHES "[a-z]")
-        if (NOT "90" IN_LIST nk_cuda_numbers_)
-            list(APPEND nk_cuda_families_ NK_TARGET_HOPPER=0)
-        endif ()
-        if (NOT "100" IN_LIST nk_cuda_numbers_ AND NOT "103" IN_LIST nk_cuda_numbers_)
-            list(APPEND nk_cuda_families_ NK_TARGET_BLACKWELL=0)
-        endif ()
-        if (NOT "120" IN_LIST nk_cuda_numbers_ AND NOT "121" IN_LIST nk_cuda_numbers_)
-            list(APPEND nk_cuda_families_ NK_TARGET_BLACKWELLRTX=0)
-        endif ()
+    string(REGEX REPLACE "([0-9]+)[a-z-]*" "\\1" NK_CUDA_ARCHITECTURE_NUMBERS_ "${NK_CUDA_ARCHITECTURES}")
+    if (NOT NK_CUDA_ARCHITECTURE_NUMBERS_ MATCHES "[a-z]")
+        set(NK_CUDA_FAMILY_DEFINITIONS_
+            "$<$<NOT:$<IN_LIST:90,${NK_CUDA_ARCHITECTURE_NUMBERS_}>>:NK_TARGET_HOPPER=0>"
+            "$<$<NOT:$<OR:$<IN_LIST:100,${NK_CUDA_ARCHITECTURE_NUMBERS_}>,$<IN_LIST:103,${NK_CUDA_ARCHITECTURE_NUMBERS_}>>>:NK_TARGET_BLACKWELL=0>"
+            "$<$<NOT:$<OR:$<IN_LIST:120,${NK_CUDA_ARCHITECTURE_NUMBERS_}>,$<IN_LIST:121,${NK_CUDA_ARCHITECTURE_NUMBERS_}>>>:NK_TARGET_BLACKWELLRTX=0>"
+        )
     endif ()
 endif ()
 
@@ -892,23 +897,37 @@ if (NK_BUILD_CUDA_TEST)
         )
     endif ()
     # Comptime-dispatched, so only the kits this machine runs.
-    target_compile_definitions(numkong_cuda_test PRIVATE ${nk_run_definitions_} ${nk_cuda_families_})
+    target_compile_definitions(numkong_cuda_test PRIVATE ${nk_run_definitions_} ${NK_CUDA_FAMILY_DEFINITIONS_})
     add_test(NAME numkong_cuda_test COMMAND numkong_cuda_test)
 endif ()
 
-# CUDA cross kernels against cuBLASLt and cuBLAS, built from bench/bench_cross_cuda.cu over bench/bench_cross.cuh.
+# CUDA rows in the same `numkong_bench`, from bench/bench_cross_cuda.cu, with optional cuBLAS, cuDNN and cuVS baselines.
 if (NK_BUILD_CUDA_BENCH)
     find_package(CUDAToolkit REQUIRED)
-    add_executable(numkong_cuda_bench bench/bench_cross_cuda.cu)
-    target_include_directories(numkong_cuda_bench PRIVATE "${PROJECT_SOURCE_DIR}/include")
+    target_sources(numkong_bench PRIVATE bench/bench_cross_cuda.cu)
     set_target_properties(
-        numkong_cuda_bench PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO
-                                      CUDA_ARCHITECTURES "${NK_CUDA_ARCHITECTURES}"
+        numkong_bench PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO
+                                 CUDA_ARCHITECTURES "${NK_CUDA_ARCHITECTURES}"
     )
-    target_compile_options(numkong_cuda_bench PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-    target_compile_definitions(numkong_cuda_bench PRIVATE ${nk_cuda_families_})
-    target_link_libraries(numkong_cuda_bench CUDA::cudart CUDA::cublas CUDA::cublasLt Threads::Threads benchmark)
-
+    target_compile_options(numkong_bench PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+    target_compile_definitions(
+        numkong_bench
+        PRIVATE NK_BUILD_CUDA_BENCH=1 ${NK_CUDA_FAMILY_DEFINITIONS_}
+                NK_COMPARE_TO_CUBLAS=$<BOOL:${NK_COMPARE_TO_CUBLAS}> NK_COMPARE_TO_CUDNN=$<BOOL:${NK_COMPARE_TO_CUDNN}>
+                NK_COMPARE_TO_CUVS=$<BOOL:${NK_COMPARE_TO_CUVS}>
+    )
+    target_link_libraries(numkong_bench CUDA::cudart)
+    if (NK_COMPARE_TO_CUBLAS)
+        target_link_libraries(numkong_bench CUDA::cublas CUDA::cublasLt)
+    endif ()
+    if (NK_COMPARE_TO_CUDNN)
+        include(cmake/nk_cudnn.cmake)
+        target_link_libraries(numkong_bench nk_cudnn)
+    endif ()
+    if (NK_COMPARE_TO_CUVS)
+        include(cmake/nk_cuvs.cmake)
+        target_link_libraries(numkong_bench nk_cuvs)
+    endif ()
 endif ()
 
 # Install & export — gated, so a parent project's `make install` ships NumKong only on request, and

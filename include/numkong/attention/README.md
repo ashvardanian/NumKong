@@ -118,6 +118,52 @@ Measured with Wasmtime v24 (Cranelift backend).
 | `nk_attention_bidirectional_packed_i8_serial`        |           5.1 gflop/s |                     ⋯ |                     ⋯ |
 | `nk_attention_bidirectional_packed_i8_v128relaxed`   |          24.6 gflop/s |          24.1 gflop/s |          29.2 gflop/s |
 
+### Intel Granite Rapids with RTX PRO 6000 Blackwell
+
+#### Native
+
+| Kernel                                                |                 1024² |                 4096² |                16384² |
+| :---------------------------------------------------- | --------------------: | --------------------: | --------------------: |
+| __bf16__                                              | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_attention_bidirectional_packed_bf16_serial`       |           0.7 gflop/s |           0.7 gflop/s |                     ⋯ |
+| `nk_attention_causal_packed_bf16_serial`              |           1.4 gflop/s |           1.4 gflop/s |                     ⋯ |
+| `nk_attention_bidirectional_packed_bf16_haswell`      |            36 gflop/s |            28 gflop/s |            21 gflop/s |
+| `nk_attention_causal_packed_bf16_haswell`             |            70 gflop/s |            69 gflop/s |            44 gflop/s |
+| `nk_attention_bidirectional_packed_bf16_skylake`      |            47 gflop/s |            33 gflop/s |            25 gflop/s |
+| `nk_attention_causal_packed_bf16_skylake`             |            92 gflop/s |            71 gflop/s |            55 gflop/s |
+| `nk_attention_bidirectional_packed_bf16_genoa`        |            56 gflop/s |            41 gflop/s |            27 gflop/s |
+| `nk_attention_causal_packed_bf16_genoa`               |           105 gflop/s |            84 gflop/s |            57 gflop/s |
+| `nk_attention_bidirectional_packed_bf16_sapphireamx`  |           762 gflop/s |           751 gflop/s |           698 gflop/s |
+| `nk_attention_causal_packed_bf16_sapphireamx`         |         1,034 gflop/s |         1,406 gflop/s |         1,341 gflop/s |
+| `nk_attention_bidirectional_packed_bf16_ampere`       |                     ⋯ |       200,537 gflop/s |                     ⋯ |
+| `nk_attention_causal_packed_bf16_ampere`              |                     ⋯ |       297,474 gflop/s |                     ⋯ |
+| __e4m3__                                              | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_attention_bidirectional_packed_e4m3_serial`       |           0.7 gflop/s |           0.6 gflop/s |                     ⋯ |
+| `nk_attention_causal_packed_e4m3_serial`              |           1.1 gflop/s |           1.3 gflop/s |                     ⋯ |
+| `nk_attention_bidirectional_packed_e4m3_haswell`      |            12 gflop/s |            12 gflop/s |            11 gflop/s |
+| `nk_attention_causal_packed_e4m3_haswell`             |            23 gflop/s |            23 gflop/s |            20 gflop/s |
+| `nk_attention_bidirectional_packed_e4m3_skylake`      |            50 gflop/s |            36 gflop/s |            28 gflop/s |
+| `nk_attention_causal_packed_e4m3_skylake`             |            98 gflop/s |            81 gflop/s |            55 gflop/s |
+| `nk_attention_bidirectional_packed_e4m3_genoa`        |            56 gflop/s |            41 gflop/s |            28 gflop/s |
+| `nk_attention_causal_packed_e4m3_genoa`               |           106 gflop/s |            89 gflop/s |            54 gflop/s |
+| `nk_attention_bidirectional_packed_e4m3_sapphireamx`  |           763 gflop/s |           733 gflop/s |           682 gflop/s |
+| `nk_attention_causal_packed_e4m3_sapphireamx`         |         1,065 gflop/s |         1,413 gflop/s |         1,343 gflop/s |
+| `nk_attention_bidirectional_packed_e4m3_ampere`       |                     ⋯ |       191,899 gflop/s |                     ⋯ |
+| `nk_attention_causal_packed_e4m3_ampere`              |                     ⋯ |       278,610 gflop/s |                     ⋯ |
+| `nk_attention_bidirectional_packed_e4m3_blackwellrtx` |                     ⋯ |       302,069 gflop/s |                     ⋯ |
+| `nk_attention_causal_packed_e4m3_blackwellrtx`        |                     ⋯ |       436,146 gflop/s |                     ⋯ |
+| __i8__                                                | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_attention_bidirectional_packed_i8_serial`         |           5.8 gflop/s |           5.6 gflop/s |                     ⋯ |
+| `nk_attention_causal_packed_i8_serial`                |            11 gflop/s |            11 gflop/s |                     ⋯ |
+| `nk_attention_bidirectional_packed_i8_haswell`        |           149 gflop/s |           154 gflop/s |           141 gflop/s |
+| `nk_attention_causal_packed_i8_haswell`               |           267 gflop/s |           300 gflop/s |           266 gflop/s |
+| `nk_attention_bidirectional_packed_i8_icelake`        |           181 gflop/s |           190 gflop/s |           147 gflop/s |
+| `nk_attention_causal_packed_i8_icelake`               |           352 gflop/s |           308 gflop/s |           345 gflop/s |
+| `nk_attention_bidirectional_packed_i8_sapphireamx`    |           745 gflop/s |           821 gflop/s |           752 gflop/s |
+| `nk_attention_causal_packed_i8_sapphireamx`           |         1,136 gflop/s |         1,521 gflop/s |         1,516 gflop/s |
+| `nk_attention_bidirectional_packed_i8_ampere`         |                     ⋯ |       290,967 gflop/s |                     ⋯ |
+| `nk_attention_causal_packed_i8_ampere`                |                     ⋯ |       407,579 gflop/s |                     ⋯ |
+
 ### AWS Graviton 4
 
 #### Native

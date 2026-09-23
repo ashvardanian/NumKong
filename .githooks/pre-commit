@@ -1,234 +1,150 @@
 #!/usr/bin/env bash
 # NumKong pre-commit: enforce the house style on staged changes before they land.
 #
-# The Doxygen / string-literal checks run on .c/.h/.hpp/.cpp, the decorative-ruler and formatter-off bans
-# run on every staged file, and the formatter gates (cmake-format / clang-format / rustfmt / ruff /
-# swift-format) keep the checked-in profiles the law. Each check inspects only the ADDED lines of a staged
-# file, so legacy code migrates on its own schedule while no new violation sneaks in, and each prints the
-# specific reason when it fires.
+# Checks cover C and C++ sources, CUDA headers, CMake, Go, Rust, Python, Swift, TypeScript, JSON and YAML, and every
+# staged file for rulers, formatter toggles, and sentence spacing; Markdown is exempt from the ruler ban.
+# Style checks read the added lines of a staged file, so legacy code migrates on its own schedule, while
+# formatter gates and structural checks read the whole staged file. Each check prints why it fired.
 #
-# The checks are scoped to C: this codebase has no C++/CUDA constructs, so there is nothing here for
-# namespace, include-group-order, STL-container, or kernel-launch rules to police.
+# The library is C, CUDA tiers included: every include/numkong `.cuh` is C with `extern "C"` linkage.
 #
-# Bypass knowingly (you almost never should) with: git commit --no-verify
+# Bypass knowingly, which you almost never should, with: git commit --no-verify
 
 set -u
 
 failed=0
 
-# Per C source: Doxygen and string-literal conventions on the added lines only.
+# Blanks C-family `//` tails, single-line `/* ... */` spans, and block-comment continuation lines, so a
+# code check never fires on a comment that merely names the construct it bans.
+strip_c_comments() {
+    sed -E \
+        -e 's,//.*$,,' \
+        -e 's,/\*([^*]|\*+[^*/])*\*+/,,g' \
+        -e 's,^([0-9]*:?\+[[:space:]]*)(\*|/\*).*$,\1,'
+}
+
+# region C and C++
+
 while IFS= read -r file; do
     case "$file" in
-    *.c | *.h | *.hpp | *.cpp | *.cc) ;;
+    *.c | *.h | *.hpp | *.cpp | *.cc | *.cuh) ;;
     *) continue ;;
     esac
     added_lines=$(git diff --cached --unified=0 -- "$file" | grep '^+' | grep -v '^+++')
 
-    # Every @param declares its direction — [in]/[out]/[inout] — so a reader knows whether the callee
-    # reads, writes, or mutates the argument. A bare @param and the comma form @param[in,out] are both
-    # rejected; the one spelling for a mutated argument is @param[inout].
-    param_direction=$(printf '%s\n' "$added_lines" | grep -nE '@param' |
+    # Rejects a `@param` without an `[in]`, `[out]` or `[inout]` direction on added C-family lines, because
+    # the direction tells a reader whether the callee reads, writes, or mutates the argument.
+    params_without_direction_in_c_family=$(printf '%s\n' "$added_lines" | grep -nE '@param' |
         grep -vE '@param\[(in|out|inout)\]' || true)
-    if [ -n "$param_direction" ]; then
-        echo "pre-commit: $file has a @param without an [in]/[out]/[inout] direction — never a bare"
-        echo "            @param nor the comma form @param[in,out] (write @param[inout]):"
-        printf '%s\n' "$param_direction" | head -5
+    if [ -n "$params_without_direction_in_c_family" ]; then
+        echo "pre-commit: $file has a @param without an [in], [out] or [inout] direction;"
+        echo "            write @param[inout] for a mutated argument, never @param[in,out]:"
+        printf '%s\n' "$params_without_direction_in_c_family" | head -5
         failed=1
     fi
 
-    # A split string literal whose fragment lacks the trailing `//` pin gets restitched by clang-format
-    # into unreadable staircases; every fragment except the last must end with `" //`.
-    unpinned_splits=$(printf '%s\n' "$added_lines" | awk '
+    # Rejects a split string literal whose non-final fragment lacks a trailing `//` on added C-family lines,
+    # because clang-format restitches unpinned fragments into a staircase.
+    unpinned_string_splits_in_c_family=$(printf '%s\n' "$added_lines" | awk '
         prev ~ /"[[:space:]]*$/ && prev !~ /\/\/[[:space:]]*$/ && $0 ~ /^\+[[:space:]]*"/ { print NR": "prev }
         { prev = $0 }' || true)
-    if [ -n "$unpinned_splits" ]; then
-        echo "pre-commit: $file splits a string literal without the trailing \`//\` pin — clang-format"
-        echo "            will restitch the fragments into a staircase; pin every fragment but the last:"
-        printf '%s\n' "$unpinned_splits" | head -5
+    if [ -n "$unpinned_string_splits_in_c_family" ]; then
+        echo "pre-commit: $file splits a string literal without a trailing \`//\` pin;"
+        echo "            end every fragment but the last with \`\" //\`:"
+        printf '%s\n' "$unpinned_string_splits_in_c_family" | head -5
         failed=1
     fi
 
-    # Doxygen renders @b / @c, not Markdown: `__bold__` / `**bold**` in a `/** */` or `//` comment print
-    # literally. Use @b for a one/two-token emphasis and plain prose for anything longer. C `__keyword__`
-    # spellings are exempt.
-    markdown_doxygen=$(printf '%s\n' "$added_lines" | grep -E '^\+[[:space:]]*(\*|//)' |
+    # Rejects Markdown `__bold__` and `**bold**` in added C-family comments, because Doxygen prints them
+    # literally; C `__keyword__` spellings are exempt.
+    markdown_emphasis_in_c_family_comments=$(printf '%s\n' "$added_lines" | grep -E '^\+[[:space:]]*(\*([[:space:]]|$)|//)' |
         grep -oE '\*\*[^*]+\*\*|__[^_]+__' |
         grep -vE '^__(restrict|inline|volatile|asm|attribute|builtin[A-Za-z0-9_]*|STDC)__$' || true)
-    if [ -n "$markdown_doxygen" ]; then
-        echo "pre-commit: $file uses Markdown emphasis in a Doxygen comment (it prints literally) — use @b"
-        echo "            for a 1-2 token emphasis, plain prose otherwise:"
-        printf '%s\n' "$markdown_doxygen" | head -5
+    if [ -n "$markdown_emphasis_in_c_family_comments" ]; then
+        echo "pre-commit: $file uses Markdown emphasis in a comment, which Doxygen prints literally;"
+        echo "            use @b for a 1-2 token emphasis, plain prose otherwise:"
+        printf '%s\n' "$markdown_emphasis_in_c_family_comments" | head -5
         failed=1
     fi
 
-    # Member documentation is Doxygen: a bare `//` line directly above a declaration (a member or a type)
-    # is the banned doc style — those entities get `/** @brief ... */`. Scoped to headers on purpose: the
-    # same `Type name = ...;` shape inside a `.c` function body is a local variable, and a `//` note above
-    # it is a legal implementation note. The `\+?` prefix matches the `+` git diff prepends to added lines.
+    # Rejects a bare `//` line directly above a declaration on added lines of `.h`, `.hpp` and `.cuh` headers,
+    # because declarations take `/** @brief ... */`; `.c` bodies are exempt, where the same shape is a local.
     case "$file" in
-    *.h | *.hpp)
-        member_doc_comments=$(printf '%s\n' "$added_lines" |
+    *.h | *.hpp | *.cuh)
+        slash_comments_above_declarations_in_c_family_headers=$(printf '%s\n' "$added_lines" |
             awk '/^\+?[[:space:]]*\/\/[^\/]/ { pending=$0; next } \
                  /^\+?[[:space:]]*[A-Za-z_][A-Za-z0-9_:<>,* ]* [A-Za-z_][A-Za-z0-9_]* *([={;]|$)/ && pending { print pending; pending="" ; next } \
                  { pending="" }' || true)
-        if [ -n "$member_doc_comments" ]; then
-            echo "pre-commit: $file documents a declaration with a bare \`//\` comment — docs are"
-            echo "            /** @brief ... */ blocks; \`//\` is for implementation notes inside bodies:"
-            printf '%s\n' "$member_doc_comments" | head -5
+        if [ -n "$slash_comments_above_declarations_in_c_family_headers" ]; then
+            echo "pre-commit: $file documents a declaration with a bare \`//\` comment;"
+            echo "            use a /** @brief ... */ block, and keep \`//\` for notes inside bodies:"
+            printf '%s\n' "$slash_comments_above_declarations_in_c_family_headers" | head -5
             failed=1
         fi
         ;;
     esac
 
-    # A kernel is documented once, at its declaration in `include/numkong/<family>.h`; ISA backends only define it.
+    # Rejects a docblock directly above an `NK_API_*` definition on added lines of include/numkong/<family>/
+    # headers, because a kernel is documented once, at its declaration in include/numkong/<family>.h.
     case "$file" in
     include/numkong/*/*.h | include/numkong/*/*.cuh)
-        backend_docblocks=$(printf '%s\n' "$added_lines" |
+        docblocks_above_kernel_definitions_in_backend_headers=$(printf '%s\n' "$added_lines" |
             awk '/\*\/[[:space:]]*$/ { pending=$0; next } \
                  /^\+?NK_API_(COMPTIME|RUNTIME) / && pending { print $0; pending=""; next } \
                  { pending="" }' || true)
-        if [ -n "$backend_docblocks" ]; then
-            echo "pre-commit: $file documents a public kernel definition — the docblock belongs at its"
-            echo "            declaration in include/numkong/<family>.h, which backends @copydoc:"
-            printf '%s\n' "$backend_docblocks" | head -5
+        if [ -n "$docblocks_above_kernel_definitions_in_backend_headers" ]; then
+            echo "pre-commit: $file documents a public kernel definition;"
+            echo "            move the docblock to its declaration in include/numkong/<family>.h and @copydoc it:"
+            printf '%s\n' "$docblocks_above_kernel_definitions_in_backend_headers" | head -5
             failed=1
         fi
         ;;
     esac
 done < <(git diff --cached --name-only --diff-filter=ACM)
 
-# CMake — CMakeLists.txt / *.cmake must satisfy the checked-in .cmake-format.py profile (whole-file, the
-# way cmake-format works). This is the gate that catches accidental whole-file reformats.
-if command -v cmake-format > /dev/null 2>&1; then
-    while IFS= read -r file; do
-        case "$file" in
-        CMakeLists.txt | *.cmake) ;;
-        *) continue ;;
-        esac
-        if ! cmake-format --check "$file" > /dev/null 2>&1; then
-            echo "pre-commit: $file is not cmake-format clean — run: cmake-format -i $file"
-            failed=1
-        fi
-    done < <(git diff --cached --name-only --diff-filter=ACM)
-fi
-
-# C/C++ — changed lines must satisfy .clang-format. `git clang-format --staged --diff` restricts to the
-# staged hunks, so existing `clang-format off` regions and legacy formatting are untouched.
+# Rejects clang-format drift on the staged hunks of C, C++ and CUDA files, because `.clang-format` is the
+# law; `git clang-format --staged` leaves untouched lines and `clang-format off` regions alone.
 if command -v git-clang-format > /dev/null 2>&1 && command -v clang-format > /dev/null 2>&1; then
-    cpp_staged=$(git diff --cached --name-only --diff-filter=ACM -- \
+    staged_c_family_files=$(git diff --cached --name-only --diff-filter=ACM -- \
         '*.c' '*.h' '*.cc' '*.cpp' '*.hpp' '*.cu' '*.cuh')
-    if [ -n "$cpp_staged" ]; then
-        clang_diff=$(git clang-format --staged --diff -- $cpp_staged 2> /dev/null)
-        case "$clang_diff" in
+    if [ -n "$staged_c_family_files" ]; then
+        clang_format_drift_in_c_family=$(git clang-format --staged --diff -- $staged_c_family_files 2> /dev/null)
+        case "$clang_format_drift_in_c_family" in
         "" | "no modified files to format" | "clang-format did not modify any files"*) ;;
         *)
-            echo "pre-commit: staged C/C++ changes are not clang-format clean on their changed lines — restage after:"
-            echo "            git clang-format --staged   (or clang-format -i <file> for the whole file)"
+            echo "pre-commit: staged C, C++ or CUDA changes are not clang-format clean on their changed lines;"
+            echo "            run: git clang-format --staged, or clang-format -i <file> for the whole file, then restage"
             failed=1
             ;;
         esac
     fi
 fi
 
-# Rust — the crate must stay rustfmt-clean (respects rustfmt.toml). Whole-file check; skips without cargo.
-# `rustfmt.toml` sets `unstable_features` and `fn_single_line`, which stable rustfmt drops with a
-# warning rather than an error — so a stable `cargo fmt` reflows the whole tree and a stable
-# `--check` fails on files nobody touched. Prefer nightly, and skip the gate when it is absent
-# instead of enforcing a formatting the repository does not use.
-if command -v cargo > /dev/null 2>&1 && cargo +nightly fmt --version > /dev/null 2>&1; then
-    if git diff --cached --name-only --diff-filter=ACM -- '*.rs' | grep -q .; then
-        if ! cargo +nightly fmt --check > /dev/null 2>&1; then
-            echo "pre-commit: staged Rust changes are not rustfmt clean — run: cargo +nightly fmt"
-            failed=1
-        fi
-    fi
-fi
-
-# JSON/YAML — must satisfy the checked-in .dprint.json. Skips without dprint, installed from https://dprint.dev/install.
-if command -v dprint > /dev/null 2>&1; then
-    dprint_staged=()
-    while IFS= read -r -d '' file; do dprint_staged+=("$file"); done \
-        < <(git diff --cached --name-only -z --diff-filter=ACM -- '*.json' '*.jsonc' '*.yml' '*.yaml')
-    if [ ${#dprint_staged[@]} -gt 0 ] && ! dprint check "${dprint_staged[@]}" > /dev/null 2>&1; then
-        echo "pre-commit: staged JSON or YAML is not dprint clean — run: dprint fmt"
-        failed=1
-    fi
-fi
-
-# Editor lists — top-level settings keys, cSpell.words and extension recommendations stay sorted
-# case-insensitively, so every addition has one place to go.
-editor_lists=$(git diff --cached --name-only --diff-filter=ACM -- .vscode/settings.json .vscode/extensions.json .zed/settings.json)
-if [ -n "$editor_lists" ]; then
-    unsorted=$(printf '%s\n' "$editor_lists" | python3 -c '
-import json, re, subprocess, sys
-def load(path):
-    text = subprocess.run(["git", "show", ":" + path], capture_output=True, text=True).stdout
-    text = re.sub(r"\"(?:\\.|[^\"\\])*\"|//[^\n]*|/\*.*?\*/", lambda match: match.group(0) if match.group(0)[0] == "\"" else "", text, flags=re.S)
-    return json.loads(re.sub(r",(\s*[}\]])", r"\1", text))
-for path in sys.stdin.read().split():
-    data = load(path)
-    lists = [list(data)] if path.endswith("settings.json") else []
-    lists += [data.get(key, []) for key in ("cSpell.words", "recommendations", "unwantedRecommendations")]
-    if any(list(items) != sorted(items, key=str.lower) for items in lists):
-        print(path)
-')
-    if [ -n "$unsorted" ]; then
-        echo "pre-commit: sort top-level settings keys, cSpell.words and extension recommendations case-insensitively in:"
-        printf '    %s\n' $unsorted
-        failed=1
-    fi
-fi
-
-# Rust — `macro_rules!` is banned: every per-type impl is written out explicitly (see rust/cast.rs). Added
-# lines only, so a pre-existing macro migrates on its own schedule while no new one lands.
+# Rejects a SIMD register variable whose name omits its element type and width on added lines of ISA
+# headers under include/numkong/<family>/, because the name is the only type annotation a kernel reader
+# sees. The grammar is `<role>_<dtype>x<lanes>` for fixed-width ISAs, `<role>_<dtype>x` for SVE and SME,
+# and `<role>_<dtype>m<lmul>` for RVV; masks take `_m<n>` or `_b<n>x<lanes>` on x86, `_b<n>x` on SVE, and
+# `_b<n>` on RVV. Comments are blanked before tokenizing; `*_vec`, `*_tail`, `*_tile`, `state`, function
+# signatures, and lines tagged `// nk-nolint: naming` are exempt.
 while IFS= read -r file; do
-    case "$file" in
-    *.rs) ;;
-    *) continue ;;
-    esac
-    macro_hits=$(git diff --cached --unified=0 -- "$file" | grep '^+' | grep -v '^+++' |
-        grep -nE 'macro_rules!' || true)
-    if [ -n "$macro_hits" ]; then
-        echo "pre-commit: $file adds a \`macro_rules!\` — banned; write each impl out explicitly:"
-        printf '%s\n' "$macro_hits" | head -5
-        failed=1
-    fi
-done < <(git diff --cached --name-only --diff-filter=ACM)
-
-# ISA kernels — every SIMD register variable must encode its element type and width. The naming grammar
-# is per-ISA: `<role>_<dtype>x<lanes>` for fixed-width lanes (x86 / NEON / WASM / Loongson / Power),
-# `<role>_<dtype>x` for scalable SVE/SME, `<role>_<dtype>m<lmul>` for RISC-V RVV. Masks/predicates take the
-# short mask-register type: `<role>_m<n>` for an x86 `__mmask<n>` k-register and `<role>_b<n>x<lanes>` for a
-# comparison mask held in a vector register (x86), `<role>_b<n>x` (SVE `svbool_t`), `<role>_b<n>` (RVV
-# `vbool<n>_t`). Scoped to ISA-specific files only
-# — never serial.h, the umbrella <family>.h, or any .hpp. Added lines only; a line carrying an inline
-# `// nk-nolint: naming` comment is grandfathered. Tile-typed locals (`*_tile`/`state`) and `*_vec`/`*_tail`
-# reinterpret-staging unions are exempt. Function signatures are skipped (the name is followed by `(`).
-while IFS= read -r file; do
-    base="${file##*/}"
-    case "$base" in
+    file_basename="${file##*/}"
+    case "$file_basename" in
     haswell.h | skylake.h | icelake.h | genoa.h | sapphire.h | sapphireamx.h | graniteamx.h | alder.h | \
-        sierra.h | turin.h | v128.h | v128relaxed.h | loongsonasx.h | powervsx.h | neon*.h) isa="fixed" ;;
-    sve*.h | sme*.h) isa="sve" ;;
-    rvv*.h) isa="rvv" ;;
+        sierra.h | turin.h | v128.h | v128relaxed.h | loongsonasx.h | powervsx.h | neon*.h) register_grammar="fixed" ;;
+    sve*.h | sme*.h) register_grammar="sve" ;;
+    rvv*.h) register_grammar="rvv" ;;
     *) continue ;;
     esac
-    # Only ISA files that live under include/numkong/<family>/ — not a stray same-named file elsewhere.
     case "$file" in
-    */numkong/*/"$base") ;;
+    */numkong/*/"$file_basename") ;;
     *) continue ;;
     esac
-    # Comment-aware, added-lines-only. Scan the STAGED file with every `/* */` block blanked to spaces
-    # (line-preserving, so multi-line Doxygen doc blocks vanish too) and `//` tails stripped, then report
-    # only violations on the lines this commit adds. A vector/mask type named inside a comment or doc block
-    # is thus never tokenized as a variable — no `// nk-nolint: naming` needed for comment text (that escape
-    # hatch stays for the rare genuinely width-agnostic register).
-    added_nums=$(git diff --cached --unified=0 -- "$file" |
+    added_line_numbers=$(git diff --cached --unified=0 -- "$file" |
         awk '/^@@/ { for (i = 1; i <= NF; i++) if ($i ~ /^\+[0-9]/) { split(substr($i, 2), p, ","); s = p[1]; c = (p[2] == "" ? 1 : p[2]); for (k = 0; k < c; k++) print s + k; break } }')
-    bad_names=$(git show ":$file" 2> /dev/null |
+    misnamed_registers_in_isa_headers=$(git show ":$file" 2> /dev/null |
         perl -0777 -pe 's{(/\*.*?\*/)}{($c=$1)=~s/[^\n]/ /g; $c}ges' |
         grep -nv 'nk-nolint: naming' |
-        awk -F: -v isa="$isa" -v added="$added_nums" '
+        awk -F: -v isa="$register_grammar" -v added="$added_line_numbers" '
         BEGIN { na = split(added, ar, "\n"); for (i = 1; i <= na; i++) if (ar[i] != "") ADDED[ar[i]] = 1 }
         function ok_vec(name) {
             if (isa == "fixed") return name ~ /_(f16|f32|f64|bf16|e2m3|e3m2|e4m3|e5m2|i4|i8|i16|i32|i64|u1|u4|u8|u16|u32|u64)x[0-9]+(x[234])?$/ || name ~ /_b(8|16|32|64)x[0-9]+$/
@@ -252,8 +168,8 @@ while IFS= read -r file; do
                 if (!is_mask && !is_vec) continue
                 name = tok[i+1]
                 if (name == "const") name = tok[i+2]
-                if (name ~ /\(/) break                 # function signature — skip the whole line
-                sub(/[=;,].*/, "", name)               # strip trailing punctuation / initializer
+                if (name ~ /\(/) break                 # function signature, skip the whole line
+                sub(/[=;,].*/, "", name)               # strip trailing punctuation and initializer
                 if (name == "" || name ~ /[^A-Za-z0-9_]/) continue
                 if (exempt(name)) break
                 if (is_mask ? ok_mask(name) : ok_vec(name)) break
@@ -261,122 +177,417 @@ while IFS= read -r file; do
                 break
             }
         }' || true)
-    if [ -n "$bad_names" ]; then
-        echo "pre-commit: $file has a SIMD register whose name breaks the $isa naming convention"
-        echo "            (<role>_<dtype>x<lanes> / _<dtype>x / _<dtype>m<lmul>; masks per ISA). Rename, or"
-        echo "            grandfather one line with a trailing \`// nk-nolint: naming\`:"
-        printf '%s\n' "$bad_names" | head -5
+    if [ -n "$misnamed_registers_in_isa_headers" ]; then
+        echo "pre-commit: $file names a SIMD register against the $register_grammar convention,"
+        echo "            <role>_<dtype>x<lanes>, _<dtype>x or _<dtype>m<lmul>, with masks per ISA;"
+        echo "            rename it, or grandfather one line with a trailing \`// nk-nolint: naming\`:"
+        printf '%s\n' "$misnamed_registers_in_isa_headers" | head -5
         failed=1
     fi
 done < <(git diff --cached --name-only --diff-filter=ACM)
 
-# ISA kernels — an include/numkong/<family>/<isa>.h never includes a dispatch umbrella such as `numkong/dot.h`
-# or `numkong/capabilities.h`: those hold the runtime-dispatched entry points, so a kernel calling `nk_dot_f32`
-# would route through the dispatch table instead of its own tier's `nk_dot_f32_<isa>`. Whole-file on every
-# staged ISA header, serial.h exempt; `numkong/types.h` is the only legal top-level include.
+# Rejects a top-level `numkong/<name>.h` include other than `numkong/types.h` in the whole staged file of
+# include/numkong/<family>/ headers except serial.h, because the umbrella routes a kernel's call through
+# the runtime dispatch table instead of its own tier.
 while IFS= read -r file; do
     case "$file" in
     include/numkong/*/serial.h) continue ;;
-    include/numkong/*/*.h) ;;
+    include/numkong/*/*.h | include/numkong/*/*.cuh) ;;
     *) continue ;;
     esac
-    umbrellas=$(git show ":$file" 2> /dev/null |
+    umbrella_includes_in_backend_headers=$(git show ":$file" 2> /dev/null |
         grep -nE '^#include "numkong/[A-Za-z0-9_]+\.h"' | grep -v '"numkong/types.h"' || true)
-    if [ -n "$umbrellas" ]; then
-        echo "pre-commit: $file includes a dispatch umbrella — include the sibling <family>/<isa>.h and call its kernel:"
-        printf '%s\n' "$umbrellas" | head -5
+    if [ -n "$umbrella_includes_in_backend_headers" ]; then
+        echo "pre-commit: $file includes a dispatch umbrella;"
+        echo "            include the sibling <family>/<isa>.h and call its kernel instead:"
+        printf '%s\n' "$umbrella_includes_in_backend_headers" | head -5
         failed=1
     fi
 done < <(git diff --cached --name-only --diff-filter=ACM)
 
-# Python — ruff format + lint on the staged files, plus the ALL-CAPS-emphasis ban on changed lines. Ruff
-# is tool-guarded (a missing ruff skips rather than blocks); the emphasis grep is pure shell and runs
-# whenever a `.py` file is staged.
-if command -v ruff > /dev/null 2>&1; then
-    py_staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.py')
-    if [ -n "$py_staged" ]; then
-        if ! ruff format --check --quiet --force-exclude $py_staged > /dev/null 2>&1; then
-            echo "pre-commit: staged Python changes are not ruff-format clean — run: ruff format <files>"
+# Rejects a namespace other than the directory's own on the whole staged file of test/ and bench/ headers,
+# because the directory names the namespace: `bench/*.hpp` opens `ashvardanian::numkong::bench` and nothing
+# else at file scope. A `.h` counts once it holds C++; `.hpp` and `.cuh` must also spell it in one piece.
+while IFS= read -r file; do
+    case "$file" in
+    test/*.hpp | test/*.cuh | bench/*.hpp | bench/*.cuh)
+        harness_namespace="ashvardanian::numkong::$(dirname "$file" | sed 's,/,::,g')"
+        if ! git show ":$file" | grep -qE "^namespace ${harness_namespace} \{"; then
+            echo "pre-commit: $file does not open \`namespace $harness_namespace {\` in one piece;"
+            echo "            spell the namespace its directory names on a single line"
             failed=1
         fi
-        if ! ruff check --quiet --force-exclude $py_staged > /dev/null 2>&1; then
-            echo "pre-commit: staged Python changes have ruff lint findings — run: ruff check --fix <files>"
+        ;;
+    test/*.h | bench/*.h)
+        git show ":$file" | grep -qE '(^|[^A-Za-z0-9_])(namespace|template|class)[[:space:]]' || continue
+        ;;
+    *) continue ;;
+    esac
+    harness_namespace="ashvardanian::numkong::${file%/*}"
+    harness_namespace=${harness_namespace//\//::}
+    foreign_namespaces_in_harness_headers=$(git show ":$file" 2> /dev/null | awk -v expected="$harness_namespace" '
+        continued { continued = ($0 ~ /\\$/); next }
+        {
+            code = ""
+            for (i = 1; i <= length($0); ++i) {
+                c = substr($0, i, 1)
+                pair = substr($0, i, 2)
+                if (state == "block") { if (pair == "*/") { state = ""; ++i } continue }
+                if (state != "") {
+                    if (c == "\\") ++i
+                    else if (c == state) state = ""
+                    continue
+                }
+                if (pair == "//") break
+                if (pair == "/*") { state = "block"; ++i; continue }
+                if (c == "\"" || c == "'\''") { state = c; continue }
+                code = code c
+            }
+            if (state != "block") state = ""
+            if (code ~ /^[[:space:]]*#/) { continued = ($0 ~ /\\$/); next }
+            if (depth == 0 && match(code, /(^|[^A-Za-z0-9_])namespace([[:space:]]+[A-Za-z_][A-Za-z0-9_:]*)?[[:space:]]*\{/)) {
+                name = substr(code, RSTART, RLENGTH)
+                sub(/^.*namespace[[:space:]]*/, "", name)
+                sub(/[[:space:]]*\{$/, "", name)
+                ++opened
+                if (name != expected) print "    line " NR ": namespace " (name == "" ? "<anonymous>" : name)
+            }
+            depth += gsub(/\{/, "{", code) - gsub(/\}/, "}", code)
+        }
+        END { if (!opened) print "    no namespace at all" }' || true)
+    if [ -n "$foreign_namespaces_in_harness_headers" ]; then
+        echo "pre-commit: $file opens a file-scope namespace other than \`$harness_namespace\`;"
+        echo "            wrap its contents in the namespace its directory names, and open no other:"
+        printf '%s\n' "$foreign_namespaces_in_harness_headers" | head -5
+        failed=1
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+# endregion C and C++
+
+# region CUDA
+
+# Rejects C++ constructs and `<<< >>>` launches on added lines of include/numkong `.cuh` headers, because
+# those tiers are C so the C dispatch units can link them; `extern "C"` is the one C++ spelling allowed.
+cpp_constructs_in_c_cuda_headers=$(git diff --cached --no-color -U0 -- 'include/numkong/*.cuh' 'include/numkong/*/*.cuh' |
+    grep -E '^\+' | grep -vE '^\+\+\+' | strip_c_comments |
+    grep -E '(^|[^A-Za-z0-9_])(template[[:space:]]*<|class[[:space:]]+[A-Za-z_]|namespace[[:space:]]|auto[[:space:]]+[A-Za-z_*&]|nullptr|new[[:space:]]+[A-Za-z_]|delete[[:space:]]|std::|constexpr[[:space:]]|noexcept|public:|private:|protected:|operator[[:space:]]*[^(])|<<<' |
+    grep -vE 'extern[[:space:]]+"C"' || true)
+if [ -n "$cpp_constructs_in_c_cuda_headers" ]; then
+    echo "pre-commit: a staged include/numkong .cuh adds C++, but these tiers are C with \`extern \"C\"\` linkage;"
+    echo "            write C, and launch with cudaLaunchKernel and an explicit dim3 instead of <<< >>>:"
+    printf '%s\n' "$cpp_constructs_in_c_cuda_headers" | head -5
+    failed=1
+fi
+
+# endregion CUDA
+
+# region CMake
+
+# Rejects cmake-format drift on the whole staged CMakeLists.txt or `.cmake` file, because `.cmake-format.py`
+# is the law and whole-file reformats must not land by accident.
+if command -v cmake-format > /dev/null 2>&1; then
+    while IFS= read -r file; do
+        case "$file" in
+        CMakeLists.txt | *.cmake) ;;
+        *) continue ;;
+        esac
+        if ! cmake-format --check "$file" > /dev/null 2>&1; then
+            echo "pre-commit: $file is not cmake-format clean;"
+            echo "            run: cmake-format -i $file"
+            failed=1
+        fi
+    done < <(git diff --cached --name-only --diff-filter=ACM)
+fi
+
+cmake_added_lines=$(git diff --cached --no-color -U0 -- 'CMakeLists.txt' '*.cmake' | grep -E '^\+' | grep -vE '^\+\+\+' |
+    sed -E 's,#.*$,,' || true)
+
+# Rejects list mutation and self-referencing `set` on added CMake lines, because a variable is written once.
+mutated_variables_in_cmake=$(printf '%s\n' "$cmake_added_lines" |
+    grep -nE '^\+[[:space:]]*(list[[:space:]]*\([[:space:]]*(APPEND|PREPEND|INSERT|REMOVE_ITEM|REMOVE_AT|REMOVE_DUPLICATES|TRANSFORM|FILTER)[[:space:]]|set[[:space:]]*\([[:space:]]*([A-Za-z0-9_]+)[[:space:]].*\$\{\3\})' || true)
+if [ -n "$mutated_variables_in_cmake" ]; then
+    echo "pre-commit: staged CMake mutates a variable after defining it;"
+    echo "            define it once, and select per-configuration items with generator expressions:"
+    printf '%s\n' "$mutated_variables_in_cmake" | head -5
+    failed=1
+fi
+
+# Rejects hand-built RPATHs on added CMake lines, because full-path link items already land in the build RPATH.
+manual_rpaths_in_cmake=$(printf '%s\n' "$cmake_added_lines" |
+    grep -nE '(BUILD_RPATH|INSTALL_RPATH|BUILD_WITH_INSTALL_RPATH|-Wl,-rpath)' || true)
+if [ -n "$manual_rpaths_in_cmake" ]; then
+    echo "pre-commit: staged CMake builds an RPATH by hand;"
+    echo "            link the library by its full path and let CMake derive the RPATH:"
+    printf '%s\n' "$manual_rpaths_in_cmake" | head -5
+    failed=1
+fi
+
+# Rejects lowercase `nk_` names defined by `set` on added CMakeLists.txt lines, because its internal variables
+# are `NK_*_`; the cmake/ modules keep their lowercase `nk_*_` internals.
+lowercase_variables_in_cmake=$(git diff --cached --no-color -U0 -- 'CMakeLists.txt' |
+    grep -nE '^\+[[:space:]]*set[[:space:]]*\([[:space:]]*nk_' || true)
+if [ -n "$lowercase_variables_in_cmake" ]; then
+    echo "pre-commit: staged CMakeLists.txt defines a lowercase nk_ variable;"
+    echo "            name internal variables NK_UPPERCASE_ with a trailing underscore:"
+    printf '%s\n' "$lowercase_variables_in_cmake" | head -5
+    failed=1
+fi
+
+# endregion CMake
+
+# region Go
+
+# Rejects gofmt drift on staged `.go` files, reading the staged content; it skips without gofmt.
+if command -v gofmt > /dev/null 2>&1; then
+    while IFS= read -r file; do
+        if [ -n "$(git show ":$file" | gofmt -l)" ]; then
+            echo "pre-commit: $file is not gofmt clean;"
+            echo "            run: gofmt -w $file"
+            failed=1
+        fi
+    done < <(git diff --cached --name-only --diff-filter=ACM -- '*.go')
+fi
+
+go_added_comments=$(git diff --cached --no-color -U0 -- '*.go' | grep -E '^\+[[:space:]]*//' || true)
+
+# Rejects a `// Title:` pseudo-heading in added Go comments, because Go doc headings are `// # Title`.
+pseudo_headings_in_go_comments=$(printf '%s\n' "$go_added_comments" | grep -nE '^\+[[:space:]]*// [A-Z][A-Za-z ]*:$' || true)
+if [ -n "$pseudo_headings_in_go_comments" ]; then
+    echo "pre-commit: a staged Go comment uses a pseudo-heading ending in a colon;"
+    echo "            write a doc heading as \`// # Title\` with blank comment lines around it:"
+    printf '%s\n' "$pseudo_headings_in_go_comments" | head -5
+    failed=1
+fi
+
+# Rejects an exported name spelled as a call in added Go comments, because doc links are `[Name]`.
+call_references_in_go_comments=$(printf '%s\n' "$go_added_comments" | grep -nE '(^|[^[:alnum:]_.[])[A-Z][[:alnum:]_]*[a-z][[:alnum:]_]*\(' || true)
+if [ -n "$call_references_in_go_comments" ]; then
+    echo "pre-commit: a staged Go comment references an exported name as a call;"
+    echo "            link it as [Name] or [Type.Method] instead:"
+    printf '%s\n' "$call_references_in_go_comments" | head -5
+    failed=1
+fi
+
+# endregion Go
+
+# region Rust
+
+# Rejects rustfmt drift across the crate when a `.rs` file is staged, because `rustfmt.toml` is the law; it
+# needs nightly, since stable drops the unstable options and would reflow untouched files, so it skips without.
+if command -v cargo > /dev/null 2>&1 && cargo +nightly fmt --version > /dev/null 2>&1; then
+    if git diff --cached --name-only --diff-filter=ACM -- '*.rs' | grep -q .; then
+        if ! cargo +nightly fmt --check > /dev/null 2>&1; then
+            echo "pre-commit: staged Rust changes are not rustfmt clean;"
+            echo "            run: cargo +nightly fmt"
             failed=1
         fi
     fi
 fi
+
+# Rejects `macro_rules!` on added lines of `.rs` files, because every per-type impl is written out explicitly.
+while IFS= read -r file; do
+    case "$file" in
+    *.rs) ;;
+    *) continue ;;
+    esac
+    macro_rules_in_rust=$(git diff --cached --unified=0 -- "$file" | grep '^+' | grep -v '^+++' |
+        grep -nE 'macro_rules!' || true)
+    if [ -n "$macro_rules_in_rust" ]; then
+        echo "pre-commit: $file adds a \`macro_rules!\`;"
+        echo "            write each impl out explicitly instead:"
+        printf '%s\n' "$macro_rules_in_rust" | head -5
+        failed=1
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+# endregion Rust
+
+# region Python
+
+# Rejects ruff format drift and ruff lint findings on staged `.py` files, because `pyproject.toml` is the law;
+# it skips without ruff.
+if command -v ruff > /dev/null 2>&1; then
+    staged_python_files=$(git diff --cached --name-only --diff-filter=ACM -- '*.py')
+    if [ -n "$staged_python_files" ]; then
+        if ! ruff format --check --quiet --force-exclude $staged_python_files > /dev/null 2>&1; then
+            echo "pre-commit: staged Python changes are not ruff-format clean;"
+            echo "            run: ruff format <files>"
+            failed=1
+        fi
+        if ! ruff check --quiet --force-exclude $staged_python_files > /dev/null 2>&1; then
+            echo "pre-commit: staged Python changes have ruff lint findings;"
+            echo "            run: ruff check --fix <files>"
+            failed=1
+        fi
+    fi
+fi
+
+# Rejects ALL-CAPS emphasis words such as ONLY or NEVER on added lines of `.py` files, because emphasis
+# belongs in the wording; it runs with or without ruff.
 while IFS= read -r file; do
     added_lines=$(git diff --cached --unified=0 -- "$file" | grep '^+' | grep -v '^+++')
-    # No ALL-CAPS-for-emphasis in docstrings / comments (protocol / token names excepted).
-    emphasis=$(printf '%s\n' "$added_lines" |
+    caps_emphasis_in_python=$(printf '%s\n' "$added_lines" |
         grep -nE '\b(ONLY|NEVER|ALWAYS|EVERY|WHOLE)\b' || true)
-    if [ -n "$emphasis" ]; then
-        echo "pre-commit: $file uses ALL-CAPS emphasis on a changed line — lowercase it:"
-        printf '%s\n' "$emphasis" | head -5
+    if [ -n "$caps_emphasis_in_python" ]; then
+        echo "pre-commit: $file uses ALL-CAPS emphasis on a changed line;"
+        echo "            lowercase it:"
+        printf '%s\n' "$caps_emphasis_in_python" | head -5
         failed=1
     fi
 done < <(git diff --cached --name-only --diff-filter=ACM -- '*.py')
 
-# Swift — swift-format lint against the checked-in .swift-format. Skips without swift-format.
+# endregion Python
+
+# region Swift
+
+# Rejects swift-format lint findings on staged `.swift` files, because `.swift-format` is the law; it skips
+# without swift-format.
 if command -v swift-format > /dev/null 2>&1; then
-    swift_staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.swift')
-    if [ -n "$swift_staged" ]; then
-        if ! swift-format lint --strict $swift_staged > /dev/null 2>&1; then
-            echo "pre-commit: staged Swift changes are not swift-format clean — run: swift-format -i <files>"
+    staged_swift_files=$(git diff --cached --name-only --diff-filter=ACM -- '*.swift')
+    if [ -n "$staged_swift_files" ]; then
+        if ! swift-format lint --strict $staged_swift_files > /dev/null 2>&1; then
+            echo "pre-commit: staged Swift changes are not swift-format clean;"
+            echo "            run: swift-format -i <files>"
             failed=1
         fi
     fi
 fi
 
-# Project-wide, every staged file: no decorative banner rulers and no formatter-disabling directives.
-# A staged line that is only dashes, equals, slashes, or hashes (a `# -----` / `// =====` / `//////` /
-# `#####` ruler) is banned everywhere except Markdown, where a run of dashes is legal (horizontal rules,
-# table separators) and `###` opens a heading. Turning a formatter off in-band is banned too — the
-# checked-in .clang-format / .cmake-format.py profiles are the law, so a file must format clean as a
-# whole rather than fencing regions the tool is told to skip. Patterns are line-anchored so prose that
-# merely names a directive does not trip the check.
+# endregion Swift
+
+# region TypeScript
+
+ts_added_doc_lines=$(git diff --cached --no-color -U0 -- '*.ts' '*.mts' | grep -E '^\+[[:space:]]*(/\*\*|\*)' || true)
+
+# Rejects JSDoc `{type}` braces and a `@param` without its ` - ` in added TypeScript docs, because the
+# signature carries the types and TSDoc separates the name with a hyphen.
+jsdoc_tags_in_typescript=$(printf '%s\n' "$ts_added_doc_lines" |
+    grep -nE '@(param|returns?)[[:space:]]+\{|@param[[:space:]]+[[:alnum:]_]+[[:space:]]+[^-]' || true)
+if [ -n "$jsdoc_tags_in_typescript" ]; then
+    echo "pre-commit: a staged TypeScript doc uses JSDoc tag syntax;"
+    echo "            write \`@param name - text\` and \`@returns text\`, without {type} braces:"
+    printf '%s\n' "$jsdoc_tags_in_typescript" | head -5
+    failed=1
+fi
+
+# Rejects `@brief` below the file header of staged TypeScript files, because a TSDoc summary is untagged.
 while IFS= read -r file; do
-    added=$(git diff --cached --unified=0 -- "$file" | grep '^+' | grep -v '^+++')
+    briefs_below_file_header=$(git show ":$file" | awk '/\*\// && !closed { closed = NR; next } closed && /@brief/ { print NR": "$0 }')
+    if [ -n "$briefs_below_file_header" ]; then
+        echo "pre-commit: $file tags a declaration summary with @brief;"
+        echo "            drop the tag, TSDoc treats the first paragraph as the summary:"
+        printf '%s\n' "$briefs_below_file_header" | head -5
+        failed=1
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACM -- '*.ts' '*.mts')
+
+# Rejects `name()` and bare backticked calls in added TypeScript doc prose, because references are `{@link name}`;
+# example lines, which end in `;` or assign, are exempt.
+call_references_in_typescript_docs=$(printf '%s\n' "$ts_added_doc_lines" | grep -vE '(;|=)[[:space:]]*(//.*)?$|[[:space:]]=[[:space:]]' |
+    grep -nE '(^|[^[:alnum:]_.`{])[[:alpha:]_][[:alnum:]_]*\(\)' || true)
+if [ -n "$call_references_in_typescript_docs" ]; then
+    echo "pre-commit: a staged TypeScript doc references a function as a call;"
+    echo "            write {@link name} for an export, or wrap a method call in backticks:"
+    printf '%s\n' "$call_references_in_typescript_docs" | head -5
+    failed=1
+fi
+
+# endregion TypeScript
+
+# region JSON and YAML
+
+# Rejects dprint drift on staged `.json`, `.jsonc`, `.yml` and `.yaml` files, because `.dprint.json` is the
+# law; it skips without dprint, installed from https://dprint.dev/install.
+if command -v dprint > /dev/null 2>&1; then
+    staged_json_yaml_files=()
+    while IFS= read -r -d '' file; do staged_json_yaml_files+=("$file"); done \
+        < <(git diff --cached --name-only -z --diff-filter=ACM -- '*.json' '*.jsonc' '*.yml' '*.yaml')
+    if [ ${#staged_json_yaml_files[@]} -gt 0 ] && ! dprint check "${staged_json_yaml_files[@]}" > /dev/null 2>&1; then
+        echo "pre-commit: staged JSON or YAML is not dprint clean;"
+        echo "            run: dprint fmt"
+        failed=1
+    fi
+fi
+
+# Rejects unsorted top-level keys, `cSpell.words`, and extension recommendations in the whole staged
+# .vscode and .zed settings files, because a case-insensitive order gives every addition one place to go.
+staged_editor_settings_files=$(git diff --cached --name-only --diff-filter=ACM -- .vscode/settings.json .vscode/extensions.json .zed/settings.json)
+if [ -n "$staged_editor_settings_files" ]; then
+    unsorted_editor_settings_files=$(printf '%s\n' "$staged_editor_settings_files" | python3 -c '
+import json, re, subprocess, sys
+def load(path):
+    text = subprocess.run(["git", "show", ":" + path], capture_output=True, text=True).stdout
+    text = re.sub(r"\"(?:\\.|[^\"\\])*\"|//[^\n]*|/\*.*?\*/", lambda match: match.group(0) if match.group(0)[0] == "\"" else "", text, flags=re.S)
+    return json.loads(re.sub(r",(\s*[}\]])", r"\1", text))
+for path in sys.stdin.read().split():
+    data = load(path)
+    lists = [list(data)] if path.endswith("settings.json") else []
+    lists += [data.get(key, []) for key in ("cSpell.words", "recommendations", "unwantedRecommendations")]
+    if any(list(items) != sorted(items, key=str.lower) for items in lists):
+        print(path)
+')
+    if [ -n "$unsorted_editor_settings_files" ]; then
+        echo "pre-commit: editor settings have unsorted top-level keys, cSpell.words or extension recommendations;"
+        echo "            sort them case-insensitively in:"
+        printf '    %s\n' $unsorted_editor_settings_files
+        failed=1
+    fi
+fi
+
+# endregion JSON and YAML
+
+# region All Files
+
+while IFS= read -r file; do
+    added_lines=$(git diff --cached --unified=0 -- "$file" | grep '^+' | grep -v '^+++')
+
+    # Rejects an added line that is only dashes, equals, slashes, or hashes in every file but Markdown,
+    # because decorative rulers are noise; Markdown uses dashes for rules and tables and `###` for headings.
     case "$file" in
     *.md | *.markdown) ;;
     *)
-        rulers=$(printf '%s\n' "$added" |
+        banner_rulers_outside_markdown=$(printf '%s\n' "$added_lines" |
             grep -nE '^\+[[:space:]]*(([#]+|//)?[[:space:]]*[-=]{3,}|/{4,}|#{3,})[[:space:]]*$' || true)
-        if [ -n "$rulers" ]; then
-            echo "pre-commit: $file adds a decorative banner ruler (---/===////+/###; banned outside Markdown):"
-            printf '%s\n' "$rulers" | head -5
+        if [ -n "$banner_rulers_outside_markdown" ]; then
+            echo "pre-commit: $file adds a decorative banner ruler of ---, ===, //// or ###;"
+            echo "            delete it, rulers are allowed only in Markdown:"
+            printf '%s\n' "$banner_rulers_outside_markdown" | head -5
             failed=1
         fi
         ;;
     esac
-    format_off=$(printf '%s\n' "$added" |
+
+    # Rejects an added `// clang-format off|on` or `# cmake-format: off|on` line in every file, because a
+    # file must format clean as a whole; the line anchor lets prose name the directive.
+    formatter_toggles_in_any_file=$(printf '%s\n' "$added_lines" |
         grep -nE '^\+[[:space:]]*(//[[:space:]]*clang-format[[:space:]]+(on|off)|#[[:space:]]*cmake-format:[[:space:]]*(on|off))[[:space:]]*$' || true)
-    if [ -n "$format_off" ]; then
-        echo "pre-commit: $file disables a formatter in-band — the .clang-format / .cmake-format.py profile is the law,"
-        echo "            teach the tool (additional_commands / config) instead of fencing a region off:"
-        printf '%s\n' "$format_off" | head -5
+    if [ -n "$formatter_toggles_in_any_file" ]; then
+        echo "pre-commit: $file disables a formatter in-band;"
+        echo "            teach .clang-format or .cmake-format.py the construct instead of fencing a region off:"
+        printf '%s\n' "$formatter_toggles_in_any_file" | head -5
         failed=1
     fi
 
-    # Prose uses a single space between sentences: a period/question/exclamation followed by two-plus
-    # spaces and a capital is the double-space habit. Added lines only; a line carrying an inline
-    # `nk-nolint: spacing` comment is skipped (e.g. a deliberately column-aligned table).
-    # The leading comment marker is stripped before matching: the `!` of a `//!` doc comment is
-    # otherwise a sentence terminator, so every indented capitalised line inside a `//!` example
-    # read as the double-space habit.
-    double_space=$(printf '%s\n' "$added" | grep -v 'nk-nolint: spacing' |
+    # Rejects two or more spaces after `.`, `!` or `?` before a capital on added lines of every file, because
+    # prose uses one space between sentences. A leading comment marker is stripped first, so the `!` of `//!`
+    # is not read as a sentence end; lines tagged `nk-nolint: spacing` are exempt.
+    double_spaces_in_any_file=$(printf '%s\n' "$added_lines" | grep -v 'nk-nolint: spacing' |
         sed -E 's,^\+,,; s,^[[:space:]]*(//[/!]?|#|\*),,' |
         grep -nE '[.!?]  +[A-Z]' || true)
-    if [ -n "$double_space" ]; then
-        echo "pre-commit: $file double-spaces between sentences — use a single space after . ! ?:"
-        printf '%s\n' "$double_space" | head -5
+    if [ -n "$double_spaces_in_any_file" ]; then
+        echo "pre-commit: $file double-spaces between sentences;"
+        echo "            use a single space after . ! or ?:"
+        printf '%s\n' "$double_spaces_in_any_file" | head -5
         failed=1
     fi
 done < <(git diff --cached --name-only --diff-filter=ACM)
 
+# endregion All Files
+
 if [ "$failed" -ne 0 ]; then
     echo ""
-    echo "Staged changes violate the house style (see the reasons above). Fix and re-stage, or bypass"
+    echo "Staged changes violate the house style, see the reasons above. Fix and re-stage, or bypass"
     echo "knowingly with: git commit --no-verify"
     exit 1
 fi
