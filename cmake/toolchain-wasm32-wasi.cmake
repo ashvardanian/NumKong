@@ -87,16 +87,14 @@ message(STATUS "NumKong WASI: Toolchain at ${WASI_SDK_PATH}")
 
 # Runtime that CTest invokes on each cross binary, so `ctest` runs the WASI tests cross-engine without a
 # wrapper script. wasmtime and wasmer execute a `.wasm` command directly; node uses the small WASI runner
-# in test/test-wasi.mjs. Relaxed-SIMD lowers differently per engine, so testing more than one matters.
+# in test/wasi.mjs. Relaxed-SIMD lowers differently per engine, so testing more than one matters.
 set(NK_WASM_RUNTIME "wasmtime" CACHE STRING "WASM runtime CTest uses for WASI tests (wasmtime, wasmer, or node)")
 if (NK_WASM_RUNTIME STREQUAL "wasmer")
     find_program(NK_WASMER_EXE_ wasmer PATHS "$ENV{HOME}/.cargo/bin" "$ENV{HOME}/.wasmer/bin")
     set(CMAKE_CROSSCOMPILING_EMULATOR "${NK_WASMER_EXE_};run;--enable-simd;--enable-relaxed-simd")
 elseif (NK_WASM_RUNTIME STREQUAL "node")
     find_program(NK_NODE_EXE_ node)
-    set(CMAKE_CROSSCOMPILING_EMULATOR
-        "${NK_NODE_EXE_};${CMAKE_CURRENT_LIST_DIR}/../test/test-wasi.mjs"
-    )
+    set(CMAKE_CROSSCOMPILING_EMULATOR "${NK_NODE_EXE_};${CMAKE_CURRENT_LIST_DIR}/../test/wasi.mjs")
 else ()
     find_program(NK_WASMTIME_EXE_ wasmtime PATHS "$ENV{HOME}/.wasmtime/bin")
     set(CMAKE_CROSSCOMPILING_EMULATOR "${NK_WASMTIME_EXE_};run;-W;relaxed-simd=y")

@@ -8,7 +8,7 @@
  *  nk::tensor_view and runs a trivial add-one kernel to prove device-side readability. The second half
  *  does an exhaustive bit-exact comparison between nk_cast on the CPU and CUDA's __nv_cvt_* intrinsics
  *  on the GPU, covering every fp32, fp16, and bf16 input against every e4m3, e5m2, e3m2, and e2m3 variant.
- *  The cross sections run the dots, spatial, and attention scenarios of `test_cross.cuh` through `cuda_backend_t`
+ *  The cross sections run the dots, spatial, and attention scenarios of `cross.cuh` through `cuda_backend_t`
  *  for every family the device runs. `NK_FILTER=<regex>` runs only the sections and kernels whose names match.
  *
  *  The test builds and runs on any Turing-or-newer GPU. CUDA's __nv_cvt_* converters fall back to software
@@ -36,7 +36,7 @@
 #include <cuda_runtime.h>
 
 #include "test.cuh"       // `cuda_backend_t`
-#include "test_cross.cuh" // `test_dots_packed`, `attention_weights_t`
+#include "cross.cuh"      // `test_dots_packed`, `attention_weights_t`
 
 using namespace ashvardanian::numkong::test;
 

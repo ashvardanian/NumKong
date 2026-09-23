@@ -248,7 +248,7 @@ template <typename type_>
 /**
  *  @brief Measures the performance of a @b dense kernel function using Google Benchmark.
  *
- *  Used by: bench_dot.cpp, bench_spatial.cpp, bench_set.cpp, bench_probability.cpp
+ *  Used by: dot.cpp, spatial.cpp, set.cpp, probability.cpp
  *
  *  @param state The benchmark state object provided by Google Benchmark.
  *  @param kernel The kernel function to benchmark.
@@ -296,7 +296,7 @@ void run_dense(std::string name, kernel_type_ *kernel) {
 
 /**
  *  @brief Measure packed Hamming distance computation.
- *  Used by: all bench_cross_*.cpp files
+ *  Used by: all bench/cross_*.cpp files
  */
 template <nk_dtype_t input_dtype_>
 void measure_hammings_packed(                                                              //

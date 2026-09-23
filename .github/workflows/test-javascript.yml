@@ -201,7 +201,7 @@ jobs:
 
       - name: Test on Node.js
         if: matrix.runtime == 'emscripten' || matrix.runtime == 'emscripten64' || matrix.runtime == 'wasi-node'
-        run: NK_RUNTIME=${{ matrix.runtime }} node --test test/test-wasm.mjs
+        run: NK_RUNTIME=${{ matrix.runtime }} node --test test/wasm.mjs
 
       - name: Install Rust Toolchain
         if: matrix.runtime == 'standalone'

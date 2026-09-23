@@ -407,9 +407,8 @@ sudo docker run --rm -v "$PWD:/workspace" -w /workspace swift:5.9 /bin/bash -cl 
 ## GoLang
 
 ```sh
-cd golang
-go test # To test
-go test -run=^$ -bench=. -benchmem # To benchmark
+go test ./test/golang/ # To test
+go test -run=^$ -bench=. -benchmem ./bench/golang/ # To benchmark
 ```
 
 ## Adding a New Kernel Family
@@ -420,9 +419,9 @@ To add a new operation family, for example `foo`:
 2. __ISA implementations__: add `include/numkong/foo/serial.h`, `foo/neon.h`, `foo/haswell.h`, etc.
 3. __Dispatch layer__: add entries to the appropriate `c/dispatch_*.c` files for each dtype the kernel supports.
 4. __C++ wrapper__: create `include/numkong/foo.hpp` with the typed C++ API.
-5. __Test__: create `test/test_foo.cpp` with precision validation against `f118_t` references.
-6. __Benchmark__: create `bench/bench_foo.cpp` with Google Benchmark harness.
-7. __Cross-platform tests__: add a scenario to `test/test_cross.cuh`, then register it in the relevant `test_cross_*.cpp` files and, for CUDA kernels, in `test/test.cu`.
+5. __Test__: create `test/foo.cpp` with precision validation against `f118_t` references.
+6. __Benchmark__: create `bench/foo.cpp` with Google Benchmark harness.
+7. __Cross-platform tests__: add a scenario to `test/cross.cuh`, then register it in the relevant `test/cross_*.cpp` files and, for CUDA kernels, in `test/test.cu`.
 8. __CMakeLists.txt__: wire the new source files into the `numkong_test` and `numkong_bench` targets.
 9. __Language bindings__: update `python/numkong.c`, `javascript/numkong.c`, `rust/numkong.rs`, etc. as needed.
 
@@ -433,15 +432,15 @@ For primary kernels, every backend implementation should be wired in five places
 1. __Forward declaration__: add the `NK_API_COMPTIME` declaration with the matching `@copydoc` in the first half of `include/numkong/<family>.h`.
 2. __Compile-time dispatch__: add the `#if !NK_RUNTIME_DISPATCH` branch in the second half of `include/numkong/<family>.h`.
 3. __Run-time dispatch__: add the dtype-specific entry to the relevant `c/dispatch_*.c` table.
-4. __Precision tests__: register the kernel in `numkong_test`, usually in the existing `test/test_<family>.cpp` suite.
-5. __Benchmarks__: register the kernel in `numkong_bench`, usually in the existing `bench/bench_<family>.cpp` suite.
+4. __Precision tests__: register the kernel in `numkong_test`, usually in the existing `test/<family>.cpp` suite.
+5. __Benchmarks__: register the kernel in `numkong_bench`, usually in the existing `bench/<family>.cpp` suite.
 
 Use the existing family suite unless the kernel introduces a genuinely new test shape.
 The rule is about coverage and reachability, not about creating a brand new source file for every symbol.
 
 There are two intentional exceptions:
 
-- `cast`: the family-level `nk_cast_*` kernels follow the same header/dispatch/test/bench rule, but scalar conversion helpers are wired through `c/dispatch_other.c` and are covered through `test/test_cast.cpp` and `bench/bench_cast.cpp`.
+- `cast`: the family-level `nk_cast_*` kernels follow the same header/dispatch/test/bench rule, but scalar conversion helpers are wired through `c/dispatch_other.c` and are covered through `test/cast.cpp` and `bench/cast.cpp`.
 - `scalar`: scalar helpers are centrally declared in `include/numkong/scalar.h`, wired through `c/dispatch_other.c`, and currently do not follow the per-helper `numkong_test` and `numkong_bench` registration pattern.
 
 ## Wording & Styling

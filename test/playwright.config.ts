@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
     testDir: '.',
-    testMatch: ['test-browser-runner.mjs', 'test-browser-bundle-runner.mjs'],
+    testMatch: ['browser-runner.mjs', 'browser-bundle-runner.mjs'],
     timeout: 120000,
     reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
     use: {

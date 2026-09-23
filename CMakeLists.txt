@@ -550,13 +550,13 @@ endif ()
 if (NK_BUILD_BENCH OR NK_BUILD_CUDA_BENCH)
     add_executable(
         numkong_bench
-        bench/bench.cpp bench/bench_dot.cpp bench/bench_spatial.cpp bench/bench_set.cpp bench/bench_curved.cpp
-        bench/bench_probability.cpp bench/bench_each.cpp bench/bench_trigonometry.cpp bench/bench_geospatial.cpp
-        bench/bench_mesh.cpp bench/bench_sparse.cpp bench/bench_cast.cpp bench/bench_reduce.cpp
+        bench/bench.cpp bench/dot.cpp bench/spatial.cpp bench/set.cpp bench/curved.cpp bench/probability.cpp
+        bench/each.cpp bench/trigonometry.cpp bench/geospatial.cpp bench/mesh.cpp bench/sparse.cpp bench/cast.cpp
+        bench/reduce.cpp
         # ISA-family cross/batch files for parallel compilation
-        bench/bench_cross_serial.cpp bench/bench_cross_x86.cpp bench/bench_cross_amx.cpp bench/bench_cross_arm.cpp
-        bench/bench_cross_sme.cpp bench/bench_cross_blas.cpp bench/bench_cross_rvv.cpp bench/bench_cross_power.cpp
-        bench/bench_cross_wasm.cpp bench/bench_cross_loongarch.cpp bench/bench_maxsim.cpp
+        bench/cross_serial.cpp bench/cross_x86.cpp bench/cross_amx.cpp bench/cross_arm.cpp bench/cross_sme.cpp
+        bench/cross_blas.cpp bench/cross_rvv.cpp bench/cross_power.cpp bench/cross_wasm.cpp bench/cross_loongarch.cpp
+        bench/maxsim.cpp
     )
     target_link_libraries(numkong_bench numkong_header Threads::Threads benchmark)
 
@@ -611,13 +611,12 @@ if (NK_BUILD_TEST)
     # C++ precision test (ULP-based error analysis)
     add_executable(
         numkong_test
-        test/test.cpp test/test_dot.cpp test/test_spatial.cpp test/test_set.cpp test/test_curved.cpp
-        test/test_probability.cpp test/test_each.cpp test/test_trigonometry.cpp test/test_geospatial.cpp
-        test/test_mesh.cpp test/test_cast.cpp test/test_reduce.cpp test/test_sparse.cpp
+        test/test.cpp test/dot.cpp test/spatial.cpp test/set.cpp test/curved.cpp test/probability.cpp test/each.cpp
+        test/trigonometry.cpp test/geospatial.cpp test/mesh.cpp test/cast.cpp test/reduce.cpp test/sparse.cpp
         # ISA-family cross/batch files for parallel compilation
-        test/test_cross_serial.cpp test/test_cross_x86.cpp test/test_cross_amx.cpp test/test_cross_arm.cpp
-        test/test_cross_sme.cpp test/test_cross_blas.cpp test/test_cross_rvv.cpp test/test_cross_power.cpp
-        test/test_cross_loongarch.cpp test/test_cross_wasm.cpp test/test_maxsim.cpp test/test_tensor.cpp
+        test/cross_serial.cpp test/cross_x86.cpp test/cross_amx.cpp test/cross_arm.cpp test/cross_sme.cpp
+        test/cross_blas.cpp test/cross_rvv.cpp test/cross_power.cpp test/cross_loongarch.cpp test/cross_wasm.cpp
+        test/maxsim.cpp test/tensor.cpp
     )
     target_link_libraries(numkong_test numkong_header ${NK_CXX_MATH_LIB_})
 
@@ -813,12 +812,11 @@ if (NK_BUILD_SHARED_TEST)
 
     add_executable(
         numkong_shared_test
-        test/test.cpp test/test_dot.cpp test/test_spatial.cpp test/test_set.cpp test/test_curved.cpp
-        test/test_probability.cpp test/test_each.cpp test/test_trigonometry.cpp test/test_geospatial.cpp
-        test/test_mesh.cpp test/test_cast.cpp test/test_reduce.cpp test/test_sparse.cpp test/test_cross_serial.cpp
-        test/test_cross_x86.cpp test/test_cross_amx.cpp test/test_cross_arm.cpp test/test_cross_sme.cpp
-        test/test_cross_blas.cpp test/test_cross_rvv.cpp test/test_cross_power.cpp test/test_cross_loongarch.cpp
-        test/test_cross_wasm.cpp test/test_maxsim.cpp test/test_tensor.cpp
+        test/test.cpp test/dot.cpp test/spatial.cpp test/set.cpp test/curved.cpp test/probability.cpp test/each.cpp
+        test/trigonometry.cpp test/geospatial.cpp test/mesh.cpp test/cast.cpp test/reduce.cpp test/sparse.cpp
+        test/cross_serial.cpp test/cross_x86.cpp test/cross_amx.cpp test/cross_arm.cpp test/cross_sme.cpp
+        test/cross_blas.cpp test/cross_rvv.cpp test/cross_power.cpp test/cross_loongarch.cpp test/cross_wasm.cpp
+        test/maxsim.cpp test/tensor.cpp
     )
     target_include_directories(numkong_shared_test PRIVATE "${PROJECT_SOURCE_DIR}/include")
     target_compile_definitions(numkong_shared_test PRIVATE NK_RUNTIME_DISPATCH=1)
@@ -901,10 +899,10 @@ if (NK_BUILD_CUDA_TEST)
     add_test(NAME numkong_cuda_test COMMAND numkong_cuda_test)
 endif ()
 
-# CUDA rows in the same `numkong_bench`, from bench/bench_cross_cuda.cu, with optional cuBLAS, cuDNN and cuVS baselines.
+# CUDA rows in the same `numkong_bench`, from bench/cross_cuda.cu, with optional cuBLAS, cuDNN and cuVS baselines.
 if (NK_BUILD_CUDA_BENCH)
     find_package(CUDAToolkit REQUIRED)
-    target_sources(numkong_bench PRIVATE bench/bench_cross_cuda.cu)
+    target_sources(numkong_bench PRIVATE bench/cross_cuda.cu)
     set_target_properties(
         numkong_bench PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO
                                  CUDA_ARCHITECTURES "${NK_CUDA_ARCHITECTURES}"

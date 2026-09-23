@@ -206,6 +206,8 @@ stubPath = "python"
 
 [tool.pytest.ini_options]
 addopts = ["--showlocals", "--strict-config", "--strict-markers", "-ra"]
+python_files = ["*.py"]
+testpaths = ["test"]
 filterwarnings = ["error"]
 minversion = "6.0"
 xfail_strict = true

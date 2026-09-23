@@ -301,9 +301,9 @@ npm test                                # Node.js native addon
 JavaScript tests support multiple WASM runtimes via the `NK_RUNTIME` environment variable.
 
 ```sh
-NK_RUNTIME=emscripten node --test test/test-wasm.mjs      # Emscripten 32-bit
-NK_RUNTIME=emscripten64 node --test test/test-wasm.mjs    # Emscripten 64-bit, Memory64
-NK_RUNTIME=wasi-node node --test test/test-wasm.mjs       # WASI via Node.js
+NK_RUNTIME=emscripten node --test test/wasm.mjs      # Emscripten 32-bit
+NK_RUNTIME=emscripten64 node --test test/wasm.mjs    # Emscripten 64-bit, Memory64
+NK_RUNTIME=wasi-node node --test test/wasm.mjs       # WASI via Node.js
 npx playwright test --config test/playwright.config.ts    # Browser via Playwright
 ```
 

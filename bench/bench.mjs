@@ -300,7 +300,7 @@ async function runBrowserBenchmarks() {
     });
 
     // Build URL with query parameters
-    const benchmarkUrl = `http://127.0.0.1:8888/bench/bench-browser.html?dimensions=${CONFIG.dimensions}&iterations=${CONFIG.iterations}&filter=${encodeURIComponent(CONFIG.filter.source)}&seed=${CONFIG.seed}`;
+    const benchmarkUrl = `http://127.0.0.1:8888/bench/browser.html?dimensions=${CONFIG.dimensions}&iterations=${CONFIG.iterations}&filter=${encodeURIComponent(CONFIG.filter.source)}&seed=${CONFIG.seed}`;
 
     console.log('✓ Chromium launched');
     console.log(`\nNavigating to: ${benchmarkUrl}`);

@@ -1,0 +1,268 @@
+/**
+ *  @brief Batch operation tests - WASM ISA family.
+ *  @file test/cross_wasm.cpp
+ *  @author Ash Vardanian
+ *  @date March 5, 2026
+ *
+ *  The strict tier carries the bf16, i8, u8 and u1 GEMMs and the packing routines every module shares;
+ *  the relaxed tier carries every other dtype and its own bf16, i8 and u8 twins.
+ */
+#include "test.hpp"
+#include "cross.cuh"
+
+using namespace ashvardanian::numkong::test;
+
+void test_cross_wasm() {
+    [[maybe_unused]] error_stats_section_t check;
+#if NK_TARGET_V128RELAXED
+    check.section("Cross V128 Relaxed", nk_cap_v128relaxed_k);
+    check("dots_packed_f64_v128relaxed", test_dots_packed<f64_t>, nk_dots_pack_size_f64_v128relaxed,
+          nk_dots_pack_f64_v128relaxed, nk_dots_packed_f64_v128relaxed);
+    check("dots_pack_f64_v128relaxed",
+          test_dots_pack_layout<f64_t, host_backend_t, nk_dots_pack_size_f64_v128relaxed,
+                                nk_dots_packed_shape_f64_v128relaxed, nk_dots_pack_f64_v128relaxed>);
+    check("dots_packed_f32_v128relaxed", test_dots_packed<f32_t>, nk_dots_pack_size_f32_v128relaxed,
+          nk_dots_pack_f32_v128relaxed, nk_dots_packed_f32_v128relaxed);
+    check("dots_pack_f32_v128relaxed",
+          test_dots_pack_layout<f32_t, host_backend_t, nk_dots_pack_size_f32_v128relaxed,
+                                nk_dots_packed_shape_f32_v128relaxed, nk_dots_pack_f32_v128relaxed>);
+    check("dots_packed_bf16_v128relaxed", test_dots_packed<bf16_t>, nk_dots_pack_size_bf16_v128relaxed,
+          nk_dots_pack_bf16_v128relaxed, nk_dots_packed_bf16_v128relaxed);
+    check("dots_pack_bf16_v128relaxed",
+          test_dots_pack_layout<bf16_t, host_backend_t, nk_dots_pack_size_bf16_v128relaxed,
+                                nk_dots_packed_shape_bf16_v128relaxed, nk_dots_pack_bf16_v128relaxed>);
+    check("dots_packed_f16_v128relaxed", test_dots_packed<f16_t>, nk_dots_pack_size_f16_v128relaxed,
+          nk_dots_pack_f16_v128relaxed, nk_dots_packed_f16_v128relaxed);
+    check("dots_pack_f16_v128relaxed",
+          test_dots_pack_layout<f16_t, host_backend_t, nk_dots_pack_size_f16_v128relaxed,
+                                nk_dots_packed_shape_f16_v128relaxed, nk_dots_pack_f16_v128relaxed>);
+    check("dots_packed_e5m2_v128relaxed", test_dots_packed<e5m2_t>, nk_dots_pack_size_e5m2_v128relaxed,
+          nk_dots_pack_e5m2_v128relaxed, nk_dots_packed_e5m2_v128relaxed);
+    check("dots_pack_e5m2_v128relaxed",
+          test_dots_pack_layout<e5m2_t, host_backend_t, nk_dots_pack_size_e5m2_v128relaxed,
+                                nk_dots_packed_shape_e5m2_v128relaxed, nk_dots_pack_e5m2_v128relaxed>);
+    check("dots_packed_e4m3_v128relaxed", test_dots_packed<e4m3_t>, nk_dots_pack_size_e4m3_v128relaxed,
+          nk_dots_pack_e4m3_v128relaxed, nk_dots_packed_e4m3_v128relaxed);
+    check("dots_pack_e4m3_v128relaxed",
+          test_dots_pack_layout<e4m3_t, host_backend_t, nk_dots_pack_size_e4m3_v128relaxed,
+                                nk_dots_packed_shape_e4m3_v128relaxed, nk_dots_pack_e4m3_v128relaxed>);
+    check("dots_packed_e3m2_v128relaxed", test_dots_packed<e3m2_t>, nk_dots_pack_size_e3m2_v128relaxed,
+          nk_dots_pack_e3m2_v128relaxed, nk_dots_packed_e3m2_v128relaxed);
+    check("dots_pack_e3m2_v128relaxed",
+          test_dots_pack_layout<e3m2_t, host_backend_t, nk_dots_pack_size_e3m2_v128relaxed,
+                                nk_dots_packed_shape_e3m2_v128relaxed, nk_dots_pack_e3m2_v128relaxed>);
+    check("dots_packed_e2m3_v128relaxed", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_v128relaxed,
+          nk_dots_pack_e2m3_v128relaxed, nk_dots_packed_e2m3_v128relaxed);
+    check("dots_pack_e2m3_v128relaxed",
+          test_dots_pack_layout<e2m3_t, host_backend_t, nk_dots_pack_size_e2m3_v128relaxed,
+                                nk_dots_packed_shape_e2m3_v128relaxed, nk_dots_pack_e2m3_v128relaxed>);
+    check("dots_packed_e2m1_v128relaxed", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_v128relaxed,
+          nk_dots_pack_e2m1_v128relaxed, nk_dots_packed_e2m1_v128relaxed);
+    check("dots_pack_e2m1_v128relaxed",
+          test_dots_pack_layout<e2m1x2_t, host_backend_t, nk_dots_pack_size_e2m1_v128relaxed,
+                                nk_dots_packed_shape_e2m1_v128relaxed, nk_dots_pack_e2m1_v128relaxed>);
+    check("dots_packed_i8_v128relaxed", test_dots_packed<i8_t>, nk_dots_pack_size_i8_v128relaxed,
+          nk_dots_pack_i8_v128relaxed, nk_dots_packed_i8_v128relaxed);
+    check("dots_pack_i8_v128relaxed",
+          test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8_v128relaxed,
+                                nk_dots_packed_shape_i8_v128relaxed, nk_dots_pack_i8_v128relaxed>);
+    check("dots_packed_i4_v128relaxed", test_dots_packed<i4x2_t>, nk_dots_pack_size_i4_v128relaxed,
+          nk_dots_pack_i4_v128relaxed, nk_dots_packed_i4_v128relaxed);
+    check("dots_pack_i4_v128relaxed",
+          test_dots_pack_layout<i4x2_t, host_backend_t, nk_dots_pack_size_i4_v128relaxed,
+                                nk_dots_packed_shape_i4_v128relaxed, nk_dots_pack_i4_v128relaxed>);
+    check("dots_packed_u8_v128relaxed", test_dots_packed<u8_t>, nk_dots_pack_size_u8_v128relaxed,
+          nk_dots_pack_u8_v128relaxed, nk_dots_packed_u8_v128relaxed);
+    check("dots_pack_u8_v128relaxed",
+          test_dots_pack_layout<u8_t, host_backend_t, nk_dots_pack_size_u8_v128relaxed,
+                                nk_dots_packed_shape_u8_v128relaxed, nk_dots_pack_u8_v128relaxed>);
+    check("dots_packed_u4_v128relaxed", test_dots_packed<u4x2_t>, nk_dots_pack_size_u4_v128relaxed,
+          nk_dots_pack_u4_v128relaxed, nk_dots_packed_u4_v128relaxed);
+    check("dots_pack_u4_v128relaxed",
+          test_dots_pack_layout<u4x2_t, host_backend_t, nk_dots_pack_size_u4_v128relaxed,
+                                nk_dots_packed_shape_u4_v128relaxed, nk_dots_pack_u4_v128relaxed>);
+
+    check("dots_symmetric_f64_v128relaxed", test_dots_symmetric<f64_t>, nk_dots_symmetric_f64_v128relaxed);
+    check("dots_symmetric_f32_v128relaxed", test_dots_symmetric<f32_t>, nk_dots_symmetric_f32_v128relaxed);
+    check("dots_symmetric_bf16_v128relaxed", test_dots_symmetric<bf16_t>, nk_dots_symmetric_bf16_v128relaxed);
+    check("dots_symmetric_f16_v128relaxed", test_dots_symmetric<f16_t>, nk_dots_symmetric_f16_v128relaxed);
+    check("dots_symmetric_e5m2_v128relaxed", test_dots_symmetric<e5m2_t>, nk_dots_symmetric_e5m2_v128relaxed);
+    check("dots_symmetric_e4m3_v128relaxed", test_dots_symmetric<e4m3_t>, nk_dots_symmetric_e4m3_v128relaxed);
+    check("dots_symmetric_e3m2_v128relaxed", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2_v128relaxed);
+    check("dots_symmetric_e2m3_v128relaxed", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3_v128relaxed);
+    check("dots_symmetric_e2m1_v128relaxed", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1_v128relaxed);
+    check("dots_symmetric_i8_v128relaxed", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8_v128relaxed);
+    check("dots_symmetric_i4_v128relaxed", test_dots_symmetric<i4x2_t>, nk_dots_symmetric_i4_v128relaxed);
+    check("dots_symmetric_u8_v128relaxed", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_v128relaxed);
+    check("dots_symmetric_u4_v128relaxed", test_dots_symmetric<u4x2_t>, nk_dots_symmetric_u4_v128relaxed);
+
+    check("angulars_packed_f64_v128relaxed", test_angulars_packed<f64_t>, nk_dots_pack_size_f64_v128relaxed,
+          nk_dots_pack_f64_v128relaxed, nk_angulars_packed_f64_v128relaxed);
+    check("angulars_packed_f32_v128relaxed", test_angulars_packed<f32_t>, nk_dots_pack_size_f32_v128relaxed,
+          nk_dots_pack_f32_v128relaxed, nk_angulars_packed_f32_v128relaxed);
+    check("angulars_packed_bf16_v128relaxed", test_angulars_packed<bf16_t>, nk_dots_pack_size_bf16_v128relaxed,
+          nk_dots_pack_bf16_v128relaxed, nk_angulars_packed_bf16_v128relaxed);
+    check("angulars_packed_f16_v128relaxed", test_angulars_packed<f16_t>, nk_dots_pack_size_f16_v128relaxed,
+          nk_dots_pack_f16_v128relaxed, nk_angulars_packed_f16_v128relaxed);
+    check("angulars_packed_e5m2_v128relaxed", test_angulars_packed<e5m2_t>, nk_dots_pack_size_e5m2_v128relaxed,
+          nk_dots_pack_e5m2_v128relaxed, nk_angulars_packed_e5m2_v128relaxed);
+    check("angulars_packed_e4m3_v128relaxed", test_angulars_packed<e4m3_t>, nk_dots_pack_size_e4m3_v128relaxed,
+          nk_dots_pack_e4m3_v128relaxed, nk_angulars_packed_e4m3_v128relaxed);
+    check("angulars_packed_e3m2_v128relaxed", test_angulars_packed<e3m2_t>, nk_dots_pack_size_e3m2_v128relaxed,
+          nk_dots_pack_e3m2_v128relaxed, nk_angulars_packed_e3m2_v128relaxed);
+    check("angulars_packed_e2m3_v128relaxed", test_angulars_packed<e2m3_t>, nk_dots_pack_size_e2m3_v128relaxed,
+          nk_dots_pack_e2m3_v128relaxed, nk_angulars_packed_e2m3_v128relaxed);
+    check("angulars_packed_e2m1_v128relaxed", test_angulars_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_v128relaxed,
+          nk_dots_pack_e2m1_v128relaxed, nk_angulars_packed_e2m1_v128relaxed);
+    check("angulars_packed_i8_v128relaxed", test_angulars_packed<i8_t>, nk_dots_pack_size_i8_v128relaxed,
+          nk_dots_pack_i8_v128relaxed, nk_angulars_packed_i8_v128relaxed);
+    check("angulars_packed_u8_v128relaxed", test_angulars_packed<u8_t>, nk_dots_pack_size_u8_v128relaxed,
+          nk_dots_pack_u8_v128relaxed, nk_angulars_packed_u8_v128relaxed);
+
+    check("angulars_symmetric_f64_v128relaxed", test_angulars_symmetric<f64_t>, nk_angulars_symmetric_f64_v128relaxed);
+    check("angulars_symmetric_f32_v128relaxed", test_angulars_symmetric<f32_t>, nk_angulars_symmetric_f32_v128relaxed);
+    check("angulars_symmetric_bf16_v128relaxed", test_angulars_symmetric<bf16_t>,
+          nk_angulars_symmetric_bf16_v128relaxed);
+    check("angulars_symmetric_f16_v128relaxed", test_angulars_symmetric<f16_t>, nk_angulars_symmetric_f16_v128relaxed);
+    check("angulars_symmetric_e5m2_v128relaxed", test_angulars_symmetric<e5m2_t>,
+          nk_angulars_symmetric_e5m2_v128relaxed);
+    check("angulars_symmetric_e4m3_v128relaxed", test_angulars_symmetric<e4m3_t>,
+          nk_angulars_symmetric_e4m3_v128relaxed);
+    check("angulars_symmetric_e3m2_v128relaxed", test_angulars_symmetric<e3m2_t>,
+          nk_angulars_symmetric_e3m2_v128relaxed);
+    check("angulars_symmetric_e2m3_v128relaxed", test_angulars_symmetric<e2m3_t>,
+          nk_angulars_symmetric_e2m3_v128relaxed);
+    check("angulars_symmetric_e2m1_v128relaxed", test_angulars_symmetric<e2m1x2_t>,
+          nk_angulars_symmetric_e2m1_v128relaxed);
+    check("angulars_symmetric_i8_v128relaxed", test_angulars_symmetric<i8_t>, nk_angulars_symmetric_i8_v128relaxed);
+    check("angulars_symmetric_u8_v128relaxed", test_angulars_symmetric<u8_t>, nk_angulars_symmetric_u8_v128relaxed);
+
+    check("euclideans_packed_f64_v128relaxed", test_euclideans_packed<f64_t>, nk_dots_pack_size_f64_v128relaxed,
+          nk_dots_pack_f64_v128relaxed, nk_euclideans_packed_f64_v128relaxed);
+    check("euclideans_packed_f32_v128relaxed", test_euclideans_packed<f32_t>, nk_dots_pack_size_f32_v128relaxed,
+          nk_dots_pack_f32_v128relaxed, nk_euclideans_packed_f32_v128relaxed);
+    check("euclideans_packed_bf16_v128relaxed", test_euclideans_packed<bf16_t>, nk_dots_pack_size_bf16_v128relaxed,
+          nk_dots_pack_bf16_v128relaxed, nk_euclideans_packed_bf16_v128relaxed);
+    check("euclideans_packed_f16_v128relaxed", test_euclideans_packed<f16_t>, nk_dots_pack_size_f16_v128relaxed,
+          nk_dots_pack_f16_v128relaxed, nk_euclideans_packed_f16_v128relaxed);
+    check("euclideans_packed_e5m2_v128relaxed", test_euclideans_packed<e5m2_t>, nk_dots_pack_size_e5m2_v128relaxed,
+          nk_dots_pack_e5m2_v128relaxed, nk_euclideans_packed_e5m2_v128relaxed);
+    check("euclideans_packed_e4m3_v128relaxed", test_euclideans_packed<e4m3_t>, nk_dots_pack_size_e4m3_v128relaxed,
+          nk_dots_pack_e4m3_v128relaxed, nk_euclideans_packed_e4m3_v128relaxed);
+    check("euclideans_packed_e3m2_v128relaxed", test_euclideans_packed<e3m2_t>, nk_dots_pack_size_e3m2_v128relaxed,
+          nk_dots_pack_e3m2_v128relaxed, nk_euclideans_packed_e3m2_v128relaxed);
+    check("euclideans_packed_e2m3_v128relaxed", test_euclideans_packed<e2m3_t>, nk_dots_pack_size_e2m3_v128relaxed,
+          nk_dots_pack_e2m3_v128relaxed, nk_euclideans_packed_e2m3_v128relaxed);
+    check("euclideans_packed_e2m1_v128relaxed", test_euclideans_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_v128relaxed,
+          nk_dots_pack_e2m1_v128relaxed, nk_euclideans_packed_e2m1_v128relaxed);
+    check("euclideans_packed_i8_v128relaxed", test_euclideans_packed<i8_t>, nk_dots_pack_size_i8_v128relaxed,
+          nk_dots_pack_i8_v128relaxed, nk_euclideans_packed_i8_v128relaxed);
+    check("euclideans_packed_u8_v128relaxed", test_euclideans_packed<u8_t>, nk_dots_pack_size_u8_v128relaxed,
+          nk_dots_pack_u8_v128relaxed, nk_euclideans_packed_u8_v128relaxed);
+
+    check("euclideans_symmetric_f64_v128relaxed", test_euclideans_symmetric<f64_t>,
+          nk_euclideans_symmetric_f64_v128relaxed);
+    check("euclideans_symmetric_f32_v128relaxed", test_euclideans_symmetric<f32_t>,
+          nk_euclideans_symmetric_f32_v128relaxed);
+    check("euclideans_symmetric_bf16_v128relaxed", test_euclideans_symmetric<bf16_t>,
+          nk_euclideans_symmetric_bf16_v128relaxed);
+    check("euclideans_symmetric_f16_v128relaxed", test_euclideans_symmetric<f16_t>,
+          nk_euclideans_symmetric_f16_v128relaxed);
+    check("euclideans_symmetric_e5m2_v128relaxed", test_euclideans_symmetric<e5m2_t>,
+          nk_euclideans_symmetric_e5m2_v128relaxed);
+    check("euclideans_symmetric_e4m3_v128relaxed", test_euclideans_symmetric<e4m3_t>,
+          nk_euclideans_symmetric_e4m3_v128relaxed);
+    check("euclideans_symmetric_e3m2_v128relaxed", test_euclideans_symmetric<e3m2_t>,
+          nk_euclideans_symmetric_e3m2_v128relaxed);
+    check("euclideans_symmetric_e2m3_v128relaxed", test_euclideans_symmetric<e2m3_t>,
+          nk_euclideans_symmetric_e2m3_v128relaxed);
+    check("euclideans_symmetric_e2m1_v128relaxed", test_euclideans_symmetric<e2m1x2_t>,
+          nk_euclideans_symmetric_e2m1_v128relaxed);
+    check("euclideans_symmetric_i8_v128relaxed", test_euclideans_symmetric<i8_t>,
+          nk_euclideans_symmetric_i8_v128relaxed);
+    check("euclideans_symmetric_u8_v128relaxed", test_euclideans_symmetric<u8_t>,
+          nk_euclideans_symmetric_u8_v128relaxed);
+
+    check("attention_bidirectional_packed_bf16_v128relaxed", test_attention_bidirectional_packed<bf16_t>,
+          nk_attention_pack_size_bf16_v128, nk_attention_pack_bf16_v128,
+          nk_attention_bidirectional_packed_bf16_v128relaxed);
+    check("attention_causal_packed_bf16_v128relaxed", test_attention_causal_packed<bf16_t>,
+          nk_attention_pack_size_bf16_v128, nk_attention_pack_bf16_v128, nk_attention_causal_packed_bf16_v128relaxed);
+    check("attention_bidirectional_packed_e4m3_v128relaxed", test_attention_bidirectional_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_v128, nk_attention_pack_e4m3_v128,
+          nk_attention_bidirectional_packed_e4m3_v128relaxed);
+    check("attention_causal_packed_e4m3_v128relaxed", test_attention_causal_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_v128, nk_attention_pack_e4m3_v128, nk_attention_causal_packed_e4m3_v128relaxed);
+    check("attention_bidirectional_packed_i8_v128relaxed", test_attention_bidirectional_packed<i8_t>,
+          nk_attention_pack_size_i8_v128, nk_attention_pack_i8_v128, nk_attention_bidirectional_packed_i8_v128relaxed);
+    check("attention_causal_packed_i8_v128relaxed", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_v128,
+          nk_attention_pack_i8_v128, nk_attention_causal_packed_i8_v128relaxed);
+#endif // NK_TARGET_V128RELAXED
+
+#if NK_TARGET_V128
+    check.section("Cross V128", nk_cap_v128_k);
+    check("dots_packed_bf16_v128", test_dots_packed<bf16_t>, nk_dots_pack_size_bf16_v128, nk_dots_pack_bf16_v128,
+          nk_dots_packed_bf16_v128);
+    check("dots_pack_bf16_v128", test_dots_pack_layout<bf16_t, host_backend_t, nk_dots_pack_size_bf16_v128,
+                                                       nk_dots_packed_shape_bf16_v128, nk_dots_pack_bf16_v128>);
+    check("dots_packed_i8_v128", test_dots_packed<i8_t>, nk_dots_pack_size_i8_v128, nk_dots_pack_i8_v128,
+          nk_dots_packed_i8_v128);
+    check("dots_pack_i8_v128", test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8_v128,
+                                                     nk_dots_packed_shape_i8_v128, nk_dots_pack_i8_v128>);
+    check("dots_packed_u8_v128", test_dots_packed<u8_t>, nk_dots_pack_size_u8_v128, nk_dots_pack_u8_v128,
+          nk_dots_packed_u8_v128);
+    check("dots_pack_u8_v128", test_dots_pack_layout<u8_t, host_backend_t, nk_dots_pack_size_u8_v128,
+                                                     nk_dots_packed_shape_u8_v128, nk_dots_pack_u8_v128>);
+    check("dots_packed_u1_v128", test_dots_packed<u1x8_t>, nk_dots_pack_size_u1_v128, nk_dots_pack_u1_v128,
+          nk_dots_packed_u1_v128);
+    check("dots_pack_u1_v128", test_dots_pack_layout<u1x8_t, host_backend_t, nk_dots_pack_size_u1_v128,
+                                                     nk_dots_packed_shape_u1_v128, nk_dots_pack_u1_v128>);
+
+    check("dots_symmetric_bf16_v128", test_dots_symmetric<bf16_t>, nk_dots_symmetric_bf16_v128);
+    check("dots_symmetric_i8_v128", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8_v128);
+    check("dots_symmetric_u8_v128", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_v128);
+    check("dots_symmetric_u1_v128", test_dots_symmetric<u1x8_t>, nk_dots_symmetric_u1_v128);
+
+    check("angulars_packed_bf16_v128", test_angulars_packed<bf16_t>, nk_dots_pack_size_bf16_v128,
+          nk_dots_pack_bf16_v128, nk_angulars_packed_bf16_v128);
+    check("angulars_packed_i8_v128", test_angulars_packed<i8_t>, nk_dots_pack_size_i8_v128, nk_dots_pack_i8_v128,
+          nk_angulars_packed_i8_v128);
+    check("angulars_packed_u8_v128", test_angulars_packed<u8_t>, nk_dots_pack_size_u8_v128, nk_dots_pack_u8_v128,
+          nk_angulars_packed_u8_v128);
+
+    check("angulars_symmetric_bf16_v128", test_angulars_symmetric<bf16_t>, nk_angulars_symmetric_bf16_v128);
+    check("angulars_symmetric_i8_v128", test_angulars_symmetric<i8_t>, nk_angulars_symmetric_i8_v128);
+    check("angulars_symmetric_u8_v128", test_angulars_symmetric<u8_t>, nk_angulars_symmetric_u8_v128);
+
+    check("euclideans_packed_bf16_v128", test_euclideans_packed<bf16_t>, nk_dots_pack_size_bf16_v128,
+          nk_dots_pack_bf16_v128, nk_euclideans_packed_bf16_v128);
+    check("euclideans_packed_i8_v128", test_euclideans_packed<i8_t>, nk_dots_pack_size_i8_v128, nk_dots_pack_i8_v128,
+          nk_euclideans_packed_i8_v128);
+    check("euclideans_packed_u8_v128", test_euclideans_packed<u8_t>, nk_dots_pack_size_u8_v128, nk_dots_pack_u8_v128,
+          nk_euclideans_packed_u8_v128);
+
+    check("euclideans_symmetric_bf16_v128", test_euclideans_symmetric<bf16_t>, nk_euclideans_symmetric_bf16_v128);
+    check("euclideans_symmetric_i8_v128", test_euclideans_symmetric<i8_t>, nk_euclideans_symmetric_i8_v128);
+    check("euclideans_symmetric_u8_v128", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_v128);
+
+    check("hammings_packed_u1_v128", test_hammings_packed<u1x8_t>, nk_dots_pack_size_u1_v128, nk_dots_pack_u1_v128,
+          nk_hammings_packed_u1_v128);
+    check("jaccards_packed_u1_v128", test_jaccards_packed<u1x8_t>, nk_dots_pack_size_u1_v128, nk_dots_pack_u1_v128,
+          nk_jaccards_packed_u1_v128);
+    check("hammings_symmetric_u1_v128", test_hammings_symmetric<u1x8_t>, nk_hammings_symmetric_u1_v128);
+    check("jaccards_symmetric_u1_v128", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1_v128);
+
+    check("attention_bidirectional_packed_bf16_v128", test_attention_bidirectional_packed<bf16_t>,
+          nk_attention_pack_size_bf16_v128, nk_attention_pack_bf16_v128, nk_attention_bidirectional_packed_bf16_serial);
+    check("attention_causal_packed_bf16_v128", test_attention_causal_packed<bf16_t>, nk_attention_pack_size_bf16_v128,
+          nk_attention_pack_bf16_v128, nk_attention_causal_packed_bf16_serial);
+    check("attention_bidirectional_packed_e4m3_v128", test_attention_bidirectional_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_v128, nk_attention_pack_e4m3_v128, nk_attention_bidirectional_packed_e4m3_serial);
+    check("attention_causal_packed_e4m3_v128", test_attention_causal_packed<e4m3_t>, nk_attention_pack_size_e4m3_v128,
+          nk_attention_pack_e4m3_v128, nk_attention_causal_packed_e4m3_serial);
+    check("attention_bidirectional_packed_i8_v128", test_attention_bidirectional_packed<i8_t>,
+          nk_attention_pack_size_i8_v128, nk_attention_pack_i8_v128, nk_attention_bidirectional_packed_i8_serial);
+    check("attention_causal_packed_i8_v128", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_v128,
+          nk_attention_pack_i8_v128, nk_attention_causal_packed_i8_serial);
+#endif // NK_TARGET_V128
+}
