@@ -9,6 +9,8 @@
 
 #include "bench.hpp"
 
+using namespace ashvardanian::numkong::bench;
+
 void bench_spatial() {
     constexpr nk_dtype_t i4_k = nk_i4_k;
     constexpr nk_dtype_t u4_k = nk_u4_k;

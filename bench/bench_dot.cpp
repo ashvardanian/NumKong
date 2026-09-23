@@ -11,6 +11,8 @@
 
 #include "bench.hpp"
 
+using namespace ashvardanian::numkong::bench;
+
 #if NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
 
 void dot_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {

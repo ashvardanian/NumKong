@@ -10,6 +10,8 @@
 
 #include "bench.hpp"
 
+using namespace ashvardanian::numkong::bench;
+
 /**
  *  @brief Measures the performance of a reduce_moments kernel (sum + sumsq).
  */

@@ -5,7 +5,9 @@
  *  @date January 14, 2025
  */
 #include "test.hpp"
-#include "test_cross.hpp"
+#include "test_cross.cuh"
+
+using namespace ashvardanian::numkong::test;
 
 void test_cross_sme() {
     [[maybe_unused]] error_stats_section_t check;
@@ -13,26 +15,48 @@ void test_cross_sme() {
     check.section("Cross SME", nk_cap_sme_k);
     check("dots_packed_bf16_sme", test_dots_packed<bf16_t>, nk_dots_pack_size_bf16_sme, nk_dots_pack_bf16_sme,
           nk_dots_packed_bf16_sme);
+    check("dots_pack_bf16_sme", test_dots_pack_layout<bf16_t, host_backend_t, nk_dots_pack_size_bf16_sme,
+                                                      nk_dots_packed_shape_bf16_sme, nk_dots_pack_bf16_sme>);
     check("dots_packed_f16_sme", test_dots_packed<f16_t>, nk_dots_pack_size_f16_sme, nk_dots_pack_f16_sme,
           nk_dots_packed_f16_sme);
+    check("dots_pack_f16_sme", test_dots_pack_layout<f16_t, host_backend_t, nk_dots_pack_size_f16_sme,
+                                                     nk_dots_packed_shape_f16_sme, nk_dots_pack_f16_sme>);
     check("dots_packed_e5m2_sme", test_dots_packed<e5m2_t>, nk_dots_pack_size_e5m2_sme, nk_dots_pack_e5m2_sme,
           nk_dots_packed_e5m2_sme);
+    check("dots_pack_e5m2_sme", test_dots_pack_layout<e5m2_t, host_backend_t, nk_dots_pack_size_e5m2_sme,
+                                                      nk_dots_packed_shape_e5m2_sme, nk_dots_pack_e5m2_sme>);
     check("dots_packed_e4m3_sme", test_dots_packed<e4m3_t>, nk_dots_pack_size_e4m3_sme, nk_dots_pack_e4m3_sme,
           nk_dots_packed_e4m3_sme);
+    check("dots_pack_e4m3_sme", test_dots_pack_layout<e4m3_t, host_backend_t, nk_dots_pack_size_e4m3_sme,
+                                                      nk_dots_packed_shape_e4m3_sme, nk_dots_pack_e4m3_sme>);
     check("dots_packed_e3m2_sme", test_dots_packed<e3m2_t>, nk_dots_pack_size_e3m2_sme, nk_dots_pack_e3m2_sme,
           nk_dots_packed_e3m2_sme);
+    check("dots_pack_e3m2_sme", test_dots_pack_layout<e3m2_t, host_backend_t, nk_dots_pack_size_e3m2_sme,
+                                                      nk_dots_packed_shape_e3m2_sme, nk_dots_pack_e3m2_sme>);
     check("dots_packed_e2m3_sme", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_sme, nk_dots_pack_e2m3_sme,
           nk_dots_packed_e2m3_sme);
+    check("dots_pack_e2m3_sme", test_dots_pack_layout<e2m3_t, host_backend_t, nk_dots_pack_size_e2m3_sme,
+                                                      nk_dots_packed_shape_e2m3_sme, nk_dots_pack_e2m3_sme>);
     check("dots_packed_e2m1_sme", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_sme, nk_dots_pack_e2m1_sme,
           nk_dots_packed_e2m1_sme);
+    check("dots_pack_e2m1_sme", test_dots_pack_layout<e2m1x2_t, host_backend_t, nk_dots_pack_size_e2m1_sme,
+                                                      nk_dots_packed_shape_e2m1_sme, nk_dots_pack_e2m1_sme>);
     check("dots_packed_i8_sme", test_dots_packed<i8_t>, nk_dots_pack_size_i8_sme, nk_dots_pack_i8_sme,
           nk_dots_packed_i8_sme);
+    check("dots_pack_i8_sme", test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8_sme,
+                                                    nk_dots_packed_shape_i8_sme, nk_dots_pack_i8_sme>);
     check("dots_packed_i4_sme", test_dots_packed<i4x2_t>, nk_dots_pack_size_i4_sme, nk_dots_pack_i4_sme,
           nk_dots_packed_i4_sme);
+    check("dots_pack_i4_sme", test_dots_pack_layout<i4x2_t, host_backend_t, nk_dots_pack_size_i4_sme,
+                                                    nk_dots_packed_shape_i4_sme, nk_dots_pack_i4_sme>);
     check("dots_packed_u8_sme", test_dots_packed<u8_t>, nk_dots_pack_size_u8_sme, nk_dots_pack_u8_sme,
           nk_dots_packed_u8_sme);
+    check("dots_pack_u8_sme", test_dots_pack_layout<u8_t, host_backend_t, nk_dots_pack_size_u8_sme,
+                                                    nk_dots_packed_shape_u8_sme, nk_dots_pack_u8_sme>);
     check("dots_packed_u4_sme", test_dots_packed<u4x2_t>, nk_dots_pack_size_u4_sme, nk_dots_pack_u4_sme,
           nk_dots_packed_u4_sme);
+    check("dots_pack_u4_sme", test_dots_pack_layout<u4x2_t, host_backend_t, nk_dots_pack_size_u4_sme,
+                                                    nk_dots_packed_shape_u4_sme, nk_dots_pack_u4_sme>);
 
     check("dots_symmetric_bf16_sme", test_dots_symmetric<bf16_t>, nk_dots_symmetric_bf16_sme);
     check("dots_symmetric_f16_sme", test_dots_symmetric<f16_t>, nk_dots_symmetric_f16_sme);
@@ -134,6 +158,8 @@ void test_cross_sme() {
     check.section("Cross SME BI32", nk_cap_smebi32_k);
     check("dots_packed_u1_smebi32", test_dots_packed<u1x8_t>, nk_dots_pack_size_u1_smebi32, nk_dots_pack_u1_smebi32,
           nk_dots_packed_u1_smebi32);
+    check("dots_pack_u1_smebi32", test_dots_pack_layout<u1x8_t, host_backend_t, nk_dots_pack_size_u1_smebi32,
+                                                        nk_dots_packed_shape_u1_smebi32, nk_dots_pack_u1_smebi32>);
     check("dots_symmetric_u1_smebi32", test_dots_symmetric<u1x8_t>, nk_dots_symmetric_u1_smebi32);
 
     check("hammings_packed_u1_smebi32", test_hammings_packed<u1x8_t>, nk_dots_pack_size_u1_smebi32,
@@ -149,8 +175,12 @@ void test_cross_sme() {
     check.section("Cross SME F64", nk_cap_smef64_k);
     check("dots_packed_f64_smef64", test_dots_packed<f64_t>, nk_dots_pack_size_f64_smef64, nk_dots_pack_f64_smef64,
           nk_dots_packed_f64_smef64);
+    check("dots_pack_f64_smef64", test_dots_pack_layout<f64_t, host_backend_t, nk_dots_pack_size_f64_smef64,
+                                                        nk_dots_packed_shape_f64_smef64, nk_dots_pack_f64_smef64>);
     check("dots_packed_f32_smef64", test_dots_packed<f32_t>, nk_dots_pack_size_f32_smef64, nk_dots_pack_f32_smef64,
           nk_dots_packed_f32_smef64);
+    check("dots_pack_f32_smef64", test_dots_pack_layout<f32_t, host_backend_t, nk_dots_pack_size_f32_smef64,
+                                                        nk_dots_packed_shape_f32_smef64, nk_dots_pack_f32_smef64>);
     check("dots_symmetric_f64_smef64", test_dots_symmetric<f64_t>, nk_dots_symmetric_f64_smef64);
     check("dots_symmetric_f32_smef64", test_dots_symmetric<f32_t>, nk_dots_symmetric_f32_smef64);
 

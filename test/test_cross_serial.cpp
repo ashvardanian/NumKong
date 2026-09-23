@@ -5,39 +5,69 @@
  *  @date January 14, 2025
  */
 #include "test.hpp"
-#include "test_cross.hpp"
+#include "test_cross.cuh"
+
+using namespace ashvardanian::numkong::test;
 
 void test_cross_serial() {
     error_stats_section_t check;
     check.section("Cross Serial", nk_cap_serial_k);
     check("dots_packed_f64_serial", test_dots_packed<f64_t>, nk_dots_pack_size_f64_serial, nk_dots_pack_f64_serial,
           nk_dots_packed_f64_serial);
+    check("dots_pack_f64_serial", test_dots_pack_layout<f64_t, host_backend_t, nk_dots_pack_size_f64_serial,
+                                                        nk_dots_packed_shape_f64_serial, nk_dots_pack_f64_serial>);
     check("dots_packed_f32_serial", test_dots_packed<f32_t>, nk_dots_pack_size_f32_serial, nk_dots_pack_f32_serial,
           nk_dots_packed_f32_serial);
+    check("dots_pack_f32_serial", test_dots_pack_layout<f32_t, host_backend_t, nk_dots_pack_size_f32_serial,
+                                                        nk_dots_packed_shape_f32_serial, nk_dots_pack_f32_serial>);
     check("dots_packed_bf16_serial", test_dots_packed<bf16_t>, nk_dots_pack_size_bf16_serial, nk_dots_pack_bf16_serial,
           nk_dots_packed_bf16_serial);
+    check("dots_pack_bf16_serial", test_dots_pack_layout<bf16_t, host_backend_t, nk_dots_pack_size_bf16_serial,
+                                                         nk_dots_packed_shape_bf16_serial, nk_dots_pack_bf16_serial>);
     check("dots_packed_f16_serial", test_dots_packed<f16_t>, nk_dots_pack_size_f16_serial, nk_dots_pack_f16_serial,
           nk_dots_packed_f16_serial);
+    check("dots_pack_f16_serial", test_dots_pack_layout<f16_t, host_backend_t, nk_dots_pack_size_f16_serial,
+                                                        nk_dots_packed_shape_f16_serial, nk_dots_pack_f16_serial>);
     check("dots_packed_e5m2_serial", test_dots_packed<e5m2_t>, nk_dots_pack_size_e5m2_serial, nk_dots_pack_e5m2_serial,
           nk_dots_packed_e5m2_serial);
+    check("dots_pack_e5m2_serial", test_dots_pack_layout<e5m2_t, host_backend_t, nk_dots_pack_size_e5m2_serial,
+                                                         nk_dots_packed_shape_e5m2_serial, nk_dots_pack_e5m2_serial>);
     check("dots_packed_e4m3_serial", test_dots_packed<e4m3_t>, nk_dots_pack_size_e4m3_serial, nk_dots_pack_e4m3_serial,
           nk_dots_packed_e4m3_serial);
+    check("dots_pack_e4m3_serial", test_dots_pack_layout<e4m3_t, host_backend_t, nk_dots_pack_size_e4m3_serial,
+                                                         nk_dots_packed_shape_e4m3_serial, nk_dots_pack_e4m3_serial>);
     check("dots_packed_e3m2_serial", test_dots_packed<e3m2_t>, nk_dots_pack_size_e3m2_serial, nk_dots_pack_e3m2_serial,
           nk_dots_packed_e3m2_serial);
+    check("dots_pack_e3m2_serial", test_dots_pack_layout<e3m2_t, host_backend_t, nk_dots_pack_size_e3m2_serial,
+                                                         nk_dots_packed_shape_e3m2_serial, nk_dots_pack_e3m2_serial>);
     check("dots_packed_e2m3_serial", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_serial, nk_dots_pack_e2m3_serial,
           nk_dots_packed_e2m3_serial);
+    check("dots_pack_e2m3_serial", test_dots_pack_layout<e2m3_t, host_backend_t, nk_dots_pack_size_e2m3_serial,
+                                                         nk_dots_packed_shape_e2m3_serial, nk_dots_pack_e2m3_serial>);
     check("dots_packed_e2m1_serial", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_serial,
           nk_dots_pack_e2m1_serial, nk_dots_packed_e2m1_serial);
+    check("dots_pack_e2m1_serial", test_dots_pack_layout<e2m1x2_t, host_backend_t, nk_dots_pack_size_e2m1_serial,
+                                                         nk_dots_packed_shape_e2m1_serial, nk_dots_pack_e2m1_serial>);
     check("dots_packed_i8_serial", test_dots_packed<i8_t>, nk_dots_pack_size_i8_serial, nk_dots_pack_i8_serial,
           nk_dots_packed_i8_serial);
+    check("dots_pack_i8_serial", test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8_serial,
+                                                       nk_dots_packed_shape_i8_serial, nk_dots_pack_i8_serial>);
     check("dots_packed_i4_serial", test_dots_packed<i4x2_t>, nk_dots_pack_size_i4_serial, nk_dots_pack_i4_serial,
           nk_dots_packed_i4_serial);
+    check("dots_pack_i4_serial", test_dots_pack_layout<i4x2_t, host_backend_t, nk_dots_pack_size_i4_serial,
+                                                       nk_dots_packed_shape_i4_serial, nk_dots_pack_i4_serial>);
     check("dots_packed_u8_serial", test_dots_packed<u8_t>, nk_dots_pack_size_u8_serial, nk_dots_pack_u8_serial,
           nk_dots_packed_u8_serial);
+    check("dots_pack_u8_serial", test_dots_pack_layout<u8_t, host_backend_t, nk_dots_pack_size_u8_serial,
+                                                       nk_dots_packed_shape_u8_serial, nk_dots_pack_u8_serial>);
     check("dots_packed_u4_serial", test_dots_packed<u4x2_t>, nk_dots_pack_size_u4_serial, nk_dots_pack_u4_serial,
           nk_dots_packed_u4_serial);
+    check("dots_pack_u4_serial", test_dots_pack_layout<u4x2_t, host_backend_t, nk_dots_pack_size_u4_serial,
+                                                       nk_dots_packed_shape_u4_serial, nk_dots_pack_u4_serial>);
     check("dots_packed_u1_serial", test_dots_packed<u1x8_t>, nk_dots_pack_size_u1_serial, nk_dots_pack_u1_serial,
           nk_dots_packed_u1_serial);
+    check("dots_pack_u1_serial", test_dots_pack_layout<u1x8_t, host_backend_t, nk_dots_pack_size_u1_serial,
+                                                       nk_dots_packed_shape_u1_serial, nk_dots_pack_u1_serial>);
 
     // Serial symmetric tests
     check("dots_symmetric_f64_serial", test_dots_symmetric<f64_t>, nk_dots_symmetric_f64_serial);
@@ -173,13 +203,32 @@ void test_cross_serial() {
 #if NK_RUNTIME_DISPATCH
     check.section("Cross Runtime Dispatch", nk_cap_serial_k);
     check("dots_packed_f64", test_dots_packed<f64_t>, nk_dots_pack_size_f64, nk_dots_pack_f64, nk_dots_packed_f64);
+    check("dots_pack_f64", test_dots_pack_layout<f64_t, host_backend_t, nk_dots_pack_size_f64, nk_dots_packed_shape_f64,
+                                                 nk_dots_pack_f64>);
     check("dots_packed_f32", test_dots_packed<f32_t>, nk_dots_pack_size_f32, nk_dots_pack_f32, nk_dots_packed_f32);
+    check("dots_pack_f32", test_dots_pack_layout<f32_t, host_backend_t, nk_dots_pack_size_f32, nk_dots_packed_shape_f32,
+                                                 nk_dots_pack_f32>);
     check("dots_packed_bf16", test_dots_packed<bf16_t>, nk_dots_pack_size_bf16, nk_dots_pack_bf16, nk_dots_packed_bf16);
+    check("dots_pack_bf16", test_dots_pack_layout<bf16_t, host_backend_t, nk_dots_pack_size_bf16,
+                                                  nk_dots_packed_shape_bf16, nk_dots_pack_bf16>);
     check("dots_packed_f16", test_dots_packed<f16_t>, nk_dots_pack_size_f16, nk_dots_pack_f16, nk_dots_packed_f16);
+    check("dots_pack_f16", test_dots_pack_layout<f16_t, host_backend_t, nk_dots_pack_size_f16, nk_dots_packed_shape_f16,
+                                                 nk_dots_pack_f16>);
     check("dots_packed_i8", test_dots_packed<i8_t>, nk_dots_pack_size_i8, nk_dots_pack_i8, nk_dots_packed_i8);
+    check("dots_pack_i8",
+          test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8, nk_dots_packed_shape_i8, nk_dots_pack_i8>);
     check("dots_packed_i4", test_dots_packed<i4x2_t>, nk_dots_pack_size_i4, nk_dots_pack_i4, nk_dots_packed_i4);
+    check(
+        "dots_pack_i4",
+        test_dots_pack_layout<i4x2_t, host_backend_t, nk_dots_pack_size_i4, nk_dots_packed_shape_i4, nk_dots_pack_i4>);
     check("dots_packed_u4", test_dots_packed<u4x2_t>, nk_dots_pack_size_u4, nk_dots_pack_u4, nk_dots_packed_u4);
+    check(
+        "dots_pack_u4",
+        test_dots_pack_layout<u4x2_t, host_backend_t, nk_dots_pack_size_u4, nk_dots_packed_shape_u4, nk_dots_pack_u4>);
     check("dots_packed_u1", test_dots_packed<u1x8_t>, nk_dots_pack_size_u1, nk_dots_pack_u1, nk_dots_packed_u1);
+    check(
+        "dots_pack_u1",
+        test_dots_pack_layout<u1x8_t, host_backend_t, nk_dots_pack_size_u1, nk_dots_packed_shape_u1, nk_dots_pack_u1>);
 
     check("dots_symmetric_f64", test_dots_symmetric<f64_t>, nk_dots_symmetric_f64);
     check("dots_symmetric_f32", test_dots_symmetric<f32_t>, nk_dots_symmetric_f32);
@@ -202,12 +251,24 @@ void test_cross_serial() {
     check("jaccards_symmetric_u1", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1);
 
     check("dots_packed_e5m2", test_dots_packed<e5m2_t>, nk_dots_pack_size_e5m2, nk_dots_pack_e5m2, nk_dots_packed_e5m2);
+    check("dots_pack_e5m2", test_dots_pack_layout<e5m2_t, host_backend_t, nk_dots_pack_size_e5m2,
+                                                  nk_dots_packed_shape_e5m2, nk_dots_pack_e5m2>);
     check("dots_packed_e4m3", test_dots_packed<e4m3_t>, nk_dots_pack_size_e4m3, nk_dots_pack_e4m3, nk_dots_packed_e4m3);
+    check("dots_pack_e4m3", test_dots_pack_layout<e4m3_t, host_backend_t, nk_dots_pack_size_e4m3,
+                                                  nk_dots_packed_shape_e4m3, nk_dots_pack_e4m3>);
     check("dots_packed_e3m2", test_dots_packed<e3m2_t>, nk_dots_pack_size_e3m2, nk_dots_pack_e3m2, nk_dots_packed_e3m2);
+    check("dots_pack_e3m2", test_dots_pack_layout<e3m2_t, host_backend_t, nk_dots_pack_size_e3m2,
+                                                  nk_dots_packed_shape_e3m2, nk_dots_pack_e3m2>);
     check("dots_packed_e2m3", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3, nk_dots_pack_e2m3, nk_dots_packed_e2m3);
+    check("dots_pack_e2m3", test_dots_pack_layout<e2m3_t, host_backend_t, nk_dots_pack_size_e2m3,
+                                                  nk_dots_packed_shape_e2m3, nk_dots_pack_e2m3>);
     check("dots_packed_e2m1", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1, nk_dots_pack_e2m1,
           nk_dots_packed_e2m1);
+    check("dots_pack_e2m1", test_dots_pack_layout<e2m1x2_t, host_backend_t, nk_dots_pack_size_e2m1,
+                                                  nk_dots_packed_shape_e2m1, nk_dots_pack_e2m1>);
     check("dots_packed_u8", test_dots_packed<u8_t>, nk_dots_pack_size_u8, nk_dots_pack_u8, nk_dots_packed_u8);
+    check("dots_pack_u8",
+          test_dots_pack_layout<u8_t, host_backend_t, nk_dots_pack_size_u8, nk_dots_packed_shape_u8, nk_dots_pack_u8>);
 
     check("dots_symmetric_e3m2", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2);
     check("dots_symmetric_e2m3", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3);

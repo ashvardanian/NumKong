@@ -8,6 +8,8 @@
 #include "test.hpp"
 #include "numkong/probability.hpp" // `nk::kld`
 
+using namespace ashvardanian::numkong::test;
+
 /**
  *  @brief Template for KL divergence test.
  *  KLD requires probability distributions: all values > 0, sum to 1.

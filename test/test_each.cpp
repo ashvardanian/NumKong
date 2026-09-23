@@ -9,6 +9,8 @@
 #include "numkong/each.hpp"         // `nk::sum`, `nk::scale`, `nk::blend`, `nk::fma`
 #include "numkong/trigonometry.hpp" // `nk::try_sin`, `nk::try_cos`, `nk::try_atan` wrappers
 
+using namespace ashvardanian::numkong::test;
+
 template <typename scalar_type_, typename generator_type_>
 typename scalar_type_::scale_t random_coef(generator_type_ &gen) {
     using scale_t = typename scalar_type_::scale_t;

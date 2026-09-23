@@ -12,7 +12,9 @@
 #include "numkong/sets.h"
 #include "numkong/spatials.h"
 
-#include "bench.hpp"
+#include "bench_cross.cuh"
+
+using namespace ashvardanian::numkong::bench;
 
 void bench_cross_loongarch() {
     constexpr nk_dtype_t f64_k = nk_f64_k;

@@ -39,17 +39,26 @@
 #include <cstdlib> // `std::abort`
 #include <cstring> // `std::memcpy`, `std::strstr`
 
-#include <algorithm> // `std::min`, `std::max`
-#include <array>     // `std::array`
-#include <cassert>   // `assert`
-#include <chrono>    // `std::chrono::steady_clock`, `std::chrono::duration_cast`
-#include <complex>   // `std::complex`
-#include <limits>    // `std::numeric_limits`
-#include <new>       // `std::bad_alloc`
-#include <optional>  // `std::optional`
+#include <algorithm>   // `std::min`, `std::max`
+#include <array>       // `std::array`
+#include <cassert>     // `assert`
+#include <chrono>      // `std::chrono::steady_clock`, `std::chrono::duration_cast`
+#include <complex>     // `std::complex`
+#include <limits>      // `std::numeric_limits`
+#include <new>         // `std::bad_alloc`
+#include <optional>    // `std::optional`
+#include <type_traits> // `std::is_same_v`
 
 #if NK_TEST_USE_OPENMP
 #include <omp.h>
+#endif
+
+#if __has_include(<regex.h>)
+#include <regex.h>
+#define NK_HAS_POSIX_REGEX_ 1
+#else
+#include <regex>
+#define NK_HAS_POSIX_REGEX_ 0
 #endif
 
 #ifndef NK_ALLOW_ISA_REDIRECT
@@ -94,8 +103,18 @@
 #include "numkong/trigonometry.hpp"
 #include "numkong/spatials.hpp"
 #include "numkong/random.hpp" // `nk::fill_uniform`
+#include "numkong/vector.hpp" // `nk::aligned_allocator`
 
 namespace nk = ashvardanian::numkong;
+
+template class nk::vector<int>;
+template class nk::vector<nk::i32_t>;
+template class nk::vector<nk::u1x8_t>;
+template class nk::vector<nk::i4x2_t>;
+template class nk::vector<nk::f64c_t>;
+template class nk::vector<std::complex<float>>;
+
+namespace ashvardanian::numkong::test {
 
 using nk::bf16_t;
 using nk::bf16c_t;
@@ -154,13 +173,6 @@ using reference_for = std::conditional_t<
         std::conditional_t<std::is_same_v<input_type_, f32c_t> || std::is_same_v<input_type_, f64c_t>, f118c_t, f64c_t>,
         f64_t>>;
 
-template class nk::vector<int>;
-template class nk::vector<nk::i32_t>;
-template class nk::vector<nk::u1x8_t>;
-template class nk::vector<nk::i4x2_t>;
-template class nk::vector<nk::f64c_t>;
-template class nk::vector<std::complex<float>>;
-
 enum class random_distribution_kind_t { uniform_k, lognormal_k, cauchy_k };
 enum class comparison_family_t {
     exact_k,
@@ -168,8 +180,9 @@ enum class comparison_family_t {
     normalized_reduction_k,
     probability_k,
     geospatial_k,
+    bounded_k,
 };
-enum class comparison_failure_mode_t { exact_distance_k, ulp_threshold_k, scale_threshold_k };
+enum class comparison_failure_mode_t { exact_distance_k, ulp_threshold_k, scale_threshold_k, bound_threshold_k };
 
 struct comparison_family_spec_t {
     comparison_failure_mode_t failure_mode;
@@ -191,6 +204,9 @@ inline constexpr comparison_family_spec_t comparison_family_spec(comparison_fami
         // where ULP distance explodes on quantization-level noise; the meaningful bound is
         // the absolute error relative to the largest reference magnitude.
         return {comparison_failure_mode_t::scale_threshold_k, {"max_abs", "max_rel", "mean_ulp", "max_ulp", "exact"}};
+    case comparison_family_t::bounded_k:
+        // Each result carries its own error bound, derived from the arithmetic the backend accumulates with.
+        return {comparison_failure_mode_t::bound_threshold_k, {"max_abs", "max_rel", "max_bound", "max_ulp", "exact"}};
     }
     return {comparison_failure_mode_t::ulp_threshold_k, {"max_abs", "max_rel", "mean_ulp", "max_ulp", "exact"}};
 }
@@ -236,10 +252,100 @@ struct test_config_t {
     std::size_t matrix_depth = 1536;
     /** Max angular separation in degrees for geospatial tests. Override: `NK_MAX_COORD_ANGLE`. */
     float max_coord_angle = 180.0f;
+    /** Count of kernels that ran their accuracy checks. */
+    std::size_t kernel_count = 0;
     /** Count of kernels that failed the configured accuracy checks. */
     std::size_t failure_count = 0;
 
-    bool should_run(char const *test_name) const;
+    bool should_run(char const *test_name) const {
+        if (!filter) return true;
+#if NK_HAS_POSIX_REGEX_
+        regex_t pattern;
+        int return_code = regcomp(&pattern, filter, REG_EXTENDED | REG_NOSUB);
+        if (return_code != 0) return std::strstr(test_name, filter) != nullptr;
+        return_code = regexec(&pattern, test_name, 0, nullptr, 0);
+        regfree(&pattern);
+        return return_code == 0;
+#else
+        try {
+            std::regex pattern(filter);
+            return std::regex_search(test_name, pattern);
+        }
+        catch (std::regex_error const &) {
+            return std::strstr(test_name, filter) != nullptr;
+        }
+#endif
+    }
+
+    /** @brief Applies the `NK_*` environment overrides on top of whatever the command line already set. */
+    void load_environment() {
+        if (std::getenv("NK_IN_QEMU")) running_in_qemu = true;
+        if (char const *env = std::getenv("NK_TEST_ASSERT")) assert_on_failure = std::atoi(env) != 0;
+        if (char const *env = std::getenv("NK_TEST_VERBOSE")) verbose = std::atoi(env) != 0;
+        if (char const *env = std::getenv("NK_ULP_THRESHOLD_F32")) ulp_threshold_f32 = std::atoll(env);
+        if (char const *env = std::getenv("NK_ULP_THRESHOLD_F16")) ulp_threshold_f16 = std::atoll(env);
+        if (char const *env = std::getenv("NK_ULP_THRESHOLD_BF16")) ulp_threshold_bf16 = std::atoll(env);
+        if (char const *env = std::getenv("NK_SCALE_THRESHOLD")) scale_threshold = std::atof(env);
+        if (char const *env = std::getenv("NK_SEED")) seed = std::atoll(env);
+        if (!filter) filter = std::getenv("NK_FILTER"); // e.g., "dot", "angular", "kld"
+
+        if (time_budget_ms == 1000) {
+            if (char const *env = std::getenv("NK_BUDGET_SECS")) {
+                double seconds = std::atof(env);
+                if (seconds > 0) time_budget_ms = static_cast<std::size_t>(seconds * 1000);
+            }
+        }
+
+        if (char const *env = std::getenv("NK_RANDOM_DISTRIBUTION")) {
+            if (std::strcmp(env, "uniform_k") == 0) distribution = random_distribution_kind_t::uniform_k;
+            else if (std::strcmp(env, "cauchy_k") == 0) distribution = random_distribution_kind_t::cauchy_k;
+            else if (std::strcmp(env, "lognormal_k") == 0) distribution = random_distribution_kind_t::lognormal_k;
+        }
+
+        // Parse dimension overrides from environment variables
+        if (char const *env = std::getenv("NK_DENSE_DIMENSIONS")) {
+            std::size_t val = static_cast<std::size_t>(std::atoll(env));
+            if (val > 0) dense_dimensions = val;
+        }
+        if (char const *env = std::getenv("NK_CURVED_DIMENSIONS")) {
+            std::size_t val = static_cast<std::size_t>(std::atoll(env));
+            if (val > 0) curved_dimensions = val;
+        }
+        if (char const *env = std::getenv("NK_SPARSE_DIMENSIONS")) {
+            std::size_t val = static_cast<std::size_t>(std::atoll(env));
+            if (val > 0) sparse_dimensions = val;
+        }
+        if (char const *env = std::getenv("NK_MESH_POINTS")) {
+            std::size_t val = static_cast<std::size_t>(std::atoll(env));
+            if (val > 0) mesh_points = val;
+        }
+        if (char const *env = std::getenv("NK_MATRIX_HEIGHT")) {
+            std::size_t val = static_cast<std::size_t>(std::atoll(env));
+            if (val > 0) matrix_height = val;
+        }
+        if (char const *env = std::getenv("NK_MATRIX_WIDTH")) {
+            std::size_t val = static_cast<std::size_t>(std::atoll(env));
+            if (val > 0) matrix_width = val;
+        }
+        if (char const *env = std::getenv("NK_MATRIX_DEPTH")) {
+            std::size_t val = static_cast<std::size_t>(std::atoll(env));
+            if (val > 0) matrix_depth = val;
+        }
+        if (char const *env = std::getenv("NK_MAX_COORD_ANGLE")) {
+            float val = static_cast<float>(std::atof(env));
+            if (val > 0) max_coord_angle = val;
+        }
+
+        // Shrink dimensions for QEMU — divides whatever value is currently stored,
+        // so explicit env-var or CLI overrides are proportionally reduced too.
+        if (running_in_qemu) {
+            dense_dimensions = std::max<std::size_t>(1, dense_dimensions / 4);
+            matrix_height = std::max<std::size_t>(1, matrix_height / 4);
+            matrix_width = std::max<std::size_t>(1, matrix_width / 4);
+            matrix_depth = std::max<std::size_t>(1, matrix_depth / 4);
+            mesh_points = std::max<std::size_t>(1, mesh_points / 4);
+        }
+    }
 
     std::uint64_t ulp_threshold_for(char const *kernel_name) const noexcept {
         if (std::strstr(kernel_name, "_bf16")) return ulp_threshold_bf16;
@@ -258,7 +364,14 @@ struct test_config_t {
 };
 
 extern test_config_t global_config;
-void print_stats_header(comparison_family_t family) noexcept;
+
+inline void print_stats_header(comparison_family_t family) noexcept {
+    comparison_family_spec_t const spec = comparison_family_spec(family);
+    std::printf("%-40s %12s %10s %12s %12s %10s\n", "Kernel", spec.column_labels[0], spec.column_labels[1],
+                spec.column_labels[2], spec.column_labels[3], spec.column_labels[4]);
+    std::printf("\n");
+}
+
 struct error_stats_t;
 bool should_fail(char const *kernel_name, error_stats_t const &stats) noexcept;
 void print_stats_row(char const *kernel_name, error_stats_t const &stats) noexcept;
@@ -268,21 +381,18 @@ void print_stats_row(char const *kernel_name, error_stats_t const &stats) noexce
  *  Set before each kernel call, cleared after. A signal handler installed in
  *  main() reads this to log the culprit before the process exits.
  */
-inline char const *volatile nk_test_current_kernel_ = nullptr;
-
-/** @brief `#if NK_TARGET_X` says the compiler could build a kernel; this says the CPU can run it. */
-inline bool isa_available(nk_capability_t cap) noexcept {
-    static nk_capability_t const caps = nk_capabilities_detected();
-    return (caps & cap) != 0;
-}
+extern char const *volatile nk_test_current_kernel_;
 
 struct error_stats_section_t {
     char const *title = nullptr;
     nk_capability_t required = nk_cap_serial_k;
+    nk_capability_t available;
     std::optional<comparison_family_t> last_family = std::nullopt;
     bool emitted_any = false;
 
-    error_stats_section_t() noexcept = default;
+    /** @brief Runs only kernels whose family is in @p available: `#if NK_TARGET_X` says built, this says runnable. */
+    explicit error_stats_section_t(nk_capability_t available = nk_capabilities_detected()) noexcept
+        : available(available) {}
 
     /** @brief Restart under a new heading, for kernels needing @p cap. */
     void section(char const *heading, nk_capability_t cap) noexcept {
@@ -292,9 +402,15 @@ struct error_stats_section_t {
         last_family.reset();
     }
 
+    /** @brief Runs @p test_fn over @p kernels, deducing a scenario's kernel types from the kernels themselves. */
+    template <typename stats_type_ = error_stats_t, typename... kernels_types_>
+    void operator()(char const *kernel_name, stats_type_ (*test_fn)(kernels_types_...), kernels_types_... kernels) {
+        (*this)(kernel_name, [&] { return test_fn(kernels...); });
+    }
+
     template <typename test_function_type_, typename... args_types_>
     void operator()(char const *kernel_name, test_function_type_ test_fn, args_types_ &&...args) {
-        if (!isa_available(required) || !global_config.should_run(kernel_name)) return;
+        if ((available & required) == 0 || !global_config.should_run(kernel_name)) return;
 
         nk_test_current_kernel_ = kernel_name;
         auto stats = test_fn(std::forward<args_types_>(args)...);
@@ -312,6 +428,7 @@ struct error_stats_section_t {
             last_family = stats.family;
         }
         print_stats_row(kernel_name, stats);
+        ++global_config.kernel_count;
         if (global_config.assert_on_failure && should_fail(kernel_name, stats)) ++global_config.failure_count;
     }
 };
@@ -415,8 +532,11 @@ struct error_stats_t {
     std::uint64_t max_ulp = 0;
     f118_t sum_ulp = f118_t();
 
+    nk_f64_t max_bound_ratio = 0;
+
     std::size_t count = 0;
     std::size_t exact_matches = 0;
+    std::size_t failed_expectations = 0;
     bool saw_floating_distance = false;
     char const *first_failure = nullptr;
 
@@ -425,7 +545,18 @@ struct error_stats_t {
     /** @brief Record a boolean property; @p property names it in the report when it does not hold. */
     void expect(bool held, char const *property) noexcept {
         if (!held && !first_failure) first_failure = property;
+        failed_expectations += !held;
         accumulate(static_cast<int>(held), 1);
+    }
+
+    /** @brief Record one result against its reference, failing when the error exceeds @p bound or is NaN. */
+    template <typename actual_type_>
+    void accumulate_bounded(actual_type_ actual, nk_f64_t expected, nk_f64_t bound) noexcept {
+        nk_f64_t const error = std::fabs(static_cast<nk_f64_t>(actual) - expected);
+        nk_f64_t const ratio = error == 0 ? 0 : error / bound;
+        max_bound_ratio = std::isnan(ratio) ? std::numeric_limits<nk_f64_t>::infinity()
+                                            : std::max(max_bound_ratio, ratio);
+        accumulate_scalar(actual, expected);
     }
 
     template <typename actual_type_, typename expected_type_>
@@ -507,13 +638,16 @@ struct error_stats_t {
         min_ulp = std::min(min_ulp, other.min_ulp);
         max_ulp = std::max(max_ulp, other.max_ulp);
         sum_ulp += other.sum_ulp;
+        max_bound_ratio = std::max(max_bound_ratio, other.max_bound_ratio);
         count += other.count;
         exact_matches += other.exact_matches;
+        failed_expectations += other.failed_expectations;
         saw_floating_distance = saw_floating_distance || other.saw_floating_distance;
     }
 };
 
 inline bool should_fail(char const *kernel_name, error_stats_t const &stats) noexcept {
+    if (stats.failed_expectations) return true;
     comparison_family_spec_t const spec = comparison_family_spec(stats.family);
     switch (spec.failure_mode) {
     case comparison_failure_mode_t::exact_distance_k:
@@ -523,6 +657,7 @@ inline bool should_fail(char const *kernel_name, error_stats_t const &stats) noe
         return stats.max_ulp > global_config.ulp_threshold_for(kernel_name);
     case comparison_failure_mode_t::scale_threshold_k:
         return stats.max_abs_err > global_config.scale_threshold * stats.max_reference;
+    case comparison_failure_mode_t::bound_threshold_k: return !(stats.max_bound_ratio <= 1);
     }
     return false;
 }
@@ -547,9 +682,14 @@ inline void print_stats_row(char const *kernel_name, error_stats_t const &stats)
         std::printf("%-40s %12.2e %10.2e %12.2e %12llu %10zu\n", kernel_name, stats.max_abs_err, stats.max_rel_err,
                     stats.mean_ulp(), static_cast<unsigned long long>(stats.max_ulp), stats.exact_matches);
         break;
+    case comparison_family_t::bounded_k:
+        std::printf("%-40s %12.2e %10.2e %12.2e %12llu %10zu\n", kernel_name, stats.max_abs_err, stats.max_rel_err,
+                    stats.max_bound_ratio, static_cast<unsigned long long>(stats.max_ulp), stats.exact_matches);
+        break;
     }
     // The counters say how many properties failed; this says which one.
-    if (stats.first_failure && stats.mismatches()) std::printf("    first failure: %s\n", stats.first_failure);
+    if (stats.first_failure && (stats.mismatches() || stats.failed_expectations))
+        std::printf("    first failure: %s\n", stats.first_failure);
     std::fflush(stdout);
 }
 
@@ -573,8 +713,8 @@ template <typename type_>
  *  Dispatches to appropriate nk::fill_* library function based on `global_config.distribution`.
  *  Infers sensible bounds from type's representable range.
  */
-template <typename scalar_type_, typename generator_type_>
-void fill_random(generator_type_ &generator, nk::vector<scalar_type_> &vector) {
+template <typename scalar_type_, typename allocator_type_, typename generator_type_>
+void fill_random(generator_type_ &generator, nk::vector<scalar_type_, allocator_type_> &vector) {
     switch (global_config.distribution) {
     case random_distribution_kind_t::uniform_k:
         nk::fill_uniform(generator, vector.values_data(), vector.size_values());
@@ -587,6 +727,65 @@ void fill_random(generator_type_ &generator, nk::vector<scalar_type_> &vector) {
         break;
     }
 }
+
+#pragma region Host Backend
+
+/** The arithmetic a backend accumulates products with, which sets how far its results may land from the reference. */
+enum class accumulation_t {
+    family_thresholds_k, ///< judged by the comparison family's own ULP or scale thresholds
+    exact_k,             ///< integer products summed exactly, compared bit for bit
+    dot2_k,              ///< F64 with TwoProd and TwoSum: two ulp plus 4·γ² of Σ|a·b|
+    f64_k,               ///< products exact in F64 and summed in F64: (depth + 1)·2⁻⁵³ of Σ|a·b|, or exact
+    f32_k,               ///< products exact in F32 and summed in F32: (depth + 1)·2⁻²⁴ of Σ|a·b|, or exact
+    tensor_core_k,       ///< 32-deep MMA blocks into F32, truncated to ~22 bits: (depth / 32 + 1)·2⁻²² of Σ|a·b|
+};
+
+/** Runs the CPU kernels in place: operands in host memory, direct calls, results readable at once. */
+struct host_backend_t {
+    /** The allocator every kernel operand comes from. */
+    template <typename value_type_>
+    using allocator = aligned_allocator<value_type_>;
+
+    /** Dots of @p scalar_type_ accumulate integers exactly, F64 in Dot2, F32 in F64, and narrower floats in F32. */
+    template <typename scalar_type_>
+    static constexpr accumulation_t dots_accumulation() noexcept {
+        using result_t = typename scalar_type_::dot_result_t;
+        if constexpr (is_integral_dtype<result_t>()) return accumulation_t::exact_k;
+        else if constexpr (std::is_same_v<scalar_type_, f64_t>) return accumulation_t::dot2_k;
+        else if constexpr (std::is_same_v<result_t, f64_t>) return accumulation_t::f64_k;
+        else return accumulation_t::f32_k;
+    }
+
+    /** Distances of @p scalar_type_ keep the comparison family's ULP thresholds. */
+    template <typename scalar_type_>
+    static constexpr accumulation_t spatials_accumulation() noexcept {
+        return accumulation_t::family_thresholds_k;
+    }
+
+    /** Row stride for rows of @p row_bytes: exactly one row, so the tightest stride stays covered. */
+    static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return row_bytes; }
+
+    /** Copies @p bytes between host buffers. */
+    void copy(void *destination, void const *source, std::size_t bytes) noexcept {
+        std::memcpy(destination, source, bytes);
+    }
+
+    /** Zeroes @p bytes of a host buffer. */
+    void zero(void *destination, std::size_t bytes) noexcept { std::memset(destination, 0, bytes); }
+
+    /** Calls @p kernel with @p arguments. */
+    template <typename kernel_type_, typename... arguments_types_>
+    void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
+        kernel(arguments...);
+    }
+
+    /** Nothing runs asynchronously on the host, so nothing fails later. */
+    char const *synchronize() noexcept { return nullptr; }
+};
+
+#pragma endregion Host Backend
+
+} // namespace ashvardanian::numkong::test
 
 // Forward declarations for test modules
 void test_casts();

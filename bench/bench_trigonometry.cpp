@@ -9,6 +9,8 @@
 
 #include "bench.hpp"
 
+using namespace ashvardanian::numkong::bench;
+
 template <typename scalar_type_>
 struct sin_with_stl {
     scalar_type_ operator()(scalar_type_ x) const { return std::sin(x); }

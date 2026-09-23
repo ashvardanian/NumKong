@@ -9,13 +9,8 @@
 #include <io.h> // `_write`
 #endif
 
-#if __has_include(<regex.h>)
-#include <regex.h>
-#include <unistd.h>
-#define NK_HAS_POSIX_REGEX_ 1
-#else
-#include <regex>
-#define NK_HAS_POSIX_REGEX_ 0
+#if __has_include(<unistd.h>)
+#include <unistd.h> // `isatty`, `write`
 #endif
 
 #include "numkong/capabilities.h" // nk_capabilities, nk_configure_thread
@@ -28,7 +23,11 @@
 #endif
 
 #include "test.hpp"
-#include "test_cross.hpp"
+
+using namespace ashvardanian::numkong::test;
+
+test_config_t nk::test::global_config;
+char const *volatile nk::test::nk_test_current_kernel_ = nullptr;
 
 // Explicit instantiations to verify `random.hpp` compiles for all code paths:
 //  - f64_t:   scalar float path
@@ -97,35 +96,6 @@ static void print_isa(char const *name, int compiled, nk_capability_t cap, nk_ca
     if (!compiled && !runtime) return;
     std::printf("  %s ", name);
     print_indicator_dual(compiled != 0, runtime);
-}
-
-test_config_t global_config;
-
-bool test_config_t::should_run(char const *test_name) const {
-    if (!filter) return true;
-#if NK_HAS_POSIX_REGEX_
-    regex_t pattern;
-    int return_code = regcomp(&pattern, filter, REG_EXTENDED | REG_NOSUB);
-    if (return_code != 0) return std::strstr(test_name, filter) != nullptr;
-    return_code = regexec(&pattern, test_name, 0, nullptr, 0);
-    regfree(&pattern);
-    return return_code == 0;
-#else
-    try {
-        std::regex pattern(filter);
-        return std::regex_search(test_name, pattern);
-    }
-    catch (std::regex_error const &) {
-        return std::strstr(test_name, filter) != nullptr;
-    }
-#endif
-}
-
-void print_stats_header(comparison_family_t family) noexcept {
-    comparison_family_spec_t const spec = comparison_family_spec(family);
-    std::printf("%-40s %12s %10s %12s %12s %10s\n", "Kernel", spec.column_labels[0], spec.column_labels[1],
-                spec.column_labels[2], spec.column_labels[3], spec.column_labels[4]);
-    std::printf("\n");
 }
 
 #if NK_HAS_SIGNAL_
@@ -245,73 +215,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (std::getenv("NK_IN_QEMU")) global_config.running_in_qemu = true;
-    if (char const *env = std::getenv("NK_TEST_ASSERT")) global_config.assert_on_failure = std::atoi(env) != 0;
-    if (char const *env = std::getenv("NK_TEST_VERBOSE")) global_config.verbose = std::atoi(env) != 0;
-    if (char const *env = std::getenv("NK_ULP_THRESHOLD_F32")) global_config.ulp_threshold_f32 = std::atoll(env);
-    if (char const *env = std::getenv("NK_ULP_THRESHOLD_F16")) global_config.ulp_threshold_f16 = std::atoll(env);
-    if (char const *env = std::getenv("NK_ULP_THRESHOLD_BF16")) global_config.ulp_threshold_bf16 = std::atoll(env);
-    if (char const *env = std::getenv("NK_SCALE_THRESHOLD")) global_config.scale_threshold = std::atof(env);
-    if (char const *env = std::getenv("NK_SEED")) global_config.seed = std::atoll(env);
-    if (!global_config.filter) global_config.filter = std::getenv("NK_FILTER"); // e.g., "dot", "angular", "kld"
-
-    if (global_config.time_budget_ms == 1000) {
-        if (char const *env = std::getenv("NK_BUDGET_SECS")) {
-            double seconds = std::atof(env);
-            if (seconds > 0) global_config.time_budget_ms = static_cast<std::size_t>(seconds * 1000);
-        }
-    }
-
-    if (char const *env = std::getenv("NK_RANDOM_DISTRIBUTION")) {
-        if (std::strcmp(env, "uniform_k") == 0) global_config.distribution = random_distribution_kind_t::uniform_k;
-        else if (std::strcmp(env, "cauchy_k") == 0) global_config.distribution = random_distribution_kind_t::cauchy_k;
-        else if (std::strcmp(env, "lognormal_k") == 0)
-            global_config.distribution = random_distribution_kind_t::lognormal_k;
-    }
-
-    // Parse dimension overrides from environment variables
-    if (char const *env = std::getenv("NK_DENSE_DIMENSIONS")) {
-        std::size_t val = static_cast<std::size_t>(std::atoll(env));
-        if (val > 0) global_config.dense_dimensions = val;
-    }
-    if (char const *env = std::getenv("NK_CURVED_DIMENSIONS")) {
-        std::size_t val = static_cast<std::size_t>(std::atoll(env));
-        if (val > 0) global_config.curved_dimensions = val;
-    }
-    if (char const *env = std::getenv("NK_SPARSE_DIMENSIONS")) {
-        std::size_t val = static_cast<std::size_t>(std::atoll(env));
-        if (val > 0) global_config.sparse_dimensions = val;
-    }
-    if (char const *env = std::getenv("NK_MESH_POINTS")) {
-        std::size_t val = static_cast<std::size_t>(std::atoll(env));
-        if (val > 0) global_config.mesh_points = val;
-    }
-    if (char const *env = std::getenv("NK_MATRIX_HEIGHT")) {
-        std::size_t val = static_cast<std::size_t>(std::atoll(env));
-        if (val > 0) global_config.matrix_height = val;
-    }
-    if (char const *env = std::getenv("NK_MATRIX_WIDTH")) {
-        std::size_t val = static_cast<std::size_t>(std::atoll(env));
-        if (val > 0) global_config.matrix_width = val;
-    }
-    if (char const *env = std::getenv("NK_MATRIX_DEPTH")) {
-        std::size_t val = static_cast<std::size_t>(std::atoll(env));
-        if (val > 0) global_config.matrix_depth = val;
-    }
-    if (char const *env = std::getenv("NK_MAX_COORD_ANGLE")) {
-        float val = static_cast<float>(std::atof(env));
-        if (val > 0) global_config.max_coord_angle = val;
-    }
-
-    // Shrink dimensions for QEMU — divides whatever value is currently stored,
-    // so explicit env-var or CLI overrides are proportionally reduced too.
-    if (global_config.running_in_qemu) {
-        global_config.dense_dimensions = std::max<std::size_t>(1, global_config.dense_dimensions / 4);
-        global_config.matrix_height = std::max<std::size_t>(1, global_config.matrix_height / 4);
-        global_config.matrix_width = std::max<std::size_t>(1, global_config.matrix_width / 4);
-        global_config.matrix_depth = std::max<std::size_t>(1, global_config.matrix_depth / 4);
-        global_config.mesh_points = std::max<std::size_t>(1, global_config.mesh_points / 4);
-    }
+    global_config.load_environment();
 
     // Breadcrumbs for crash_handler: if SIGILL fires here, the log shows which call faulted.
     nk_test_current_kernel_ = "nk_capabilities_detected()";

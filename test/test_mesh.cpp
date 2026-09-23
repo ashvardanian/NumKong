@@ -8,6 +8,8 @@
 #include "test.hpp"
 #include "numkong/mesh.hpp" // `nk::rmsd`
 
+using namespace ashvardanian::numkong::test;
+
 /**
  *  @brief Test RMSD kernel.
  */

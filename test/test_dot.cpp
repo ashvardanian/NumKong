@@ -8,6 +8,8 @@
 #include "test.hpp"
 #include "numkong/dot.hpp" // `nk::dot`
 
+using namespace ashvardanian::numkong::test;
+
 /**
  *  @brief Unified dot product test for all types: float, integer, and complex.
  *  Works with f32_t, f64_t, f16_t, bf16_t, e4m3_t, e5m2_t, i8_t, u8_t, f32c_t, f64c_t.

@@ -8,6 +8,8 @@
 #include "test.hpp"
 #include "numkong/sparse.hpp"
 
+using namespace ashvardanian::numkong::test;
+
 /**
  *  @brief Test set intersection (unified template for u16/u32 index types).
  */

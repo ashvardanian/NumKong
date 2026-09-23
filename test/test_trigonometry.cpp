@@ -8,6 +8,8 @@
 #include "test.hpp"
 #include "numkong/trigonometry.hpp"
 
+using namespace ashvardanian::numkong::test;
+
 /**
  *  @brief Test sine approximation kernel against `nk::sin<scalar_t, f118_t, nk::no_simd_k>`.
  */

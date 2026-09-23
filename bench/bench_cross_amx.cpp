@@ -5,12 +5,14 @@
  *  @date February 6, 2026
  */
 
-#include "numkong/dot.h"
 #include "numkong/attention.h"
+#include "numkong/dot.h"
 #include "numkong/dots.h"
 #include "numkong/spatials.h"
 
-#include "bench.hpp"
+#include "bench_cross.cuh"
+
+using namespace ashvardanian::numkong::bench;
 
 void bench_cross_amx() {
     constexpr nk_dtype_t bf16_k = nk_bf16_k;

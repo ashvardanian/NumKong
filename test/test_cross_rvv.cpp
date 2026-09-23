@@ -5,7 +5,9 @@
  *  @date February 15, 2026
  */
 #include "test.hpp"
-#include "test_cross.hpp"
+#include "test_cross.cuh"
+
+using namespace ashvardanian::numkong::test;
 
 void test_cross_rvv() {
     [[maybe_unused]] error_stats_section_t check;
@@ -14,26 +16,48 @@ void test_cross_rvv() {
     check.section("Cross RVV", nk_cap_rvv_k);
     check("dots_packed_f64_rvv", test_dots_packed<f64_t>, nk_dots_pack_size_f64_rvv, nk_dots_pack_f64_rvv,
           nk_dots_packed_f64_rvv);
+    check("dots_pack_f64_rvv", test_dots_pack_layout<f64_t, host_backend_t, nk_dots_pack_size_f64_rvv,
+                                                     nk_dots_packed_shape_f64_rvv, nk_dots_pack_f64_rvv>);
     check("dots_packed_f32_rvv", test_dots_packed<f32_t>, nk_dots_pack_size_f32_rvv, nk_dots_pack_f32_rvv,
           nk_dots_packed_f32_rvv);
+    check("dots_pack_f32_rvv", test_dots_pack_layout<f32_t, host_backend_t, nk_dots_pack_size_f32_rvv,
+                                                     nk_dots_packed_shape_f32_rvv, nk_dots_pack_f32_rvv>);
     check("dots_packed_bf16_rvv", test_dots_packed<bf16_t>, nk_dots_pack_size_bf16_rvv, nk_dots_pack_bf16_rvv,
           nk_dots_packed_bf16_rvv);
+    check("dots_pack_bf16_rvv", test_dots_pack_layout<bf16_t, host_backend_t, nk_dots_pack_size_bf16_rvv,
+                                                      nk_dots_packed_shape_bf16_rvv, nk_dots_pack_bf16_rvv>);
     check("dots_packed_f16_rvv", test_dots_packed<f16_t>, nk_dots_pack_size_f16_rvv, nk_dots_pack_f16_rvv,
           nk_dots_packed_f16_rvv);
+    check("dots_pack_f16_rvv", test_dots_pack_layout<f16_t, host_backend_t, nk_dots_pack_size_f16_rvv,
+                                                     nk_dots_packed_shape_f16_rvv, nk_dots_pack_f16_rvv>);
     check("dots_packed_e5m2_rvv", test_dots_packed<e5m2_t>, nk_dots_pack_size_e5m2_rvv, nk_dots_pack_e5m2_rvv,
           nk_dots_packed_e5m2_rvv);
+    check("dots_pack_e5m2_rvv", test_dots_pack_layout<e5m2_t, host_backend_t, nk_dots_pack_size_e5m2_rvv,
+                                                      nk_dots_packed_shape_e5m2_rvv, nk_dots_pack_e5m2_rvv>);
     check("dots_packed_e4m3_rvv", test_dots_packed<e4m3_t>, nk_dots_pack_size_e4m3_rvv, nk_dots_pack_e4m3_rvv,
           nk_dots_packed_e4m3_rvv);
+    check("dots_pack_e4m3_rvv", test_dots_pack_layout<e4m3_t, host_backend_t, nk_dots_pack_size_e4m3_rvv,
+                                                      nk_dots_packed_shape_e4m3_rvv, nk_dots_pack_e4m3_rvv>);
     check("dots_packed_e3m2_rvv", test_dots_packed<e3m2_t>, nk_dots_pack_size_e3m2_rvv, nk_dots_pack_e3m2_rvv,
           nk_dots_packed_e3m2_rvv);
+    check("dots_pack_e3m2_rvv", test_dots_pack_layout<e3m2_t, host_backend_t, nk_dots_pack_size_e3m2_rvv,
+                                                      nk_dots_packed_shape_e3m2_rvv, nk_dots_pack_e3m2_rvv>);
     check("dots_packed_e2m3_rvv", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_rvv, nk_dots_pack_e2m3_rvv,
           nk_dots_packed_e2m3_rvv);
+    check("dots_pack_e2m3_rvv", test_dots_pack_layout<e2m3_t, host_backend_t, nk_dots_pack_size_e2m3_rvv,
+                                                      nk_dots_packed_shape_e2m3_rvv, nk_dots_pack_e2m3_rvv>);
     check("dots_packed_e2m1_rvv", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_rvv, nk_dots_pack_e2m1_rvv,
           nk_dots_packed_e2m1_rvv);
+    check("dots_pack_e2m1_rvv", test_dots_pack_layout<e2m1x2_t, host_backend_t, nk_dots_pack_size_e2m1_rvv,
+                                                      nk_dots_packed_shape_e2m1_rvv, nk_dots_pack_e2m1_rvv>);
     check("dots_packed_i8_rvv", test_dots_packed<i8_t>, nk_dots_pack_size_i8_rvv, nk_dots_pack_i8_rvv,
           nk_dots_packed_i8_rvv);
+    check("dots_pack_i8_rvv", test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8_rvv,
+                                                    nk_dots_packed_shape_i8_rvv, nk_dots_pack_i8_rvv>);
     check("dots_packed_u8_rvv", test_dots_packed<u8_t>, nk_dots_pack_size_u8_rvv, nk_dots_pack_u8_rvv,
           nk_dots_packed_u8_rvv);
+    check("dots_pack_u8_rvv", test_dots_pack_layout<u8_t, host_backend_t, nk_dots_pack_size_u8_rvv,
+                                                    nk_dots_packed_shape_u8_rvv, nk_dots_pack_u8_rvv>);
 
     check("dots_symmetric_f64_rvv", test_dots_symmetric<f64_t>, nk_dots_symmetric_f64_rvv);
     check("dots_symmetric_f32_rvv", test_dots_symmetric<f32_t>, nk_dots_symmetric_f32_rvv);

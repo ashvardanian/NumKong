@@ -11,6 +11,7 @@
 #   -D NK_BUILD_TEST=<ON|OFF>           (default: OFF)
 #   -D NK_BUILD_BENCH=<ON|OFF>          (default: OFF)
 #   -D NK_BUILD_CUDA_TEST=<ON|OFF>      (default: OFF)
+#   -D NK_BUILD_CUDA_BENCH=<ON|OFF>     (default: OFF, compares CUDA kernels against cuBLASLt)
 #   -D NK_CUDA_ARCHITECTURES=<list>     (default: 80-real;90a-real;100f-real;120f-real;80-virtual)
 #   -D NK_COMPARE_TO_BLAS=<ON|OFF>      (default: OFF)
 #   -D NK_COMPARE_TO_MKL=<ON|OFF>       (default: OFF)
@@ -64,6 +65,12 @@
 #     cmake -B build_cuda -D NK_BUILD_CUDA_TEST=ON
 #     cmake --build build_cuda
 #     ctest --test-dir build_cuda -R cuda --output-on-failure
+#
+# To compare the CUDA kernels against cuBLASLt, building only the cubin of the GPU at hand:
+#
+#     cmake -B build_cuda -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_CUDA_BENCH=ON -D NK_CUDA_ARCHITECTURES=120f-real
+#     cmake --build build_cuda --target numkong_cuda_bench
+#     build_cuda/numkong_cuda_bench
 #
 # If your system CMake is older than 3.20, install a recent release from PyPI or the Kitware APT repo.
 #
@@ -134,6 +141,7 @@ option(NK_INSTALL "Install headers, libraries & the CMake package files" ${NK_IS
 option(NK_BUILD_TEST "Compile precision tests with ULP-based error analysis" OFF)
 option(NK_BUILD_BENCH "Compile micro-benchmarks for current ISA" OFF)
 option(NK_BUILD_CUDA_TEST "Compile CUDA tensors & type system interop tests" OFF)
+option(NK_BUILD_CUDA_BENCH "Compile CUDA kernel benchmarks against cuBLASLt" OFF)
 option(NK_BUILD_SHARED_TEST "Compile shared-library tests, requires NK_BUILD_SHARED" OFF)
 option(NK_WASI_HOSTED "Import capability probes from WASI host environment" OFF)
 
@@ -501,9 +509,8 @@ if (NK_BUILD_TEST OR NK_BUILD_BENCH)
     endif ()
 endif ()
 
-# Build benchmarks
-if (NK_BUILD_BENCH)
-    # Fetch external dependencies
+# Google Benchmark serves both the CPU and the CUDA benchmarks
+if (NK_BUILD_BENCH OR NK_BUILD_CUDA_BENCH)
     include(FetchContent)
 
     # We only need the core parts of Google Benchmark — disable tests, docs, and
@@ -526,8 +533,11 @@ if (NK_BUILD_BENCH)
     if (CMAKE_BUILD_TYPE STREQUAL "Release")
         target_compile_definitions(benchmark PRIVATE NDEBUG)
     endif ()
-
     find_package(Threads REQUIRED)
+endif ()
+
+# Build benchmarks
+if (NK_BUILD_BENCH)
     add_executable(
         numkong_bench
         bench/bench.cpp bench/bench_dot.cpp bench/bench_spatial.cpp bench/bench_set.cpp bench/bench_curved.cpp
@@ -831,10 +841,9 @@ endif ()
 
 # One cubin per device family plus a PTX tail, needing CUDA 12.9 or newer. To iterate on one GPU keep its family,
 # like "120f-real": "native" drops the family suffix and with it the Float6 tensor-core instructions.
-if (NK_BUILD_CUDA_TEST)
+if (NK_BUILD_CUDA_TEST OR NK_BUILD_CUDA_BENCH)
     enable_language(CUDA)
-    set(NK_CUDA_ARCHITECTURES
-        "80-real;90a-real;100f-real;120f-real;80-virtual"
+    set(NK_CUDA_ARCHITECTURES "80-real;90a-real;100f-real;120f-real;80-virtual"
         CACHE STRING "GPU architectures baked into the CUDA targets"
     )
 
@@ -885,6 +894,21 @@ if (NK_BUILD_CUDA_TEST)
     # Comptime-dispatched, so only the kits this machine runs.
     target_compile_definitions(numkong_cuda_test PRIVATE ${nk_run_definitions_} ${nk_cuda_families_})
     add_test(NAME numkong_cuda_test COMMAND numkong_cuda_test)
+endif ()
+
+# CUDA cross kernels against cuBLASLt and cuBLAS, built from bench/bench_cross_cuda.cu over bench/bench_cross.cuh.
+if (NK_BUILD_CUDA_BENCH)
+    find_package(CUDAToolkit REQUIRED)
+    add_executable(numkong_cuda_bench bench/bench_cross_cuda.cu)
+    target_include_directories(numkong_cuda_bench PRIVATE "${PROJECT_SOURCE_DIR}/include")
+    set_target_properties(
+        numkong_cuda_bench PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO
+                                      CUDA_ARCHITECTURES "${NK_CUDA_ARCHITECTURES}"
+    )
+    target_compile_options(numkong_cuda_bench PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+    target_compile_definitions(numkong_cuda_bench PRIVATE ${nk_cuda_families_})
+    target_link_libraries(numkong_cuda_bench CUDA::cudart CUDA::cublas CUDA::cublasLt Threads::Threads benchmark)
+
 endif ()
 
 # Install & export — gated, so a parent project's `make install` ships NumKong only on request, and

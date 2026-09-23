@@ -8,6 +8,8 @@
 #include "test.hpp"
 #include "numkong/spatial.hpp"
 
+using namespace ashvardanian::numkong::test;
+
 /**
  *  @brief Unified squared Euclidean distance test for float types.
  *  Works with f32_t, f64_t, f16_t, bf16_t wrapper types.

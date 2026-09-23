@@ -8,6 +8,8 @@
 #include "test.hpp"
 #include "numkong/set.hpp"
 
+using namespace ashvardanian::numkong::test;
+
 /**
  *  @brief Test Hamming distance for binary or integer vectors.
  */

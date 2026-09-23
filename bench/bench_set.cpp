@@ -9,6 +9,8 @@
 
 #include "bench.hpp"
 
+using namespace ashvardanian::numkong::bench;
+
 void bench_set() {
     constexpr nk_dtype_t u1_k = nk_u1_k;
     constexpr nk_dtype_t u8_k = nk_u8_k;

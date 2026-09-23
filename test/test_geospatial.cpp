@@ -8,6 +8,8 @@
 #include "test.hpp"
 #include "numkong/geospatial.hpp" // `nk::haversine`
 
+using namespace ashvardanian::numkong::test;
+
 /**
  *  @brief Test Haversine distance.
  */

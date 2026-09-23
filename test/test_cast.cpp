@@ -10,6 +10,8 @@
 #include "test.hpp"
 #include "numkong/cast.h"
 
+using namespace ashvardanian::numkong::test;
+
 using cast_t = void (*)(void const *, nk_dtype_t, nk_size_t, void *, nk_dtype_t);
 
 /**

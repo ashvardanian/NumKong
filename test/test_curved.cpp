@@ -8,6 +8,8 @@
 #include "test.hpp"
 #include "numkong/curved.hpp" // `nk::bilinear`
 
+using namespace ashvardanian::numkong::test;
+
 /**
  *  @brief Makes a square matrix positive semi-definite in-place via symmetrization + diagonal dominance.
  *

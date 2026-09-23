@@ -42,6 +42,8 @@
 
 #include "bench.hpp"
 
+using namespace ashvardanian::numkong::bench;
+
 static bool colors_enabled() {
     static bool const result = [] {
         if (std::getenv("NO_COLOR")) return false;
@@ -85,9 +87,9 @@ static void print_isa(char const *name, int compiled, nk_capability_t cap, nk_ca
     print_indicator_dual(compiled != 0, runtime);
 }
 
-bench_config_t bench_config;
+bench_config_t nk::bench::bench_config;
 
-int main(int argc, char **argv) {
+int run_benchmarks(int argc, char **argv) {
     nk_capability_t runtime_caps = nk_capabilities_detected();
     nk_configure_thread(runtime_caps); // Also enables AMX if available
 
@@ -343,3 +345,5 @@ int main(int argc, char **argv) {
     bm::Shutdown();
     return 0;
 }
+
+int main(int argc, char **argv) { return run_benchmarks(argc, argv); }

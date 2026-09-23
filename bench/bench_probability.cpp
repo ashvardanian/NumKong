@@ -9,6 +9,8 @@
 
 #include "bench.hpp"
 
+using namespace ashvardanian::numkong::bench;
+
 void bench_probability() {
     constexpr nk_dtype_t f32_k = nk_f32_k;
     constexpr nk_dtype_t f16_k = nk_f16_k;

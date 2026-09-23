@@ -28,6 +28,8 @@
 #define NK_TEST_FORMAT_ 0
 #endif
 
+using namespace ashvardanian::numkong::test;
+
 #if NK_TEST_FORMAT_
 error_stats_t test_format_scalars();
 #endif

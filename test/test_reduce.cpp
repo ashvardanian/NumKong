@@ -9,6 +9,8 @@
 #include "numkong/reduce.hpp"
 #include "numkong/reduce/serial.h"
 
+using namespace ashvardanian::numkong::test;
+
 constexpr std::size_t max_stride_k = 50;
 
 template <typename input_type_>

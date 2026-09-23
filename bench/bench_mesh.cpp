@@ -9,6 +9,8 @@
 
 #include "bench.hpp"
 
+using namespace ashvardanian::numkong::bench;
+
 /**
  *  @brief Measures the performance of a @b mesh kernel function (RMSD/Kabsch/Umeyama) using Google Benchmark.
  *  @param state The benchmark state object provided by Google Benchmark.

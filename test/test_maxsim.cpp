@@ -10,6 +10,8 @@
 #include "numkong/maxsim.h"
 #include "numkong/maxsim.hpp"
 
+using namespace ashvardanian::numkong::test;
+
 template <typename scalar_type_>
 error_stats_t test_maxsim_packed(typename scalar_type_::dots_pack_size_kernel_t packed_size_fn,
                                  typename scalar_type_::maxsim_pack_kernel_t pack_fn,

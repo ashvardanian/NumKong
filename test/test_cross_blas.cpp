@@ -4,9 +4,12 @@
  *  @author Ash Vardanian
  *  @date January 14, 2025
  */
-#include "test.hpp"
-#include "test_cross.hpp"
 #include "numkong/dot.hpp" // `nk::dot` for BLAS comparison
+
+#include "test.hpp"
+#include "test_cross.cuh"
+
+using namespace ashvardanian::numkong::test;
 
 #if NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
 

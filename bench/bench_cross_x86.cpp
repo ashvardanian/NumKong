@@ -7,13 +7,15 @@
  *  Covers Haswell, Skylake, Ice Lake, Genoa, Sapphire.
  */
 
-#include "numkong/dot.h"
 #include "numkong/attention.h"
+#include "numkong/dot.h"
 #include "numkong/dots.h"
 #include "numkong/sets.h"
 #include "numkong/spatials.h"
 
-#include "bench.hpp"
+#include "bench_cross.cuh"
+
+using namespace ashvardanian::numkong::bench;
 
 void bench_cross_x86() {
     constexpr nk_dtype_t f64_k = nk_f64_k;

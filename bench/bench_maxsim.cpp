@@ -11,6 +11,8 @@
 namespace nk = ashvardanian::numkong;
 namespace bm = benchmark;
 
+using namespace ashvardanian::numkong::bench;
+
 template <nk_dtype_t input_dtype_>
 void measure_maxsim_packed(                                                            //
     bm::State &state,                                                                  //

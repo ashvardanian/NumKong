@@ -6,9 +6,12 @@
  */
 
 #include <cstring> // `std::memcpy`
+
 #include <vector>  // `std::vector`
 
 #include "bench.hpp"
+
+using namespace ashvardanian::numkong::bench;
 
 #if NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
 
