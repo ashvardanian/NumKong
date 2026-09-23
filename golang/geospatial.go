@@ -9,9 +9,8 @@ package numkong
 */
 import "C"
 
-// HaversineF64 computes the Haversine (great-circle) distance between coordinate pairs.
-// Input coordinates must be in radians. Output distances are in meters.
-// All slices must have the same length.
+// HaversineF64 writes the great-circle distance in meters between each pair of float64 coordinates in radians into result.
+// All five slices must have the same length.
 func HaversineF64(aLat, aLon, bLat, bLon, result []float64) {
 	n := len(aLat)
 	if n != len(aLon) || n != len(bLat) || n != len(bLon) || n != len(result) {
@@ -26,9 +25,8 @@ func HaversineF64(aLat, aLon, bLat, bLon, result []float64) {
 		C.nk_size_t(n), (*C.nk_f64_t)(&result[0]))
 }
 
-// HaversineF32 computes the Haversine (great-circle) distance between coordinate pairs.
-// Input coordinates must be in radians. Output distances are in meters.
-// All slices must have the same length.
+// HaversineF32 writes the great-circle distance in meters between each pair of float32 coordinates in radians into result.
+// All five slices must have the same length.
 func HaversineF32(aLat, aLon, bLat, bLon, result []float32) {
 	n := len(aLat)
 	if n != len(aLon) || n != len(bLat) || n != len(bLon) || n != len(result) {
@@ -43,10 +41,8 @@ func HaversineF32(aLat, aLon, bLat, bLon, result []float32) {
 		C.nk_size_t(n), (*C.nk_f32_t)(&result[0]))
 }
 
-// VincentyF64 computes the Vincenty (ellipsoidal geodesic) distance between coordinate pairs.
-// Input coordinates must be in radians. Output distances are in meters.
-// More accurate than Haversine for long distances.
-// All slices must have the same length.
+// VincentyF64 writes the ellipsoidal geodesic distance in meters between each pair of float64 coordinates in radians into result.
+// All five slices must have the same length.
 func VincentyF64(aLat, aLon, bLat, bLon, result []float64) {
 	n := len(aLat)
 	if n != len(aLon) || n != len(bLat) || n != len(bLon) || n != len(result) {
@@ -61,9 +57,8 @@ func VincentyF64(aLat, aLon, bLat, bLon, result []float64) {
 		C.nk_size_t(n), (*C.nk_f64_t)(&result[0]))
 }
 
-// VincentyF32 computes the Vincenty (ellipsoidal geodesic) distance between coordinate pairs.
-// Input coordinates must be in radians. Output distances are in meters.
-// All slices must have the same length.
+// VincentyF32 writes the ellipsoidal geodesic distance in meters between each pair of float32 coordinates in radians into result.
+// All five slices must have the same length.
 func VincentyF32(aLat, aLon, bLat, bLon, result []float32) {
 	n := len(aLat)
 	if n != len(aLon) || n != len(bLat) || n != len(bLon) || n != len(result) {

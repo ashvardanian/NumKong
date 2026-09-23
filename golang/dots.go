@@ -12,10 +12,8 @@ import "unsafe"
 
 // region Packing
 
-// DotsPackedMatrix holds a pre-packed right-hand-side matrix for batch operations.
-// Construct with NewDotsPackedMatrixF64, NewDotsPackedMatrixF32, NewDotsPackedMatrixI8,
-// NewDotsPackedMatrixU8, or NewDotsPackedMatrixU1. The struct carries the packed buffer,
-// dimensions, and scalar type so compute functions can validate.
+// DotsPackedMatrix holds a matrix packed once for the Dots, Angulars, Euclideans, Hammings and Jaccards Packed kernels.
+// Construct it with the constructor of the element type, such as [NewDotsPackedMatrixF32].
 type DotsPackedMatrix struct {
 	data  []byte
 	width int
@@ -23,13 +21,19 @@ type DotsPackedMatrix struct {
 	dtype string // "f64", "f32", "i8", "u8", "u1"
 }
 
-func (p DotsPackedMatrix) Width() int    { return p.width }
-func (p DotsPackedMatrix) Depth() int    { return p.depth }
+// Width returns the number of packed vectors.
+func (p DotsPackedMatrix) Width() int { return p.width }
+
+// Depth returns the number of dimensions per packed vector.
+func (p DotsPackedMatrix) Depth() int { return p.depth }
+
+// Dtype returns the element type the matrix was packed from: "f64", "f32", "i8", "u8" or "u1".
 func (p DotsPackedMatrix) Dtype() string { return p.dtype }
+
+// Bytes returns the packed buffer.
 func (p DotsPackedMatrix) Bytes() []byte { return p.data }
 
-// Shape reads the packed matrix dimensions (width, depth) back from the buffer's
-// self-describing header via nk_dots_packed_shape_<dtype>.
+// Shape reads the width and depth back from the header of the packed buffer.
 func (p DotsPackedMatrix) Shape() (width, depth int) {
 	if len(p.data) == 0 {
 		return 0, 0
@@ -51,8 +55,8 @@ func (p DotsPackedMatrix) Shape() (width, depth int) {
 	return int(w), int(d)
 }
 
-// NewDotsPackedMatrixF64 packs a B matrix (width × depth f64 values) for batch operations.
-// b must have capacity >= width × depth.
+// NewDotsPackedMatrixF64 packs width float64 vectors of depth dimensions for the Packed kernels.
+// The slice b holds at least width * depth values.
 func NewDotsPackedMatrixF64(b []float64, width, depth int) DotsPackedMatrix {
 	if len(b) < width*depth {
 		panic("input slice too short for the given width and depth")
@@ -67,8 +71,8 @@ func NewDotsPackedMatrixF64(b []float64, width, depth int) DotsPackedMatrix {
 	return DotsPackedMatrix{data: data, width: width, depth: depth, dtype: "f64"}
 }
 
-// NewDotsPackedMatrixF32 packs a B matrix (width × depth f32 values) for batch operations.
-// b must have capacity >= width × depth.
+// NewDotsPackedMatrixF32 packs width float32 vectors of depth dimensions for the Packed kernels.
+// The slice b holds at least width * depth values.
 func NewDotsPackedMatrixF32(b []float32, width, depth int) DotsPackedMatrix {
 	if len(b) < width*depth {
 		panic("input slice too short for the given width and depth")
@@ -83,8 +87,8 @@ func NewDotsPackedMatrixF32(b []float32, width, depth int) DotsPackedMatrix {
 	return DotsPackedMatrix{data: data, width: width, depth: depth, dtype: "f32"}
 }
 
-// NewDotsPackedMatrixI8 packs a B matrix (width × depth i8 values) for batch operations.
-// b must have capacity >= width × depth.
+// NewDotsPackedMatrixI8 packs width int8 vectors of depth dimensions for the Packed kernels.
+// The slice b holds at least width * depth values.
 func NewDotsPackedMatrixI8(b []int8, width, depth int) DotsPackedMatrix {
 	if len(b) < width*depth {
 		panic("input slice too short for the given width and depth")
@@ -99,8 +103,8 @@ func NewDotsPackedMatrixI8(b []int8, width, depth int) DotsPackedMatrix {
 	return DotsPackedMatrix{data: data, width: width, depth: depth, dtype: "i8"}
 }
 
-// NewDotsPackedMatrixU8 packs a B matrix (width × depth u8 values) for batch operations.
-// b must have capacity >= width × depth.
+// NewDotsPackedMatrixU8 packs width uint8 vectors of depth dimensions for the Packed kernels.
+// The slice b holds at least width * depth values.
 func NewDotsPackedMatrixU8(b []uint8, width, depth int) DotsPackedMatrix {
 	if len(b) < width*depth {
 		panic("input slice too short for the given width and depth")
@@ -115,11 +119,11 @@ func NewDotsPackedMatrixU8(b []uint8, width, depth int) DotsPackedMatrix {
 	return DotsPackedMatrix{data: data, width: width, depth: depth, dtype: "u8"}
 }
 
-// NewDotsPackedMatrixU1 packs a B matrix (width vectors, depth bits each) for batch operations.
-// `depth` counts dimensions, a multiple of 8, the values per byte.
+// NewDotsPackedMatrixU1 packs width binary vectors of depth dimensions for the Packed kernels.
+// The depth is a multiple of 8, and b holds at least width * [DimensionsToValues]("u1", depth) bytes.
 func NewDotsPackedMatrixU1(b []byte, width, depth int) DotsPackedMatrix {
-	validateDimensions(C.nk_u1_k, depth)
-	bytesPerVec := dimensionsToValues(C.nk_u1_k, depth)
+	validateDimensions("u1", depth)
+	bytesPerVec := DimensionsToValues("u1", depth)
 	if len(b) < width*bytesPerVec {
 		panic("input slice too short for the given width and depth")
 	}
@@ -137,9 +141,8 @@ func NewDotsPackedMatrixU1(b []byte, width, depth int) DotsPackedMatrix {
 
 // region Packed Batch Operations (Dots)
 
-// DotsPackedF64 computes A × Bᵀ where B is pre-packed. Output type: f64.
-// a must have capacity >= height × b.Depth().
-// c must have capacity >= height × b.Width().
+// DotsPackedF64 computes the dot product of each of height float64 rows of a with every packed row of b.
+// Each row has b.Depth() dimensions, and c holds at least height * b.Width() entries.
 func DotsPackedF64(a []float64, b DotsPackedMatrix, c []float64, height int) {
 	if b.Dtype() != "f64" {
 		panic("DotsPackedMatrix dtype must be f64")
@@ -159,9 +162,8 @@ func DotsPackedF64(a []float64, b DotsPackedMatrix, c []float64, height int) {
 		C.nk_size_t(b.width*8))
 }
 
-// DotsPackedF32 computes A × Bᵀ where B is pre-packed. Output type: f64 (widened).
-// a must have capacity >= height × b.Depth().
-// c must have capacity >= height × b.Width().
+// DotsPackedF32 computes the dot product of each of height float32 rows of a with every packed row of b.
+// Each row has b.Depth() dimensions, and c holds at least height * b.Width() entries.
 func DotsPackedF32(a []float32, b DotsPackedMatrix, c []float64, height int) {
 	if b.Dtype() != "f32" {
 		panic("DotsPackedMatrix dtype must be f32")
@@ -181,9 +183,8 @@ func DotsPackedF32(a []float32, b DotsPackedMatrix, c []float64, height int) {
 		C.nk_size_t(b.width*8))
 }
 
-// DotsPackedI8 computes A × Bᵀ where B is pre-packed. Output type: i32 (widened).
-// a must have capacity >= height × b.Depth().
-// c must have capacity >= height × b.Width().
+// DotsPackedI8 computes the dot product of each of height int8 rows of a with every packed row of b.
+// Each row has b.Depth() dimensions, and c holds at least height * b.Width() entries.
 func DotsPackedI8(a []int8, b DotsPackedMatrix, c []int32, height int) {
 	if b.Dtype() != "i8" {
 		panic("DotsPackedMatrix dtype must be i8")
@@ -203,9 +204,8 @@ func DotsPackedI8(a []int8, b DotsPackedMatrix, c []int32, height int) {
 		C.nk_size_t(b.width*4))
 }
 
-// DotsPackedU8 computes A × Bᵀ where B is pre-packed. Output type: u32 (widened).
-// a must have capacity >= height × b.Depth().
-// c must have capacity >= height × b.Width().
+// DotsPackedU8 computes the dot product of each of height uint8 rows of a with every packed row of b.
+// Each row has b.Depth() dimensions, and c holds at least height * b.Width() entries.
 func DotsPackedU8(a []uint8, b DotsPackedMatrix, c []uint32, height int) {
 	if b.Dtype() != "u8" {
 		panic("DotsPackedMatrix dtype must be u8")
@@ -229,9 +229,8 @@ func DotsPackedU8(a []uint8, b DotsPackedMatrix, c []uint32, height int) {
 
 // region Symmetric Operations (Dots)
 
-// DotsSymmetricF64 computes the Gram matrix (all-pairs dot products) for a set of f64 vectors.
-// vectors: nVectors × depth row-major matrix.
-// result: nVectors × nVectors output matrix (upper triangle filled, lower mirrored).
+// DotsSymmetricF64 computes the dot product between every pair of nVectors float64 vectors of depth dimensions.
+// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
 func DotsSymmetricF64(vectors []float64, nVectors, depth int, result []float64) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -252,9 +251,8 @@ func dotsSymmetricF64(vectors []float64, nVectors, depth int, result []float64, 
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
 }
 
-// DotsSymmetricF32 computes the Gram matrix (all-pairs dot products) for a set of f32 vectors.
-// vectors: nVectors × depth row-major matrix.
-// result: nVectors × nVectors output matrix. Output: f64.
+// DotsSymmetricF32 computes the dot product between every pair of nVectors float32 vectors of depth dimensions.
+// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
 func DotsSymmetricF32(vectors []float32, nVectors, depth int, result []float64) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -275,9 +273,8 @@ func dotsSymmetricF32(vectors []float32, nVectors, depth int, result []float64, 
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
 }
 
-// DotsSymmetricI8 computes the Gram matrix (all-pairs dot products) for a set of i8 vectors.
-// vectors: nVectors × depth row-major matrix.
-// result: nVectors × nVectors output matrix. Output: i32.
+// DotsSymmetricI8 computes the dot product between every pair of nVectors int8 vectors of depth dimensions.
+// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
 func DotsSymmetricI8(vectors []int8, nVectors, depth int, result []int32) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -298,9 +295,8 @@ func dotsSymmetricI8(vectors []int8, nVectors, depth int, result []int32, rowSta
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
 }
 
-// DotsSymmetricU8 computes the Gram matrix (all-pairs dot products) for a set of u8 vectors.
-// vectors: nVectors × depth row-major matrix.
-// result: nVectors × nVectors output matrix. Output: u32.
+// DotsSymmetricU8 computes the dot product between every pair of nVectors uint8 vectors of depth dimensions.
+// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
 func DotsSymmetricU8(vectors []uint8, nVectors, depth int, result []uint32) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")

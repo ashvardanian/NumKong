@@ -10,20 +10,24 @@ package numkong
 import "C"
 import "unsafe"
 
-// MaxSimPackedMatrix holds a pre-packed set of vectors for MaxSim computation.
-// Construct with NewMaxSimPackedMatrixF32.
+// MaxSimPackedMatrix holds a set of vectors packed once for [MaxSimF32].
+// Construct it with [NewMaxSimPackedMatrixF32].
 type MaxSimPackedMatrix struct {
 	data    []byte
 	vectors int
 	depth   int
 }
 
-func (p MaxSimPackedMatrix) Vectors() int  { return p.vectors }
-func (p MaxSimPackedMatrix) Depth() int    { return p.depth }
+// Vectors returns the number of packed vectors.
+func (p MaxSimPackedMatrix) Vectors() int { return p.vectors }
+
+// Depth returns the number of dimensions per packed vector.
+func (p MaxSimPackedMatrix) Depth() int { return p.depth }
+
+// Bytes returns the packed buffer.
 func (p MaxSimPackedMatrix) Bytes() []byte { return p.data }
 
-// Shape reads the packed vector-set dimensions (vectors, depth) back from the
-// buffer's self-describing header via nk_maxsim_packed_shape_f32.
+// Shape reads the vector count and depth back from the header of the packed buffer.
 func (p MaxSimPackedMatrix) Shape() (vectors, depth int) {
 	if len(p.data) == 0 {
 		return 0, 0
@@ -33,8 +37,8 @@ func (p MaxSimPackedMatrix) Shape() (vectors, depth int) {
 	return int(v), int(d)
 }
 
-// NewMaxSimPackedMatrixF32 packs vectors for MaxSim computation.
-// vectors must have capacity >= vectorCount × depth.
+// NewMaxSimPackedMatrixF32 packs vectorsCount float32 vectors of depth dimensions for [MaxSimF32].
+// The slice vectorsData holds at least vectorsCount * depth values.
 func NewMaxSimPackedMatrixF32(vectorsData []float32, vectorsCount, depth int) MaxSimPackedMatrix {
 	if len(vectorsData) < vectorsCount*depth {
 		panic("input slice too short for the given vectorsCount and depth")
@@ -49,9 +53,8 @@ func NewMaxSimPackedMatrixF32(vectorsData []float32, vectorsCount, depth int) Ma
 	return MaxSimPackedMatrix{data: data, vectors: vectorsCount, depth: depth}
 }
 
-// MaxSimF32 computes MaxSim (ColBERT late interaction) between pre-packed queries and documents.
-// Returns the MaxSim score as float64 (widened).
-// query and document must have the same depth.
+// MaxSimF32 sums, over the query vectors, the angular distance from each to its nearest document vector.
+// Both matrices must have the same depth.
 func MaxSimF32(query, document MaxSimPackedMatrix) float64 {
 	if query.depth != document.depth {
 		panic("query and document must have the same depth")

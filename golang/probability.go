@@ -9,7 +9,8 @@ package numkong
 */
 import "C"
 
-// KullbackLeiblerF64 computes the Kullback-Leibler divergence between two f64 distributions.
+// KullbackLeiblerF64 computes the Kullback-Leibler divergence between two float64 distributions.
+// Both slices must have the same length.
 func KullbackLeiblerF64(a, b []float64) float64 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -22,8 +23,8 @@ func KullbackLeiblerF64(a, b []float64) float64 {
 	return float64(result)
 }
 
-// KullbackLeiblerF32 computes the Kullback-Leibler divergence between two f32 distributions.
-// Returns float64 (widened output).
+// KullbackLeiblerF32 computes the Kullback-Leibler divergence between two float32 distributions.
+// Both slices must have the same length.
 func KullbackLeiblerF32(a, b []float32) float64 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -36,7 +37,8 @@ func KullbackLeiblerF32(a, b []float32) float64 {
 	return float64(result)
 }
 
-// JensenShannonF64 computes the Jensen-Shannon distance between two f64 distributions.
+// JensenShannonF64 computes the Jensen-Shannon distance between two float64 distributions.
+// Both slices must have the same length.
 func JensenShannonF64(a, b []float64) float64 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -49,8 +51,8 @@ func JensenShannonF64(a, b []float64) float64 {
 	return float64(result)
 }
 
-// JensenShannonF32 computes the Jensen-Shannon distance between two f32 distributions.
-// Returns float64 (widened output).
+// JensenShannonF32 computes the Jensen-Shannon distance between two float32 distributions.
+// Both slices must have the same length.
 func JensenShannonF32(a, b []float32) float64 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")

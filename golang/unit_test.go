@@ -213,6 +213,17 @@ func TestHammingU8Identical(t *testing.T) {
 
 // region Scalar Set Tests (HammingU1, JaccardU1, JaccardU16, JaccardU32)
 
+func TestDimensionsPerValue(t *testing.T) {
+	for dtype, expected := range map[string]int{"f64": 1, "f32": 1, "i8": 1, "u8": 1, "u1": 8} {
+		if got := DimensionsPerValue(dtype); got != expected {
+			t.Errorf("DimensionsPerValue(%q): expected %d, got %d", dtype, expected, got)
+		}
+	}
+	if got := DimensionsToValues("u1", 64); got != 8 {
+		t.Errorf("DimensionsToValues(\"u1\", 64): expected 8, got %d", got)
+	}
+}
+
 func TestHammingU1(t *testing.T) {
 	// 0xFF = 11111111, 0x0F = 00001111 → 4 bits differ
 	a := []byte{0xFF}

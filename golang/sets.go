@@ -10,14 +10,13 @@ package numkong
 import "C"
 import "unsafe"
 
-// HammingsPackedU1 computes Hamming distances for binary vectors where queries are pre-packed.
-// vectors: height binary vectors of query.Depth() dimensions each.
-// result must have capacity >= height × query.Width().
+// HammingsPackedU1 computes the Hamming distance from each of height binary vectors to every packed query.
+// Each vector has query.Depth() dimensions, and result holds at least height * query.Width() entries.
 func HammingsPackedU1(vectors []byte, query DotsPackedMatrix, result []uint32, height int) {
 	if query.Dtype() != "u1" {
 		panic("DotsPackedMatrix dtype must be u1")
 	}
-	bytesPerVec := dimensionsToValues(C.nk_u1_k, query.depth)
+	bytesPerVec := DimensionsToValues("u1", query.depth)
 	if len(vectors) < height*bytesPerVec {
 		panic("input slice too short for the given height and depth")
 	}
@@ -33,13 +32,11 @@ func HammingsPackedU1(vectors []byte, query DotsPackedMatrix, result []uint32, h
 		C.nk_size_t(query.width*4))
 }
 
-// HammingsSymmetricU1 computes the Hamming distance matrix for a set of binary vectors.
-// vectors: nVectors binary vectors of depth dimensions each.
-// `depth` counts dimensions, a multiple of 8, the values per byte.
-// result must have capacity >= nVectors × nVectors.
+// HammingsSymmetricU1 computes the Hamming distance between every pair of nVectors binary vectors of depth dimensions.
+// The depth is a multiple of 8, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
 func HammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32) {
-	validateDimensions(C.nk_u1_k, depth)
-	bytesPerVec := dimensionsToValues(C.nk_u1_k, depth)
+	validateDimensions("u1", depth)
+	bytesPerVec := DimensionsToValues("u1", depth)
 	if len(vectors) < nVectors*bytesPerVec {
 		panic("input slice too short for the given nVectors and depth")
 	}
@@ -50,7 +47,7 @@ func HammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32) {
 }
 
 func hammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32, rowStart, rowCount int) {
-	bytesPerVec := dimensionsToValues(C.nk_u1_k, depth)
+	bytesPerVec := DimensionsToValues("u1", depth)
 	C.nk_hammings_symmetric_u1(
 		(*C.nk_u1x8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
@@ -60,14 +57,13 @@ func hammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32, r
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
 }
 
-// JaccardsPackedU1 computes Jaccard distances for binary vectors where queries are pre-packed.
-// vectors: height binary vectors of query.Depth() dimensions each.
-// result must have capacity >= height × query.Width().
+// JaccardsPackedU1 computes the Jaccard distance from each of height binary vectors to every packed query.
+// Each vector has query.Depth() dimensions, and result holds at least height * query.Width() entries.
 func JaccardsPackedU1(vectors []byte, query DotsPackedMatrix, result []float32, height int) {
 	if query.Dtype() != "u1" {
 		panic("DotsPackedMatrix dtype must be u1")
 	}
-	bytesPerVec := dimensionsToValues(C.nk_u1_k, query.depth)
+	bytesPerVec := DimensionsToValues("u1", query.depth)
 	if len(vectors) < height*bytesPerVec {
 		panic("input slice too short for the given height and depth")
 	}
@@ -83,13 +79,11 @@ func JaccardsPackedU1(vectors []byte, query DotsPackedMatrix, result []float32, 
 		C.nk_size_t(query.width*4))
 }
 
-// JaccardsSymmetricU1 computes the Jaccard distance matrix for a set of binary vectors.
-// vectors: nVectors binary vectors of depth dimensions each.
-// `depth` counts dimensions, a multiple of 8, the values per byte.
-// result must have capacity >= nVectors × nVectors.
+// JaccardsSymmetricU1 computes the Jaccard distance between every pair of nVectors binary vectors of depth dimensions.
+// The depth is a multiple of 8, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
 func JaccardsSymmetricU1(vectors []byte, nVectors, depth int, result []float32) {
-	validateDimensions(C.nk_u1_k, depth)
-	bytesPerVec := dimensionsToValues(C.nk_u1_k, depth)
+	validateDimensions("u1", depth)
+	bytesPerVec := DimensionsToValues("u1", depth)
 	if len(vectors) < nVectors*bytesPerVec {
 		panic("input slice too short for the given nVectors and depth")
 	}
@@ -100,7 +94,7 @@ func JaccardsSymmetricU1(vectors []byte, nVectors, depth int, result []float32) 
 }
 
 func jaccardsSymmetricU1(vectors []byte, nVectors, depth int, result []float32, rowStart, rowCount int) {
-	bytesPerVec := dimensionsToValues(C.nk_u1_k, depth)
+	bytesPerVec := DimensionsToValues("u1", depth)
 	C.nk_jaccards_symmetric_u1(
 		(*C.nk_u1x8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),

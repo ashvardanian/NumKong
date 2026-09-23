@@ -11,7 +11,8 @@ import "C"
 
 // region Angular (Cosine) Distance
 
-// AngularF64 computes the angular (cosine) distance between two float64 vectors.
+// AngularF64 computes the angular distance between two float64 vectors.
+// Both slices must have the same length.
 func AngularF64(a, b []float64) float64 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -24,8 +25,8 @@ func AngularF64(a, b []float64) float64 {
 	return float64(result)
 }
 
-// AngularF32 computes the angular (cosine) distance between two float32 vectors.
-// Returns float64 (widened output).
+// AngularF32 computes the angular distance between two float32 vectors.
+// Both slices must have the same length.
 func AngularF32(a, b []float32) float64 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -38,8 +39,8 @@ func AngularF32(a, b []float32) float64 {
 	return float64(result)
 }
 
-// AngularI8 computes the angular (cosine) distance between two int8 vectors.
-// Returns float32 (widened output).
+// AngularI8 computes the angular distance between two int8 vectors.
+// Both slices must have the same length.
 func AngularI8(a, b []int8) float32 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -52,8 +53,8 @@ func AngularI8(a, b []int8) float32 {
 	return float32(result)
 }
 
-// AngularU8 computes the angular (cosine) distance between two uint8 vectors.
-// Returns float32 (widened output).
+// AngularU8 computes the angular distance between two uint8 vectors.
+// Both slices must have the same length.
 func AngularU8(a, b []uint8) float32 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -70,7 +71,8 @@ func AngularU8(a, b []uint8) float32 {
 
 // region Euclidean Distance (L2)
 
-// EuclideanF64 computes the Euclidean (L2) distance between two float64 vectors.
+// EuclideanF64 computes the Euclidean distance between two float64 vectors.
+// Both slices must have the same length.
 func EuclideanF64(a, b []float64) float64 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -83,8 +85,8 @@ func EuclideanF64(a, b []float64) float64 {
 	return float64(result)
 }
 
-// EuclideanF32 computes the Euclidean (L2) distance between two float32 vectors.
-// Returns float64 (widened output).
+// EuclideanF32 computes the Euclidean distance between two float32 vectors.
+// Both slices must have the same length.
 func EuclideanF32(a, b []float32) float64 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -97,8 +99,8 @@ func EuclideanF32(a, b []float32) float64 {
 	return float64(result)
 }
 
-// EuclideanI8 computes the Euclidean (L2) distance between two int8 vectors.
-// Returns float32 (widened output).
+// EuclideanI8 computes the Euclidean distance between two int8 vectors.
+// Both slices must have the same length.
 func EuclideanI8(a, b []int8) float32 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -111,8 +113,8 @@ func EuclideanI8(a, b []int8) float32 {
 	return float32(result)
 }
 
-// EuclideanU8 computes the Euclidean (L2) distance between two uint8 vectors.
-// Returns float32 (widened output).
+// EuclideanU8 computes the Euclidean distance between two uint8 vectors.
+// Both slices must have the same length.
 func EuclideanU8(a, b []uint8) float32 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -130,6 +132,7 @@ func EuclideanU8(a, b []uint8) float32 {
 // region Squared Euclidean Distance (L2sq)
 
 // SqEuclideanF64 computes the squared Euclidean distance between two float64 vectors.
+// Both slices must have the same length.
 func SqEuclideanF64(a, b []float64) float64 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -143,7 +146,7 @@ func SqEuclideanF64(a, b []float64) float64 {
 }
 
 // SqEuclideanF32 computes the squared Euclidean distance between two float32 vectors.
-// Returns float64 (widened output).
+// Both slices must have the same length.
 func SqEuclideanF32(a, b []float32) float64 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -157,7 +160,7 @@ func SqEuclideanF32(a, b []float32) float64 {
 }
 
 // SqEuclideanI8 computes the squared Euclidean distance between two int8 vectors.
-// Returns uint32 (widened output).
+// Both slices must have the same length.
 func SqEuclideanI8(a, b []int8) uint32 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -171,7 +174,7 @@ func SqEuclideanI8(a, b []int8) uint32 {
 }
 
 // SqEuclideanU8 computes the squared Euclidean distance between two uint8 vectors.
-// Returns uint32 (widened output).
+// Both slices must have the same length.
 func SqEuclideanU8(a, b []uint8) uint32 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")

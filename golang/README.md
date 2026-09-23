@@ -314,6 +314,7 @@ Available symmetric variants: `DotsSymmetric{F64,F32,I8,U8}`, `AngularsSymmetric
 ## Binary Packed and Symmetric Kernels
 
 Binary vectors use `[]byte` storage where `depth` is the number of bits.
+`DimensionsToValues("u1", depth)` gives the bytes per vector, and `depth` must be a multiple of `DimensionsPerValue("u1")`.
 Packing uses `NewDotsPackedMatrixU1`.
 
 ```go
@@ -327,7 +328,7 @@ import (
 
 func main() {
 	n, depth := 4, 64 // 4 vectors of 64 dimensions each
-	bytesPerVec := depth / 8 // a multiple of 8, the values per byte
+	bytesPerVec := nk.DimensionsToValues("u1", depth)
 	vectors := make([]byte, n*bytesPerVec)
 	for i := range vectors { vectors[i] = byte(i * 37) }
 

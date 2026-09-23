@@ -9,7 +9,8 @@ package numkong
 */
 import "C"
 
-// DotF64 computes the inner product (dot product) of two float64 vectors.
+// DotF64 computes the dot product of two float64 vectors.
+// Both slices must have the same length.
 func DotF64(a, b []float64) float64 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -22,8 +23,8 @@ func DotF64(a, b []float64) float64 {
 	return float64(result)
 }
 
-// DotF32 computes the inner product (dot product) of two float32 vectors.
-// Returns float64 (widened output).
+// DotF32 computes the dot product of two float32 vectors.
+// Both slices must have the same length.
 func DotF32(a, b []float32) float64 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -36,8 +37,8 @@ func DotF32(a, b []float32) float64 {
 	return float64(result)
 }
 
-// DotI8 computes the inner product (dot product) of two int8 vectors.
-// Returns int32 (widened output).
+// DotI8 computes the dot product of two int8 vectors.
+// Both slices must have the same length.
 func DotI8(a, b []int8) int32 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -50,8 +51,8 @@ func DotI8(a, b []int8) int32 {
 	return int32(result)
 }
 
-// DotU8 computes the inner product (dot product) of two uint8 vectors.
-// Returns uint32 (widened output).
+// DotU8 computes the dot product of two uint8 vectors.
+// Both slices must have the same length.
 func DotU8(a, b []uint8) uint32 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")

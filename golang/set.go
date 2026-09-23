@@ -9,8 +9,8 @@ package numkong
 */
 import "C"
 
-// HammingU8 computes the Hamming distance between two uint8 vectors.
-// Returns uint32 (number of positions where the values differ).
+// HammingU8 counts the positions at which two uint8 vectors differ.
+// Both slices must have the same length.
 func HammingU8(a, b []uint8) uint32 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -23,11 +23,11 @@ func HammingU8(a, b []uint8) uint32 {
 	return uint32(result)
 }
 
-// HammingU1 computes the Hamming distance between two packed binary vectors.
-// `depth` counts dimensions, a multiple of 8, the values per byte.
+// HammingU1 computes the Hamming distance between two binary vectors of depth dimensions.
+// The depth is a multiple of 8, and both slices hold at least [DimensionsToValues]("u1", depth) bytes.
 func HammingU1(a, b []byte, depth int) uint32 {
-	validateDimensions(C.nk_u1_k, depth)
-	values := dimensionsToValues(C.nk_u1_k, depth)
+	validateDimensions("u1", depth)
+	values := DimensionsToValues("u1", depth)
 	if len(a) < values || len(b) < values {
 		panic("slices too short for the given number of bits")
 	}
@@ -39,11 +39,11 @@ func HammingU1(a, b []byte, depth int) uint32 {
 	return uint32(result)
 }
 
-// JaccardU1 computes the Jaccard distance between two packed binary vectors.
-// `depth` counts dimensions, a multiple of 8, the values per byte.
+// JaccardU1 computes the Jaccard distance between two binary vectors of depth dimensions.
+// The depth is a multiple of 8, and both slices hold at least [DimensionsToValues]("u1", depth) bytes.
 func JaccardU1(a, b []byte, depth int) float32 {
-	validateDimensions(C.nk_u1_k, depth)
-	values := dimensionsToValues(C.nk_u1_k, depth)
+	validateDimensions("u1", depth)
+	values := DimensionsToValues("u1", depth)
 	if len(a) < values || len(b) < values {
 		panic("slices too short for the given number of bits")
 	}
@@ -56,6 +56,7 @@ func JaccardU1(a, b []byte, depth int) float32 {
 }
 
 // JaccardU16 computes the Jaccard distance between two uint16 set-hash vectors.
+// Both slices must have the same length.
 func JaccardU16(a, b []uint16) float32 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
@@ -69,6 +70,7 @@ func JaccardU16(a, b []uint16) float32 {
 }
 
 // JaccardU32 computes the Jaccard distance between two uint32 set-hash vectors.
+// Both slices must have the same length.
 func JaccardU32(a, b []uint32) float32 {
 	if len(a) != len(b) {
 		panic("both vectors must have the same length")
