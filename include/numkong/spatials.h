@@ -2534,6 +2534,367 @@ NK_API_COMPTIME void nk_euclideans_symmetric_u8_rvv(nk_u8_t const *vectors, nk_s
                                                     nk_size_t row_start, nk_size_t row_count);
 #endif // NK_TARGET_RVV
 
+/*  NVIDIA backends from Ampere on, reusing the CUDA dots packs and tiles with the metric applied in the epilogue: F64
+ *  outputs for F64 and F32 inputs, F32 for the rest. Pointers are device-reachable, and every call is asynchronous on
+ *  its `stream` and returns the launch status.
+ */
+#if NK_TARGET_AMPERE
+/** @copydoc nk_angulars_packed_f64 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_f64_ampere(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
+                                                          nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_f64 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_f64_ampere(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_f64 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_f64_ampere(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
+                                                            nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                            nk_size_t a_stride, nk_size_t c_stride,
+                                                            cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_f64 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_f64_ampere(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_f32 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_f32_ampere(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
+                                                          nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_f32 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_f32_ampere(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_f32 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_f32_ampere(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
+                                                            nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                            nk_size_t a_stride, nk_size_t c_stride,
+                                                            cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_f32 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_f32_ampere(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_bf16 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_bf16_ampere(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                           nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                           nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_bf16 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_bf16_ampere(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_bf16 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_bf16_ampere(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                             nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                             nk_size_t a_stride, nk_size_t c_stride,
+                                                             cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_bf16 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_bf16_ampere(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_f16 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_f16_ampere(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                          nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_f16 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_f16_ampere(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_f16 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_f16_ampere(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                            nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                            nk_size_t a_stride, nk_size_t c_stride,
+                                                            cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_f16 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_f16_ampere(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_e5m2 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_e5m2_ampere(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                           nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                           nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_e5m2 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_e5m2_ampere(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_e5m2 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_e5m2_ampere(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                             nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                             nk_size_t a_stride, nk_size_t c_stride,
+                                                             cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_e5m2 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_e5m2_ampere(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_e4m3 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_e4m3_ampere(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                           nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                           nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_e4m3 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_e4m3_ampere(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_e4m3 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_e4m3_ampere(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                             nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                             nk_size_t a_stride, nk_size_t c_stride,
+                                                             cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_e4m3 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_e4m3_ampere(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_e3m2 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_e3m2_ampere(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                           nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                           nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_e3m2 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_e3m2_ampere(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_e3m2 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_e3m2_ampere(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                             nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                             nk_size_t a_stride, nk_size_t c_stride,
+                                                             cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_e3m2 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_e3m2_ampere(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_e2m3 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_e2m3_ampere(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                           nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                           nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_e2m3 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_e2m3_ampere(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_e2m3 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_e2m3_ampere(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                             nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                             nk_size_t a_stride, nk_size_t c_stride,
+                                                             cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_e2m3 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_e2m3_ampere(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_e2m1 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_e2m1_ampere(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                           nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                           nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_e2m1 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_e2m1_ampere(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_e2m1 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_e2m1_ampere(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                             nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                             nk_size_t a_stride, nk_size_t c_stride,
+                                                             cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_e2m1 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_e2m1_ampere(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_i8 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_i8_ampere(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_i8 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_i8_ampere(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_i8 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_i8_ampere(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                           nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                           nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_i8 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_i8_ampere(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_i4 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_i4_ampere(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_i4 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_i4_ampere(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_i4 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_i4_ampere(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                           nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                           nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_i4 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_i4_ampere(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_u8 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_u8_ampere(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_u8 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_u8_ampere(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_u8 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_u8_ampere(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                           nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                           nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_u8 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_u8_ampere(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_u4 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_u4_ampere(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_u4 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_u4_ampere(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_u4 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_u4_ampere(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                           nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                           nk_size_t a_stride, nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_u4 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_u4_ampere(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, cudaStream_t stream);
+#endif // NK_TARGET_AMPERE
+
+/*  NVIDIA backends for the compute capability 12.x family, with Float8, Float6 and Float4 products on the tensor cores
+ *  natively.
+ */
+#if NK_TARGET_BLACKWELLRTX
+/** @copydoc nk_angulars_packed_e5m2 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_e5m2_blackwellrtx(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                                 nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                                 nk_size_t a_stride, nk_size_t c_stride,
+                                                                 cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_e5m2 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_e5m2_blackwellrtx(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                                    nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                    nk_size_t result_stride, nk_size_t row_start,
+                                                                    nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_e5m2 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_e5m2_blackwellrtx(nk_e5m2_t const *a, void const *b_packed,
+                                                                   nk_f32_t *c, nk_size_t height, nk_size_t width,
+                                                                   nk_size_t depth, nk_size_t a_stride,
+                                                                   nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_e5m2 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_e5m2_blackwellrtx(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                                      nk_size_t depth, nk_size_t stride,
+                                                                      nk_f32_t *result, nk_size_t result_stride,
+                                                                      nk_size_t row_start, nk_size_t row_count,
+                                                                      cudaStream_t stream);
+/** @copydoc nk_angulars_packed_e4m3 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_e4m3_blackwellrtx(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                                 nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                                 nk_size_t a_stride, nk_size_t c_stride,
+                                                                 cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_e4m3 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_e4m3_blackwellrtx(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                                    nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                    nk_size_t result_stride, nk_size_t row_start,
+                                                                    nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_e4m3 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_e4m3_blackwellrtx(nk_e4m3_t const *a, void const *b_packed,
+                                                                   nk_f32_t *c, nk_size_t height, nk_size_t width,
+                                                                   nk_size_t depth, nk_size_t a_stride,
+                                                                   nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_e4m3 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_e4m3_blackwellrtx(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                                      nk_size_t depth, nk_size_t stride,
+                                                                      nk_f32_t *result, nk_size_t result_stride,
+                                                                      nk_size_t row_start, nk_size_t row_count,
+                                                                      cudaStream_t stream);
+/** @copydoc nk_angulars_packed_e3m2 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_e3m2_blackwellrtx(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                                 nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                                 nk_size_t a_stride, nk_size_t c_stride,
+                                                                 cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_e3m2 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_e3m2_blackwellrtx(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                                    nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                    nk_size_t result_stride, nk_size_t row_start,
+                                                                    nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_e3m2 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_e3m2_blackwellrtx(nk_e3m2_t const *a, void const *b_packed,
+                                                                   nk_f32_t *c, nk_size_t height, nk_size_t width,
+                                                                   nk_size_t depth, nk_size_t a_stride,
+                                                                   nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_e3m2 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_e3m2_blackwellrtx(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                                      nk_size_t depth, nk_size_t stride,
+                                                                      nk_f32_t *result, nk_size_t result_stride,
+                                                                      nk_size_t row_start, nk_size_t row_count,
+                                                                      cudaStream_t stream);
+/** @copydoc nk_angulars_packed_e2m3 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_e2m3_blackwellrtx(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                                 nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                                 nk_size_t a_stride, nk_size_t c_stride,
+                                                                 cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_e2m3 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_e2m3_blackwellrtx(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                                    nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                    nk_size_t result_stride, nk_size_t row_start,
+                                                                    nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_e2m3 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_e2m3_blackwellrtx(nk_e2m3_t const *a, void const *b_packed,
+                                                                   nk_f32_t *c, nk_size_t height, nk_size_t width,
+                                                                   nk_size_t depth, nk_size_t a_stride,
+                                                                   nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_e2m3 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_e2m3_blackwellrtx(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                                      nk_size_t depth, nk_size_t stride,
+                                                                      nk_f32_t *result, nk_size_t result_stride,
+                                                                      nk_size_t row_start, nk_size_t row_count,
+                                                                      cudaStream_t stream);
+/** @copydoc nk_angulars_packed_e2m1 */
+NK_API_COMPTIME cudaError_t nk_angulars_packed_e2m1_blackwellrtx(nk_e2m1x2_t const *a, void const *b_packed,
+                                                                 nk_f32_t *c, nk_size_t height, nk_size_t width,
+                                                                 nk_size_t depth, nk_size_t a_stride,
+                                                                 nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_angulars_symmetric_e2m1 */
+NK_API_COMPTIME cudaError_t nk_angulars_symmetric_e2m1_blackwellrtx(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                                    nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                    nk_size_t result_stride, nk_size_t row_start,
+                                                                    nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_euclideans_packed_e2m1 */
+NK_API_COMPTIME cudaError_t nk_euclideans_packed_e2m1_blackwellrtx(nk_e2m1x2_t const *a, void const *b_packed,
+                                                                   nk_f32_t *c, nk_size_t height, nk_size_t width,
+                                                                   nk_size_t depth, nk_size_t a_stride,
+                                                                   nk_size_t c_stride, cudaStream_t stream);
+/** @copydoc nk_euclideans_symmetric_e2m1 */
+NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_e2m1_blackwellrtx(nk_e2m1x2_t const *vectors,
+                                                                      nk_size_t vectors_count, nk_size_t depth,
+                                                                      nk_size_t stride, nk_f32_t *result,
+                                                                      nk_size_t result_stride, nk_size_t row_start,
+                                                                      nk_size_t row_count, cudaStream_t stream);
+#endif // NK_TARGET_BLACKWELLRTX
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
@@ -2560,6 +2921,8 @@ NK_API_COMPTIME void nk_euclideans_symmetric_u8_rvv(nk_u8_t const *vectors, nk_s
 #include "numkong/spatials/smef64.h"
 #include "numkong/spatials/powervsx.h"
 #include "numkong/spatials/loongsonasx.h"
+#include "numkong/spatials/ampere.cuh"
+#include "numkong/spatials/blackwellrtx.cuh"
 
 #if defined(__cplusplus)
 extern "C" {

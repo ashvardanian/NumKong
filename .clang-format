@@ -138,6 +138,10 @@ StatementMacros:
   - nk_define_cross_cuda_symmetric_
   - nk_define_cross_cuda_fma_packed_
   - nk_define_cross_cuda_fma_symmetric_
+  - nk_define_cross_cuda_normalized_packed_
+  - nk_define_cross_cuda_normalized_symmetric_
+  - nk_define_cross_cuda_fma_normalized_packed_
+  - nk_define_cross_cuda_fma_normalized_symmetric_
   - nk_define_trig_rope_
   - nk_define_mesh_
   - nk_define_dense_
