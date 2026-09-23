@@ -254,10 +254,11 @@ typedef enum {
     nk_kernel_maxsim_packed_shape_k = 'q', ///< MaxSim packed shape read (vectors, depth)
 
     // Ragged scaled-dot-product attention functions:
-    nk_kernel_attention_pack_size_k = 'B',    ///< Attention packed KV-cache Buffer size in Bytes
-    nk_kernel_attention_pack_k = 'V',         ///< Attention K/V packing (KV cache → backend format)
-    nk_kernel_attention_packed_k = 'F',       ///< Fused (Flash-style) attention computation
-    nk_kernel_attention_packed_shape_k = 'z', ///< Attention packed shape read (heads, depth, segments)
+    nk_kernel_attention_pack_size_k = 'B',            ///< Attention packed KV-cache Buffer size in Bytes
+    nk_kernel_attention_pack_k = 'V',                 ///< Attention K/V packing (KV cache → backend format)
+    nk_kernel_attention_bidirectional_packed_k = 'F', ///< Fused (Flash-style) bidirectional attention
+    nk_kernel_attention_causal_packed_k = 'c',        ///< Fused (Flash-style) causal attention
+    nk_kernel_attention_packed_shape_k = 'z',         ///< Attention packed shape read (heads, depth, segments)
 
     nk_kernel_cast_k = '-',              ///< Type casting from one type to another
     nk_kernel_cast_block_scaled_k = '~', ///< Block-scaled cast (MX / NVFP4 encode / decode / transcode)
@@ -320,7 +321,8 @@ NK_API_COMPTIME char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_maxsim_packed_shape_k: return "maxsim_packed_shape";
     case nk_kernel_attention_pack_size_k: return "attention_pack_size";
     case nk_kernel_attention_pack_k: return "attention_pack";
-    case nk_kernel_attention_packed_k: return "attention_packed";
+    case nk_kernel_attention_bidirectional_packed_k: return "attention_bidirectional_packed";
+    case nk_kernel_attention_causal_packed_k: return "attention_causal_packed";
     case nk_kernel_attention_packed_shape_k: return "attention_packed_shape";
     case nk_kernel_cast_k: return "cast";
     case nk_kernel_cast_block_scaled_k: return "cast_block_scaled";
@@ -382,7 +384,9 @@ NK_API_COMPTIME nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t len
     if (nk_same_literal_(name, length, "maxsim_packed_shape")) return nk_kernel_maxsim_packed_shape_k;
     if (nk_same_literal_(name, length, "attention_pack_size")) return nk_kernel_attention_pack_size_k;
     if (nk_same_literal_(name, length, "attention_pack")) return nk_kernel_attention_pack_k;
-    if (nk_same_literal_(name, length, "attention_packed")) return nk_kernel_attention_packed_k;
+    if (nk_same_literal_(name, length, "attention_bidirectional_packed"))
+        return nk_kernel_attention_bidirectional_packed_k;
+    if (nk_same_literal_(name, length, "attention_causal_packed")) return nk_kernel_attention_causal_packed_k;
     if (nk_same_literal_(name, length, "attention_packed_shape")) return nk_kernel_attention_packed_shape_k;
     if (nk_same_literal_(name, length, "cast")) return nk_kernel_cast_k;
     if (nk_same_literal_(name, length, "cast_block_scaled")) return nk_kernel_cast_block_scaled_k;
@@ -546,11 +550,17 @@ typedef nk_size_t (*nk_attention_pack_size_punned_t)(nk_size_t num_kv_heads, nk_
 typedef void (*nk_attention_pack_punned_t)(void const *k, void const *v, nk_size_t num_kv_heads, nk_size_t head_dim,
                                            nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
                                            nk_size_t segment_count, nk_size_t k_stride_bytes, nk_size_t v_stride_bytes,
-                                           void *key_value_packed, nk_size_t begin, nk_size_t end);
-typedef void (*nk_attention_packed_punned_t)(void const *q, void const *key_value_packed, void *output,
-                                             nk_size_t num_heads, nk_size_t num_kv_heads, nk_size_t head_dim,
-                                             nk_u32_t const *query_offsets, nk_size_t q_stride_bytes,
-                                             nk_size_t o_stride_bytes, nk_f32_t scale, nk_size_t begin, nk_size_t end);
+                                           void *key_value_packed, nk_size_t task_begin, nk_size_t task_end);
+typedef void (*nk_attention_bidirectional_packed_punned_t)(void const *q, void const *key_value_packed, void *output,
+                                                           nk_size_t num_heads, nk_size_t num_kv_heads,
+                                                           nk_size_t head_dim, nk_u32_t const *query_offsets,
+                                                           nk_size_t q_stride_bytes, nk_size_t o_stride_bytes,
+                                                           nk_f32_t scale, nk_size_t task_start, nk_size_t task_count);
+typedef void (*nk_attention_causal_packed_punned_t)(void const *q, void const *key_value_packed, void *output,
+                                                    nk_size_t num_heads, nk_size_t num_kv_heads, nk_size_t head_dim,
+                                                    nk_u32_t const *query_offsets, nk_size_t q_stride_bytes,
+                                                    nk_size_t o_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset,
+                                                    nk_size_t window, nk_size_t task_start, nk_size_t task_count);
 
 typedef void (*nk_kernel_cast_punned_t)(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
                                         nk_dtype_t to_type);

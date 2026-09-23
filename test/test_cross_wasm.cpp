@@ -131,12 +131,20 @@ void test_cross_wasm() {
     check("euclideans_symmetric_u8_v128relaxed", test_euclideans_symmetric<u8_t>,
           nk_euclideans_symmetric_u8_v128relaxed);
 
-    check("attention_packed_bf16_v128relaxed", test_attention_packed<bf16_t>, nk_attention_pack_size_bf16_v128,
-          nk_attention_pack_bf16_v128, nk_attention_packed_bf16_v128relaxed);
-    check("attention_packed_e4m3_v128relaxed", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_v128,
-          nk_attention_pack_e4m3_v128, nk_attention_packed_e4m3_v128relaxed);
-    check("attention_packed_i8_v128relaxed", test_attention_packed<i8_t>, nk_attention_pack_size_i8_v128,
-          nk_attention_pack_i8_v128, nk_attention_packed_i8_v128relaxed);
+    check("attention_bidirectional_packed_bf16_v128relaxed", test_attention_bidirectional_packed<bf16_t>,
+          nk_attention_pack_size_bf16_v128, nk_attention_pack_bf16_v128,
+          nk_attention_bidirectional_packed_bf16_v128relaxed);
+    check("attention_causal_packed_bf16_v128relaxed", test_attention_causal_packed<bf16_t>,
+          nk_attention_pack_size_bf16_v128, nk_attention_pack_bf16_v128, nk_attention_causal_packed_bf16_v128relaxed);
+    check("attention_bidirectional_packed_e4m3_v128relaxed", test_attention_bidirectional_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_v128, nk_attention_pack_e4m3_v128,
+          nk_attention_bidirectional_packed_e4m3_v128relaxed);
+    check("attention_causal_packed_e4m3_v128relaxed", test_attention_causal_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_v128, nk_attention_pack_e4m3_v128, nk_attention_causal_packed_e4m3_v128relaxed);
+    check("attention_bidirectional_packed_i8_v128relaxed", test_attention_bidirectional_packed<i8_t>,
+          nk_attention_pack_size_i8_v128, nk_attention_pack_i8_v128, nk_attention_bidirectional_packed_i8_v128relaxed);
+    check("attention_causal_packed_i8_v128relaxed", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_v128,
+          nk_attention_pack_i8_v128, nk_attention_causal_packed_i8_v128relaxed);
 #endif // NK_TARGET_V128RELAXED
 
 #if NK_TARGET_V128
@@ -184,11 +192,17 @@ void test_cross_wasm() {
     check("hammings_symmetric_u1_v128", test_hammings_symmetric<u1x8_t>, nk_hammings_symmetric_u1_v128);
     check("jaccards_symmetric_u1_v128", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1_v128);
 
-    check("attention_packed_bf16_v128", test_attention_packed<bf16_t>, nk_attention_pack_size_bf16_v128,
-          nk_attention_pack_bf16_v128, nk_attention_packed_bf16_serial);
-    check("attention_packed_e4m3_v128", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_v128,
-          nk_attention_pack_e4m3_v128, nk_attention_packed_e4m3_serial);
-    check("attention_packed_i8_v128", test_attention_packed<i8_t>, nk_attention_pack_size_i8_v128,
-          nk_attention_pack_i8_v128, nk_attention_packed_i8_serial);
+    check("attention_bidirectional_packed_bf16_v128", test_attention_bidirectional_packed<bf16_t>,
+          nk_attention_pack_size_bf16_v128, nk_attention_pack_bf16_v128, nk_attention_bidirectional_packed_bf16_serial);
+    check("attention_causal_packed_bf16_v128", test_attention_causal_packed<bf16_t>, nk_attention_pack_size_bf16_v128,
+          nk_attention_pack_bf16_v128, nk_attention_causal_packed_bf16_serial);
+    check("attention_bidirectional_packed_e4m3_v128", test_attention_bidirectional_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_v128, nk_attention_pack_e4m3_v128, nk_attention_bidirectional_packed_e4m3_serial);
+    check("attention_causal_packed_e4m3_v128", test_attention_causal_packed<e4m3_t>, nk_attention_pack_size_e4m3_v128,
+          nk_attention_pack_e4m3_v128, nk_attention_causal_packed_e4m3_serial);
+    check("attention_bidirectional_packed_i8_v128", test_attention_bidirectional_packed<i8_t>,
+          nk_attention_pack_size_i8_v128, nk_attention_pack_i8_v128, nk_attention_bidirectional_packed_i8_serial);
+    check("attention_causal_packed_i8_v128", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_v128,
+          nk_attention_pack_i8_v128, nk_attention_causal_packed_i8_serial);
 #endif // NK_TARGET_V128
 }

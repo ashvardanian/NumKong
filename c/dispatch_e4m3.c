@@ -41,8 +41,11 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_euclideans_symmetric_k:
             *m = (m_t)&nk_euclideans_symmetric_e4m3_v128relaxed, *c = nk_cap_v128relaxed_k;
             return;
-        case nk_kernel_attention_packed_k:
-            *m = (m_t)&nk_attention_packed_e4m3_v128relaxed, *c = nk_cap_v128relaxed_k;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_e4m3_v128relaxed, *c = nk_cap_v128relaxed_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_e4m3_v128relaxed, *c = nk_cap_v128relaxed_k;
             return;
         default: break;
         }
@@ -73,7 +76,12 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_e4m3_sme, *c = nk_cap_sme_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_e4m3_sme, *c = nk_cap_sme_k; return;
-        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_e4m3_sme, *c = nk_cap_sme_k; return;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_e4m3_sme, *c = nk_cap_sme_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_e4m3_sme, *c = nk_cap_sme_k;
+            return;
         default: break;
         }
 #endif
@@ -123,7 +131,12 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_e4m3_neonfhm, *c = nk_cap_neonfhm_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_e4m3_neonfhm, *c = nk_cap_neonfhm_k; return;
-        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_e4m3_neonfhm, *c = nk_cap_neonfhm_k; return;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_e4m3_neonfhm, *c = nk_cap_neonfhm_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_e4m3_neonfhm, *c = nk_cap_neonfhm_k;
+            return;
         default: break;
         }
 #endif
@@ -158,8 +171,11 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_e4m3_diamondamx, *c = nk_cap_diamondamx_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_e4m3_diamondamx, *c = nk_cap_diamondamx_k; return;
-        case nk_kernel_attention_packed_k:
-            *m = (m_t)&nk_attention_packed_e4m3_diamondamx, *c = nk_cap_diamondamx_k;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_e4m3_diamondamx, *c = nk_cap_diamondamx_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_e4m3_diamondamx, *c = nk_cap_diamondamx_k;
             return;
         default: break;
         }
@@ -198,8 +214,11 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_attention_pack_k:
             *m = (m_t)&nk_attention_pack_e4m3_sapphireamx, *c = nk_cap_sapphireamx_k;
             return;
-        case nk_kernel_attention_packed_k:
-            *m = (m_t)&nk_attention_packed_e4m3_sapphireamx, *c = nk_cap_sapphireamx_k;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_e4m3_sapphireamx, *c = nk_cap_sapphireamx_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_e4m3_sapphireamx, *c = nk_cap_sapphireamx_k;
             return;
         default: break;
         }
@@ -255,7 +274,12 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_e4m3_genoa, *c = nk_cap_genoa_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_e4m3_genoa, *c = nk_cap_genoa_k; return;
-        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_e4m3_genoa, *c = nk_cap_genoa_k; return;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_e4m3_genoa, *c = nk_cap_genoa_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_e4m3_genoa, *c = nk_cap_genoa_k;
+            return;
         default: break;
         }
 #endif
@@ -290,7 +314,12 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_e4m3_skylake, *c = nk_cap_skylake_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_e4m3_skylake, *c = nk_cap_skylake_k; return;
-        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_e4m3_skylake, *c = nk_cap_skylake_k; return;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_e4m3_skylake, *c = nk_cap_skylake_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_e4m3_skylake, *c = nk_cap_skylake_k;
+            return;
         default: break;
         }
 #endif
@@ -322,7 +351,12 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_e4m3_haswell, *c = nk_cap_haswell_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_e4m3_haswell, *c = nk_cap_haswell_k; return;
-        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_e4m3_haswell, *c = nk_cap_haswell_k; return;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_e4m3_haswell, *c = nk_cap_haswell_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_e4m3_haswell, *c = nk_cap_haswell_k;
+            return;
         default: break;
         }
 #endif
@@ -369,7 +403,12 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_e4m3_rvv, *c = nk_cap_rvv_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_e4m3_rvv, *c = nk_cap_rvv_k; return;
-        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_e4m3_rvv, *c = nk_cap_rvv_k; return;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_e4m3_rvv, *c = nk_cap_rvv_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_e4m3_rvv, *c = nk_cap_rvv_k;
+            return;
         default: break;
         }
 #endif
@@ -406,7 +445,12 @@ void nk_dispatch_e4m3_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_e4m3_serial, *c = nk_cap_serial_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_e4m3_serial, *c = nk_cap_serial_k; return;
-        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_e4m3_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_e4m3_serial, *c = nk_cap_serial_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_e4m3_serial, *c = nk_cap_serial_k;
+            return;
         default: break;
         }
 
@@ -449,5 +493,8 @@ void nk_dispatch_e4m3_init_(nk_capability_t caps) {
     nk_dispatch_e4m3_find_(caps, nk_kernel_attention_packed_shape_k,
                            (nk_kernel_punned_t *)&t->attention_packed_shape_e4m3, &used);
     nk_dispatch_e4m3_find_(caps, nk_kernel_attention_pack_k, (nk_kernel_punned_t *)&t->attention_pack_e4m3, &used);
-    nk_dispatch_e4m3_find_(caps, nk_kernel_attention_packed_k, (nk_kernel_punned_t *)&t->attention_packed_e4m3, &used);
+    nk_dispatch_e4m3_find_(caps, nk_kernel_attention_bidirectional_packed_k,
+                           (nk_kernel_punned_t *)&t->attention_bidirectional_packed_e4m3, &used);
+    nk_dispatch_e4m3_find_(caps, nk_kernel_attention_causal_packed_k,
+                           (nk_kernel_punned_t *)&t->attention_causal_packed_e4m3, &used);
 }

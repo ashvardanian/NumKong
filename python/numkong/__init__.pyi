@@ -474,7 +474,7 @@ class MaxSimPackedMatrix:
 class AttentionPackedMatrix:
     """Opaque pre-packed ragged KV-cache for scaled-dot-product attention.
 
-    Created by attention_pack() and used with attention_packed().
+    Created by attention_pack() and used with attention_bidirectional_packed() or attention_causal_packed().
     """
 
     @property
@@ -1173,7 +1173,7 @@ def attention_pack(
     """Pack ragged K/V token matrices into a backend-opaque KV-cache blob."""
     ...
 
-def attention_packed(
+def attention_bidirectional_packed(
     q: _BufferType,
     kv: AttentionPackedMatrix,
     /,
@@ -1182,7 +1182,21 @@ def attention_packed(
     scale: float | None = None,
     threads: int = 1,
 ) -> Tensor:
-    """Compute ragged scaled-dot-product attention against a packed KV-cache."""
+    """Compute ragged bidirectional scaled-dot-product attention against a packed KV-cache."""
+    ...
+
+def attention_causal_packed(
+    q: _BufferType,
+    kv: AttentionPackedMatrix,
+    /,
+    query_offsets: _BufferType,
+    out: Tensor | None = None,
+    scale: float | None = None,
+    diagonal_offset: int = 0,
+    window: int | None = None,
+    threads: int = 1,
+) -> Tensor:
+    """Compute ragged causal attention, row r seeing the `window` keys ending at `r + diagonal_offset`."""
     ...
 
 def maxsim(

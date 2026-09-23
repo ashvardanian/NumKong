@@ -107,12 +107,18 @@ void test_cross_sme() {
     check("euclideans_symmetric_i4_sme", test_euclideans_symmetric<i4x2_t>, nk_euclideans_symmetric_i4_sme);
     check("euclideans_symmetric_u4_sme", test_euclideans_symmetric<u4x2_t>, nk_euclideans_symmetric_u4_sme);
 
-    check("attention_packed_bf16_sme", test_attention_packed<bf16_t>, nk_attention_pack_size_bf16_sme,
-          nk_attention_pack_bf16_sme, nk_attention_packed_bf16_sme);
-    check("attention_packed_e4m3_sme", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_sme,
-          nk_attention_pack_e4m3_sme, nk_attention_packed_e4m3_sme);
-    check("attention_packed_i8_sme", test_attention_packed<i8_t>, nk_attention_pack_size_i8_sme,
-          nk_attention_pack_i8_sme, nk_attention_packed_i8_sme);
+    check("attention_bidirectional_packed_bf16_sme", test_attention_bidirectional_packed<bf16_t>,
+          nk_attention_pack_size_bf16_sme, nk_attention_pack_bf16_sme, nk_attention_bidirectional_packed_bf16_sme);
+    check("attention_causal_packed_bf16_sme", test_attention_causal_packed<bf16_t>, nk_attention_pack_size_bf16_sme,
+          nk_attention_pack_bf16_sme, nk_attention_causal_packed_bf16_sme);
+    check("attention_bidirectional_packed_e4m3_sme", test_attention_bidirectional_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_sme, nk_attention_pack_e4m3_sme, nk_attention_bidirectional_packed_e4m3_sme);
+    check("attention_causal_packed_e4m3_sme", test_attention_causal_packed<e4m3_t>, nk_attention_pack_size_e4m3_sme,
+          nk_attention_pack_e4m3_sme, nk_attention_causal_packed_e4m3_sme);
+    check("attention_bidirectional_packed_i8_sme", test_attention_bidirectional_packed<i8_t>,
+          nk_attention_pack_size_i8_sme, nk_attention_pack_i8_sme, nk_attention_bidirectional_packed_i8_sme);
+    check("attention_causal_packed_i8_sme", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_sme,
+          nk_attention_pack_i8_sme, nk_attention_causal_packed_i8_sme);
 #endif // NK_TARGET_SME
 
 #if NK_TARGET_SMEBI32

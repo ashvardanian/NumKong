@@ -1268,7 +1268,10 @@ static PyMethodDef nk_methods[] = {
     {"maxsim_packed", (PyCFunction)api_maxsim_packed, METH_FASTCALL | METH_KEYWORDS, doc_maxsim_packed},
     {"maxsim", (PyCFunction)api_maxsim, METH_FASTCALL | METH_KEYWORDS, doc_maxsim},
     {"attention_pack", (PyCFunction)api_attention_pack, METH_FASTCALL | METH_KEYWORDS, doc_attention_pack},
-    {"attention_packed", (PyCFunction)api_attention_packed, METH_FASTCALL | METH_KEYWORDS, doc_attention_packed},
+    {"attention_bidirectional_packed", (PyCFunction)api_attention_bidirectional_packed, METH_FASTCALL | METH_KEYWORDS,
+     doc_attention_bidirectional_packed},
+    {"attention_causal_packed", (PyCFunction)api_attention_causal_packed, METH_FASTCALL | METH_KEYWORDS,
+     doc_attention_causal_packed},
 
     // Sentinel
     {NULL, NULL, 0, NULL}};

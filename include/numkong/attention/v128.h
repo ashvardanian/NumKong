@@ -96,22 +96,22 @@ NK_HELPER_INLINE void nk_attention_pack_v128_(                                  
     nk_size_t key_value_head_count, nk_size_t depth,                                   //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, //
-    void *key_value_packed, nk_size_t begin, nk_size_t end) {
+    void *key_value_packed, nk_size_t task_begin, nk_size_t task_end) {
 
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const row_bytes = depth * element_bytes;
     nk_size_t const padded_row_bytes = depth_padded * element_bytes;
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
-                                 1, padded_row_bytes);
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
+                                 task_begin, 1, padded_row_bytes);
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *payload_offsets = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (begin >= total_tasks) return;
-    if (end > total_tasks) end = total_tasks;
+    if (task_begin >= total_tasks) return;
+    if (task_end > total_tasks) task_end = total_tasks;
 
-    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
+    for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count;
         nk_size_t const key_value_head_idx = task_idx % key_value_head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
@@ -145,16 +145,16 @@ NK_API_COMPTIME void nk_attention_pack_bf16_v128(                               
     nk_size_t key_value_head_count, nk_size_t depth,                                   //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, //
-    void *key_value_packed, nk_size_t begin, nk_size_t end) {
+    void *key_value_packed, nk_size_t task_begin, nk_size_t task_end) {
     if (depth > nk_attention_max_depth_v128_k_) {
         nk_attention_pack_bf16_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
-                                      end);
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, task_begin,
+                                      task_end);
         return;
     }
     nk_attention_pack_v128_(keys, values, sizeof(nk_bf16_t), key_value_head_count, depth, segment_offsets,
                             segment_lengths, segment_count, key_stride_bytes, value_stride_bytes, key_value_packed,
-                            begin, end);
+                            task_begin, task_end);
 }
 
 NK_API_COMPTIME void nk_attention_pack_e4m3_v128(                                      //
@@ -162,16 +162,16 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_v128(                               
     nk_size_t key_value_head_count, nk_size_t depth,                                   //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, //
-    void *key_value_packed, nk_size_t begin, nk_size_t end) {
+    void *key_value_packed, nk_size_t task_begin, nk_size_t task_end) {
     if (depth > nk_attention_max_depth_v128_k_) {
         nk_attention_pack_e4m3_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
-                                      end);
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, task_begin,
+                                      task_end);
         return;
     }
     nk_attention_pack_v128_(keys, values, sizeof(nk_e4m3_t), key_value_head_count, depth, segment_offsets,
                             segment_lengths, segment_count, key_stride_bytes, value_stride_bytes, key_value_packed,
-                            begin, end);
+                            task_begin, task_end);
 }
 
 NK_API_COMPTIME void nk_attention_pack_i8_v128(                                        //
@@ -179,14 +179,16 @@ NK_API_COMPTIME void nk_attention_pack_i8_v128(                                 
     nk_size_t key_value_head_count, nk_size_t depth,                                   //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, //
-    void *key_value_packed, nk_size_t begin, nk_size_t end) {
+    void *key_value_packed, nk_size_t task_begin, nk_size_t task_end) {
     if (depth > nk_attention_max_depth_v128_k_) {
         nk_attention_pack_i8_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                    segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
+                                    segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, task_begin,
+                                    task_end);
         return;
     }
     nk_attention_pack_v128_(keys, values, 1, key_value_head_count, depth, segment_offsets, segment_lengths,
-                            segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
+                            segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, task_begin,
+                            task_end);
 }
 
 #if defined(__clang__)

@@ -683,10 +683,15 @@ v = nk.Tensor(np.random.randn(tokens, heads * depth).astype(np.float32)).astype(
 kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=depth)
 
 queries = nk.Tensor(np.random.randn(tokens, heads * depth).astype(np.float32)).astype("bfloat16")
-out = nk.attention_packed(queries, kv, query_offsets=offsets)
+out = nk.attention_bidirectional_packed(queries, kv, query_offsets=offsets)
+decoded = nk.attention_causal_packed(queries, kv, query_offsets=offsets, diagonal_offset=0, window=4)
 
 assert kv.shape == (kv.heads, kv.depth, kv.segments)
 ```
+
+The causal variant places query row `r` at position `r + diagonal_offset` and attends to the `window` keys ending there, inclusive.
+Pass `diagonal_offset = length - queries` to decode against a longer cache, and `window=None` for unbounded causal attention.
+Rows that see no key come back as zeros.
 
 ## Capabilities, GIL Behavior, and Parallel Partitioning
 

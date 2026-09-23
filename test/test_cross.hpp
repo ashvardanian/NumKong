@@ -11,7 +11,7 @@
 #ifndef NK_TEST_CROSS_HPP
 #define NK_TEST_CROSS_HPP
 
-#include "numkong/attention.hpp" // `nk::attention_packed`, `nk::attention_pack`
+#include "numkong/attention.hpp" // `nk::attention_bidirectional_packed`, `nk::attention_pack`
 #include "numkong/spatials.h"    // `nk_angulars_packed_*`, `nk_euclideans_packed_*`
 
 #include "numkong/dots.hpp"   // `nk::dots_packed`, `nk::dots_symmetric`
@@ -113,13 +113,14 @@ error_stats_t test_dots_symmetric(typename scalar_type_::dots_symmetric_kernel_t
 }
 
 /**
- *  @brief Ragged attention test against the serial backend as reference: fixed segment
- *         mix with a zero-length PAD segment, GQA 2:1, executed through per-task windows.
+ *  @brief Ragged bidirectional attention test against the serial backend as reference: fixed segment
+ *         mix with a zero-length PAD segment, GQA 2:1, executed over the whole task grid.
  */
 template <typename scalar_type_>
-error_stats_t test_attention_packed(typename scalar_type_::attention_pack_size_kernel_t packed_size_fn,
-                                    typename scalar_type_::attention_pack_kernel_t pack_fn,
-                                    typename scalar_type_::attention_packed_kernel_t attention_fn) {
+error_stats_t test_attention_bidirectional_packed(
+    typename scalar_type_::attention_pack_size_kernel_t packed_size_fn,
+    typename scalar_type_::attention_pack_kernel_t pack_fn,
+    typename scalar_type_::attention_bidirectional_packed_kernel_t attention_fn) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::attention_result_t;
 
@@ -130,6 +131,7 @@ error_stats_t test_attention_packed(typename scalar_type_::attention_pack_size_k
     std::vector<nk_u32_t> offsets = {0};
     for (auto length : lengths) offsets.push_back(offsets.back() + length);
     std::size_t const tokens = offsets.back(), head_count = 4, key_value_head_count = 2;
+    std::size_t const total_tasks = lengths.size() * head_count;
     nk_f32_t const scale = 0.05f;
 
     for (auto start = test_start_time(); within_time_budget(start);) {
@@ -145,15 +147,14 @@ error_stats_t test_attention_packed(typename scalar_type_::attention_pack_size_k
 
             auto key_value_packed = make_vector<char>(
                 packed_size_fn(key_value_head_count, depth, lengths.data(), lengths.size()));
-            // Run kernel being tested: pack once, then attention through per-task windows
+            // Run kernel being tested: pack once, then attention over the whole task grid
             pack_fn(keys.raw_values_data(), values.raw_values_data(), key_value_head_count, depth, offsets.data(),
                     lengths.data(), lengths.size(), key_value_stride_bytes, key_value_stride_bytes,
-                    key_value_packed.raw_values_data(), 0, static_cast<std::size_t>(-1));
+                    key_value_packed.raw_values_data(), 0, lengths.size() * key_value_head_count);
             auto output = make_vector<result_t>(tokens * queries_row_width);
-            for (std::size_t task_idx = 0; task_idx < lengths.size() * head_count; task_idx++)
-                attention_fn(queries.raw_values_data(), key_value_packed.raw_values_data(), output.raw_values_data(),
-                             head_count, key_value_head_count, depth, offsets.data(), query_stride_bytes,
-                             queries_row_width * sizeof(nk_f32_t), scale, task_idx, 1);
+            attention_fn(queries.raw_values_data(), key_value_packed.raw_values_data(), output.raw_values_data(),
+                         head_count, key_value_head_count, depth, offsets.data(), query_stride_bytes,
+                         queries_row_width * sizeof(nk_f32_t), scale, 0, total_tasks);
 
             auto key_value_reference = make_vector<char>(nk::attention_pack_size<scalar_t, nk::no_simd_k>(
                 key_value_head_count, depth, lengths.data(), lengths.size()));
@@ -162,12 +163,124 @@ error_stats_t test_attention_packed(typename scalar_type_::attention_pack_size_k
                 keys.values_data(), values.values_data(), key_value_head_count, depth, offsets.data(), lengths.data(),
                 lengths.size(), key_value_stride_bytes, key_value_stride_bytes, key_value_reference.raw_values_data());
             auto reference = make_vector<result_t>(tokens * queries_row_width);
-            nk::attention_packed<scalar_t, result_t, nk::no_simd_k>(
+            nk::attention_bidirectional_packed<scalar_t, result_t, nk::no_simd_k>(
                 queries.values_data(), key_value_reference.raw_values_data(), reference.values_data(), head_count,
                 key_value_head_count, depth, offsets.data(), query_stride_bytes, queries_row_width * sizeof(nk_f32_t),
                 scale);
 
-            for (std::size_t i = 0; i < output.size_values(); i++) stats.accumulate(output[i], reference[i]);
+            for (std::size_t index = 0; index < output.size_values(); index++)
+                stats.accumulate(output[index], reference[index]);
+        }
+    }
+    return stats;
+}
+
+/**
+ *  @brief Ragged causal attention test: the reference runs the serial bidirectional kernel per query row
+ *         over a pack of exactly the keys that row may see, and expects zeros for rows that see none.
+ *         Two task windows cover the grid, the second one relying on `task_count` clipping.
+ */
+template <typename scalar_type_>
+error_stats_t test_attention_causal_packed(typename scalar_type_::attention_pack_size_kernel_t packed_size_fn,
+                                           typename scalar_type_::attention_pack_kernel_t pack_fn,
+                                           typename scalar_type_::attention_causal_packed_kernel_t attention_fn) {
+    using scalar_t = scalar_type_;
+    using result_t = typename scalar_t::attention_result_t;
+
+    error_stats_t stats(comparison_family_t::normalized_reduction_k);
+    std::mt19937 generator(global_config.seed);
+
+    std::size_t const head_count = 4, key_value_head_count = 2;
+    nk_f32_t const scale = 0.05f;
+    std::size_t const unbounded_window = static_cast<std::size_t>(-1);
+
+    for (auto start = test_start_time(); within_time_budget(start);) {
+        for (nk_u32_t main_length : {1u, 31u, 32u, 33u, 513u}) {
+            nk_u32_t const main_queries = std::min<nk_u32_t>(main_length / 2 + 2, 24);
+            std::vector<nk_u32_t> const lengths = {main_length, 0, 33};
+            std::vector<nk_u32_t> const query_counts = {main_queries, 2, 1}; // long block, PAD without keys, decode
+            std::vector<nk_u32_t> key_offsets = {0}, query_offsets = {0};
+            for (std::size_t segment = 0; segment < lengths.size(); segment++)
+                key_offsets.push_back(key_offsets.back() + lengths[segment]),
+                    query_offsets.push_back(query_offsets.back() + query_counts[segment]);
+            std::size_t const key_tokens = key_offsets.back(), query_tokens = query_offsets.back();
+            std::size_t const total_tasks = lengths.size() * head_count;
+
+            for (std::size_t depth : {1ul, 65ul, 128ul, 257ul}) {
+                std::size_t const queries_row_width = head_count * depth,
+                                  key_value_row_width = key_value_head_count * depth;
+                std::size_t const query_stride_bytes = queries_row_width * sizeof(scalar_t),
+                                  key_value_stride_bytes = key_value_row_width * sizeof(scalar_t),
+                                  output_stride_bytes = queries_row_width * sizeof(nk_f32_t);
+                auto queries = make_vector<scalar_t>(query_tokens * queries_row_width);
+                auto keys = make_vector<scalar_t>(key_tokens * key_value_row_width),
+                     values = make_vector<scalar_t>(key_tokens * key_value_row_width);
+                fill_random(generator, queries), fill_random(generator, keys), fill_random(generator, values);
+
+                auto key_value_packed = make_vector<char>(
+                    packed_size_fn(key_value_head_count, depth, lengths.data(), lengths.size()));
+                pack_fn(keys.raw_values_data(), values.raw_values_data(), key_value_head_count, depth,
+                        key_offsets.data(), lengths.data(), lengths.size(), key_value_stride_bytes,
+                        key_value_stride_bytes, key_value_packed.raw_values_data(), 0,
+                        lengths.size() * key_value_head_count);
+
+                std::int64_t const cache_offset = static_cast<std::int64_t>(main_length) - main_queries;
+                for (std::int64_t diagonal_offset :
+                     {std::int64_t(0), cache_offset, std::int64_t(-3), static_cast<std::int64_t>(main_length) + 5}) {
+                    for (std::size_t window : {std::size_t(1), std::size_t(7), std::size_t(31), std::size_t(33),
+                                               std::size_t(511), std::size_t(513), unbounded_window, std::size_t(0)}) {
+                        auto output = make_vector<result_t>(query_tokens * queries_row_width);
+                        std::size_t const first_window_tasks = total_tasks / 2;
+                        // Run kernel being tested over two windows, the second one clipped to the grid
+                        attention_fn(queries.raw_values_data(), key_value_packed.raw_values_data(),
+                                     output.raw_values_data(), head_count, key_value_head_count, depth,
+                                     query_offsets.data(), query_stride_bytes, output_stride_bytes, scale,
+                                     diagonal_offset, window, 0, first_window_tasks);
+                        attention_fn(queries.raw_values_data(), key_value_packed.raw_values_data(),
+                                     output.raw_values_data(), head_count, key_value_head_count, depth,
+                                     query_offsets.data(), query_stride_bytes, output_stride_bytes, scale,
+                                     diagonal_offset, window, first_window_tasks, unbounded_window);
+
+                        auto reference = make_vector<result_t>(query_tokens * queries_row_width);
+                        for (std::size_t index = 0; index < reference.size_values(); index++) reference[index] = 0;
+                        // Reference: one single-row bidirectional call per query over its visible keys
+                        for (std::size_t segment = 0; segment < lengths.size(); segment++) {
+                            for (std::size_t row = 0; row < query_counts[segment]; row++) {
+                                std::int64_t const position = static_cast<std::int64_t>(row) + diagonal_offset;
+                                if (position < 0 || window == 0) continue;
+                                std::size_t const query_position = static_cast<std::size_t>(position);
+                                std::size_t const key_end = std::min<std::size_t>(query_position + 1, lengths[segment]);
+                                std::size_t const key_begin = window > query_position
+                                                                  ? 0
+                                                                  : std::min(query_position - window + 1, key_end);
+                                if (key_begin == key_end) continue;
+                                nk_u32_t const visible_offsets[2] = {
+                                    static_cast<nk_u32_t>(key_offsets[segment] + key_begin),
+                                    static_cast<nk_u32_t>(key_offsets[segment] + key_end)};
+                                nk_u32_t const visible_length = static_cast<nk_u32_t>(key_end - key_begin);
+                                nk_u32_t const single_query_offsets[2] = {0, 1};
+                                auto key_value_reference = make_vector<char>(
+                                    nk::attention_pack_size<scalar_t, nk::no_simd_k>(key_value_head_count, depth,
+                                                                                     &visible_length, 1));
+                                nk::attention_pack<scalar_t, nk::no_simd_k>(
+                                    keys.values_data(), values.values_data(), key_value_head_count, depth,
+                                    visible_offsets, &visible_length, 1, key_value_stride_bytes, key_value_stride_bytes,
+                                    key_value_reference.raw_values_data());
+                                std::size_t const query_row = query_offsets[segment] + row;
+                                nk::attention_bidirectional_packed<scalar_t, result_t, nk::no_simd_k>(
+                                    queries.values_data() + query_row * queries_row_width,
+                                    key_value_reference.raw_values_data(),
+                                    reference.values_data() + query_row * queries_row_width, head_count,
+                                    key_value_head_count, depth, single_query_offsets, query_stride_bytes,
+                                    output_stride_bytes, scale);
+                            }
+                        }
+
+                        for (std::size_t index = 0; index < output.size_values(); index++)
+                            stats.accumulate(output[index], reference[index]);
+                    }
+                }
+            }
         }
     }
     return stats;

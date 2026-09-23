@@ -150,10 +150,18 @@ void bench_cross_serial() {
     run_euclideans_symmetric<i4_k>("euclideans_symmetric_i4_serial", nk_euclideans_symmetric_i4_serial);
     run_euclideans_symmetric<u4_k>("euclideans_symmetric_u4_serial", nk_euclideans_symmetric_u4_serial);
 
-    run_attention<bf16_k>("attention_packed_bf16_serial", nk_attention_pack_size_bf16_serial,
-                          nk_attention_pack_bf16_serial, nk_attention_packed_bf16_serial);
-    run_attention<e4m3_k>("attention_packed_e4m3_serial", nk_attention_pack_size_e4m3_serial,
-                          nk_attention_pack_e4m3_serial, nk_attention_packed_e4m3_serial);
-    run_attention<i8_k>("attention_packed_i8_serial", nk_attention_pack_size_i8_serial, nk_attention_pack_i8_serial,
-                        nk_attention_packed_i8_serial);
+    run_attention_bidirectional<bf16_k>("attention_bidirectional_packed_bf16_serial",
+                                        nk_attention_pack_size_bf16_serial, nk_attention_pack_bf16_serial,
+                                        nk_attention_bidirectional_packed_bf16_serial);
+    run_attention_causal<bf16_k>("attention_causal_packed_bf16_serial", nk_attention_pack_size_bf16_serial,
+                                 nk_attention_pack_bf16_serial, nk_attention_causal_packed_bf16_serial);
+    run_attention_bidirectional<e4m3_k>("attention_bidirectional_packed_e4m3_serial",
+                                        nk_attention_pack_size_e4m3_serial, nk_attention_pack_e4m3_serial,
+                                        nk_attention_bidirectional_packed_e4m3_serial);
+    run_attention_causal<e4m3_k>("attention_causal_packed_e4m3_serial", nk_attention_pack_size_e4m3_serial,
+                                 nk_attention_pack_e4m3_serial, nk_attention_causal_packed_e4m3_serial);
+    run_attention_bidirectional<i8_k>("attention_bidirectional_packed_i8_serial", nk_attention_pack_size_i8_serial,
+                                      nk_attention_pack_i8_serial, nk_attention_bidirectional_packed_i8_serial);
+    run_attention_causal<i8_k>("attention_causal_packed_i8_serial", nk_attention_pack_size_i8_serial,
+                               nk_attention_pack_i8_serial, nk_attention_causal_packed_i8_serial);
 }

@@ -270,10 +270,10 @@ void run_dots_packed(std::string name, //
 }
 
 /**
- *  @brief Ragged attention benchmark: pack KV once, then time the attention kernel on a
- *         single self-attention segment. Reports scalar-ops as 4 · heads · seq² · dim.
+ *  @brief Ragged attention benchmark: pack KV once, then time the attention kernel on a single segment.
+ *         Reports scalar-ops as the dense 4 · heads · queries · keys · dim, whichever keys a mask skips.
  */
-template <nk_dtype_t input_dtype_>
+template <nk_dtype_t input_dtype_, typename attention_call_type_>
 void measure_attention(                                                                  //
     bm::State &state,                                                                    //
     nk_size_t (*packed_size_fn)(nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t),      //
@@ -281,10 +281,7 @@ void measure_attention(                                                         
                     typename nk::type_for<input_dtype_>::type::raw_t const *, nk_size_t, //
                     nk_size_t, nk_u32_t const *, nk_u32_t const *, nk_size_t, nk_size_t, //
                     nk_size_t, void *, nk_size_t, nk_size_t),                            //
-    void (*attention_fn)(typename nk::type_for<input_dtype_>::type::raw_t const *,       //
-                         void const *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t,      //
-                         nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_size_t,    //
-                         nk_size_t),                                                     //
+    attention_call_type_ attention_call,                                                 //
     nk_size_t head_count, nk_size_t query_length, nk_size_t key_value_length, nk_size_t depth) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
@@ -310,9 +307,9 @@ void measure_attention(                                                         
 
     std::size_t iterations = 0;
     for (auto _ : state) {
-        attention_fn(queries.raw_values_data(), key_value_packed.raw_values_data(), output.raw_values_data(),
-                     head_count, head_count, depth, query_offsets, row_stride_bytes, row_width * sizeof(nk_f32_t),
-                     scale, 0, 0);
+        attention_call(queries.raw_values_data(), key_value_packed.raw_values_data(), output.raw_values_data(),
+                       head_count, depth, query_offsets, row_stride_bytes, row_width * sizeof(nk_f32_t), scale,
+                       static_cast<nk_i64_t>(key_value_length) - static_cast<nk_i64_t>(query_length), head_count);
         ++iterations;
         bm::DoNotOptimize(output.raw_values_data());
     }
@@ -320,18 +317,16 @@ void measure_attention(                                                         
                                                bm::Counter::kIsRate);
 }
 
-template <nk_dtype_t input_dtype_>
-void run_attention(                                                                      //
+/** @brief Registers one attention benchmark over the shared matrix-shape configuration. */
+template <nk_dtype_t input_dtype_, typename attention_call_type_>
+void register_attention(                                                                 //
     std::string name,                                                                    //
     nk_size_t (*packed_size_fn)(nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t),      //
     void (*pack_fn)(typename nk::type_for<input_dtype_>::type::raw_t const *,            //
                     typename nk::type_for<input_dtype_>::type::raw_t const *, nk_size_t, //
                     nk_size_t, nk_u32_t const *, nk_u32_t const *, nk_size_t, nk_size_t, //
                     nk_size_t, void *, nk_size_t, nk_size_t),                            //
-    void (*attention_fn)(typename nk::type_for<input_dtype_>::type::raw_t const *,       //
-                         void const *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t,      //
-                         nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_size_t,    //
-                         nk_size_t)) {
+    attention_call_type_ attention_call) {
     // Attention is a soft-kNN: each query attends over the KV "database". Mapping the shared matrix
     // dimensions accordingly — height = KV context length, width = head dimension (its 128 default
     // matches a real head), depth = query length (set to 1 for the decode shape).
@@ -342,8 +337,49 @@ void run_attention(                                                             
     nk_size_t const query_length = bench_config.matrix_depth > 0 ? bench_config.matrix_depth : 1024;
     std::string bench_name = name + "<" + std::to_string(head_count) + "h_" + std::to_string(query_length) + "q_" +
                              std::to_string(key_value_length) + "kv_" + std::to_string(head_dim) + "d>";
-    bm::RegisterBenchmark(bench_name.c_str(), measure_attention<input_dtype_>, packed_size_fn, pack_fn, attention_fn,
-                          head_count, query_length, key_value_length, head_dim);
+    bm::RegisterBenchmark(bench_name.c_str(), measure_attention<input_dtype_, attention_call_type_>, packed_size_fn,
+                          pack_fn, attention_call, head_count, query_length, key_value_length, head_dim);
+}
+
+template <nk_dtype_t input_dtype_>
+void run_attention_bidirectional(                                                        //
+    std::string name,                                                                    //
+    nk_size_t (*packed_size_fn)(nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t),      //
+    void (*pack_fn)(typename nk::type_for<input_dtype_>::type::raw_t const *,            //
+                    typename nk::type_for<input_dtype_>::type::raw_t const *, nk_size_t, //
+                    nk_size_t, nk_u32_t const *, nk_u32_t const *, nk_size_t, nk_size_t, //
+                    nk_size_t, void *, nk_size_t, nk_size_t),                            //
+    typename nk::type_for<input_dtype_>::type::attention_bidirectional_packed_kernel_t attention_fn) {
+    using raw_t = typename nk::type_for<input_dtype_>::type::raw_t;
+    auto attention_call = [attention_fn](raw_t const *queries, void const *key_value_packed, nk_f32_t *output,
+                                         nk_size_t head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+                                         nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale,
+                                         nk_i64_t, nk_size_t task_count) {
+        attention_fn(queries, key_value_packed, output, head_count, head_count, depth, query_offsets,
+                     query_stride_bytes, output_stride_bytes, scale, 0, task_count);
+    };
+    register_attention<input_dtype_>(name, packed_size_fn, pack_fn, attention_call);
+}
+
+/** @brief Causal twin of `run_attention_bidirectional`, with the queries aligned to the end of the keys. */
+template <nk_dtype_t input_dtype_>
+void run_attention_causal(                                                               //
+    std::string name,                                                                    //
+    nk_size_t (*packed_size_fn)(nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t),      //
+    void (*pack_fn)(typename nk::type_for<input_dtype_>::type::raw_t const *,            //
+                    typename nk::type_for<input_dtype_>::type::raw_t const *, nk_size_t, //
+                    nk_size_t, nk_u32_t const *, nk_u32_t const *, nk_size_t, nk_size_t, //
+                    nk_size_t, void *, nk_size_t, nk_size_t),                            //
+    typename nk::type_for<input_dtype_>::type::attention_causal_packed_kernel_t attention_fn) {
+    using raw_t = typename nk::type_for<input_dtype_>::type::raw_t;
+    auto attention_call = [attention_fn](raw_t const *queries, void const *key_value_packed, nk_f32_t *output,
+                                         nk_size_t head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+                                         nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale,
+                                         nk_i64_t diagonal_offset, nk_size_t task_count) {
+        attention_fn(queries, key_value_packed, output, head_count, head_count, depth, query_offsets,
+                     query_stride_bytes, output_stride_bytes, scale, diagonal_offset, NK_SIZE_MAX, 0, task_count);
+    };
+    register_attention<input_dtype_>(name, packed_size_fn, pack_fn, attention_call);
 }
 
 template <nk_dtype_t input_dtype_>

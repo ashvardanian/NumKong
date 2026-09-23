@@ -129,20 +129,20 @@ NK_HELPER_INLINE void nk_attention_pack_genoa_(                                 
     nk_size_t key_value_head_count, nk_size_t depth,                                                           //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t begin, nk_size_t end) {
+    nk_size_t task_begin, nk_size_t task_end) {
 
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 32);
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
-                                 1, depth_padded * sizeof(nk_bf16_t));
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
+                                 task_begin, 1, depth_padded * sizeof(nk_bf16_t));
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *payload_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (begin >= total_tasks) return;
-    if (end > total_tasks) end = total_tasks;
+    if (task_begin >= total_tasks) return;
+    if (task_end > total_tasks) task_end = total_tasks;
 
-    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
+    for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count,
                         key_value_head_idx = task_idx % key_value_head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
@@ -166,31 +166,33 @@ NK_HELPER_INLINE void nk_attention_pack_genoa_(                                 
 NK_API_COMPTIME void nk_attention_pack_bf16_genoa(                                                   //
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
-    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t begin, nk_size_t end) {
+    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t task_begin,
+    nk_size_t task_end) {
     if (depth > nk_attention_max_depth_genoa_k_) {
         nk_attention_pack_bf16_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
-                                      end);
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, task_begin,
+                                      task_end);
         return;
     }
     nk_attention_pack_genoa_(keys, values, sizeof(nk_bf16_t), &nk_attention_narrow_bf16_genoa_, key_value_head_count,
                              depth, segment_offsets, segment_lengths, segment_count, key_stride_bytes,
-                             value_stride_bytes, key_value_packed, begin, end);
+                             value_stride_bytes, key_value_packed, task_begin, task_end);
 }
 
 NK_API_COMPTIME void nk_attention_pack_e4m3_genoa(                                                   //
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
-    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t begin, nk_size_t end) {
+    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t task_begin,
+    nk_size_t task_end) {
     if (depth > nk_attention_max_depth_genoa_k_) {
         nk_attention_pack_e4m3_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
-                                      end);
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, task_begin,
+                                      task_end);
         return;
     }
     nk_attention_pack_genoa_(keys, values, sizeof(nk_e4m3_t), &nk_attention_narrow_e4m3_genoa_, key_value_head_count,
                              depth, segment_offsets, segment_lengths, segment_count, key_stride_bytes,
-                             value_stride_bytes, key_value_packed, begin, end);
+                             value_stride_bytes, key_value_packed, task_begin, task_end);
 }
 
 /**
@@ -202,7 +204,7 @@ NK_HELPER_INLINE void nk_attention_packed_genoa_(                               
     void const *key_value_packed, nk_f32_t *output,                                                             //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t begin, nk_size_t end) {
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     if (header->depth != depth || header->heads != key_value_head_count) return;
@@ -217,9 +219,7 @@ NK_HELPER_INLINE void nk_attention_packed_genoa_(                               
     nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
     nk_size_t const panel_width = nk_attention_panel_genoa_k_;
 
-    nk_size_t const total_tasks = segment_count * head_count;
-    if (begin >= total_tasks) return;
-    if (end > total_tasks) end = total_tasks;
+    nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
     NK_ALIGN64 nk_bf16_t query_row[nk_attention_max_depth_genoa_k_];
     NK_ALIGN64 nk_f32_t output_row[nk_attention_max_depth_genoa_k_];
@@ -227,11 +227,11 @@ NK_HELPER_INLINE void nk_attention_packed_genoa_(                               
     nk_size_t const depth_full = depth & ~(nk_size_t)15;
     __mmask16 const depth_tail_m16 = (__mmask16)((1u << (depth - depth_full)) - 1);
 
-    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
+    for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
         nk_size_t const row_count = query_offsets[segment_idx + 1] - query_offsets[segment_idx];
-        if (position_count == 0 || row_count == 0) continue;
+        if (row_count == 0) continue;
         nk_size_t const plane_values = position_count * depth_padded;
         nk_bf16_t const *keys_plane = (nk_bf16_t const *)(payload_base + payload_offsets[segment_idx]) +
                                       (head_idx / head_group_size) * plane_values;
@@ -244,11 +244,12 @@ NK_HELPER_INLINE void nk_attention_packed_genoa_(                               
             for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16)
                 _mm512_store_ps(output_row + channel_idx, _mm512_setzero_ps());
             nk_f32_t running_max2 = NK_F32_MIN, running_sum = 0;
+            nk_size_t key_begin, key_end;
+            nk_attention_row_range_((nk_i64_t)row_idx + diagonal_offset, window, position_count, &key_begin, &key_end);
 
-            for (nk_size_t panel_start = 0; panel_start < position_count; panel_start += panel_width) {
-                nk_size_t const panel_length = (panel_start + panel_width <= position_count)
-                                                   ? panel_width
-                                                   : (position_count - panel_start);
+            for (nk_size_t panel_start = key_begin; panel_start < key_end; panel_start += panel_width) {
+                nk_size_t const panel_length = (panel_start + panel_width <= key_end) ? panel_width
+                                                                                      : (key_end - panel_start);
                 // Scores: `vdpbf16ps` accumulation, four KV rows in flight.
 
                 nk_size_t position_idx = 0;
@@ -307,7 +308,7 @@ NK_HELPER_INLINE void nk_attention_packed_genoa_(                               
                 }
             }
 
-            __m512 const inverse_sum_f32x16 = _mm512_set1_ps(1.0f / running_sum);
+            __m512 const inverse_sum_f32x16 = _mm512_set1_ps(running_sum > 0 ? 1.0f / running_sum : 0);
             nk_f32_t *destination = output + (query_offsets[segment_idx] + row_idx) * output_stride_floats +
                                     head_idx * depth;
             nk_size_t channel_idx = 0;
@@ -321,36 +322,68 @@ NK_HELPER_INLINE void nk_attention_packed_genoa_(                               
     }
 }
 
-NK_API_COMPTIME void nk_attention_packed_bf16_genoa(                             //
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
-    nk_u32_t const *query_offsets,                                               //
-    nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t begin, nk_size_t end) {
+NK_API_COMPTIME void nk_attention_bidirectional_packed_bf16_genoa(                                              //
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_size_t task_start, nk_size_t task_count) {
     if (depth > nk_attention_max_depth_genoa_k_) {
-        nk_attention_packed_bf16_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
+        nk_attention_causal_packed_bf16_serial(queries, key_value_packed, output, head_count, key_value_head_count,
+                                               depth, query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                               NK_I64_MAX / 2, NK_SIZE_MAX, task_start, task_count);
         return;
     }
     nk_attention_packed_genoa_(queries, sizeof(nk_bf16_t), &nk_attention_narrow_bf16_genoa_, key_value_packed, output,
                                head_count, key_value_head_count, depth, query_offsets, query_stride_bytes,
-                               output_stride_bytes, scale, begin, end);
+                               output_stride_bytes, scale, NK_I64_MAX / 2, NK_SIZE_MAX, task_start, task_count);
 }
 
-NK_API_COMPTIME void nk_attention_packed_e4m3_genoa(                             //
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
-    nk_u32_t const *query_offsets,                                               //
-    nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t begin, nk_size_t end) {
+NK_API_COMPTIME void nk_attention_causal_packed_bf16_genoa(                                                     //
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
     if (depth > nk_attention_max_depth_genoa_k_) {
-        nk_attention_packed_e4m3_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
+        nk_attention_causal_packed_bf16_serial(queries, key_value_packed, output, head_count, key_value_head_count,
+                                               depth, query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                               diagonal_offset, window, task_start, task_count);
+        return;
+    }
+    nk_attention_packed_genoa_(queries, sizeof(nk_bf16_t), &nk_attention_narrow_bf16_genoa_, key_value_packed, output,
+                               head_count, key_value_head_count, depth, query_offsets, query_stride_bytes,
+                               output_stride_bytes, scale, diagonal_offset, window, task_start, task_count);
+}
+
+NK_API_COMPTIME void nk_attention_bidirectional_packed_e4m3_genoa(                                              //
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_size_t task_start, nk_size_t task_count) {
+    if (depth > nk_attention_max_depth_genoa_k_) {
+        nk_attention_causal_packed_e4m3_serial(queries, key_value_packed, output, head_count, key_value_head_count,
+                                               depth, query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                               NK_I64_MAX / 2, NK_SIZE_MAX, task_start, task_count);
         return;
     }
     nk_attention_packed_genoa_(queries, sizeof(nk_e4m3_t), &nk_attention_narrow_e4m3_genoa_, key_value_packed, output,
                                head_count, key_value_head_count, depth, query_offsets, query_stride_bytes,
-                               output_stride_bytes, scale, begin, end);
+                               output_stride_bytes, scale, NK_I64_MAX / 2, NK_SIZE_MAX, task_start, task_count);
+}
+
+NK_API_COMPTIME void nk_attention_causal_packed_e4m3_genoa(                                                     //
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
+    if (depth > nk_attention_max_depth_genoa_k_) {
+        nk_attention_causal_packed_e4m3_serial(queries, key_value_packed, output, head_count, key_value_head_count,
+                                               depth, query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                               diagonal_offset, window, task_start, task_count);
+        return;
+    }
+    nk_attention_packed_genoa_(queries, sizeof(nk_e4m3_t), &nk_attention_narrow_e4m3_genoa_, key_value_packed, output,
+                               head_count, key_value_head_count, depth, query_offsets, query_stride_bytes,
+                               output_stride_bytes, scale, diagonal_offset, window, task_start, task_count);
 }
 
 #if defined(__clang__)

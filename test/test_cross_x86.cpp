@@ -120,12 +120,21 @@ void test_cross_x86() {
     check("euclideans_symmetric_i8_haswell", test_euclideans_symmetric<i8_t>, nk_euclideans_symmetric_i8_haswell);
     check("euclideans_symmetric_u8_haswell", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_haswell);
 
-    check("attention_packed_bf16_haswell", test_attention_packed<bf16_t>, nk_attention_pack_size_bf16_haswell,
-          nk_attention_pack_bf16_haswell, nk_attention_packed_bf16_haswell);
-    check("attention_packed_e4m3_haswell", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_haswell,
-          nk_attention_pack_e4m3_haswell, nk_attention_packed_e4m3_haswell);
-    check("attention_packed_i8_haswell", test_attention_packed<i8_t>, nk_attention_pack_size_i8_haswell,
-          nk_attention_pack_i8_haswell, nk_attention_packed_i8_haswell);
+    check("attention_bidirectional_packed_bf16_haswell", test_attention_bidirectional_packed<bf16_t>,
+          nk_attention_pack_size_bf16_haswell, nk_attention_pack_bf16_haswell,
+          nk_attention_bidirectional_packed_bf16_haswell);
+    check("attention_causal_packed_bf16_haswell", test_attention_causal_packed<bf16_t>,
+          nk_attention_pack_size_bf16_haswell, nk_attention_pack_bf16_haswell, nk_attention_causal_packed_bf16_haswell);
+    check("attention_bidirectional_packed_e4m3_haswell", test_attention_bidirectional_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_haswell, nk_attention_pack_e4m3_haswell,
+          nk_attention_bidirectional_packed_e4m3_haswell);
+    check("attention_causal_packed_e4m3_haswell", test_attention_causal_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_haswell, nk_attention_pack_e4m3_haswell, nk_attention_causal_packed_e4m3_haswell);
+    check("attention_bidirectional_packed_i8_haswell", test_attention_bidirectional_packed<i8_t>,
+          nk_attention_pack_size_i8_haswell, nk_attention_pack_i8_haswell,
+          nk_attention_bidirectional_packed_i8_haswell);
+    check("attention_causal_packed_i8_haswell", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_haswell,
+          nk_attention_pack_i8_haswell, nk_attention_causal_packed_i8_haswell);
 #endif // NK_TARGET_HASWELL
 
 #if NK_TARGET_SKYLAKE
@@ -208,10 +217,16 @@ void test_cross_x86() {
     check("euclideans_symmetric_e2m3_skylake", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3_skylake);
     check("euclideans_symmetric_e3m2_skylake", test_euclideans_symmetric<e3m2_t>, nk_euclideans_symmetric_e3m2_skylake);
 
-    check("attention_packed_bf16_skylake", test_attention_packed<bf16_t>, nk_attention_pack_size_bf16_skylake,
-          nk_attention_pack_bf16_skylake, nk_attention_packed_bf16_skylake);
-    check("attention_packed_e4m3_skylake", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_skylake,
-          nk_attention_pack_e4m3_skylake, nk_attention_packed_e4m3_skylake);
+    check("attention_bidirectional_packed_bf16_skylake", test_attention_bidirectional_packed<bf16_t>,
+          nk_attention_pack_size_bf16_skylake, nk_attention_pack_bf16_skylake,
+          nk_attention_bidirectional_packed_bf16_skylake);
+    check("attention_causal_packed_bf16_skylake", test_attention_causal_packed<bf16_t>,
+          nk_attention_pack_size_bf16_skylake, nk_attention_pack_bf16_skylake, nk_attention_causal_packed_bf16_skylake);
+    check("attention_bidirectional_packed_e4m3_skylake", test_attention_bidirectional_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_skylake, nk_attention_pack_e4m3_skylake,
+          nk_attention_bidirectional_packed_e4m3_skylake);
+    check("attention_causal_packed_e4m3_skylake", test_attention_causal_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_skylake, nk_attention_pack_e4m3_skylake, nk_attention_causal_packed_e4m3_skylake);
 #endif // NK_TARGET_SKYLAKE
 
 #if NK_TARGET_ICELAKE
@@ -269,8 +284,11 @@ void test_cross_x86() {
     check("euclideans_symmetric_i4_icelake", test_euclideans_symmetric<i4x2_t>, nk_euclideans_symmetric_i4_icelake);
     check("euclideans_symmetric_u4_icelake", test_euclideans_symmetric<u4x2_t>, nk_euclideans_symmetric_u4_icelake);
 
-    check("attention_packed_i8_icelake", test_attention_packed<i8_t>, nk_attention_pack_size_i8_icelake,
-          nk_attention_pack_i8_icelake, nk_attention_packed_i8_icelake);
+    check("attention_bidirectional_packed_i8_icelake", test_attention_bidirectional_packed<i8_t>,
+          nk_attention_pack_size_i8_icelake, nk_attention_pack_i8_icelake,
+          nk_attention_bidirectional_packed_i8_icelake);
+    check("attention_causal_packed_i8_icelake", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_icelake,
+          nk_attention_pack_i8_icelake, nk_attention_causal_packed_i8_icelake);
 #endif // NK_TARGET_ICELAKE
 
 #if NK_TARGET_GENOA
@@ -303,10 +321,16 @@ void test_cross_x86() {
     check("euclideans_symmetric_e4m3_genoa", test_euclideans_symmetric<e4m3_t>, nk_euclideans_symmetric_e4m3_genoa);
     check("euclideans_symmetric_e5m2_genoa", test_euclideans_symmetric<e5m2_t>, nk_euclideans_symmetric_e5m2_genoa);
 
-    check("attention_packed_bf16_genoa", test_attention_packed<bf16_t>, nk_attention_pack_size_bf16_genoa,
-          nk_attention_pack_bf16_genoa, nk_attention_packed_bf16_genoa);
-    check("attention_packed_e4m3_genoa", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_genoa,
-          nk_attention_pack_e4m3_genoa, nk_attention_packed_e4m3_genoa);
+    check("attention_bidirectional_packed_bf16_genoa", test_attention_bidirectional_packed<bf16_t>,
+          nk_attention_pack_size_bf16_genoa, nk_attention_pack_bf16_genoa,
+          nk_attention_bidirectional_packed_bf16_genoa);
+    check("attention_causal_packed_bf16_genoa", test_attention_causal_packed<bf16_t>, nk_attention_pack_size_bf16_genoa,
+          nk_attention_pack_bf16_genoa, nk_attention_causal_packed_bf16_genoa);
+    check("attention_bidirectional_packed_e4m3_genoa", test_attention_bidirectional_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_genoa, nk_attention_pack_e4m3_genoa,
+          nk_attention_bidirectional_packed_e4m3_genoa);
+    check("attention_causal_packed_e4m3_genoa", test_attention_causal_packed<e4m3_t>, nk_attention_pack_size_e4m3_genoa,
+          nk_attention_pack_e4m3_genoa, nk_attention_causal_packed_e4m3_genoa);
 #endif // NK_TARGET_GENOA
 
 #if NK_TARGET_DIAMOND

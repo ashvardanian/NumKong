@@ -17,7 +17,7 @@
  *
  *  Owns the backend-opaque packed blob inline (flex-array), together with the
  *  geometry needed to validate query batches against it.  Created via
- *  `nk.attention_pack()` and consumed by `nk.attention_packed()`.
+ *  `nk.attention_pack()` and consumed by `nk.attention_bidirectional_packed()` or `nk.attention_causal_packed()`.
  */
 typedef struct AttentionPackedMatrix {
     PyObject_HEAD
@@ -42,10 +42,14 @@ extern PyTypeObject AttentionPackedMatrixType;
 
 /** @brief Pack ragged K/V token matrices into a backend-opaque KV-cache blob. */
 PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief Ragged scaled-dot-product attention against a pre-packed KV-cache. */
-PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+/** @brief Ragged bidirectional scaled-dot-product attention against a pre-packed KV-cache. */
+PyObject *api_attention_bidirectional_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
+                                             PyObject *kwnames);
+/** @brief Ragged causal scaled-dot-product attention against a pre-packed KV-cache. */
+PyObject *api_attention_causal_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 extern char const doc_attention_pack[];
-extern char const doc_attention_packed[];
+extern char const doc_attention_bidirectional_packed[];
+extern char const doc_attention_causal_packed[];
 
 #endif // NK_PYTHON_ATTENTION_H

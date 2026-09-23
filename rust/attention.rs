@@ -12,6 +12,8 @@
 //! 2. Call [`AttentionPackedMatrix::try_attention`] with the query tokens and the
 //!    cumulative `query_offsets`; `arange` offsets turn the call into a batched
 //!    single-query pool over the same packed cache.
+//! 3. Or call [`AttentionPackedMatrix::try_causal_attention`] over the same cache for
+//!    decoder-style causal and sliding-window masking.
 //!
 //! # Example
 //!
@@ -64,10 +66,10 @@ extern "C" {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        begin: usize,
-        end: usize,
+        task_begin: usize,
+        task_end: usize,
     );
-    fn nk_attention_packed_bf16(
+    fn nk_attention_bidirectional_packed_bf16(
         queries: *const bf16,
         key_value_packed: *const u8,
         output: *mut f32,
@@ -78,8 +80,24 @@ extern "C" {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        begin: usize,
-        end: usize,
+        task_start: usize,
+        task_count: usize,
+    );
+    fn nk_attention_causal_packed_bf16(
+        queries: *const bf16,
+        key_value_packed: *const u8,
+        output: *mut f32,
+        head_count: usize,
+        heads: usize,
+        depth: usize,
+        query_offsets: *const u32,
+        query_stride_bytes: usize,
+        output_stride_bytes: usize,
+        scale: f32,
+        diagonal_offset: i64,
+        window: usize,
+        task_start: usize,
+        task_count: usize,
     );
 
     fn nk_attention_pack_size_e4m3(
@@ -99,10 +117,10 @@ extern "C" {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        begin: usize,
-        end: usize,
+        task_begin: usize,
+        task_end: usize,
     );
-    fn nk_attention_packed_e4m3(
+    fn nk_attention_bidirectional_packed_e4m3(
         queries: *const e4m3,
         key_value_packed: *const u8,
         output: *mut f32,
@@ -113,8 +131,24 @@ extern "C" {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        begin: usize,
-        end: usize,
+        task_start: usize,
+        task_count: usize,
+    );
+    fn nk_attention_causal_packed_e4m3(
+        queries: *const e4m3,
+        key_value_packed: *const u8,
+        output: *mut f32,
+        head_count: usize,
+        heads: usize,
+        depth: usize,
+        query_offsets: *const u32,
+        query_stride_bytes: usize,
+        output_stride_bytes: usize,
+        scale: f32,
+        diagonal_offset: i64,
+        window: usize,
+        task_start: usize,
+        task_count: usize,
     );
 
     fn nk_attention_pack_size_i8(
@@ -134,10 +168,10 @@ extern "C" {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        begin: usize,
-        end: usize,
+        task_begin: usize,
+        task_end: usize,
     );
-    fn nk_attention_packed_i8(
+    fn nk_attention_bidirectional_packed_i8(
         queries: *const i8,
         key_value_packed: *const u8,
         output: *mut f32,
@@ -148,8 +182,24 @@ extern "C" {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        begin: usize,
-        end: usize,
+        task_start: usize,
+        task_count: usize,
+    );
+    fn nk_attention_causal_packed_i8(
+        queries: *const i8,
+        key_value_packed: *const u8,
+        output: *mut f32,
+        head_count: usize,
+        heads: usize,
+        depth: usize,
+        query_offsets: *const u32,
+        query_stride_bytes: usize,
+        output_stride_bytes: usize,
+        scale: f32,
+        diagonal_offset: i64,
+        window: usize,
+        task_start: usize,
+        task_count: usize,
     );
 
     fn nk_attention_packed_shape_bf16(packed: *const u8, heads: *mut usize, depth: *mut usize, segments: *mut usize);
@@ -179,7 +229,7 @@ pub trait Attention: StorageElement + Clone {
     /// - `k` / `v` must point to token matrices with `key_stride_bytes` / `value_stride_bytes` byte rows
     ///   covering every token addressed by `segment_offsets` + `segment_lengths`
     /// - `key_value_packed` must have at least `attention_pack_size(..)` bytes
-    /// - a window with `begin > 0` requires the header already initialized by a
+    /// - a window with `task_begin > 0` requires the header already initialized by a
     ///   prior or concurrent window covering task 0
     #[allow(clippy::too_many_arguments)]
     unsafe fn attention_pack(
@@ -193,17 +243,17 @@ pub trait Attention: StorageElement + Clone {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        begin: usize,
-        end: usize,
+        task_begin: usize,
+        task_end: usize,
     );
 
-    /// Compute a window of the `(segment, head)` attention task grid.
+    /// Compute bidirectional attention over `task_count` tasks of the `(segment, head)` grid from `task_start`.
     /// # Safety
     /// - `key_value_packed` must have been produced by `attention_pack` with matching geometry
     /// - `queries` rows addressed by `query_offsets` must be valid, `output` writable
     ///   with `output_stride_bytes` byte rows
     #[allow(clippy::too_many_arguments)]
-    unsafe fn attention_packed(
+    unsafe fn attention_bidirectional_packed(
         queries: *const Self,
         key_value_packed: *const u8,
         output: *mut f32,
@@ -214,8 +264,29 @@ pub trait Attention: StorageElement + Clone {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        begin: usize,
-        end: usize,
+        task_start: usize,
+        task_count: usize,
+    );
+
+    /// Compute causal attention, query row `r` seeing the `window` keys ending at `r + diagonal_offset`.
+    /// # Safety
+    /// Same contract as [`attention_bidirectional_packed`](Self::attention_bidirectional_packed).
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn attention_causal_packed(
+        queries: *const Self,
+        key_value_packed: *const u8,
+        output: *mut f32,
+        head_count: usize,
+        heads: usize,
+        depth: usize,
+        query_offsets: *const u32,
+        query_stride_bytes: usize,
+        output_stride_bytes: usize,
+        scale: f32,
+        diagonal_offset: i64,
+        window: usize,
+        task_start: usize,
+        task_count: usize,
     );
 }
 
@@ -241,8 +312,8 @@ impl Attention for bf16 {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        begin: usize,
-        end: usize,
+        task_begin: usize,
+        task_end: usize,
     ) {
         unsafe {
             nk_attention_pack_bf16(
@@ -256,13 +327,13 @@ impl Attention for bf16 {
                 key_stride_bytes,
                 value_stride_bytes,
                 key_value_packed,
-                begin,
-                end,
+                task_begin,
+                task_end,
             )
         }
     }
 
-    unsafe fn attention_packed(
+    unsafe fn attention_bidirectional_packed(
         queries: *const Self,
         key_value_packed: *const u8,
         output: *mut f32,
@@ -273,11 +344,11 @@ impl Attention for bf16 {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        begin: usize,
-        end: usize,
+        task_start: usize,
+        task_count: usize,
     ) {
         unsafe {
-            nk_attention_packed_bf16(
+            nk_attention_bidirectional_packed_bf16(
                 queries,
                 key_value_packed,
                 output,
@@ -288,8 +359,44 @@ impl Attention for bf16 {
                 query_stride_bytes,
                 output_stride_bytes,
                 scale,
-                begin,
-                end,
+                task_start,
+                task_count,
+            )
+        }
+    }
+
+    unsafe fn attention_causal_packed(
+        queries: *const Self,
+        key_value_packed: *const u8,
+        output: *mut f32,
+        head_count: usize,
+        heads: usize,
+        depth: usize,
+        query_offsets: *const u32,
+        query_stride_bytes: usize,
+        output_stride_bytes: usize,
+        scale: f32,
+        diagonal_offset: i64,
+        window: usize,
+        task_start: usize,
+        task_count: usize,
+    ) {
+        unsafe {
+            nk_attention_causal_packed_bf16(
+                queries,
+                key_value_packed,
+                output,
+                head_count,
+                heads,
+                depth,
+                query_offsets,
+                query_stride_bytes,
+                output_stride_bytes,
+                scale,
+                diagonal_offset,
+                window,
+                task_start,
+                task_count,
             )
         }
     }
@@ -317,8 +424,8 @@ impl Attention for e4m3 {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        begin: usize,
-        end: usize,
+        task_begin: usize,
+        task_end: usize,
     ) {
         unsafe {
             nk_attention_pack_e4m3(
@@ -332,13 +439,13 @@ impl Attention for e4m3 {
                 key_stride_bytes,
                 value_stride_bytes,
                 key_value_packed,
-                begin,
-                end,
+                task_begin,
+                task_end,
             )
         }
     }
 
-    unsafe fn attention_packed(
+    unsafe fn attention_bidirectional_packed(
         queries: *const Self,
         key_value_packed: *const u8,
         output: *mut f32,
@@ -349,11 +456,11 @@ impl Attention for e4m3 {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        begin: usize,
-        end: usize,
+        task_start: usize,
+        task_count: usize,
     ) {
         unsafe {
-            nk_attention_packed_e4m3(
+            nk_attention_bidirectional_packed_e4m3(
                 queries,
                 key_value_packed,
                 output,
@@ -364,8 +471,44 @@ impl Attention for e4m3 {
                 query_stride_bytes,
                 output_stride_bytes,
                 scale,
-                begin,
-                end,
+                task_start,
+                task_count,
+            )
+        }
+    }
+
+    unsafe fn attention_causal_packed(
+        queries: *const Self,
+        key_value_packed: *const u8,
+        output: *mut f32,
+        head_count: usize,
+        heads: usize,
+        depth: usize,
+        query_offsets: *const u32,
+        query_stride_bytes: usize,
+        output_stride_bytes: usize,
+        scale: f32,
+        diagonal_offset: i64,
+        window: usize,
+        task_start: usize,
+        task_count: usize,
+    ) {
+        unsafe {
+            nk_attention_causal_packed_e4m3(
+                queries,
+                key_value_packed,
+                output,
+                head_count,
+                heads,
+                depth,
+                query_offsets,
+                query_stride_bytes,
+                output_stride_bytes,
+                scale,
+                diagonal_offset,
+                window,
+                task_start,
+                task_count,
             )
         }
     }
@@ -393,8 +536,8 @@ impl Attention for i8 {
         key_stride_bytes: usize,
         value_stride_bytes: usize,
         key_value_packed: *mut u8,
-        begin: usize,
-        end: usize,
+        task_begin: usize,
+        task_end: usize,
     ) {
         unsafe {
             nk_attention_pack_i8(
@@ -408,13 +551,13 @@ impl Attention for i8 {
                 key_stride_bytes,
                 value_stride_bytes,
                 key_value_packed,
-                begin,
-                end,
+                task_begin,
+                task_end,
             )
         }
     }
 
-    unsafe fn attention_packed(
+    unsafe fn attention_bidirectional_packed(
         queries: *const Self,
         key_value_packed: *const u8,
         output: *mut f32,
@@ -425,11 +568,11 @@ impl Attention for i8 {
         query_stride_bytes: usize,
         output_stride_bytes: usize,
         scale: f32,
-        begin: usize,
-        end: usize,
+        task_start: usize,
+        task_count: usize,
     ) {
         unsafe {
-            nk_attention_packed_i8(
+            nk_attention_bidirectional_packed_i8(
                 queries,
                 key_value_packed,
                 output,
@@ -440,8 +583,44 @@ impl Attention for i8 {
                 query_stride_bytes,
                 output_stride_bytes,
                 scale,
-                begin,
-                end,
+                task_start,
+                task_count,
+            )
+        }
+    }
+
+    unsafe fn attention_causal_packed(
+        queries: *const Self,
+        key_value_packed: *const u8,
+        output: *mut f32,
+        head_count: usize,
+        heads: usize,
+        depth: usize,
+        query_offsets: *const u32,
+        query_stride_bytes: usize,
+        output_stride_bytes: usize,
+        scale: f32,
+        diagonal_offset: i64,
+        window: usize,
+        task_start: usize,
+        task_count: usize,
+    ) {
+        unsafe {
+            nk_attention_causal_packed_i8(
+                queries,
+                key_value_packed,
+                output,
+                head_count,
+                heads,
+                depth,
+                query_offsets,
+                query_stride_bytes,
+                output_stride_bytes,
+                scale,
+                diagonal_offset,
+                window,
+                task_start,
+                task_count,
             )
         }
     }
@@ -739,7 +918,7 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
             scale,
         } = self.prepare_query(queries, output, query_offsets, scale)?;
         unsafe {
-            Scalar::attention_packed(
+            Scalar::attention_bidirectional_packed(
                 queries.as_ptr(),
                 self.buffer.as_ptr(),
                 output.as_mut_ptr(),
@@ -750,6 +929,49 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
                 query_stride_bytes,
                 output.stride_bytes(0) as usize,
                 scale,
+                0,
+                segment_count * query_head_count,
+            );
+        }
+        Ok(())
+    }
+
+    /// Causal ragged attention into a caller-provided `f32` output tensor: query row `r` of a
+    /// segment sees the `window` keys ending at position `r + diagonal_offset`, and `usize::MAX`
+    /// leaves the window unbounded. Rows that see no key are written as zeros.
+    pub fn try_causal_attention_into<QueriesTensor, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
+        &self,
+        queries: &QueriesTensor,
+        query_offsets: &[u32],
+        scale: Option<f32>,
+        diagonal_offset: i64,
+        window: usize,
+        output: &mut OutTensor,
+    ) -> Result<(), TensorError>
+    where
+        QueriesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutTensor: TensorMut<f32, OUT_MAX_RANK> + ?Sized,
+    {
+        let QueryPlan {
+            query_head_count,
+            query_stride_bytes,
+            segment_count,
+            scale,
+        } = self.prepare_query(queries, output, query_offsets, scale)?;
+        unsafe {
+            Scalar::attention_causal_packed(
+                queries.as_ptr(),
+                self.buffer.as_ptr(),
+                output.as_mut_ptr(),
+                query_head_count,
+                self.heads,
+                self.depth,
+                query_offsets.as_ptr(),
+                query_stride_bytes,
+                output.stride_bytes(0) as usize,
+                scale,
+                diagonal_offset,
+                window,
                 0,
                 segment_count * query_head_count,
             );
@@ -865,6 +1087,25 @@ impl<Scalar: Attention> AttentionPackedMatrix<Scalar, Global> {
         let (query_tokens, query_head_count, _) = validate_token_view(queries, self.depth)?;
         let mut output = Tensor::<f32>::try_full(&[query_tokens, query_head_count * self.depth], 0.0)?;
         self.try_attention_into(queries, query_offsets, scale, &mut output)?;
+        Ok(output)
+    }
+
+    /// Causal ragged attention allocating a fresh `f32` output tensor. The allocating twin of
+    /// [`try_causal_attention_into`](Self::try_causal_attention_into).
+    pub fn try_causal_attention<QueriesTensor, const MAX_RANK: usize>(
+        &self,
+        queries: &QueriesTensor,
+        query_offsets: &[u32],
+        scale: Option<f32>,
+        diagonal_offset: i64,
+        window: usize,
+    ) -> Result<Tensor<f32>, TensorError>
+    where
+        QueriesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        let (query_tokens, query_head_count, _) = validate_token_view(queries, self.depth)?;
+        let mut output = Tensor::<f32>::try_full(&[query_tokens, query_head_count * self.depth], 0.0)?;
+        self.try_causal_attention_into(queries, query_offsets, scale, diagonal_offset, window, &mut output)?;
         Ok(output)
     }
 }
@@ -994,7 +1235,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
             // Configure the worker for AMX and other thread-local SIMD state — idempotent.
             crate::capabilities::configure_thread();
             unsafe {
-                Scalar::attention_packed(
+                Scalar::attention_bidirectional_packed(
                     q_ptr.as_ptr(),
                     kv_ptr.as_ptr(),
                     out_ptr.as_ptr(),
@@ -1006,7 +1247,68 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                     output_stride_bytes,
                     scale,
                     prong.task_index,
-                    prong.task_index + 1,
+                    1,
+                );
+            }
+        }); // executes and synchronizes on drop
+
+        Ok(())
+    }
+
+    /// Causal ragged attention parallelized over the `(segment, head)` task grid with a
+    /// ForkUnion thread pool; masking follows [`try_causal_attention_into`](Self::try_causal_attention_into).
+    pub fn try_causal_attention_parallel_into<
+        QueriesTensor,
+        OutTensor,
+        const MAX_RANK: usize,
+        const OUT_MAX_RANK: usize,
+    >(
+        &self,
+        queries: &QueriesTensor,
+        query_offsets: &[u32],
+        scale: Option<f32>,
+        diagonal_offset: i64,
+        window: usize,
+        output: &mut OutTensor,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<(), TensorError>
+    where
+        QueriesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+        OutTensor: TensorMut<f32, OUT_MAX_RANK> + ?Sized,
+    {
+        let QueryPlan {
+            query_head_count,
+            query_stride_bytes,
+            segment_count,
+            scale,
+        } = self.prepare_query(queries, output, query_offsets, scale)?;
+        let output_stride_bytes = output.stride_bytes(0) as usize;
+
+        let q_ptr = fu::SyncConstPtr::new(queries.as_ptr());
+        let kv_ptr = fu::SyncConstPtr::new(self.buffer.as_ptr());
+        let out_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
+        let offsets_ptr = fu::SyncConstPtr::new(query_offsets.as_ptr());
+        let (heads, depth) = (self.heads, self.depth);
+
+        let total_tasks = segment_count * query_head_count;
+        pool.for_n_dynamic(total_tasks, move |prong| {
+            crate::capabilities::configure_thread();
+            unsafe {
+                Scalar::attention_causal_packed(
+                    q_ptr.as_ptr(),
+                    kv_ptr.as_ptr(),
+                    out_ptr.as_ptr(),
+                    query_head_count,
+                    heads,
+                    depth,
+                    offsets_ptr.as_ptr(),
+                    query_stride_bytes,
+                    output_stride_bytes,
+                    scale,
+                    diagonal_offset,
+                    window,
+                    prong.task_index,
+                    1,
                 );
             }
         }); // executes and synchronizes on drop
@@ -1030,6 +1332,34 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         let (query_tokens, query_head_count, _) = validate_token_view(queries, self.depth)?;
         let mut output = Tensor::<f32>::try_full(&[query_tokens, query_head_count * self.depth], 0.0)?;
         self.try_attention_parallel_into(queries, query_offsets, scale, &mut output, pool)?;
+        Ok(output)
+    }
+
+    /// Causal ragged attention parallelized over the task grid, allocating a fresh `f32` output
+    /// tensor. The allocating twin of [`try_causal_attention_parallel_into`](Self::try_causal_attention_parallel_into).
+    pub fn try_causal_attention_parallel<QueriesTensor, const MAX_RANK: usize>(
+        &self,
+        queries: &QueriesTensor,
+        query_offsets: &[u32],
+        scale: Option<f32>,
+        diagonal_offset: i64,
+        window: usize,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<Tensor<f32>, TensorError>
+    where
+        QueriesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
+    {
+        let (query_tokens, query_head_count, _) = validate_token_view(queries, self.depth)?;
+        let mut output = Tensor::<f32>::try_full(&[query_tokens, query_head_count * self.depth], 0.0)?;
+        self.try_causal_attention_parallel_into(
+            queries,
+            query_offsets,
+            scale,
+            diagonal_offset,
+            window,
+            &mut output,
+            pool,
+        )?;
         Ok(output)
     }
 

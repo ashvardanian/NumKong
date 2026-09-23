@@ -437,9 +437,12 @@ typedef struct {
     nk_attention_pack_punned_t attention_pack_bf16;
     nk_attention_pack_punned_t attention_pack_e4m3;
     nk_attention_pack_punned_t attention_pack_i8;
-    nk_attention_packed_punned_t attention_packed_bf16;
-    nk_attention_packed_punned_t attention_packed_e4m3;
-    nk_attention_packed_punned_t attention_packed_i8;
+    nk_attention_bidirectional_packed_punned_t attention_bidirectional_packed_bf16;
+    nk_attention_bidirectional_packed_punned_t attention_bidirectional_packed_e4m3;
+    nk_attention_bidirectional_packed_punned_t attention_bidirectional_packed_i8;
+    nk_attention_causal_packed_punned_t attention_causal_packed_bf16;
+    nk_attention_causal_packed_punned_t attention_causal_packed_e4m3;
+    nk_attention_causal_packed_punned_t attention_causal_packed_i8;
     // Type casting
     nk_kernel_cast_punned_t cast;
     nk_kernel_cast_block_scaled_punned_t cast_block_scaled;
@@ -537,8 +540,12 @@ extern void nk_error_dots_symmetric_(void const *, nk_size_t, nk_size_t, nk_size
 extern nk_size_t nk_error_attention_pack_size_(nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t);
 extern void nk_error_attention_pack_(void const *, void const *, nk_size_t, nk_size_t, nk_u32_t const *,
                                      nk_u32_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_size_t);
-extern void nk_error_attention_packed_(void const *, void const *, void *, nk_size_t, nk_size_t, nk_size_t,
-                                       nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_size_t, nk_size_t);
+extern void nk_error_attention_bidirectional_packed_(void const *, void const *, void *, nk_size_t, nk_size_t,
+                                                     nk_size_t, nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t,
+                                                     nk_size_t, nk_size_t);
+extern void nk_error_attention_causal_packed_(void const *, void const *, void *, nk_size_t, nk_size_t, nk_size_t,
+                                              nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_i64_t, nk_size_t,
+                                              nk_size_t, nk_size_t);
 
 // Dtype-specific kernel lookup functions
 extern void nk_dispatch_f64c_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);

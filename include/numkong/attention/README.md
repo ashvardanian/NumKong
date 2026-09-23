@@ -1,7 +1,7 @@
 # Ragged Scaled-Dot-Product Attention in NumKong
 
 NumKong implements FlashAttention-style scaled-dot-product attention __(SDPA)__ over ragged batches with a pre-packed KV-cache, as the fused core of Transformer inference on CPUs.
-Every backend shares one public triple — `pack_size` to size the cache, `pack` to rearrange K/V into a backend-opaque layout, and `packed` to compute attention against it — with `(begin, end)` half-open windows over the segment × head grid for embarrassingly parallel execution.
+Every backend shares one packing pair — `pack_size` to size the cache and `pack` to rearrange K/V into a backend-opaque layout over a half-open `(task_begin, task_end)` window — and two compute kernels over the same pack, `bidirectional_packed` and `causal_packed`, each taking a `(task_start, task_count)` window over the segment × head grid for embarrassingly parallel execution.
 
 For a single segment and head, the operation is the classic softmax attention:
 
@@ -25,6 +25,10 @@ def attention_ragged(q, k, v, segment_offsets, query_offsets, scale) -> Matrix:
     return out
 ```
 
+The causal kernel places query row `r` at position `p = r + diagonal_offset` and attends only to keys `max(0, p − window + 1)` through `min(p, length − 1)`, so `diagonal_offset = 0` is causal prefill, `diagonal_offset = length − queries` is decode against a longer cache, and a finite `window` is sliding-window attention.
+Rows that see no key produce zeros, and so do segments without keys in both modes.
+Masking clips each row's key range rather than writing −∞ scores, and KV panels outside every row of a query block are skipped outright.
+
 Internally every backend uses the streaming base-2 softmax: the scale folds $\log_2 e$, so the exponentials become `exp2` with one shared degree-4 polynomial after exact range reduction, and multi-panel sweeps carry a running maximum with the correction $O \leftarrow O \cdot 2^{m_{old} - m_{new}} + O_{panel}$.
 
 ## Input & Output Types
@@ -47,7 +51,7 @@ This bounds the vector-unit work to one crossover per score, which is the domina
 
 ### AMX 2×2 Tile Blocking with KV Reuse
 
-`nk_attention_packed_bf16_sapphireamx` processes 32 query rows against 32-column K pair-tiles with all eight TMM registers: four accumulators, two Q tiles, two K tiles — exactly one tile load per `TDPBF16PS`.
+`nk_attention_bidirectional_packed_bf16_sapphireamx` processes 32 query rows against 32-column K pair-tiles with all eight TMM registers: four accumulators, two Q tiles, two K tiles — exactly one tile load per `TDPBF16PS`.
 Query blocks are chunked in groups of four so each KV panel streamed from L2 serves 128 query rows, which is what holds throughput flat from 1K to 16K context.
 The `i8` variant swaps in `TDPBSSD` over quad-interleaved K tiles (depth 64 per step) and `TDPBUSD` for the u8-probability × i8-value product.
 
@@ -78,73 +82,73 @@ Cells marked `⋯` await measurement on the corresponding platform.
 
 #### Native
 
-| Kernel                                 |                 1024² |                 4096² |                16384² |
-| :------------------------------------- | --------------------: | --------------------: | --------------------: |
-| __bf16__                               | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_attention_packed_bf16_serial`      |           0.6 gflop/s |                     ⋯ |                     ⋯ |
-| `nk_attention_packed_bf16_haswell`     |            36 gflop/s |            33 gflop/s |            25 gflop/s |
-| `nk_attention_packed_bf16_skylake`     |            48 gflop/s |            41 gflop/s |            28 gflop/s |
-| `nk_attention_packed_bf16_genoa`       |            54 gflop/s |            47 gflop/s |            30 gflop/s |
-| `nk_attention_packed_bf16_sapphireamx` |           845 gflop/s |           827 gflop/s |           766 gflop/s |
-| __e4m3__                               | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_attention_packed_e4m3_serial`      |           1.2 gflop/s |                     ⋯ |                     ⋯ |
-| `nk_attention_packed_e4m3_haswell`     |            11 gflop/s |            11 gflop/s |            11 gflop/s |
-| `nk_attention_packed_e4m3_skylake`     |            49 gflop/s |            41 gflop/s |            29 gflop/s |
-| `nk_attention_packed_e4m3_genoa`       |            57 gflop/s |            46 gflop/s |            30 gflop/s |
-| `nk_attention_packed_e4m3_sapphireamx` |           840 gflop/s |           841 gflop/s |           786 gflop/s |
-| __i8__                                 | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_attention_packed_i8_serial`        |           1.2 gflop/s |                     ⋯ |                     ⋯ |
-| `nk_attention_packed_i8_haswell`       |           123 gflop/s |           125 gflop/s |           113 gflop/s |
-| `nk_attention_packed_i8_icelake`       |           185 gflop/s |           186 gflop/s |           171 gflop/s |
-| `nk_attention_packed_i8_sapphireamx`   |           941 gflop/s |           950 gflop/s |           931 gflop/s |
+| Kernel                                               |                 1024² |                 4096² |                16384² |
+| :--------------------------------------------------- | --------------------: | --------------------: | --------------------: |
+| __bf16__                                             | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_attention_bidirectional_packed_bf16_serial`      |           0.6 gflop/s |                     ⋯ |                     ⋯ |
+| `nk_attention_bidirectional_packed_bf16_haswell`     |            36 gflop/s |            33 gflop/s |            25 gflop/s |
+| `nk_attention_bidirectional_packed_bf16_skylake`     |            48 gflop/s |            41 gflop/s |            28 gflop/s |
+| `nk_attention_bidirectional_packed_bf16_genoa`       |            54 gflop/s |            47 gflop/s |            30 gflop/s |
+| `nk_attention_bidirectional_packed_bf16_sapphireamx` |           845 gflop/s |           827 gflop/s |           766 gflop/s |
+| __e4m3__                                             | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_attention_bidirectional_packed_e4m3_serial`      |           1.2 gflop/s |                     ⋯ |                     ⋯ |
+| `nk_attention_bidirectional_packed_e4m3_haswell`     |            11 gflop/s |            11 gflop/s |            11 gflop/s |
+| `nk_attention_bidirectional_packed_e4m3_skylake`     |            49 gflop/s |            41 gflop/s |            29 gflop/s |
+| `nk_attention_bidirectional_packed_e4m3_genoa`       |            57 gflop/s |            46 gflop/s |            30 gflop/s |
+| `nk_attention_bidirectional_packed_e4m3_sapphireamx` |           840 gflop/s |           841 gflop/s |           786 gflop/s |
+| __i8__                                               | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_attention_bidirectional_packed_i8_serial`        |           1.2 gflop/s |                     ⋯ |                     ⋯ |
+| `nk_attention_bidirectional_packed_i8_haswell`       |           123 gflop/s |           125 gflop/s |           113 gflop/s |
+| `nk_attention_bidirectional_packed_i8_icelake`       |           185 gflop/s |           186 gflop/s |           171 gflop/s |
+| `nk_attention_bidirectional_packed_i8_sapphireamx`   |           941 gflop/s |           950 gflop/s |           931 gflop/s |
 
 #### WASM
 
 Measured with Wasmtime v24 (Cranelift backend).
 
-| Kernel                                 |                 1024² |                 4096² |                16384² |
-| :------------------------------------- | --------------------: | --------------------: | --------------------: |
-| __bf16__                               | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_attention_packed_bf16_serial`      |          0.60 gflop/s |                     ⋯ |                     ⋯ |
-| `nk_attention_packed_bf16_v128relaxed` |            10 gflop/s |           9.9 gflop/s |            11 gflop/s |
-| __e4m3__                               | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_attention_packed_e4m3_serial`      |          0.53 gflop/s |                     ⋯ |                     ⋯ |
-| `nk_attention_packed_e4m3_v128relaxed` |           3.3 gflop/s |           3.0 gflop/s |           3.7 gflop/s |
-| __i8__                                 | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_attention_packed_i8_serial`        |           5.1 gflop/s |                     ⋯ |                     ⋯ |
-| `nk_attention_packed_i8_v128relaxed`   |          24.6 gflop/s |          24.1 gflop/s |          29.2 gflop/s |
+| Kernel                                               |                 1024² |                 4096² |                16384² |
+| :--------------------------------------------------- | --------------------: | --------------------: | --------------------: |
+| __bf16__                                             | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_attention_bidirectional_packed_bf16_serial`      |          0.60 gflop/s |                     ⋯ |                     ⋯ |
+| `nk_attention_bidirectional_packed_bf16_v128relaxed` |            10 gflop/s |           9.9 gflop/s |            11 gflop/s |
+| __e4m3__                                             | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_attention_bidirectional_packed_e4m3_serial`      |          0.53 gflop/s |                     ⋯ |                     ⋯ |
+| `nk_attention_bidirectional_packed_e4m3_v128relaxed` |           3.3 gflop/s |           3.0 gflop/s |           3.7 gflop/s |
+| __i8__                                               | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_attention_bidirectional_packed_i8_serial`        |           5.1 gflop/s |                     ⋯ |                     ⋯ |
+| `nk_attention_bidirectional_packed_i8_v128relaxed`   |          24.6 gflop/s |          24.1 gflop/s |          29.2 gflop/s |
 
 ### AWS Graviton 4
 
 #### Native
 
-| Kernel                               | 1024² | 4096² | 16384² |
-| :----------------------------------- | ----: | ----: | -----: |
-| __bf16__                             | ░░░░░ | ░░░░░ | ░░░░░░ |
-| `nk_attention_packed_bf16_serial`    |     ⋯ |     ⋯ |      ⋯ |
-| `nk_attention_packed_bf16_neonbfdot` |     ⋯ |     ⋯ |      ⋯ |
-| __e4m3__                             | ░░░░░ | ░░░░░ | ░░░░░░ |
-| `nk_attention_packed_e4m3_serial`    |     ⋯ |     ⋯ |      ⋯ |
-| `nk_attention_packed_e4m3_neonfhm`   |     ⋯ |     ⋯ |      ⋯ |
-| __i8__                               | ░░░░░ | ░░░░░ | ░░░░░░ |
-| `nk_attention_packed_i8_serial`      |     ⋯ |     ⋯ |      ⋯ |
-| `nk_attention_packed_i8_neonsdot`    |     ⋯ |     ⋯ |      ⋯ |
+| Kernel                                             | 1024² | 4096² | 16384² |
+| :------------------------------------------------- | ----: | ----: | -----: |
+| __bf16__                                           | ░░░░░ | ░░░░░ | ░░░░░░ |
+| `nk_attention_bidirectional_packed_bf16_serial`    |     ⋯ |     ⋯ |      ⋯ |
+| `nk_attention_bidirectional_packed_bf16_neonbfdot` |     ⋯ |     ⋯ |      ⋯ |
+| __e4m3__                                           | ░░░░░ | ░░░░░ | ░░░░░░ |
+| `nk_attention_bidirectional_packed_e4m3_serial`    |     ⋯ |     ⋯ |      ⋯ |
+| `nk_attention_bidirectional_packed_e4m3_neonfhm`   |     ⋯ |     ⋯ |      ⋯ |
+| __i8__                                             | ░░░░░ | ░░░░░ | ░░░░░░ |
+| `nk_attention_bidirectional_packed_i8_serial`      |     ⋯ |     ⋯ |      ⋯ |
+| `nk_attention_bidirectional_packed_i8_neonsdot`    |     ⋯ |     ⋯ |      ⋯ |
 
 ### Apple M5
 
 #### Native
 
-| Kernel                               |        1024² |        4096² |       16384² |
-| :----------------------------------- | -----------: | -----------: | -----------: |
-| __bf16__                             | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_attention_packed_bf16_serial`    |  2.8 gflop/s |            ⋯ |            ⋯ |
-| `nk_attention_packed_bf16_neonbfdot` |   46 gflop/s |   47 gflop/s |   46 gflop/s |
-| `nk_attention_packed_bf16_sme`       |  789 gflop/s |  800 gflop/s |  802 gflop/s |
-| __e4m3__                             | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_attention_packed_e4m3_serial`    |  1.5 gflop/s |            ⋯ |            ⋯ |
-| `nk_attention_packed_e4m3_neonfhm`   |   51 gflop/s |   51 gflop/s |   50 gflop/s |
-| `nk_attention_packed_e4m3_sme`       |  722 gflop/s |  777 gflop/s |  797 gflop/s |
-| __i8__                               | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_attention_packed_i8_serial`      |  133 gflop/s |            ⋯ |            ⋯ |
-| `nk_attention_packed_i8_neonsdot`    |  310 gflop/s |  305 gflop/s |  285 gflop/s |
-| `nk_attention_packed_i8_sme`         |  815 gflop/s |  825 gflop/s |  827 gflop/s |
+| Kernel                                             |        1024² |        4096² |       16384² |
+| :------------------------------------------------- | -----------: | -----------: | -----------: |
+| __bf16__                                           | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_attention_bidirectional_packed_bf16_serial`    |  2.8 gflop/s |            ⋯ |            ⋯ |
+| `nk_attention_bidirectional_packed_bf16_neonbfdot` |   46 gflop/s |   47 gflop/s |   46 gflop/s |
+| `nk_attention_bidirectional_packed_bf16_sme`       |  789 gflop/s |  800 gflop/s |  802 gflop/s |
+| __e4m3__                                           | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_attention_bidirectional_packed_e4m3_serial`    |  1.5 gflop/s |            ⋯ |            ⋯ |
+| `nk_attention_bidirectional_packed_e4m3_neonfhm`   |   51 gflop/s |   51 gflop/s |   50 gflop/s |
+| `nk_attention_bidirectional_packed_e4m3_sme`       |  722 gflop/s |  777 gflop/s |  797 gflop/s |
+| __i8__                                             | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_attention_bidirectional_packed_i8_serial`      |  133 gflop/s |            ⋯ |            ⋯ |
+| `nk_attention_bidirectional_packed_i8_neonsdot`    |  310 gflop/s |  305 gflop/s |  285 gflop/s |
+| `nk_attention_bidirectional_packed_i8_sme`         |  815 gflop/s |  825 gflop/s |  827 gflop/s |

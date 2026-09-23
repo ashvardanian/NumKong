@@ -146,22 +146,22 @@ NK_HELPER_INLINE void nk_attention_pack_haswell_(                               
     nk_size_t key_value_head_count, nk_size_t depth,                                                           //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t begin, nk_size_t end) {
+    nk_size_t task_begin, nk_size_t task_end) {
 
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const row_bytes = depth * element_bytes;
     nk_size_t const padded_row_bytes = depth_padded * element_bytes;
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
-                                 1, padded_row_bytes);
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
+                                 task_begin, 1, padded_row_bytes);
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *payload_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (begin >= total_tasks) return;
-    if (end > total_tasks) end = total_tasks;
+    if (task_begin >= total_tasks) return;
+    if (task_end > total_tasks) task_end = total_tasks;
 
-    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
+    for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count,
                         key_value_head_idx = task_idx % key_value_head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
@@ -188,31 +188,33 @@ NK_HELPER_INLINE void nk_attention_pack_haswell_(                               
 NK_API_COMPTIME void nk_attention_pack_bf16_haswell(                                                 //
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
-    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t begin, nk_size_t end) {
+    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t task_begin,
+    nk_size_t task_end) {
     if (depth > nk_attention_max_depth_haswell_k_) {
         nk_attention_pack_bf16_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
-                                      end);
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, task_begin,
+                                      task_end);
         return;
     }
     nk_attention_pack_haswell_(keys, values, sizeof(nk_bf16_t), key_value_head_count, depth, segment_offsets,
                                segment_lengths, segment_count, key_stride_bytes, value_stride_bytes, key_value_packed,
-                               begin, end);
+                               task_begin, task_end);
 }
 
 NK_API_COMPTIME void nk_attention_pack_e4m3_haswell(                                                 //
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
-    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t begin, nk_size_t end) {
+    nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t task_begin,
+    nk_size_t task_end) {
     if (depth > nk_attention_max_depth_haswell_k_) {
         nk_attention_pack_e4m3_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin,
-                                      end);
+                                      segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, task_begin,
+                                      task_end);
         return;
     }
     nk_attention_pack_haswell_(keys, values, sizeof(nk_e4m3_t), key_value_head_count, depth, segment_offsets,
                                segment_lengths, segment_count, key_stride_bytes, value_stride_bytes, key_value_packed,
-                               begin, end);
+                               task_begin, task_end);
 }
 
 /**
@@ -225,7 +227,7 @@ NK_HELPER_INLINE void nk_attention_packed_haswell_(                             
     void const *key_value_packed, nk_f32_t *output,                                                             //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t begin, nk_size_t end) {
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     if (header->depth != depth || header->heads != key_value_head_count) return;
@@ -240,20 +242,17 @@ NK_HELPER_INLINE void nk_attention_packed_haswell_(                             
     nk_size_t const plane_row_bytes = depth_padded * element_bytes;
     nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
     nk_size_t const panel_width = nk_attention_panel_haswell_k_;
-
-    nk_size_t const total_tasks = segment_count * head_count;
-    if (begin >= total_tasks) return;
-    if (end > total_tasks) end = total_tasks;
+    nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
     NK_ALIGN64 nk_f32_t query_row[nk_attention_max_depth_haswell_k_];
     NK_ALIGN64 nk_f32_t output_row[nk_attention_max_depth_haswell_k_];
     NK_ALIGN64 nk_f32_t scores[nk_attention_panel_haswell_k_];
 
-    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
+    for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
         nk_size_t const row_count = query_offsets[segment_idx + 1] - query_offsets[segment_idx];
-        if (position_count == 0 || row_count == 0) continue;
+        if (row_count == 0) continue;
         nk_size_t const plane_bytes = position_count * plane_row_bytes;
         char const *keys_plane = payload_base + payload_offsets[segment_idx] +
                                  (head_idx / head_group_size) * plane_bytes;
@@ -266,11 +265,12 @@ NK_HELPER_INLINE void nk_attention_packed_haswell_(                             
             for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 8)
                 _mm256_store_ps(output_row + channel_idx, _mm256_setzero_ps());
             nk_f32_t running_max2 = NK_F32_MIN, running_sum = 0;
+            nk_size_t key_begin, key_end;
+            nk_attention_row_range_((nk_i64_t)row_idx + diagonal_offset, window, position_count, &key_begin, &key_end);
 
-            for (nk_size_t panel_start = 0; panel_start < position_count; panel_start += panel_width) {
-                nk_size_t const panel_length = (panel_start + panel_width <= position_count)
-                                                   ? panel_width
-                                                   : (position_count - panel_start);
+            for (nk_size_t panel_start = key_begin; panel_start < key_end; panel_start += panel_width) {
+                nk_size_t const panel_length = (panel_start + panel_width <= key_end) ? panel_width
+                                                                                      : (key_end - panel_start);
                 // Scores: four KV rows in flight, raw plane scalars widened in-loop.
 
                 nk_size_t position_idx = 0;
@@ -358,7 +358,7 @@ NK_HELPER_INLINE void nk_attention_packed_haswell_(                             
                 }
             }
 
-            nk_f32_t const inverse_sum = 1.0f / running_sum;
+            nk_f32_t const inverse_sum = running_sum > 0 ? 1.0f / running_sum : 0;
             __m256 const inverse_sum_f32x8 = _mm256_set1_ps(inverse_sum);
             nk_f32_t *destination = output + (query_offsets[segment_idx] + row_idx) * output_stride_floats +
                                     head_idx * depth;
@@ -371,38 +371,58 @@ NK_HELPER_INLINE void nk_attention_packed_haswell_(                             
     }
 }
 
-NK_API_COMPTIME void nk_attention_packed_bf16_haswell(                           //
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
-    nk_u32_t const *query_offsets,                                               //
-    nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t begin, nk_size_t end) {
+NK_API_COMPTIME void nk_attention_causal_packed_bf16_haswell(                                                   //
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
     if (depth > nk_attention_max_depth_haswell_k_) {
-        nk_attention_packed_bf16_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
+        nk_attention_causal_packed_bf16_serial(queries, key_value_packed, output, head_count, key_value_head_count,
+                                               depth, query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                               diagonal_offset, window, task_start, task_count);
         return;
     }
     nk_attention_packed_haswell_(queries, sizeof(nk_bf16_t), &nk_attention_widen_bf16_haswell_,
                                  &nk_attention_load_bf16x8_haswell_, key_value_packed, output, head_count,
                                  key_value_head_count, depth, query_offsets, query_stride_bytes, output_stride_bytes,
-                                 scale, begin, end);
+                                 scale, diagonal_offset, window, task_start, task_count);
 }
 
-NK_API_COMPTIME void nk_attention_packed_e4m3_haswell(                           //
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
-    nk_u32_t const *query_offsets,                                               //
-    nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t begin, nk_size_t end) {
+NK_API_COMPTIME void nk_attention_bidirectional_packed_bf16_haswell(                                            //
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_size_t task_start, nk_size_t task_count) {
+    nk_attention_causal_packed_bf16_haswell(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                            query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                            NK_I64_MAX / 2, NK_SIZE_MAX, task_start, task_count);
+}
+
+NK_API_COMPTIME void nk_attention_causal_packed_e4m3_haswell(                                                   //
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
     if (depth > nk_attention_max_depth_haswell_k_) {
-        nk_attention_packed_e4m3_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
+        nk_attention_causal_packed_e4m3_serial(queries, key_value_packed, output, head_count, key_value_head_count,
+                                               depth, query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                               diagonal_offset, window, task_start, task_count);
         return;
     }
     nk_attention_packed_haswell_(queries, sizeof(nk_e4m3_t), &nk_attention_widen_e4m3_haswell_,
                                  &nk_attention_load_e4m3x8_haswell_, key_value_packed, output, head_count,
                                  key_value_head_count, depth, query_offsets, query_stride_bytes, output_stride_bytes,
-                                 scale, begin, end);
+                                 scale, diagonal_offset, window, task_start, task_count);
+}
+
+NK_API_COMPTIME void nk_attention_bidirectional_packed_e4m3_haswell(                                            //
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_size_t task_start, nk_size_t task_count) {
+    nk_attention_causal_packed_e4m3_haswell(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                            query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                            NK_I64_MAX / 2, NK_SIZE_MAX, task_start, task_count);
 }
 
 /**
@@ -601,26 +621,27 @@ NK_API_COMPTIME void nk_attention_pack_i8_haswell(                              
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth,               //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t begin, nk_size_t end) {
+    nk_size_t task_begin, nk_size_t task_end) {
     if (depth > nk_attention_max_depth_haswell_k_) {
         nk_attention_pack_i8_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                    segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
+                                    segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, task_begin,
+                                    task_end);
         return;
     }
 
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const depth_pairs = depth_padded / 2;
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
-                                 8, depth_padded);
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
+                                 task_begin, 8, depth_padded);
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *payload_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (begin >= total_tasks) return;
-    if (end > total_tasks) end = total_tasks;
+    if (task_begin >= total_tasks) return;
+    if (task_end > total_tasks) task_end = total_tasks;
 
-    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
+    for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count,
                         key_value_head_idx = task_idx % key_value_head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
@@ -684,16 +705,15 @@ NK_API_COMPTIME void nk_attention_pack_i8_haswell(                              
     }
 }
 
-NK_API_COMPTIME void nk_attention_packed_i8_haswell(                                                            //
+/**
+ *  @brief I8 attention core: 8-row query blocks share each K panel, each row softmaxes only the slice of the
+ *         panel inside its `nk_attention_row_range_`, and panels outside the block's union are skipped.
+ */
+NK_HELPER_INLINE void nk_attention_packed_i8_haswell_(                                                          //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t begin, nk_size_t end) {
-    if (depth > nk_attention_max_depth_haswell_k_) {
-        nk_attention_packed_i8_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                      query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
-        return;
-    }
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     if (header->depth != depth || header->heads != key_value_head_count) return;
@@ -711,21 +731,18 @@ NK_API_COMPTIME void nk_attention_packed_i8_haswell(                            
     nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t·255 + 0.5 < 1)
         scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
     nk_size_t const panel_width = nk_attention_panel_haswell_k_;
-
-    nk_size_t const total_tasks = segment_count * head_count;
-    if (begin >= total_tasks) return;
-    if (end > total_tasks) end = total_tasks;
+    nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
     NK_ALIGN64 nk_i16_t queries_i16[8 * nk_attention_max_depth_haswell_k_];
     NK_ALIGN64 nk_f32_t output_rows[8 * nk_attention_max_depth_haswell_k_];
     NK_ALIGN64 nk_i32_t scores[8 * nk_attention_panel_haswell_k_];
     NK_ALIGN64 nk_u8_t weights[nk_attention_panel_haswell_k_];
 
-    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
+    for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
         nk_size_t const position_count = segment_lengths[segment_idx];
         nk_size_t const row_count = query_offsets[segment_idx + 1] - query_offsets[segment_idx];
-        if (position_count == 0 || row_count == 0) continue;
+        if (row_count == 0) continue;
         nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, 8);
         nk_size_t const plane_bytes = position_count_padded * depth_padded;
         char const *keys_plane = payload_base + payload_offsets[segment_idx] +
@@ -754,30 +771,38 @@ NK_API_COMPTIME void nk_attention_packed_i8_haswell(                            
                                     _mm256_setzero_ps());
             nk_i32_t running_max[8];
             nk_f32_t running_sum[8];
+            nk_size_t key_begins[8], key_ends[8];
             for (nk_size_t block_row = 0; block_row < block_rows; block_row++) {
                 running_max[block_row] = NK_I32_MIN;
                 running_sum[block_row] = 0;
+                nk_attention_row_range_((nk_i64_t)(query_block + block_row) + diagonal_offset, window, position_count,
+                                        &key_begins[block_row], &key_ends[block_row]);
             }
+            nk_size_t const block_key_begin = key_begins[0] / 8 * 8, block_key_end = key_ends[block_rows - 1];
 
-            for (nk_size_t panel_start = 0; panel_start < position_count; panel_start += panel_width) {
-                nk_size_t const panel_length = (panel_start + panel_width <= position_count)
-                                                   ? panel_width
-                                                   : (position_count - panel_start);
-                nk_attention_score_block_i8_haswell_(queries_i16, block_rows, keys_plane, panel_start, panel_length,
-                                                     depth_padded, scores);
+            // Row ranges grow monotonically, so the block's union spans the first row's begin to the last row's end.
+            for (nk_size_t panel_start = block_key_begin; panel_start < block_key_end; panel_start += panel_width) {
+                nk_size_t const panel_end = (panel_start + panel_width <= block_key_end) ? panel_start + panel_width
+                                                                                         : block_key_end;
+                nk_attention_score_block_i8_haswell_(queries_i16, block_rows, keys_plane, panel_start,
+                                                     panel_end - panel_start, depth_padded, scores);
                 for (nk_size_t block_row = 0; block_row < block_rows; block_row++) {
+                    nk_size_t const row_begin = key_begins[block_row] > panel_start ? key_begins[block_row]
+                                                                                    : panel_start;
+                    nk_size_t const row_end = key_ends[block_row] < panel_end ? key_ends[block_row] : panel_end;
+                    if (row_begin >= row_end) continue; // nothing visible in this panel: running state unchanged
                     nk_f32_t const correction = nk_attention_softmax_panel_i8_haswell_(
-                        scores + block_row * panel_width, panel_length, scale2, scale_fixed, delta_floor,
-                        &running_max[block_row], &running_sum[block_row], weights);
+                        scores + block_row * panel_width + (row_begin - panel_start), row_end - row_begin, scale2,
+                        scale_fixed, delta_floor, &running_max[block_row], &running_sum[block_row], weights);
                     nk_attention_weighted_sum_panel_i8_haswell_(
-                        weights, values_plane, panel_start, panel_length, depth_padded, correction,
+                        weights, values_plane, row_begin, row_end - row_begin, depth_padded, correction,
                         output_rows + block_row * nk_attention_max_depth_haswell_k_);
                 }
             }
 
             for (nk_size_t block_row = 0; block_row < block_rows; block_row++) {
                 nk_f32_t const *output_row = output_rows + block_row * nk_attention_max_depth_haswell_k_;
-                nk_f32_t const inverse_sum = 1.0f / running_sum[block_row];
+                nk_f32_t const inverse_sum = running_sum[block_row] > 0 ? 1.0f / running_sum[block_row] : 0;
                 __m256 const inverse_sum_f32x8 = _mm256_set1_ps(inverse_sum);
                 nk_f32_t *destination = output +
                                         (query_offsets[segment_idx] + query_block + block_row) * output_stride_floats +
@@ -791,6 +816,32 @@ NK_API_COMPTIME void nk_attention_packed_i8_haswell(                            
             }
         }
     }
+}
+
+NK_API_COMPTIME void nk_attention_causal_packed_i8_haswell(                                                     //
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
+    if (depth > nk_attention_max_depth_haswell_k_) {
+        nk_attention_causal_packed_i8_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                             query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                             diagonal_offset, window, task_start, task_count);
+        return;
+    }
+    nk_attention_packed_i8_haswell_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                    query_offsets, query_stride_bytes, output_stride_bytes, scale, diagonal_offset,
+                                    window, task_start, task_count);
+}
+
+NK_API_COMPTIME void nk_attention_bidirectional_packed_i8_haswell(                                              //
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_size_t task_start, nk_size_t task_count) {
+    nk_attention_causal_packed_i8_haswell(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                          query_offsets, query_stride_bytes, output_stride_bytes, scale, NK_I64_MAX / 2,
+                                          NK_SIZE_MAX, task_start, task_count);
 }
 
 #if defined(__clang__)

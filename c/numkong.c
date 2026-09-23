@@ -286,22 +286,31 @@ void nk_error_attention_packed_shape_(void const *key_value_packed, nk_size_t *h
 
 void nk_error_attention_pack_(void const *k, void const *v, nk_size_t num_kv_heads, nk_size_t head_dim,
                               nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                              nk_size_t k_stride, nk_size_t v_stride, void *key_value_packed, nk_size_t begin,
-                              nk_size_t end) {
+                              nk_size_t k_stride, nk_size_t v_stride, void *key_value_packed, nk_size_t task_begin,
+                              nk_size_t task_end) {
     nk_unused_(k), nk_unused_(v), nk_unused_(num_kv_heads), nk_unused_(head_dim), nk_unused_(segment_offsets);
     nk_unused_(segment_lengths), nk_unused_(segment_count), nk_unused_(k_stride), nk_unused_(v_stride);
-    nk_unused_(key_value_packed), nk_unused_(begin), nk_unused_(end);
+    nk_unused_(key_value_packed), nk_unused_(task_begin), nk_unused_(task_end);
 }
 
-void nk_error_attention_packed_(void const *q, void const *key_value_packed, void *output, nk_size_t num_heads,
-                                nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets,
-                                nk_size_t q_stride, nk_size_t o_stride, nk_f32_t scale, nk_size_t begin,
-                                nk_size_t end) {
+void nk_error_attention_bidirectional_packed_(void const *q, void const *key_value_packed, void *output,
+                                              nk_size_t num_heads, nk_size_t num_kv_heads, nk_size_t head_dim,
+                                              nk_u32_t const *query_offsets, nk_size_t q_stride, nk_size_t o_stride,
+                                              nk_f32_t scale, nk_size_t task_start, nk_size_t task_count) {
     // The ragged output extent (query_offsets[segments] rows) lives behind the backend-private
     // packed header, so unlike the dense error handlers this one cannot poison the output.
     nk_unused_(q), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(num_heads), nk_unused_(num_kv_heads);
     nk_unused_(head_dim), nk_unused_(query_offsets), nk_unused_(q_stride), nk_unused_(o_stride), nk_unused_(scale);
-    nk_unused_(begin), nk_unused_(end);
+    nk_unused_(task_start), nk_unused_(task_count);
+}
+
+void nk_error_attention_causal_packed_(void const *q, void const *key_value_packed, void *output, nk_size_t num_heads,
+                                       nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets,
+                                       nk_size_t q_stride, nk_size_t o_stride, nk_f32_t scale, nk_i64_t diagonal_offset,
+                                       nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
+    nk_unused_(q), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(num_heads), nk_unused_(num_kv_heads);
+    nk_unused_(head_dim), nk_unused_(query_offsets), nk_unused_(q_stride), nk_unused_(o_stride), nk_unused_(scale);
+    nk_unused_(diagonal_offset), nk_unused_(window), nk_unused_(task_start), nk_unused_(task_count);
 }
 
 // Global dispatch table - 64-byte aligned for cache performance
@@ -507,19 +516,31 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
     NK_API_RUNTIME void nk_attention_pack_##name(                                                                      \
         nk_##name##_t const *k, nk_##name##_t const *v, nk_size_t num_kv_heads, nk_size_t head_dim,                    \
         nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t k_stride, \
-        nk_size_t v_stride, void *key_value_packed, nk_size_t begin, nk_size_t end) {                                  \
+        nk_size_t v_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end) {                        \
         nk_dispatch_table.attention_pack_##name(k, v, num_kv_heads, head_dim, segment_offsets, segment_lengths,        \
-                                                segment_count, k_stride, v_stride, key_value_packed, begin, end);      \
+                                                segment_count, k_stride, v_stride, key_value_packed, task_begin,       \
+                                                task_end);                                                             \
     }
 
-#define nk_dispatch_attention_packed_(name)                                                                         \
-    NK_API_RUNTIME void nk_attention_packed_##name(                                                                 \
+#define nk_dispatch_attention_bidirectional_packed_(name)                                                           \
+    NK_API_RUNTIME void nk_attention_bidirectional_packed_##name(                                                   \
         nk_##name##_t const *q, void const *key_value_packed, nk_f32_t *output, nk_size_t num_heads,                \
         nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets, nk_size_t q_stride,              \
-        nk_size_t o_stride, nk_f32_t scale, nk_size_t begin, nk_size_t end) {                                       \
-        nk_dispatch_table.attention_packed_##name((void const *)q, key_value_packed, (void *)output, num_heads,     \
-                                                  num_kv_heads, head_dim, query_offsets, q_stride, o_stride, scale, \
-                                                  begin, end);                                                      \
+        nk_size_t o_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count) {                           \
+        nk_dispatch_table.attention_bidirectional_packed_##name((void const *)q, key_value_packed, (void *)output,  \
+                                                                num_heads, num_kv_heads, head_dim, query_offsets,   \
+                                                                q_stride, o_stride, scale, task_start, task_count); \
+    }
+
+#define nk_dispatch_attention_causal_packed_(name)                                                                     \
+    NK_API_RUNTIME void nk_attention_causal_packed_##name(                                                             \
+        nk_##name##_t const *q, void const *key_value_packed, nk_f32_t *output, nk_size_t num_heads,                   \
+        nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets, nk_size_t q_stride,                 \
+        nk_size_t o_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,          \
+        nk_size_t task_count) {                                                                                        \
+        nk_dispatch_table.attention_causal_packed_##name((void const *)q, key_value_packed, (void *)output, num_heads, \
+                                                         num_kv_heads, head_dim, query_offsets, q_stride, o_stride,    \
+                                                         scale, diagonal_offset, window, task_start, task_count);      \
     }
 
 // Dot products
@@ -955,9 +976,12 @@ nk_dispatch_attention_pack_(e4m3)
 nk_dispatch_attention_pack_(i8)
 
 // Attention computation
-nk_dispatch_attention_packed_(bf16)
-nk_dispatch_attention_packed_(e4m3)
-nk_dispatch_attention_packed_(i8)
+nk_dispatch_attention_bidirectional_packed_(bf16)
+nk_dispatch_attention_bidirectional_packed_(e4m3)
+nk_dispatch_attention_bidirectional_packed_(i8)
+nk_dispatch_attention_causal_packed_(bf16)
+nk_dispatch_attention_causal_packed_(e4m3)
+nk_dispatch_attention_causal_packed_(i8)
 
 NK_API_RUNTIME int nk_uses_runtime_dispatch(void) { return 1; }
 NK_API_RUNTIME int nk_configure_thread(nk_capability_t c) { return nk_configure_thread_(c); }

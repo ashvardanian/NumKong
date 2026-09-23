@@ -29,12 +29,18 @@ void bench_cross_sme() {
     constexpr nk_dtype_t e3m2_k = nk_e3m2_k;
 
 #if NK_TARGET_SME
-    run_attention<bf16_k>("attention_packed_bf16_sme", nk_attention_pack_size_bf16_sme, nk_attention_pack_bf16_sme,
-                          nk_attention_packed_bf16_sme);
-    run_attention<e4m3_k>("attention_packed_e4m3_sme", nk_attention_pack_size_e4m3_sme, nk_attention_pack_e4m3_sme,
-                          nk_attention_packed_e4m3_sme);
-    run_attention<i8_k>("attention_packed_i8_sme", nk_attention_pack_size_i8_sme, nk_attention_pack_i8_sme,
-                        nk_attention_packed_i8_sme);
+    run_attention_bidirectional<bf16_k>("attention_bidirectional_packed_bf16_sme", nk_attention_pack_size_bf16_sme,
+                                        nk_attention_pack_bf16_sme, nk_attention_bidirectional_packed_bf16_sme);
+    run_attention_causal<bf16_k>("attention_causal_packed_bf16_sme", nk_attention_pack_size_bf16_sme,
+                                 nk_attention_pack_bf16_sme, nk_attention_causal_packed_bf16_sme);
+    run_attention_bidirectional<e4m3_k>("attention_bidirectional_packed_e4m3_sme", nk_attention_pack_size_e4m3_sme,
+                                        nk_attention_pack_e4m3_sme, nk_attention_bidirectional_packed_e4m3_sme);
+    run_attention_causal<e4m3_k>("attention_causal_packed_e4m3_sme", nk_attention_pack_size_e4m3_sme,
+                                 nk_attention_pack_e4m3_sme, nk_attention_causal_packed_e4m3_sme);
+    run_attention_bidirectional<i8_k>("attention_bidirectional_packed_i8_sme", nk_attention_pack_size_i8_sme,
+                                      nk_attention_pack_i8_sme, nk_attention_bidirectional_packed_i8_sme);
+    run_attention_causal<i8_k>("attention_causal_packed_i8_sme", nk_attention_pack_size_i8_sme,
+                               nk_attention_pack_i8_sme, nk_attention_causal_packed_i8_sme);
 
     run_dots_packed<f16_k>("dots_packed_f16_sme", nk_dots_pack_size_f16_sme, nk_dots_pack_f16_sme,
                            nk_dots_packed_f16_sme);

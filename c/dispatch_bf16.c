@@ -43,8 +43,11 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_bf16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_bf16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_bf16_v128relaxed, *c = nk_cap_v128relaxed_k; return;
-        case nk_kernel_attention_packed_k:
-            *m = (m_t)&nk_attention_packed_bf16_v128relaxed, *c = nk_cap_v128relaxed_k;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_bf16_v128relaxed, *c = nk_cap_v128relaxed_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_bf16_v128relaxed, *c = nk_cap_v128relaxed_k;
             return;
         default: break;
         }
@@ -97,7 +100,12 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_bf16_sme, *c = nk_cap_sme_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_bf16_sme, *c = nk_cap_sme_k; return;
-        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_bf16_sme, *c = nk_cap_sme_k; return;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_bf16_sme, *c = nk_cap_sme_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_bf16_sme, *c = nk_cap_sme_k;
+            return;
         default: break;
         }
 #endif
@@ -156,8 +164,11 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_bf16_neonbfdot, *c = nk_cap_neonbfdot_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_bf16_neonbfdot, *c = nk_cap_neonbfdot_k; return;
-        case nk_kernel_attention_packed_k:
-            *m = (m_t)&nk_attention_packed_bf16_neonbfdot, *c = nk_cap_neonbfdot_k;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_bf16_neonbfdot, *c = nk_cap_neonbfdot_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_bf16_neonbfdot, *c = nk_cap_neonbfdot_k;
             return;
         default: break;
         }
@@ -222,8 +233,11 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         case nk_kernel_attention_pack_k:
             *m = (m_t)&nk_attention_pack_bf16_sapphireamx, *c = nk_cap_sapphireamx_k;
             return;
-        case nk_kernel_attention_packed_k:
-            *m = (m_t)&nk_attention_packed_bf16_sapphireamx, *c = nk_cap_sapphireamx_k;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_bf16_sapphireamx, *c = nk_cap_sapphireamx_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_bf16_sapphireamx, *c = nk_cap_sapphireamx_k;
             return;
         default: break;
         }
@@ -264,7 +278,12 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_bf16_genoa, *c = nk_cap_genoa_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_bf16_genoa, *c = nk_cap_genoa_k; return;
-        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_bf16_genoa, *c = nk_cap_genoa_k; return;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_bf16_genoa, *c = nk_cap_genoa_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_bf16_genoa, *c = nk_cap_genoa_k;
+            return;
         default: break;
         }
 #endif
@@ -303,7 +322,12 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_bf16_skylake, *c = nk_cap_skylake_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_bf16_skylake, *c = nk_cap_skylake_k; return;
-        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_bf16_skylake, *c = nk_cap_skylake_k; return;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_bf16_skylake, *c = nk_cap_skylake_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_bf16_skylake, *c = nk_cap_skylake_k;
+            return;
         default: break;
         }
 #endif
@@ -362,7 +386,12 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_bf16_haswell, *c = nk_cap_haswell_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_bf16_haswell, *c = nk_cap_haswell_k; return;
-        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_bf16_haswell, *c = nk_cap_haswell_k; return;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_bf16_haswell, *c = nk_cap_haswell_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_bf16_haswell, *c = nk_cap_haswell_k;
+            return;
         default: break;
         }
 #endif
@@ -482,7 +511,12 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_bf16_rvv, *c = nk_cap_rvv_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_bf16_rvv, *c = nk_cap_rvv_k; return;
-        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_bf16_rvv, *c = nk_cap_rvv_k; return;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_bf16_rvv, *c = nk_cap_rvv_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_bf16_rvv, *c = nk_cap_rvv_k;
+            return;
         default: break;
         }
 #endif
@@ -533,7 +567,12 @@ void nk_dispatch_bf16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
             *m = (m_t)&nk_attention_packed_shape_bf16_serial, *c = nk_cap_serial_k;
             return;
         case nk_kernel_attention_pack_k: *m = (m_t)&nk_attention_pack_bf16_serial, *c = nk_cap_serial_k; return;
-        case nk_kernel_attention_packed_k: *m = (m_t)&nk_attention_packed_bf16_serial, *c = nk_cap_serial_k; return;
+        case nk_kernel_attention_bidirectional_packed_k:
+            *m = (m_t)&nk_attention_bidirectional_packed_bf16_serial, *c = nk_cap_serial_k;
+            return;
+        case nk_kernel_attention_causal_packed_k:
+            *m = (m_t)&nk_attention_causal_packed_bf16_serial, *c = nk_cap_serial_k;
+            return;
         default: break;
         }
 
@@ -589,5 +628,8 @@ void nk_dispatch_bf16_init_(nk_capability_t caps) {
     nk_dispatch_bf16_find_(caps, nk_kernel_attention_packed_shape_k,
                            (nk_kernel_punned_t *)&t->attention_packed_shape_bf16, &used);
     nk_dispatch_bf16_find_(caps, nk_kernel_attention_pack_k, (nk_kernel_punned_t *)&t->attention_pack_bf16, &used);
-    nk_dispatch_bf16_find_(caps, nk_kernel_attention_packed_k, (nk_kernel_punned_t *)&t->attention_packed_bf16, &used);
+    nk_dispatch_bf16_find_(caps, nk_kernel_attention_bidirectional_packed_k,
+                           (nk_kernel_punned_t *)&t->attention_bidirectional_packed_bf16, &used);
+    nk_dispatch_bf16_find_(caps, nk_kernel_attention_causal_packed_k,
+                           (nk_kernel_punned_t *)&t->attention_causal_packed_bf16, &used);
 }

@@ -186,25 +186,26 @@ NK_API_COMPTIME void nk_attention_pack_i8_icelake(                              
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth,               //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t begin, nk_size_t end) {
+    nk_size_t task_begin, nk_size_t task_end) {
     if (depth > nk_attention_max_depth_icelake_k_) {
         nk_attention_pack_i8_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                    segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, begin, end);
+                                    segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, task_begin,
+                                    task_end);
         return;
     }
 
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count, begin,
-                                 16, depth_padded + 2);
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
+                                 task_begin, 16, depth_padded + 2);
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *payload_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (begin >= total_tasks) return;
-    if (end > total_tasks) end = total_tasks;
+    if (task_begin >= total_tasks) return;
+    if (task_end > total_tasks) task_end = total_tasks;
 
-    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
+    for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
         nk_size_t const segment = task_idx / key_value_head_count, key_value_head_idx = task_idx % key_value_head_count;
         nk_size_t const position_count = segment_lengths[segment];
         if (position_count == 0) continue;
@@ -334,21 +335,31 @@ NK_HELPER_INLINE void nk_attention_score_block_icelake_(nk_u8_t const *queries_b
 }
 
 /**
- *  @brief Streaming base-2 softmax over one panel, entirely in integer arithmetic: the row max is
- *         an exact `_mm512_max_epi32` over live columns only, weights come from the integer i-exp
- *         over `(score − max)·scale₂` in Q15, and the weight sum accumulates in I32. Only the
- *         per-panel online correction `2^((m_old − m_new)·scale₂)` stays in F32, where it scales
- *         the F32 output accumulators anyway. Returns that correction.
+ *  @brief Streaming base-2 softmax over the panel-relative live range `[range_begin, range_end)`, entirely in
+ *         integer arithmetic: the row max is an exact `_mm512_max_epi32` over that range only, weights come from
+ *         the integer i-exp over `(score − max)·scale₂` in Q15, and the weight sum accumulates in I32. Weights
+ *         outside the range, from its 16-aligned start to its quad-rounded end, are zero. Only the per-panel
+ *         online correction `2^((m_old − m_new)·scale₂)` stays in F32, where it scales the F32 output
+ *         accumulators anyway. Returns that correction.
  */
 NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores, nk_u8_t *weights,
-                                                              nk_size_t panel_len, nk_f32_t scale2,
-                                                              nk_i32_t scale_fixed, nk_i32_t delta_floor,
-                                                              nk_i32_t *running_max, nk_f32_t *running_sum) {
+                                                              nk_size_t range_begin, nk_size_t range_end,
+                                                              nk_f32_t scale2, nk_i32_t scale_fixed,
+                                                              nk_i32_t delta_floor, nk_i32_t *running_max,
+                                                              nk_f32_t *running_sum) {
+    nk_size_t const panel_len = range_end;
     nk_size_t const full = panel_len & ~(nk_size_t)15;
     __mmask16 const tail_m16 = (__mmask16)((1u << (panel_len - full)) - 1);
+    nk_size_t const head_start = range_begin & ~(nk_size_t)15; // masks lanes outside a mid-group range
+    __mmask16 const head_m16 = (__mmask16)((0xFFFFu << (range_begin - head_start)) &
+                                           (panel_len - head_start < 16 ? tail_m16 : 0xFFFFu));
 
     __m512i max_i32x16 = _mm512_set1_epi32(NK_I32_MIN);
-    nk_size_t position_idx = 0;
+    nk_size_t position_idx = head_start;
+    if (head_start != range_begin) {
+        max_i32x16 = _mm512_mask_max_epi32(max_i32x16, head_m16, max_i32x16, _mm512_load_si512(scores + head_start));
+        position_idx += 16;
+    }
     for (; position_idx < full; position_idx += 16)
         max_i32x16 = _mm512_max_epi32(max_i32x16, _mm512_load_si512(scores + position_idx));
     if (position_idx < panel_len)
@@ -364,11 +375,20 @@ NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *sc
     __m512i const delta_floor_i32x16 = _mm512_set1_epi32(delta_floor);
     __m512i sum_a_i32x16 = _mm512_setzero_si512();
     __m512i sum_b_i32x16 = _mm512_setzero_si512();
-    nk_size_t const full2 = full & ~(nk_size_t)31;
+    position_idx = head_start;
+    if (head_start != range_begin) {
+        __m512i const delta_i32x16 = _mm512_max_epi32(
+            _mm512_sub_epi32(_mm512_load_si512(scores + head_start), new_max_i32x16), delta_floor_i32x16);
+        __m512i const weight_i32x16 = _mm512_maskz_mov_epi32(
+            head_m16, nk_exp2_u8_i32x16_skylake_(_mm512_mullo_epi32(delta_i32x16, scale_fixed_i32x16)));
+        sum_a_i32x16 = weight_i32x16;
+        _mm_storeu_si128((__m128i *)(weights + head_start), _mm512_cvtusepi32_epi8(weight_i32x16));
+        position_idx += 16;
+    }
     // Two independent 16-lane groups per iteration: group B's i-exp fills the port-0 vpmulld latency left
     // by group A's dependency chain; the separate sum accumulators recombine after the loop, and each
     // group's delta/iexp2/store is byte-identical to the scalar path.
-    for (position_idx = 0; position_idx < full2; position_idx += 32) {
+    for (; position_idx + 32 <= full; position_idx += 32) {
         __m512i const delta_a_i32x16 = _mm512_max_epi32(
             _mm512_sub_epi32(_mm512_load_si512(scores + position_idx), new_max_i32x16), delta_floor_i32x16);
         __m512i const weight_a_i32x16 = nk_exp2_u8_i32x16_skylake_(
@@ -407,19 +427,21 @@ NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *sc
 }
 
 /**
- *  @brief P×V for one panel: `dpbusd(weight_quad, v_quad)` over the quad-interleaved V plane,
- *         I32 accumulators drained to F32 and folded into `O = O·correction + panel`.
+ *  @brief P×V over the quads covering the panel-relative range `[range_begin, range_end)`:
+ *         `dpbusd(weight_quad, v_quad)` over the quad-interleaved V plane, I32 accumulators drained
+ *         to F32 and folded into `O = O·correction + panel`.
  */
 NK_HELPER_INLINE void nk_attention_weighted_sum_panel_icelake_(nk_u8_t const *weights, nk_i8_t const *values_plane,
-                                                               nk_size_t panel_start, nk_size_t panel_len,
-                                                               nk_size_t depth_padded, nk_f32_t correction,
-                                                               nk_f32_t *output_row) {
-    nk_size_t const quad_count = (panel_len + 3) / 4;
+                                                               nk_size_t panel_start, nk_size_t range_begin,
+                                                               nk_size_t range_end, nk_size_t depth_padded,
+                                                               nk_f32_t correction, nk_f32_t *output_row) {
+    nk_size_t const quad_first = range_begin / 4;
+    nk_size_t const quad_count = (range_end + 3) / 4;
     nk_size_t const quad_start = panel_start / 4;
     __m512 const correction_f32x16 = _mm512_set1_ps(correction);
     for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16) {
         __m512i accumulator_i32x16 = _mm512_setzero_si512();
-        for (nk_size_t quad_idx = 0; quad_idx < quad_count; quad_idx++) {
+        for (nk_size_t quad_idx = quad_first; quad_idx < quad_count; quad_idx++) {
             __m512i const weights_u8x64 = _mm512_broadcastd_epi32(_mm_loadu_si32(weights + quad_idx * 4));
             __m512i const v_quad_i8x64 = _mm512_loadu_si512(values_plane + (quad_start + quad_idx) * depth_padded * 4 +
                                                             channel_idx * 4);
@@ -430,14 +452,16 @@ NK_HELPER_INLINE void nk_attention_weighted_sum_panel_icelake_(nk_u8_t const *we
     }
 }
 
-NK_API_COMPTIME void nk_attention_packed_i8_icelake(                                                            //
+/** @brief Shared I8 body: row `r` reads the keys `nk_attention_row_range_(r + diagonal_offset, window, …)` admits. */
+NK_HELPER_INLINE void nk_attention_packed_i8_icelake_(                                                          //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t begin, nk_size_t end) {
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
     if (depth > nk_attention_max_depth_icelake_k_) {
-        nk_attention_packed_i8_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                      query_offsets, query_stride_bytes, output_stride_bytes, scale, begin, end);
+        nk_attention_causal_packed_i8_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                             query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                             diagonal_offset, window, task_start, task_count);
         return;
     }
 
@@ -457,9 +481,7 @@ NK_API_COMPTIME void nk_attention_packed_i8_icelake(                            
         scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
     nk_size_t const panel_width = nk_attention_panel_icelake_k_;
 
-    nk_size_t const total_tasks = segment_count * head_count;
-    if (begin >= total_tasks) return;
-    if (end > total_tasks) end = total_tasks;
+    nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
     // 16-query blocks share each K load; each query keeps its own biased Q, running state and F32 output row.
     NK_ALIGN64 nk_u8_t queries_biased[16 * nk_attention_max_depth_icelake_k_];
@@ -468,15 +490,16 @@ NK_API_COMPTIME void nk_attention_packed_i8_icelake(                            
     NK_ALIGN64 nk_u8_t weights[nk_attention_panel_icelake_k_];
     nk_i32_t running_max[16];
     nk_f32_t running_sum[16];
+    nk_size_t key_begins[16], key_ends[16];
     __m512i const xor_mask_u8x64 = _mm512_set1_epi8((char)0x80);
     nk_size_t const depth_full = depth & ~(nk_size_t)15;
     __mmask16 const dim_tail_m16 = (__mmask16)((1u << (depth - depth_full)) - 1);
 
-    for (nk_size_t task_idx = begin; task_idx < end; task_idx++) {
+    for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment = task_idx / head_count, head = task_idx % head_count;
         nk_size_t const position_count = segment_lengths[segment];
         nk_size_t const row_count = query_offsets[segment + 1] - query_offsets[segment];
-        if (position_count == 0 || row_count == 0) continue;
+        if (row_count == 0) continue;
         nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, 16);
         nk_size_t const plane_bytes = position_count_padded * depth_padded;
         nk_i8_t const *keys_plane = (nk_i8_t const *)(payload_base + payload_offsets[segment]) +
@@ -511,30 +534,49 @@ NK_API_COMPTIME void nk_attention_packed_i8_icelake(                            
                 running_max[block_row] = NK_I32_MIN;
                 running_sum[block_row] = 0;
             }
+            nk_size_t block_begin = position_count, block_end = 0;
+            // The block's key union bounds the panel sweep; empty rows contribute nothing to it.
+            for (nk_size_t block_row = 0; block_row < block_rows; block_row++) {
+                nk_attention_row_range_((nk_i64_t)(row_block + block_row) + diagonal_offset, window, position_count,
+                                        &key_begins[block_row], &key_ends[block_row]);
+                if (key_begins[block_row] == key_ends[block_row]) continue;
+                if (key_begins[block_row] < block_begin) block_begin = key_begins[block_row];
+                if (key_ends[block_row] > block_end) block_end = key_ends[block_row];
+            }
             // Zero the unused query slots so the fixed-16 score kernel reads defined biased bytes.
             for (nk_size_t block_row = block_rows; block_row < 16; block_row++)
                 for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 64)
                     _mm512_store_si512(queries_biased + block_row * nk_attention_max_depth_icelake_k_ + channel_idx,
                                        _mm512_setzero_si512());
 
-            for (nk_size_t panel_start = 0; panel_start < position_count; panel_start += panel_width) {
-                nk_size_t const panel_len = (panel_start + panel_width <= position_count)
-                                                ? panel_width
-                                                : (position_count - panel_start);
+            // Panels start on a 16-position K tile; rows clip to their own range inside each panel.
+            for (nk_size_t panel_start = block_begin & ~(nk_size_t)15; panel_start < block_end;
+                 panel_start += panel_width) {
+                nk_size_t const panel_len = (panel_start + panel_width <= block_end) ? panel_width
+                                                                                     : (block_end - panel_start);
                 nk_attention_score_block_icelake_(queries_biased, keys_plane, key_sums_plane, panel_start, panel_len,
                                                   depth_padded, scores);
                 for (nk_size_t block_row = 0; block_row < block_rows; block_row++) {
+                    nk_size_t const range_begin = key_begins[block_row] > panel_start
+                                                      ? key_begins[block_row] - panel_start
+                                                      : 0;
+                    nk_size_t const range_end = key_ends[block_row] <= panel_start ? 0
+                                                : key_ends[block_row] - panel_start < panel_len
+                                                    ? key_ends[block_row] - panel_start
+                                                    : panel_len;
+                    if (range_begin >= range_end) continue; // no key of this panel: running state unchanged
                     nk_f32_t const correction = nk_attention_softmax_panel_icelake_(
-                        scores + block_row * nk_attention_panel_icelake_k_, weights, panel_len, scale2, scale_fixed,
-                        delta_floor, &running_max[block_row], &running_sum[block_row]);
+                        scores + block_row * nk_attention_panel_icelake_k_, weights, range_begin, range_end, scale2,
+                        scale_fixed, delta_floor, &running_max[block_row], &running_sum[block_row]);
                     nk_attention_weighted_sum_panel_icelake_(
-                        weights, values_plane, panel_start, panel_len, depth_padded, correction,
+                        weights, values_plane, panel_start, range_begin, range_end, depth_padded, correction,
                         output_rows + block_row * nk_attention_max_depth_icelake_k_);
                 }
             }
 
             for (nk_size_t block_row = 0; block_row < block_rows; block_row++) {
-                __m512 const inverse_sum_f32x16 = _mm512_set1_ps(1.0f / running_sum[block_row]);
+                __m512 const inverse_sum_f32x16 = _mm512_set1_ps(
+                    running_sum[block_row] > 0 ? 1.0f / running_sum[block_row] : 0);
                 nk_f32_t const *output_row = output_rows + block_row * nk_attention_max_depth_icelake_k_;
                 nk_f32_t *destination = output +
                                         (query_offsets[segment] + row_block + block_row) * output_stride_floats +
@@ -549,6 +591,26 @@ NK_API_COMPTIME void nk_attention_packed_i8_icelake(                            
             }
         }
     }
+}
+
+NK_API_COMPTIME void nk_attention_bidirectional_packed_i8_icelake(                                              //
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_size_t task_start, nk_size_t task_count) {
+    nk_attention_packed_i8_icelake_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                    query_offsets, query_stride_bytes, output_stride_bytes, scale, NK_I64_MAX / 2,
+                                    NK_SIZE_MAX, task_start, task_count);
+}
+
+NK_API_COMPTIME void nk_attention_causal_packed_i8_icelake(                                                     //
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
+    nk_attention_packed_i8_icelake_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                    query_offsets, query_stride_bytes, output_stride_bytes, scale, diagonal_offset,
+                                    window, task_start, task_count);
 }
 
 #if defined(__clang__)

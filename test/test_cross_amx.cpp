@@ -35,12 +35,24 @@ void test_cross_amx() {
     check("dots_symmetric_i8_sapphireamx", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8_sapphireamx);
     check("dots_symmetric_u8_sapphireamx", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_sapphireamx);
 
-    check("attention_packed_bf16_sapphireamx", test_attention_packed<bf16_t>, nk_attention_pack_size_bf16_sapphireamx,
-          nk_attention_pack_bf16_sapphireamx, nk_attention_packed_bf16_sapphireamx);
-    check("attention_packed_e4m3_sapphireamx", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_sapphireamx,
-          nk_attention_pack_e4m3_sapphireamx, nk_attention_packed_e4m3_sapphireamx);
-    check("attention_packed_i8_sapphireamx", test_attention_packed<i8_t>, nk_attention_pack_size_i8_sapphireamx,
-          nk_attention_pack_i8_sapphireamx, nk_attention_packed_i8_sapphireamx);
+    check("attention_bidirectional_packed_bf16_sapphireamx", test_attention_bidirectional_packed<bf16_t>,
+          nk_attention_pack_size_bf16_sapphireamx, nk_attention_pack_bf16_sapphireamx,
+          nk_attention_bidirectional_packed_bf16_sapphireamx);
+    check("attention_causal_packed_bf16_sapphireamx", test_attention_causal_packed<bf16_t>,
+          nk_attention_pack_size_bf16_sapphireamx, nk_attention_pack_bf16_sapphireamx,
+          nk_attention_causal_packed_bf16_sapphireamx);
+    check("attention_bidirectional_packed_e4m3_sapphireamx", test_attention_bidirectional_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_sapphireamx, nk_attention_pack_e4m3_sapphireamx,
+          nk_attention_bidirectional_packed_e4m3_sapphireamx);
+    check("attention_causal_packed_e4m3_sapphireamx", test_attention_causal_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_sapphireamx, nk_attention_pack_e4m3_sapphireamx,
+          nk_attention_causal_packed_e4m3_sapphireamx);
+    check("attention_bidirectional_packed_i8_sapphireamx", test_attention_bidirectional_packed<i8_t>,
+          nk_attention_pack_size_i8_sapphireamx, nk_attention_pack_i8_sapphireamx,
+          nk_attention_bidirectional_packed_i8_sapphireamx);
+    check("attention_causal_packed_i8_sapphireamx", test_attention_causal_packed<i8_t>,
+          nk_attention_pack_size_i8_sapphireamx, nk_attention_pack_i8_sapphireamx,
+          nk_attention_causal_packed_i8_sapphireamx);
 #endif // NK_TARGET_SAPPHIREAMX
 
 #if NK_TARGET_GRANITEAMX
@@ -74,7 +86,11 @@ void test_cross_amx() {
 
 #if NK_TARGET_DIAMONDAMX
     check.section("Cross Diamond AMX", nk_cap_diamondamx_k);
-    check("attention_packed_e4m3_diamondamx", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_diamondamx,
-          nk_attention_pack_e4m3_diamondamx, nk_attention_packed_e4m3_diamondamx);
+    check("attention_bidirectional_packed_e4m3_diamondamx", test_attention_bidirectional_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_diamondamx, nk_attention_pack_e4m3_diamondamx,
+          nk_attention_bidirectional_packed_e4m3_diamondamx);
+    check("attention_causal_packed_e4m3_diamondamx", test_attention_causal_packed<e4m3_t>,
+          nk_attention_pack_size_e4m3_diamondamx, nk_attention_pack_e4m3_diamondamx,
+          nk_attention_causal_packed_e4m3_diamondamx);
 #endif // NK_TARGET_DIAMONDAMX
 }
