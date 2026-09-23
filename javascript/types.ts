@@ -30,7 +30,7 @@ export function setConversionFunctions(fns: typeof conversionFunctions) {
 // Type alias for any TypedArray
 export type TypedArray = Float64Array | Float32Array | Int32Array | Int8Array | Uint8Array | Uint16Array | Uint32Array;
 
-/** @brief Numeric data type enum — integer switch, compiles to jump table. */
+/** Numeric data type enum — integer switch, compiles to jump table. */
 export enum DType {
   F64 = 0,
   F32 = 1,
@@ -47,25 +47,25 @@ export enum DType {
   U32 = 12,
 }
 
-/** @brief O(1) array lookup for DType → string conversion (needed at N-API/WASM boundaries). */
+/** O(1) array lookup for DType → string conversion (needed at N-API/WASM boundaries). */
 export const DTYPE_STRINGS: readonly string[] = [
   'f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2', 'i8', 'u8', 'u1', 'i32', 'u32',
 ];
 
-/** @brief Convert a DType enum value to its string representation. */
+/** Convert a DType enum value to its string representation. */
 export function dtypeToString(d: DType): string { return DTYPE_STRINGS[d]; }
 
-/** @brief Logical dimensions packed into one storage value, mirroring `nk_dimensions_per_value`. */
+/** Logical dimensions packed into one storage value, mirroring `nk_dimensions_per_value`. */
 export function dimensionsPerValue(dtype: DType): number { return dtype === DType.U1 ? 8 : 1; }
 
-/** @brief Storage values holding `dimensions`, which must be a multiple of the values per byte. */
+/** Storage values holding `dimensions`, which must be a multiple of {@link dimensionsPerValue}. */
 export function dimensionsToValues(dtype: DType, dimensions: number): number {
   const perValue = dimensionsPerValue(dtype);
   if (dimensions % perValue !== 0) throw new RangeError('dimension count must be a multiple of the values per byte');
   return dimensions / perValue;
 }
 
-/** @brief Infer the DType from a TypedArray instance. */
+/** Infer the DType from a TypedArray instance. */
 function inferDtype(arr: TypedArray): DType {
   if (arr instanceof Float64Array) return DType.F64;
   if (arr instanceof Float32Array) return DType.F32;
@@ -78,7 +78,7 @@ function inferDtype(arr: TypedArray): DType {
 }
 
 /**
- * @brief Abstract base class for all tensor types.
+ * Abstract base class for all tensor types.
  *
  * All fields are embedded — zero dynamic allocation. DType is a numeric enum
  * (integer switch). Mirrors the C++ pattern: buffer + byteOffset + dtype.
@@ -98,7 +98,7 @@ export abstract class TensorBase {
   abstract get length(): number;
   abstract get rank(): number;
 
-  /** @brief Bytes per element for this tensor's dtype (compiles to jump table). */
+  /** Bytes per element for this tensor's dtype (compiles to jump table). */
   get bytesPerElement(): number {
     switch (this.dtype) {
       case DType.F64: return 8;
@@ -108,12 +108,12 @@ export abstract class TensorBase {
     }
   }
 
-  /** @brief Total byte length of the tensor data. */
+  /** Total byte length of the tensor data. */
   get byteLength(): number { return this.length * this.bytesPerElement; }
 }
 
 /**
- * @brief Abstract rank-1 tensor base class.
+ * Abstract rank-1 tensor base class.
  */
 export abstract class VectorBase extends TensorBase {
   // Mutable so owning Vectors can `tryResize()`/`clear()` within capacity.
@@ -128,7 +128,7 @@ export abstract class VectorBase extends TensorBase {
 }
 
 /**
- * @brief Non-owning rank-1 tensor view (like std::span<T>).
+ * Non-owning rank-1 tensor view (like std::span<T>).
  *
  * Zero-copy wrapper for existing memory. Ideal for cross-module WASM interop
  * where data already lives on the WASM heap.
@@ -146,7 +146,7 @@ export class VectorView extends VectorBase {
     return this.toString();
   }
 
-  /** @brief Create a VectorView from any TypedArray, inferring or accepting dtype. */
+  /** Create a VectorView from any TypedArray, inferring or accepting dtype. */
   static from(arr: TypedArray, dtype?: DType): VectorView {
     const d = dtype ?? inferDtype(arr);
     return new VectorView(arr.buffer as ArrayBuffer, arr.byteOffset, arr.length, d);
@@ -154,7 +154,7 @@ export class VectorView extends VectorBase {
 }
 
 /**
- * @brief Owning rank-1 tensor (like std::vector<T>).
+ * Owning rank-1 tensor (like std::vector<T>).
  *
  * Allocates its own ArrayBuffer. Use for storing results or when you need
  * independent ownership of the data.
@@ -187,18 +187,18 @@ export class Vector extends VectorBase {
     return this.toString();
   }
 
-  /** @brief Create an owning Vector by copying data from a TypedArray. */
+  /** Create an owning Vector by copying data from a TypedArray. */
   static fromTypedArray(arr: TypedArray, dtype?: DType): Vector {
     const d = dtype ?? inferDtype(arr);
     return new Vector((arr.buffer as ArrayBuffer).slice(arr.byteOffset, arr.byteOffset + arr.byteLength), arr.length, d);
   }
 
-  /** @brief Create an owning Vector by copying data from any TensorBase. */
+  /** Create an owning Vector by copying data from any TensorBase. */
   static fromView(view: TensorBase): Vector {
     return new Vector(view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength), view.length, view.dtype);
   }
 
-  /** @brief Return a TypedArray view over this Vector's owned buffer (zero-copy). */
+  /** Return a TypedArray view over this Vector's owned buffer (zero-copy). */
   toTypedArray(): TypedArray {
     switch (this.dtype) {
       case DType.F64: return new Float64Array(this.buffer, 0, this.length);
@@ -211,13 +211,13 @@ export class Vector extends VectorBase {
     }
   }
 
-  /** @brief Allocated element capacity (>= length) — the ceiling `tryResize` honors. */
+  /** Allocated element capacity (>= length) — the ceiling `tryResize` honors. */
   get capacity(): number {
     return Math.floor((this.buffer.byteLength - this.byteOffset) / this.bytesPerElement);
   }
 
   /**
-   * @brief Resize within capacity without moving storage — `toTypedArray()` views stay valid.
+   * Resize within capacity without moving storage — `toTypedArray()` views stay valid.
    * @returns false (length unchanged) if `length` is negative or exceeds `capacity()`.
    */
   tryResize(length: number): boolean {
@@ -227,7 +227,7 @@ export class Vector extends VectorBase {
   }
 
   /**
-   * @brief Grow the allocated capacity to at least `elements`, reallocating and copying the live
+   * Grow the allocated capacity to at least `elements`, reallocating and copying the live
    * elements. A no-op when already large enough. INVALIDATES any TypedArray previously returned by
    * `toTypedArray()` — they keep pointing at the old buffer.
    */
@@ -240,14 +240,14 @@ export class Vector extends VectorBase {
     return true;
   }
 
-  /** @brief Reset to length 0 while keeping the allocated capacity. */
+  /** Reset to length 0 while keeping the allocated capacity. */
   clear(): void {
     this.length = 0;
   }
 }
 
 /**
- * @brief Abstract rank-2 tensor base class.
+ * Abstract rank-2 tensor base class.
  *
  * All 4 dimension fields are embedded — no dynamic allocation.
  * Strides are in bytes to match the C API directly.
@@ -275,7 +275,7 @@ export abstract class MatrixBase extends TensorBase {
 }
 
 /**
- * @brief Owning rank-2 tensor (row-major, C-contiguous by default).
+ * Owning rank-2 tensor (row-major, C-contiguous by default).
  *
  * Strides are byte strides. Default for C-contiguous layout:
  * rowStride = cols * bytesPerElement, colStride = bytesPerElement.
@@ -347,13 +347,13 @@ export class Matrix extends MatrixBase {
     return new VectorView(this.buffer, this.byteOffset + index * this.rowStride, this.cols, this.dtype);
   }
 
-  /** @brief Allocated element capacity (>= rows*cols) — the ceiling `tryResize` honors. */
+  /** Allocated element capacity (>= rows*cols) — the ceiling `tryResize` honors. */
   get capacity(): number {
     return Math.floor((this.buffer.byteLength - this.byteOffset) / this.bytesPerElement);
   }
 
   /**
-   * @brief Resize within capacity without moving storage (`row()`/`toTypedArray()` views stay valid),
+   * Resize within capacity without moving storage (`row()`/`toTypedArray()` views stay valid),
    * re-deriving C-contiguous strides.
    * @returns false (unchanged) if either extent is negative or `rows*cols` exceeds `capacity()`.
    */
@@ -367,7 +367,7 @@ export class Matrix extends MatrixBase {
   }
 
   /**
-   * @brief Grow the allocated capacity to at least `elements`, reallocating and copying the live
+   * Grow the allocated capacity to at least `elements`, reallocating and copying the live
    * rows*cols elements. A no-op when already large enough. INVALIDATES any prior `toTypedArray()` /
    * `row()` view. Intended for the C-contiguous owning layout.
    */
@@ -380,7 +380,7 @@ export class Matrix extends MatrixBase {
     return true;
   }
 
-  /** @brief Reset to an empty 0x0 matrix while keeping the allocated capacity. */
+  /** Reset to an empty 0x0 matrix while keeping the allocated capacity. */
   clear(): void {
     this.rows = 0;
     this.cols = 0;
@@ -388,11 +388,11 @@ export class Matrix extends MatrixBase {
 }
 
 /**
- * @brief Opaque packed matrix container.
+ * Opaque packed matrix container.
  *
  * Packed layout is not indexable — this is a data container for packed GEMM kernels.
  * N-API path: buffer is a V8-managed ArrayBuffer, auto-freed by GC.
- * WASM path: stores a heap pointer, dispose() calls Module._free().
+ * WASM path: stores a heap pointer, `dispose()` calls Module._free().
  */
 export class PackedMatrix {
   readonly width: number;
@@ -422,11 +422,11 @@ export class PackedMatrix {
   }
 }
 
-/** @brief Kernel family identifiers for output dtype resolution. */
+/** Kernel family identifiers for output dtype resolution. */
 export type KernelFamily = 'dots' | 'angulars' | 'euclideans';
 
 /**
- * @brief Determines the output dtype for a given kernel family and input dtype.
+ * Determines the output dtype for a given kernel family and input dtype.
  * Mirrors nk_kernel_output_dtype from C.
  */
 export function outputDtype(family: KernelFamily, input: DType): DType {
@@ -442,7 +442,7 @@ export function outputDtype(family: KernelFamily, input: DType): DType {
 }
 
 /**
- * @brief IEEE 754 Half Precision Float (f16)
+ * IEEE 754 Half Precision Float (f16)
  *
  * 16-bit floating point: 1 sign bit, 5 exponent bits, 10 mantissa bits
  * Range: ~±65504, precision: ~3-4 decimal digits
@@ -470,7 +470,7 @@ export class Float16Array extends Uint16Array {
   }
 
   /**
-   * @brief Converts the entire f16 array to f32 (Float32Array).
+   * Converts the entire f16 array to f32 (Float32Array).
    * @returns Float32Array with decoded values
    */
   toFloat32Array(): Float32Array {
@@ -485,8 +485,8 @@ export class Float16Array extends Uint16Array {
   }
 
   /**
-   * @brief Gets the f32 value at the specified index.
-   * @param index Array index
+   * Gets the f32 value at the specified index.
+   * @param index - Array index
    * @returns Decoded f32 value
    */
   getFloat32(index: number): number {
@@ -497,9 +497,9 @@ export class Float16Array extends Uint16Array {
   }
 
   /**
-   * @brief Sets the value at the specified index from an f32 value.
-   * @param index Array index
-   * @param value f32 value to encode and store
+   * Sets the value at the specified index from an f32 value.
+   * @param index - Array index
+   * @param value - f32 value to encode and store
    */
   setFloat32(index: number, value: number): void {
     if (!conversionFunctions) {
@@ -526,7 +526,7 @@ export class Float16Array extends Uint16Array {
 }
 
 /**
- * @brief Brain Float 16 (bf16)
+ * Brain Float 16 (bf16)
  *
  * 16-bit floating point: 1 sign bit, 8 exponent bits, 7 mantissa bits
  * Range: same as f32 (~±3.4e38), precision: ~2-3 decimal digits
@@ -596,7 +596,7 @@ export class BFloat16Array extends Uint16Array {
 }
 
 /**
- * @brief FP8 E4M3 (4-bit exponent, 3-bit mantissa)
+ * FP8 E4M3 (4-bit exponent, 3-bit mantissa)
  *
  * 8-bit floating point: 1 sign bit, 4 exponent bits, 3 mantissa bits
  * Range: ~±448, precision: ~1 decimal digit
@@ -665,7 +665,7 @@ export class E4M3Array extends Uint8Array {
 }
 
 /**
- * @brief FP8 E5M2 (5-bit exponent, 2-bit mantissa)
+ * FP8 E5M2 (5-bit exponent, 2-bit mantissa)
  *
  * 8-bit floating point: 1 sign bit, 5 exponent bits, 2 mantissa bits
  * Range: ~±57344, precision: <1 decimal digit
@@ -734,7 +734,7 @@ export class E5M2Array extends Uint8Array {
 }
 
 /**
- * @brief Binary Array (u1) - Bit-packed binary vectors
+ * Binary Array (u1) - Bit-packed binary vectors
  *
  * 1-bit per element, packed into bytes (8 bits per byte, least significant bit first)
  * Dimension count must be a multiple of 8, the values per byte.
@@ -751,8 +751,8 @@ export class BinaryArray extends Uint8Array {
   }
 
   /**
-   * @brief Gets the bit value at the specified index.
-   * @param index Bit index (0 to bitLength-1)
+   * Gets the bit value at the specified index.
+   * @param index - Bit index (0 to bitLength-1)
    * @returns 0 or 1
    */
   getBit(index: number): number {
@@ -765,9 +765,9 @@ export class BinaryArray extends Uint8Array {
   }
 
   /**
-   * @brief Sets the bit value at the specified index.
-   * @param index Bit index (0 to bitLength-1)
-   * @param value 0 or 1
+   * Sets the bit value at the specified index.
+   * @param index - Bit index (0 to bitLength-1)
+   * @param value - 0 or 1
    */
   setBit(index: number, value: number): void {
     if (index < 0 || index >= this._bitLength) {
@@ -783,15 +783,15 @@ export class BinaryArray extends Uint8Array {
   }
 
   /**
-   * @brief Returns the logical bit length of the array.
+   * Returns the logical bit length of the array.
    */
   get bitLength(): number {
     return this._bitLength;
   }
 
   /**
-   * @brief Creates a BinaryArray from a Float32Array (positive values = 1, else 0).
-   * @param vector Source floating-point vector
+   * Creates a BinaryArray from a Float32Array (positive values = 1, else 0).
+   * @param vector - Source floating-point vector
    * @returns Binary array with quantized values
    */
   static fromFloat32Array(vector: Float32Array): BinaryArray {
@@ -805,8 +805,8 @@ export class BinaryArray extends Uint8Array {
   }
 
   /**
-   * @brief Creates a BinaryArray from a Float64Array (positive values = 1, else 0).
-   * @param vector Source floating-point vector
+   * Creates a BinaryArray from a Float64Array (positive values = 1, else 0).
+   * @param vector - Source floating-point vector
    * @returns Binary array with quantized values
    */
   static fromFloat64Array(vector: Float64Array): BinaryArray {
@@ -835,35 +835,35 @@ export class BinaryArray extends Uint8Array {
 }
 
 /**
- * @brief Type guard to check if an object is a Float16Array.
+ * Type guard to check if an object is a Float16Array.
  */
 export function isFloat16Array(obj: any): obj is Float16Array {
   return obj instanceof Float16Array;
 }
 
 /**
- * @brief Type guard to check if an object is a BFloat16Array.
+ * Type guard to check if an object is a BFloat16Array.
  */
 export function isBFloat16Array(obj: any): obj is BFloat16Array {
   return obj instanceof BFloat16Array;
 }
 
 /**
- * @brief Type guard to check if an object is an E4M3Array.
+ * Type guard to check if an object is an E4M3Array.
  */
 export function isE4M3Array(obj: any): obj is E4M3Array {
   return obj instanceof E4M3Array;
 }
 
 /**
- * @brief Type guard to check if an object is an E5M2Array.
+ * Type guard to check if an object is an E5M2Array.
  */
 export function isE5M2Array(obj: any): obj is E5M2Array {
   return obj instanceof E5M2Array;
 }
 
 /**
- * @brief Type guard to check if an object is a BinaryArray.
+ * Type guard to check if an object is a BinaryArray.
  */
 export function isBinaryArray(obj: any): obj is BinaryArray {
   return obj instanceof BinaryArray;

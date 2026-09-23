@@ -543,7 +543,7 @@ export function getCapabilitiesCompiled(): bigint {
 
 /**
  * Returns the SIMD capabilities that can actually execute here, as a bitmask.
- * The intersection of getCapabilitiesDetected() and getCapabilitiesCompiled().
+ * The intersection of {@link getCapabilitiesDetected} and {@link getCapabilitiesCompiled}.
  * @returns Bitmask of capability flags (use with Capability constants).
  */
 export function getCapabilitiesAvailable(): bigint {
@@ -552,7 +552,7 @@ export function getCapabilitiesAvailable(): bigint {
 
 /**
  * Returns the SIMD capabilities dispatch is currently restricted to, as a bitmask.
- * A subset of getCapabilitiesAvailable().
+ * A subset of {@link getCapabilitiesAvailable}.
  * @returns Bitmask of capability flags (use with Capability constants).
  */
 export function getCapabilitiesEnabled(): bigint {
@@ -561,7 +561,7 @@ export function getCapabilitiesEnabled(): bigint {
 
 /**
  * Checks whether a specific SIMD capability can actually execute here.
- * Tests against getCapabilitiesAvailable(), so it is false both when the host lacks the feature
+ * Tests against {@link getCapabilitiesAvailable}, so it is false both when the host lacks the feature
  * and when its kernels were not compiled into this module.
  * @param cap - Capability flag to check (from Capability constants).
  * @returns True if the capability is available.

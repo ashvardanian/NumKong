@@ -84,7 +84,7 @@ if (addon) {
 
 /**
  * CPU capability bit masks in chronological order (by first commercial silicon).
- * Use these with `capabilities.has()` or `capabilities.available()` to check for SIMD support.
+ * Use these with {@link hasCapability} or {@link getCapabilitiesAvailable} to check for SIMD support.
  */
 export const Capability = {
   SERIAL: 1n << 0n,          // Always: Fallback
@@ -206,9 +206,9 @@ function unwrapTensor(input: TensorBase): { arr: DistanceArray; dtype: DType } {
  *
  * Describes the machine only, and says nothing about whether a kernel was compiled into this
  * build — a prebuild whose ISA probes failed still reports your CPU's full feature set while
- * containing no SIMD kernels at all. Prefer getCapabilitiesAvailable().
+ * containing no SIMD kernels at all. Prefer {@link getCapabilitiesAvailable}.
  *
- * @returns {bigint} Bitmask of capability flags (use with Capability constants)
+ * @returns Bitmask of capability flags (use with Capability constants)
  */
 export const getCapabilitiesDetected = (): bigint => addon.getCapabilitiesDetected();
 
@@ -218,17 +218,17 @@ export const getCapabilitiesDetected = (): bigint => addon.getCapabilitiesDetect
  * Decided at build time by the ISA probes, independent of the CPU. The only accessor that can
  * tell you a prebuild is silently scalar.
  *
- * @returns {bigint} Bitmask of capability flags (use with Capability constants)
+ * @returns Bitmask of capability flags (use with Capability constants)
  */
 export const getCapabilitiesCompiled = (): bigint => addon.getCapabilitiesCompiled();
 
 /**
  * Returns the SIMD capabilities that can actually execute here, as a bitmask.
  *
- * The intersection of getCapabilitiesDetected() and getCapabilitiesCompiled(). Either axis
+ * The intersection of {@link getCapabilitiesDetected} and {@link getCapabilitiesCompiled}. Either axis
  * alone over-reports.
  *
- * @returns {bigint} Bitmask of capability flags (use with Capability constants)
+ * @returns Bitmask of capability flags (use with Capability constants)
  *
  * @example
  * ```ts
@@ -246,42 +246,42 @@ export const getCapabilitiesAvailable = (): bigint => addon.getCapabilitiesAvail
 
 /**
  * Returns the SIMD capabilities dispatch is currently restricted to, as a bitmask.
- * A subset of getCapabilitiesAvailable().
+ * A subset of {@link getCapabilitiesAvailable}.
  *
- * @returns {bigint} Bitmask of capability flags (use with Capability constants)
+ * @returns Bitmask of capability flags (use with Capability constants)
  */
 export const getCapabilitiesEnabled = (): bigint => addon.getCapabilitiesEnabled();
 
 /**
- * Restricts dispatch to `caps`, clamped to getCapabilitiesAvailable().
+ * Restricts dispatch to `caps`, clamped to {@link getCapabilitiesAvailable}.
  * The serial fallback is always retained.
  *
- * @param {bigint} caps - Capability mask (from Capability constants)
+ * @param caps - Capability mask (from Capability constants)
  */
 export const restrictCapabilities = (caps: bigint): void => addon.capabilitiesRestrict(caps);
 
 /**
- * Adds `caps` to getCapabilitiesEnabled(). Anything not available is ignored.
+ * Adds `caps` to {@link getCapabilitiesEnabled}. Anything not available is ignored.
  *
- * @param {bigint} caps - Capability mask (from Capability constants)
+ * @param caps - Capability mask (from Capability constants)
  */
 export const enableCapabilities = (caps: bigint): void => addon.capabilitiesEnable(caps);
 
 /**
- * Removes `caps` from getCapabilitiesEnabled(). The serial fallback cannot be removed.
+ * Removes `caps` from {@link getCapabilitiesEnabled}. The serial fallback cannot be removed.
  *
- * @param {bigint} caps - Capability mask (from Capability constants)
+ * @param caps - Capability mask (from Capability constants)
  */
 export const disableCapabilities = (caps: bigint): void => addon.capabilitiesDisable(caps);
 
 /**
  * Checks whether a specific SIMD capability can actually execute here.
  *
- * Tests against getCapabilitiesAvailable(), so it is false both when the CPU lacks the feature
+ * Tests against {@link getCapabilitiesAvailable}, so it is false both when the CPU lacks the feature
  * and when its kernels were not compiled into this build.
  *
- * @param {bigint} cap - Capability flag to check (from Capability constants)
- * @returns {boolean} True if the capability is available, false otherwise
+ * @param cap - Capability flag to check (from Capability constants)
+ * @returns True if the capability is available, false otherwise
  *
  * @example
  * ```ts
@@ -299,7 +299,7 @@ export const hasCapability = (cap: bigint): boolean => (addon.getCapabilitiesAva
  * @param a - The first vector.
  * @param b - The second vector (must match the type of a).
  * @param dtype - Optional dtype string for custom types (e.g. 'f16', 'bf16', 'e4m3').
- * @returns {number} The squared Euclidean distance between vectors a and b.
+ * @returns The squared Euclidean distance between vectors a and b.
  */
 export function sqeuclidean(a: NumericArray, b: NumericArray): number;
 export function sqeuclidean(a: DistanceArray, b: DistanceArray, dtype: DType): number;
@@ -314,7 +314,7 @@ export function sqeuclidean(a: DistanceArray | TensorBase, b: DistanceArray | Te
  * @param a - The first vector.
  * @param b - The second vector (must match the type of a).
  * @param dtype - Optional dtype string for custom types (e.g. 'f16', 'bf16', 'e4m3').
- * @returns {number} The Euclidean distance between vectors a and b.
+ * @returns The Euclidean distance between vectors a and b.
  */
 export function euclidean(a: NumericArray, b: NumericArray): number;
 export function euclidean(a: DistanceArray, b: DistanceArray, dtype: DType): number;
@@ -329,7 +329,7 @@ export function euclidean(a: DistanceArray | TensorBase, b: DistanceArray | Tens
  * @param a - The first vector.
  * @param b - The second vector (must match the type of a).
  * @param dtype - Optional dtype string for custom types (e.g. 'f16', 'bf16', 'e4m3').
- * @returns {number} The angular distance between vectors a and b.
+ * @returns The angular distance between vectors a and b.
  */
 export function angular(a: NumericArray, b: NumericArray): number;
 export function angular(a: DistanceArray, b: DistanceArray, dtype: DType): number;
@@ -344,7 +344,7 @@ export function angular(a: DistanceArray | TensorBase, b: DistanceArray | Tensor
  * @param a - The first vector.
  * @param b - The second vector (must match the type of a).
  * @param dtype - Optional dtype string for custom types (e.g. 'f16', 'bf16', 'e4m3').
- * @returns {number} The inner product of vectors a and b.
+ * @returns The inner product of vectors a and b.
  */
 export function inner(a: NumericArray, b: NumericArray): number;
 export function inner(a: DistanceArray, b: DistanceArray, dtype: DType): number;
@@ -359,7 +359,7 @@ export function inner(a: DistanceArray | TensorBase, b: DistanceArray | TensorBa
  * @param a - The first vector.
  * @param b - The second vector (must match the type of a).
  * @param dtype - Optional dtype string for custom types (e.g. 'f16', 'bf16', 'e4m3').
- * @returns {number} The dot product of vectors a and b.
+ * @returns The dot product of vectors a and b.
  */
 export function dot(a: NumericArray, b: NumericArray): number;
 export function dot(a: DistanceArray, b: DistanceArray, dtype: DType): number;
@@ -373,11 +373,11 @@ export function dot(a: DistanceArray | TensorBase, b: DistanceArray | TensorBase
  * Computes the bitwise Hamming distance between two vectors.
  *
  * Both vectors are treated as bit-packed (u1 dtype), where each byte contains 8 bits.
- * Use toBinary() to convert numeric arrays to bit-packed format.
+ * Use {@link toBinary} to convert numeric arrays to bit-packed format.
  *
- * @param {Uint8Array | BinaryArray} a - The first bit-packed vector.
- * @param {Uint8Array | BinaryArray} b - The second bit-packed vector.
- * @returns {number} The Hamming distance (number of differing bits) between vectors a and b.
+ * @param a - The first bit-packed vector.
+ * @param b - The second bit-packed vector.
+ * @returns The Hamming distance (number of differing bits) between vectors a and b.
  */
 export const hamming = (a: Uint8Array | BinaryArray | TensorBase, b: Uint8Array | BinaryArray | TensorBase): number => {
   if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return addon.hamming(u.arr, v.arr); }
@@ -388,11 +388,11 @@ export const hamming = (a: Uint8Array | BinaryArray | TensorBase, b: Uint8Array 
  * Computes the bitwise Jaccard distance between two vectors.
  *
  * Both vectors are treated as bit-packed (u1 dtype), where each byte contains 8 bits.
- * Use toBinary() to convert numeric arrays to bit-packed format.
+ * Use {@link toBinary} to convert numeric arrays to bit-packed format.
  *
- * @param {Uint8Array | BinaryArray} a - The first bit-packed vector.
- * @param {Uint8Array | BinaryArray} b - The second bit-packed vector.
- * @returns {number} The Jaccard distance (1 - Jaccard similarity) between vectors a and b.
+ * @param a - The first bit-packed vector.
+ * @param b - The second bit-packed vector.
+ * @returns The Jaccard distance (1 - Jaccard similarity) between vectors a and b.
  */
 export const jaccard = (a: Uint8Array | BinaryArray | TensorBase, b: Uint8Array | BinaryArray | TensorBase): number => {
   if (a instanceof TensorBase) { const u = unwrapTensor(a), v = unwrapTensor(b as TensorBase); return addon.jaccard(u.arr, v.arr); }
@@ -408,7 +408,7 @@ export const jaccard = (a: Uint8Array | BinaryArray | TensorBase, b: Uint8Array 
  * @param a - The first probability distribution.
  * @param b - The second probability distribution (must match the type of a).
  * @param dtype - Optional dtype string for custom types (e.g. 'f16', 'bf16').
- * @returns {number} The Kullback-Leibler divergence KL(a || b) = Σ a[i] * log(a[i] / b[i]).
+ * @returns The Kullback-Leibler divergence KL(a || b) = Σ a[i] * log(a[i] / b[i]).
  */
 export function kullbackleibler(a: Float64Array | Float32Array, b: Float64Array | Float32Array): number;
 export function kullbackleibler(a: Float64Array | Float32Array | Uint16Array, b: Float64Array | Float32Array | Uint16Array, dtype: DType): number;
@@ -428,7 +428,7 @@ export function kullbackleibler(a: Float64Array | Float32Array | Uint16Array | T
  * @param a - The first probability distribution.
  * @param b - The second probability distribution (must match the type of a).
  * @param dtype - Optional dtype string for custom types (e.g. 'f16', 'bf16').
- * @returns {number} The Jensen-Shannon distance d_JS(a, b) = √(0.5 × (KL(a‖m) + KL(b‖m))), where m = (a + b) / 2.
+ * @returns The Jensen-Shannon distance d_JS(a, b) = √(0.5 × (KL(a‖m) + KL(b‖m))), where m = (a + b) / 2.
  */
 export function jensenshannon(a: Float64Array | Float32Array, b: Float64Array | Float32Array): number;
 export function jensenshannon(a: Float64Array | Float32Array | Uint16Array, b: Float64Array | Float32Array | Uint16Array, dtype: DType): number;
@@ -442,19 +442,19 @@ export function jensenshannon(a: Float64Array | Float32Array | Uint16Array | Ten
  * Quantizes a numeric vector into a bit-packed binary representation.
  *
  * Converts each element to a single bit: 1 for positive values, 0 for non-positive values.
- * The bits are packed into bytes (8 bits per byte) in big-endian bit order within each byte.
- * This is the required format for hamming() and jaccard() distance functions.
- * Dimension count must be a multiple of 8, the values per byte.
+ * Element 0 lands in the least significant bit of byte 0, matching {@link BinaryArray} and the C `nk_u1x8_t`.
+ * This is the required format for {@link hamming} and {@link jaccard} distance functions.
+ * Dimension count must be a multiple of 8, the dimensions per byte.
  *
- * @param {Float32Array | Float64Array | Int8Array} vector - The vector to quantize and pack.
- * @returns {Uint8Array} A bit-packed array where each byte contains 8 binary values.
+ * @param vector - The vector to quantize and pack.
+ * @returns A bit-packed array where each byte contains 8 binary values.
  *
  * @example
  * ```ts
  * const vec = new Float32Array([1.5, -2.3, 0.0, 3.1, -1.0, 2.0, 0.5, -0.5]);
  * const binary = toBinary(vec);
- * // Result: Uint8Array([0b10010110]) = [0x96]
- * //   bits: [1, 0, 0, 1, 0, 1, 1, 0] for elements [+, -, 0, +, -, +, +, -]
+ * // Result: Uint8Array([0b01101001]) = [0x69]
+ * //   bits 0..7: [1, 0, 0, 1, 0, 1, 1, 0] for elements [+, -, 0, +, -, +, +, -]
  *
  * // Use with Hamming distance
  * const a = toBinary(new Float32Array([1, 2, 3, 4, 5, 6, 7, 8]));
@@ -467,9 +467,7 @@ export const toBinary = (vector: Float32Array | Float64Array | Int8Array): Uint8
 
   for (let i = 0; i < vector.length; i++) {
     if (vector[i] > 0) {
-      const byteIndex = Math.floor(i / 8);
-      const bitPosition = 7 - (i % 8);
-      packedVector[byteIndex] |= (1 << bitPosition);
+      packedVector[i >>> 3] |= 1 << (i & 7);
     }
   }
 
@@ -625,7 +623,7 @@ export default {
 
 /**
  * Finds the directory where the native build of the numkong module is located.
- * @param {string} dir - The directory to start the search from.
+ * @param dir - The directory to start the search from.
  */
 function getBuildDir(dir: string) {
   if (existsSync(path.join(dir, "build"))) return dir;
