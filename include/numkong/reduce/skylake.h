@@ -3278,16 +3278,14 @@ NK_HELPER_INLINE void nk_reduce_moments_i4_skylake_contiguous_( //
     nk_i4x2_t const *data_ptr, nk_size_t count,                 //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     // Sum: XOR-bias nibbles to unsigned, vpsadbw, unbias at end.
-    // Sumsq: squares are sign-independent; LUT maps nibble→square (max 225 fits u8), vpsadbw to u64.
     __m512i mask_0f_i8x64 = _mm512_set1_epi8(0x0F);
     __m512i eight_i8x64 = _mm512_set1_epi8(8);
     __m512i zero_i8x64 = _mm512_setzero_si512();
-    // Squares LUT: sq_lut[n] = n² for n in [0,15], all fit in u8 (max 225)
-    __m512i sq_lut_u8x64 = _mm512_set_epi8(                                                       //
-        (char)225, (char)196, (char)169, (char)144, 121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0, //
-        (char)225, (char)196, (char)169, (char)144, 121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0, //
-        (char)225, (char)196, (char)169, (char)144, 121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0, //
-        (char)225, (char)196, (char)169, (char)144, 121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0);
+    __m512i sq_lut_u8x64 = _mm512_set_epi8(                      // i4(n)² for raw nibble n, where 8..15 encode -8..-1
+        1, 4, 9, 16, 25, 36, 49, 64, 49, 36, 25, 16, 9, 4, 1, 0, //
+        1, 4, 9, 16, 25, 36, 49, 64, 49, 36, 25, 16, 9, 4, 1, 0, //
+        1, 4, 9, 16, 25, 36, 49, 64, 49, 36, 25, 16, 9, 4, 1, 0, //
+        1, 4, 9, 16, 25, 36, 49, 64, 49, 36, 25, 16, 9, 4, 1, 0);
     __m512i sum_u64x8 = _mm512_setzero_si512();
     __m512i sumsq_u64x8 = _mm512_setzero_si512();
     nk_size_t count_bytes = nk_size_divide_round_up_(count, 2);
@@ -3311,7 +3309,7 @@ NK_HELPER_INLINE void nk_reduce_moments_i4_skylake_contiguous_( //
         __m512i high_biased_u4x64 = _mm512_xor_si512(high_u4_u8x64, eight_i8x64);
         __m512i pair_sum_u8x64 = _mm512_add_epi8(low_biased_u4x64, high_biased_u4x64);
         sum_u64x8 = _mm512_add_epi64(sum_u64x8, _mm512_sad_epu8(pair_sum_u8x64, zero_i8x64));
-        // Sumsq: squares are sign-independent, use LUT on unsigned nibbles
+        // Sumsq: LUT on the raw nibbles yields the signed squares
         __m512i low_sq_u8x64 = _mm512_shuffle_epi8(sq_lut_u8x64, low_u4_u8x64);
         __m512i high_sq_u8x64 = _mm512_shuffle_epi8(sq_lut_u8x64, high_u4_u8x64);
         sumsq_u64x8 = _mm512_add_epi64(sumsq_u64x8, _mm512_sad_epu8(low_sq_u8x64, zero_i8x64));

@@ -6325,11 +6325,31 @@ constexpr accumulator_type_ saturating_mul(accumulator_type_ a, in_type_ b) noex
     return a.saturating_mul(static_cast<accumulator_type_>(b));
 }
 
+/** @brief Operands of the free-standing FMA: scalars into any accumulator, packed values into their own type. */
+template <typename in_type_, typename accumulator_type_>
+concept fma_operands = dimensions_per_value<in_type_>() == 1 || std::is_same_v<accumulator_type_, in_type_>;
+
+/** @brief Signed scalars into an unsigned integer accumulator, which a negative operand cannot be cast into. */
+template <typename in_type_, typename accumulator_type_>
+concept signed_into_unsigned_fma_operands = fma_operands<in_type_, accumulator_type_> &&
+                                            dimensions_per_value<in_type_>() == 1 && is_signed_dtype<in_type_>() &&
+                                            is_integral_dtype<accumulator_type_>() &&
+                                            !is_signed_dtype<accumulator_type_>();
+
 /** @brief Free-standing saturating FMA (a*b + c) for baseline implementations. */
 template <typename in_type_, typename accumulator_type_>
-    requires(dimensions_per_value<in_type_>() == 1 || std::is_same<accumulator_type_, in_type_>::value)
+    requires fma_operands<in_type_, accumulator_type_>
 constexpr accumulator_type_ saturating_fma(in_type_ a, in_type_ b, accumulator_type_ acc) noexcept {
     return saturating_add(acc, saturating_mul(static_cast<accumulator_type_>(a), static_cast<accumulator_type_>(b)));
+}
+
+/** @brief Saturating FMA of signed operands into an unsigned integer accumulator, multiplied in `i64_t` first. */
+template <typename in_type_, typename accumulator_type_>
+    requires signed_into_unsigned_fma_operands<in_type_, accumulator_type_>
+constexpr accumulator_type_ saturating_fma(in_type_ a, in_type_ b, accumulator_type_ acc) noexcept {
+    std::int64_t const product = i64_t(a).saturating_mul(i64_t(b));
+    if (product >= 0) return acc.saturating_add(accumulator_type_(static_cast<std::uint64_t>(product)));
+    return acc.saturating_sub(accumulator_type_(0 - static_cast<std::uint64_t>(product)));
 }
 
 /** @brief FMA specialization for i4x2_t (signed 4-bit packed pairs). */

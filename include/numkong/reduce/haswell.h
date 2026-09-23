@@ -3643,11 +3643,9 @@ NK_HELPER_INLINE void nk_reduce_moments_i4_haswell_contiguous_( //
     __m256i mask_0f_i8x32 = _mm256_set1_epi8(0x0F);
     __m256i eight_i8x32 = _mm256_set1_epi8(8);
     __m256i zero_i8x32 = _mm256_setzero_si256();
-    __m256i sq_lut_u8x32 = _mm256_setr_epi8(                                //
-        0, 1, 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, (char)144, (char)169, //
-        (char)196, (char)225,                                               //
-        0, 1, 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, (char)144, (char)169, //
-        (char)196, (char)225);
+    __m256i sq_lut_u8x32 = _mm256_setr_epi8(                     // squares of the signed values, by raw nibble
+        0, 1, 4, 9, 16, 25, 36, 49, 64, 49, 36, 25, 16, 9, 4, 1, //
+        0, 1, 4, 9, 16, 25, 36, 49, 64, 49, 36, 25, 16, 9, 4, 1);
     __m256i sum_u64x4 = _mm256_setzero_si256();
     __m256i sumsq_u64x4 = _mm256_setzero_si256();
     nk_size_t count_bytes = nk_size_divide_round_up_(count, 2);

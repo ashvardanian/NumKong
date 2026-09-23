@@ -449,8 +449,9 @@ struct error_stats_t {
         std::uint64_t ulps = use_integer_distance ? integer_distance(actual, expected_as_actual)
                                                   : ulp_distance(actual, expected_as_actual);
 
-        // Skip NaN/Inf pairs — sentinel value means the comparison is meaningless
-        if (ulps == std::numeric_limits<std::uint64_t>::max()) return;
+        // Skip NaN/Inf pairs, whose sentinel distance means the comparison is meaningless; integers have none
+        if constexpr (!nk::is_integral_dtype<actual_type_>())
+            if (ulps == std::numeric_limits<std::uint64_t>::max()) return;
 
         if constexpr (!nk::is_integral_dtype<actual_type_>()) saw_floating_distance = true;
 

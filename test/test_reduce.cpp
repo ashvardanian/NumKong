@@ -106,6 +106,7 @@ void test_reduce() {
     check("reduce_moments_e5m2_serial", test_reduce_moments<e5m2_t>, nk_reduce_moments_e5m2_serial);
     check("reduce_moments_e2m3_serial", test_reduce_moments<e2m3_t>, nk_reduce_moments_e2m3_serial);
     check("reduce_moments_e3m2_serial", test_reduce_moments<e3m2_t>, nk_reduce_moments_e3m2_serial);
+    check("reduce_moments_e2m1_serial", test_reduce_moments<e2m1x2_t>, nk_reduce_moments_e2m1_serial);
     check("reduce_moments_i4_serial", test_reduce_moments<i4x2_t>, nk_reduce_moments_i4_serial);
     check("reduce_moments_u4_serial", test_reduce_moments<u4x2_t>, nk_reduce_moments_u4_serial);
     check("reduce_moments_u1_serial", test_reduce_moments<u1x8_t>, nk_reduce_moments_u1_serial);
