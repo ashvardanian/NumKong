@@ -174,6 +174,8 @@ static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py
 
     nk_dtype_t dtype = py_object_to_nk_dtype(dtype_obj);
     if (dtype == nk_dtype_unknown_k) return NULL;
+    Py_ssize_t const depth_shape[1] = {(Py_ssize_t)depth};
+    if (!validate_packed_dimensions(dtype, 1, depth_shape)) return NULL;
 
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
@@ -775,7 +777,7 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
 
     nk_size_t width = (nk_size_t)b_buffer.shape[0];
     nk_size_t depth = (nk_size_t)b_buffer.shape[1];
-    // For sub-byte types (e.g. uint1), shape[1] is in bytes but kernels expect logical dimensions
+    // A whole-byte buffer counts storage values; `depth` counts dimensions, a multiple of the values per byte.
     depth *= nk_dimensions_per_value(target_dtype);
     nk_size_t row_stride = (nk_size_t)b_buffer.strides[0];
     nk_size_t col_stride = (nk_size_t)b_buffer.strides[1];

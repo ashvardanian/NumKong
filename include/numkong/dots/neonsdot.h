@@ -130,14 +130,14 @@ nk_define_cross_pack_(dots, e2m1, neonsdot, e2m1x2, e2m1x2, nk_b128_vec_t, nk_lo
                       /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 nk_define_cross_symmetric_(dots, e2m1, neonsdot, e2m1x2, f32, nk_b128_vec_t, nk_dot_e2m1x32_state_neonsdot_t,
                            nk_b128_vec_t, nk_dot_e2m1x32_init_neonsdot, nk_load_b128_neon_,
-                           nk_partial_load_e2m1x32_serial_, nk_dot_e2m1x32_update_neonsdot,
+                           nk_partial_load_b4x32_serial_, nk_dot_e2m1x32_update_neonsdot,
                            nk_dot_e2m1x32_finalize_neonsdot, nk_store_b128_neon_, nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 nk_define_cross_packed_(dots, e2m1, neonsdot, e2m1x2, e2m1x2, f32, nk_b128_vec_t, nk_dot_e2m1x32_state_neonsdot_t,
-                        nk_b128_vec_t, nk_dot_e2m1x32_init_neonsdot, nk_load_b128_neon_,
-                        nk_partial_load_e2m1x32_serial_, nk_load_b128_neon_, nk_partial_load_e2m1x32_serial_,
-                        nk_dot_e2m1x32_update_neonsdot, nk_dot_e2m1x32_finalize_neonsdot, nk_store_b128_neon_,
-                        nk_partial_store_b32x4_serial_, /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
+                        nk_b128_vec_t, nk_dot_e2m1x32_init_neonsdot, nk_load_b128_neon_, nk_partial_load_b4x32_serial_,
+                        nk_load_b128_neon_, nk_partial_load_b4x32_serial_, nk_dot_e2m1x32_update_neonsdot,
+                        nk_dot_e2m1x32_finalize_neonsdot, nk_store_b128_neon_, nk_partial_store_b32x4_serial_,
+                        /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 
 /* E3M2: depth_simd_dimensions=16 (16 e3m2 values = 16 bytes = NEON register width) */
 nk_define_cross_pack_size_(dots, e3m2, neonsdot, e3m2, e3m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/16,

@@ -905,5 +905,6 @@ def test_packed_out_requires_contiguity(dtype: str, distinct_values: int):
     nk.add(first, 0, out=packed_out)
     assert_allclose(np.asarray(nk.astype(packed_out, "uint8")), first, atol=NK_ATOL, rtol=NK_RTOL)
 
+    rows = np.stack([first, first])
     with pytest.raises(ValueError, match="C-contiguous"):
-        nk.add(first[:4], 0, out=nk.zeros(first.shape, dtype=dtype)[::2])
+        nk.add(rows, 0, out=nk.zeros((4, first.size), dtype=dtype)[::2])

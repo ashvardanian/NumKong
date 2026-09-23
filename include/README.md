@@ -159,6 +159,7 @@ For `nk_bf16_t`, the wider exponent field (8 bits) gives the same dynamic range 
 The Float8 types `nk_e4m3_t` and `nk_e5m2_t` follow the OFP8 specification.
 The narrower `nk_e2m3_t` and `nk_e3m2_t` types are MX-compatible micro-floats.
 Sub-byte types `nk_u1x8_t`, `nk_u4x2_t`, and `nk_i4x2_t` pack multiple logical values into a single byte.
+Element 0 sits in the high nibble or the least significant bit, and every dimension count must be a multiple of the values per byte.
 
 Default promotions are encoded on the type.
 For example, `f32_t::dot_result_t` is wider than `f32_t`.

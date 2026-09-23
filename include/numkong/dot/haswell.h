@@ -1240,7 +1240,6 @@ NK_HELPER_INLINE void nk_dot_e2m1x64_finalize_haswell(                          
     results->xmm = _mm_castps_si128(_mm_mul_ps(_mm_cvtepi32_ps(sum_i32x4), _mm_set1_ps(0.25f)));
 }
 
-/** `n` counts nibbles, 64 per 32-byte step; the partial load drops an odd trailing nibble. */
 NK_API_COMPTIME void nk_dot_e2m1_haswell(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_dot_e2m1x64_state_haswell_t state;
     nk_dot_e2m1x64_init_haswell(&state);
@@ -1251,8 +1250,8 @@ NK_API_COMPTIME void nk_dot_e2m1_haswell(nk_e2m1x2_t const *a, nk_e2m1x2_t const
         nk_dot_e2m1x64_update_haswell(&state, a_vec, b_vec, 0, 64);
     }
     if (n) {
-        nk_partial_load_e2m1x64_serial_(a, &a_vec, n);
-        nk_partial_load_e2m1x64_serial_(b, &b_vec, n);
+        nk_partial_load_b4x64_serial_(a, &a_vec, n);
+        nk_partial_load_b4x64_serial_(b, &b_vec, n);
         nk_dot_e2m1x64_update_haswell(&state, a_vec, b_vec, 0, n);
     }
     *result = (nk_f32_t)nk_reduce_add_i32x8_haswell_(state.sum_i32x8) * 0.25f;
@@ -1428,7 +1427,6 @@ NK_API_COMPTIME void nk_dot_u8_haswell(nk_u8_t const *a_scalars, nk_u8_t const *
 
 NK_API_COMPTIME void nk_dot_i4_haswell(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     //
     // Algorithm: For signed i4, we use an algebraic transformation (similar to Ice Lake).
     // Let ax, bx be the unsigned [0,15] representation of signed values a, b in [-8,7].
@@ -1442,8 +1440,7 @@ NK_API_COMPTIME void nk_dot_i4_haswell(nk_i4x2_t const *a, nk_i4x2_t const *b, n
     // Benchmark shows 16-byte approach is 2× faster than 8-byte (10.7 GB/s vs 5.3 GB/s).
     // Better ILP and amortized loop overhead with wider operations.
     //
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
     __m128i const nibble_mask_u8x16 = _mm_set1_epi8(0x0F);
     __m128i const xor_mask_u8x16 = _mm_set1_epi8(0x08);
     __m128i const zeros_u8x16 = _mm_setzero_si128();
@@ -1514,14 +1511,12 @@ nk_dot_i4_haswell_cycle:
 
 NK_API_COMPTIME void nk_dot_u4_haswell(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     // Values are ∈ [0,15], so we can use direct unpacking and multiplication.
     //
     // Optimization: Process 16 bytes (32 nibbles) per iteration for better ILP.
     // Benchmark shows 16-byte approach provides best performance.
     //
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
     __m128i const nibble_mask_u8x16 = _mm_set1_epi8(0x0F);
     __m256i sum_i32x8 = _mm256_setzero_si256();
     __m128i a_u4x32, b_u4x32;
@@ -1838,7 +1833,7 @@ NK_HELPER_INLINE void nk_dot_u4x32_finalize_haswell(                            
 #pragma region Binary
 
 NK_API_COMPTIME void nk_dot_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
-    nk_size_t n_bytes = nk_size_divide_round_up_(n_bits, NK_BITS_PER_BYTE);
+    nk_size_t n_bytes = n_bits / NK_BITS_PER_BYTE;
     nk_u32_t dot = 0;
     for (; n_bytes >= 8; n_bytes -= 8, a += 8, b += 8)
         dot += (nk_u32_t)_mm_popcnt_u64(*(nk_u64_t const *)a & *(nk_u64_t const *)b);

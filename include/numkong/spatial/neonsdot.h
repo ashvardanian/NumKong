@@ -248,8 +248,7 @@ NK_API_COMPTIME void nk_angular_u8_neonsdot(nk_u8_t const *a, nk_u8_t const *b, 
 }
 
 NK_API_COMPTIME void nk_sqeuclidean_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result) {
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
     uint32x4_t d2_u32x4 = vdupq_n_u32(0);
     uint8x16_t a_u8x16, b_u8x16;
 
@@ -290,8 +289,7 @@ NK_API_COMPTIME void nk_euclidean_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t cons
 }
 
 NK_API_COMPTIME void nk_angular_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
     int32x4_t ab_i32x4 = vdupq_n_s32(0);
     int32x4_t a2_i32x4 = vdupq_n_s32(0);
     int32x4_t b2_i32x4 = vdupq_n_s32(0);
@@ -331,8 +329,7 @@ nk_angular_i4_neonsdot_cycle:
 }
 
 NK_API_COMPTIME void nk_sqeuclidean_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
     uint8x16_t const nibble_mask_u8x16 = vdupq_n_u8(0x0F);
     uint32x4_t d2_u32x4 = vdupq_n_u32(0);
     uint8x16_t a_u8x16, b_u8x16;
@@ -373,8 +370,7 @@ NK_API_COMPTIME void nk_euclidean_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t cons
 }
 
 NK_API_COMPTIME void nk_angular_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
     uint8x16_t const nibble_mask_u8x16 = vdupq_n_u8(0x0F);
     uint32x4_t ab_u32x4 = vdupq_n_u32(0);
     uint32x4_t a2_u32x4 = vdupq_n_u32(0);

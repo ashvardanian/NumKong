@@ -71,7 +71,7 @@ NK_HELPER_INLINE nk_u64_t nk_reduce_add_u8x32_loongsonasx_(__m256i v_u8x32) {
 #pragma region Binary Sets
 
 NK_API_COMPTIME void nk_hamming_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
-    nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
+    nk_size_t n_bytes = n / NK_BITS_PER_BYTE;
     __m256i count_u64x4 = __lasx_xvreplgr2vr_d(0);
     nk_size_t i = 0;
 
@@ -89,7 +89,7 @@ NK_API_COMPTIME void nk_hamming_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t con
 }
 
 NK_API_COMPTIME void nk_jaccard_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
+    nk_size_t n_bytes = n / NK_BITS_PER_BYTE;
     __m256i xor_count_u64x4 = __lasx_xvreplgr2vr_d(0);
     __m256i or_count_u64x4 = __lasx_xvreplgr2vr_d(0);
     nk_size_t i = 0;

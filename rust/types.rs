@@ -1396,7 +1396,7 @@ impl From<u1x8> for (bool, bool, bool, bool, bool, bool, bool, bool) {
 
 /// Packed 4-bit unsigned integer pair (2 × u4 in one byte).
 ///
-/// Layout: low nibble = first element, high nibble = second element.
+/// Layout: high nibble = first element, low nibble = second element.
 /// Range per element: [0, 15]. Elements zero-extended to u8 for arithmetic.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -1404,18 +1404,18 @@ pub struct u4x2(pub u8);
 
 impl core::fmt::Debug for u4x2 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let (low, high) = self.to_u8s();
-        write!(f, "u4x2({}, {}, 0x{:02x})", low, high, self.0)
+        let (first, second) = self.to_u8s();
+        write!(f, "u4x2({}, {}, 0x{:02x})", first, second, self.0)
     }
 }
 
 impl core::fmt::Display for u4x2 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let (low, high) = self.to_u8s();
+        let (first, second) = self.to_u8s();
         if f.alternate() {
-            write!(f, "({}, {}) [0x{:02x}]", low, high, self.0)
+            write!(f, "({}, {}) [0x{:02x}]", first, second, self.0)
         } else {
-            write!(f, "({}, {})", low, high)
+            write!(f, "({}, {})", first, second)
         }
     }
 }
@@ -1441,17 +1441,17 @@ impl u4x2 {
     #[inline(always)]
     pub const fn packed(self) -> u8 { self.0 }
 
-    /// Construct from two u8 values with saturation to 0..15.
+    /// Construct from two u8 values with saturation to 0..15, `first` in the high nibble.
     #[inline(always)]
-    pub const fn from_u8s(low: u8, high: u8) -> Self {
-        let low_sat = if low > 15 { 15 } else { low };
-        let high_sat = if high > 15 { 15 } else { high };
-        u4x2(low_sat | (high_sat << 4))
+    pub const fn from_u8s(first: u8, second: u8) -> Self {
+        let first_sat = if first > 15 { 15 } else { first };
+        let second_sat = if second > 15 { 15 } else { second };
+        u4x2((first_sat << 4) | second_sat)
     }
 
-    /// Extract to two u8 values (0..15 each).
+    /// Extract to two u8 values (0..15 each), the high nibble first.
     #[inline(always)]
-    pub const fn to_u8s(self) -> (u8, u8) { (self.0 & 0x0F, self.0 >> 4) }
+    pub const fn to_u8s(self) -> (u8, u8) { (self.0 >> 4, self.0 & 0x0F) }
 }
 
 impl From<(u8, u8)> for u4x2 {
@@ -1470,7 +1470,7 @@ impl From<u4x2> for (u8, u8) {
 
 /// Packed 4-bit signed integer pair (2 × i4 in one byte).
 ///
-/// Layout: low nibble = first element, high nibble = second element (two's complement).
+/// Layout: high nibble = first element, low nibble = second element (two's complement).
 /// Range per element: [−8, +7]. Elements sign-extended to i8 for arithmetic.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -1478,18 +1478,18 @@ pub struct i4x2(pub u8);
 
 impl core::fmt::Debug for i4x2 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let (low, high) = self.to_i8s();
-        write!(f, "i4x2({}, {}, 0x{:02x})", low, high, self.0)
+        let (first, second) = self.to_i8s();
+        write!(f, "i4x2({}, {}, 0x{:02x})", first, second, self.0)
     }
 }
 
 impl core::fmt::Display for i4x2 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let (low, high) = self.to_i8s();
+        let (first, second) = self.to_i8s();
         if f.alternate() {
-            write!(f, "({}, {}) [0x{:02x}]", low, high, self.0)
+            write!(f, "({}, {}) [0x{:02x}]", first, second, self.0)
         } else {
-            write!(f, "({}, {})", low, high)
+            write!(f, "({}, {})", first, second)
         }
     }
 }
@@ -1515,35 +1515,35 @@ impl i4x2 {
     #[inline(always)]
     pub const fn packed(self) -> u8 { self.0 }
 
-    /// Construct from two i8 values with saturation to -8..7.
+    /// Construct from two i8 values with saturation to -8..7, `first` in the high nibble.
     #[inline(always)]
-    pub const fn from_i8s(low: i8, high: i8) -> Self {
-        let low_sat = if low < -8 {
+    pub const fn from_i8s(first: i8, second: i8) -> Self {
+        let first_sat = if first < -8 {
             -8
-        } else if low > 7 {
+        } else if first > 7 {
             7
         } else {
-            low
+            first
         };
-        let high_sat = if high < -8 {
+        let second_sat = if second < -8 {
             -8
-        } else if high > 7 {
+        } else if second > 7 {
             7
         } else {
-            high
+            second
         };
-        i4x2(((low_sat as u8) & 0x0F) | (((high_sat as u8) & 0x0F) << 4))
+        i4x2((((first_sat as u8) & 0x0F) << 4) | ((second_sat as u8) & 0x0F))
     }
 
-    /// Extract to two i8 values, sign-extended from 4 bits.
+    /// Extract to two i8 values, sign-extended from 4 bits, the high nibble first.
     #[inline(always)]
     pub const fn to_i8s(self) -> (i8, i8) {
-        let low = (self.0 & 0x0F) as i8;
-        let high = ((self.0 >> 4) & 0x0F) as i8;
+        let first = ((self.0 >> 4) & 0x0F) as i8;
+        let second = (self.0 & 0x0F) as i8;
         // Sign extend from 4 bits: if bit 3 is set, fill upper bits with 1s
-        let low = if low & 0x08 != 0 { low | (!0x0Fi8) } else { low };
-        let high = if high & 0x08 != 0 { high | (!0x0Fi8) } else { high };
-        (low, high)
+        let first = if first & 0x08 != 0 { first | (!0x0Fi8) } else { first };
+        let second = if second & 0x08 != 0 { second | (!0x0Fi8) } else { second };
+        (first, second)
     }
 }
 
@@ -1595,17 +1595,17 @@ pub trait StorageElement: Sized + Copy + Clone + Default + core::fmt::Debug {
 
     /// Storage values needed to hold `dims` logical dimensions.
     ///
-    /// Rounds up: a `u1x8` vector of 9 dimensions occupies two bytes, the second only one-eighth
-    /// used. This is the conversion between the two counts a packed container tracks, and every
+    /// `dims` counts dimensions, a multiple of the values per byte, so the division is exact.
+    /// This is the conversion between the two counts a packed container tracks, and every
     /// bounds check that guards a storage offset must be written in these units — a check counting
     /// dimensions paired with an offset counting storage values is how an index eight times too
     /// large passes as in-range.
     #[inline]
-    fn dims_to_values(dims: usize) -> usize { dims.div_ceil(Self::dimensions_per_value()) }
+    fn dimensions_to_values(dims: usize) -> usize { dims / Self::dimensions_per_value() }
 
     /// Split a logical dimension index into the storage value holding it and its position inside.
     ///
-    /// The counterpart to [`dims_to_values`](Self::dims_to_values), for the callers
+    /// The counterpart to [`dimensions_to_values`](Self::dimensions_to_values), for the callers
     /// that must reach an individual dimension rather than count them. Pair it with
     /// [`Packable::unpack`] to read the dimension out, or with [`DimMut`] to write one back.
     #[inline]
@@ -2482,8 +2482,8 @@ impl FloatConvertible for i4x2 {
     type Unpacked = [i8; 2];
     #[inline(always)]
     fn unpack(self) -> [i8; 2] {
-        let (low, high) = self.to_i8s();
-        [low, high]
+        let (first, second) = self.to_i8s();
+        [first, second]
     }
     #[inline(always)]
     fn pack(dims: [i8; 2]) -> Self { i4x2::from_i8s(dims[0], dims[1]) }
@@ -2494,8 +2494,8 @@ impl FloatConvertible for u4x2 {
     type Unpacked = [u8; 2];
     #[inline(always)]
     fn unpack(self) -> [u8; 2] {
-        let (low, high) = self.to_u8s();
-        [low, high]
+        let (first, second) = self.to_u8s();
+        [first, second]
     }
     #[inline(always)]
     fn pack(dims: [u8; 2]) -> Self { u4x2::from_u8s(dims[0], dims[1]) }
@@ -2705,7 +2705,7 @@ pub(crate) fn init_thread() {
 #[cfg(test)]
 pub(crate) const DIMS: &[(usize, usize, usize)] = &[(1, 1, 1), (1, 8, 3), (3, 1, 7), (7, 5, 3), (33, 17, 65)];
 
-/// Round `depth` up to the nearest multiple of `Scalar::dimensions_per_value()`.
+/// Lifts a test `depth` to the next valid dimension count, a multiple of the values per byte.
 #[cfg(test)]
 pub(crate) fn align_depth<Scalar: StorageElement>(depth: usize) -> usize {
     let dims_per_value = Scalar::dimensions_per_value();

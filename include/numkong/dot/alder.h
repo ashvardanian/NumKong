@@ -606,7 +606,6 @@ NK_HELPER_INLINE void nk_dot_e2m1x64_finalize_alder(                            
     results->xmm = _mm_castps_si128(_mm_mul_ps(_mm_cvtepi32_ps(sum_i32x4), _mm_set1_ps(0.25f)));
 }
 
-/** `n` counts nibbles, 64 per 32-byte step; the partial load drops an odd trailing nibble. */
 NK_API_COMPTIME void nk_dot_e2m1_alder(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_dot_e2m1x64_state_alder_t state;
     nk_dot_e2m1x64_init_alder(&state);
@@ -617,8 +616,8 @@ NK_API_COMPTIME void nk_dot_e2m1_alder(nk_e2m1x2_t const *a, nk_e2m1x2_t const *
         nk_dot_e2m1x64_update_alder(&state, a_vec, b_vec, 0, 64);
     }
     if (n) {
-        nk_partial_load_e2m1x64_serial_(a, &a_vec, n);
-        nk_partial_load_e2m1x64_serial_(b, &b_vec, n);
+        nk_partial_load_b4x64_serial_(a, &a_vec, n);
+        nk_partial_load_b4x64_serial_(b, &b_vec, n);
         nk_dot_e2m1x64_update_alder(&state, a_vec, b_vec, 0, n);
     }
     *result = (nk_f32_t)nk_reduce_add_i32x8_haswell_(state.sum_i32x8) * 0.25f;

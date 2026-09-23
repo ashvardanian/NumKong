@@ -20,7 +20,7 @@ namespace ashvardanian::numkong {
 /**
  *  @brief Hamming distance: Σ(aᵢ ⊕ bᵢ)
  *  @param[in] a,b Input vectors
- *  @param[in] d Number of dimensions
+ *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output count
  *
  *  @tparam in_type_ Input vector element type (u1x8_t or u8_t)
@@ -37,7 +37,7 @@ void hamming(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *
     else if constexpr (std::is_same_v<in_type_, u8_t> && simd) nk_hamming_u8(&a->raw_, &b->raw_, d, &r->raw_);
     else {
         constexpr std::size_t dims_per_value = dimensions_per_value<in_type_>();
-        std::size_t n = divide_round_up(d, dims_per_value);
+        std::size_t n = d / dims_per_value;
         typename result_type_::raw_t count = 0;
         for (std::size_t i = 0; i < n; i++) count += count_differences(a[i], b[i]);
         *r = result_type_::from_raw(count);
@@ -47,7 +47,7 @@ void hamming(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *
 /**
  *  @brief Jaccard distance: 1 − |A ∩ B| / |A ∪ B|
  *  @param[in] a,b Input vectors
- *  @param[in] d Number of dimensions
+ *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance
  *
  *  For u1x8_t (bit vectors): uses popcount(AND) / popcount(OR)
@@ -68,7 +68,7 @@ void jaccard(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *
     else if constexpr (std::is_same_v<in_type_, u32_t> && simd) nk_jaccard_u32(&a->raw_, &b->raw_, d, &r->raw_);
     else {
         constexpr std::size_t dims_per_value = dimensions_per_value<in_type_>();
-        std::size_t n = divide_round_up(d, dims_per_value);
+        std::size_t n = d / dims_per_value;
         std::uint32_t intersection_count = 0, union_count = 0;
         for (std::size_t i = 0; i < n; i++)
             intersection_count += count_intersection(a[i], b[i]), union_count += count_union(a[i], b[i]);

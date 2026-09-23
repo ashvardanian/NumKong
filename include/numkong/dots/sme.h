@@ -3079,14 +3079,14 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m3_sme( //
 
 /**
  *  Widens up to `svcntb()` E2M1 dimensions into doubled signed `i8` lanes, zeroing lanes past @p dimensions.
- *  Even dimensions live in high nibbles, which also zeroes the unused low nibble at an odd depth.
+ *  Even dimensions live in high nibbles.
  */
 NK_HELPER_AUTO svint8_t nk_e2m1x_to_i8x_ssve_(nk_e2m1x2_t const *pairs, nk_size_t dimensions) NK_STREAMING_ {
     static NK_ALIGN64 nk_i8_t const lut_data[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
     nk_size_t const vector_dimensions = svcntb();
     if (dimensions > vector_dimensions) dimensions = vector_dimensions;
     svbool_t const predicate_all_b8x = svptrue_b8();
-    svbool_t const pairs_predicate_b8x = svwhilelt_b8_u64(0u, (dimensions + 1) / 2);
+    svbool_t const pairs_predicate_b8x = svwhilelt_b8_u64(0u, dimensions / NK_NIBBLES_PER_BYTE);
     svuint8_t pairs_u8x = svld1_u8(pairs_predicate_b8x, (nk_u8_t const *)pairs);
     svuint8_t high_u8x = svlsr_n_u8_x(predicate_all_b8x, pairs_u8x, 4);
     svuint8_t low_u8x = svand_n_u8_x(predicate_all_b8x, pairs_u8x, 0x0F);
@@ -4510,7 +4510,7 @@ NK_API_COMPTIME void nk_dots_symmetric_u8_sme( //
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_u4_sme(nk_size_t columns, nk_size_t depth) {
     nk_size_t const tile_dimension = nk_sme_cntw_();
     nk_size_t const vector_elements = nk_sme_cntb_();
-    nk_size_t const packed_depth = nk_size_divide_round_up_(depth, 2);
+    nk_size_t const packed_depth = depth / NK_NIBBLES_PER_BYTE;
     nk_size_t const depth_step_count = nk_size_divide_round_up_(packed_depth, 4);
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
     nk_size_t const vector_pair_stride = 2 * vector_elements;
@@ -4534,7 +4534,7 @@ NK_API_COMPTIME void nk_dots_pack_u4_sme( //
     nk_size_t const vector_elements = nk_sme_cntb_();
     nk_size_t const vector_pair_stride = 2 * vector_elements;
     nk_size_t const b_stride_bytes = b_stride_in_bytes / sizeof(nk_u4x2_t);
-    nk_size_t const packed_depth = nk_size_divide_round_up_(depth, 2);
+    nk_size_t const packed_depth = depth / NK_NIBBLES_PER_BYTE;
     nk_size_t const depth_step_count = nk_size_divide_round_up_(packed_depth, 4);
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
     nk_size_t const total_vectors = column_tile_count * depth_step_count;
@@ -4620,7 +4620,7 @@ __arm_new("za") static void nk_dots_packed_u4_sme_streaming_( //
     nk_size_t const vector_elements = svcntb();
     nk_size_t const vector_pair_stride = 2 * vector_elements;
     nk_size_t const depth_steps_per_batch = tile_dimension;
-    nk_size_t const packed_depth = nk_size_divide_round_up_(depth, 2);
+    nk_size_t const packed_depth = depth / NK_NIBBLES_PER_BYTE;
 
     nk_u8_t const *b_packed_base = (nk_u8_t const *)((char const *)b_packed + sizeof(nk_dots_sme_packed_header_t));
 
@@ -4657,8 +4657,7 @@ __arm_new("za") static void nk_dots_packed_u4_sme_streaming_( //
                     svwrite_hor_za32_u32_m(0, row_in_tile, batch_predicate_b32x, svreinterpret_u32_u8(row_u8x));
                 }
 
-                // Last-step ZA0 fixup: mask invalid bytes and odd-depth high nibble
-                if (depth_batch_start + batch_size >= depth_step_count) {
+                if (depth_batch_start + batch_size >= depth_step_count) { // last-step ZA0 fixup: mask invalid bytes
                     nk_size_t const last_step = batch_size - 1;
                     nk_size_t const global_step = depth_batch_start + last_step;
                     nk_size_t const valid_bytes = packed_depth - global_step * 4;
@@ -4802,7 +4801,7 @@ NK_API_COMPTIME void nk_dots_packed_u4_sme( //
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_i4_sme(nk_size_t columns, nk_size_t depth) {
     nk_size_t const tile_dimension = nk_sme_cntw_();
     nk_size_t const vector_elements = nk_sme_cntb_();
-    nk_size_t const packed_depth = nk_size_divide_round_up_(depth, 2);
+    nk_size_t const packed_depth = depth / NK_NIBBLES_PER_BYTE;
     nk_size_t const depth_step_count = nk_size_divide_round_up_(packed_depth, 4);
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
     nk_size_t const vector_pair_stride = 2 * vector_elements;
@@ -4826,7 +4825,7 @@ NK_API_COMPTIME void nk_dots_pack_i4_sme(                   //
     nk_size_t const vector_elements = nk_sme_cntb_();
     nk_size_t const vector_pair_stride = 2 * vector_elements;
     nk_size_t const b_stride_bytes = b_stride_in_bytes / sizeof(nk_i4x2_t);
-    nk_size_t const packed_depth = nk_size_divide_round_up_(depth, 2);
+    nk_size_t const packed_depth = depth / NK_NIBBLES_PER_BYTE;
     nk_size_t const depth_step_count = nk_size_divide_round_up_(packed_depth, 4);
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
     nk_size_t const total_vectors = column_tile_count * depth_step_count;
@@ -4915,7 +4914,7 @@ __arm_new("za") static void nk_dots_packed_i4_sme_streaming_( //
     nk_size_t const vector_elements = svcntb();
     nk_size_t const vector_pair_stride = 2 * vector_elements;
     nk_size_t const depth_steps_per_batch = tile_dimension;
-    nk_size_t const packed_depth = nk_size_divide_round_up_(depth, 2);
+    nk_size_t const packed_depth = depth / NK_NIBBLES_PER_BYTE;
 
     nk_u8_t const *b_packed_base = (nk_u8_t const *)((char const *)b_packed + sizeof(nk_dots_sme_packed_header_t));
 
@@ -4952,8 +4951,7 @@ __arm_new("za") static void nk_dots_packed_i4_sme_streaming_( //
                     svwrite_hor_za32_u32_m(0, row_in_tile, batch_predicate_b32x, svreinterpret_u32_u8(row_u8x));
                 }
 
-                // Last-step ZA0 fixup: mask invalid bytes and odd-depth high nibble
-                if (depth_batch_start + batch_size >= depth_step_count) {
+                if (depth_batch_start + batch_size >= depth_step_count) { // last-step ZA0 fixup: mask invalid bytes
                     nk_size_t const last_step = batch_size - 1;
                     nk_size_t const global_step = depth_batch_start + last_step;
                     nk_size_t const valid_bytes = packed_depth - global_step * 4;
@@ -5107,7 +5105,7 @@ __arm_new("za") static void nk_dots_symmetric_u4_sme_streaming_( //
 
     nk_size_t const expansion = 4;
     nk_size_t const tile_dimension = svcntw();
-    nk_size_t const packed_depth = nk_size_divide_round_up_(depth, 2);
+    nk_size_t const packed_depth = depth / NK_NIBBLES_PER_BYTE;
     nk_size_t const depth_step_count = nk_size_divide_round_up_(packed_depth, 4);
     nk_size_t const depth_steps_per_batch = tile_dimension;
 
@@ -5398,7 +5396,7 @@ __arm_new("za") static void nk_dots_symmetric_i4_sme_streaming_( //
 
     nk_size_t const expansion = 4;
     nk_size_t const tile_dimension = svcntw();
-    nk_size_t const packed_depth = nk_size_divide_round_up_(depth, 2);
+    nk_size_t const packed_depth = depth / NK_NIBBLES_PER_BYTE;
     nk_size_t const depth_step_count = nk_size_divide_round_up_(packed_depth, 4);
     nk_size_t const depth_steps_per_batch = tile_dimension;
 

@@ -3288,7 +3288,7 @@ NK_HELPER_INLINE void nk_reduce_moments_i4_skylake_contiguous_( //
         1, 4, 9, 16, 25, 36, 49, 64, 49, 36, 25, 16, 9, 4, 1, 0);
     __m512i sum_u64x8 = _mm512_setzero_si512();
     __m512i sumsq_u64x8 = _mm512_setzero_si512();
-    nk_size_t count_bytes = nk_size_divide_round_up_(count, 2);
+    nk_size_t count_bytes = count / NK_NIBBLES_PER_BYTE;
     unsigned char const *ptr = (unsigned char const *)data_ptr;
     while (count_bytes > 0) {
         __m512i raw_i8x64;
@@ -3317,7 +3317,8 @@ NK_HELPER_INLINE void nk_reduce_moments_i4_skylake_contiguous_( //
     }
     // The XOR-8 bias adds 8 per nibble to the SAD total. Subtract 8 × total nibbles processed
     // (including zero-masked register bytes, where 0 XOR 8 = 8, signed = 0).
-    nk_size_t nibbles_processed = nk_size_round_up_to_multiple_(nk_size_divide_round_up_(count, 2), 64) * 2;
+    nk_size_t const nibbles_processed = nk_size_round_up_to_multiple_(count / NK_NIBBLES_PER_BYTE, 64) *
+                                        NK_NIBBLES_PER_BYTE;
     nk_i64_t sum = (nk_i64_t)nk_reduce_add_u64x8_skylake_(sum_u64x8) - (nk_i64_t)8 * (nk_i64_t)nibbles_processed;
     // sumsq uses sq_lut[0]=0 for zero-padded nibbles, so no register-padding correction needed.
     nk_u64_t sumsq = nk_reduce_add_u64x8_skylake_(sumsq_u64x8);
@@ -3327,7 +3328,6 @@ NK_HELPER_INLINE void nk_reduce_moments_i4_skylake_contiguous_( //
 NK_API_COMPTIME void nk_reduce_moments_i4_skylake(                      //
     nk_i4x2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-    count = nk_size_round_up_to_multiple_(count, 2);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (stride_bytes == 1) nk_reduce_moments_i4_skylake_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
     else nk_reduce_moments_i4_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
@@ -3347,7 +3347,7 @@ NK_HELPER_INLINE void nk_reduce_moments_u4_skylake_contiguous_( //
         (char)225, (char)196, (char)169, (char)144, 121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0);
     __m512i sum_u64x8 = _mm512_setzero_si512();
     __m512i sumsq_u64x8 = _mm512_setzero_si512();
-    nk_size_t count_bytes = count / 2;
+    nk_size_t count_bytes = count / NK_NIBBLES_PER_BYTE;
     unsigned char const *ptr = (unsigned char const *)data_ptr;
     while (count_bytes > 0) {
         __m512i raw_i8x64;
@@ -3378,7 +3378,6 @@ NK_HELPER_INLINE void nk_reduce_moments_u4_skylake_contiguous_( //
 NK_API_COMPTIME void nk_reduce_moments_u4_skylake(                      //
     nk_u4x2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-    count = nk_size_round_up_to_multiple_(count, 2);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (stride_bytes == 1) nk_reduce_moments_u4_skylake_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
     else nk_reduce_moments_u4_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
@@ -3396,7 +3395,7 @@ NK_HELPER_INLINE void nk_reduce_moments_u1_skylake_contiguous_( //
     __m512i mask_0f_i8x64 = _mm512_set1_epi8(0x0F);
     __m512i zero_i8x64 = _mm512_setzero_si512();
     __m512i sum_u64x8 = _mm512_setzero_si512();
-    nk_size_t count_bytes = count / 8;
+    nk_size_t count_bytes = count / NK_BITS_PER_BYTE;
     unsigned char const *ptr = (unsigned char const *)data_ptr;
     while (count_bytes > 0) {
         __m512i raw_i8x64;
@@ -3423,7 +3422,6 @@ NK_HELPER_INLINE void nk_reduce_moments_u1_skylake_contiguous_( //
 NK_API_COMPTIME void nk_reduce_moments_u1_skylake(                      //
     nk_u1x8_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-    count = nk_size_round_up_to_multiple_(count, 8);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (stride_bytes == 1) nk_reduce_moments_u1_skylake_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
     else nk_reduce_moments_u1_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);

@@ -168,9 +168,8 @@ static napi_value dense(napi_env env, napi_callback_info info, nk_kernel_kind_t 
         return NULL;
     }
 
-    // Adjust dimensions for sub-byte packed types (e.g. Uint8Array with u1 dtype → bits)
-    nk_size_t to_bits = nk_dtype_bits(dtype);
-    size_t dimensions = (to_bits && to_bits < NK_BITS_PER_BYTE) ? length_a * NK_BITS_PER_BYTE / to_bits : length_a;
+    // Typed-array lengths count storage values; kernels take logical dimensions.
+    size_t dimensions = length_a * nk_dimensions_per_value(dtype);
 
     nk_scalar_buffer_t result;
     metric(data_a, data_b, dimensions, &result);

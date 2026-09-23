@@ -165,6 +165,19 @@ It must be C-contiguous, exactly the input shape, already of the requested dtype
 A NumKong `Tensor` is the way to name a dtype NumPy cannot express, such as `bfloat16`, `uint1`, `int4`, or `uint4`.
 The native conversion runs without the GIL.
 
+Packed dtypes — `uint1`, `int4`, `uint4`, and `e2m1` — count __logical dimensions__ in a `Tensor` shape.
+Dimension count must be a multiple of the values per byte: 8 for `uint1` and 2 for the nibble types, with element 0 in the high nibble.
+The buffer protocol, `__array_interface__`, `nbytes`, and DLPack expose the whole bytes, so a raw NumPy byte array passed with `dtype="int4"` holds two dimensions per byte.
+
+```python
+codes = np.arange(16, dtype=np.uint8) % 8
+packed = nk.astype(codes, "int4")
+assert packed.shape == (16,) and packed.nbytes == 8
+assert memoryview(packed).shape == (8,)             # whole bytes
+assert nk.Tensor(np.asarray(memoryview(packed)), dtype="int4").shape == (16,)
+assert packed[3] == 3 and nk.dot(packed, packed) == int(codes.astype(np.int64) @ codes)
+```
+
 The conversion policy is NumKong's core policy.
 Same-dtype conversion makes an independent copy, and narrower floating formats use round-to-nearest, ties-to-even.
 Float-to-integer conversion rounds ties to even, saturates finite overflows and infinities, and maps `NaN` to zero.
@@ -174,6 +187,7 @@ All NumKong dtype names are accepted as targets.
 
 Packed-binary metrics operate on packed bits.
 That is why the right NumPy equivalent uses `np.packbits`, not `bool` arrays fed to scalar Python code.
+A `uint1` Tensor counts bits in its shape, while a raw byte array passed with `dtype="uint1"` holds 8 bits per byte.
 
 ```python
 import numpy as np
@@ -181,10 +195,12 @@ import numkong as nk
 
 a_bits = np.random.randint(0, 2, size=256, dtype=np.uint8)
 b_bits = np.random.randint(0, 2, size=256, dtype=np.uint8)
-a, b = np.packbits(a_bits), np.packbits(b_bits)
+a, b = np.packbits(a_bits), np.packbits(b_bits)  # 32 bytes each
 
 hamming = nk.hamming(a, b, dtype="uint1")
 jaccard = nk.jaccard(a, b, dtype="uint1")
+
+a_tensor = nk.astype(a_bits, "uint1")  # shape (256,), 32 bytes of storage
 ```
 
 Integer set Jaccard works on sorted ascending arrays of integer identifiers.
@@ -352,7 +368,7 @@ A `ScaledTensor` exposes plain read attributes, but no getter/setter methods:
 
 | Attribute       | Type             | Meaning                                                                 |
 | :-------------- | :--------------- | :---------------------------------------------------------------------- |
-| `.elements`     | `Tensor`         | Packed sub-byte element bytes (e.g. `e2m1`), last axis in storage bytes |
+| `.elements`     | `Tensor`         | Element codes (e.g. `e2m1`), in the logical dense shape                 |
 | `.block_scales` | `Tensor`         | One scale byte per block (`ue4m3` / `ue8m0`), last axis = `n / block`   |
 | `.tensor_scale` | `float` / `None` | NVFP4 per-tensor multiplier; `None` for the MX family                   |
 | `.block_size`   | `int`            | Elements per block (16 for NVFP4, 32 for MX)                            |
@@ -385,9 +401,8 @@ cols = X[:, 16:48]    # → ScaledTensor of shape (3, 32); start/stop must be bl
 materialized = row.astype("float32")
 ```
 
-The `.elements` and `.block_scales` tensors are DLPack-exportable for zero-copy hand-off to PyTorch,
-CuPy, and friends — the `e2m1`/`e8m0`/`ue4m3` bytes exchange as `kDLFloat4_e2m1fn` /
-`kDLFloat8_e8m0fnu` / `kDLFloat8_e4m3fn`:
+The `.elements` and `.block_scales` tensors are DLPack-exportable for zero-copy hand-off to PyTorch, CuPy, and friends.
+The `e2m1`, `e8m0`, and `ue4m3` bytes exchange as `kDLFloat4_e2m1fn`, `kDLFloat8_e8m0fnu`, and `kDLFloat8_e4m3fn`, with the capsule's last extent counting bytes:
 
 ```python
 import torch

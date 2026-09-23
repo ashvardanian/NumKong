@@ -79,6 +79,22 @@ while IFS= read -r file; do
         fi
         ;;
     esac
+
+    # A kernel is documented once, at its declaration in `include/numkong/<family>.h`; ISA backends only define it.
+    case "$file" in
+    include/numkong/*/*.h | include/numkong/*/*.cuh)
+        backend_docblocks=$(printf '%s\n' "$added_lines" |
+            awk '/\*\/[[:space:]]*$/ { pending=$0; next } \
+                 /^\+?NK_API_(COMPTIME|RUNTIME) / && pending { print $0; pending=""; next } \
+                 { pending="" }' || true)
+        if [ -n "$backend_docblocks" ]; then
+            echo "pre-commit: $file documents a public kernel definition — the docblock belongs at its"
+            echo "            declaration in include/numkong/<family>.h, which backends @copydoc:"
+            printf '%s\n' "$backend_docblocks" | head -5
+            failed=1
+        fi
+        ;;
+    esac
 done < <(git diff --cached --name-only --diff-filter=ACM)
 
 # CMake — CMakeLists.txt / *.cmake must satisfy the checked-in .cmake-format.py profile (whole-file, the

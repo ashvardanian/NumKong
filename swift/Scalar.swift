@@ -574,7 +574,7 @@ extension I4x2: NumKongDot {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_i4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_i4x2_t.self)
             var result: Int32 = 0
-            nk_dot_i4(aPtr, bPtr, UInt64(n * 2), &result)
+            nk_dot_i4(aPtr, bPtr, UInt64(valuesToDimensions(n, nk_i4_k)), &result)
             return result
         }
     }
@@ -590,7 +590,7 @@ extension I4x2: NumKongAngular {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_i4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_i4x2_t.self)
             var result: Float32 = 0
-            nk_angular_i4(aPtr, bPtr, UInt64(n * 2), &result)
+            nk_angular_i4(aPtr, bPtr, UInt64(valuesToDimensions(n, nk_i4_k)), &result)
             return result
         }
     }
@@ -606,7 +606,7 @@ extension I4x2: NumKongEuclidean {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_i4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_i4x2_t.self)
             var result: Float32 = 0
-            nk_euclidean_i4(aPtr, bPtr, UInt64(n * 2), &result)
+            nk_euclidean_i4(aPtr, bPtr, UInt64(valuesToDimensions(n, nk_i4_k)), &result)
             return result
         }
     }
@@ -622,7 +622,7 @@ extension I4x2: NumKongSqEuclidean {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_i4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_i4x2_t.self)
             var result: UInt32 = 0
-            nk_sqeuclidean_i4(aPtr, bPtr, UInt64(n * 2), &result)
+            nk_sqeuclidean_i4(aPtr, bPtr, UInt64(valuesToDimensions(n, nk_i4_k)), &result)
             return result
         }
     }
@@ -696,7 +696,7 @@ extension U4x2: NumKongDot {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u4x2_t.self)
             var result: UInt32 = 0
-            nk_dot_u4(aPtr, bPtr, UInt64(n * 2), &result)
+            nk_dot_u4(aPtr, bPtr, UInt64(valuesToDimensions(n, nk_u4_k)), &result)
             return result
         }
     }
@@ -712,7 +712,7 @@ extension U4x2: NumKongAngular {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u4x2_t.self)
             var result: Float32 = 0
-            nk_angular_u4(aPtr, bPtr, UInt64(n * 2), &result)
+            nk_angular_u4(aPtr, bPtr, UInt64(valuesToDimensions(n, nk_u4_k)), &result)
             return result
         }
     }
@@ -728,7 +728,7 @@ extension U4x2: NumKongEuclidean {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u4x2_t.self)
             var result: Float32 = 0
-            nk_euclidean_u4(aPtr, bPtr, UInt64(n * 2), &result)
+            nk_euclidean_u4(aPtr, bPtr, UInt64(valuesToDimensions(n, nk_u4_k)), &result)
             return result
         }
     }
@@ -744,7 +744,7 @@ extension U4x2: NumKongSqEuclidean {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u4x2_t.self)
             var result: UInt32 = 0
-            nk_sqeuclidean_u4(aPtr, bPtr, UInt64(n * 2), &result)
+            nk_sqeuclidean_u4(aPtr, bPtr, UInt64(valuesToDimensions(n, nk_u4_k)), &result)
             return result
         }
     }
@@ -760,7 +760,7 @@ extension U1x8: NumKongDot {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u1x8_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u1x8_t.self)
             var result: UInt32 = 0
-            nk_dot_u1(aPtr, bPtr, UInt64(n * 8), &result)
+            nk_dot_u1(aPtr, bPtr, UInt64(valuesToDimensions(n, nk_u1_k)), &result)
             return result
         }
     }
@@ -792,7 +792,7 @@ extension U1x8: NumKongHamming {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u1x8_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u1x8_t.self)
             var result: UInt32 = 0
-            nk_hamming_u1(aPtr, bPtr, UInt64(n * 8), &result)
+            nk_hamming_u1(aPtr, bPtr, UInt64(valuesToDimensions(n, nk_u1_k)), &result)
             return result
         }
     }
@@ -806,7 +806,7 @@ extension U1x8: NumKongJaccard {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u1x8_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u1x8_t.self)
             var result: Float32 = 0
-            nk_jaccard_u1(aPtr, bPtr, UInt64(n * 8), &result)
+            nk_jaccard_u1(aPtr, bPtr, UInt64(valuesToDimensions(n, nk_u1_k)), &result)
             return result
         }
     }

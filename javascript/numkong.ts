@@ -30,7 +30,7 @@ import { createRequire } from "node:module";
 import * as path from "node:path";
 import { existsSync } from "node:fs";
 import { getFileName, getRoot } from "bindings";
-import { setConversionFunctions, Float16Array, BFloat16Array, E4M3Array, E5M2Array, BinaryArray, TensorBase, VectorBase, VectorView, Vector, MatrixBase, Matrix, PackedMatrix, DType, dtypeToString, outputDtype, KernelFamily } from "./types.js";
+import { setConversionFunctions, Float16Array, BFloat16Array, E4M3Array, E5M2Array, BinaryArray, TensorBase, VectorBase, VectorView, Vector, MatrixBase, Matrix, PackedMatrix, DType, dtypeToString, dimensionsToValues, outputDtype, KernelFamily } from "./types.js";
 
 function loadNativeAddon(): any {
   // Duplicate-libomp guard. We ship our own `libomp.dylib` next to
@@ -444,6 +444,7 @@ export function jensenshannon(a: Float64Array | Float32Array | Uint16Array | Ten
  * Converts each element to a single bit: 1 for positive values, 0 for non-positive values.
  * The bits are packed into bytes (8 bits per byte) in big-endian bit order within each byte.
  * This is the required format for hamming() and jaccard() distance functions.
+ * Dimension count must be a multiple of 8, the values per byte.
  *
  * @param {Float32Array | Float64Array | Int8Array} vector - The vector to quantize and pack.
  * @returns {Uint8Array} A bit-packed array where each byte contains 8 binary values.
@@ -456,14 +457,13 @@ export function jensenshannon(a: Float64Array | Float32Array | Uint16Array | Ten
  * //   bits: [1, 0, 0, 1, 0, 1, 1, 0] for elements [+, -, 0, +, -, +, +, -]
  *
  * // Use with Hamming distance
- * const a = toBinary(new Float32Array([1, 2, 3]));
- * const b = toBinary(new Float32Array([1, -2, 3]));
+ * const a = toBinary(new Float32Array([1, 2, 3, 4, 5, 6, 7, 8]));
+ * const b = toBinary(new Float32Array([1, -2, 3, 4, 5, 6, 7, 8]));
  * const dist = hamming(a, b); // Counts differing bits
  * ```
  */
 export const toBinary = (vector: Float32Array | Float64Array | Int8Array): Uint8Array => {
-  const byteLength = Math.ceil(vector.length / 8);
-  const packedVector = new Uint8Array(byteLength);
+  const packedVector = new Uint8Array(dimensionsToValues(DType.U1, vector.length));
 
   for (let i = 0; i < vector.length; i++) {
     if (vector[i] > 0) {

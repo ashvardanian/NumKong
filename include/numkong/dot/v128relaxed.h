@@ -761,7 +761,6 @@ NK_HELPER_INLINE void nk_dot_e2m1x32_finalize_v128relaxed(                      
     result->f32s[3] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_d->sum_i32x4) * 0.25f;
 }
 
-/** `n` counts nibbles; the tail load zeroes the unused low nibble at odd `n`. */
 NK_API_COMPTIME void nk_dot_e2m1_v128relaxed(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
                                              nk_f32_t *result) {
     nk_dot_e2m1x32_state_v128relaxed_t state;
@@ -774,8 +773,8 @@ NK_API_COMPTIME void nk_dot_e2m1_v128relaxed(nk_e2m1x2_t const *a, nk_e2m1x2_t c
         nk_dot_e2m1x32_update_v128relaxed(&state, a_vec, b_vec, dimension, 32);
     }
     if (dimension < n) {
-        nk_partial_load_e2m1x32_serial_(a + dimension / 2, &a_vec, n - dimension);
-        nk_partial_load_e2m1x32_serial_(b + dimension / 2, &b_vec, n - dimension);
+        nk_partial_load_b4x32_serial_(a + dimension / 2, &a_vec, n - dimension);
+        nk_partial_load_b4x32_serial_(b + dimension / 2, &b_vec, n - dimension);
         nk_dot_e2m1x32_update_v128relaxed(&state, a_vec, b_vec, dimension, n - dimension);
     }
     *result = (nk_f32_t)nk_reduce_add_i32x4_v128_(state.sum_i32x4) * 0.25f;
@@ -907,8 +906,7 @@ nk_dot_e5m2_v128relaxed_cycle:
 }
 
 NK_API_COMPTIME void nk_dot_u4_v128relaxed(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
     v128_t nibble_mask_u8x16 = wasm_u8x16_splat(0x0F);
     v128_t sum_i32x4 = wasm_i32x4_splat(0);
     v128_t a_u4x32, b_u4x32;
@@ -978,8 +976,7 @@ NK_HELPER_INLINE void nk_dot_u4x32_finalize_v128relaxed(                        
 }
 
 NK_API_COMPTIME void nk_dot_i4_v128relaxed(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
     v128_t nibble_mask_u8x16 = wasm_u8x16_splat(0x0F);

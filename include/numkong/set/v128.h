@@ -30,7 +30,7 @@ extern "C" {
 NK_API_COMPTIME void nk_hamming_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
-    nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
+    nk_size_t n_bytes = n / NK_BITS_PER_BYTE;
 
     nk_u32_t differences = 0;
     nk_size_t i = 0;
@@ -65,7 +65,7 @@ NK_API_COMPTIME void nk_hamming_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, 
 NK_API_COMPTIME void nk_jaccard_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
-    nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
+    nk_size_t n_bytes = n / NK_BITS_PER_BYTE;
 
     nk_u32_t intersection = 0;
     nk_u32_t union_count = 0;

@@ -24,32 +24,34 @@ func HammingU8(a, b []uint8) uint32 {
 }
 
 // HammingU1 computes the Hamming distance between two packed binary vectors.
-// depth is the number of bits per vector. Storage is ceil(depth/8) bytes.
+// `depth` counts dimensions, a multiple of 8, the values per byte.
 func HammingU1(a, b []byte, depth int) uint32 {
-	nWords := (depth + 7) / 8
-	if len(a) < nWords || len(b) < nWords {
+	validateDimensions(C.nk_u1_k, depth)
+	values := dimensionsToValues(C.nk_u1_k, depth)
+	if len(a) < values || len(b) < values {
 		panic("slices too short for the given number of bits")
 	}
 	if depth == 0 {
 		return 0
 	}
 	var result C.nk_u32_t
-	C.nk_hamming_u1((*C.nk_u1x8_t)(&a[0]), (*C.nk_u1x8_t)(&b[0]), C.nk_size_t(nWords), &result)
+	C.nk_hamming_u1((*C.nk_u1x8_t)(&a[0]), (*C.nk_u1x8_t)(&b[0]), C.nk_size_t(depth), &result)
 	return uint32(result)
 }
 
 // JaccardU1 computes the Jaccard distance between two packed binary vectors.
-// depth is the number of bits per vector. Storage is ceil(depth/8) bytes.
+// `depth` counts dimensions, a multiple of 8, the values per byte.
 func JaccardU1(a, b []byte, depth int) float32 {
-	nWords := (depth + 7) / 8
-	if len(a) < nWords || len(b) < nWords {
+	validateDimensions(C.nk_u1_k, depth)
+	values := dimensionsToValues(C.nk_u1_k, depth)
+	if len(a) < values || len(b) < values {
 		panic("slices too short for the given number of bits")
 	}
 	if depth == 0 {
 		return 0
 	}
 	var result C.nk_f32_t
-	C.nk_jaccard_u1((*C.nk_u1x8_t)(&a[0]), (*C.nk_u1x8_t)(&b[0]), C.nk_size_t(nWords), &result)
+	C.nk_jaccard_u1((*C.nk_u1x8_t)(&a[0]), (*C.nk_u1x8_t)(&b[0]), C.nk_size_t(depth), &result)
 	return float32(result)
 }
 

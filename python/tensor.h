@@ -87,11 +87,10 @@ typedef struct TensorIter {
  *  per-block @ref block_scales — plus a composite @p dtype, the @p block_size, and an
  *  optional per-tensor @p tensor_scale (NVFP4 only; absent for the MX family).
  *
- *  Quantization is always along the last axis: the last dimension of @ref elements counts
- *  packed bytes, and the last dimension of @ref block_scales counts blocks
- *  (`last_dim / block_size`). Leading dimensions match the dense source. Both child tensors
- *  own their storage and DLPack-export zero-copy (e2m1/e8m0/ue4m3 codes), so a ScaledTensor
- *  is fully self-contained and caller-free.
+ *  Quantization is always along the last axis: @ref elements keeps the logical dense shape,
+ *  and the last dimension of @ref block_scales counts blocks (`last_dim / block_size`). Leading dimensions match the
+ * dense source. Both child tensors own their storage and DLPack-export zero-copy (e2m1/e8m0/ue4m3 codes), so a
+ * ScaledTensor is fully self-contained and caller-free.
  *
  *  Produced by `dense_tensor.astype("nvfp4")` and materialized back via
  *  `scaled.astype("float32")`.
@@ -167,7 +166,19 @@ PyObject *Tensor_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
 /**
  *  @brief Compute C-contiguous strides for a tensor shape.
  */
-void compute_contiguous_strides(size_t rank, Py_ssize_t const *shape, size_t item_size, Py_ssize_t *strides_out);
+void compute_contiguous_strides(size_t rank, Py_ssize_t const *shape, nk_dtype_t dtype, Py_ssize_t *strides_out);
+
+/** @brief Storage values holding @p dimensions logical dimensions of @p dtype. */
+size_t dimensions_to_values(nk_dtype_t dtype, size_t dimensions);
+
+/** @brief Storage values along `shape[dimension]`; the last axis of a packed dtype holds several per value. */
+Py_ssize_t storage_extent(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape, size_t dimension);
+
+/** @brief Reject a packed-dtype shape whose last dimension is not a multiple of the values per byte. */
+int validate_packed_dimensions(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape);
+
+/** @brief Whether byte @p strides lay out a logical @p shape of @p dtype densely in row-major order. */
+int strides_are_c_contiguous(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape, Py_ssize_t const *strides);
 
 /**
  *  @brief Linearize strided source data into a contiguous destination, with optional dtype cast.
@@ -204,9 +215,9 @@ int buffers_shapes_match(Py_buffer const *first, Py_buffer const *second);
 /**
  *  @brief Validate a caller-supplied `out` buffer for an operation that writes it densely.
  *
- *  Requires the exact input shape, the expected dtype, C-contiguity — the layout
- *  linearize_cast_into writes, as it derives destination offsets from shape alone —
- *  writability, and no address overlap with @p input_buffer.
+ *  Requires the expected dtype, C-contiguity — the layout linearize_cast_into writes, as it
+ *  derives destination offsets from shape alone — writability, and no address overlap with
+ *  @p input_buffer. Both buffers still carry byte shapes; the caller compares logical shapes.
  *
  *  @return The output base pointer, or NULL on error with a Python exception set.
  */

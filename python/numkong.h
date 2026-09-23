@@ -225,6 +225,16 @@ int nk_scalar_buffer_export(nk_scalar_buffer_t const *source, nk_dtype_t source_
 int nk_get_buffer(PyObject *obj, Py_buffer *buffer, int flags, nk_buffer_backing_t *backing);
 
 /**
+ *  @brief Re-express the last axis of a packed-dtype buffer in logical dimensions.
+ *
+ *  A buffer holds whole bytes, so for `u1`, `i4`, `u4`, and `e2m1` its last-axis extent counts
+ *  storage values; this multiplies it by the values per byte, pointing `buffer->shape` into
+ *  @p backing. Strides stay in bytes, and `len` and `PyBuffer_IsContiguous` no longer apply.
+ *  @return 1 on success, 0 with a Python error when the packed last axis is strided.
+ */
+int nk_buffer_logical_shape(Py_buffer *buffer, nk_dtype_t dtype, nk_buffer_backing_t *backing);
+
+/**
  *  @brief Parse a Python tensor object into MatrixOrVectorView.
  *
  *  Extracts buffer information from any Python object supporting the buffer

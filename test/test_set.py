@@ -27,6 +27,7 @@ except Exception:
 from test_base import (
     NK_ATOL,
     NK_RTOL,
+    PACKING_GRANULARITY,
     assert_allclose,
     collect_errors,
     create_stats,
@@ -37,6 +38,7 @@ from test_base import (
     print_stats_report,
     profile,
     randomized_repetitions_count,
+    round_up_to,
     scipy_available,
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
 )
@@ -82,6 +84,7 @@ KERNELS_SET: dict[str, tuple[Callable, Callable, None]] = {
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_hamming_jaccard_random_accuracy(ndim: int, metric: str, capability: str):
     """Hamming and Jaccard distances for dense bit arrays against SciPy baselines."""
+    ndim = round_up_to(ndim, PACKING_GRANULARITY["uint1"])
     a_bits = np.random.randint(2, size=ndim).astype(np.uint8)
     b_bits = np.random.randint(2, size=ndim).astype(np.uint8)
 

@@ -62,7 +62,7 @@ extern "C" {
  *  @param[out] result Row-major results matrix
  *  @param[in] rows Number of rows in the results matrix
  *  @param[in] cols Number of columns in the results matrix
- *  @param[in] d Number of dimensions (depth) per vector
+ *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[in] v_stride_in_bytes Byte stride between rows of A
  *  @param[in] r_stride_in_bytes Byte stride between rows of C
  */
@@ -74,7 +74,7 @@ NK_API_RUNTIME void nk_hammings_packed_u1(nk_u1x8_t const *v, void const *q_pack
  *  @brief Computes C = A × Aᵀ symmetric Gram matrix of Hamming distances.
  *  @param[in] vectors Input matrix of row vectors in row-major order.
  *  @param[in] vectors_count Number of vectors (rows) in the input matrix.
- *  @param[in] d Dimension of each vector (columns).
+ *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride Row stride in bytes for the input matrix.
  *  @param[out] result Output symmetric matrix (vectors_count × vectors_count).
  *  @param[in] result_stride Row stride in bytes for the result matrix.
@@ -92,7 +92,7 @@ NK_API_RUNTIME void nk_hammings_symmetric_u1(nk_u1x8_t const *vectors, nk_size_t
  *  @param[out] result Row-major f32 results matrix
  *  @param[in] rows Number of rows in the results matrix
  *  @param[in] cols Number of columns in the results matrix
- *  @param[in] d Number of dimensions (depth) per vector
+ *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[in] v_stride_in_bytes Byte stride between rows of A
  *  @param[in] r_stride_in_bytes Byte stride between rows of C
  */
@@ -104,7 +104,7 @@ NK_API_RUNTIME void nk_jaccards_packed_u1(nk_u1x8_t const *v, void const *q_pack
  *  @brief Computes C = f(A, Aᵀ) symmetric Gram matrix of Jaccard distances.
  *  @param[in] vectors Input matrix of row vectors in row-major order.
  *  @param[in] vectors_count Number of vectors (rows).
- *  @param[in] d Dimension of each vector (columns).
+ *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride Row stride in bytes.
  *  @param[out] result Output symmetric f32 matrix (vectors_count × vectors_count).
  *  @param[in] result_stride Row stride in bytes for the result matrix.

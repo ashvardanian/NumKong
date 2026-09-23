@@ -1204,14 +1204,14 @@ error_stats_t test_format_scalars() {
 
     // Sub-byte ref formatters
     nk_i4x2_t packed_i = 0x53;
-    nk::sub_byte_ref<nk::i4x2_t> iref(&packed_i, 0);
+    nk::sub_byte_ref<nk::i4x2_t> iref(&packed_i, 1);
     stats.expect(std::format("{}", iref) == "3", "i4 sub_byte_ref default format");
     stats.expect(std::format("{:x}", iref) == "3", "i4 sub_byte_ref hex format");
     stats.expect(std::format("{:b}", iref) == "0011", "i4 sub_byte_ref binary format");
     stats.expect(std::format("{:#}", iref) == "3 [0x3]", "i4 sub_byte_ref annotated format");
 
     nk_u4x2_t packed_u = 0xA7;
-    nk::sub_byte_ref<nk::u4x2_t> uref(&packed_u, 1);
+    nk::sub_byte_ref<nk::u4x2_t> uref(&packed_u, 0);
     stats.expect(std::format("{}", uref) == "10", "u4 sub_byte_ref default format");
     stats.expect(std::format("{:x}", uref) == "a", "u4 sub_byte_ref hex format");
     stats.expect(std::format("{:b}", uref) == "1010", "u4 sub_byte_ref binary format");

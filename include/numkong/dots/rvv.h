@@ -848,12 +848,12 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_siz
 
 /*  B packs every column as two i8 halves of `depth_padded_values / 2` bytes each: the values of the high nibbles,
  *  then those of the low nibbles. A decodes both halves of each byte on the fly, so byte `k` of A meets entry `k` of
- *  each half, and the unused low nibble of an odd depth meets a packed zero.
+ *  each half.
  */
 
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_e2m1_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
-    nk_size_t half_padded = nk_size_round_up_to_multiple_(nk_size_divide_round_up_(depth, 2), max_vector_length);
+    nk_size_t half_padded = nk_size_round_up_to_multiple_(depth / NK_NIBBLES_PER_BYTE, max_vector_length);
     nk_size_t stride_bytes = 2 * half_padded * sizeof(nk_i8_t);
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) half_padded += max_vector_length;
     return sizeof(nk_cross_packed_buffer_header_t) + column_count * 2 * half_padded * sizeof(nk_i8_t) +
@@ -866,15 +866,11 @@ NK_API_COMPTIME void nk_dots_packed_shape_e2m1_rvv(void const *b_packed, nk_size
     *depth = header->depth_dimensions;
 }
 
-/**
- *  @brief  Pack B matrix from e2m1 nibbles to signed i8 (value × 2) halves for integer dot product.
- *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
- */
 NK_API_COMPTIME void nk_dots_pack_e2m1_rvv(nk_e2m1x2_t const *b, nk_size_t column_count, nk_size_t depth,
                                            nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
                                            nk_size_t columns_end) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
-    nk_size_t half_padded = nk_size_round_up_to_multiple_(nk_size_divide_round_up_(depth, 2), max_vector_length);
+    nk_size_t half_padded = nk_size_round_up_to_multiple_(depth / NK_NIBBLES_PER_BYTE, max_vector_length);
     nk_size_t stride_bytes = 2 * half_padded * sizeof(nk_i8_t);
     if (stride_bytes > 0 && (stride_bytes & (stride_bytes - 1)) == 0) half_padded += max_vector_length;
     nk_size_t const depth_padded = 2 * half_padded;
@@ -904,11 +900,10 @@ NK_API_COMPTIME void nk_dots_pack_e2m1_rvv(nk_e2m1x2_t const *b, nk_size_t colum
         nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride_in_bytes);
         nk_i8_t *high_values = packed + column * depth_padded;
         nk_i8_t *low_values = high_values + half_padded;
-        for (nk_size_t k = 0; k < depth / 2; ++k) {
+        for (nk_size_t k = 0; k < depth / NK_NIBBLES_PER_BYTE; ++k) {
             high_values[k] = nk_e2m1_doubled_lut_rvv_[src[k] >> 4];
             low_values[k] = nk_e2m1_doubled_lut_rvv_[src[k] & 0x0F];
         }
-        if (depth & 1) high_values[depth / 2] = nk_e2m1_doubled_lut_rvv_[src[depth / 2] >> 4];
     }
 
     // Append per-column norms after packed data
@@ -934,7 +929,7 @@ NK_HELPER_INLINE void nk_dots_packed_e2m1_rvv_aligned_(nk_e2m1x2_t const *a_matr
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
     nk_size_t const half_padded = depth_padded / 2;
-    nk_size_t const depth_bytes = nk_size_divide_round_up_(depth, 2);
+    nk_size_t const depth_bytes = depth / NK_NIBBLES_PER_BYTE;
     nk_i8_t const *packed_data = (nk_i8_t const *)((char const *)b_packed_buffer +
                                                    sizeof(nk_cross_packed_buffer_header_t));
 
@@ -1054,28 +1049,19 @@ NK_HELPER_INLINE void nk_dots_packed_e2m1_rvv_aligned_(nk_e2m1x2_t const *a_matr
     }
 }
 
-/**
- *  @brief  Public e2m1 packed GEMM wrapper matching the declared signature in dots.h.
- */
 NK_API_COMPTIME void nk_dots_packed_e2m1_rvv(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                              nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                              nk_size_t c_stride_in_bytes) {
     nk_dots_packed_e2m1_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
-/**
- *  @brief  Symmetric e2m1 GEMM: C = A * A^T, upper triangle.
- *
- *  Uses integer i8 LUT arithmetic with i32 accumulation, scaled by 1/4.
- *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
- */
 NK_API_COMPTIME void nk_dots_symmetric_e2m1_rvv(nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                 nk_size_t stride_in_bytes, nk_f32_t *result,
                                                 nk_size_t result_stride_in_bytes, nk_size_t row_start,
                                                 nk_size_t row_count) {
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
     nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
-    nk_size_t const full_bytes = depth / 2;
+    nk_size_t const full_bytes = depth / NK_NIBBLES_PER_BYTE;
 
     for (nk_size_t i = row_start; i < row_end; ++i) {
         nk_u8_t const *a_i = (nk_u8_t const *)vectors + i * stride_in_bytes;
@@ -1104,9 +1090,6 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m1_rvv(nk_e2m1x2_t const *vectors, nk_s
             vint32m1_t zero_i32m1 = __riscv_vmv_v_x_i32m1(0, 1);
             nk_i32_t sum = __riscv_vmv_x_s_i32m1_i32(
                 __riscv_vredsum_vs_i32m4_i32m1(accumulator_i32m4, zero_i32m1, max_vector_length));
-            // At odd depth only the high nibble of the last byte is a dimension
-            if (depth & 1)
-                sum += nk_e2m1_doubled_lut_rvv_[a_i[full_bytes] >> 4] * nk_e2m1_doubled_lut_rvv_[a_j[full_bytes] >> 4];
             result[i * result_stride_elements + j] = (nk_f32_t)sum * 0.25f;
         }
     }

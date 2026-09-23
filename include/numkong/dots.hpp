@@ -27,15 +27,15 @@ namespace ashvardanian::numkong {
  *  This matches BLAS sgemm/dgemm with CblasNoTrans for A and CblasTrans for B.
  *  Useful as a reference implementation for validating BLAS/MKL/Accelerate.
  *
- *  @param a Matrix A [m x k] row-major
- *  @param b Matrix B [n x k] row-major (accessed as Bᵀ)
- *  @param c Output matrix C [m x n] row-major
- *  @param row_count Rows of A and C (m)
- *  @param column_count Rows of B and columns of C (n)
- *  @param depth Columns of A and B (k)
- *  @param a_stride_in_bytes Stride between rows of A in bytes
- *  @param b_stride_in_bytes Stride between rows of B in bytes
- *  @param c_stride_in_bytes Stride between rows of C in bytes
+ *  @param[in] a Matrix A [m x k] row-major
+ *  @param[in] b Matrix B [n x k] row-major (accessed as Bᵀ)
+ *  @param[out] c Output matrix C [m x n] row-major
+ *  @param[in] row_count Rows of A and C (m)
+ *  @param[in] column_count Rows of B and columns of C (n)
+ *  @param[in] depth Columns of A and B (k). Counts dimensions, a multiple of the values per byte.
+ *  @param[in] a_stride_in_bytes Stride between rows of A in bytes
+ *  @param[in] b_stride_in_bytes Stride between rows of B in bytes
+ *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
  *  @tparam in_type_ Input element type (e.g., f32_t, bf16_t)
  *  @tparam result_type_ Accumulator/output type (e.g., f32_t, f118_t for high precision)
  */
@@ -46,7 +46,7 @@ void dots_unpacked(in_type_ const *a, in_type_ const *b, result_type_ *c, size_t
     char const *a_bytes = reinterpret_cast<char const *>(a);
     char const *b_bytes = reinterpret_cast<char const *>(b);
     char *c_bytes = reinterpret_cast<char *>(c);
-    std::size_t const depth_values = divide_round_up(depth, dimensions_per_value<in_type_>());
+    std::size_t const depth_values = depth / dimensions_per_value<in_type_>();
 
     for (size_t i = 0; i < row_count; i++) {
         in_type_ const *a_row = reinterpret_cast<in_type_ const *>(a_bytes + i * a_stride_in_bytes);
@@ -75,7 +75,7 @@ void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_
     char const *a_bytes = reinterpret_cast<char const *>(a);
     char const *b_bytes = reinterpret_cast<char const *>(b);
     char *c_bytes = reinterpret_cast<char *>(c);
-    std::size_t const depth_values = divide_round_up(depth, dimensions_per_value<in_type_>());
+    std::size_t const depth_values = depth / dimensions_per_value<in_type_>();
 
     for (size_t i = 0; i < row_count; i++) {
         in_type_ const *a_row = reinterpret_cast<in_type_ const *>(a_bytes + i * a_stride_in_bytes);
@@ -96,7 +96,7 @@ void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_
  *  @param[out] c Output matrix C [m x n]
  *  @param[in] row_count Rows of A and C (m)
  *  @param[in] column_count Columns of B and C (n)
- *  @param[in] depth Columns of A, Rows of B (k)
+ *  @param[in] depth Columns of A, Rows of B (k). Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride_in_bytes Stride between rows of A in bytes
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
  *
@@ -164,7 +164,7 @@ void dots_packed(in_type_ const *a, void const *b_packed, result_type_ *c, size_
  *  @brief Symmetric dot products: C = A × Aᵀ where C[i,j] = ⟨A[i], A[j]⟩
  *  @param[in] a Matrix A [n x k] (n vectors of dimension k)
  *  @param[in] vectors_count Number of vectors (n)
- *  @param[in] depth Dimension of each vector (k)
+ *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride_in_bytes Stride between vectors in A
  *  @param[out] c Output matrix C [n x n]
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
@@ -222,7 +222,7 @@ void dots_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_t de
         nk_dots_symmetric_i4(&a->raw_, vectors_count, depth, a_stride_in_bytes, &c->raw_, c_stride_in_bytes, row_start,
                              row_count);
     else {
-        std::size_t depth_values = divide_round_up(depth, dimensions_per_value<in_type_>());
+        std::size_t depth_values = depth / dimensions_per_value<in_type_>();
         char const *a_bytes = reinterpret_cast<char const *>(a);
         char *c_bytes = reinterpret_cast<char *>(c);
         std::size_t row_end = row_start + row_count < vectors_count ? row_start + row_count : vectors_count;
@@ -244,7 +244,7 @@ void dots_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_t de
  *  @brief Symmetric Hamming distance matrix: C[i,j] = hamming(A[i], A[j])
  *  @param[in] a Input matrix (vectors_count x depth)
  *  @param[in] vectors_count Number of vectors
- *  @param[in] depth Number of dimensions per vector
+ *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride_in_bytes Row stride in bytes
  *  @param[out] c Output matrix (vectors_count x vectors_count)
  *  @param[in] c_stride_in_bytes Output row stride in bytes
@@ -272,7 +272,7 @@ void hammings_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_
                                  row_start, row_count);
     else {
         using raw_t = typename in_type_::raw_t;
-        std::size_t depth_bytes = divide_round_up(depth, 8);
+        std::size_t depth_bytes = depth / dimensions_per_value<in_type_>();
         char const *a_bytes = reinterpret_cast<char const *>(a);
         char *c_bytes = reinterpret_cast<char *>(c);
         std::size_t row_end = row_start + row_count < vectors_count ? row_start + row_count : vectors_count;
@@ -301,7 +301,7 @@ void hammings_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_
  *  @param[out] c Pointer to the output matrix (m x n).
  *  @param[in] row_count Number of rows in A (m).
  *  @param[in] column_count Number of columns in B (n).
- *  @param[in] depth Depth dimension in bits (k).
+ *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride_in_bytes Stride between consecutive rows of A in bytes.
  *  @param[in] c_stride_in_bytes Stride between consecutive rows of C in bytes.
  *
@@ -318,7 +318,7 @@ void hammings_packed(in_type_ const *a, void const *b_packed, result_type_ *c, s
                      std::size_t column_count, std::size_t depth, std::size_t a_stride_in_bytes = 0,
                      std::size_t c_stride_in_bytes = 0) noexcept {
     // Compute default strides
-    if (!a_stride_in_bytes) a_stride_in_bytes = divide_round_up(depth, 8) * sizeof(in_type_);
+    if (!a_stride_in_bytes) a_stride_in_bytes = depth / dimensions_per_value<in_type_>() * sizeof(in_type_);
     if (!c_stride_in_bytes) c_stride_in_bytes = column_count * sizeof(result_type_);
 
     constexpr bool dispatch = allow_simd_ == prefer_simd_k &&
@@ -340,7 +340,7 @@ void hammings_packed(in_type_ const *a, void const *b_packed, result_type_ *c, s
         char const *a_bytes = reinterpret_cast<char const *>(a);
         char const *b_bytes = reinterpret_cast<char const *>(b);
         char *c_bytes = reinterpret_cast<char *>(c);
-        std::size_t depth_bytes = divide_round_up(depth, 8);
+        std::size_t depth_bytes = depth / dimensions_per_value<in_type_>();
 
         for (std::size_t i = 0; i < row_count; i++) {
             typename in_type_::raw_t const *a_row = reinterpret_cast<typename in_type_::raw_t const *>(
@@ -380,7 +380,7 @@ void jaccards_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_
                                  row_start, row_count);
     else {
         using raw_t = typename in_type_::raw_t;
-        std::size_t depth_bytes = divide_round_up(depth, 8);
+        std::size_t depth_bytes = depth / dimensions_per_value<in_type_>();
         char const *a_bytes = reinterpret_cast<char const *>(a);
         char *c_bytes = reinterpret_cast<char *>(c);
         std::size_t row_end = row_start + row_count < vectors_count ? row_start + row_count : vectors_count;
@@ -411,7 +411,7 @@ template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_
 void jaccards_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t row_count,
                      std::size_t column_count, std::size_t depth, std::size_t a_stride_in_bytes = 0,
                      std::size_t c_stride_in_bytes = 0) noexcept {
-    if (!a_stride_in_bytes) a_stride_in_bytes = divide_round_up(depth, 8) * sizeof(in_type_);
+    if (!a_stride_in_bytes) a_stride_in_bytes = depth / dimensions_per_value<in_type_>() * sizeof(in_type_);
     if (!c_stride_in_bytes) c_stride_in_bytes = column_count * sizeof(result_type_);
 
     constexpr bool dispatch = allow_simd_ == prefer_simd_k &&
@@ -432,7 +432,7 @@ void jaccards_packed(in_type_ const *a, void const *b_packed, result_type_ *c, s
         char const *a_bytes = reinterpret_cast<char const *>(a);
         char const *b_bytes = reinterpret_cast<char const *>(b);
         char *c_bytes = reinterpret_cast<char *>(c);
-        std::size_t depth_bytes = divide_round_up(depth, 8);
+        std::size_t depth_bytes = depth / dimensions_per_value<in_type_>();
 
         for (std::size_t i = 0; i < row_count; i++) {
             typename in_type_::raw_t const *a_row = reinterpret_cast<typename in_type_::raw_t const *>(

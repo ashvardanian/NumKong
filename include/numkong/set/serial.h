@@ -52,14 +52,14 @@ extern "C" {
 #pragma region Binary Sets
 
 NK_API_COMPTIME void nk_hamming_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
-    nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
+    nk_size_t n_bytes = n / NK_BITS_PER_BYTE;
     nk_u32_t differences = 0;
     for (nk_size_t i = 0; i != n_bytes; ++i) differences += nk_u1x8_popcount_(a[i] ^ b[i]);
     *result = differences;
 }
 
 NK_API_COMPTIME void nk_jaccard_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
+    nk_size_t n_bytes = n / NK_BITS_PER_BYTE;
     nk_u32_t intersection_count = 0, union_count = 0;
     for (nk_size_t i = 0; i != n_bytes; ++i)
         intersection_count += nk_u1x8_popcount_(a[i] & b[i]), union_count += nk_u1x8_popcount_(a[i] | b[i]);

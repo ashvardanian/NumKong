@@ -48,7 +48,7 @@ extern "C" {
  *
  *  @param[in] from The immutable input source array containing `n` elements of `from_type` type.
  *  @param[in] from_type The type of elements in the immutable source array.
- *  @param[in] n The number of elements in both input and output arrays.
+ *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[in] to The mutable output array containing `n` elements of `to_type` type.
  *  @param[in] to_type The type of elements in the mutable target array.
  */

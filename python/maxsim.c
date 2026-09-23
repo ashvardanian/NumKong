@@ -123,6 +123,8 @@ static PyObject *MaxSimPackedMatrix_pack_size(PyObject *cls, PyObject *const *ar
 
     nk_dtype_t dtype = py_object_to_nk_dtype(dtype_obj);
     if (dtype == nk_dtype_unknown_k) return NULL;
+    Py_ssize_t const depth_shape[1] = {(Py_ssize_t)depth};
+    if (!validate_packed_dimensions(dtype, 1, depth_shape)) return NULL;
 
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;

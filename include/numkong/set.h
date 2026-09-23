@@ -155,7 +155,7 @@ extern "C" {
  *
  *  @param[in] a The first binary vector.
  *  @param[in] b The second binary vector.
- *  @param[in] n The number of bits in the vectors.
+ *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[out] result The output distance value.
  *
  *  @note The output distance value is non-negative.
@@ -168,7 +168,7 @@ NK_API_RUNTIME void nk_hamming_u1(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_siz
  *
  *  @param[in] a The first binary vector.
  *  @param[in] b The second binary vector.
- *  @param[in] n The number of bits in the vectors.
+ *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[out] result The output distance value.
  *
  *  @note The output distance value is non-negative.

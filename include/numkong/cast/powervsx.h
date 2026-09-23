@@ -168,7 +168,7 @@ NK_HELPER_INLINE void nk_partial_load_b8x16_powervsx_(void const *source, nk_b12
 /** @brief Partial load for 1-bit elements (n bits, max 128) into 128-bit vector. */
 NK_HELPER_INLINE void nk_partial_load_b1x128_powervsx_(void const *source, nk_b128_vec_t *destination,
                                                        nk_size_t n_bits) {
-    destination->vu8x16 = vec_xl_len((nk_u8_t *)source, nk_size_divide_round_up_(n_bits, 8));
+    destination->vu8x16 = vec_xl_len((nk_u8_t *)source, n_bits / NK_BITS_PER_BYTE);
 }
 
 /** @brief Partial store for 64-bit elements (n elements, max 4) from 256-bit vector.
@@ -345,7 +345,7 @@ NK_API_COMPTIME void nk_cast_powervsx(void const *from, nk_dtype_t from_type, nk
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
-        if (size_bits > 0) nk_copy_bytes_(to, from, nk_size_divide_round_up_(n * size_bits, 8));
+        if (size_bits > 0) nk_copy_bytes_(to, from, n * size_bits / 8);
         return;
     }
 

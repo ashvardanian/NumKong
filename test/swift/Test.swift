@@ -303,39 +303,39 @@ class NumKongTests: XCTestCase {
     // MARK: - Nibble Pair Tests
 
     func testI4x2Lanes() throws {
-        let x = I4x2(low: -8, high: 7)
+        let x = I4x2(first: 7, second: -8)
         XCTAssertEqual(x.bitPattern, 0x78)
-        XCTAssertEqual(x.low, -8)
-        XCTAssertEqual(x.high, 7)
-        XCTAssertEqual(I4x2(bitPattern: 0xFF).low, -1)
-        XCTAssertEqual(I4x2(bitPattern: 0xFF).high, -1)
+        XCTAssertEqual(x.first, 7)
+        XCTAssertEqual(x.second, -8)
+        XCTAssertEqual(I4x2(bitPattern: 0xFF).first, -1)
+        XCTAssertEqual(I4x2(bitPattern: 0xFF).second, -1)
     }
 
     func testU4x2Lanes() throws {
-        let x = U4x2(low: 15, high: 1)
+        let x = U4x2(first: 1, second: 15)
         XCTAssertEqual(x.bitPattern, 0x1F)
-        XCTAssertEqual(x.low, 15)
-        XCTAssertEqual(x.high, 1)
+        XCTAssertEqual(x.first, 1)
+        XCTAssertEqual(x.second, 15)
     }
 
     func testDotI4x2() throws {
         // Lanes (1, 2, 3, 4) . (4, 5, 6, 7) = 4 + 10 + 18 + 28
-        let a: [I4x2] = [I4x2(low: 1, high: 2), I4x2(low: 3, high: 4)]
-        let b: [I4x2] = [I4x2(low: 4, high: 5), I4x2(low: 6, high: 7)]
+        let a: [I4x2] = [I4x2(first: 1, second: 2), I4x2(first: 3, second: 4)]
+        let b: [I4x2] = [I4x2(first: 4, second: 5), I4x2(first: 6, second: 7)]
         let result = try XCTUnwrap(a.dot(b))
         XCTAssertEqual(result, 60)
     }
 
     func testDotU4x2() throws {
         // Lanes (15, 15, 0, 1) . (15, 1, 15, 15) = 225 + 15 + 0 + 15
-        let a: [U4x2] = [U4x2(low: 15, high: 15), U4x2(low: 0, high: 1)]
-        let b: [U4x2] = [U4x2(low: 15, high: 1), U4x2(low: 15, high: 15)]
+        let a: [U4x2] = [U4x2(first: 15, second: 15), U4x2(first: 0, second: 1)]
+        let b: [U4x2] = [U4x2(first: 15, second: 1), U4x2(first: 15, second: 15)]
         let result = try XCTUnwrap(a.dot(b))
         XCTAssertEqual(result, 255)
     }
 
     func testAngularI4x2() throws {
-        let a: [I4x2] = [I4x2(low: 3, high: -5), I4x2(low: 7, high: 1)]
+        let a: [I4x2] = [I4x2(first: -5, second: 3), I4x2(first: 1, second: 7)]
         let result = try XCTUnwrap(a.angular(a))
         XCTAssertEqual(result, 0, accuracy: 0.01)
     }

@@ -142,7 +142,7 @@ NK_API_COMPTIME void nk_dot_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_
 NK_API_COMPTIME void nk_dot_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
-    nk_size_t n_bytes = nk_size_divide_round_up_(n_bits, NK_BITS_PER_BYTE);
+    nk_size_t n_bytes = n_bits / NK_BITS_PER_BYTE;
 
     nk_u32_t dot = 0;
     nk_size_t i = 0;

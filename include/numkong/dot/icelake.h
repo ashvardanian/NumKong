@@ -422,7 +422,6 @@ NK_HELPER_INLINE nk_i32_t nk_sum_i4x128_finalize_icelake(nk_sum_i4x128_state_ice
 
 NK_API_COMPTIME void nk_dot_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     //
     // Algorithm: For signed i4, we use an algebraic transformation.
     // Let ax, bx be the unsigned [0,15] representation of signed values a, b in [-8,7].
@@ -432,8 +431,7 @@ NK_API_COMPTIME void nk_dot_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, n
     // We compute ax * bx using DPBUSD, then apply the correction:
     //   signed_dot = unsigned_dot - 8 * (sum_ax + sum_bx) + 64 * n
     //
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
     __m512i const nibble_mask_u8x64 = _mm512_set1_epi8(0x0F);
     __m512i const xor_mask_u8x64 = _mm512_set1_epi8(0x08);
     __m512i const zeros_u8x64 = _mm512_setzero_si512();
@@ -487,11 +485,9 @@ nk_dot_i4_icelake_cycle:
 
 NK_API_COMPTIME void nk_dot_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     // Values are ∈ [0,15], so DPBUSD can be used directly.
     //
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
     __m512i const nibble_mask_u8x64 = _mm512_set1_epi8(0x0F);
     __m512i sum_i32x16 = _mm512_setzero_si512();
 
@@ -923,7 +919,7 @@ nk_dot_e4m3_icelake_cycle:
 #pragma region Binary
 
 NK_API_COMPTIME void nk_dot_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
-    nk_size_t n_bytes = nk_size_divide_round_up_(n_bits, NK_BITS_PER_BYTE);
+    nk_size_t n_bytes = n_bits / NK_BITS_PER_BYTE;
     __m512i and_popcount_u64x8 = _mm512_setzero_si512();
     __m512i a_u8x64, b_u8x64;
 

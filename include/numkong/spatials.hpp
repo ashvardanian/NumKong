@@ -21,7 +21,7 @@ namespace ashvardanian::numkong {
  *  @brief Symmetric angular distance matrix: C[i,j] = angular(A[i], A[j])
  *  @param[in] a Matrix A [vectors_count x depth]
  *  @param[in] vectors_count Number of vectors (n)
- *  @param[in] depth Dimension of each vector (k)
+ *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride_in_bytes Stride between vectors in A
  *  @param[out] c Output matrix C [n x n]
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
@@ -81,7 +81,7 @@ void angulars_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_
         nk_angulars_symmetric_u4(&a->raw_, vectors_count, depth, a_stride_in_bytes, &c->raw_, c_stride_in_bytes,
                                  row_start, row_count);
     else {
-        std::size_t depth_values = divide_round_up(depth, dimensions_per_value<in_type_>());
+        std::size_t depth_values = depth / dimensions_per_value<in_type_>();
         char const *a_bytes = reinterpret_cast<char const *>(a);
         char *c_bytes = reinterpret_cast<char *>(c);
         std::size_t row_end = row_start + row_count < vectors_count ? row_start + row_count : vectors_count;
@@ -109,7 +109,7 @@ void angulars_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_
  *  @brief Symmetric Euclidean distance matrix: C[i,j] = euclidean(A[i], A[j])
  *  @param[in] a Matrix A [vectors_count x depth]
  *  @param[in] vectors_count Number of vectors (n)
- *  @param[in] depth Dimension of each vector (k)
+ *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride_in_bytes Stride between vectors in A
  *  @param[out] c Output matrix C [n x n]
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
@@ -170,7 +170,7 @@ void euclideans_symmetric(in_type_ const *a, std::size_t vectors_count, std::siz
         nk_euclideans_symmetric_u4(&a->raw_, vectors_count, depth, a_stride_in_bytes, &c->raw_, c_stride_in_bytes,
                                    row_start, row_count);
     else {
-        std::size_t depth_values = divide_round_up(depth, dimensions_per_value<in_type_>());
+        std::size_t depth_values = depth / dimensions_per_value<in_type_>();
         char const *a_bytes = reinterpret_cast<char const *>(a);
         char *c_bytes = reinterpret_cast<char *>(c);
         std::size_t row_end = row_start + row_count < vectors_count ? row_start + row_count : vectors_count;
@@ -195,7 +195,7 @@ void euclideans_symmetric(in_type_ const *a, std::size_t vectors_count, std::siz
  *  @param[out] c Output matrix C [row_count x column_count]
  *  @param[in] row_count Rows of A and C (m)
  *  @param[in] column_count Columns of B and C (n)
- *  @param[in] depth Shared inner dimension (k)
+ *  @param[in] depth Shared inner dimension (k). Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride_in_bytes Stride between rows of A in bytes
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
  *
@@ -260,7 +260,7 @@ void angulars_packed(in_type_ const *a, void const *b_packed, result_type_ *c, s
         char const *a_bytes = reinterpret_cast<char const *>(a);
         char const *b_bytes = reinterpret_cast<char const *>(b);
         char *c_bytes = reinterpret_cast<char *>(c);
-        std::size_t depth_values = divide_round_up(depth, dimensions_per_value<in_type_>());
+        std::size_t depth_values = depth / dimensions_per_value<in_type_>();
 
         for (size_t i = 0; i < row_count; i++) {
             in_type_ const *a_row = reinterpret_cast<in_type_ const *>(a_bytes + i * a_stride_in_bytes);
@@ -288,7 +288,7 @@ void angulars_packed(in_type_ const *a, void const *b_packed, result_type_ *c, s
  *  @param[out] c Output matrix C [row_count x column_count]
  *  @param[in] row_count Rows of A and C (m)
  *  @param[in] column_count Columns of B and C (n)
- *  @param[in] depth Shared inner dimension (k)
+ *  @param[in] depth Shared inner dimension (k). Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride_in_bytes Stride between rows of A in bytes
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
  *
@@ -353,7 +353,7 @@ void euclideans_packed(in_type_ const *a, void const *b_packed, result_type_ *c,
         char const *a_bytes = reinterpret_cast<char const *>(a);
         char const *b_bytes = reinterpret_cast<char const *>(b);
         char *c_bytes = reinterpret_cast<char *>(c);
-        std::size_t depth_values = divide_round_up(depth, dimensions_per_value<in_type_>());
+        std::size_t depth_values = depth / dimensions_per_value<in_type_>();
 
         for (size_t i = 0; i < row_count; i++) {
             in_type_ const *a_row = reinterpret_cast<in_type_ const *>(a_bytes + i * a_stride_in_bytes);

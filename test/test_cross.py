@@ -43,6 +43,7 @@ from test_base import (
     profile,
     randomized_repetitions_count,
     reduced_repetitions_count,
+    round_up_to,
     scipy_available,
     seed_rng,  # noqa: F401 — pytest fixture (autouse)
     test_depth_dimensions,
@@ -206,6 +207,7 @@ def test_batch_sqeuclidean_broadcasting(ndim: int, dtype: str, capability: str, 
 def test_dots_symmetric(num_vectors: int, vector_depth: int, dtype: str, capability: str):
     """Test nk.dots_symmetric against high-precision matmul (upper triangle)."""
 
+    vector_depth = round_up_to(vector_depth, PACKING_GRANULARITY.get(dtype, 1))
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_CROSS["dots_symmetric"]
     atol, rtol = tolerances_for_dtype(dtype)
     vectors_raw, vectors_baseline = make_random((num_vectors, vector_depth), dtype)
@@ -222,6 +224,12 @@ def test_dots_symmetric(num_vectors: int, vector_depth: int, dtype: str, capabil
 
     mask = np.triu(np.ones((num_vectors, num_vectors), dtype=bool))
     assert_allclose(result[mask], accurate[mask], atol=atol, rtol=rtol)
+
+    # A packed Tensor counts logical dimensions and must match its raw-byte twin
+    if dtype in PACKING_GRANULARITY:
+        vectors_tensor = make_nk(vectors_raw, dtype)
+        assert vectors_tensor.shape == (num_vectors, vector_depth)
+        assert_allclose(np.asarray(simd_kernel(vectors_tensor))[mask], result[mask], atol=1e-10, rtol=1e-10)
 
     # out= must match the allocated result (upper triangle)
     out_dtype = str(result.dtype)  # kernel output dtype depends on input
@@ -289,6 +297,7 @@ def test_hammings_symmetric(capability: str):
 def test_dots_pack_and_packed(rows: int, columns: int, depth: int, dtype: str, capability: str):
     """Test dots_pack + dots_packed against high-precision matmul."""
 
+    depth = round_up_to(depth, PACKING_GRANULARITY.get(dtype, 1))
     _, _, precise_kernel = KERNELS_CROSS["dots_packed"]
     atol, rtol = tolerances_for_dtype(dtype)
     a_raw, a_baseline = make_random((rows, depth), dtype)
@@ -296,9 +305,9 @@ def test_dots_pack_and_packed(rows: int, columns: int, depth: int, dtype: str, c
 
     keep_one_capability(capability)
 
-    # SIMD path — wrap in nk.Tensor so dots_packed can infer dtype; packed nibbles pass as raw bytes
-    a_tensor = a_raw if dtype in PACKING_GRANULARITY else make_nk(a_raw, dtype)
-    b_tensor = b_raw if dtype in PACKING_GRANULARITY else make_nk(b_raw, dtype)
+    # SIMD path — wrap in nk.Tensor so dots_packed can infer dtype; packed Tensors count logical dimensions
+    a_tensor, b_tensor = make_nk(a_raw, dtype), make_nk(b_raw, dtype)
+    assert a_tensor.shape == (rows, depth) and b_tensor.shape == (columns, depth)
     b_packed = nk.dots_pack(b_tensor, dtype=dtype)
     result_dt, result = profile(nk.dots_packed, a_tensor, b_packed)
     result = np.asarray(result)

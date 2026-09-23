@@ -513,7 +513,7 @@ struct vector_span {
         if (data_ == nullptr || dimensions_ == 0) return true;
         if constexpr (dimensions_per_value<value_type>() > 1) {
             if (!is_contiguous()) return false;
-            auto byte_count = divide_round_up(dimensions_, dimensions_per_value<value_type>()) * sizeof(value_type);
+            auto byte_count = dimensions_ / dimensions_per_value<value_type>() * sizeof(value_type);
             std::memset(static_cast<void *>(data_), 0, byte_count);
             return true;
         }
@@ -540,7 +540,7 @@ struct vector_span {
             unsigned char byte_pattern;
             std::memcpy(&byte_pattern, &value, 1);
             if constexpr (dimensions_per_value<value_type>() > 1) {
-                auto byte_count = divide_round_up(dimensions_, dimensions_per_value<value_type>()) * sizeof(value_type);
+                auto byte_count = dimensions_ / dimensions_per_value<value_type>() * sizeof(value_type);
                 std::memset(static_cast<void *>(data_), byte_pattern, byte_count);
                 return true;
             }
@@ -579,7 +579,7 @@ struct vector_span {
         if (dimensions_ == 0) return true;
         if constexpr (dimensions_per_value<value_type>() > 1) {
             if (!is_contiguous() || !input.is_contiguous()) return false;
-            auto byte_count = divide_round_up(dimensions_, dimensions_per_value<value_type>()) * sizeof(value_type);
+            auto byte_count = dimensions_ / dimensions_per_value<value_type>() * sizeof(value_type);
             std::memcpy(static_cast<void *>(data_), static_cast<void const *>(input.byte_data()), byte_count);
             return true;
         }
@@ -641,8 +641,8 @@ struct vector {
     [[no_unique_address]] allocator_type_ alloc_;
 
     /** @brief Convert dimension count to value count. */
-    static constexpr size_type dims_to_values(size_type dims) noexcept {
-        return divide_round_up(dims, dimensions_per_value<value_type>());
+    static constexpr size_type dimensions_to_values(size_type dimensions) noexcept {
+        return dimensions / dimensions_per_value<value_type>();
     }
 
   public:
@@ -683,7 +683,7 @@ struct vector {
      */
     [[nodiscard]] static vector try_zeros(size_type dims, allocator_type_ alloc = {}) noexcept {
         vector v(alloc);
-        size_type values = dims_to_values(dims);
+        size_type values = dimensions_to_values(dims);
         if (values == 0) return v;
         pointer ptr = alloc_traits::allocate(v.alloc_, values);
         if (!ptr) return v;
@@ -710,7 +710,7 @@ struct vector {
      */
     [[nodiscard]] static vector try_full(size_type dims, value_type_ val, allocator_type_ alloc = {}) noexcept {
         vector v(alloc);
-        size_type values = dims_to_values(dims);
+        size_type values = dimensions_to_values(dims);
         if (values == 0) return v;
         pointer ptr = alloc_traits::allocate(v.alloc_, values);
         if (!ptr) return v;
@@ -728,7 +728,7 @@ struct vector {
      */
     [[nodiscard]] static vector try_empty(size_type dims, allocator_type_ alloc = {}) noexcept {
         vector v(alloc);
-        size_type values = dims_to_values(dims);
+        size_type values = dimensions_to_values(dims);
         if (values == 0) return v;
         pointer ptr = alloc_traits::allocate(v.alloc_, values);
         if (!ptr) return v;
@@ -748,7 +748,7 @@ struct vector {
         vector v(alloc);
         v.data_ = ptr;
         v.dimensions_ = dims;
-        v.capacity_values_ = dims_to_values(dims);
+        v.capacity_values_ = dimensions_to_values(dims);
         return v;
     }
 
@@ -770,7 +770,7 @@ struct vector {
      *      `false` leaves the size untouched.
      */
     [[nodiscard]] constexpr bool try_resize(size_type dims) noexcept {
-        if (dims_to_values(dims) > capacity_values_) return false;
+        if (dimensions_to_values(dims) > capacity_values_) return false;
         dimensions_ = dims;
         return true;
     }
@@ -786,7 +786,7 @@ struct vector {
         pointer fresh = alloc_traits::allocate(alloc_, values);
         if (!fresh) return false;
         if (data_) {
-            size_type const live = dims_to_values(dimensions_);
+            size_type const live = dimensions_to_values(dimensions_);
             if (live)
                 std::memcpy(static_cast<void *>(fresh), static_cast<void const *>(data_), live * sizeof(value_type_));
             alloc_traits::deallocate(alloc_, data_, capacity_values_);
@@ -809,10 +809,10 @@ struct vector {
     constexpr explicit operator bool() const noexcept { return !empty(); }
 
     /** @brief Number of storage values. */
-    constexpr size_type size_values() const noexcept { return dims_to_values(dimensions_); }
+    constexpr size_type size_values() const noexcept { return dimensions_to_values(dimensions_); }
 
     /** @brief Size in bytes. */
-    constexpr size_type size_bytes() const noexcept { return dims_to_values(dimensions_) * sizeof(value_type_); }
+    constexpr size_type size_bytes() const noexcept { return dimensions_to_values(dimensions_) * sizeof(value_type_); }
 
     /** @brief Pointer to underlying data. */
     constexpr value_type *values_data() noexcept { return data_; }

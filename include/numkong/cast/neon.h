@@ -999,7 +999,7 @@ NK_API_COMPTIME void nk_cast_neon(void const *from, nk_dtype_t from_type, nk_siz
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
-        if (size_bits > 0) nk_copy_bytes_(to, from, nk_size_divide_round_up_(n * size_bits, 8));
+        if (size_bits > 0) nk_copy_bytes_(to, from, n * size_bits / 8);
         return;
     }
 

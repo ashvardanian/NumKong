@@ -869,6 +869,21 @@ int nk_get_buffer(PyObject *obj, Py_buffer *buffer, int flags, nk_buffer_backing
     return 0;
 }
 
+int nk_buffer_logical_shape(Py_buffer *buffer, nk_dtype_t dtype, nk_buffer_backing_t *backing) {
+    nk_size_t const dimensions_per_value = nk_dimensions_per_value(dtype);
+    if (dimensions_per_value <= 1 || buffer->ndim == 0) return 1;
+    int const last = buffer->ndim - 1;
+    if (buffer->shape[last] > 1 && buffer->strides[last] != buffer->itemsize) {
+        PyErr_Format(PyExc_ValueError, "packed dtype '%s' needs a contiguous last axis", nk_dtype_python_name(dtype));
+        return 0;
+    }
+    if (buffer->shape != backing->shape)
+        memcpy(backing->shape, buffer->shape, (size_t)buffer->ndim * sizeof(Py_ssize_t));
+    backing->shape[last] *= (Py_ssize_t)dimensions_per_value;
+    buffer->shape = backing->shape;
+    return 1;
+}
+
 int parse_tensor(PyObject *tensor, Py_buffer *buffer, MatrixOrVectorView *parsed, nk_buffer_backing_t *backing,
                  nk_dtype_t dtype_hint) {
     if (!nk_get_buffer(tensor, buffer, PyBUF_STRIDES | PyBUF_FORMAT, backing)) return 0;
@@ -943,6 +958,10 @@ int parse_tensor_nd(PyObject *obj, Py_buffer *buffer, TensorView *view, nk_buffe
             PyBuffer_Release(buffer);
             return 0;
         }
+    }
+    if (!nk_buffer_logical_shape(buffer, view->dtype, backing)) {
+        PyBuffer_Release(buffer);
+        return 0;
     }
     view->rank = (size_t)buffer->ndim;
     view->shape = buffer->shape;

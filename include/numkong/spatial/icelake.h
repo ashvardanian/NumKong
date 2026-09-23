@@ -266,9 +266,7 @@ nk_angular_u8_icelake_cycle:
 
 NK_API_COMPTIME void nk_sqeuclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
 
     // While `int8_t` covers the range [-128, 127], `int4_t` covers only [-8, 7].
     // The absolute difference between two 4-bit integers is at most 15 and fits in `uint4_t`.
@@ -340,9 +338,7 @@ NK_API_COMPTIME void nk_euclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const
 }
 NK_API_COMPTIME void nk_angular_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
 
     // Angular distance for signed 4-bit integers requires computing:
     //   1. Dot product: ∑(aᵢ × bᵢ)
@@ -440,7 +436,7 @@ nk_angular_i4_icelake_cycle:
     // Accumulate the bias correction in i64: `64 * n` and `8 * (∑ax + ∑bx)` overflow i32 around n ≈ 2^25.
     nk_i64_t ab = (nk_i64_t)ab_raw - 8 * (ax_sum + bx_sum) + 64 * (nk_i64_t)n;
 
-    nk_size_t n_bytes_total = nk_size_divide_round_up_(n, 2);
+    nk_size_t const n_bytes_total = n / NK_NIBBLES_PER_BYTE;
     nk_i32_t norm_excess = 128 * (nk_i32_t)(nk_size_round_up_to_multiple_(n_bytes_total, 64) - n_bytes_total);
     nk_i32_t a2 = _mm512_reduce_add_epi32(a2_i32x16) - norm_excess;
     nk_i32_t b2 = _mm512_reduce_add_epi32(b2_i32x16) - norm_excess;
@@ -449,9 +445,7 @@ nk_angular_i4_icelake_cycle:
 
 NK_API_COMPTIME void nk_sqeuclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
 
     // For unsigned 4-bit integers ∈ [0, 15], the L2 squared distance is straightforward:
     //   1. Extract nibbles as u8 values
@@ -506,9 +500,7 @@ NK_API_COMPTIME void nk_euclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const
 
 NK_API_COMPTIME void nk_angular_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
 
     // Angular distance for unsigned 4-bit integers ∈ [0, 15].
     // Since values are unsigned and small, we can use DPBUSD directly for both

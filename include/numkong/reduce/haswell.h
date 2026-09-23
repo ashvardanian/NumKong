@@ -3648,7 +3648,7 @@ NK_HELPER_INLINE void nk_reduce_moments_i4_haswell_contiguous_( //
         0, 1, 4, 9, 16, 25, 36, 49, 64, 49, 36, 25, 16, 9, 4, 1);
     __m256i sum_u64x4 = _mm256_setzero_si256();
     __m256i sumsq_u64x4 = _mm256_setzero_si256();
-    nk_size_t count_bytes = nk_size_divide_round_up_(count, 2);
+    nk_size_t count_bytes = count / NK_NIBBLES_PER_BYTE;
     unsigned char const *ptr = (unsigned char const *)data_ptr;
     while (count_bytes > 0) {
         nk_b256_vec_t raw_vec;
@@ -3674,7 +3674,8 @@ NK_HELPER_INLINE void nk_reduce_moments_i4_haswell_contiguous_( //
     }
     // The XOR-8 bias adds 8 per nibble to the SAD total. Subtract 8 × total nibbles processed
     // (including zero-padded register bytes, where 0 XOR 8 = 8, signed = 0).
-    nk_size_t nibbles_processed = nk_size_round_up_to_multiple_(nk_size_divide_round_up_(count, 2), 32) * 2;
+    nk_size_t const nibbles_processed = nk_size_round_up_to_multiple_(count / NK_NIBBLES_PER_BYTE, 32) *
+                                        NK_NIBBLES_PER_BYTE;
     nk_i64_t sum = (nk_i64_t)(nk_u64_t)nk_reduce_add_i64x4_haswell_(sum_u64x4) -
                    (nk_i64_t)8 * (nk_i64_t)nibbles_processed;
     // sumsq uses sq_lut[0]=0 for zero-padded nibbles, so no register-padding correction needed.
@@ -3685,8 +3686,6 @@ NK_HELPER_INLINE void nk_reduce_moments_i4_haswell_contiguous_( //
 NK_API_COMPTIME void nk_reduce_moments_i4_haswell(                      //
     nk_i4x2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-
-    count = nk_size_round_up_to_multiple_(count, 2);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (stride_bytes == 1) nk_reduce_moments_i4_haswell_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
     else nk_reduce_moments_i4_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
@@ -3705,7 +3704,7 @@ NK_HELPER_INLINE void nk_reduce_moments_u4_haswell_contiguous_( //
         (char)196, (char)225);
     __m256i sum_u64x4 = _mm256_setzero_si256();
     __m256i sumsq_u64x4 = _mm256_setzero_si256();
-    nk_size_t count_bytes = count / 2;
+    nk_size_t count_bytes = count / NK_NIBBLES_PER_BYTE;
     unsigned char const *ptr = (unsigned char const *)data_ptr;
     while (count_bytes > 0) {
         nk_b256_vec_t raw_vec;
@@ -3735,8 +3734,6 @@ NK_HELPER_INLINE void nk_reduce_moments_u4_haswell_contiguous_( //
 NK_API_COMPTIME void nk_reduce_moments_u4_haswell(                      //
     nk_u4x2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-
-    count = nk_size_round_up_to_multiple_(count, 2);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (stride_bytes == 1) nk_reduce_moments_u4_haswell_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
     else nk_reduce_moments_u4_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
@@ -3751,7 +3748,7 @@ NK_HELPER_INLINE void nk_reduce_moments_u1_haswell_contiguous_( //
     __m256i mask_0f_i8x32 = _mm256_set1_epi8(0x0F);
     __m256i zero_i8x32 = _mm256_setzero_si256();
     __m256i sum_u64x4 = _mm256_setzero_si256();
-    nk_size_t count_bytes = count / 8;
+    nk_size_t count_bytes = count / NK_BITS_PER_BYTE;
     unsigned char const *ptr = (unsigned char const *)data_ptr;
     while (count_bytes > 0) {
         nk_b256_vec_t raw_vec;
@@ -3777,8 +3774,6 @@ NK_HELPER_INLINE void nk_reduce_moments_u1_haswell_contiguous_( //
 NK_API_COMPTIME void nk_reduce_moments_u1_haswell(                      //
     nk_u1x8_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-
-    count = nk_size_round_up_to_multiple_(count, 8);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (stride_bytes == 1) nk_reduce_moments_u1_haswell_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
     else nk_reduce_moments_u1_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);

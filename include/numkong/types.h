@@ -823,15 +823,15 @@ extern "C" {
 
 /** @brief Packed 8-bit bit-vector (8 booleans in one byte), LSB = dimension 0.
  *  Used for Hamming distance and Jaccard similarity via popcount.
- *  Dimension count must be a multiple of 8; unused bits in the final byte must be zeroed. */
+ *  Dimension count must be a multiple of 8, the values per byte. */
 typedef unsigned char nk_u1x8_t;
 /** @brief Packed 4-bit signed integer pair (2 × i4 in one byte), [high nibble : low nibble].
  *  Range per element: [−8, +7]. Elements sign-extended to i8 for arithmetic.
- *  Dimension count must be a multiple of 2; unused nibbles in the final byte must be zeroed. */
+ *  Dimension count must be a multiple of 2, the values per byte. */
 typedef unsigned char nk_i4x2_t;
 /** @brief Packed 4-bit unsigned integer pair (2 × u4 in one byte), [high nibble : low nibble].
  *  Range per element: [0, 15]. Elements zero-extended to u8 for arithmetic.
- *  Dimension count must be a multiple of 2; unused nibbles in the final byte must be zeroed. */
+ *  Dimension count must be a multiple of 2, the values per byte. */
 typedef unsigned char nk_u4x2_t;
 
 /** @brief 8-bit E4M3 float (OCP FP8): sign(1) + exponent(4) + mantissa(3), bias=7.
@@ -858,7 +858,7 @@ typedef unsigned char nk_e3m2_t;
  *  OCP MX v1.0 sub-format: sign(1) + exponent(2) + mantissa(1), bias=1. Range: ±6.0, no Inf or NaN.
  *  16 total codes: 8 magnitudes {0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0} × 2 signs (two zeros).
  *  Used as the element type of MXFP4 (block=32, UE8M0 scales) and NVFP4 (block=16, UE4M3 scales).
- *  Dimension count must be a multiple of 2; unused nibbles in the final byte must be zeroed. */
+ *  Dimension count must be a multiple of 2, the values per byte. */
 typedef unsigned char nk_e2m1x2_t;
 /** @brief Unsigned 8-bit power-of-two scale (OCP MX v1.0): 8-bit biased exponent, no sign or mantissa.
  *  Encodes 2^(v - 127) for v ∈ [1, 254]; v = 0 is zero; v = 255 is the NaN-block sentinel.
@@ -996,7 +996,8 @@ typedef nk_f64_t nk_fmax_t;
 #define NK_UE8M0_MAX 0xFE // UE8M0: 2^127 (0xFF is the NaN-block sentinel)
 #define NK_UE4M3_MAX 0x7E // UE4M3: +448.0 (matches NK_E4M3_MAX with sign bit forced to 0)
 
-#define NK_BITS_PER_BYTE 8
+#define NK_BITS_PER_BYTE    8
+#define NK_NIBBLES_PER_BYTE 2
 
 /**
  *  @brief  Enumeration of supported scalar data types.
@@ -1437,6 +1438,7 @@ typedef unsigned short nk_bf16_t;
  *  POD struct. The struct IS the value: `sizeof(nk_nvfp4_t) == 9` means one NVFP4 value, not
  *  one element. Storage in containers strides by `sizeof(struct)`; logical element count per
  *  value is reported by `nk_dimensions_per_value(composite_dtype)` (16 for NVFP4, 32 for MX).
+ *  Dimension count must be a multiple of that block size.
  *
  *  The NVFP4 per-tensor f32 tensor scale multiplier is not part of the block value — it lives on the
  *  enclosing tensor and is passed explicitly to encode/decode helpers.
@@ -1925,10 +1927,10 @@ NK_HELPER_AUTO nk_i8_t nk_i4x2_low_(nk_i4x2_t byte_val) { return (nk_i8_t)(((byt
 /** @brief Extract high (bits 4-7) signed nibble from packed i4x2 byte as i8. */
 NK_HELPER_AUTO nk_i8_t nk_i4x2_high_(nk_i4x2_t byte_val) { return (nk_i8_t)((((byte_val >> 4) & 0x0F) ^ 8) - 8); }
 
-/** @brief Extract n-th nibble (n=0: low, n=1: high) — branchless. */
-NK_HELPER_AUTO nk_u8_t nk_u4x2_get_(nk_u4x2_t byte_val, int n) { return (byte_val >> ((n & 1) * 4)) & 0x0F; }
+/** @brief Extract n-th nibble (n=0: high, n=1: low) — branchless. */
+NK_HELPER_AUTO nk_u8_t nk_u4x2_get_(nk_u4x2_t byte_val, int n) { return (byte_val >> ((~n & 1) * 4)) & 0x0F; }
 NK_HELPER_AUTO nk_i8_t nk_i4x2_get_(nk_i4x2_t byte_val, int n) {
-    nk_u8_t nibble = (byte_val >> ((n & 1) * 4)) & 0x0F;
+    nk_u8_t nibble = (byte_val >> ((~n & 1) * 4)) & 0x0F;
     return (nk_i8_t)((nibble ^ 8) - 8);
 }
 

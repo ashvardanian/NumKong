@@ -140,7 +140,7 @@ extern "C" {
  *
  *  @param[in] a The first vector.
  *  @param[in] b The second vector.
- *  @param[in] n The number of elements in the vectors.
+ *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[out] result The output dot product value.
  *
  *  @note The output value can be negative.

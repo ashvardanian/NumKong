@@ -3939,7 +3939,7 @@ NK_API_COMPTIME void nk_reduce_moments_f16_neon(                       //
 NK_HELPER_INLINE void nk_reduce_moments_u1_neon_contiguous_( //
     nk_u1x8_t const *data_ptr, nk_size_t count,              //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-    nk_size_t byte_count = nk_size_divide_round_up_(count, NK_BITS_PER_BYTE);
+    nk_size_t byte_count = count / NK_BITS_PER_BYTE;
     nk_u64_t sum = 0;
     nk_size_t idx = 0;
     // Each vcntq_u8 produces values 0-8 per lane; accumulate at u8 level
@@ -3959,7 +3959,6 @@ NK_HELPER_INLINE void nk_reduce_moments_u1_neon_contiguous_( //
 NK_API_COMPTIME void nk_reduce_moments_u1_neon(                         //
     nk_u1x8_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-    count = nk_size_round_up_to_multiple_(count, 8);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (stride_bytes == 1) nk_reduce_moments_u1_neon_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
     else nk_reduce_moments_u1_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);

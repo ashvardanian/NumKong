@@ -252,14 +252,14 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                                    norm_value_type, depth_simd_dimensions, dimensions_per_value)                 \
     NK_API_COMPTIME nk_size_t nk_##api_name##_pack_size_##input_type_name##_##isa_suffix(nk_size_t column_count, \
                                                                                          nk_size_t depth) {      \
-        /* depth is always in logical dimensions (nibbles for i4, bytes for i8, etc.) */                         \
+        /* `depth` counts dimensions, a multiple of the values per byte */                                       \
         /* depth_simd_dimensions is also in logical dimensions */                                                \
                                                                                                                  \
         /* Pad depth in dimensions */                                                                            \
         nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);         \
                                                                                                                  \
         /* Convert dimensions to storage values */                                                               \
-        nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value); \
+        nk_size_t depth_values_padded = depth_dimensions_padded / dimensions_per_value;                          \
                                                                                                                  \
         /* Calculate stride in bytes for power-of-2 check */                                                     \
         nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                 \
@@ -267,7 +267,7 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         /* Break power-of-2 strides for cache associativity */                                                   \
         if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0) {                                      \
             /* Add one SIMD step worth of storage values */                                                      \
-            depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);        \
+            depth_values_padded += depth_simd_dimensions / dimensions_per_value;                                 \
         }                                                                                                        \
                                                                                                                  \
         /* Return total buffer size (packed data + per-column norms) */                                          \
@@ -313,11 +313,11 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         nk_##input_value_type##_t const *b, nk_size_t column_count, nk_size_t depth, nk_size_t b_stride_in_bytes,     \
         void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {                                             \
         nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);              \
-        nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value);      \
+        nk_size_t depth_values_padded = depth_dimensions_padded / dimensions_per_value;                               \
         nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                      \
         if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0)                                             \
-            depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);             \
-        nk_size_t const depth_in_values = nk_size_divide_round_up_(depth, dimensions_per_value);                      \
+            depth_values_padded += depth_simd_dimensions / dimensions_per_value;                                      \
+        nk_size_t const depth_in_values = depth / dimensions_per_value;                                               \
                                                                                                                       \
         if (columns_begin == 0) {                                                                                     \
             nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;                    \
@@ -372,10 +372,10 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
     NK_API_COMPTIME nk_size_t nk_##api_name##_pack_size_##input_type_name##_##isa_suffix(nk_size_t column_count, \
                                                                                          nk_size_t depth) {      \
         nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);         \
-        nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value); \
+        nk_size_t depth_values_padded = depth_dimensions_padded / dimensions_per_value;                          \
         nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                 \
         if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0) {                                      \
-            depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);        \
+            depth_values_padded += depth_simd_dimensions / dimensions_per_value;                                 \
         }                                                                                                        \
         return sizeof(nk_cross_packed_buffer_header_t) +                                                         \
                column_count * depth_values_padded * sizeof(nk_##packed_value_type##_t) +                         \
@@ -394,11 +394,11 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         nk_##input_value_type##_t const *b, nk_size_t column_count, nk_size_t depth, nk_size_t b_stride_in_bytes,     \
         void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {                                             \
         nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);              \
-        nk_size_t depth_values_padded = nk_size_divide_round_up_(depth_dimensions_padded, dimensions_per_value);      \
+        nk_size_t depth_values_padded = depth_dimensions_padded / dimensions_per_value;                               \
         nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                      \
         if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0)                                             \
-            depth_values_padded += nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);             \
-        nk_size_t const depth_in_values = nk_size_divide_round_up_(depth, dimensions_per_value);                      \
+            depth_values_padded += depth_simd_dimensions / dimensions_per_value;                                      \
+        nk_size_t const depth_in_values = depth / dimensions_per_value;                                               \
                                                                                                                       \
         if (columns_begin == 0) {                                                                                     \
             nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;                    \
@@ -571,9 +571,9 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         nk_size_t const register_column_count = 4; /* Columns per register tile */                                     \
         /* Correct aligned_depth calculation for sub-byte types */                                                     \
         nk_size_t const depth_dimensions_aligned = (depth / depth_simd_dimensions) * depth_simd_dimensions;            \
-        nk_size_t const aligned_depth = nk_size_divide_round_up_(depth_dimensions_aligned, dimensions_per_value);      \
+        nk_size_t const aligned_depth = depth_dimensions_aligned / dimensions_per_value;                               \
         /* Calculate step size in storage values for loop increment */                                                 \
-        nk_size_t const depth_step_values = nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);     \
+        nk_size_t const depth_step_values = depth_simd_dimensions / dimensions_per_value;                              \
                                                                                                                        \
         /* Zero output matrix */                                                                                       \
         for (nk_size_t row_index = 0; row_index < row_count; ++row_index) {                                            \
@@ -747,9 +747,9 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         nk_size_t const register_column_count = 8; /* Columns per register tile (2 × 4) */                             \
         /* Correct aligned_depth calculation for sub-byte types */                                                     \
         nk_size_t const depth_dimensions_aligned = (depth / depth_simd_dimensions) * depth_simd_dimensions;            \
-        nk_size_t const aligned_depth = nk_size_divide_round_up_(depth_dimensions_aligned, dimensions_per_value);      \
+        nk_size_t const aligned_depth = depth_dimensions_aligned / dimensions_per_value;                               \
         /* Calculate step size in storage values for loop increment */                                                 \
-        nk_size_t const depth_step_values = nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);     \
+        nk_size_t const depth_step_values = depth_simd_dimensions / dimensions_per_value;                              \
         nk_unused_(register_row_count); /* Used in comments, loop uses 1 directly */                                   \
                                                                                                                        \
         /* Zero output matrix */                                                                                       \
@@ -904,12 +904,12 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                                                                                                                        \
         /* Compute aligned/remainder depth for partial loads (correct for sub-byte types) */                           \
         nk_size_t const depth_dimensions_aligned = (depth / depth_simd_dimensions) * depth_simd_dimensions;            \
-        nk_size_t const aligned_depth = nk_size_divide_round_up_(depth_dimensions_aligned, dimensions_per_value);      \
-        nk_size_t const depth_in_values = nk_size_divide_round_up_(depth, dimensions_per_value);                       \
+        nk_size_t const aligned_depth = depth_dimensions_aligned / dimensions_per_value;                               \
+        nk_size_t const depth_in_values = depth / dimensions_per_value;                                                \
         nk_size_t const remainder_depth = depth_in_values - aligned_depth;                                             \
         nk_size_t const remainder_dimensions = depth - depth_dimensions_aligned;                                       \
         /* Calculate step size in storage values for loop increment */                                                 \
-        nk_size_t const depth_step_values = nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);     \
+        nk_size_t const depth_step_values = depth_simd_dimensions / dimensions_per_value;                              \
                                                                                                                        \
         /* Loop 1: L3 cache blocking over columns */                                                                   \
         nk_##packed_value_type##_t const *packed_data =                                                                \
@@ -1140,8 +1140,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         nk_size_t const register_row_count = 4;                                                                        \
         nk_size_t const register_column_count = 4;                                                                     \
         nk_size_t const depth_dimensions_aligned = (depth / depth_simd_dimensions) * depth_simd_dimensions;            \
-        nk_size_t const aligned_depth = nk_size_divide_round_up_(depth_dimensions_aligned, dimensions_per_value);      \
-        nk_size_t const depth_step_values = nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);     \
+        nk_size_t const aligned_depth = depth_dimensions_aligned / dimensions_per_value;                               \
+        nk_size_t const depth_step_values = depth_simd_dimensions / dimensions_per_value;                              \
         for (nk_size_t row_index = 0; row_index < row_count; ++row_index) {                                            \
             nk_##result_value_type##_t *c_row = (nk_##result_value_type##_t *)((char *)c_matrix +                      \
                                                                                row_index * c_stride_in_bytes);         \
@@ -1248,8 +1248,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         nk_size_t const column_block_size = 2048;                                                                      \
         nk_size_t const register_column_count = 8;                                                                     \
         nk_size_t const depth_dimensions_aligned = (depth / depth_simd_dimensions) * depth_simd_dimensions;            \
-        nk_size_t const aligned_depth = nk_size_divide_round_up_(depth_dimensions_aligned, dimensions_per_value);      \
-        nk_size_t const depth_step_values = nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);     \
+        nk_size_t const aligned_depth = depth_dimensions_aligned / dimensions_per_value;                               \
+        nk_size_t const depth_step_values = depth_simd_dimensions / dimensions_per_value;                              \
         for (nk_size_t row_index = 0; row_index < row_count; ++row_index) {                                            \
             nk_##result_value_type##_t *c_row = (nk_##result_value_type##_t *)((char *)c_matrix +                      \
                                                                                row_index * c_stride_in_bytes);         \
@@ -1342,11 +1342,11 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         nk_##sum_value_type##_t const *b_sums = (nk_##sum_value_type##_t const *)(b_norms + column_count);             \
         nk_unused_(b_norms);                                                                                           \
         nk_size_t const depth_dimensions_aligned = (depth / depth_simd_dimensions) * depth_simd_dimensions;            \
-        nk_size_t const aligned_depth = nk_size_divide_round_up_(depth_dimensions_aligned, dimensions_per_value);      \
-        nk_size_t const depth_in_values = nk_size_divide_round_up_(depth, dimensions_per_value);                       \
+        nk_size_t const aligned_depth = depth_dimensions_aligned / dimensions_per_value;                               \
+        nk_size_t const depth_in_values = depth / dimensions_per_value;                                                \
         nk_size_t const remainder_depth = depth_in_values - aligned_depth;                                             \
         nk_size_t const remainder_dimensions = depth - depth_dimensions_aligned;                                       \
-        nk_size_t const depth_step_values = nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);     \
+        nk_size_t const depth_step_values = depth_simd_dimensions / dimensions_per_value;                              \
         for (nk_size_t row_index = 0; row_index < row_count; ++row_index) {                                            \
             nk_##result_value_type##_t *c_row = (nk_##result_value_type##_t *)((char *)c_matrix +                      \
                                                                                row_index * c_stride_in_bytes);         \
@@ -1923,11 +1923,11 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         nk_size_t const row_block_size = 128;     /* L2 cache blocking */                                              \
         nk_size_t const column_block_size = 2048; /* L3 cache blocking */                                              \
         nk_size_t const depth_dimensions_aligned = (depth / depth_simd_dimensions) * depth_simd_dimensions;            \
-        nk_size_t const aligned_depth = nk_size_divide_round_up_(depth_dimensions_aligned, dimensions_per_value);      \
-        nk_size_t const depth_in_values = nk_size_divide_round_up_(depth, dimensions_per_value);                       \
+        nk_size_t const aligned_depth = depth_dimensions_aligned / dimensions_per_value;                               \
+        nk_size_t const depth_in_values = depth / dimensions_per_value;                                                \
         nk_size_t const remainder_depth = depth_in_values - aligned_depth;                                             \
         nk_size_t const remainder_dimensions = depth - depth_dimensions_aligned;                                       \
-        nk_size_t const depth_step = nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);            \
+        nk_size_t const depth_step = depth_simd_dimensions / dimensions_per_value;                                     \
         nk_size_t const result_stride_values = result_stride_in_bytes / sizeof(nk_##result_value_type##_t);            \
         nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;   \
                                                                                                                        \
@@ -2401,11 +2401,11 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         nk_size_t const vectors_stride_values = stride_in_bytes / sizeof(nk_##input_value_type##_t);                   \
         nk_size_t const result_stride_values = result_stride_in_bytes / sizeof(nk_##result_value_type##_t);            \
         nk_size_t const depth_dimensions_aligned = (depth / depth_simd_dimensions) * depth_simd_dimensions;            \
-        nk_size_t const aligned_depth = nk_size_divide_round_up_(depth_dimensions_aligned, dimensions_per_value);      \
-        nk_size_t const depth_in_values = nk_size_divide_round_up_(depth, dimensions_per_value);                       \
+        nk_size_t const aligned_depth = depth_dimensions_aligned / dimensions_per_value;                               \
+        nk_size_t const depth_in_values = depth / dimensions_per_value;                                                \
         nk_size_t const remainder_depth = depth_in_values - aligned_depth;                                             \
         nk_size_t const remainder_dimensions = depth - depth_dimensions_aligned;                                       \
-        nk_size_t const depth_step_values = nk_size_divide_round_up_(depth_simd_dimensions, dimensions_per_value);     \
+        nk_size_t const depth_step_values = depth_simd_dimensions / dimensions_per_value;                              \
         nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;   \
                                                                                                                        \
         /* Process upper triangle with L3/L2/L1 blocking (column blocks → row blocks → 32×32 macro-tiles) */           \
@@ -2668,13 +2668,13 @@ nk_define_cross_pack_(dots, e2m1, serial, e2m1x2, e2m1x2, nk_b128_vec_t, nk_load
                       /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_,
                       /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
 nk_define_cross_symmetric_(dots, e2m1, serial, e2m1x2, f32, nk_b64_vec_t, nk_dot_e2m1x16_state_serial_t, nk_b128_vec_t,
-                           nk_dot_e2m1x16_init_serial, nk_load_b64_serial_, nk_partial_load_e2m1x16_serial_,
+                           nk_dot_e2m1x16_init_serial, nk_load_b64_serial_, nk_partial_load_b4x16_serial_,
                            nk_dot_e2m1x16_update_serial, nk_dot_e2m1x16_finalize_serial, nk_store_b128_serial_,
                            nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
 nk_define_cross_packed_(dots, e2m1, serial, e2m1x2, e2m1x2, f32, nk_b64_vec_t, nk_dot_e2m1x16_state_serial_t,
-                        nk_b128_vec_t, nk_dot_e2m1x16_init_serial, nk_load_b64_serial_, nk_partial_load_e2m1x16_serial_,
-                        nk_load_b64_serial_, nk_partial_load_e2m1x16_serial_, nk_dot_e2m1x16_update_serial,
+                        nk_b128_vec_t, nk_dot_e2m1x16_init_serial, nk_load_b64_serial_, nk_partial_load_b4x16_serial_,
+                        nk_load_b64_serial_, nk_partial_load_b4x16_serial_, nk_dot_e2m1x16_update_serial,
                         nk_dot_e2m1x16_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
 

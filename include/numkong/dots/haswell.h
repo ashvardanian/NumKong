@@ -193,12 +193,12 @@ nk_define_cross_pack_(dots, e2m1, haswell, e2m1x2, e2m1x2, nk_b256_vec_t, nk_loa
                       /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
 nk_define_cross_symmetric_(dots, e2m1, haswell, e2m1x2, f32, nk_b256_vec_t, nk_dot_e2m1x64_state_haswell_t,
                            nk_b128_vec_t, nk_dot_e2m1x64_init_haswell, nk_load_b256_haswell_,
-                           nk_partial_load_e2m1x64_serial_, nk_dot_e2m1x64_update_haswell,
+                           nk_partial_load_b4x64_serial_, nk_dot_e2m1x64_update_haswell,
                            nk_dot_e2m1x64_finalize_haswell, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
                            /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
 nk_define_cross_packed_(dots, e2m1, haswell, e2m1x2, e2m1x2, f32, nk_b256_vec_t, nk_dot_e2m1x64_state_haswell_t,
                         nk_b128_vec_t, nk_dot_e2m1x64_init_haswell, nk_load_b256_haswell_,
-                        nk_partial_load_e2m1x64_serial_, nk_load_b256_haswell_, nk_partial_load_e2m1x64_serial_,
+                        nk_partial_load_b4x64_serial_, nk_load_b256_haswell_, nk_partial_load_b4x64_serial_,
                         nk_dot_e2m1x64_update_haswell, nk_dot_e2m1x64_finalize_haswell, nk_store_b128_haswell_,
                         nk_partial_store_b32x4_haswell_, /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
 

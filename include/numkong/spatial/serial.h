@@ -169,10 +169,8 @@ nk_define_euclidean_(u8, u32, u32, f32, nk_assign_from_to_, nk_f32_sqrt_serial) 
 
 NK_API_COMPTIME void nk_sqeuclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     // Sign extension: (nibble ^ 8) - 8 maps [0,15] to [-8,7]
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
     nk_i32_t sum = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         nk_i32_t a_low = (nk_i32_t)nk_i4x2_low_(a[i]);
@@ -192,8 +190,7 @@ NK_API_COMPTIME void nk_euclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const 
 }
 
 NK_API_COMPTIME void nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
     nk_i32_t dot_sum = 0, a_norm_sq = 0, b_norm_sq = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         nk_i32_t a_low = (nk_i32_t)nk_i4x2_low_(a[i]);
@@ -215,10 +212,8 @@ NK_API_COMPTIME void nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b
 
 NK_API_COMPTIME void nk_sqeuclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     // No sign extension needed - values are in [0,15].
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
     nk_u32_t sum = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         nk_i32_t a_low = (nk_i32_t)nk_u4x2_low_(a[i]);
@@ -238,8 +233,7 @@ NK_API_COMPTIME void nk_euclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const 
 }
 
 NK_API_COMPTIME void nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
     nk_u32_t dot_sum = 0, a_norm_sq = 0, b_norm_sq = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         nk_u32_t a_low = (nk_u32_t)nk_u4x2_low_(a[i]);

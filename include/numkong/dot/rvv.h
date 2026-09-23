@@ -298,7 +298,7 @@ NK_API_COMPTIME void nk_dot_e2m1_rvv(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b,
     // Every e2m1 value × 2 is an exact integer in [-12, +12]; `n` counts nibbles.
     static nk_i8_t const lut_doubled[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
     nk_u8_t const *a_bytes = (nk_u8_t const *)a, *b_bytes = (nk_u8_t const *)b;
-    nk_size_t const full_bytes = n / 2;
+    nk_size_t const full_bytes = n / NK_NIBBLES_PER_BYTE;
 
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vint32m4_t sum_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
@@ -323,8 +323,6 @@ NK_API_COMPTIME void nk_dot_e2m1_rvv(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b,
     }
     vint32m1_t zero_i32m1 = __riscv_vmv_v_x_i32m1(0, max_vector_length);
     nk_i32_t sum = __riscv_vmv_x_s_i32m1_i32(__riscv_vredsum_vs_i32m4_i32m1(sum_i32m4, zero_i32m1, max_vector_length));
-    // At odd `n` only the high nibble of the last byte is a dimension
-    if (n & 1) sum += lut_doubled[a_bytes[full_bytes] >> 4] * lut_doubled[b_bytes[full_bytes] >> 4];
     *result = (nk_f32_t)sum * 0.25f;
 }
 
@@ -378,9 +376,7 @@ NK_API_COMPTIME void nk_dot_e3m2_rvv(nk_e3m2_t const *a_scalars, nk_e3m2_t const
 
 NK_API_COMPTIME void nk_dot_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars, nk_size_t count_dimensions,
                                    nk_i32_t *result) {
-    // count_dimensions = number of 4-bit values, not bytes
-    count_dimensions = nk_size_round_up_to_multiple_(count_dimensions, 2);
-    nk_size_t n_full_bytes = count_dimensions / 2;
+    nk_size_t n_full_bytes = count_dimensions / NK_NIBBLES_PER_BYTE;
 
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vint32m4_t sum_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
@@ -421,9 +417,7 @@ NK_API_COMPTIME void nk_dot_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *
 
 NK_API_COMPTIME void nk_dot_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars, nk_size_t count_dimensions,
                                    nk_u32_t *result) {
-    // count_dimensions = number of 4-bit values, not bytes
-    count_dimensions = nk_size_round_up_to_multiple_(count_dimensions, 2);
-    nk_size_t n_full_bytes = count_dimensions / 2;
+    nk_size_t n_full_bytes = count_dimensions / NK_NIBBLES_PER_BYTE;
 
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vuint32m4_t sum_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
@@ -453,7 +447,7 @@ NK_API_COMPTIME void nk_dot_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *
 }
 
 NK_API_COMPTIME void nk_dot_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
-    nk_size_t count_bytes = nk_size_divide_round_up_(n_bits, NK_BITS_PER_BYTE);
+    nk_size_t count_bytes = n_bits / NK_BITS_PER_BYTE;
 
     vuint32m1_t sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
 

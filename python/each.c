@@ -18,9 +18,15 @@
  */
 static int validate_cast_writeback_target(Py_buffer const *out_buffer, nk_dtype_t out_dtype) {
     if (nk_dimensions_per_value(out_dtype) <= 1) return 1;
-    if (PyBuffer_IsContiguous(out_buffer, 'C')) return 1;
+    if (strides_are_c_contiguous(out_dtype, (size_t)out_buffer->ndim, out_buffer->shape, out_buffer->strides)) return 1;
     PyErr_Format(PyExc_ValueError, "out must be C-contiguous for packed dtype '%s'", nk_dtype_python_name(out_dtype));
     return 0;
+}
+
+/** @brief Acquire an `out` buffer with a packed last axis counted in logical dimensions, like the inputs. */
+static int get_out_buffer(PyObject *out_obj, Py_buffer *out_buffer, nk_buffer_backing_t *out_backing) {
+    if (!nk_get_buffer(out_obj, out_buffer, PyBUF_STRIDES | PyBUF_FORMAT, out_backing)) return 0;
+    return nk_buffer_logical_shape(out_buffer, resolve_nk_dtype_in_py_buffer(out_buffer), out_backing);
 }
 
 /** @brief Convert the compute-dtype staging buffer into the caller's possibly-strided output. */
@@ -796,7 +802,7 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
                      NK_TENSOR_MAX_RANK);
         goto cleanup;
     }
-    if (out_obj && !nk_get_buffer(out_obj, &out_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &out_backing)) goto cleanup;
+    if (out_obj && !get_out_buffer(out_obj, &out_buffer, &out_backing)) goto cleanup;
     if (out_obj && !buffers_shapes_match(&a_buffer, &out_buffer)) goto cleanup;
 
     nk_dtype_t dtype = resolve_nk_dtype_in_py_buffer(&a_buffer);
@@ -841,7 +847,7 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
         if (!result_tensor) goto cleanup;
         return_obj = (PyObject *)result_tensor;
         result_data = result_tensor->data;
-        compute_contiguous_strides((size_t)a_buffer.ndim, a_buffer.shape, element_size, result_strides);
+        compute_contiguous_strides((size_t)a_buffer.ndim, a_buffer.shape, dtype, result_strides);
     }
     // nk.add(np.int16([1,2,3]), 5, out=np.zeros(3, dtype=np.float64))
     // → kernel computes int16, then casts int16→float64 into output buffer
@@ -854,7 +860,7 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
             goto cleanup;
         }
         result_data = cast_staging;
-        compute_contiguous_strides((size_t)a_buffer.ndim, a_buffer.shape, element_size, result_strides);
+        compute_contiguous_strides((size_t)a_buffer.ndim, a_buffer.shape, dtype, result_strides);
         return_obj = Py_None;
         Py_INCREF(Py_None);
     }
@@ -904,7 +910,7 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
         goto cleanup;
     }
     if (!nk_get_buffer(b_obj, &b_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &b_backing)) goto cleanup;
-    if (out_obj && !nk_get_buffer(out_obj, &out_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &out_backing)) goto cleanup;
+    if (out_obj && !get_out_buffer(out_obj, &out_buffer, &out_backing)) goto cleanup;
 
     if (!buffers_shapes_match(&a_buffer, &b_buffer)) goto cleanup;
     if (out_obj && !buffers_shapes_match(&a_buffer, &out_buffer)) goto cleanup;
@@ -959,7 +965,7 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
     Py_ssize_t promoted_strides[NK_TENSOR_MAX_RANK];
-    compute_contiguous_strides((size_t)num_dims, a_buffer.shape, element_size, promoted_strides);
+    compute_contiguous_strides((size_t)num_dims, a_buffer.shape, dtype, promoted_strides);
 
     char *result_data = NULL;
     Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
@@ -1103,7 +1109,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
                      NK_TENSOR_MAX_RANK);
         goto cleanup;
     }
-    if (out_obj && !nk_get_buffer(out_obj, &out_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &out_backing)) goto cleanup;
+    if (out_obj && !get_out_buffer(out_obj, &out_buffer, &out_backing)) goto cleanup;
     if (out_obj && !buffers_shapes_match(&a_buffer, &out_buffer)) goto cleanup;
 
     nk_dtype_t dtype = resolve_nk_dtype_in_py_buffer(&a_buffer);
@@ -1148,7 +1154,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
         if (!result_tensor) goto cleanup;
         return_obj = (PyObject *)result_tensor;
         result_data = result_tensor->data;
-        compute_contiguous_strides((size_t)a_buffer.ndim, a_buffer.shape, element_size, result_strides);
+        compute_contiguous_strides((size_t)a_buffer.ndim, a_buffer.shape, dtype, result_strides);
     }
     // nk.multiply(np.int16([1,2,3]), 5, out=np.zeros(3, dtype=np.float64))
     // → kernel computes int16, then casts int16→float64 into output buffer
@@ -1161,7 +1167,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
             goto cleanup;
         }
         result_data = cast_staging;
-        compute_contiguous_strides((size_t)a_buffer.ndim, a_buffer.shape, element_size, result_strides);
+        compute_contiguous_strides((size_t)a_buffer.ndim, a_buffer.shape, dtype, result_strides);
         return_obj = Py_None;
         Py_INCREF(Py_None);
     }
@@ -1211,7 +1217,7 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
         goto cleanup;
     }
     if (!nk_get_buffer(b_obj, &b_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &b_backing)) goto cleanup;
-    if (out_obj && !nk_get_buffer(out_obj, &out_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &out_backing)) goto cleanup;
+    if (out_obj && !get_out_buffer(out_obj, &out_buffer, &out_backing)) goto cleanup;
 
     if (!buffers_shapes_match(&a_buffer, &b_buffer)) goto cleanup;
     if (out_obj && !buffers_shapes_match(&a_buffer, &out_buffer)) goto cleanup;
@@ -1272,7 +1278,7 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
     Py_ssize_t promoted_strides[NK_TENSOR_MAX_RANK];
-    compute_contiguous_strides((size_t)num_dims, a_buffer.shape, element_size, promoted_strides);
+    compute_contiguous_strides((size_t)num_dims, a_buffer.shape, dtype, promoted_strides);
 
     char *result_data = NULL;
     Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];

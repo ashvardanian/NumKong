@@ -304,36 +304,19 @@ def f32_downcast_to_bf16(array: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _pack_nibbles(array):
-    """Pack pairs of nibbles along the last axis, preserving leading dimensions.
+    """Pack pairs of nibbles along the last axis, preserving leading dimensions: high nibble = even index.
 
-    Each pair of consecutive elements is packed into one byte:
-    low nibble = even index, high nibble = odd index.
-    Odd-length rows are zero-padded.  Returns a uint8 array.
+    The last axis must hold an even number of nibbles. Returns a uint8 array.
     """
-    shape = array.shape
-    if array.ndim >= 2:
-        rows = array.reshape(-1, shape[-1])
-        cols = shape[-1]
-        packed_cols = (cols + 1) // 2
-        if cols % 2:
-            rows = np.concatenate([rows, np.zeros((rows.shape[0], 1), dtype=np.uint8)], axis=1)
-        low = rows[:, 0::2].astype(np.uint8) & 0x0F
-        high = (rows[:, 1::2].astype(np.uint8) & 0x0F) << 4
-        packed = (low | high).astype(np.uint8)
-        return packed.reshape(*shape[:-1], packed_cols)
-    else:
-        flat = array.ravel()
-        if len(flat) % 2:
-            flat = np.append(flat, np.uint8(0))
-        low = flat[0::2].astype(np.uint8) & 0x0F
-        high = (flat[1::2].astype(np.uint8) & 0x0F) << 4
-        return (low | high).astype(np.uint8)
+    nibbles = np.asarray(array).astype(np.uint8) & 0x0F
+    assert nibbles.shape[-1] % 2 == 0, "last axis must hold an even number of nibbles"
+    return ((nibbles[..., 0::2] << 4) | nibbles[..., 1::2]).astype(np.uint8)
 
 
 def i8_downcast_to_i4(array):
     """Pack signed 8-bit integers into signed 4-bit pairs (2 per byte).
 
-    Layout matches C ``nk_i4x2_t``: low nibble = even index, high nibble = odd index.
+    Layout matches C ``nk_i4x2_t``: high nibble = even index, low nibble = odd index.
     Input values must be in [-8, 7].  Preserves leading dimensions for 2-D+ inputs.
     """
     array = np.asarray(array, dtype=np.int8)
@@ -344,7 +327,7 @@ def i8_downcast_to_i4(array):
 def u8_downcast_to_u4(array):
     """Pack unsigned 8-bit integers into unsigned 4-bit pairs (2 per byte).
 
-    Layout matches C ``nk_u4x2_t``: low nibble = even index, high nibble = odd index.
+    Layout matches C ``nk_u4x2_t``: high nibble = even index, low nibble = odd index.
     Input values must be in [0, 15].  Preserves leading dimensions for 2-D+ inputs.
     """
     array = np.asarray(array, dtype=np.uint8)
@@ -353,14 +336,8 @@ def u8_downcast_to_u4(array):
 
 
 def e2m1_codes_to_e2m1x2(codes):
-    """Pack E2M1 nibble codes along the last axis, matching C ``nk_e2m1x2_t``: high nibble = even index.
-
-    Odd-length rows are zero-padded. Returns a uint8 array.
-    """
-    codes = np.asarray(codes, dtype=np.uint8) & 0x0F
-    if codes.shape[-1] % 2:
-        codes = np.concatenate([codes, np.zeros((*codes.shape[:-1], 1), dtype=np.uint8)], axis=-1)
-    return ((codes[..., 0::2] << 4) | codes[..., 1::2]).astype(np.uint8)
+    """Pack E2M1 nibble codes along the last axis, matching C ``nk_e2m1x2_t``: high nibble = even index."""
+    return _pack_nibbles(codes)
 
 
 def hex_array(arr: Any) -> str:
@@ -557,9 +534,11 @@ def make_random(shape: int | tuple[int, ...], dtype: str, seed: int = 0) -> tupl
 
 
 def make_nk(np_arr: np.ndarray, dtype: str | None = None) -> nk.Tensor:
-    """Copy a NumPy array into a NumKong tensor."""
+    """Copy a NumPy array into a NumKong tensor; packed dtypes read the bytes and count logical dimensions."""
     if dtype is None:
         dtype = str(np_arr.dtype)
+    if dtype in PACKING_GRANULARITY:
+        return nk.Tensor(np.ascontiguousarray(np_arr), dtype=dtype)
     nk_arr = nk.zeros(np_arr.shape, dtype=dtype)
     dst = np.asarray(nk_arr)
     src = np.ascontiguousarray(np_arr)

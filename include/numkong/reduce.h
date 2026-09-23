@@ -112,7 +112,7 @@ extern "C" {
 /**
  *  @brief  Horizontal moments reduction (sum + sum-of-squares) over a strided array.
  *  @param[in] data Pointer to the input data.
- *  @param[in] count Number of elements to reduce.
+ *  @param[in] count Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride_bytes Stride between elements in bytes, equal to `sizeof(*data)` for contiguous arrays.
  *  @param[out] sum_ptr Output sum.
  *  @param[out] sumsq_ptr Output sum of squares.
@@ -123,7 +123,7 @@ NK_API_RUNTIME void nk_reduce_moments_f64(nk_f64_t const *data, nk_size_t count,
 /**
  *  @brief  Horizontal min+max reduction with argmin/argmax over a strided array.
  *  @param[in] data Pointer to the input data.
- *  @param[in] count Number of elements to reduce.
+ *  @param[in] count Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride_bytes Stride between elements in bytes, equal to `sizeof(*data)` for contiguous arrays.
  *  @param[out] min_value_ptr Output minimum value.
  *  @param[out] min_index_ptr Output index of the minimum value.

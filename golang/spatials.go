@@ -15,9 +15,9 @@ import "unsafe"
 // AngularsPackedF64 computes angular distances A × Bᵀ where B is pre-packed.
 // a must have capacity >= height × b.Depth().
 // result must have capacity >= height × b.Width().
-func AngularsPackedF64(a []float64, b PackedMatrix, result []float64, height int) {
+func AngularsPackedF64(a []float64, b DotsPackedMatrix, result []float64, height int) {
 	if b.Dtype() != "f64" {
-		panic("PackedMatrix dtype must be f64")
+		panic("DotsPackedMatrix dtype must be f64")
 	}
 	if len(a) < height*b.depth {
 		panic("input slice too short for the given height and depth")
@@ -37,9 +37,9 @@ func AngularsPackedF64(a []float64, b PackedMatrix, result []float64, height int
 // AngularsPackedF32 computes angular distances A × Bᵀ where B is pre-packed. Output: f64.
 // a must have capacity >= height × b.Depth().
 // result must have capacity >= height × b.Width().
-func AngularsPackedF32(a []float32, b PackedMatrix, result []float64, height int) {
+func AngularsPackedF32(a []float32, b DotsPackedMatrix, result []float64, height int) {
 	if b.Dtype() != "f32" {
-		panic("PackedMatrix dtype must be f32")
+		panic("DotsPackedMatrix dtype must be f32")
 	}
 	if len(a) < height*b.depth {
 		panic("input slice too short for the given height and depth")
@@ -59,9 +59,9 @@ func AngularsPackedF32(a []float32, b PackedMatrix, result []float64, height int
 // AngularsPackedI8 computes angular distances A × Bᵀ where B is pre-packed. Output: f32.
 // a must have capacity >= height × b.Depth().
 // result must have capacity >= height × b.Width().
-func AngularsPackedI8(a []int8, b PackedMatrix, result []float32, height int) {
+func AngularsPackedI8(a []int8, b DotsPackedMatrix, result []float32, height int) {
 	if b.Dtype() != "i8" {
-		panic("PackedMatrix dtype must be i8")
+		panic("DotsPackedMatrix dtype must be i8")
 	}
 	if len(a) < height*b.depth {
 		panic("input slice too short for the given height and depth")
@@ -81,9 +81,9 @@ func AngularsPackedI8(a []int8, b PackedMatrix, result []float32, height int) {
 // AngularsPackedU8 computes angular distances A × Bᵀ where B is pre-packed. Output: f32.
 // a must have capacity >= height × b.Depth().
 // result must have capacity >= height × b.Width().
-func AngularsPackedU8(a []uint8, b PackedMatrix, result []float32, height int) {
+func AngularsPackedU8(a []uint8, b DotsPackedMatrix, result []float32, height int) {
 	if b.Dtype() != "u8" {
-		panic("PackedMatrix dtype must be u8")
+		panic("DotsPackedMatrix dtype must be u8")
 	}
 	if len(a) < height*b.depth {
 		panic("input slice too short for the given height and depth")
@@ -103,9 +103,9 @@ func AngularsPackedU8(a []uint8, b PackedMatrix, result []float32, height int) {
 // EuclideansPackedF64 computes Euclidean distances A × Bᵀ where B is pre-packed.
 // a must have capacity >= height × b.Depth().
 // result must have capacity >= height × b.Width().
-func EuclideansPackedF64(a []float64, b PackedMatrix, result []float64, height int) {
+func EuclideansPackedF64(a []float64, b DotsPackedMatrix, result []float64, height int) {
 	if b.Dtype() != "f64" {
-		panic("PackedMatrix dtype must be f64")
+		panic("DotsPackedMatrix dtype must be f64")
 	}
 	if len(a) < height*b.depth {
 		panic("input slice too short for the given height and depth")
@@ -125,9 +125,9 @@ func EuclideansPackedF64(a []float64, b PackedMatrix, result []float64, height i
 // EuclideansPackedF32 computes Euclidean distances A × Bᵀ where B is pre-packed. Output: f64.
 // a must have capacity >= height × b.Depth().
 // result must have capacity >= height × b.Width().
-func EuclideansPackedF32(a []float32, b PackedMatrix, result []float64, height int) {
+func EuclideansPackedF32(a []float32, b DotsPackedMatrix, result []float64, height int) {
 	if b.Dtype() != "f32" {
-		panic("PackedMatrix dtype must be f32")
+		panic("DotsPackedMatrix dtype must be f32")
 	}
 	if len(a) < height*b.depth {
 		panic("input slice too short for the given height and depth")
@@ -147,9 +147,9 @@ func EuclideansPackedF32(a []float32, b PackedMatrix, result []float64, height i
 // EuclideansPackedI8 computes Euclidean distances A × Bᵀ where B is pre-packed. Output: f32.
 // a must have capacity >= height × b.Depth().
 // result must have capacity >= height × b.Width().
-func EuclideansPackedI8(a []int8, b PackedMatrix, result []float32, height int) {
+func EuclideansPackedI8(a []int8, b DotsPackedMatrix, result []float32, height int) {
 	if b.Dtype() != "i8" {
-		panic("PackedMatrix dtype must be i8")
+		panic("DotsPackedMatrix dtype must be i8")
 	}
 	if len(a) < height*b.depth {
 		panic("input slice too short for the given height and depth")
@@ -169,9 +169,9 @@ func EuclideansPackedI8(a []int8, b PackedMatrix, result []float32, height int) 
 // EuclideansPackedU8 computes Euclidean distances A × Bᵀ where B is pre-packed. Output: f32.
 // a must have capacity >= height × b.Depth().
 // result must have capacity >= height × b.Width().
-func EuclideansPackedU8(a []uint8, b PackedMatrix, result []float32, height int) {
+func EuclideansPackedU8(a []uint8, b DotsPackedMatrix, result []float32, height int) {
 	if b.Dtype() != "u8" {
-		panic("PackedMatrix dtype must be u8")
+		panic("DotsPackedMatrix dtype must be u8")
 	}
 	if len(a) < height*b.depth {
 		panic("input slice too short for the given height and depth")

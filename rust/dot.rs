@@ -277,7 +277,7 @@ impl Dot for i4x2 {
             return None;
         }
         let mut result: Self::Output = 0;
-        let element_count = first.len() * 2; // Each i4x2 contains 2 elements
+        let element_count = first.len() * Self::dimensions_per_value();
         unsafe {
             nk_dot_i4(
                 first.as_ptr() as *const u8,
@@ -297,7 +297,7 @@ impl Dot for u4x2 {
             return None;
         }
         let mut result: Self::Output = 0;
-        let element_count = first.len() * 2; // Each u4x2 contains 2 elements
+        let element_count = first.len() * Self::dimensions_per_value();
         unsafe {
             nk_dot_u4(
                 first.as_ptr() as *const u8,
@@ -317,7 +317,7 @@ impl Dot for u1x8 {
             return None;
         }
         let mut result: Self::Output = 0;
-        let n = first.len() * 8; // Each u1x8 contains 8 bits
+        let n = first.len() * Self::dimensions_per_value();
         unsafe {
             nk_dot_u1(
                 first.as_ptr() as *const u8,

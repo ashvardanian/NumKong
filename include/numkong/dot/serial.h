@@ -178,15 +178,13 @@ nk_define_dot_(e5m2, f32, f32, nk_e5m2_to_f32_serial) // nk_dot_e5m2_serial
 nk_define_dot_(e2m3, f32, f32, nk_e2m3_to_f32_serial) // nk_dot_e2m3_serial
 nk_define_dot_(e3m2, f32, f32, nk_e3m2_to_f32_serial) // nk_dot_e3m2_serial
 
-/** Twice every E2M1 value is an integer, so products accumulate exactly in i32; `n` counts nibbles. */
 NK_API_COMPTIME void nk_dot_e2m1_serial(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_size_t const n_bytes = n / 2;
-    nk_i32_t sum = 0;
+    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
+    nk_i32_t sum = 0; // twice every E2M1 value is an integer, so products sum exactly
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         sum += nk_e2m1_nibble_to_i8x2_serial_(a[i] >> 4) * nk_e2m1_nibble_to_i8x2_serial_(b[i] >> 4);
         sum += nk_e2m1_nibble_to_i8x2_serial_(a[i] & 0x0F) * nk_e2m1_nibble_to_i8x2_serial_(b[i] & 0x0F);
     }
-    if (n & 1) sum += nk_e2m1_nibble_to_i8x2_serial_(a[n_bytes] >> 4) * nk_e2m1_nibble_to_i8x2_serial_(b[n_bytes] >> 4);
     *result = (nk_f32_t)sum * 0.25f;
 }
 
@@ -203,10 +201,8 @@ nk_define_dot_(u8, u32, u32, nk_assign_from_to_) // nk_dot_u8_serial
 
 NK_API_COMPTIME void nk_dot_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     // Sign extension: (nibble ^ 8) - 8 maps [0,15] to [-8,7]
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
     nk_i32_t sum = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         nk_i32_t a_low = (nk_i32_t)nk_i4x2_low_(a[i]);
@@ -220,10 +216,8 @@ NK_API_COMPTIME void nk_dot_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk
 
 NK_API_COMPTIME void nk_dot_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     // No sign extension needed - values are ∈ [0,15].
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
     nk_u32_t sum = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         nk_u32_t a_low = (nk_u32_t)nk_u4x2_low_(a[i]);
@@ -799,7 +793,7 @@ NK_HELPER_INLINE void nk_load_i4x16_to_i8x16_serial_(void const *src, nk_b128_ve
 
 NK_HELPER_INLINE void nk_partial_load_i4x16_to_i8x16_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     nk_i4x2_t const *pairs = (nk_i4x2_t const *)src;
-    nk_size_t count_pairs = n / 2;
+    nk_size_t const count_pairs = n / NK_NIBBLES_PER_BYTE;
     for (nk_size_t i = 0; i < count_pairs; ++i) nk_i4x2_to_i8x2_serial(&pairs[i], &dst->i8s[i * 2]);
     for (nk_size_t i = n; i < 16; ++i) dst->i8s[i] = 0;
 }
@@ -811,7 +805,7 @@ NK_HELPER_INLINE void nk_load_u4x16_to_u8x16_serial_(void const *src, nk_b128_ve
 
 NK_HELPER_INLINE void nk_partial_load_u4x16_to_u8x16_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     nk_u4x2_t const *pairs = (nk_u4x2_t const *)src;
-    nk_size_t count_pairs = n / 2;
+    nk_size_t const count_pairs = n / NK_NIBBLES_PER_BYTE;
     for (nk_size_t i = 0; i < count_pairs; ++i) nk_u4x2_to_u8x2_serial(&pairs[i], &dst->u8s[i * 2]);
     for (nk_size_t i = n; i < 16; ++i) dst->u8s[i] = 0;
 }
@@ -877,7 +871,7 @@ NK_HELPER_INLINE void nk_dot_i4x16_finalize_serial(nk_dot_i4x16_state_serial_t c
 
 NK_API_COMPTIME void nk_dot_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
     nk_u32_t dot = 0;
-    nk_size_t bytes = nk_size_divide_round_up_(n_bits, NK_BITS_PER_BYTE);
+    nk_size_t bytes = n_bits / NK_BITS_PER_BYTE;
     for (nk_size_t i = 0; i < bytes; ++i) dot += nk_u1x8_popcount_(((nk_u8_t const *)a)[i] & ((nk_u8_t const *)b)[i]);
     *result = dot;
 }

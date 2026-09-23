@@ -19,7 +19,7 @@ namespace ashvardanian::numkong {
 /**
  *  @brief L₂ (Euclidean) distance: √Σ(aᵢ − bᵢ)²
  *  @param[in] a,b First and second vectors
- *  @param[in] d Number of dimensions in input vectors
+ *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance value
  *
  *  @tparam in_type_ Input vector element type
@@ -47,8 +47,7 @@ void euclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_
     // Scalar fallback
     else {
         result_type_ sum {};
-        for (std::size_t i = 0; i < divide_round_up(d, dimensions_per_value<in_type_>()); i++)
-            sum = fdsa(a[i], b[i], sum);
+        for (std::size_t i = 0; i < d / dimensions_per_value<in_type_>(); i++) sum = fdsa(a[i], b[i], sum);
         *r = sum.sqrt();
     }
 }
@@ -56,7 +55,7 @@ void euclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_
 /**
  *  @brief Squared L₂ distance: Σ(aᵢ − bᵢ)²
  *  @param[in] a,b First and second vectors
- *  @param[in] d Number of dimensions in input vectors
+ *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance value
  *
  *  @tparam in_type_ Input vector element type
@@ -84,8 +83,7 @@ void sqeuclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_typ
     // Scalar fallback
     else {
         result_type_ sum {};
-        for (std::size_t i = 0; i < divide_round_up(d, dimensions_per_value<in_type_>()); i++)
-            sum = fdsa(a[i], b[i], sum);
+        for (std::size_t i = 0; i < d / dimensions_per_value<in_type_>(); i++) sum = fdsa(a[i], b[i], sum);
         *r = sum;
     }
 }
@@ -93,7 +91,7 @@ void sqeuclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_typ
 /**
  *  @brief Angular similarity (cosine): ⟨a,b⟩ / (‖a‖ × ‖b‖)
  *  @param[in] a,b First and second vectors
- *  @param[in] d Number of dimensions in input vectors
+ *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance value
  *
  *  @tparam in_type_ Input vector element type
@@ -121,7 +119,7 @@ void angular(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *
     // Scalar fallback
     else {
         result_type_ ab {}, aa {}, bb {};
-        for (std::size_t i = 0; i < divide_round_up(d, dimensions_per_value<in_type_>()); i++) {
+        for (std::size_t i = 0; i < d / dimensions_per_value<in_type_>(); i++) {
             ab = fma(a[i], b[i], ab);
             aa = fma(a[i], a[i], aa);
             bb = fma(b[i], b[i], bb);

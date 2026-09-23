@@ -344,7 +344,7 @@ nk_dot_u8_powervsx_cycle:
 #pragma region Binary
 
 NK_API_COMPTIME void nk_dot_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
-    nk_size_t n_bytes = nk_size_divide_round_up_(n_bits, NK_BITS_PER_BYTE);
+    nk_size_t n_bytes = n_bits / NK_BITS_PER_BYTE;
     nk_vu64x2_t accumulator_u64x2 = vec_splats((nk_u64_t)0);
     nk_vu8x16_t a_u8x16, b_u8x16;
 

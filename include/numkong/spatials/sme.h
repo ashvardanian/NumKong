@@ -178,7 +178,7 @@ NK_HELPER_AUTO nk_u32_t nk_dots_reduce_sumsq_u8_ssve_(nk_u8_t const *data, nk_si
 NK_HELPER_AUTO nk_u32_t nk_dots_reduce_sumsq_i4_ssve_(nk_i4x2_t const *data, nk_size_t count) NK_STREAMING_ {
     svint32_t accumulator_i32x = svdup_s32(0);
     nk_u8_t const *bytes = (nk_u8_t const *)data;
-    nk_size_t const byte_count = (count + 1) / 2;
+    nk_size_t const byte_count = count / NK_NIBBLES_PER_BYTE;
     nk_size_t const vector_length = svcntb();
     for (nk_size_t i = 0; i < byte_count; i += vector_length) {
         svbool_t predicate_b8x = svwhilelt_b8_u64(i, byte_count);
@@ -198,7 +198,7 @@ NK_HELPER_AUTO nk_u32_t nk_dots_reduce_sumsq_i4_ssve_(nk_i4x2_t const *data, nk_
 NK_HELPER_AUTO nk_u32_t nk_dots_reduce_sumsq_u4_ssve_(nk_u4x2_t const *data, nk_size_t count) NK_STREAMING_ {
     svuint32_t accumulator_u32x = svdup_u32(0);
     nk_u8_t const *bytes = (nk_u8_t const *)data;
-    nk_size_t const byte_count = (count + 1) / 2;
+    nk_size_t const byte_count = count / NK_NIBBLES_PER_BYTE;
     nk_size_t const vector_length = svcntb();
     for (nk_size_t i = 0; i < byte_count; i += vector_length) {
         svbool_t predicate_b8x = svwhilelt_b8_u64(i, byte_count);

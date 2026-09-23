@@ -361,7 +361,7 @@ NumKong ships storage wrappers instead.
   Range ±7.5.
   No Inf, no NaN.
 - __`I4x2`__ and __`U4x2`__ — two 4-bit lanes per byte, high nibble first.
-  Signed lanes span -8...7, unsigned 0...15; `low` and `high` unpack them, `init(low:high:)` packs.
+  Signed lanes span -8...7, unsigned 0...15; `first` and `second` unpack them and `init(first:second:)` packs them, with `first` in the high nibble.
   Supports dot, angular, and Euclidean scalar and matrix kernels.
 - __`U1x8`__ — 8 packed bits per byte.
   Used for binary embeddings and semantic hashing.

@@ -493,7 +493,7 @@ func TestPackedConstructorValidation(t *testing.T) {
 				t.Errorf("Expected panic for short input")
 			}
 		}()
-		NewPackedMatrixF64([]float64{1, 2, 3}, 2, 3) // needs 6, got 3
+		NewDotsPackedMatrixF64([]float64{1, 2, 3}, 2, 3) // needs 6, got 3
 	})
 
 	t.Run("F32 too short", func(t *testing.T) {
@@ -502,7 +502,7 @@ func TestPackedConstructorValidation(t *testing.T) {
 				t.Errorf("Expected panic for short input")
 			}
 		}()
-		NewPackedMatrixF32([]float32{1, 2}, 2, 2) // needs 4, got 2
+		NewDotsPackedMatrixF32([]float32{1, 2}, 2, 2) // needs 4, got 2
 	})
 
 	t.Run("I8 too short", func(t *testing.T) {
@@ -511,7 +511,7 @@ func TestPackedConstructorValidation(t *testing.T) {
 				t.Errorf("Expected panic for short input")
 			}
 		}()
-		NewPackedMatrixI8([]int8{1}, 2, 2) // needs 4, got 1
+		NewDotsPackedMatrixI8([]int8{1}, 2, 2) // needs 4, got 1
 	})
 
 	t.Run("U8 too short", func(t *testing.T) {
@@ -520,7 +520,7 @@ func TestPackedConstructorValidation(t *testing.T) {
 				t.Errorf("Expected panic for short input")
 			}
 		}()
-		NewPackedMatrixU8([]uint8{1}, 2, 2) // needs 4, got 1
+		NewDotsPackedMatrixU8([]uint8{1}, 2, 2) // needs 4, got 1
 	})
 
 	t.Run("U1 too short", func(t *testing.T) {
@@ -529,7 +529,16 @@ func TestPackedConstructorValidation(t *testing.T) {
 				t.Errorf("Expected panic for short input")
 			}
 		}()
-		NewPackedMatrixU1([]byte{0xFF}, 2, 16) // needs 4, got 1
+		NewDotsPackedMatrixU1([]byte{0xFF}, 2, 16) // needs 4, got 1
+	})
+
+	t.Run("U1 partial byte", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Errorf("Expected panic for a depth that is not a multiple of 8")
+			}
+		}()
+		NewDotsPackedMatrixU1([]byte{0xFF, 0xFF}, 2, 7)
 	})
 }
 
@@ -561,7 +570,7 @@ func TestDotsPackedF64(t *testing.T) {
 	a := []float64{1, 2, 3, 4, 5, 6}             // 2 rows of depth 3
 	b := []float64{7, 8, 9, 10, 11, 12, 1, 0, 1} // 3 rows of depth 3
 
-	bPacked := NewPackedMatrixF64(b, width, depth)
+	bPacked := NewDotsPackedMatrixF64(b, width, depth)
 
 	c := make([]float64, height*width)
 	DotsPackedF64(a, bPacked, c, height)
@@ -585,7 +594,7 @@ func TestDotsPackedF32(t *testing.T) {
 	a := []float32{1, 2, 3, 4, 5, 6}
 	b := []float32{7, 8, 9, 10, 11, 12, 1, 0, 1}
 
-	bPacked := NewPackedMatrixF32(b, width, depth)
+	bPacked := NewDotsPackedMatrixF32(b, width, depth)
 
 	c := make([]float64, height*width)
 	DotsPackedF32(a, bPacked, c, height)
@@ -608,7 +617,7 @@ func TestDotsPackedI8(t *testing.T) {
 	a := []int8{1, 2, 3, 4, 5, 6}
 	b := []int8{7, 8, 9, 10, 11, 12}
 
-	bPacked := NewPackedMatrixI8(b, width, depth)
+	bPacked := NewDotsPackedMatrixI8(b, width, depth)
 
 	c := make([]int32, height*width)
 	DotsPackedI8(a, bPacked, c, height)
@@ -631,7 +640,7 @@ func TestDotsPackedU8(t *testing.T) {
 	a := []uint8{1, 2, 3, 4, 5, 6}
 	b := []uint8{7, 8, 9, 10, 11, 12}
 
-	bPacked := NewPackedMatrixU8(b, width, depth)
+	bPacked := NewDotsPackedMatrixU8(b, width, depth)
 
 	c := make([]uint32, height*width)
 	DotsPackedU8(a, bPacked, c, height)
@@ -656,7 +665,7 @@ func TestAngularsPackedF64(t *testing.T) {
 	a := []float64{1, 2, 3, 4, 5, 6}
 	b := []float64{7, 8, 9, 1, 0, 1}
 
-	bPacked := NewPackedMatrixF64(b, width, depth)
+	bPacked := NewDotsPackedMatrixF64(b, width, depth)
 
 	result := make([]float64, height*width)
 	AngularsPackedF64(a, bPacked, result, height)
@@ -679,7 +688,7 @@ func TestAngularsPackedF32(t *testing.T) {
 	a := []float32{1, 2, 3, 4, 5, 6}
 	b := []float32{7, 8, 9, 1, 0, 1}
 
-	bPacked := NewPackedMatrixF32(b, width, depth)
+	bPacked := NewDotsPackedMatrixF32(b, width, depth)
 
 	result := make([]float64, height*width)
 	AngularsPackedF32(a, bPacked, result, height)
@@ -702,7 +711,7 @@ func TestAngularsPackedI8(t *testing.T) {
 	a := []int8{1, 2, 3, 4, 5, 6}
 	b := []int8{7, 8, 9, 1, 0, 1}
 
-	bPacked := NewPackedMatrixI8(b, width, depth)
+	bPacked := NewDotsPackedMatrixI8(b, width, depth)
 
 	result := make([]float32, height*width)
 	AngularsPackedI8(a, bPacked, result, height)
@@ -725,7 +734,7 @@ func TestAngularsPackedU8(t *testing.T) {
 	a := []uint8{1, 2, 3, 4, 5, 6}
 	b := []uint8{7, 8, 9, 1, 0, 1}
 
-	bPacked := NewPackedMatrixU8(b, width, depth)
+	bPacked := NewDotsPackedMatrixU8(b, width, depth)
 
 	result := make([]float32, height*width)
 	AngularsPackedU8(a, bPacked, result, height)
@@ -748,7 +757,7 @@ func TestEuclideansPackedF64(t *testing.T) {
 	a := []float64{1, 2, 3, 4, 5, 6}
 	b := []float64{7, 8, 9, 1, 0, 1}
 
-	bPacked := NewPackedMatrixF64(b, width, depth)
+	bPacked := NewDotsPackedMatrixF64(b, width, depth)
 
 	result := make([]float64, height*width)
 	EuclideansPackedF64(a, bPacked, result, height)
@@ -771,7 +780,7 @@ func TestEuclideansPackedF32(t *testing.T) {
 	a := []float32{1, 2, 3, 4, 5, 6}
 	b := []float32{7, 8, 9, 1, 0, 1}
 
-	bPacked := NewPackedMatrixF32(b, width, depth)
+	bPacked := NewDotsPackedMatrixF32(b, width, depth)
 
 	result := make([]float64, height*width)
 	EuclideansPackedF32(a, bPacked, result, height)
@@ -794,7 +803,7 @@ func TestEuclideansPackedI8(t *testing.T) {
 	a := []int8{1, 2, 3, 4, 5, 6}
 	b := []int8{7, 8, 9, 1, 0, 1}
 
-	bPacked := NewPackedMatrixI8(b, width, depth)
+	bPacked := NewDotsPackedMatrixI8(b, width, depth)
 
 	result := make([]float32, height*width)
 	EuclideansPackedI8(a, bPacked, result, height)
@@ -817,7 +826,7 @@ func TestEuclideansPackedU8(t *testing.T) {
 	a := []uint8{1, 2, 3, 4, 5, 6}
 	b := []uint8{7, 8, 9, 1, 0, 1}
 
-	bPacked := NewPackedMatrixU8(b, width, depth)
+	bPacked := NewDotsPackedMatrixU8(b, width, depth)
 
 	result := make([]float32, height*width)
 	EuclideansPackedU8(a, bPacked, result, height)
@@ -1067,7 +1076,7 @@ func TestHammingsPackedU1(t *testing.T) {
 	v := []byte{0xFF, 0x0F} // 2 row vectors
 	b := []byte{0x00, 0x0F} // 2 column vectors to pack
 
-	bPacked := NewPackedMatrixU1(b, cols, depth)
+	bPacked := NewDotsPackedMatrixU1(b, cols, depth)
 
 	result := make([]uint32, rows*cols)
 	HammingsPackedU1(v, bPacked, result, rows)
@@ -1113,7 +1122,7 @@ func TestJaccardsPackedU1(t *testing.T) {
 	v := []byte{0xFF, 0x0F}
 	b := []byte{0x00, 0xFF}
 
-	bPacked := NewPackedMatrixU1(b, cols, depth)
+	bPacked := NewDotsPackedMatrixU1(b, cols, depth)
 
 	result := make([]float32, rows*cols)
 	JaccardsPackedU1(v, bPacked, result, rows)
@@ -1153,7 +1162,7 @@ func TestPackedDotsF32WithPool(t *testing.T) {
 		a[i] = float32(i%7) + 1
 	}
 	b := []float32{7, 8, 9, 10, 11, 12, 1, 0, 1}
-	bPacked := NewPackedMatrixF32(b, width, depth)
+	bPacked := NewDotsPackedMatrixF32(b, width, depth)
 
 	// Single-threaded reference
 	ref := make([]float64, height*width)
@@ -1179,7 +1188,7 @@ func TestPackedAngularsF32WithPool(t *testing.T) {
 		a[i] = float32(i%5) + 1
 	}
 	b := []float32{1, 0, 0, 0, 1, 0}
-	bPacked := NewPackedMatrixF32(b, width, depth)
+	bPacked := NewDotsPackedMatrixF32(b, width, depth)
 
 	ref := make([]float64, height*width)
 	AngularsPackedF32(a, bPacked, ref, height)
@@ -1252,7 +1261,7 @@ func TestPoolEdgeCases(t *testing.T) {
 		height, width, depth := 2, 2, 3
 		a := []float32{1, 2, 3, 4, 5, 6}
 		b := []float32{7, 8, 9, 10, 11, 12}
-		bPacked := NewPackedMatrixF32(b, width, depth)
+		bPacked := NewDotsPackedMatrixF32(b, width, depth)
 
 		ref := make([]float64, height*width)
 		DotsPackedF32(a, bPacked, ref, height)
@@ -1273,7 +1282,7 @@ func TestPoolEdgeCases(t *testing.T) {
 		height, width, depth := 1, 2, 3
 		a := []float32{1, 2, 3}
 		b := []float32{7, 8, 9, 10, 11, 12}
-		bPacked := NewPackedMatrixF32(b, width, depth)
+		bPacked := NewDotsPackedMatrixF32(b, width, depth)
 
 		ref := make([]float64, height*width)
 		DotsPackedF32(a, bPacked, ref, height)

@@ -172,7 +172,7 @@ extern "C" {
 /**
  *  @brief Returns packed buffer size in bytes for second multiplier matrix (B).
  *  @param[in] width The number of rows in B (output columns).
- *  @param[in] depth The number of columns in B.
+ *  @param[in] depth The number of columns in B. Counts dimensions, a multiple of the values per byte.
  *  @note The packed layout is backend-specific and must be produced by the matching pack function.
  */
 NK_API_RUNTIME nk_size_t nk_dots_pack_size_bf16(nk_size_t width, nk_size_t depth);
@@ -241,7 +241,7 @@ NK_API_RUNTIME void nk_dots_packed_shape_u1(void const *b_packed, nk_size_t *wid
  *  @brief Packs the second multiplier (B) matrix into a backend-specific layout.
  *  @param[in] b The input B matrix in row-major order.
  *  @param[in] width The number of rows in B (output columns).
- *  @param[in] depth The number of columns in B.
+ *  @param[in] depth The number of columns in B. Counts dimensions, a multiple of the values per byte.
  *  @param[in] b_stride The row stride in bytes for B.
  *  @param[out] b_packed The output packed buffer from nk_dots_pack_size_bf16.
  *  @param[in] columns_begin First output column to pack; 0 for a full pack.
@@ -296,7 +296,7 @@ NK_API_RUNTIME void nk_dots_pack_u1(nk_u1x8_t const *b, nk_size_t width, nk_size
  *  @param[out] c The output C matrix in row-major order.
  *  @param[in] height The number of rows in A.
  *  @param[in] width The number of rows in B (output columns).
- *  @param[in] depth The shared inner dimension.
+ *  @param[in] depth The shared inner dimension. Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride The row stride in bytes for A.
  *  @param[in] c_stride The row stride in bytes for C.
  */
@@ -346,7 +346,7 @@ NK_API_RUNTIME void nk_dots_packed_u1(nk_u1x8_t const *a, void const *b_packed, 
  *  @brief Computes C = A × Aᵀ symmetric Gram matrix.
  *  @param[in] vectors Input matrix of row vectors in row-major order.
  *  @param[in] vectors_count Number of vectors (rows) in the input matrix.
- *  @param[in] depth Dimension of each vector (columns).
+ *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride Row stride in bytes for the input matrix.
  *  @param[out] result Output symmetric matrix (vectors_count × vectors_count).
  *  @param[in] result_stride Row stride in bytes for the result matrix.

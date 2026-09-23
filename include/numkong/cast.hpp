@@ -20,7 +20,7 @@ namespace ashvardanian::numkong {
 /**
  *  @brief Elementwise type-cast from one numeric type to another.
  *  @param[in] from Input array of `n` elements.
- *  @param[in] n Number of elements.
+ *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[out] to Output array of `n` elements.
  *
  *  @tparam from_type_ Source element type.

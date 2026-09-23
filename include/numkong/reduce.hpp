@@ -22,7 +22,7 @@ namespace ashvardanian::numkong {
 /**
  *  @brief Compute sum and sum-of-squares in a single pass: sum = Sigma data_i, sumsq = Sigma data_i^2
  *  @param[in] data Input array
- *  @param[in] count Number of elements
+ *  @param[in] count Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride_bytes Stride between elements in bytes (use sizeof(in_type_) for contiguous)
  *  @param[out] sum Output sum
  *  @param[out] sumsq Output sum of squares
@@ -88,7 +88,7 @@ void reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_
         char const *bytes = reinterpret_cast<char const *>(data);
         for (std::size_t i = 0; i < count; ++i) {
             e2m1x2_t const pair = *reinterpret_cast<e2m1x2_t const *>(bytes + (i / 2) * stride_bytes);
-            float const value = (i & 1) ? pair.low() : pair.high();
+            float const value = (i & 1) ? pair.second() : pair.first();
             running_sum = saturating_add(running_sum, sum_type_(value));
             running_sumsq = saturating_add(running_sumsq, sumsq_type_(value * value));
         }
@@ -113,7 +113,7 @@ void reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_
 /**
  *  @brief Find minimum and maximum elements with their indices in a single pass.
  *  @param[in] data Input array
- *  @param[in] count Number of elements
+ *  @param[in] count Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride_bytes Stride between elements in bytes (use sizeof(in_type_) for contiguous)
  *  @param[out] min_value Output minimum value
  *  @param[out] min_index Output index of minimum value

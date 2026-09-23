@@ -572,9 +572,8 @@ impl<Scalar: StorageElement, Alloc: Allocator + Clone, const MAX_RANK: usize> Cl
 impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Creates a new Tensor filled with a value using a custom allocator.
     ///
-    /// The `shape` specifies logical dimensions. For sub-byte types, e.g.
-    /// `i4x2` with `dimensions_per_value() == 2`, the innermost dimension
-    /// must be divisible by the packing factor. Storage is allocated for
+    /// The `shape` specifies logical dimensions. For sub-byte types the innermost
+    /// extent counts dimensions, a multiple of the values per byte. Storage is allocated for
     /// `total / dimensions_per_value()` packed values.
     ///
     /// Returns `Err` if allocation fails or shape is invalid.
@@ -866,7 +865,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     pub fn allocator(&self) -> &Alloc { &self.alloc }
 
     /// Number of storage values — for sub-byte types, less than numel.
-    pub fn storage_len(&self) -> usize { self.numel().div_ceil(Scalar::dimensions_per_value()) }
+    pub fn storage_len(&self) -> usize { self.numel() / Scalar::dimensions_per_value() }
 
     /// Convert a 1D contiguous tensor into a [`Vector`], transferring ownership without copying.
     ///
@@ -1057,10 +1056,9 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         if i >= rows {
             return None;
         }
-        // `cols` counts logical dimensions but the returned slice counts storage values, and for
-        // a sub-byte scalar those differ. The innermost extent is divisible by the packing factor,
-        // so rows never straddle a storage value.
-        let row_values = Scalar::dims_to_values(cols);
+        // `cols` counts dimensions, a multiple of the values per byte, while the slice counts
+        // storage values, so rows never straddle a storage value.
+        let row_values = Scalar::dimensions_to_values(cols);
         let start = i * row_values;
         Some(&self.as_slice()[start..start + row_values])
     }
@@ -1074,10 +1072,9 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         if i >= rows {
             return None;
         }
-        // `cols` counts logical dimensions but the returned slice counts storage values, and for
-        // a sub-byte scalar those differ. The innermost extent is divisible by the packing factor,
-        // so rows never straddle a storage value.
-        let row_values = Scalar::dims_to_values(cols);
+        // `cols` counts dimensions, a multiple of the values per byte, while the slice counts
+        // storage values, so rows never straddle a storage value.
+        let row_values = Scalar::dimensions_to_values(cols);
         let start = i * row_values;
         Some(&mut self.as_mut_slice()[start..start + row_values])
     }
@@ -2494,7 +2491,7 @@ impl<'a, Scalar: Clone + StorageElement, const MAX_RANK: usize> TensorView<'a, S
     }
 
     /// Number of storage values — for sub-byte types, less than numel.
-    pub fn storage_len(&self) -> usize { self.numel().div_ceil(Scalar::dimensions_per_value()) }
+    pub fn storage_len(&self) -> usize { self.numel() / Scalar::dimensions_per_value() }
 
     /// Convert to slice; only valid for contiguous views.
     pub fn as_contiguous_slice(&self) -> Option<&[Scalar]> {
@@ -2821,7 +2818,7 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorSpan<'a, Scalar, M
 
 impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
     /// Number of storage values — for sub-byte types, less than numel.
-    pub fn storage_len(&self) -> usize { self.numel().div_ceil(Scalar::dimensions_per_value()) }
+    pub fn storage_len(&self) -> usize { self.numel() / Scalar::dimensions_per_value() }
 
     /// Convert to slice; only valid for contiguous views.
     pub fn as_contiguous_slice(&self) -> Option<&[Scalar]> {
@@ -3131,7 +3128,7 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> Fill<Scalar> for TensorS
     fn fill_zeros(&mut self) {
         // Contiguous fast path: one write_bytes for the whole span.
         if self.is_contiguous() {
-            let storage_count = self.numel().div_ceil(Scalar::dimensions_per_value());
+            let storage_count = self.numel() / Scalar::dimensions_per_value();
             if storage_count == 0 {
                 return;
             }
@@ -3153,7 +3150,7 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> Fill<Scalar> for TensorS
 
     fn fill(&mut self, value: Scalar) {
         if self.is_contiguous() {
-            let storage_count = self.numel().div_ceil(Scalar::dimensions_per_value());
+            let storage_count = self.numel() / Scalar::dimensions_per_value();
             if storage_count == 0 {
                 return;
             }
@@ -3190,7 +3187,7 @@ impl<'a, 'b, Scalar: StorageElement, const MAX_RANK: usize> CopyFrom<&'b TensorV
         }
         // Contiguous fast path: memcpy the whole storage at once.
         if self.is_contiguous() && source.is_contiguous() {
-            let storage_count = self.numel().div_ceil(Scalar::dimensions_per_value());
+            let storage_count = self.numel() / Scalar::dimensions_per_value();
             unsafe {
                 core::ptr::copy_nonoverlapping(source.as_ptr(), self.data, storage_count);
             }
@@ -7337,8 +7334,8 @@ mod tests {
                 sub_index: 0
             }
         );
-        assert_eq!(u1x8::dims_to_values(9), 2);
-        assert_eq!(f32::dims_to_values(9), 9);
+        assert_eq!(u1x8::dimensions_to_values(16), 2);
+        assert_eq!(f32::dimensions_to_values(9), 9);
 
         // `row` returns storage values, so its range must be in those units too.
         let nibbles = Tensor::<u4x2>::try_zeros(&[2, 4]).unwrap();

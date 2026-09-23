@@ -30,7 +30,7 @@ Plain Go slices are the input model.
 __Widened outputs.__
 `int8` and `float32` storage widens into safer return types.
 __Packed matrix kernels.__
-GEMM-like batch workloads with pack-once-reuse-many semantics via `PackedMatrix`.
+GEMM-like batch workloads with pack-once-reuse-many semantics via `DotsPackedMatrix`.
 __Symmetric self-similarity.__
 SYRK-like kernels that skip duplicate `(i, j)` and `(j, i)` work.
 __MaxSim late interaction.__
@@ -51,7 +51,7 @@ You can inspect the runtime SIMD surface from Go.
 | Operation families           | dots, distances, binary, probability, geospatial, MaxSim                                 | dots, distances, some statistics                         |
 | Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float64 only; standard accuracy                          |
 | Runtime SIMD dispatch        | auto-selects best ISA per-thread at runtime across x86, ARM, RISC-V                      | no runtime dispatch; some hand-written assembly routines |
-| Packed matrix, GEMM-like     | pack once, reuse across query batches via `PackedMatrix`                                 | `mat.Dense.Mul` — no persistent packing                  |
+| Packed matrix, GEMM-like     | pack once, reuse across query batches via `DotsPackedMatrix`                                 | `mat.Dense.Mul` — no persistent packing                  |
 | Symmetric kernels, SYRK-like | skips duplicate pairs, up to 2x speedup for self-distance                                | no duplicate-pair skipping                               |
 | Memory model                 | slice-based, caller-owned; cGo zero-copy pointer passing                                 | allocates internally in many functions                   |
 | Host-side parallelism        | reusable `WorkerPool` for packed and symmetric batch ops                                 | partial — gonum/optimize has some parallel support       |
@@ -228,7 +228,7 @@ That keeps allocation behavior explicit and predictable.
 ## Packed Matrix Kernels for GEMM-Like Workloads
 
 Packed kernels are the main batch-throughput path.
-The `PackedMatrix` struct wraps the packed buffer with its dimensions and dtype, providing type safety.
+The `DotsPackedMatrix` struct wraps the packed buffer with its dimensions and dtype, providing type safety.
 
 ```go
 package main
@@ -249,13 +249,13 @@ func main() {
 	for i := range b { b[i] = float32(i % 5) }
 
 	// Pack the right-hand side (once, reuse across batches)
-	bPacked := nk.NewPackedMatrixF32(b, width, depth)
+	bPacked := nk.NewDotsPackedMatrixF32(b, width, depth)
 
 	// Compute A × Bᵀ
 	c := make([]float64, height*width)
 	nk.DotsPackedF32(a, bPacked, c, height)
 
-	// Angular and Euclidean distances use the same PackedMatrix
+	// Angular and Euclidean distances use the same DotsPackedMatrix
 	angDist := make([]float64, height*width)
 	nk.AngularsPackedF32(a, bPacked, angDist, height)
 
@@ -314,7 +314,7 @@ Available symmetric variants: `DotsSymmetric{F64,F32,I8,U8}`, `AngularsSymmetric
 ## Binary Packed and Symmetric Kernels
 
 Binary vectors use `[]byte` storage where `depth` is the number of bits.
-Packing uses `NewPackedMatrixU1`.
+Packing uses `NewDotsPackedMatrixU1`.
 
 ```go
 package main
@@ -326,15 +326,15 @@ import (
 )
 
 func main() {
-	n, depth := 4, 64 // 4 vectors of 64 bits each
-	bytesPerVec := (depth + 7) / 8
+	n, depth := 4, 64 // 4 vectors of 64 dimensions each
+	bytesPerVec := depth / 8 // a multiple of 8, the values per byte
 	vectors := make([]byte, n*bytesPerVec)
 	for i := range vectors { vectors[i] = byte(i * 37) }
 
 	// Pack for batch queries
 	cols := 2
 	queryVectors := vectors[:cols*bytesPerVec]
-	queryPacked := nk.NewPackedMatrixU1(queryVectors, cols, depth)
+	queryPacked := nk.NewDotsPackedMatrixU1(queryVectors, cols, depth)
 
 	// Hamming distances: n database vectors × cols query vectors
 	hammingResult := make([]uint32, n*cols)
@@ -415,7 +415,7 @@ func main() {
 	for i := range db { db[i] = float32(i%7) * 0.1 }
 	for i := range queries { queries[i] = float32(i%11) * 0.1 }
 
-	dbPacked := nk.NewPackedMatrixF32(db, width, depth)
+	dbPacked := nk.NewDotsPackedMatrixF32(db, width, depth)
 
 	// Create a reusable pool (defaults to GOMAXPROCS workers)
 	pool := nk.NewWorkerPool(8)
@@ -483,7 +483,7 @@ That means a few rules matter:
 - Length mismatches and insufficient slice capacity panic uniformly across all functions.
 - Empty slices return zero for scalar outputs rather than crashing.
 - The slice backing arrays remain owned by Go.
-- `PackedMatrix` and `MaxSimPackedMatrix` structs own their packed buffers and carry dimensions and dtype metadata.
+- `DotsPackedMatrix` and `MaxSimPackedMatrix` structs own their packed buffers and carry dimensions and dtype metadata.
 - Constructors validate that input slices are large enough for the given dimensions.
 - Batch functions validate both input and output slice sizes.
 - Symmetric output matrices must be `n × n` in size.
@@ -493,7 +493,7 @@ That means a few rules matter:
 Go automatically pins slice backing arrays for the duration of each cGo call.
 No `runtime.Pinner` or manual pinning is needed from the caller.
 
-`PackedMatrix` and `MaxSimPackedMatrix` hold strong Go references to their `[]byte` buffers.
+`DotsPackedMatrix` and `MaxSimPackedMatrix` hold strong Go references to their `[]byte` buffers.
 This keeps the packed data alive for garbage collection as long as the struct is reachable.
 
 Memory footprint in Go is easiest to think about in two layers.

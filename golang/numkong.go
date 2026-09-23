@@ -9,7 +9,7 @@
 //   - Probability: KullbackLeiblerF64/F32, JensenShannonF64/F32
 //   - Geospatial: HaversineF64/F32, VincentyF64/F32
 //
-// Batch operations use PackedMatrix for type-safe pre-packed right-hand-side matrices:
+// Batch operations use DotsPackedMatrix for type-safe pre-packed right-hand-side matrices:
 //   - Packed dot products: DotsPackedF64/F32/I8/U8
 //   - Packed angular/Euclidean: AngularsPackedF64/F32/I8/U8, EuclideansPackedF64/F32/I8/U8
 //   - Packed binary: HammingsPackedU1, JaccardsPackedU1
@@ -23,7 +23,7 @@
 // configures SIMD state, and returns an unlock function for use with defer.
 //
 // Parallel batch operations: WorkerPool provides pre-pinned threads with
-// pre-configured SIMD state. PackedMatrix *WithPool methods and
+// pre-configured SIMD state. DotsPackedMatrix *WithPool methods and
 // *SymmetricWithPool free functions dispatch work to the pool.
 //
 // All functions panic on invalid inputs (length mismatches, insufficient slice capacity).
@@ -41,6 +41,21 @@ import "C"
 import (
 	"runtime"
 )
+
+// dimensionsToValues returns the storage values holding `dimensions` logical dimensions of `dtype`.
+func dimensionsToValues(dtype C.nk_dtype_t, dimensions int) int {
+	return dimensions / int(C.nk_dimensions_per_value(dtype))
+}
+
+// validateDimensions panics unless `dimensions` is a multiple of the values per byte of `dtype`.
+func validateDimensions(dtype C.nk_dtype_t, dimensions int) {
+	if dimensions%int(C.nk_dimensions_per_value(dtype)) != 0 {
+		panic("dimension count must be a multiple of the values per byte")
+	}
+}
+
+// divideRoundUp divides rounding up, for tile and thread counts only.
+func divideRoundUp(dividend, divisor int) int { return (dividend + divisor - 1) / divisor }
 
 // CPU capability bit masks in chronological order (by first commercial silicon)
 const (

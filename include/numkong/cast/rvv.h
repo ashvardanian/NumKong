@@ -953,19 +953,13 @@ NK_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size
     if (from_type == nk_i4_k && to_type == nk_i8_k) {
         nk_i4x2_t const *source = (nk_i4x2_t const *)from;
         nk_i8_t *destination = (nk_i8_t *)to;
-        nk_size_t n_bytes = count / 2;
+        nk_size_t n_bytes = count / NK_NIBBLES_PER_BYTE;
         for (nk_size_t vector_length; n_bytes > 0;
              n_bytes -= vector_length, source += vector_length, destination += vector_length * 2) {
             vector_length = __riscv_vsetvl_e8m1(n_bytes);
             vuint8m1_t packed_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)source, vector_length);
             vint8m1x2_t unpacked_i8m1x2 = nk_i4m1_to_i8m2_rvv_(packed_u8m1, vector_length);
             __riscv_vsseg2e8_v_i8m1x2(destination, unpacked_i8m1x2, vector_length);
-        }
-        // Odd count: the final element (the high nibble of byte count/2) is not covered by the
-        // count/2 full-byte loop. Unpack it to match the serial oracle (high nibble first).
-        if (count & 1) {
-            int nibble = (*(nk_u8_t const *)source >> 4) & 0x0F;
-            *(nk_i8_t *)destination = (nk_i8_t)((nibble & 0x08) ? (nibble | 0xF0) : nibble);
         }
         return;
     }
@@ -974,7 +968,7 @@ NK_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size
     if (from_type == nk_u4_k && to_type == nk_u8_k) {
         nk_u4x2_t const *source = (nk_u4x2_t const *)from;
         nk_u8_t *destination = (nk_u8_t *)to;
-        nk_size_t n_bytes = count / 2;
+        nk_size_t n_bytes = count / NK_NIBBLES_PER_BYTE;
         for (nk_size_t vector_length; n_bytes > 0;
              n_bytes -= vector_length, source += vector_length, destination += vector_length * 2) {
             vector_length = __riscv_vsetvl_e8m1(n_bytes);
@@ -982,8 +976,6 @@ NK_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size
             vuint8m1x2_t unpacked_u8m1x2 = nk_u4m1_to_u8m2_rvv_(packed_u8m1, vector_length);
             __riscv_vsseg2e8_v_u8m1x2(destination, unpacked_u8m1x2, vector_length);
         }
-        // Odd count: unpack the trailing high nibble of byte count/2 (high nibble first).
-        if (count & 1) *(nk_u8_t *)destination = (nk_u8_t)((*(nk_u8_t const *)source >> 4) & 0x0F);
         return;
     }
 
@@ -991,7 +983,7 @@ NK_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size
     if (from_type == nk_i8_k && to_type == nk_i4_k) {
         nk_i8_t const *source = (nk_i8_t const *)from;
         nk_i4x2_t *destination = (nk_i4x2_t *)to;
-        nk_size_t n_bytes = count / 2;
+        nk_size_t n_bytes = count / NK_NIBBLES_PER_BYTE;
         for (nk_size_t vector_length; n_bytes > 0;
              n_bytes -= vector_length, source += vector_length * 2, destination += vector_length) {
             vector_length = __riscv_vsetvl_e8m1(n_bytes);
@@ -1001,13 +993,6 @@ NK_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size
             vuint8m1_t packed_u8m1 = nk_i8m2_to_i4m1_rvv_(high_i8m1, low_i8m1, vector_length);
             __riscv_vse8_v_u8m1((nk_u8_t *)destination, packed_u8m1, vector_length);
         }
-        // Odd count: pack the trailing element into the high nibble of byte count/2 (low nibble 0),
-        // clamping to [-8, 7] to match nk_i8m2_to_i4m1_rvv_.
-        if (count & 1) {
-            int v = *(nk_i8_t const *)source;
-            v = v > 7 ? 7 : (v < -8 ? -8 : v);
-            *(nk_u8_t *)destination = (nk_u8_t)((v & 0x0F) << 4);
-        }
         return;
     }
 
@@ -1015,7 +1000,7 @@ NK_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size
     if (from_type == nk_u8_k && to_type == nk_u4_k) {
         nk_u8_t const *source = (nk_u8_t const *)from;
         nk_u4x2_t *destination = (nk_u4x2_t *)to;
-        nk_size_t n_bytes = count / 2;
+        nk_size_t n_bytes = count / NK_NIBBLES_PER_BYTE;
         for (nk_size_t vector_length; n_bytes > 0;
              n_bytes -= vector_length, source += vector_length * 2, destination += vector_length) {
             vector_length = __riscv_vsetvl_e8m1(n_bytes);
@@ -1024,12 +1009,6 @@ NK_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size
             vuint8m1_t low_u8m1 = __riscv_vget_v_u8m1x2_u8m1(loaded_u8m1x2, 1);
             vuint8m1_t packed_u8m1 = nk_u8m2_to_u4m1_rvv_(high_u8m1, low_u8m1, vector_length);
             __riscv_vse8_v_u8m1((nk_u8_t *)destination, packed_u8m1, vector_length);
-        }
-        // Odd count: pack the trailing element into the high nibble of byte count/2 (low nibble 0),
-        // clamping to [0, 15] to match nk_u8m2_to_u4m1_rvv_.
-        if (count & 1) {
-            unsigned v = *(nk_u8_t const *)source;
-            *(nk_u8_t *)destination = (nk_u8_t)((v > 15 ? 15 : v) << 4);
         }
         return;
     }

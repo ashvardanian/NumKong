@@ -205,14 +205,12 @@ NK_HELPER_INLINE void nk_dot_u8x16_finalize_neonsdot(                           
 
 NK_API_COMPTIME void nk_dot_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     //
     // ARM NEON SDOT handles signed×signed directly, so we use direct sign-extension:
     // Extract nibbles [0,15], sign-extend to i8 [-8,7] via shift trick, then SDOT.
     // No algebraic correction needed unlike x86 DPBUSD.
     //
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
     int32x4_t sum_i32x4 = vdupq_n_s32(0);
     uint8x16_t a_i4x32_u8x16, b_i4x32_u8x16;
 
@@ -254,11 +252,9 @@ nk_dot_i4_neonsdot_cycle:
 
 NK_API_COMPTIME void nk_dot_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
-    // Parameter `n` is the number of 4-bit values (dimensions), not bytes.
     // Values are ∈ [0,15], so UDOT can be used directly.
     //
-    n = nk_size_round_up_to_multiple_(n, 2);
-    nk_size_t n_bytes = n / 2;
+    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
     uint8x16_t const nibble_mask_u8x16 = vdupq_n_u8(0x0F);
     uint32x4_t sum_u32x4 = vdupq_n_u32(0);
     uint8x16_t a_u4x32_u8x16, b_u4x32_u8x16;
@@ -558,8 +554,8 @@ NK_API_COMPTIME void nk_dot_e2m1_neonsdot(nk_e2m1x2_t const *a_pairs, nk_e2m1x2_
 nk_dot_e2m1_neonsdot_cycle:
     if (count_dimensions < 32) {
         nk_b128_vec_t a_vec, b_vec;
-        nk_partial_load_e2m1x32_serial_(a_pairs, &a_vec, count_dimensions);
-        nk_partial_load_e2m1x32_serial_(b_pairs, &b_vec, count_dimensions);
+        nk_partial_load_b4x32_serial_(a_pairs, &a_vec, count_dimensions);
+        nk_partial_load_b4x32_serial_(b_pairs, &b_vec, count_dimensions);
         a_e2m1_u8x16 = a_vec.u8x16;
         b_e2m1_u8x16 = b_vec.u8x16;
         count_dimensions = 0;

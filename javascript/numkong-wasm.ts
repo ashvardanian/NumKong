@@ -12,7 +12,7 @@
  * - Both wasm32 and wasm64 (memory64) modes
  */
 
-import { TensorBase, Matrix, PackedMatrix, DType, dtypeToString, outputDtype, KernelFamily } from './types.js';
+import { TensorBase, Matrix, PackedMatrix, DType, dtypeToString, dimensionsPerValue, outputDtype, KernelFamily } from './types.js';
 
 /**
  * Emscripten module interface.
@@ -375,7 +375,7 @@ export function hamming(a: TensorBase | Uint8Array | any, b: TensorBase | Uint8A
       throw new Error('Function _nk_hamming_u1 not available in WASM module');
     }
 
-    fn(toWasmPtr(aOff), toWasmPtr(bOff), lengthA, toWasmPtr(resultPtr));
+    fn(toWasmPtr(aOff), toWasmPtr(bOff), lengthA * dimensionsPerValue(DType.U1), toWasmPtr(resultPtr));
 
     return readResult(resultPtr, 'u32');
   } finally {
@@ -421,7 +421,7 @@ export function jaccard(a: TensorBase | Uint8Array | any, b: TensorBase | Uint8A
       throw new Error('Function _nk_jaccard_u1 not available in WASM module');
     }
 
-    fn(toWasmPtr(aOff), toWasmPtr(bOff), lengthA, toWasmPtr(resultPtr));
+    fn(toWasmPtr(aOff), toWasmPtr(bOff), lengthA * dimensionsPerValue(DType.U1), toWasmPtr(resultPtr));
 
     return readResult(resultPtr, 'f32');
   } finally {

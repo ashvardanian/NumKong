@@ -3743,7 +3743,7 @@ NK_HELPER_INLINE void nk_dots_e2m1_load_a_sapphireamx_( //
     nk_e2m1x2_t const *src, nk_size_t src_stride,       //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
-    nk_size_t const valid_bytes = nk_size_divide_round_up_(valid_cols, 2);
+    nk_size_t const valid_bytes = valid_cols / NK_NIBBLES_PER_BYTE;
     __mmask32 byte_m32 = (valid_bytes >= 32) ? 0xFFFFFFFFu : (((__mmask32)1 << valid_bytes) - 1);
     __mmask64 column_m64 = (valid_cols >= 64) ? 0xFFFFFFFFFFFFFFFFULL : ((__mmask64)1 << valid_cols) - 1;
     __m512i zero_i8x64 = _mm512_setzero_si512();

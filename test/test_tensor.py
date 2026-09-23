@@ -166,6 +166,66 @@ def test_astype_round_trips_through_packed_dtype():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype,packing", [("uint4", 2), ("int4", 2), ("e2m1", 2), ("uint1", 8)])
+def test_packed_dimensions_must_fill_whole_bytes(dtype, packing):
+    """A logical dimension count that would leave the last byte partially filled is rejected."""
+    with pytest.raises(ValueError, match="multiple"):
+        nk.astype(np.zeros(packing + 1, dtype=np.uint8), dtype)
+    with pytest.raises(ValueError, match="multiple"):
+        nk.PackedMatrix.pack_size(4, packing + 1, dtype=dtype)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype,packing,values", [("uint4", 2, 16), ("int4", 2, 8), ("uint1", 8, 2)])
+def test_packed_shape_counts_logical_dimensions(dtype, packing, values):
+    """A packed Tensor's shape counts logical dimensions; its buffer, interface, and storage count bytes."""
+    source = (np.arange(4 * 16, dtype=np.uint8) % values).reshape(4, 16)
+    packed = nk.astype(source, dtype)
+    assert packed.shape == (4, 16) and packed.size == 64
+    assert packed.nbytes == 64 // packing and packed.strides == (16 // packing, 1)
+    assert memoryview(packed).shape == (4, 16 // packing)
+    assert packed.__array_interface__["shape"] == (4, 16 // packing)
+
+    # Buffer import reads bytes back into logical dimensions.
+    reimported = nk.Tensor(np.asarray(memoryview(packed)), dtype=dtype)
+    assert reimported.shape == packed.shape
+    np.testing.assert_array_equal(np.asarray(nk.astype(reimported, "uint8")), source)
+
+    # Indexing and iteration address logical positions.
+    assert packed[2, 5] == source[2, 5] and list(packed[1]) == list(source[1])
+    np.testing.assert_array_equal(
+        np.asarray(nk.astype(packed[:, packing : 3 * packing], "uint8")), source[:, packing : 3 * packing]
+    )
+    np.testing.assert_array_equal(np.asarray(nk.astype(packed[::2], "uint8")), source[::2])
+    with pytest.raises(IndexError):
+        _ = packed[:, 1 : packing + 1]
+    with pytest.raises(ValueError):
+        _ = packed.T
+
+    # Reductions and factories see the same logical extent.
+    assert int(packed.sum()) == int(source.astype(np.int64).sum())
+    np.testing.assert_array_equal(np.asarray(packed.sum(axis=1)), source.astype(np.int64).sum(axis=1))
+    assert nk.zeros((3, 16), dtype=dtype).nbytes == 3 * 16 // packing
+    np.testing.assert_array_equal(np.asarray(nk.astype(nk.ones((16,), dtype=dtype), "uint8")), np.ones(16))
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype,metric", [("int4", "dot"), ("uint4", "dot"), ("uint1", "hamming")])
+def test_packed_tensor_matches_raw_bytes_in_kernels(dtype, metric):
+    """Kernels agree on a logical packed Tensor and the raw bytes it exports."""
+    low, high = {"int4": (-8, 8), "uint4": (0, 16), "uint1": (0, 2)}[dtype]
+    matrix = nk.astype(np.random.randint(low, high, size=(5, 64)).astype(np.int8), dtype)
+    raw = np.asarray(memoryview(matrix))
+    np.testing.assert_array_equal(
+        np.asarray(nk.cdist(matrix, matrix, metric=metric)), np.asarray(nk.cdist(raw, raw, metric=metric, dtype=dtype))
+    )
+    if metric == "dot":
+        np.testing.assert_array_equal(
+            np.asarray(matrix @ nk.dots_pack(matrix)), np.asarray(nk.dots_packed(raw, nk.dots_pack(raw, dtype=dtype)))
+        )
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_astype_validates_output_shape_dtype_and_layout():
     """Top-level astype requires an exact, C-contiguous output buffer."""
     source = np.arange(24, dtype=np.uint8).reshape(2, 3, 4)

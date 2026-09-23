@@ -55,6 +55,16 @@ export const DTYPE_STRINGS: readonly string[] = [
 /** @brief Convert a DType enum value to its string representation. */
 export function dtypeToString(d: DType): string { return DTYPE_STRINGS[d]; }
 
+/** @brief Logical dimensions packed into one storage value, mirroring `nk_dimensions_per_value`. */
+export function dimensionsPerValue(dtype: DType): number { return dtype === DType.U1 ? 8 : 1; }
+
+/** @brief Storage values holding `dimensions`, which must be a multiple of the values per byte. */
+export function dimensionsToValues(dtype: DType, dimensions: number): number {
+  const perValue = dimensionsPerValue(dtype);
+  if (dimensions % perValue !== 0) throw new RangeError('dimension count must be a multiple of the values per byte');
+  return dimensions / perValue;
+}
+
 /** @brief Infer the DType from a TypedArray instance. */
 function inferDtype(arr: TypedArray): DType {
   if (arr instanceof Float64Array) return DType.F64;
@@ -726,7 +736,8 @@ export class E5M2Array extends Uint8Array {
 /**
  * @brief Binary Array (u1) - Bit-packed binary vectors
  *
- * 1-bit per element, packed into bytes (8 bits per byte)
+ * 1-bit per element, packed into bytes (8 bits per byte, least significant bit first)
+ * Dimension count must be a multiple of 8, the values per byte.
  * Used for binary embeddings, hashing, and Hamming/Jaccard distances.
  *
  * Common in semantic search with binary quantization (Cohere, Voyage).
@@ -735,8 +746,7 @@ export class BinaryArray extends Uint8Array {
   private _bitLength: number;
 
   constructor(bitLength: number) {
-    const byteLength = Math.ceil(bitLength / 8);
-    super(byteLength);
+    super(dimensionsToValues(DType.U1, bitLength));
     this._bitLength = bitLength;
   }
 

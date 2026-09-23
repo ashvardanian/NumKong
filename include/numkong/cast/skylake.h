@@ -72,15 +72,9 @@ NK_HELPER_INLINE void nk_partial_load_b8x64_skylake_(void const *src, nk_b512_ve
 
 /** @brief Partial load for 4-bit nibbles (128 max = 64 bytes) into 512-bit vector (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_b4x128_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
-    nk_size_t n_bytes = nk_size_divide_round_up_(n, 2);
+    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
     __mmask64 mask_m64 = _bzhi_u64(0xFFFFFFFFFFFFFFFFULL, (unsigned int)n_bytes);
     dst->zmm = _mm512_maskz_loadu_epi8(mask_m64, src);
-}
-
-/** @brief Partial load for E2M1 nibbles (128 max), zeroing the unused low nibble of the last byte at odd @p n. */
-NK_HELPER_INLINE void nk_partial_load_e2m1x128_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
-    nk_partial_load_b4x128_skylake_(src, dst, n);
-    if (n & 1) dst->u8s[n / 2] &= 0xF0;
 }
 
 /** @brief Type-agnostic partial load for 32-bit elements (8 elements max) into 256-bit vector (Skylake AVX-512). */
@@ -104,7 +98,7 @@ NK_HELPER_INLINE void nk_partial_load_b8x16_skylake_(void const *src, nk_b128_ve
 /** @brief Partial load for 1-bit elements (512 max bits = 64 bytes) into 512-bit vector (Skylake AVX-512).
  *  Wrapper that converts bit count to byte count and delegates to byte-level masked load. */
 NK_HELPER_INLINE void nk_partial_load_b1x512_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n_bits) {
-    nk_size_t n_bytes = nk_size_divide_round_up_(n_bits, 8);
+    nk_size_t const n_bytes = n_bits / NK_BITS_PER_BYTE;
     nk_partial_load_b8x64_skylake_(src, dst, n_bytes);
 }
 
@@ -740,7 +734,7 @@ NK_API_COMPTIME void nk_cast_skylake(void const *from, nk_dtype_t from_type, nk_
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
-        if (size_bits > 0) nk_copy_bytes_(to, from, nk_size_divide_round_up_(n * size_bits, 8));
+        if (size_bits > 0) nk_copy_bytes_(to, from, n * size_bits / 8);
         return;
     }
 

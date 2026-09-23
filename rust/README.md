@@ -366,7 +366,7 @@ Integer literals default to `i32` — use `_usize` / `_isize` suffixes.
 Negative `isize` values wrap from the dimension end, like Python.
 
 Iteration works at the logical-dimension level.
-For sub-byte types like `i4x2` (2 nibbles per byte), iterating a 3-element vector yields 6 dimensions.
+For sub-byte types like `i4x2`, iteration yields one item per dimension, so a 6-dimension vector stored in 3 bytes yields 6 items.
 Immutable iterators (`iter()`) yield `DimRef<T>`, which dereferences to `T::DimScalar`.
 Mutable iterators (`iter_mut()`) yield `DimMut<T>`, which writes back on drop — the only way to mutate individual nibbles or bits.
 
@@ -404,7 +404,7 @@ The main layout rules are:
 
 Sub-byte types (`i4x2`, `u4x2`, `u1x8`) use logical shapes.
 A shape of `[8]` for `i4x2` means 8 nibbles (stored in 4 bytes), not 8 bytes.
-The innermost dimension must be divisible by `dimensions_per_value()` (2 for nibble types, 8 for bit types).
+The innermost extent counts dimensions, a multiple of the values per byte: 2 for nibble types, 8 for bit types.
 Transpose and reshape are not supported for sub-byte types — they return `SubByteUnsupported`.
 
 ## Elementwise Operations

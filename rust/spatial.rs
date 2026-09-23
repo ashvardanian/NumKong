@@ -229,7 +229,7 @@ impl Angular for i4x2 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        let element_count = a.len() * 2; // Each i4x2 contains 2 elements
+        let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
             nk_angular_i4(
                 a.as_ptr() as *const u8,
@@ -249,7 +249,7 @@ impl Angular for u4x2 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        let element_count = a.len() * 2; // Each u4x2 contains 2 elements
+        let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
             nk_angular_u4(
                 a.as_ptr() as *const u8,
@@ -524,7 +524,7 @@ impl Euclidean for i4x2 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0;
-        let element_count = a.len() * 2; // Each i4x2 contains 2 elements
+        let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
             nk_sqeuclidean_i4(
                 a.as_ptr() as *const u8,
@@ -541,7 +541,7 @@ impl Euclidean for i4x2 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        let element_count = a.len() * 2; // Each i4x2 contains 2 elements
+        let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
             nk_euclidean_i4(
                 a.as_ptr() as *const u8,
@@ -563,7 +563,7 @@ impl Euclidean for u4x2 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0;
-        let element_count = a.len() * 2; // Each u4x2 contains 2 elements
+        let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
             nk_sqeuclidean_u4(
                 a.as_ptr() as *const u8,
@@ -580,7 +580,7 @@ impl Euclidean for u4x2 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        let element_count = a.len() * 2; // Each u4x2 contains 2 elements
+        let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
             nk_euclidean_u4(
                 a.as_ptr() as *const u8,

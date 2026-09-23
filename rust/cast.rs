@@ -252,9 +252,10 @@ impl BlockScaledDescriptor {
     }
 
     /// Element storage bytes for `count` logical elements — mirrors
-    /// `nk_block_scaled_elements_size`: `round_up(count * element_bits, 8) / 8`.
+    /// `nk_block_scaled_elements_size`: `count * element_bits / 8`.
+    /// `count` counts dimensions, a multiple of the values per byte.
     #[inline]
-    pub fn elements_size(&self, count: usize) -> usize { (count * dtype_bits(self.element_dtype)).div_ceil(8) }
+    pub fn elements_size(&self, count: usize) -> usize { count * dtype_bits(self.element_dtype) / 8 }
 
     /// Scale storage bytes for `count` logical elements — mirrors
     /// `nk_block_scaled_scales_size`: `0` when plain, else `round_up(count, block_size)`.

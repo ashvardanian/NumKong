@@ -71,10 +71,9 @@
  *  - FP6 byte-padded layout: NumKong stores `nk_e2m3_t` / `nk_e3m2_t` as one byte each (low 6 bits carry the value).
  *    DLPack expresses this with `{kDLFloat6_*, 6, 1}` plus the `IS_SUBBYTE_TYPE_PADDED` flag, which only exists on
  *    the versioned struct, so the exporter silently upgrades to v1 for FP6 even if the consumer didn't request it.
- *  - Sub-byte packed types (`u1`, `u4`, `i4`) are exchanged as byte containers (`{kDLUInt, 8, 1}` /
- *    `{kDLInt, 8, 1}`), matching NumKong's shape convention (`shape[i]` counts bytes). The semantic sub-byte nature
- *    is NumKong-specific metadata lost across the bridge — round trips preserve data but land as `u8` / `i8` without
- *    a manual astype.
+ *  - Sub-byte packed types (`u1`, `u4`, `i4`, `e2m1`) cross the bridge in storage values: the capsule's last extent
+ *    counts bytes, while the NumKong Tensor counts logical dimensions. `u1` / `u4` / `i4` travel as byte containers
+ *    (`{kDLUInt, 8, 1}` / `{kDLInt, 8, 1}`), so round trips preserve data but land as `u8` / `i8`.
  *
  *  @section Importer device acceptance
  *
@@ -285,7 +284,7 @@ static int nk_fill_dl_tensor(Tensor *tensor, DLTensor *out, nk_dlpack_export_ctx
     }
 
     for (size_t i = 0; i < tensor->rank; i++) {
-        ctx->shape[i] = (int64_t)tensor->shape[i];
+        ctx->shape[i] = (int64_t)storage_extent(tensor->dtype, tensor->rank, tensor->shape, i);
         if (tensor->strides[i] % (Py_ssize_t)item_size != 0) {
             PyErr_Format( //
                 PyExc_BufferError,
@@ -677,15 +676,13 @@ PyObject *api_from_dlpack(PyObject *self, PyObject *obj) {
         view->strides[i] = 0;
     }
     for (size_t i = 0; i < view->rank; i++) view->shape[i] = (Py_ssize_t)dl_tensor->shape[i];
+    // The capsule counts storage values; a packed dtype holds several logical dimensions in each.
+    if (view->rank > 0) view->shape[view->rank - 1] *= (Py_ssize_t)nk_dimensions_per_value(dtype);
     if (dl_tensor->strides) {
         for (size_t i = 0; i < view->rank; i++)
             view->strides[i] = (Py_ssize_t)dl_tensor->strides[i] * (Py_ssize_t)item_size;
     }
-    else if (view->rank > 0) {
-        // Compact row-major: compute strides in bytes.
-        view->strides[view->rank - 1] = (Py_ssize_t)item_size;
-        for (size_t i = view->rank - 1; i > 0; i--) view->strides[i - 1] = view->strides[i] * view->shape[i];
-    }
+    else if (view->rank > 0) { compute_contiguous_strides(view->rank, view->shape, dtype, view->strides); }
     view->parent = (PyObject *)owner; // steals the owner's reference
     view->data = (char *)dl_tensor->data + dl_tensor->byte_offset;
     view->capacity = 1; // a view owns no storage; capacity == numel (informational)

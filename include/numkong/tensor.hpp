@@ -150,8 +150,8 @@ struct shape_storage_ {
 };
 
 template <typename value_type_>
-constexpr std::size_t dims_to_values_(std::size_t dims) noexcept {
-    return divide_round_up(dims, static_cast<std::size_t>(dimensions_per_value<value_type_>()));
+constexpr std::size_t dimensions_to_values_(std::size_t dimensions) noexcept {
+    return dimensions / dimensions_per_value<value_type_>();
 }
 
 template <typename value_type_, std::size_t max_rank_>
@@ -160,7 +160,7 @@ constexpr std::size_t storage_values_for_shape_(shape_storage_<max_rank_> const 
     std::size_t values = 1;
     for (std::size_t i = 0; i < shape.rank; ++i) {
         bool const is_last = i + 1 == shape.rank;
-        values *= is_last ? dims_to_values_<value_type_>(shape.extents[i]) : shape.extents[i];
+        values *= is_last ? dimensions_to_values_<value_type_>(shape.extents[i]) : shape.extents[i];
     }
     return values;
 }
@@ -173,7 +173,7 @@ constexpr shape_storage_<max_rank_> make_contiguous_shape_(std::size_t const *ex
     for (std::size_t i = rank_val; i > 0; --i) {
         s.extents[i - 1] = exts[i - 1];
         s.strides[i - 1] = stride;
-        auto const extent_factor = i == rank_val ? dims_to_values_<value_type_>(exts[i - 1])
+        auto const extent_factor = i == rank_val ? dimensions_to_values_<value_type_>(exts[i - 1])
                                                  : static_cast<std::size_t>(exts[i - 1]);
         stride *= static_cast<std::ptrdiff_t>(extent_factor);
     }
@@ -187,7 +187,7 @@ constexpr bool is_tensor_contiguous_(shape_storage_<max_rank_> const &shape) noe
     auto expected = static_cast<std::ptrdiff_t>(sizeof(value_type_));
     for (std::size_t i = shape.rank; i > 0; --i) {
         if (shape.strides[i - 1] != expected) return false;
-        auto const extent_factor = i == shape.rank ? dims_to_values_<value_type_>(shape.extents[i - 1])
+        auto const extent_factor = i == shape.rank ? dimensions_to_values_<value_type_>(shape.extents[i - 1])
                                                    : static_cast<std::size_t>(shape.extents[i - 1]);
         expected *= static_cast<std::ptrdiff_t>(extent_factor);
     }
@@ -2578,7 +2578,7 @@ bool span_for_each_contiguous_run_(tensor_span<value_type_, max_rank_> output, l
     if (element_count == 0) return true;
     if constexpr (dimensions_per_value<value_type_>() > 1) {
         if (!output.is_contiguous()) return false;
-        auto byte_count = dims_to_values_<value_type_>(element_count) * sizeof(value_type_);
+        auto byte_count = dimensions_to_values_<value_type_>(element_count) * sizeof(value_type_);
         leaf(output.byte_data(), byte_count);
         return true;
     }
@@ -2651,7 +2651,7 @@ bool copy(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, ma
     return elementwise_into_<value_type_, max_rank_>(
         input, output,
         [](tensor_view<value_type_, max_rank_> input_leaf, tensor_span<value_type_, max_rank_> output_leaf) {
-            auto byte_count = dims_to_values_<value_type_>(input_leaf.extent(0)) * sizeof(value_type_);
+            auto byte_count = dimensions_to_values_<value_type_>(input_leaf.extent(0)) * sizeof(value_type_);
             std::memcpy(static_cast<void *>(output_leaf.byte_data()), static_cast<void const *>(input_leaf.byte_data()),
                         byte_count);
         });

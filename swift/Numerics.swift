@@ -8,6 +8,18 @@ import CNumKong
 
 // MARK: - Shared Helpers: Sequence
 
+/// Logical dimensions held by `values` storage values of `dtype`, mirroring `nk_dimensions_per_value`.
+@usableFromInline
+internal func valuesToDimensions(_ values: Int, _ dtype: nk_dtype_t) -> Int {
+    values * Int(nk_dimensions_per_value(dtype))
+}
+
+/// Storage values holding `dimensions` logical dimensions of `dtype`, a multiple of the values per byte.
+@usableFromInline
+internal func dimensionsToValues(_ dimensions: Int, _ dtype: nk_dtype_t) -> Int {
+    dimensions / Int(nk_dimensions_per_value(dtype))
+}
+
 @usableFromInline
 package func _nkWithDensePair<A: Sequence, B: Sequence, T, R>(
     _ a: A,
@@ -317,14 +329,14 @@ public struct I4x2: Equatable, Hashable, Sendable {
     public var bitPattern: UInt8
     @inlinable public init(_ bits: UInt8) { self.bitPattern = bits }
     @inlinable public init(bitPattern: UInt8) { self.bitPattern = bitPattern }
-    /// Packs two lanes, keeping the low four bits of each.
-    @inlinable public init(low: Int8, high: Int8) {
-        self.bitPattern = (UInt8(bitPattern: high) << 4) | (UInt8(bitPattern: low) & 0x0F)
+    /// Packs two lanes, `first` into the high nibble, keeping the low four bits of each.
+    @inlinable public init(first: Int8, second: Int8) {
+        self.bitPattern = (UInt8(bitPattern: first) << 4) | (UInt8(bitPattern: second) & 0x0F)
     }
-    /// The low nibble, sign-extended.
-    @inlinable public var low: Int8 { Int8(bitPattern: bitPattern << 4) >> 4 }
-    /// The high nibble, sign-extended.
-    @inlinable public var high: Int8 { Int8(bitPattern: bitPattern) >> 4 }
+    /// The first lane, in the high nibble, sign-extended.
+    @inlinable public var first: Int8 { Int8(bitPattern: bitPattern) >> 4 }
+    /// The second lane, in the low nibble, sign-extended.
+    @inlinable public var second: Int8 { Int8(bitPattern: bitPattern << 4) >> 4 }
 }
 
 /// Packed pair of 4-bit unsigned integers, `[high nibble : low nibble]`, each in 0...15.
@@ -333,12 +345,12 @@ public struct U4x2: Equatable, Hashable, Sendable {
     public var bitPattern: UInt8
     @inlinable public init(_ bits: UInt8) { self.bitPattern = bits }
     @inlinable public init(bitPattern: UInt8) { self.bitPattern = bitPattern }
-    /// Packs two lanes, keeping the low four bits of each.
-    @inlinable public init(low: UInt8, high: UInt8) { self.bitPattern = (high << 4) | (low & 0x0F) }
-    /// The low nibble.
-    @inlinable public var low: UInt8 { bitPattern & 0x0F }
-    /// The high nibble.
-    @inlinable public var high: UInt8 { bitPattern >> 4 }
+    /// Packs two lanes, `first` into the high nibble, keeping the low four bits of each.
+    @inlinable public init(first: UInt8, second: UInt8) { self.bitPattern = (first << 4) | (second & 0x0F) }
+    /// The first lane, in the high nibble.
+    @inlinable public var first: UInt8 { bitPattern >> 4 }
+    /// The second lane, in the low nibble.
+    @inlinable public var second: UInt8 { bitPattern & 0x0F }
 }
 
 /// Packed pair of 4-bit E2M1 floats, `[high nibble : low nibble]`, each of 1 sign, 2 exponent and 1 mantissa bits.
@@ -347,20 +359,20 @@ public struct E2M1x2: Equatable, Hashable, Sendable {
     public var bitPattern: UInt8
     @inlinable public init(_ bits: UInt8) { self.bitPattern = bits }
     @inlinable public init(bitPattern: UInt8) { self.bitPattern = bitPattern }
-    /// Packs two lane codes, keeping the low four bits of each.
-    @inlinable public init(lowBits: UInt8, highBits: UInt8) { self.bitPattern = (highBits << 4) | (lowBits & 0x0F) }
-    /// The low nibble code.
-    @inlinable public var lowBits: UInt8 { bitPattern & 0x0F }
-    /// The high nibble code.
-    @inlinable public var highBits: UInt8 { bitPattern >> 4 }
+    /// Packs two lane codes, `first` into the high nibble, keeping the low four bits of each.
+    @inlinable public init(first: UInt8, second: UInt8) { self.bitPattern = (first << 4) | (second & 0x0F) }
+    /// The first lane code, in the high nibble.
+    @inlinable public var first: UInt8 { bitPattern >> 4 }
+    /// The second lane code, in the low nibble.
+    @inlinable public var second: UInt8 { bitPattern & 0x0F }
 }
 
 extension I4x2: CustomStringConvertible {
-    public var description: String { "(\(low), \(high)) [0x\(_hexPad(bitPattern, width: 2))]" }
+    public var description: String { "(\(first), \(second)) [0x\(_hexPad(bitPattern, width: 2))]" }
 }
 
 extension U4x2: CustomStringConvertible {
-    public var description: String { "(\(low), \(high)) [0x\(_hexPad(bitPattern, width: 2))]" }
+    public var description: String { "(\(first), \(second)) [0x\(_hexPad(bitPattern, width: 2))]" }
 }
 
 extension E2M1x2: CustomStringConvertible {

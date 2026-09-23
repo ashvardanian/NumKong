@@ -58,7 +58,7 @@ extern "C" {
 #endif
 
 NK_API_COMPTIME void nk_hamming_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
-    nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
+    nk_size_t n_bytes = n / NK_BITS_PER_BYTE;
     nk_vu64x2_t differences_u64x2 = vec_splats((nk_u64_t)0);
     nk_size_t i = 0;
     // Process 16 bytes at a time using doubleword popcount (vpopcntd)
@@ -80,7 +80,7 @@ NK_API_COMPTIME void nk_hamming_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const 
 }
 
 NK_API_COMPTIME void nk_jaccard_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_size_t n_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
+    nk_size_t n_bytes = n / NK_BITS_PER_BYTE;
     nk_vu64x2_t intersection_u64x2 = vec_splats((nk_u64_t)0);
     nk_vu64x2_t union_u64x2 = vec_splats((nk_u64_t)0);
     nk_size_t i = 0;

@@ -5149,7 +5149,7 @@ struct sub_byte_ref<i4x2_t> {
     bool high_nibble_;
 
     constexpr sub_byte_ref(nk_i4x2_t *data, std::size_t scalar_index) noexcept
-        : raw_ptr_(data + scalar_index / 2), high_nibble_((scalar_index & 1) != 0) {}
+        : raw_ptr_(data + scalar_index / 2), high_nibble_((scalar_index & 1) == 0) {}
 
     constexpr std::int8_t get() const noexcept {
         nk_i4x2_t nibble = high_nibble_ ? (*raw_ptr_ >> 4) : (*raw_ptr_ & 0x0F);
@@ -5181,7 +5181,7 @@ struct sub_byte_ref<u4x2_t> {
     bool high_nibble_;
 
     constexpr sub_byte_ref(nk_u4x2_t *data, std::size_t scalar_index) noexcept
-        : raw_ptr_(data + scalar_index / 2), high_nibble_((scalar_index & 1) != 0) {}
+        : raw_ptr_(data + scalar_index / 2), high_nibble_((scalar_index & 1) == 0) {}
 
     constexpr std::uint8_t get() const noexcept { return high_nibble_ ? (*raw_ptr_ >> 4) : (*raw_ptr_ & 0x0F); }
     constexpr operator std::uint8_t() const noexcept { return get(); }
@@ -5209,7 +5209,7 @@ struct sub_byte_ref<e2m1x2_t> {
     bool high_nibble_;
 
     constexpr sub_byte_ref(nk_e2m1x2_t *data, std::size_t scalar_index) noexcept
-        : raw_ptr_(data + scalar_index / 2), high_nibble_((scalar_index & 1) != 0) {}
+        : raw_ptr_(data + scalar_index / 2), high_nibble_((scalar_index & 1) == 0) {}
 
     constexpr std::uint8_t get() const noexcept { return high_nibble_ ? (*raw_ptr_ >> 4) : (*raw_ptr_ & 0x0F); }
     constexpr operator std::uint8_t() const noexcept { return get(); }
@@ -5541,8 +5541,8 @@ struct i4x2_t {
 
     constexpr i4x2_t() noexcept : raw_(0) {}
     constexpr explicit i4x2_t(raw_t v) noexcept : raw_(v) {}
-    constexpr i4x2_t(component_t low, component_t high) noexcept
-        : raw_(static_cast<raw_t>(((high.raw() & 0x0F) << 4) | (low.raw() & 0x0F))) {}
+    constexpr i4x2_t(component_t first, component_t second) noexcept
+        : raw_(static_cast<raw_t>(((first.raw() & 0x0F) << 4) | (second.raw() & 0x0F))) {}
     constexpr raw_t raw() const noexcept { return raw_; }
     static constexpr i4x2_t from_raw(raw_t r) noexcept { return i4x2_t {r}; }
 
@@ -5550,22 +5550,22 @@ struct i4x2_t {
     static constexpr i4x2_t finite_max() noexcept { return i4x2_t {component_t(7), component_t(7)}; }
     static constexpr i4x2_t finite_min() noexcept { return i4x2_t {component_t(-8), component_t(-8)}; }
 
-    constexpr component_t low() const noexcept { return sign_extend(raw_ & 0x0F); }
-    constexpr component_t high() const noexcept { return sign_extend((raw_ >> 4) & 0x0F); }
-    constexpr component_t nibble(unsigned i) const noexcept { return i ? low() : high(); }
+    constexpr component_t first() const noexcept { return sign_extend((raw_ >> 4) & 0x0F); }
+    constexpr component_t second() const noexcept { return sign_extend(raw_ & 0x0F); }
+    constexpr component_t nibble(unsigned i) const noexcept { return i ? second() : first(); }
     constexpr component_t operator[](unsigned i) const & noexcept { return nibble(i); }
     constexpr sub_byte_ref_t operator[](unsigned i) & noexcept { return {&raw_, i}; }
 
     constexpr std::pair<component_t, component_t> widening_add(i4x2_t o) const noexcept {
-        return {low() + o.low(), high() + o.high()};
+        return {first() + o.first(), second() + o.second()};
     }
 
     constexpr std::pair<component_t, component_t> widening_sub(i4x2_t o) const noexcept {
-        return {low() - o.low(), high() - o.high()};
+        return {first() - o.first(), second() - o.second()};
     }
 
     constexpr std::pair<component_t, component_t> widening_mul(i4x2_t o) const noexcept {
-        return {low() * o.low(), high() * o.high()};
+        return {first() * o.first(), second() * o.second()};
     }
 
     constexpr i4x2_t saturating_add(i4x2_t o) const noexcept {
@@ -5574,7 +5574,7 @@ struct i4x2_t {
             if (v > 7) return component_t(7);
             return component_t(v);
         };
-        return i4x2_t {clamp(low() + o.low()), clamp(high() + o.high())};
+        return i4x2_t {clamp(first() + o.first()), clamp(second() + o.second())};
     }
 
     constexpr i4x2_t saturating_sub(i4x2_t o) const noexcept {
@@ -5583,14 +5583,14 @@ struct i4x2_t {
             if (v > 7) return component_t(7);
             return component_t(v);
         };
-        return i4x2_t {clamp(low() - o.low()), clamp(high() - o.high())};
+        return i4x2_t {clamp(first() - o.first()), clamp(second() - o.second())};
     }
 
     inline i4x2_t saturating_mul(i4x2_t o) const noexcept { return i4x2_t {nk_i4x2_saturating_mul(raw_, o.raw_)}; }
 
     constexpr i4x2_t wrapping_add(i4x2_t o) const noexcept {
-        return i4x2_t {component_t(static_cast<nk_i8_t>((low() + o.low()).raw() & 0x0F)),
-                       component_t(static_cast<nk_i8_t>((high() + o.high()).raw() & 0x0F))};
+        return i4x2_t {component_t(static_cast<nk_i8_t>((first() + o.first()).raw() & 0x0F)),
+                       component_t(static_cast<nk_i8_t>((second() + o.second()).raw() & 0x0F))};
     }
 
     constexpr std::strong_ordering operator<=>(i4x2_t const &o) const noexcept = default;
@@ -5662,8 +5662,8 @@ struct u4x2_t {
 
     constexpr u4x2_t() noexcept : raw_(0) {}
     constexpr explicit u4x2_t(raw_t v) noexcept : raw_(v) {}
-    constexpr u4x2_t(component_t low, component_t high) noexcept
-        : raw_(static_cast<raw_t>(((high.raw() & 0x0F) << 4) | (low.raw() & 0x0F))) {}
+    constexpr u4x2_t(component_t first, component_t second) noexcept
+        : raw_(static_cast<raw_t>(((first.raw() & 0x0F) << 4) | (second.raw() & 0x0F))) {}
     constexpr raw_t raw() const noexcept { return raw_; }
     static constexpr u4x2_t from_raw(raw_t r) noexcept { return u4x2_t {r}; }
 
@@ -5671,40 +5671,41 @@ struct u4x2_t {
     static constexpr u4x2_t finite_max() noexcept { return u4x2_t {component_t(15), component_t(15)}; }
     static constexpr u4x2_t finite_min() noexcept { return u4x2_t {}; }
 
-    constexpr component_t low() const noexcept { return component_t(static_cast<nk_u8_t>(raw_ & 0x0F)); }
-    constexpr component_t high() const noexcept { return component_t(static_cast<nk_u8_t>((raw_ >> 4) & 0x0F)); }
-    constexpr component_t nibble(unsigned i) const noexcept { return i ? low() : high(); }
+    constexpr component_t first() const noexcept { return component_t(static_cast<nk_u8_t>((raw_ >> 4) & 0x0F)); }
+    constexpr component_t second() const noexcept { return component_t(static_cast<nk_u8_t>(raw_ & 0x0F)); }
+    constexpr component_t nibble(unsigned i) const noexcept { return i ? second() : first(); }
     constexpr component_t operator[](unsigned i) const & noexcept { return nibble(i); }
     constexpr sub_byte_ref_t operator[](unsigned i) & noexcept { return {&raw_, i}; }
 
     constexpr std::pair<component_t, component_t> widening_add(u4x2_t o) const noexcept {
-        return {low() + o.low(), high() + o.high()};
+        return {first() + o.first(), second() + o.second()};
     }
 
     constexpr std::pair<nk_i8_t, nk_i8_t> widening_sub(u4x2_t o) const noexcept {
-        return {static_cast<nk_i8_t>(low().raw() - o.low().raw()), static_cast<nk_i8_t>(high().raw() - o.high().raw())};
+        return {static_cast<nk_i8_t>(first().raw() - o.first().raw()),
+                static_cast<nk_i8_t>(second().raw() - o.second().raw())};
     }
 
     constexpr std::pair<component_t, component_t> widening_mul(u4x2_t o) const noexcept {
-        return {low() * o.low(), high() * o.high()};
+        return {first() * o.first(), second() * o.second()};
     }
 
     constexpr u4x2_t saturating_add(u4x2_t o) const noexcept {
         auto clamp = [](unsigned v) -> component_t { return v > 15 ? component_t(15) : component_t(v); };
-        return u4x2_t {clamp(low() + o.low()), clamp(high() + o.high())};
+        return u4x2_t {clamp(first() + o.first()), clamp(second() + o.second())};
     }
 
     constexpr u4x2_t saturating_sub(u4x2_t o) const noexcept {
         auto clamp = [](int v) -> component_t { return v < 0 ? component_t(0) : component_t(v); };
-        return u4x2_t {clamp(static_cast<int>(low().raw()) - static_cast<int>(o.low().raw())),
-                       clamp(static_cast<int>(high().raw()) - static_cast<int>(o.high().raw()))};
+        return u4x2_t {clamp(static_cast<int>(first().raw()) - static_cast<int>(o.first().raw())),
+                       clamp(static_cast<int>(second().raw()) - static_cast<int>(o.second().raw()))};
     }
 
     inline u4x2_t saturating_mul(u4x2_t o) const noexcept { return u4x2_t {nk_u4x2_saturating_mul(raw_, o.raw_)}; }
 
     constexpr u4x2_t wrapping_add(u4x2_t o) const noexcept {
-        return u4x2_t {component_t(static_cast<nk_u8_t>((low() + o.low()).raw() & 0x0F)),
-                       component_t(static_cast<nk_u8_t>((high() + o.high()).raw() & 0x0F))};
+        return u4x2_t {component_t(static_cast<nk_u8_t>((first() + o.first()).raw() & 0x0F)),
+                       component_t(static_cast<nk_u8_t>((second() + o.second()).raw() & 0x0F))};
     }
 
     constexpr std::strong_ordering operator<=>(u4x2_t const &o) const noexcept = default;
@@ -5777,10 +5778,10 @@ struct e2m1x2_t {
         constexpr float magnitudes[8] = {0.0f, 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f};
         return (nibble & 0x08) ? -magnitudes[nibble & 0x07] : magnitudes[nibble & 0x07];
     }
-    /** @brief The odd element, stored in the low nibble. */
-    constexpr float low() const noexcept { return nibble_to_f32(raw_ & 0x0F); }
-    /** @brief The even element, stored in the high nibble. */
-    constexpr float high() const noexcept { return nibble_to_f32((raw_ >> 4) & 0x0F); }
+    /** @brief The first element, stored in the high nibble. */
+    constexpr float first() const noexcept { return nibble_to_f32((raw_ >> 4) & 0x0F); }
+    /** @brief The second element, stored in the low nibble. */
+    constexpr float second() const noexcept { return nibble_to_f32(raw_ & 0x0F); }
 
     constexpr std::strong_ordering operator<=>(e2m1x2_t const &o) const noexcept = default;
 };
@@ -6355,19 +6356,21 @@ constexpr accumulator_type_ saturating_fma(in_type_ a, in_type_ b, accumulator_t
 /** @brief FMA specialization for i4x2_t (signed 4-bit packed pairs). */
 template <typename accumulator_type_>
 constexpr accumulator_type_ fma(i4x2_t a, i4x2_t b, accumulator_type_ acc) noexcept {
-    return acc + accumulator_type_(nk_i32_t(a.low()) * nk_i32_t(b.low()) + nk_i32_t(a.high()) * nk_i32_t(b.high()));
+    return acc +
+           accumulator_type_(nk_i32_t(a.first()) * nk_i32_t(b.first()) + nk_i32_t(a.second()) * nk_i32_t(b.second()));
 }
 
 /** @brief FMA specialization for u4x2_t (unsigned 4-bit packed pairs). */
 template <typename accumulator_type_>
 constexpr accumulator_type_ fma(u4x2_t a, u4x2_t b, accumulator_type_ acc) noexcept {
-    return acc + accumulator_type_(nk_u32_t(a.low()) * nk_u32_t(b.low()) + nk_u32_t(a.high()) * nk_u32_t(b.high()));
+    return acc +
+           accumulator_type_(nk_u32_t(a.first()) * nk_u32_t(b.first()) + nk_u32_t(a.second()) * nk_u32_t(b.second()));
 }
 
 /** @brief FMA specialization for e2m1x2_t (FP4 packed pairs); both nibble products are exact in f32. */
 template <typename accumulator_type_>
 constexpr accumulator_type_ fma(e2m1x2_t a, e2m1x2_t b, accumulator_type_ acc) noexcept {
-    return acc + accumulator_type_(a.high() * b.high() + a.low() * b.low());
+    return acc + accumulator_type_(a.first() * b.first() + a.second() * b.second());
 }
 
 /** @brief FMA specialization for u1x8_t (8 packed bits). Counts matching set bits (popcount of AND). */
@@ -6379,29 +6382,29 @@ constexpr accumulator_type_ fma(u1x8_t a, u1x8_t b, accumulator_type_ acc) noexc
 /** @brief Squared difference specialization for i4x2_t (signed 4-bit packed pairs). */
 template <typename accumulator_type_>
 constexpr accumulator_type_ fdsa(i4x2_t a, i4x2_t b, accumulator_type_ acc) noexcept {
-    nk_i32_t low_difference = nk_i32_t(a.low()) - nk_i32_t(b.low());
-    nk_i32_t high_difference = nk_i32_t(a.high()) - nk_i32_t(b.high());
-    return acc + accumulator_type_(low_difference * low_difference + high_difference * high_difference);
+    nk_i32_t first_difference = nk_i32_t(a.first()) - nk_i32_t(b.first());
+    nk_i32_t second_difference = nk_i32_t(a.second()) - nk_i32_t(b.second());
+    return acc + accumulator_type_(first_difference * first_difference + second_difference * second_difference);
 }
 
 /** @brief Squared difference specialization for u4x2_t (unsigned 4-bit packed pairs). */
 template <typename accumulator_type_>
 constexpr accumulator_type_ fdsa(u4x2_t a, u4x2_t b, accumulator_type_ acc) noexcept {
-    nk_i32_t low_difference = nk_i32_t(a.low()) - nk_i32_t(b.low());
-    nk_i32_t high_difference = nk_i32_t(a.high()) - nk_i32_t(b.high());
-    return acc + accumulator_type_(low_difference * low_difference + high_difference * high_difference);
+    nk_i32_t first_difference = nk_i32_t(a.first()) - nk_i32_t(b.first());
+    nk_i32_t second_difference = nk_i32_t(a.second()) - nk_i32_t(b.second());
+    return acc + accumulator_type_(first_difference * first_difference + second_difference * second_difference);
 }
 
 /** @brief Saturating addition specialization for i4x2_t (signed 4-bit packed pairs). */
 template <typename accumulator_type_>
 constexpr accumulator_type_ saturating_add(accumulator_type_ a, i4x2_t b) noexcept {
-    return saturating_add(saturating_add(a, b.low()), b.high());
+    return saturating_add(saturating_add(a, b.first()), b.second());
 }
 
 /** @brief Saturating addition specialization for u4x2_t (unsigned 4-bit packed pairs). */
 template <typename accumulator_type_>
 constexpr accumulator_type_ saturating_add(accumulator_type_ a, u4x2_t b) noexcept {
-    return saturating_add(saturating_add(a, b.low()), b.high());
+    return saturating_add(saturating_add(a, b.first()), b.second());
 }
 
 /** @brief Saturating FMA specialization for i4x2_t (signed 4-bit packed pairs). */
@@ -6666,8 +6669,8 @@ struct std::formatter<ashvardanian::numkong::i4x2_t> {
         case mode_t::hex_k: return nk::format_hex_(ctx.out(), bits, 2, spec_.prefix_, spec_.upper_);
         case mode_t::binary_k: return nk::format_bin_(ctx.out(), bits, 8, spec_.prefix_);
         default: {
-            auto out = std::format_to(ctx.out(), "({}, {})", static_cast<int>(v.low().raw()),
-                                      static_cast<int>(v.high().raw()));
+            auto out = std::format_to(ctx.out(), "({}, {})", static_cast<int>(v.first().raw()),
+                                      static_cast<int>(v.second().raw()));
             if (spec_.annotate_) out = nk::format_hex_suffix_(out, bits, 2);
             return out;
         }
@@ -6689,8 +6692,8 @@ struct std::formatter<ashvardanian::numkong::u4x2_t> {
         case mode_t::hex_k: return nk::format_hex_(ctx.out(), bits, 2, spec_.prefix_, spec_.upper_);
         case mode_t::binary_k: return nk::format_bin_(ctx.out(), bits, 8, spec_.prefix_);
         default: {
-            auto out = std::format_to(ctx.out(), "({}, {})", static_cast<unsigned>(v.low().raw()),
-                                      static_cast<unsigned>(v.high().raw()));
+            auto out = std::format_to(ctx.out(), "({}, {})", static_cast<unsigned>(v.first().raw()),
+                                      static_cast<unsigned>(v.second().raw()));
             if (spec_.annotate_) out = nk::format_hex_suffix_(out, bits, 2);
             return out;
         }

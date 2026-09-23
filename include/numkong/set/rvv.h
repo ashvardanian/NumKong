@@ -81,7 +81,7 @@ NK_HELPER_INLINE vuint8m4_t nk_popcount_u8m4_rvv_(vuint8m4_t v_u8m4, nk_size_t v
 }
 
 NK_API_COMPTIME void nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
-    nk_size_t count_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
+    nk_size_t count_bytes = n / NK_BITS_PER_BYTE;
 
     // Accumulator for total differences
     vuint32m1_t sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
@@ -107,7 +107,7 @@ NK_API_COMPTIME void nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, n
 }
 
 NK_API_COMPTIME void nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_size_t count_bytes = nk_size_divide_round_up_(n, NK_BITS_PER_BYTE);
+    nk_size_t count_bytes = n / NK_BITS_PER_BYTE;
 
     // Accumulators for intersection and union counts
     vuint32m1_t intersection_sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);

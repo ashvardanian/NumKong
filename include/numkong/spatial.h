@@ -144,7 +144,7 @@ extern "C" {
  *
  *  @param[in] a The first vector.
  *  @param[in] b The second vector.
- *  @param[in] n The number of elements in each vector.
+ *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[out] result The output distance value.
  *
  *  @note The output distance value is non-negative.
@@ -179,7 +179,7 @@ NK_API_RUNTIME void nk_euclidean_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_s
  *
  *  @param[in] a The first vector.
  *  @param[in] b The second vector.
- *  @param[in] n The number of elements in each vector.
+ *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[out] result The output distance value.
  *
  *  @note The output distance value is non-negative.
@@ -214,7 +214,7 @@ NK_API_RUNTIME void nk_sqeuclidean_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk
  *
  *  @param[in] a The first vector.
  *  @param[in] b The second vector.
- *  @param[in] n The number of elements in each vector.
+ *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[out] result The output distance value.
  *
  *  @note The output distance value is non-negative.

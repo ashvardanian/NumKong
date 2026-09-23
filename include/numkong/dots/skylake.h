@@ -195,12 +195,12 @@ nk_define_cross_pack_(dots, e2m1, skylake, e2m1x2, e2m1x2, nk_b512_vec_t, nk_loa
                       /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
 nk_define_cross_symmetric_(dots, e2m1, skylake, e2m1x2, f32, nk_b512_vec_t, nk_dot_e2m1x128_state_skylake_t,
                            nk_b128_vec_t, nk_dot_e2m1x128_init_skylake, nk_load_b512_skylake_,
-                           nk_partial_load_e2m1x128_skylake_, nk_dot_e2m1x128_update_skylake,
+                           nk_partial_load_b4x128_skylake_, nk_dot_e2m1x128_update_skylake,
                            nk_dot_e2m1x128_finalize_skylake, nk_store_b128_haswell_, nk_partial_store_b32x4_skylake_,
                            /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
 nk_define_cross_packed_(dots, e2m1, skylake, e2m1x2, e2m1x2, f32, nk_b512_vec_t, nk_dot_e2m1x128_state_skylake_t,
                         nk_b128_vec_t, nk_dot_e2m1x128_init_skylake, nk_load_b512_skylake_,
-                        nk_partial_load_e2m1x128_skylake_, nk_load_b512_skylake_, nk_partial_load_e2m1x128_skylake_,
+                        nk_partial_load_b4x128_skylake_, nk_load_b512_skylake_, nk_partial_load_b4x128_skylake_,
                         nk_dot_e2m1x128_update_skylake, nk_dot_e2m1x128_finalize_skylake, nk_store_b128_haswell_,
                         nk_partial_store_b32x4_skylake_, /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
 

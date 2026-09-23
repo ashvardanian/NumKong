@@ -205,15 +205,18 @@ class Tensor(memoryview):
     """N-dimensional tensor type returned by NumKong operations.
 
     Supports NumPy-like properties and buffer protocol for interoperability.
+    Packed dtypes 'uint1', 'int4', 'uint4', and 'e2m1' count logical dimensions in `shape`;
+    the last dimension must be a multiple of the values per byte, and the buffer protocol,
+    `__array_interface__`, `nbytes`, and DLPack expose whole bytes.
     """
 
     def __new__(cls, array_like: _BufferType, /, *, dtype: str | _MiniFloatType | None = None) -> Tensor:
-        """Construct a Tensor by copying data from a buffer-protocol object."""
+        """Construct a Tensor by copying data from a buffer-protocol object; packed dtypes read its bytes."""
         ...
 
     @property
     def shape(self) -> tuple[int, ...]:
-        """Shape of the tensor as a tuple of dimensions."""
+        """Shape of the tensor as a tuple of logical dimensions."""
         ...
 
     @property
@@ -368,21 +371,21 @@ class Tensor(memoryview):
 
     def min(
         self, axis: int | tuple[int, ...] | None = None, *, keepdims: bool = False, out: Tensor | None = None
-    ) -> float | int | None | Tensor:
+    ) -> float | int | Tensor | None:
         """Return the minimum element, or None if all elements are NaN."""
         ...
 
     def max(
         self, axis: int | tuple[int, ...] | None = None, *, keepdims: bool = False, out: Tensor | None = None
-    ) -> float | int | None | Tensor:
+    ) -> float | int | Tensor | None:
         """Return the maximum element, or None if all elements are NaN."""
         ...
 
-    def argmin(self, axis: int | None = None, *, out: Tensor | None = None) -> int | None | Tensor:
+    def argmin(self, axis: int | None = None, *, out: Tensor | None = None) -> int | Tensor | None:
         """Return the index of the minimum element, or None if all elements are NaN."""
         ...
 
-    def argmax(self, axis: int | None = None, *, out: Tensor | None = None) -> int | None | Tensor:
+    def argmax(self, axis: int | None = None, *, out: Tensor | None = None) -> int | Tensor | None:
         """Return the index of the maximum element, or None if all elements are NaN."""
         ...
 
@@ -857,6 +860,7 @@ def hash(
 ) -> Tensor:
     """Tensor filled with deterministic pseudo-random bits (shape, dtype, seed → reproducible bytes)."""
     ...
+
 def astype(
     a: _BufferType,
     dtype: _DtypeLike,
@@ -908,7 +912,7 @@ def min(
     keepdims: bool = False,
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
-) -> float | int | None | Tensor: ...
+) -> float | int | Tensor | None: ...
 def max(
     a: _BufferType,
     /,
@@ -917,7 +921,7 @@ def max(
     keepdims: bool = False,
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
-) -> float | int | None | Tensor: ...
+) -> float | int | Tensor | None: ...
 def argmin(
     a: _BufferType,
     /,
@@ -925,7 +929,7 @@ def argmin(
     *,
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
-) -> int | None | Tensor: ...
+) -> int | Tensor | None: ...
 def argmax(
     a: _BufferType,
     /,
@@ -933,7 +937,7 @@ def argmax(
     *,
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
-) -> int | None | Tensor: ...
+) -> int | Tensor | None: ...
 
 # endregion Reductions
 
