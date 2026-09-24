@@ -188,6 +188,9 @@ nk_kld_f64_skylake_cycle:
     __m512d compensated_f64x8 = _mm512_sub_pd(contribution_f64x8, compensation_f64x8);
     __m512d tentative_f64x8 = _mm512_add_pd(sum_f64x8, compensated_f64x8);
     compensation_f64x8 = _mm512_sub_pd(_mm512_sub_pd(tentative_f64x8, sum_f64x8), compensated_f64x8);
+    compensation_f64x8 = _mm512_maskz_mov_pd(
+        _mm512_cmp_pd_mask(_mm512_sub_pd(compensation_f64x8, compensation_f64x8), _mm512_setzero_pd(), _CMP_EQ_OQ),
+        compensation_f64x8);
     sum_f64x8 = tentative_f64x8;
     if (n) goto nk_kld_f64_skylake_cycle;
 
@@ -229,11 +232,17 @@ nk_jsd_f64_skylake_cycle:
     __m512d compensated_a_f64x8 = _mm512_sub_pd(contribution_a_f64x8, compensation_f64x8);
     __m512d tentative_a_f64x8 = _mm512_add_pd(sum_f64x8, compensated_a_f64x8);
     compensation_f64x8 = _mm512_sub_pd(_mm512_sub_pd(tentative_a_f64x8, sum_f64x8), compensated_a_f64x8);
+    compensation_f64x8 = _mm512_maskz_mov_pd(
+        _mm512_cmp_pd_mask(_mm512_sub_pd(compensation_f64x8, compensation_f64x8), _mm512_setzero_pd(), _CMP_EQ_OQ),
+        compensation_f64x8);
     sum_f64x8 = tentative_a_f64x8;
     // Kahan compensated summation for contribution b
     __m512d compensated_b_f64x8 = _mm512_sub_pd(contribution_b_f64x8, compensation_f64x8);
     __m512d tentative_b_f64x8 = _mm512_add_pd(sum_f64x8, compensated_b_f64x8);
     compensation_f64x8 = _mm512_sub_pd(_mm512_sub_pd(tentative_b_f64x8, sum_f64x8), compensated_b_f64x8);
+    compensation_f64x8 = _mm512_maskz_mov_pd(
+        _mm512_cmp_pd_mask(_mm512_sub_pd(compensation_f64x8, compensation_f64x8), _mm512_setzero_pd(), _CMP_EQ_OQ),
+        compensation_f64x8);
     sum_f64x8 = tentative_b_f64x8;
     if (n) goto nk_jsd_f64_skylake_cycle;
 

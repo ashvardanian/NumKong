@@ -197,6 +197,9 @@ nk_kld_f64_haswell_cycle:
     __m256d compensated_f64x4 = _mm256_sub_pd(contribution_f64x4, compensation_f64x4);
     __m256d tentative_f64x4 = _mm256_add_pd(sum_f64x4, compensated_f64x4);
     compensation_f64x4 = _mm256_sub_pd(_mm256_sub_pd(tentative_f64x4, sum_f64x4), compensated_f64x4);
+    compensation_f64x4 = _mm256_and_pd(
+        compensation_f64x4,
+        _mm256_cmp_pd(_mm256_sub_pd(compensation_f64x4, compensation_f64x4), _mm256_setzero_pd(), _CMP_EQ_OQ));
     sum_f64x4 = tentative_f64x4;
     if (n) goto nk_kld_f64_haswell_cycle;
 
@@ -238,11 +241,17 @@ nk_jsd_f64_haswell_cycle:
     __m256d compensated_a_f64x4 = _mm256_sub_pd(contribution_a_f64x4, compensation_f64x4);
     __m256d tentative_a_f64x4 = _mm256_add_pd(sum_f64x4, compensated_a_f64x4);
     compensation_f64x4 = _mm256_sub_pd(_mm256_sub_pd(tentative_a_f64x4, sum_f64x4), compensated_a_f64x4);
+    compensation_f64x4 = _mm256_and_pd(
+        compensation_f64x4,
+        _mm256_cmp_pd(_mm256_sub_pd(compensation_f64x4, compensation_f64x4), _mm256_setzero_pd(), _CMP_EQ_OQ));
     sum_f64x4 = tentative_a_f64x4;
     // Kahan compensated summation for contribution b
     __m256d compensated_b_f64x4 = _mm256_sub_pd(contribution_b_f64x4, compensation_f64x4);
     __m256d tentative_b_f64x4 = _mm256_add_pd(sum_f64x4, compensated_b_f64x4);
     compensation_f64x4 = _mm256_sub_pd(_mm256_sub_pd(tentative_b_f64x4, sum_f64x4), compensated_b_f64x4);
+    compensation_f64x4 = _mm256_and_pd(
+        compensation_f64x4,
+        _mm256_cmp_pd(_mm256_sub_pd(compensation_f64x4, compensation_f64x4), _mm256_setzero_pd(), _CMP_EQ_OQ));
     sum_f64x4 = tentative_b_f64x4;
     if (n) goto nk_jsd_f64_haswell_cycle;
 
