@@ -15,7 +15,7 @@ import "unsafe"
 // AngularsPackedF64 computes the angular distance from each of height float64 rows of a to every packed row of b.
 // Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
 func AngularsPackedF64(a []float64, b DotsPackedMatrix, result []float64, height int) {
-	if b.Dtype() != "f64" {
+	if b.DType() != "f64" {
 		panic("DotsPackedMatrix dtype must be f64")
 	}
 	if len(a) < height*b.depth {
@@ -36,7 +36,7 @@ func AngularsPackedF64(a []float64, b DotsPackedMatrix, result []float64, height
 // AngularsPackedF32 computes the angular distance from each of height float32 rows of a to every packed row of b.
 // Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
 func AngularsPackedF32(a []float32, b DotsPackedMatrix, result []float64, height int) {
-	if b.Dtype() != "f32" {
+	if b.DType() != "f32" {
 		panic("DotsPackedMatrix dtype must be f32")
 	}
 	if len(a) < height*b.depth {
@@ -57,7 +57,7 @@ func AngularsPackedF32(a []float32, b DotsPackedMatrix, result []float64, height
 // AngularsPackedI8 computes the angular distance from each of height int8 rows of a to every packed row of b.
 // Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
 func AngularsPackedI8(a []int8, b DotsPackedMatrix, result []float32, height int) {
-	if b.Dtype() != "i8" {
+	if b.DType() != "i8" {
 		panic("DotsPackedMatrix dtype must be i8")
 	}
 	if len(a) < height*b.depth {
@@ -78,7 +78,7 @@ func AngularsPackedI8(a []int8, b DotsPackedMatrix, result []float32, height int
 // AngularsPackedU8 computes the angular distance from each of height uint8 rows of a to every packed row of b.
 // Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
 func AngularsPackedU8(a []uint8, b DotsPackedMatrix, result []float32, height int) {
-	if b.Dtype() != "u8" {
+	if b.DType() != "u8" {
 		panic("DotsPackedMatrix dtype must be u8")
 	}
 	if len(a) < height*b.depth {
@@ -99,7 +99,7 @@ func AngularsPackedU8(a []uint8, b DotsPackedMatrix, result []float32, height in
 // EuclideansPackedF64 computes the Euclidean distance from each of height float64 rows of a to every packed row of b.
 // Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
 func EuclideansPackedF64(a []float64, b DotsPackedMatrix, result []float64, height int) {
-	if b.Dtype() != "f64" {
+	if b.DType() != "f64" {
 		panic("DotsPackedMatrix dtype must be f64")
 	}
 	if len(a) < height*b.depth {
@@ -120,7 +120,7 @@ func EuclideansPackedF64(a []float64, b DotsPackedMatrix, result []float64, heig
 // EuclideansPackedF32 computes the Euclidean distance from each of height float32 rows of a to every packed row of b.
 // Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
 func EuclideansPackedF32(a []float32, b DotsPackedMatrix, result []float64, height int) {
-	if b.Dtype() != "f32" {
+	if b.DType() != "f32" {
 		panic("DotsPackedMatrix dtype must be f32")
 	}
 	if len(a) < height*b.depth {
@@ -141,7 +141,7 @@ func EuclideansPackedF32(a []float32, b DotsPackedMatrix, result []float64, heig
 // EuclideansPackedI8 computes the Euclidean distance from each of height int8 rows of a to every packed row of b.
 // Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
 func EuclideansPackedI8(a []int8, b DotsPackedMatrix, result []float32, height int) {
-	if b.Dtype() != "i8" {
+	if b.DType() != "i8" {
 		panic("DotsPackedMatrix dtype must be i8")
 	}
 	if len(a) < height*b.depth {
@@ -162,7 +162,7 @@ func EuclideansPackedI8(a []int8, b DotsPackedMatrix, result []float32, height i
 // EuclideansPackedU8 computes the Euclidean distance from each of height uint8 rows of a to every packed row of b.
 // Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
 func EuclideansPackedU8(a []uint8, b DotsPackedMatrix, result []float32, height int) {
-	if b.Dtype() != "u8" {
+	if b.DType() != "u8" {
 		panic("DotsPackedMatrix dtype must be u8")
 	}
 	if len(a) < height*b.depth {

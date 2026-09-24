@@ -27,8 +27,8 @@ func (p DotsPackedMatrix) Width() int { return p.width }
 // Depth returns the number of dimensions per packed vector.
 func (p DotsPackedMatrix) Depth() int { return p.depth }
 
-// Dtype returns the element type the matrix was packed from: "f64", "f32", "i8", "u8" or "u1".
-func (p DotsPackedMatrix) Dtype() string { return p.dtype }
+// DType returns the element type the matrix was packed from: "f64", "f32", "i8", "u8" or "u1".
+func (p DotsPackedMatrix) DType() string { return p.dtype }
 
 // Bytes returns the packed buffer.
 func (p DotsPackedMatrix) Bytes() []byte { return p.data }
@@ -144,7 +144,7 @@ func NewDotsPackedMatrixU1(b []byte, width, depth int) DotsPackedMatrix {
 // DotsPackedF64 computes the dot product of each of height float64 rows of a with every packed row of b.
 // Each row has b.Depth() dimensions, and c holds at least height * b.Width() entries.
 func DotsPackedF64(a []float64, b DotsPackedMatrix, c []float64, height int) {
-	if b.Dtype() != "f64" {
+	if b.DType() != "f64" {
 		panic("DotsPackedMatrix dtype must be f64")
 	}
 	if len(a) < height*b.depth {
@@ -165,7 +165,7 @@ func DotsPackedF64(a []float64, b DotsPackedMatrix, c []float64, height int) {
 // DotsPackedF32 computes the dot product of each of height float32 rows of a with every packed row of b.
 // Each row has b.Depth() dimensions, and c holds at least height * b.Width() entries.
 func DotsPackedF32(a []float32, b DotsPackedMatrix, c []float64, height int) {
-	if b.Dtype() != "f32" {
+	if b.DType() != "f32" {
 		panic("DotsPackedMatrix dtype must be f32")
 	}
 	if len(a) < height*b.depth {
@@ -186,7 +186,7 @@ func DotsPackedF32(a []float32, b DotsPackedMatrix, c []float64, height int) {
 // DotsPackedI8 computes the dot product of each of height int8 rows of a with every packed row of b.
 // Each row has b.Depth() dimensions, and c holds at least height * b.Width() entries.
 func DotsPackedI8(a []int8, b DotsPackedMatrix, c []int32, height int) {
-	if b.Dtype() != "i8" {
+	if b.DType() != "i8" {
 		panic("DotsPackedMatrix dtype must be i8")
 	}
 	if len(a) < height*b.depth {
@@ -207,7 +207,7 @@ func DotsPackedI8(a []int8, b DotsPackedMatrix, c []int32, height int) {
 // DotsPackedU8 computes the dot product of each of height uint8 rows of a with every packed row of b.
 // Each row has b.Depth() dimensions, and c holds at least height * b.Width() entries.
 func DotsPackedU8(a []uint8, b DotsPackedMatrix, c []uint32, height int) {
-	if b.Dtype() != "u8" {
+	if b.DType() != "u8" {
 		panic("DotsPackedMatrix dtype must be u8")
 	}
 	if len(a) < height*b.depth {

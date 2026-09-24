@@ -30,7 +30,7 @@ import { createRequire } from "node:module";
 import * as path from "node:path";
 import { existsSync } from "node:fs";
 import { getFileName, getRoot } from "bindings";
-import { setConversionFunctions, Float16Array, BFloat16Array, E4M3Array, E5M2Array, BinaryArray, TensorBase, VectorBase, VectorView, Vector, MatrixBase, Matrix, PackedMatrix, DType, dtypeToString, dimensionsToValues, outputDtype, KernelFamily } from "./types.js";
+import { setConversionFunctions, Float16Array, BFloat16Array, E4M3Array, E5M2Array, BinaryArray, TensorBase, VectorBase, VectorView, Vector, MatrixBase, Matrix, PackedMatrix, DType, dtypeToString, dimensionsToValues, outputDType, KernelFamily } from "./types.js";
 
 function loadNativeAddon(): any {
   // Duplicate-libomp guard. We ship our own `libomp.dylib` next to
@@ -131,7 +131,7 @@ export const Capability = {
   V128: 1n << 41n,           // 2021: WASM SIMD128
 } as const;
 
-export { Float16Array, BFloat16Array, E4M3Array, E5M2Array, BinaryArray, TensorBase, VectorBase, VectorView, Vector, MatrixBase, Matrix, PackedMatrix, outputDtype };
+export { Float16Array, BFloat16Array, E4M3Array, E5M2Array, BinaryArray, TensorBase, VectorBase, VectorView, Vector, MatrixBase, Matrix, PackedMatrix, outputDType };
 
 /** Convert a single FP16 value (as uint16 bits) to FP32 */
 export const castF16ToF32 = addon.castF16ToF32;
@@ -521,9 +521,9 @@ function packedOperation(compiledName: string, family: KernelFamily, a: Matrix, 
   if (a.cols !== packed.depth) {
     throw new Error(`Matrix cols (${a.cols}) must match packed depth (${packed.depth})`);
   }
-  const outDtype = outputDtype(family, a.dtype);
+  const outDType = outputDType(family, a.dtype);
   if (!out) {
-    out = new Matrix(a.rows, packed.width, outDtype);
+    out = new Matrix(a.rows, packed.width, outDType);
   }
   const aUnwrapped = unwrapMatrix(a);
   const resultArray = unwrapResultMatrix(out);
@@ -538,9 +538,9 @@ function packedOperation(compiledName: string, family: KernelFamily, a: Matrix, 
 
 function symmetricOperation(compiledName: string, family: KernelFamily, vectors: Matrix, out?: Matrix, rowStart = 0, rowCount?: number): Matrix {
   const count = rowCount ?? vectors.rows - rowStart;
-  const outDtype = outputDtype(family, vectors.dtype);
+  const outDType = outputDType(family, vectors.dtype);
   if (!out) {
-    out = new Matrix(vectors.rows, vectors.rows, outDtype);
+    out = new Matrix(vectors.rows, vectors.rows, outDType);
   }
   const vectorsUnwrapped = unwrapMatrix(vectors);
   const resultArray = unwrapResultMatrix(out);
@@ -618,7 +618,7 @@ export default {
   angularsSymmetric,
   euclideansSymmetric,
   dotsPackedSize,
-  outputDtype,
+  outputDType,
 };
 
 /**

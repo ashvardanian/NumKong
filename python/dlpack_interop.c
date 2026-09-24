@@ -20,7 +20,7 @@
  *  1. @b Device-blind: `Py_buffer` cannot describe GPU/TPU memory. DLPack's `DLDevice` field carries
  *     `device_type`, so a PyTorch CUDA tensor is distinguishable from a CPU one and a NumKong consumer can
  *     refuse it instead of reading a bogus pointer.
- *  2. @b Dtype-blind for bf16/fp8/fp6: NumKong currently fakes these in `Tensor_getbuffer` (see
+ *  2. @b DType-blind for bf16/fp8/fp6: NumKong currently fakes these in `Tensor_getbuffer` (see
  *     `python/tensor.c` ~lines 2097-2107) by emitting `format = "H"` / `"B"`. A consumer reading the format
  *     string sees raw bytes, not the semantic dtype. DLPack 1.x carries `kDLBfloat`, `kDLFloat8_e4m3fn`,
  *     `kDLFloat8_e5m2`, and `kDLFloat6_*` codes — the dtype survives across the bridge.

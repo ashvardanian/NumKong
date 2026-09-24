@@ -557,7 +557,7 @@ extern void nk_error_attention_causal_packed_(void const *, void const *, void *
                                               nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_i64_t, nk_size_t,
                                               nk_size_t, nk_size_t);
 
-// Dtype-specific kernel lookup functions
+// DType-specific kernel lookup functions
 extern void nk_dispatch_f64c_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);
 extern void nk_dispatch_f32c_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);
 extern void nk_dispatch_bf16c_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);

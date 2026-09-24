@@ -2,7 +2,7 @@
 //!
 //! This module provides:
 //!
-//! - [`CastDtype`]: Trait marking types eligible for bulk casting
+//! - [`CastDType`]: Trait marking types eligible for bulk casting
 //! - [`cast`]: Bulk-converts a slice from one scalar format to another
 //! - [`CastOps`]: Tensor-shaped extension trait — auto-implemented on every
 //!   [`crate::tensor::TensorRef`] so any container can do `tensor.try_cast::<Destination>()`
@@ -92,69 +92,69 @@ mod private {
 /// Trait for types that can participate in cast operations.
 ///
 /// This trait is sealed - users cannot implement it for their own types.
-pub trait CastDtype: private::Sealed + StorageElement {
+pub trait CastDType: private::Sealed + StorageElement {
     #[doc(hidden)]
     fn dtype_code() -> u32;
 }
 
-impl CastDtype for f64 {
+impl CastDType for f64 {
     fn dtype_code() -> u32 { dtype::F64 }
 }
-impl CastDtype for f32 {
+impl CastDType for f32 {
     fn dtype_code() -> u32 { dtype::F32 }
 }
-impl CastDtype for f16 {
+impl CastDType for f16 {
     fn dtype_code() -> u32 { dtype::F16 }
 }
-impl CastDtype for bf16 {
+impl CastDType for bf16 {
     fn dtype_code() -> u32 { dtype::BF16 }
 }
-impl CastDtype for e4m3 {
+impl CastDType for e4m3 {
     fn dtype_code() -> u32 { dtype::E4M3 }
 }
-impl CastDtype for e5m2 {
+impl CastDType for e5m2 {
     fn dtype_code() -> u32 { dtype::E5M2 }
 }
-impl CastDtype for e2m3 {
+impl CastDType for e2m3 {
     fn dtype_code() -> u32 { dtype::E2M3 }
 }
-impl CastDtype for e3m2 {
+impl CastDType for e3m2 {
     fn dtype_code() -> u32 { dtype::E3M2 }
 }
-impl CastDtype for f64c {
+impl CastDType for f64c {
     fn dtype_code() -> u32 { dtype::F64C }
 }
-impl CastDtype for f32c {
+impl CastDType for f32c {
     fn dtype_code() -> u32 { dtype::F32C }
 }
-impl CastDtype for f16c {
+impl CastDType for f16c {
     fn dtype_code() -> u32 { dtype::F16C }
 }
-impl CastDtype for bf16c {
+impl CastDType for bf16c {
     fn dtype_code() -> u32 { dtype::BF16C }
 }
-impl CastDtype for i8 {
+impl CastDType for i8 {
     fn dtype_code() -> u32 { dtype::I8 }
 }
-impl CastDtype for i16 {
+impl CastDType for i16 {
     fn dtype_code() -> u32 { dtype::I16 }
 }
-impl CastDtype for i32 {
+impl CastDType for i32 {
     fn dtype_code() -> u32 { dtype::I32 }
 }
-impl CastDtype for i64 {
+impl CastDType for i64 {
     fn dtype_code() -> u32 { dtype::I64 }
 }
-impl CastDtype for u8 {
+impl CastDType for u8 {
     fn dtype_code() -> u32 { dtype::U8 }
 }
-impl CastDtype for u16 {
+impl CastDType for u16 {
     fn dtype_code() -> u32 { dtype::U16 }
 }
-impl CastDtype for u32 {
+impl CastDType for u32 {
     fn dtype_code() -> u32 { dtype::U32 }
 }
-impl CastDtype for u64 {
+impl CastDType for u64 {
     fn dtype_code() -> u32 { dtype::U64 }
 }
 
@@ -179,7 +179,7 @@ impl CastDtype for u64 {
 /// let mut f32_data: Vec<f32> = vec![0.0; f16_data.len()];
 /// cast(&f16_data, &mut f32_data);
 /// ```
-pub fn cast<S: CastDtype, D: CastDtype>(source: &[S], dest: &mut [D]) -> Option<()> {
+pub fn cast<S: CastDType, D: CastDType>(source: &[S], dest: &mut [D]) -> Option<()> {
     if source.len() != dest.len() {
         return None;
     }
@@ -200,8 +200,8 @@ pub fn cast<S: CastDtype, D: CastDtype>(source: &[S], dest: &mut [D]) -> Option<
 use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef, DEFAULT_MAX_RANK};
 
 /// Extension trait: type casting for any [`TensorRef`] implementor.
-pub trait CastOps<Source: Clone + CastDtype, const MAX_RANK: usize>: TensorRef<Source, MAX_RANK> {
-    fn try_cast<Destination: Clone + CastDtype>(&self) -> Result<Tensor<Destination, Global, MAX_RANK>, TensorError> {
+pub trait CastOps<Source: Clone + CastDType, const MAX_RANK: usize>: TensorRef<Source, MAX_RANK> {
+    fn try_cast<Destination: Clone + CastDType>(&self) -> Result<Tensor<Destination, Global, MAX_RANK>, TensorError> {
         self.view().try_cast()
     }
 
@@ -209,14 +209,14 @@ pub trait CastOps<Source: Clone + CastDtype, const MAX_RANK: usize>: TensorRef<S
     /// or a `&mut TensorSpan<...>`, any [`TensorMut`]; a strided sub-span works too.
     fn try_cast_into<Destination, OutputTensor>(&self, out: &mut OutputTensor) -> Result<(), TensorError>
     where
-        Destination: Clone + CastDtype,
+        Destination: Clone + CastDType,
         OutputTensor: TensorMut<Destination, MAX_RANK> + ?Sized,
     {
         self.view().try_cast_into(out)
     }
 }
 
-impl<Source: Clone + CastDtype, const R: usize, C: TensorRef<Source, R>> CastOps<Source, R> for C {}
+impl<Source: Clone + CastDType, const R: usize, C: TensorRef<Source, R>> CastOps<Source, R> for C {}
 
 // endregion: Tensor-shaped cast
 
@@ -566,7 +566,7 @@ impl<const R: usize, C: TensorRef<f32, R> + ?Sized> DenseToScaledOps<R> for C {}
 /// Transcode: a [`ScaledTensorView`] → another [`ScaledTensor`].
 impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
     /// Materialize this block-scaled view into a dense `Tensor<T>` of the same shape.
-    pub fn try_cast<T: Clone + CastDtype>(&self) -> Result<Tensor<T>, TensorError> {
+    pub fn try_cast<T: Clone + CastDType>(&self) -> Result<Tensor<T>, TensorError> {
         let shape = self.shape();
         let count: usize = shape.iter().product();
         let elements_view = self.elements();
@@ -633,7 +633,7 @@ mod tests {
         TestableType,
     };
 
-    fn check_cast_roundtrip<T: FloatLike + TestableType + CastDtype>(values: &[f32]) {
+    fn check_cast_roundtrip<T: FloatLike + TestableType + CastDType>(values: &[f32]) {
         let src: Vec<T> = values.iter().map(|&v| T::from_f32(v)).collect();
         let mut dst = vec![0.0f32; src.len()];
         cast(&src, &mut dst).unwrap();
@@ -658,7 +658,7 @@ mod tests {
         check_cast_roundtrip::<e3m2>(&[1.0, 0.5, -1.0]);
     }
 
-    fn check_special_roundtrip<T: FloatLike + CastDtype>() {
+    fn check_special_roundtrip<T: FloatLike + CastDType>() {
         // NaN, +Inf, -Inf, then a few finite values.
         let specials = [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, 1.5, -2.0];
         let src: Vec<T> = specials.iter().map(|&v| T::from_f32(v)).collect();

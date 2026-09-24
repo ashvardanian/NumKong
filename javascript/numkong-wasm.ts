@@ -12,7 +12,7 @@
  * - Both wasm32 and wasm64 (memory64) modes
  */
 
-import { TensorBase, Matrix, PackedMatrix, DType, dtypeToString, dimensionsPerValue, outputDtype, KernelFamily } from './types.js';
+import { TensorBase, Matrix, PackedMatrix, DType, dtypeToString, dimensionsPerValue, outputDType, KernelFamily } from './types.js';
 
 /**
  * Emscripten module interface.
@@ -175,7 +175,7 @@ function detectType(arr: any): TypeInfo {
 /**
  * Get TypeInfo from a DType enum value.
  */
-function typeInfoFromDtype(dtype: DType): TypeInfo {
+function typeInfoFromDType(dtype: DType): TypeInfo {
   switch (dtype) {
     case DType.F64: return { dtype, bytesPerElement: 8, heapView: 'HEAPF64', resultType: 'f64' };
     case DType.F32: return { dtype, bytesPerElement: 4, heapView: 'HEAPF32', resultType: 'f64' };
@@ -209,7 +209,7 @@ function resolveInput(a: TensorBase | any): ResolvedInput {
     return {
       buffer: a.buffer, byteOffset: a.byteOffset,
       length: a.length, byteLength: a.byteLength,
-      typeInfo: typeInfoFromDtype(a.dtype),
+      typeInfo: typeInfoFromDType(a.dtype),
     };
   }
   const typeInfo = detectType(a);
@@ -698,9 +698,9 @@ function wasmPackedOperation(metricPrefix: string, family: KernelFamily, a: Matr
     throw new Error(`Matrix cols (${a.cols}) must match packed depth (${packed.depth})`);
   }
 
-  const outDtype = outputDtype(family, a.dtype);
+  const outDType = outputDType(family, a.dtype);
   if (!out) {
-    out = new Matrix(a.rows, packed.width, outDtype);
+    out = new Matrix(a.rows, packed.width, outDType);
   }
 
   const dtypeStr = dtypeToString(a.dtype);
@@ -750,9 +750,9 @@ function wasmSymmetricOperation(metricPrefix: string, family: KernelFamily, vect
   if (!Module) throw new Error('WASM module not initialized');
 
   const count = rowCount ?? vectors.rows - rowStart;
-  const outDtype = outputDtype(family, vectors.dtype);
+  const outDType = outputDType(family, vectors.dtype);
   if (!out) {
-    out = new Matrix(vectors.rows, vectors.rows, outDtype);
+    out = new Matrix(vectors.rows, vectors.rows, outDType);
   }
 
   const dtypeStr = dtypeToString(vectors.dtype);

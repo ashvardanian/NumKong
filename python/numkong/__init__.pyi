@@ -787,12 +787,12 @@ def sparse_dot(
 # endregion Sparse Similarity
 
 # region Tensor Constructors
-_DtypeLike: TypeAlias = _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType
+_DTypeLike: TypeAlias = _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType
 
 def from_pointer(
     address: int,
     shape: int | tuple[int, ...],
-    dtype: _DtypeLike,
+    dtype: _DTypeLike,
     *,
     strides: tuple[int, ...] | None = None,
     owner: Any = None,
@@ -863,7 +863,7 @@ def hash(
 
 def astype(
     a: _BufferType,
-    dtype: _DtypeLike,
+    dtype: _DTypeLike,
     /,
     *,
     out: _BufferType | None = None,

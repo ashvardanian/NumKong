@@ -13,7 +13,7 @@ import "unsafe"
 // HammingsPackedU1 computes the Hamming distance from each of height binary vectors to every packed query.
 // Each vector has query.Depth() dimensions, and result holds at least height * query.Width() entries.
 func HammingsPackedU1(vectors []byte, query DotsPackedMatrix, result []uint32, height int) {
-	if query.Dtype() != "u1" {
+	if query.DType() != "u1" {
 		panic("DotsPackedMatrix dtype must be u1")
 	}
 	bytesPerVec := DimensionsToValues("u1", query.depth)
@@ -60,7 +60,7 @@ func hammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32, r
 // JaccardsPackedU1 computes the Jaccard distance from each of height binary vectors to every packed query.
 // Each vector has query.Depth() dimensions, and result holds at least height * query.Width() entries.
 func JaccardsPackedU1(vectors []byte, query DotsPackedMatrix, result []float32, height int) {
-	if query.Dtype() != "u1" {
+	if query.DType() != "u1" {
 		panic("DotsPackedMatrix dtype must be u1")
 	}
 	bytesPerVec := DimensionsToValues("u1", query.depth)

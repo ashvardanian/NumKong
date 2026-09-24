@@ -362,7 +362,7 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_serial( //
 #endif
 
 /**
- *  @brief Dtype-agnostic coarse i8 argmax kernel for the serial backend.
+ *  @brief DType-agnostic coarse i8 argmax kernel for the serial backend.
  *  Produces per-query best document indices using signed i8×i8 dot products.
  *  No bias correction needed — serial uses native signed×signed multiplication.
  */

@@ -339,8 +339,8 @@ function genData(funcName, dtype, length, seed) {
 }
 
 // Generate tests for each function, dtype, and dimension
-for (const [funcName, supportedDtypes] of Object.entries(TEST_MATRIX.functions)) {
-  for (const dtype of supportedDtypes) {
+for (const [funcName, supportedDTypes] of Object.entries(TEST_MATRIX.functions)) {
+  for (const dtype of supportedDTypes) {
     for (const rawDimension of TEST_MATRIX.dimensions) {
       const dimension = alignDimension(rawDimension, dtype);
       if (isKnownBroken(funcName, dtype, dimension)) continue;

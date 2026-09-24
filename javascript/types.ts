@@ -66,7 +66,7 @@ export function dimensionsToValues(dtype: DType, dimensions: number): number {
 }
 
 /** Infer the DType from a TypedArray instance. */
-function inferDtype(arr: TypedArray): DType {
+function inferDType(arr: TypedArray): DType {
   if (arr instanceof Float64Array) return DType.F64;
   if (arr instanceof Float32Array) return DType.F32;
   if (arr instanceof Int32Array) return DType.I32;
@@ -148,7 +148,7 @@ export class VectorView extends VectorBase {
 
   /** Create a VectorView from any TypedArray, inferring or accepting dtype. */
   static from(arr: TypedArray, dtype?: DType): VectorView {
-    const d = dtype ?? inferDtype(arr);
+    const d = dtype ?? inferDType(arr);
     return new VectorView(arr.buffer as ArrayBuffer, arr.byteOffset, arr.length, d);
   }
 }
@@ -189,7 +189,7 @@ export class Vector extends VectorBase {
 
   /** Create an owning Vector by copying data from a TypedArray. */
   static fromTypedArray(arr: TypedArray, dtype?: DType): Vector {
-    const d = dtype ?? inferDtype(arr);
+    const d = dtype ?? inferDType(arr);
     return new Vector((arr.buffer as ArrayBuffer).slice(arr.byteOffset, arr.byteOffset + arr.byteLength), arr.length, d);
   }
 
@@ -326,7 +326,7 @@ export class Matrix extends MatrixBase {
   }
 
   static fromTypedArray(array: TypedArray, rows: number, cols: number, dtype?: DType): Matrix {
-    const d = dtype ?? inferDtype(array);
+    const d = dtype ?? inferDType(array);
     const buf = (array.buffer as ArrayBuffer).slice(array.byteOffset, array.byteOffset + array.byteLength);
     return new Matrix(buf, 0, d, rows, cols);
   }
@@ -429,7 +429,7 @@ export type KernelFamily = 'dots' | 'angulars' | 'euclideans';
  * Determines the output dtype for a given kernel family and input dtype.
  * Mirrors nk_kernel_output_dtype from C.
  */
-export function outputDtype(family: KernelFamily, input: DType): DType {
+export function outputDType(family: KernelFamily, input: DType): DType {
   switch (input) {
     case DType.F64: return DType.F64;
     case DType.F32: return DType.F64;

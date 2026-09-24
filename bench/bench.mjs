@@ -212,9 +212,9 @@ async function runBenchmarks() {
 
     // Iterate through benchmark matrix
     for (const func of BENCHMARK_MATRIX.functions) {
-        const supportedDtypes = FUNCTION_DTYPE_SUPPORT[func] || [];
+        const supportedDTypes = FUNCTION_DTYPE_SUPPORT[func] || [];
 
-        for (const dtype of supportedDtypes) {
+        for (const dtype of supportedDTypes) {
             const testName = `${func}-${dtype}`;
 
             // Apply filter

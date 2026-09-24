@@ -76,7 +76,7 @@ use core::marker::PhantomData;
 use core::ops::{Index, IndexMut};
 use core::ptr::NonNull;
 
-use crate::cast::{cast, CastDtype};
+use crate::cast::{cast, CastDType};
 use crate::dot::Dot;
 use crate::each::{EachBlend, EachFMA, EachScale, EachSum};
 use crate::reduce::{MomentsOps, ReduceMinMax, ReduceMoments, SumSqToF64};
@@ -6373,8 +6373,8 @@ where
     }
 }
 
-impl<'a, Source: Clone + CastDtype, const MAX_RANK: usize> TensorView<'a, Source, MAX_RANK> {
-    pub fn try_cast<Destination: Clone + CastDtype>(
+impl<'a, Source: Clone + CastDType, const MAX_RANK: usize> TensorView<'a, Source, MAX_RANK> {
+    pub fn try_cast<Destination: Clone + CastDType>(
         &self,
     ) -> Result<Tensor<Destination, Global, MAX_RANK>, TensorError> {
         try_alloc_output_like(self.shape(), |span| self.try_cast_into(span))
@@ -6382,7 +6382,7 @@ impl<'a, Source: Clone + CastDtype, const MAX_RANK: usize> TensorView<'a, Source
 
     pub fn try_cast_into<Destination, OutputTensor>(&self, out: &mut OutputTensor) -> Result<(), TensorError>
     where
-        Destination: Clone + CastDtype,
+        Destination: Clone + CastDType,
         OutputTensor: TensorMut<Destination, MAX_RANK> + ?Sized,
     {
         try_unary_kernel_into(self, out, |source, target: &mut [Destination]| {

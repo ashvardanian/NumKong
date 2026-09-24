@@ -628,7 +628,7 @@ assert!(ta.allclose(&tb, 1e-6, 0.0));
 ## Type Casting
 
 The `cast` function performs bulk conversion between contiguous slices.
-Any pair of types that implement `CastDtype` (all `NumberLike` scalars) can be converted.
+Any pair of types that implement `CastDType` (all `NumberLike` scalars) can be converted.
 
 ```rust
 use numkong::{cast, f16, bf16};

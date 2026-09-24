@@ -597,7 +597,7 @@ if (NK_BUILD_BENCH OR NK_BUILD_CUDA_BENCH)
     target_compile_definitions(numkong_bench PRIVATE ${nk_run_definitions_})
 endif ()
 
-# Dtype-specific dispatch sources (for parallel compilation)
+# DType-specific dispatch sources (for parallel compilation)
 set(NK_DTYPE_SOURCES
     c/dispatch_f64c.c c/dispatch_f32c.c c/dispatch_bf16c.c c/dispatch_f16c.c c/dispatch_f64.c c/dispatch_f32.c
     c/dispatch_bf16.c c/dispatch_f16.c c/dispatch_e5m2.c c/dispatch_e4m3.c c/dispatch_e3m2.c c/dispatch_e2m3.c

@@ -180,7 +180,7 @@ static inline int nk_register_can_cast(nk_PyArray_Descr *descr, int totype, int 
     return ((nk_RegisterCanCast_t)nk_numpy_api[NK_NPY_API_RegisterCanCast])(descr, totype, scalar);
 }
 
-/** @brief Dtype conversion ops — one per custom dtype. */
+/** @brief DType conversion ops — one per custom dtype. */
 typedef struct {
     size_t elem_size;
     void (*to_f32)(void const *src, nk_f32_t *dst);

@@ -59,8 +59,8 @@ import (
 	"runtime"
 )
 
-// nativeDtype maps a [DotsPackedMatrix.Dtype] name such as "u1" onto the C enumeration.
-func nativeDtype(dtype string) C.nk_dtype_t {
+// nativeDType maps a [DotsPackedMatrix.DType] name such as "u1" onto the C enumeration.
+func nativeDType(dtype string) C.nk_dtype_t {
 	switch dtype {
 	case "f64":
 		return C.nk_f64_k
@@ -79,7 +79,7 @@ func nativeDtype(dtype string) C.nk_dtype_t {
 // DimensionsPerValue returns how many logical dimensions of dtype share one stored value, such as 8 for "u1".
 // It panics on any name other than "f64", "f32", "i8", "u8" and "u1".
 func DimensionsPerValue(dtype string) int {
-	return int(C.nk_dimensions_per_value(nativeDtype(dtype)))
+	return int(C.nk_dimensions_per_value(nativeDType(dtype)))
 }
 
 // DimensionsToValues returns how many stored values hold dimensions logical dimensions of dtype.

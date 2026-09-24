@@ -16,7 +16,7 @@ export {
     TensorBase, VectorBase, VectorView, Vector,
     MatrixBase, Matrix, PackedMatrix,
     DType, TypedArray, KernelFamily,
-    dtypeToString, outputDtype,
+    dtypeToString, outputDType,
     Float16Array, BFloat16Array, E4M3Array, E5M2Array, BinaryArray,
     isFloat16Array, isBFloat16Array, isE4M3Array, isE5M2Array, isBinaryArray,
 } from './types.js';

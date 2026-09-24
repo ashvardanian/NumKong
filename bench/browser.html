@@ -250,8 +250,8 @@
 
                 // Count total tests
                 for (const func of BENCHMARK_MATRIX.functions) {
-                    const supportedDtypes = FUNCTION_DTYPE_SUPPORT[func] || [];
-                    for (const dtype of supportedDtypes) {
+                    const supportedDTypes = FUNCTION_DTYPE_SUPPORT[func] || [];
+                    for (const dtype of supportedDTypes) {
                         const testName = `${func}-${dtype}`;
                         if (CONFIG.filter.test(testName)) {
                             totalTests++;
@@ -261,9 +261,9 @@
 
                 // Run benchmarks
                 for (const func of BENCHMARK_MATRIX.functions) {
-                    const supportedDtypes = FUNCTION_DTYPE_SUPPORT[func] || [];
+                    const supportedDTypes = FUNCTION_DTYPE_SUPPORT[func] || [];
 
-                    for (const dtype of supportedDtypes) {
+                    for (const dtype of supportedDTypes) {
                         const testName = `${func}-${dtype}`;
 
                         // Apply filter

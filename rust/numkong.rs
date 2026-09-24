@@ -182,7 +182,7 @@ pub use geospatial::{Geospatial, Haversine, Vincenty};
 pub use sparse::{SparseDot, SparseIntersect};
 
 // Re-export cast operations
-pub use cast::{cast, CastDtype, CastOps, DenseToScaledOps};
+pub use cast::{cast, CastDType, CastOps, DenseToScaledOps};
 
 // Re-export block-scaled formats and casts
 pub use cast::{
