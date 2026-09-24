@@ -49,10 +49,10 @@ const PROBES = [
     ["NK_TARGET_ICELAKE", "probes/x86_icelake.c", ["-mavx512vnni", "-mavx512vl"], ["/arch:AVX512"]],
     ["NK_TARGET_GENOA", "probes/x86_genoa.c", ["-mavx512bf16", "-mavx512vl"], ["/arch:AVX512"]],
     ["NK_TARGET_SAPPHIRE", "probes/x86_sapphire.c", ["-mavx512fp16", "-mavx512vl"], ["/arch:AVX512"]],
-    ["NK_TARGET_SAPPHIREAMX", "probes/x86_sapphireamx.c", ["-mamx-tile", "-mamx-int8"], ["/arch:AVX512"]],
+    ["NK_TARGET_SAPPHIREAMX", "probes/x86_sapphireamx.c", ["-mamx-tile", "-mamx-int8", "-mamx-bf16", "-mavx512fp16"], ["/arch:AVX512"]],
     ["NK_TARGET_GRANITEAMX", "probes/x86_graniteamx.c", ["-mamx-tile", "-mamx-fp16"], ["/arch:AVX512"]],
     ["NK_TARGET_DIAMOND", "probes/x86_diamond.c", ["-mavx10.2-512"], ["/arch:AVX10.2"]],
-    ["NK_TARGET_TURIN", "probes/x86_turin.c", ["-mavx512vp2intersect"], ["/arch:AVX512"]],
+    ["NK_TARGET_TURIN", "probes/x86_turin.c", ["-mavx512vp2intersect", "-mavx512bf16"], ["/arch:AVX512"]],
     ["NK_TARGET_ALDER", "probes/x86_alder.c", ["-mavxvnni"], ["/arch:AVX2"]],
     ["NK_TARGET_SIERRA", "probes/x86_sierra.c", ["-mavxvnniint8"], ["/arch:AVX2"]],
     // ARM NEON base probes — msvc_flags are empty because MSVC does not define

@@ -18,13 +18,13 @@ nk_isa_probe_(nk_target_genoa "/arch:AVX512" "-mavx512bf16 -mavx512vl" "probes/x
 
 nk_isa_probe_(nk_target_sapphire "/arch:AVX512" "-mavx512fp16 -mavx512vl" "probes/x86_sapphire.c")
 
-nk_isa_probe_(nk_target_sapphireamx "/arch:AVX512" "-mamx-tile -mamx-int8" "probes/x86_sapphireamx.c")
+nk_isa_probe_(nk_target_sapphireamx "/arch:AVX512" "-mamx-tile -mamx-int8 -mamx-bf16 -mavx512fp16" "probes/x86_sapphireamx.c")
 
 nk_isa_probe_(nk_target_graniteamx "/arch:AVX512" "-mamx-tile -mamx-fp16" "probes/x86_graniteamx.c")
 
 nk_isa_probe_(nk_target_diamond "/arch:AVX10.2" "-mavx10.2-512" "probes/x86_diamond.c")
 
-nk_isa_probe_(nk_target_turin "/arch:AVX512" "-mavx512vp2intersect" "probes/x86_turin.c")
+nk_isa_probe_(nk_target_turin "/arch:AVX512" "-mavx512vp2intersect -mavx512bf16" "probes/x86_turin.c")
 
 nk_isa_probe_(nk_target_alder "/arch:AVX2" "-mavxvnni" "probes/x86_alder.c")
 
