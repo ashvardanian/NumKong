@@ -148,7 +148,7 @@ NK_PUBLIC void nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t
                                                                 : ((term - provisional_sum) + sum);
         sum = provisional_sum;
     }
-    *result = sum + compensation;
+    *result = nk_f64_compensated_sum_(sum, compensation);
 }
 
 NK_PUBLIC void nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
@@ -170,7 +170,7 @@ NK_PUBLIC void nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t
                                                                   : ((term_b - provisional_sum) + sum);
         sum = provisional_sum;
     }
-    nk_f64_t sum_half = (sum + compensation) / 2;
+    nk_f64_t sum_half = nk_f64_compensated_sum_(sum, compensation) / 2;
     *result = nk_f64_sqrt_serial(sum_half);
 }
 

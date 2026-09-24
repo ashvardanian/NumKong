@@ -831,8 +831,10 @@ NK_INTERNAL void nk_reduce_moments_f64_skylake_contiguous_( //
         sumsq_comp_f64x8 = _mm512_add_pd(sumsq_comp_f64x8, corr_sq_f64x8);
         sumsq_f64x8 = tentative_sq_f64x8;
     }
-    *sum_ptr = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sum_f64x8, sum_comp_f64x8));
-    *sumsq_ptr = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sumsq_f64x8, sumsq_comp_f64x8));
+    *sum_ptr = nk_f64_compensated_sum_(nk_reduce_add_f64x8_skylake_(sum_f64x8),
+                                       nk_reduce_add_f64x8_skylake_(sum_comp_f64x8));
+    *sumsq_ptr = nk_f64_compensated_sum_(nk_reduce_add_f64x8_skylake_(sumsq_f64x8),
+                                         nk_reduce_add_f64x8_skylake_(sumsq_comp_f64x8));
 }
 
 NK_INTERNAL void nk_reduce_moments_f64_skylake_strided_(                  //
@@ -885,8 +887,10 @@ NK_INTERNAL void nk_reduce_moments_f64_skylake_strided_(                  //
         sumsq_comp_f64x8 = _mm512_add_pd(sumsq_comp_f64x8, corr_sq_f64x8);
         sumsq_f64x8 = tentative_sq_f64x8;
     }
-    *sum_ptr = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sum_f64x8, sum_comp_f64x8));
-    *sumsq_ptr = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sumsq_f64x8, sumsq_comp_f64x8));
+    *sum_ptr = nk_f64_compensated_sum_(nk_reduce_add_f64x8_skylake_(sum_f64x8),
+                                       nk_reduce_add_f64x8_skylake_(sum_comp_f64x8));
+    *sumsq_ptr = nk_f64_compensated_sum_(nk_reduce_add_f64x8_skylake_(sumsq_f64x8),
+                                         nk_reduce_add_f64x8_skylake_(sumsq_comp_f64x8));
 }
 
 NK_INTERNAL void nk_reduce_moments_f64_skylake_gather_(                //
@@ -919,8 +923,10 @@ NK_INTERNAL void nk_reduce_moments_f64_skylake_gather_(                //
         sumsq_comp_f64x8 = _mm512_add_pd(sumsq_comp_f64x8, corr_sq_f64x8);
         sumsq_f64x8 = tentative_sq_f64x8;
     }
-    nk_f64_t sum = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sum_f64x8, sum_comp_f64x8));
-    nk_f64_t sumsq = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sumsq_f64x8, sumsq_comp_f64x8));
+    nk_f64_t sum = nk_f64_compensated_sum_(nk_reduce_add_f64x8_skylake_(sum_f64x8),
+                                           nk_reduce_add_f64x8_skylake_(sum_comp_f64x8));
+    nk_f64_t sumsq = nk_f64_compensated_sum_(nk_reduce_add_f64x8_skylake_(sumsq_f64x8),
+                                             nk_reduce_add_f64x8_skylake_(sumsq_comp_f64x8));
     unsigned char const *ptr = (unsigned char const *)(data_ptr + idx * stride_elements);
     for (; idx < count; ++idx, ptr += stride_bytes) {
         nk_f64_t val = *(nk_f64_t const *)ptr;

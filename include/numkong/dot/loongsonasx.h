@@ -64,6 +64,9 @@ NK_INTERNAL nk_i32_t nk_reduce_add_i32x8_loongsonasx_(__m256i sum_i32x8) {
  *  @sa nk_reduce_sum_f64_serial_ for the serial equivalent
  */
 NK_INTERNAL nk_f64_t nk_dot_stable_sum_f64x4_loongsonasx_(__m256d sum_f64x4, __m256d compensation_f64x4) {
+    // Zero NaN compensation lanes, which overflow leaves beside infinite sums
+    compensation_f64x4 = (__m256d)__lasx_xvand_v((__m256i)compensation_f64x4,
+                                                 __lasx_xvfcmp_ceq_d(compensation_f64x4, compensation_f64x4));
     // Stage 0: TwoSum merge of sum + compensation (4-wide, parallel)
     __m256d tentative_sum_f64x4 = __lasx_xvfadd_d(sum_f64x4, compensation_f64x4);
     __m256d virtual_addend_f64x4 = __lasx_xvfsub_d(tentative_sum_f64x4, sum_f64x4);
@@ -100,7 +103,7 @@ NK_INTERNAL nk_f64_t nk_dot_stable_sum_f64x4_loongsonasx_(__m256d sum_f64x4, __m
     nk_f64_t tentative_sum = sum_low + sum_high;
     nk_f64_t virtual_addend = tentative_sum - sum_low;
     nk_f64_t rounding_error = (sum_low - (tentative_sum - virtual_addend)) + (sum_high - virtual_addend);
-    return tentative_sum + (error_low + error_high + rounding_error);
+    return nk_f64_compensated_sum_(tentative_sum, error_low + error_high + rounding_error);
 }
 
 #pragma endregion Horizontal Reduction Helpers

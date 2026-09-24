@@ -105,6 +105,9 @@ extern "C" {
 
 /** @brief Compensated horizontal sum of 2 f64 lanes via TwoSum. */
 NK_INTERNAL nk_f64_t nk_dot_stable_sum_f64x2_neon_(float64x2_t sum_f64x2, float64x2_t compensation_f64x2) {
+    // Zero NaN compensation lanes, which overflow leaves beside infinite sums
+    compensation_f64x2 = vreinterpretq_f64_u64(
+        vandq_u64(vreinterpretq_u64_f64(compensation_f64x2), vceqq_f64(compensation_f64x2, compensation_f64x2)));
     // TwoSum merge of sum + compensation (2-wide)
     float64x2_t tentative_sum_f64x2 = vaddq_f64(sum_f64x2, compensation_f64x2);
     float64x2_t virtual_addend_f64x2 = vsubq_f64(tentative_sum_f64x2, sum_f64x2);
@@ -119,7 +122,7 @@ NK_INTERNAL nk_f64_t nk_dot_stable_sum_f64x2_neon_(float64x2_t sum_f64x2, float6
     nk_f64_t tentative_sum = lower_sum + upper_sum;
     nk_f64_t virtual_addend = tentative_sum - lower_sum;
     nk_f64_t rounding_error = (lower_sum - (tentative_sum - virtual_addend)) + (upper_sum - virtual_addend);
-    return tentative_sum + (lower_error + upper_error + rounding_error);
+    return nk_f64_compensated_sum_(tentative_sum, lower_error + upper_error + rounding_error);
 }
 
 #pragma region F32 and F64 Floats

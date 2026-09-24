@@ -8,6 +8,21 @@
 #include "test.hpp"
 #include "numkong/spatial.hpp"
 
+/** @brief Squares overflowing the accumulator must surface as +inf, not NaN or 0; see issue #384. */
+template <typename scalar_type_, typename result_type_, typename kernel_type_>
+void expect_overflow_to_infinity(kernel_type_ kernel, error_stats_t &stats) {
+    if constexpr (std::is_same_v<scalar_type_, f64_t> || std::is_same_v<scalar_type_, bf16_t>) {
+        double const huge = std::is_same_v<scalar_type_, f64_t> ? 1e154 : 1e19;
+        std::size_t const n = 67; // spans a full SIMD body plus a tail on every backend
+        std::vector<typename scalar_type_::raw_t> huge_values(n, scalar_type_(huge).raw_);
+        std::vector<typename scalar_type_::raw_t> zeros(n, scalar_type_(0.0).raw_);
+        result_type_ result;
+        kernel(huge_values.data(), zeros.data(), n, &result.raw_);
+        double const distance = static_cast<double>(result);
+        stats.expect(std::isinf(distance) && distance > 0, "overflowing squares must yield +inf");
+    }
+}
+
 /**
  *  @brief Unified squared Euclidean distance test for float types.
  *  Works with f32_t, f64_t, f16_t, bf16_t wrapper types.
@@ -25,6 +40,7 @@ error_stats_t test_sqeuclidean(typename scalar_type_::sqeuclidean_kernel_t kerne
     std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
     auto a = make_vector<scalar_t>(n), b = make_vector<scalar_t>(n);
 
+    expect_overflow_to_infinity<scalar_t, result_t>(kernel, stats);
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, a);
         fill_random(generator, b);
@@ -89,6 +105,7 @@ error_stats_t test_euclidean(typename scalar_type_::euclidean_kernel_t kernel) {
     std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
     auto a = make_vector<scalar_t>(n), b = make_vector<scalar_t>(n);
 
+    expect_overflow_to_infinity<scalar_t, result_t>(kernel, stats);
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, a);
         fill_random(generator, b);
@@ -105,46 +122,17 @@ error_stats_t test_euclidean(typename scalar_type_::euclidean_kernel_t kernel) {
 }
 
 /**
- *  @brief Verify Euclidean distance returns NaN on floating-point overflow instead of 0.
+ *  @brief Verify NaN inputs propagate through angular and streaming distances instead of clamping to 0.
  *  @see https://github.com/ashvardanian/NumKong/issues/384
  */
-void test_euclidean_overflow() {
-    // 1. Float64 overflow: 1e154 ^ 2 overflows f64 accumulator
-    double a_f64[4] = {1e154, 1e154, 1e154, 1e154};
-    double b_f64[4] = {0.0, 0.0, 0.0, 0.0};
-    double dist_f64 = 0.0;
-    nk_euclidean_f64_serial(a_f64, b_f64, 4, &dist_f64);
-
-    // 2. BFloat16 overflow: 1e19 ^ 2 overflows f32 intermediate accumulator
-    nk_bf16_t a_bf16[4], b_bf16[4];
-    nk_f32_t val_large = 1e19f, val_zero = 0.0f;
-    for (int i = 0; i < 4; ++i) {
-        nk_f32_to_bf16_serial(&val_large, &a_bf16[i]);
-        nk_f32_to_bf16_serial(&val_zero, &b_bf16[i]);
-    }
-    nk_f32_t dist_bf16 = 0.0f;
-    nk_euclidean_bf16_serial(a_bf16, b_bf16, 4, &dist_bf16);
-
-    // 3. Float32 with large inputs: accumulates in f64 without overflow
-    nk_f32_t a_f32[4] = {1e20f, 1e20f, 1e20f, 1e20f};
-    nk_f32_t b_f32[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    nk_f64_t dist_f32 = 0.0;
-    nk_euclidean_f32_serial(a_f32, b_f32, 4, &dist_f32);
-
-    if (!std::isnan(dist_f64) || !std::isnan(dist_bf16) || std::isnan(dist_f32)) {
-        std::fprintf(stderr, "test_euclidean_overflow failed: expected NaN on overflow for f64/bf16\n");
-        std::abort();
-    }
-
-    // 4. Angular overflow / NaN: dot product overflow or NaN input should yield NaN, never 0.0
+void test_nan_propagation() {
+    // Angular: a NaN input must yield NaN, never 0
     double ang_dist_f64 = 0.0;
-    nk_angular_f64_serial(a_f64, b_f64, 4, &ang_dist_f64);
-    // b_f64 is zero vector, dot = 0 -> ang_dist is 1.0. Now test with NaN vectors:
     double nan_vec_a[4] = {std::numeric_limits<double>::quiet_NaN(), 1.0, 2.0, 3.0};
     double nan_vec_b[4] = {1.0, 2.0, 3.0, 4.0};
     nk_angular_f64_serial(nan_vec_a, nan_vec_b, 4, &ang_dist_f64);
     if (!std::isnan(ang_dist_f64)) {
-        std::fprintf(stderr, "test_euclidean_overflow failed: expected NaN for angular_f64 with NaN inputs\n");
+        std::fprintf(stderr, "test_nan_propagation failed: expected NaN for angular_f64 with NaN inputs\n");
         std::abort();
     }
 
@@ -153,29 +141,29 @@ void test_euclidean_overflow() {
     nk_f64_t ang_dist_f32 = 0.0;
     nk_angular_f32_serial(nan_vec_f32_a, nan_vec_f32_b, 4, &ang_dist_f32);
     if (!std::isnan(ang_dist_f32)) {
-        std::fprintf(stderr, "test_euclidean_overflow failed: expected NaN for angular_f32 with NaN inputs\n");
+        std::fprintf(stderr, "test_nan_propagation failed: expected NaN for angular_f32 with NaN inputs\n");
         std::abort();
     }
 
-    // 5. Streaming Euclidean & Angular from_dot: NaN should yield NaN, never 0.0
+    // Streaming Euclidean and angular from_dot: NaN must yield NaN, never 0
     nk_b128_vec_t dots_f32, targets_f32, result_f32;
     dots_f32.f32s[0] = std::numeric_limits<float>::quiet_NaN();
     targets_f32.f32s[0] = 1.0f;
     nk_euclidean_through_f32_from_dot_serial_(&dots_f32, 1.0f, &targets_f32, &result_f32);
     if (!std::isnan(result_f32.f32s[0])) {
-        std::fprintf(stderr, "test_euclidean_overflow failed: expected NaN for euclidean_from_dot with NaN\n");
+        std::fprintf(stderr, "test_nan_propagation failed: expected NaN for euclidean_from_dot with NaN\n");
         std::abort();
     }
 
     nk_angular_through_f32_from_dot_serial_(&dots_f32, 1.0f, &targets_f32, &result_f32);
     if (!std::isnan(result_f32.f32s[0])) {
-        std::fprintf(stderr, "test_euclidean_overflow failed: expected NaN for angular_from_dot with NaN\n");
+        std::fprintf(stderr, "test_nan_propagation failed: expected NaN for angular_from_dot with NaN\n");
         std::abort();
     }
 }
 
 void test_spatial() {
-    test_euclidean_overflow();
+    test_nan_propagation();
     error_stats_section_t check;
 
     check.section("Spatial Distances Serial", nk_cap_serial_k);

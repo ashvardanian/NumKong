@@ -109,6 +109,9 @@ extern "C" {
  *  @sa nk_reduce_sum_f64_serial_ for the serial equivalent
  */
 NK_INTERNAL nk_f64_t nk_dot_stable_sum_f64x4_haswell_(__m256d sum_f64x4, __m256d compensation_f64x4) {
+    // Zero NaN compensation lanes, which overflow leaves beside infinite sums
+    compensation_f64x4 = _mm256_and_pd(compensation_f64x4,
+                                       _mm256_cmp_pd(compensation_f64x4, compensation_f64x4, _CMP_ORD_Q));
     // Stage 0: TwoSum merge of sum + compensation (4-wide, parallel)
     __m256d tentative_sum_f64x4 = _mm256_add_pd(sum_f64x4, compensation_f64x4);
     __m256d virtual_addend_f64x4 = _mm256_sub_pd(tentative_sum_f64x4, sum_f64x4);
@@ -138,7 +141,7 @@ NK_INTERNAL nk_f64_t nk_dot_stable_sum_f64x4_haswell_(__m256d sum_f64x4, __m256d
     nk_f64_t tentative_sum = lower_sum + upper_sum;
     nk_f64_t virtual_addend = tentative_sum - lower_sum;
     nk_f64_t rounding_error = (lower_sum - (tentative_sum - virtual_addend)) + (upper_sum - virtual_addend);
-    return tentative_sum + (lower_error + upper_error + rounding_error);
+    return nk_f64_compensated_sum_(tentative_sum, lower_error + upper_error + rounding_error);
 }
 
 #pragma region F32 and F64 Floats

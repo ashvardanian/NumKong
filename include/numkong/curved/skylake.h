@@ -228,7 +228,7 @@ NK_PUBLIC void nk_bilinear_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_
     }
 
     // Final: combine sum + compensation before reduce
-    *result = _mm512_reduce_add_pd(_mm512_add_pd(sum_f64x8, compensation_f64x8));
+    *result = nk_f64_compensated_sum_(_mm512_reduce_add_pd(sum_f64x8), _mm512_reduce_add_pd(compensation_f64x8));
 }
 
 NK_PUBLIC void nk_mahalanobis_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
@@ -299,7 +299,8 @@ NK_PUBLIC void nk_mahalanobis_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, 
     }
 
     // Final: combine sum + compensation before reduce
-    nk_f64_t quadratic = _mm512_reduce_add_pd(_mm512_add_pd(sum_f64x8, compensation_f64x8));
+    nk_f64_t quadratic = nk_f64_compensated_sum_(_mm512_reduce_add_pd(sum_f64x8),
+                                                 _mm512_reduce_add_pd(compensation_f64x8));
     *result = nk_f64_sqrt_haswell(quadratic < 0 ? 0 : quadratic);
 }
 
@@ -438,8 +439,8 @@ NK_PUBLIC void nk_bilinear_f64c_skylake(nk_f64c_t const *a, nk_f64c_t const *b, 
     }
 
     // Final: combine sum + compensation
-    results->real = sum_real + compensation_real;
-    results->imag = sum_imag + compensation_imag;
+    results->real = nk_f64_compensated_sum_(sum_real, compensation_real);
+    results->imag = nk_f64_compensated_sum_(sum_imag, compensation_imag);
 }
 
 #if defined(__clang__)

@@ -201,8 +201,10 @@ NK_INTERNAL void nk_reduce_moments_f64_v128relaxed_contiguous_( //
         sumsq_comp_f64x2 = wasm_f64x2_add(sumsq_comp_f64x2, corr_sq_f64x2);
         sumsq_f64x2 = tentative_sq_f64x2;
     }
-    nk_f64_t sum = nk_reduce_add_f64x2_v128relaxed_(wasm_f64x2_add(sum_f64x2, sum_comp_f64x2));
-    nk_f64_t sumsq = nk_reduce_add_f64x2_v128relaxed_(wasm_f64x2_add(sumsq_f64x2, sumsq_comp_f64x2));
+    nk_f64_t sum = nk_f64_compensated_sum_(nk_reduce_add_f64x2_v128relaxed_(sum_f64x2),
+                                           nk_reduce_add_f64x2_v128relaxed_(sum_comp_f64x2));
+    nk_f64_t sumsq = nk_f64_compensated_sum_(nk_reduce_add_f64x2_v128relaxed_(sumsq_f64x2),
+                                             nk_reduce_add_f64x2_v128relaxed_(sumsq_comp_f64x2));
     for (; idx < count; ++idx) {
         nk_f64_t val = data[idx];
         sum += val;

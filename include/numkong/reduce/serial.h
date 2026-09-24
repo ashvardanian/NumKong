@@ -29,13 +29,14 @@ NK_INTERNAL nk_f64_t nk_reduce_sum_f64_serial_(nk_f64_t const *values, nk_f64_t 
         nk_f64_t virtual_addend = tentative_sum - running_sum;
         accumulated_error += (running_sum - (tentative_sum - virtual_addend)) + (values[i] - virtual_addend);
         running_sum = tentative_sum;
-        // TwoSum: fold in compensations[i]
-        tentative_sum = running_sum + compensations[i];
+        // TwoSum: fold in compensations[i], which overflow can turn NaN while values[i] stays ±inf
+        nk_f64_t compensation = compensations[i] == compensations[i] ? compensations[i] : 0;
+        tentative_sum = running_sum + compensation;
         virtual_addend = tentative_sum - running_sum;
-        accumulated_error += (running_sum - (tentative_sum - virtual_addend)) + (compensations[i] - virtual_addend);
+        accumulated_error += (running_sum - (tentative_sum - virtual_addend)) + (compensation - virtual_addend);
         running_sum = tentative_sum;
     }
-    return running_sum + accumulated_error;
+    return nk_f64_compensated_sum_(running_sum, accumulated_error);
 }
 
 /*  Keep the serial instantiations below actually scalar, regardless of build type.
@@ -66,7 +67,8 @@ NK_PUBLIC void nk_reduce_moments_f32_serial(                       //
         else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
         running_sumsq = tentative_sumsq;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = nk_f64_compensated_sum_(running_sum, sum_compensation),
+    *sumsq_ptr = nk_f64_compensated_sum_(running_sumsq, sumsq_compensation);
 }
 
 NK_PUBLIC void nk_reduce_moments_f64_serial(                       //
@@ -88,7 +90,8 @@ NK_PUBLIC void nk_reduce_moments_f64_serial(                       //
         else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
         running_sumsq = tentative_sumsq;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = nk_f64_compensated_sum_(running_sum, sum_compensation),
+    *sumsq_ptr = nk_f64_compensated_sum_(running_sumsq, sumsq_compensation);
 }
 
 NK_PUBLIC void nk_reduce_moments_i8_serial(                       //
@@ -242,7 +245,8 @@ NK_PUBLIC void nk_reduce_moments_f16_serial(                       //
         else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
         running_sumsq = tentative_sumsq;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = nk_f32_compensated_sum_(running_sum, sum_compensation),
+    *sumsq_ptr = nk_f32_compensated_sum_(running_sumsq, sumsq_compensation);
 }
 
 NK_PUBLIC void nk_reduce_moments_bf16_serial(                       //
@@ -267,7 +271,8 @@ NK_PUBLIC void nk_reduce_moments_bf16_serial(                       //
         else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
         running_sumsq = tentative_sumsq;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = nk_f32_compensated_sum_(running_sum, sum_compensation),
+    *sumsq_ptr = nk_f32_compensated_sum_(running_sumsq, sumsq_compensation);
 }
 
 NK_PUBLIC void nk_reduce_moments_e4m3_serial(                       //
@@ -292,7 +297,8 @@ NK_PUBLIC void nk_reduce_moments_e4m3_serial(                       //
         else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
         running_sumsq = tentative_sumsq;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = nk_f32_compensated_sum_(running_sum, sum_compensation),
+    *sumsq_ptr = nk_f32_compensated_sum_(running_sumsq, sumsq_compensation);
 }
 
 NK_PUBLIC void nk_reduce_moments_e5m2_serial(                       //
@@ -317,7 +323,8 @@ NK_PUBLIC void nk_reduce_moments_e5m2_serial(                       //
         else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
         running_sumsq = tentative_sumsq;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = nk_f32_compensated_sum_(running_sum, sum_compensation),
+    *sumsq_ptr = nk_f32_compensated_sum_(running_sumsq, sumsq_compensation);
 }
 
 NK_PUBLIC void nk_reduce_moments_e2m3_serial(                       //
@@ -342,7 +349,8 @@ NK_PUBLIC void nk_reduce_moments_e2m3_serial(                       //
         else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
         running_sumsq = tentative_sumsq;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = nk_f32_compensated_sum_(running_sum, sum_compensation),
+    *sumsq_ptr = nk_f32_compensated_sum_(running_sumsq, sumsq_compensation);
 }
 
 NK_PUBLIC void nk_reduce_moments_e3m2_serial(                       //
@@ -367,7 +375,8 @@ NK_PUBLIC void nk_reduce_moments_e3m2_serial(                       //
         else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
         running_sumsq = tentative_sumsq;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = nk_f32_compensated_sum_(running_sum, sum_compensation),
+    *sumsq_ptr = nk_f32_compensated_sum_(running_sumsq, sumsq_compensation);
 }
 
 NK_PUBLIC void nk_reduce_moments_i4_serial(                         //

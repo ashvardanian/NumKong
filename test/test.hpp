@@ -486,10 +486,12 @@ struct error_stats_t {
         count += other.count;
         exact_matches += other.exact_matches;
         saw_floating_distance = saw_floating_distance || other.saw_floating_distance;
+        if (!first_failure) first_failure = other.first_failure;
     }
 };
 
 inline bool should_fail(char const *kernel_name, error_stats_t const &stats) noexcept {
+    if (stats.first_failure) return true;
     comparison_family_spec_t const spec = comparison_family_spec(stats.family);
     switch (spec.failure_mode) {
     case comparison_failure_mode_t::exact_distance_k:
