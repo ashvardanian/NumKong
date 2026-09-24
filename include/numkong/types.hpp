@@ -154,6 +154,12 @@ constexpr bool is_numeric_dtype() noexcept {
     return numeric_dtype<scalar_type_>;
 }
 
+/** @brief Pointer to the C scalar behind a wrapper, keeping `nullptr` for omitted optional outputs. */
+template <numeric_dtype scalar_type_>
+auto raw_pointer_(scalar_type_ *scalar) noexcept -> decltype(&scalar->raw_) {
+    return scalar ? &scalar->raw_ : nullptr;
+}
+
 /** @brief Check if a type is an integer type. */
 template <typename scalar_type_>
 constexpr bool is_integral_dtype() noexcept {
@@ -4956,7 +4962,7 @@ struct sub_byte_ref<i4x2_t> {
     constexpr sub_byte_ref &operator=(integral_type_ value) noexcept {
         std::int8_t clamped;
         if constexpr (std::is_signed_v<integral_type_>) {
-            clamped = value < integral_type_(-8) ? std::int8_t(-8)
+            clamped = value < integral_type_(-8)  ? std::int8_t(-8)
                       : value > integral_type_(7) ? std::int8_t(7)
                                                   : static_cast<std::int8_t>(value);
         }
@@ -4985,7 +4991,7 @@ struct sub_byte_ref<u4x2_t> {
     constexpr sub_byte_ref &operator=(integral_type_ value) noexcept {
         std::uint8_t clamped;
         if constexpr (std::is_signed_v<integral_type_>) {
-            clamped = value < integral_type_(0) ? std::uint8_t(0)
+            clamped = value < integral_type_(0)    ? std::uint8_t(0)
                       : value > integral_type_(15) ? std::uint8_t(15)
                                                    : static_cast<std::uint8_t>(value);
         }
