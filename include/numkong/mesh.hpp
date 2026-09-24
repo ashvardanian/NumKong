@@ -343,17 +343,17 @@ void rmsd(                                               //
                           std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
 
     if constexpr (std::is_same_v<in_type_, f64_t> && simd)
-        nk_rmsd_f64(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                    &metric->raw_);
+        nk_rmsd_f64(&a->raw_, &b->raw_, n, raw_pointer_(a_centroid), raw_pointer_(b_centroid), raw_pointer_(rotation),
+                    raw_pointer_(scale), &metric->raw_);
     else if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_rmsd_f32(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                    &metric->raw_);
+        nk_rmsd_f32(&a->raw_, &b->raw_, n, raw_pointer_(a_centroid), raw_pointer_(b_centroid), raw_pointer_(rotation),
+                    raw_pointer_(scale), &metric->raw_);
     else if constexpr (std::is_same_v<in_type_, f16_t> && simd)
-        nk_rmsd_f16(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                    &metric->raw_);
+        nk_rmsd_f16(&a->raw_, &b->raw_, n, raw_pointer_(a_centroid), raw_pointer_(b_centroid), raw_pointer_(rotation),
+                    raw_pointer_(scale), &metric->raw_);
     else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_rmsd_bf16(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
-                     scale ? &scale->raw_ : nullptr, &metric->raw_);
+        nk_rmsd_bf16(&a->raw_, &b->raw_, n, raw_pointer_(a_centroid), raw_pointer_(b_centroid), raw_pointer_(rotation),
+                     raw_pointer_(scale), &metric->raw_);
     // Scalar fallback: raw √(Σ‖aᵢ − bᵢ‖² / n), no centering
     else {
         if (a_centroid)
@@ -407,17 +407,17 @@ void kabsch(                                             //
                           std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
 
     if constexpr (std::is_same_v<in_type_, f64_t> && simd)
-        nk_kabsch_f64(&a->raw_, &b->raw_, n, a_centroid ? &a_centroid->raw_ : nullptr, &b_centroid->raw_,
-                      &rotation->raw_, &scale->raw_, &metric->raw_);
+        nk_kabsch_f64(&a->raw_, &b->raw_, n, raw_pointer_(a_centroid), raw_pointer_(b_centroid), raw_pointer_(rotation),
+                      raw_pointer_(scale), &metric->raw_);
     else if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_kabsch_f32(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                      &metric->raw_);
+        nk_kabsch_f32(&a->raw_, &b->raw_, n, raw_pointer_(a_centroid), raw_pointer_(b_centroid), raw_pointer_(rotation),
+                      raw_pointer_(scale), &metric->raw_);
     else if constexpr (std::is_same_v<in_type_, f16_t> && simd)
-        nk_kabsch_f16(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                      &metric->raw_);
+        nk_kabsch_f16(&a->raw_, &b->raw_, n, raw_pointer_(a_centroid), raw_pointer_(b_centroid), raw_pointer_(rotation),
+                      raw_pointer_(scale), &metric->raw_);
     else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_kabsch_bf16(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                       &metric->raw_);
+        nk_kabsch_bf16(&a->raw_, &b->raw_, n, raw_pointer_(a_centroid), raw_pointer_(b_centroid),
+                       raw_pointer_(rotation), raw_pointer_(scale), &metric->raw_);
     // Scalar fallback
     else {
         // Step 1: Compute centroids
@@ -557,17 +557,17 @@ void umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type
                           std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
 
     if constexpr (std::is_same_v<in_type_, f64_t> && simd)
-        nk_umeyama_f64(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                       &metric->raw_);
+        nk_umeyama_f64(&a->raw_, &b->raw_, n, raw_pointer_(a_centroid), raw_pointer_(b_centroid),
+                       raw_pointer_(rotation), raw_pointer_(scale), &metric->raw_);
     else if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_umeyama_f32(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                       &metric->raw_);
+        nk_umeyama_f32(&a->raw_, &b->raw_, n, raw_pointer_(a_centroid), raw_pointer_(b_centroid),
+                       raw_pointer_(rotation), raw_pointer_(scale), &metric->raw_);
     else if constexpr (std::is_same_v<in_type_, f16_t> && simd)
-        nk_umeyama_f16(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                       &metric->raw_);
+        nk_umeyama_f16(&a->raw_, &b->raw_, n, raw_pointer_(a_centroid), raw_pointer_(b_centroid),
+                       raw_pointer_(rotation), raw_pointer_(scale), &metric->raw_);
     else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_umeyama_bf16(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                        &metric->raw_);
+        nk_umeyama_bf16(&a->raw_, &b->raw_, n, raw_pointer_(a_centroid), raw_pointer_(b_centroid),
+                        raw_pointer_(rotation), raw_pointer_(scale), &metric->raw_);
     // Scalar fallback
     else {
         // Step 1: Compute centroids

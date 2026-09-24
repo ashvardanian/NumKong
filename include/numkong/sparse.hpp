@@ -30,7 +30,7 @@ template <numeric_dtype index_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void sparse_intersect(index_type_ const *a, index_type_ const *b, std::size_t a_length, std::size_t b_length,
                       index_type_ *result, nk_size_t *count) noexcept {
     constexpr bool simd = allow_simd_ == prefer_simd_k;
-    typename index_type_::raw_t *result_raw = result ? &result->raw_ : nullptr;
+    typename index_type_::raw_t *result_raw = raw_pointer_(result);
 
     if constexpr (std::is_same_v<index_type_, u16_t> && simd)
         nk_sparse_intersect_u16(&a->raw_, &b->raw_, a_length, b_length, result_raw, count);
