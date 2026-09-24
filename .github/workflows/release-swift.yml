@@ -13,27 +13,26 @@ permissions:
 jobs:
   validate_macos:
     name: Validate Swift Package on macOS
-    runs-on: macos-15
+    runs-on: xcode-27
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Build
-        run: swift build
       - name: Test
-        run: swift test --filter Test --parallel
+        run: swift test --filter Test
 
   validate_linux:
-    name: Validate Swift Package on Linux
-    runs-on: ubuntu-24.04
-    container: swift:6.2
+    name: Validate Swift Package on Linux ${{ matrix.arch }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    container: swift:6.4
+    strategy:
+      matrix:
+        arch: [x86_64, arm64]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: "main"
-      - name: Build
-        run: swift build
       - name: Test
-        run: swift test --filter Test --parallel
+        run: swift test --filter Test

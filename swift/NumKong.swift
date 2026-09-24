@@ -66,7 +66,7 @@ extension Float64: NumKongHaversine {
             aLon.baseAddress!,
             bLat.baseAddress!,
             bLon.baseAddress!,
-            UInt64(n),
+            nk_size_t(n),
             result.baseAddress!
         )
         return true
@@ -94,7 +94,7 @@ extension Float64: NumKongVincenty {
             aLon.baseAddress!,
             bLat.baseAddress!,
             bLon.baseAddress!,
-            UInt64(n),
+            nk_size_t(n),
             result.baseAddress!
         )
         return true
@@ -122,7 +122,7 @@ extension Float32: NumKongHaversine {
             aLon.baseAddress!,
             bLat.baseAddress!,
             bLon.baseAddress!,
-            UInt64(n),
+            nk_size_t(n),
             result.baseAddress!
         )
         return true
@@ -150,7 +150,7 @@ extension Float32: NumKongVincenty {
             aLon.baseAddress!,
             bLat.baseAddress!,
             bLon.baseAddress!,
-            UInt64(n),
+            nk_size_t(n),
             result.baseAddress!
         )
         return true
@@ -166,7 +166,7 @@ extension Float64 {
     ) -> [Float64]?
     where A.Element == Float64, B.Element == Float64, C.Element == Float64, D.Element == Float64 {
         _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_haversine_f64(a, b, c, d, UInt64(n), r)
+            nk_haversine_f64(a, b, c, d, nk_size_t(n), r)
         }
     }
 
@@ -176,7 +176,7 @@ extension Float64 {
     ) -> [Float64]?
     where A.Element == Float64, B.Element == Float64, C.Element == Float64, D.Element == Float64 {
         _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_vincenty_f64(a, b, c, d, UInt64(n), r)
+            nk_vincenty_f64(a, b, c, d, nk_size_t(n), r)
         }
     }
 }
@@ -188,7 +188,7 @@ extension Float32 {
     ) -> [Float32]?
     where A.Element == Float32, B.Element == Float32, C.Element == Float32, D.Element == Float32 {
         _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_haversine_f32(a, b, c, d, UInt64(n), r)
+            nk_haversine_f32(a, b, c, d, nk_size_t(n), r)
         }
     }
 
@@ -198,7 +198,7 @@ extension Float32 {
     ) -> [Float32]?
     where A.Element == Float32, B.Element == Float32, C.Element == Float32, D.Element == Float32 {
         _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_vincenty_f32(a, b, c, d, UInt64(n), r)
+            nk_vincenty_f32(a, b, c, d, nk_size_t(n), r)
         }
     }
 }
@@ -246,35 +246,35 @@ where A.Element == Float32 {
 /// it alone claims hardware support for code that may not exist here.
 public enum Capabilities {
     /// What this CPU supports, from CPUID or HWCAP.
-    public static var detected: UInt64 { nk_capabilities_detected() }
+    public static var detected: UInt64 { UInt64(nk_capabilities_detected()) }
 
     /// What this binary contains, as decided by the ISA probes at build time.
-    public static var compiled: UInt64 { nk_capabilities_compiled() }
+    public static var compiled: UInt64 { UInt64(nk_capabilities_compiled()) }
 
     /// What can actually execute here: ``detected`` intersected with ``compiled``.
-    public static var available: UInt64 { nk_capabilities_available() }
+    public static var available: UInt64 { UInt64(nk_capabilities_available()) }
 
     /// What dispatch is currently restricted to, a subset of ``available``.
-    public static var enabled: UInt64 { nk_capabilities_enabled() }
+    public static var enabled: UInt64 { UInt64(nk_capabilities_enabled()) }
 
     /// Whether `capability` can actually execute here, i.e. whether it is in ``available``.
     /// False both when this CPU lacks the feature and when its kernels were not compiled in.
     public static func has(_ capability: UInt64) -> Bool { available & capability != 0 }
 
     /// Restricts dispatch to `capabilities`, clamped to ``available``; serial is always kept.
-    public static func restrict(_ capabilities: UInt64) { nk_capabilities_restrict(capabilities) }
+    public static func restrict(_ capabilities: UInt64) { nk_capabilities_restrict(nk_capability_t(capabilities)) }
 
     /// Adds `capabilities` to ``enabled``. Anything not in ``available`` is ignored.
-    public static func enable(_ capabilities: UInt64) { nk_capabilities_enable(capabilities) }
+    public static func enable(_ capabilities: UInt64) { nk_capabilities_enable(nk_capability_t(capabilities)) }
 
     /// Removes `capabilities` from ``enabled``. The serial fallback cannot be removed.
-    public static func disable(_ capabilities: UInt64) { nk_capabilities_disable(capabilities) }
+    public static func disable(_ capabilities: UInt64) { nk_capabilities_disable(nk_capability_t(capabilities)) }
 
     /// Configures the current thread for the capabilities that can run here, e.g. AMX tile state on
     /// x86. Must be called once per thread before using AMX operations.
     /// - Returns: `true` on success.
     @discardableResult
-    public static func configureThread() -> Bool { nk_configure_thread(available) != 0 }
+    public static func configureThread() -> Bool { nk_configure_thread(nk_capabilities_available()) != 0 }
 
     public static let serial: UInt64 = 1 << 0
     public static let neon: UInt64 = 1 << 1

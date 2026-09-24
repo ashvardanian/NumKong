@@ -1,605 +1,259 @@
 //
 //  test/swift/Test.swift
-//  XCTest correctness tests for the NumKong Swift bindings.
+//  Swift Testing correctness tests for the NumKong Swift bindings.
 //
 //  - Author: Ash Vardanian
 //  - Date: March 14, 2026
 //
 
 import NumKong
-import XCTest
+import Testing
 
-class NumKongTests: XCTestCase {
-    override class func setUp() {
-        print("Capabilities: \(Capabilities.available)")
+/// One kernel call on fixed inputs, and the value it must land within `tolerance` of.
+struct Kernel: Sendable, CustomTestStringConvertible {
+    let testDescription: String
+    let expected: Double
+    let tolerance: Double
+    let run: @Sendable () -> Double?
+
+    init(
+        _ name: String, _ expected: Double, within tolerance: Double = 0.01,
+        _ run: @escaping @Sendable () -> Double?
+    ) {
+        self.testDescription = name
+        self.expected = expected
+        self.tolerance = tolerance
+        self.run = run
     }
+}
 
-    func testAngularInt8() throws {
-        let a: [Int8] = [3, 97, 127]
-        let b: [Int8] = [3, 97, 127]
-        let result = try XCTUnwrap(a.angular(b))
-        XCTAssertEqual(result, 0.00012027938, accuracy: 0.01)
-    }
+/// New York then London, as latitude and longitude in radians.
+let newYorkLondon: [Float64] = [40.7128, -74.0060, 51.5074, -0.1278].map { $0 * .pi / 180 }
 
-    #if !arch(x86_64)
-    func testAngularFloat16() throws {
-        let a: [Float16] = [1.0, 2.0, 3.0]
-        let b: [Float16] = [1.0, 2.0, 3.0]
-        let result = try XCTUnwrap(a.angular(b))
-        XCTAssertEqual(result, 0.004930496, accuracy: 0.01)
-    }
-    #endif
-
-    func testAngularFloat32() throws {
-        let a: [Float32] = [1.0, 2.0, 3.0]
-        let b: [Float32] = [1.0, 2.0, 3.0]
-        let result = try XCTUnwrap(a.angular(b))
-        XCTAssertEqual(result, 0.004930496, accuracy: 0.01)
-    }
-
-    func testAngularFloat64() throws {
-        let a: [Float64] = [1.0, 2.0, 3.0]
-        let b: [Float64] = [1.0, 2.0, 3.0]
-        let result = try XCTUnwrap(a.angular(b))
-        XCTAssertEqual(result, 0.004930496, accuracy: 0.01)
-    }
-
-    func testInnerInt8() throws {
-        let a: [Int8] = [1, 2, 3]
-        let b: [Int8] = [4, 5, 6]
-        let result = try XCTUnwrap(a.dot(b))
-        XCTAssertEqual(result, 32)
-    }
-
-    #if !arch(x86_64)
-    func testDotFloat16() throws {
-        let a: [Float16] = [1.0, 2.0, 3.0]
-        let b: [Float16] = [4.0, 5.0, 6.0]
-        let result = try XCTUnwrap(a.dot(b))
-        XCTAssertEqual(result, 32.0, accuracy: 0.01)
-    }
-    #endif
-
-    func testDotFloat32() throws {
-        let a: [Float32] = [1.0, 2.0, 3.0]
-        let b: [Float32] = [4.0, 5.0, 6.0]
-        let result = try XCTUnwrap(a.dot(b))
-        XCTAssertEqual(result, 32.0, accuracy: 0.01)
-    }
-
-    func testDotFloat64() throws {
-        let a: [Float64] = [1.0, 2.0, 3.0]
-        let b: [Float64] = [4.0, 5.0, 6.0]
-        let result = try XCTUnwrap(a.dot(b))
-        XCTAssertEqual(result, 32.0, accuracy: 0.01)
-    }
-
-    func testEuclideanInt8() throws {
-        let a: [Int8] = [1, 2, 3]
-        let b: [Int8] = [4, 5, 6]
-        let result = try XCTUnwrap(a.euclidean(b))
-        XCTAssertEqual(result, 5.196152422706632, accuracy: 0.01)
-    }
-
-    #if !arch(x86_64)
-    func testEuclideanFloat16() throws {
-        let a: [Float16] = [1.0, 2.0, 3.0]
-        let b: [Float16] = [4.0, 5.0, 6.0]
-        let result = try XCTUnwrap(a.euclidean(b))
-        XCTAssertEqual(result, 5.196152422706632, accuracy: 0.01)
-    }
-    #endif
-
-    func testEuclideanFloat32() throws {
-        let a: [Float32] = [1.0, 2.0, 3.0]
-        let b: [Float32] = [4.0, 5.0, 6.0]
-        let result = try XCTUnwrap(a.euclidean(b))
-        XCTAssertEqual(result, 5.196152422706632, accuracy: 0.01)
-    }
-
-    func testEuclideanFloat64() throws {
-        let a: [Float64] = [1.0, 2.0, 3.0]
-        let b: [Float64] = [4.0, 5.0, 6.0]
-        let result = try XCTUnwrap(a.euclidean(b))
-        XCTAssertEqual(result, 5.196152422706632, accuracy: 0.01)
-    }
-
-    func testSqEuclideanInt8() throws {
-        let a: [Int8] = [1, 2, 3]
-        let b: [Int8] = [4, 5, 6]
-        let result = try XCTUnwrap(a.sqeuclidean(b))
-        XCTAssertEqual(result, 27)
-    }
-
-    #if !arch(x86_64)
-    func testSqEuclideanFloat16() throws {
-        let a: [Float16] = [1.0, 2.0, 3.0]
-        let b: [Float16] = [4.0, 5.0, 6.0]
-        let result = try XCTUnwrap(a.sqeuclidean(b))
-        XCTAssertEqual(result, 27.0, accuracy: 0.01)
-    }
-    #endif
-
-    func testSqEuclideanFloat32() throws {
-        let a: [Float32] = [1.0, 2.0, 3.0]
-        let b: [Float32] = [4.0, 5.0, 6.0]
-        let result = try XCTUnwrap(a.sqeuclidean(b))
-        XCTAssertEqual(result, 27.0, accuracy: 0.01)
-    }
-
-    func testSqEuclideanFloat64() throws {
-        let a: [Float64] = [1.0, 2.0, 3.0]
-        let b: [Float64] = [4.0, 5.0, 6.0]
-        let result = try XCTUnwrap(a.sqeuclidean(b))
-        XCTAssertEqual(result, 27.0, accuracy: 0.01)
-    }
-
-    // MARK: - Geospatial Tests
-
-    func testHaversineFloat64() throws {
-        let aLat: [Float64] = [40.7128 * .pi / 180.0]
-        let aLon: [Float64] = [-74.0060 * .pi / 180.0]
-        let bLat: [Float64] = [51.5074 * .pi / 180.0]
-        let bLon: [Float64] = [-0.1278 * .pi / 180.0]
-        var result: [Float64] = [0]
-
-        let success = aLat.withUnsafeBufferPointer { aLatPtr in
-            aLon.withUnsafeBufferPointer { aLonPtr in
-                bLat.withUnsafeBufferPointer { bLatPtr in
-                    bLon.withUnsafeBufferPointer { bLonPtr in
-                        result.withUnsafeMutableBufferPointer { resultPtr in
-                            Float64.haversine(
-                                aLat: aLatPtr,
-                                aLon: aLonPtr,
-                                bLat: bLatPtr,
-                                bLon: bLonPtr,
-                                result: resultPtr
-                            )
-                        }
-                    }
-                }
-            }
+/// Calls a buffer-pointer geodesic on one coordinate pair, the path the sequence overloads bypass.
+func viaBuffers<T: BinaryFloatingPoint>(
+    _ kernel: (
+        UnsafeBufferPointer<T>, UnsafeBufferPointer<T>, UnsafeBufferPointer<T>, UnsafeBufferPointer<T>,
+        UnsafeMutableBufferPointer<T>
+    ) -> Bool,
+    _ coordinates: [T]
+) -> Double? {
+    var result: [T] = [0]
+    let succeeded = coordinates.withUnsafeBufferPointer { c in
+        result.withUnsafeMutableBufferPointer { r in
+            kernel(
+                .init(rebasing: c[0..<1]), .init(rebasing: c[1..<2]), .init(rebasing: c[2..<3]),
+                .init(rebasing: c[3..<4]), r)
         }
-        XCTAssertTrue(success)
-        XCTAssertEqual(result[0], 5_539_000, accuracy: 5000)
     }
+    return succeeded ? Double(result[0]) : nil
+}
 
-    func testHaversineFloat32() throws {
-        let aLat: [Float32] = [40.7128 * .pi / 180.0]
-        let aLon: [Float32] = [-74.0060 * .pi / 180.0]
-        let bLat: [Float32] = [51.5074 * .pi / 180.0]
-        let bLon: [Float32] = [-0.1278 * .pi / 180.0]
-        var result: [Float32] = [0]
-
-        let success = aLat.withUnsafeBufferPointer { aLatPtr in
-            aLon.withUnsafeBufferPointer { aLonPtr in
-                bLat.withUnsafeBufferPointer { bLatPtr in
-                    bLon.withUnsafeBufferPointer { bLonPtr in
-                        result.withUnsafeMutableBufferPointer { resultPtr in
-                            Float32.haversine(
-                                aLat: aLatPtr,
-                                aLon: aLonPtr,
-                                bLat: bLatPtr,
-                                bLon: bLonPtr,
-                                result: resultPtr
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        XCTAssertTrue(success)
-        XCTAssertEqual(result[0], 5_539_000, accuracy: 5000)
-    }
-
-    func testVincentyFloat64() throws {
-        let aLat: [Float64] = [40.7128 * .pi / 180.0]
-        let aLon: [Float64] = [-74.0060 * .pi / 180.0]
-        let bLat: [Float64] = [51.5074 * .pi / 180.0]
-        let bLon: [Float64] = [-0.1278 * .pi / 180.0]
-        var result: [Float64] = [0]
-
-        let success = aLat.withUnsafeBufferPointer { aLatPtr in
-            aLon.withUnsafeBufferPointer { aLonPtr in
-                bLat.withUnsafeBufferPointer { bLatPtr in
-                    bLon.withUnsafeBufferPointer { bLonPtr in
-                        result.withUnsafeMutableBufferPointer { resultPtr in
-                            Float64.vincenty(
-                                aLat: aLatPtr,
-                                aLon: aLonPtr,
-                                bLat: bLatPtr,
-                                bLon: bLonPtr,
-                                result: resultPtr
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        XCTAssertTrue(success)
-        XCTAssertEqual(result[0], 5_570_000, accuracy: 20000)
-    }
-
-    func testVincentyFloat32() throws {
-        let aLat: [Float32] = [40.7128 * .pi / 180.0]
-        let aLon: [Float32] = [-74.0060 * .pi / 180.0]
-        let bLat: [Float32] = [51.5074 * .pi / 180.0]
-        let bLon: [Float32] = [-0.1278 * .pi / 180.0]
-        var result: [Float32] = [0]
-
-        let success = aLat.withUnsafeBufferPointer { aLatPtr in
-            aLon.withUnsafeBufferPointer { aLonPtr in
-                bLat.withUnsafeBufferPointer { bLatPtr in
-                    bLon.withUnsafeBufferPointer { bLonPtr in
-                        result.withUnsafeMutableBufferPointer { resultPtr in
-                            Float32.vincenty(
-                                aLat: aLatPtr,
-                                aLon: aLonPtr,
-                                bLat: bLatPtr,
-                                bLon: bLonPtr,
-                                result: resultPtr
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        XCTAssertTrue(success)
-        XCTAssertEqual(result[0], 5_570_000, accuracy: 50000)
-    }
-
-    // MARK: - Geospatial Free Function Tests
-
-    func testHaversineFreeFloat64() throws {
-        let aLat: [Float64] = [40.7128 * .pi / 180.0]
-        let aLon: [Float64] = [-74.0060 * .pi / 180.0]
-        let bLat: [Float64] = [51.5074 * .pi / 180.0]
-        let bLon: [Float64] = [-0.1278 * .pi / 180.0]
-        let result = try XCTUnwrap(haversine(aLat: aLat, aLon: aLon, bLat: bLat, bLon: bLon))
-        XCTAssertEqual(result[0], 5_539_000, accuracy: 5000)
-    }
-
-    func testHaversineFreeFloat32() throws {
-        let aLat: [Float32] = [40.7128 * .pi / 180.0]
-        let aLon: [Float32] = [-74.0060 * .pi / 180.0]
-        let bLat: [Float32] = [51.5074 * .pi / 180.0]
-        let bLon: [Float32] = [-0.1278 * .pi / 180.0]
-        let result: [Float32]? = haversine(aLat: aLat, aLon: aLon, bLat: bLat, bLon: bLon)
-        let unwrapped = try XCTUnwrap(result)
-        XCTAssertEqual(unwrapped[0], 5_539_000, accuracy: 5000)
-    }
-
-    func testVincentyFreeFloat64() throws {
-        let aLat: [Float64] = [40.7128 * .pi / 180.0]
-        let aLon: [Float64] = [-74.0060 * .pi / 180.0]
-        let bLat: [Float64] = [51.5074 * .pi / 180.0]
-        let bLon: [Float64] = [-0.1278 * .pi / 180.0]
-        let result = try XCTUnwrap(vincenty(aLat: aLat, aLon: aLon, bLat: bLat, bLon: bLon))
-        XCTAssertEqual(result[0], 5_570_000, accuracy: 20000)
-    }
-
-    func testVincentyFreeFloat32() throws {
-        let aLat: [Float32] = [40.7128 * .pi / 180.0]
-        let aLon: [Float32] = [-74.0060 * .pi / 180.0]
-        let bLat: [Float32] = [51.5074 * .pi / 180.0]
-        let bLon: [Float32] = [-0.1278 * .pi / 180.0]
-        let result: [Float32]? = vincenty(aLat: aLat, aLon: aLon, bLat: bLat, bLon: bLon)
-        let unwrapped = try XCTUnwrap(result)
-        XCTAssertEqual(unwrapped[0], 5_570_000, accuracy: 50000)
-    }
-
-    // MARK: - New Low-Precision Types
-
-    func testBFloat16Roundtrip() throws {
-        let x = BFloat16(float: 1.5)
-        XCTAssertEqual(x.float, 1.5, accuracy: 0.02)
-    }
-
-    func testE4M3Dot() throws {
-        let a: [E4M3] = [E4M3(float: 1), E4M3(float: 2), E4M3(float: 3)]
-        let b: [E4M3] = [E4M3(float: 4), E4M3(float: 5), E4M3(float: 6)]
-        let result = try XCTUnwrap(a.dot(b))
-        XCTAssertEqual(result, 32.0, accuracy: 1.5)
-    }
-
-    // MARK: - Nibble Pair Tests
-
-    func testI4x2Lanes() throws {
-        let x = I4x2(first: 7, second: -8)
-        XCTAssertEqual(x.bitPattern, 0x78)
-        XCTAssertEqual(x.first, 7)
-        XCTAssertEqual(x.second, -8)
-        XCTAssertEqual(I4x2(bitPattern: 0xFF).first, -1)
-        XCTAssertEqual(I4x2(bitPattern: 0xFF).second, -1)
-    }
-
-    func testU4x2Lanes() throws {
-        let x = U4x2(first: 1, second: 15)
-        XCTAssertEqual(x.bitPattern, 0x1F)
-        XCTAssertEqual(x.first, 1)
-        XCTAssertEqual(x.second, 15)
-    }
-
-    func testDotI4x2() throws {
+let kernels: [Kernel] = {
+    let c64 = newYorkLondon
+    let c32 = newYorkLondon.map(Float32.init)
+    var kernels = [
+        Kernel("Int8 angular", 0) { [Int8](arrayLiteral: 3, 97, 127).angular([3, 97, 127]).map(Double.init) },
+        Kernel("Float32 angular", 0) { [Float32](arrayLiteral: 1, 2, 3).angular([1, 2, 3]) },
+        Kernel("Float64 angular", 0) { [Float64](arrayLiteral: 1, 2, 3).angular([1, 2, 3]) },
+        Kernel("Int8 dot", 32, within: 0) { [Int8](arrayLiteral: 1, 2, 3).dot([4, 5, 6]).map(Double.init) },
+        Kernel("Float32 dot", 32) { [Float32](arrayLiteral: 1, 2, 3).dot([4, 5, 6]) },
+        Kernel("Float64 dot", 32) { [Float64](arrayLiteral: 1, 2, 3).dot([4, 5, 6]) },
+        Kernel("Int8 euclidean", 27.0.squareRoot()) {
+            [Int8](arrayLiteral: 1, 2, 3).euclidean([4, 5, 6]).map(Double.init)
+        },
+        Kernel("Float32 euclidean", 27.0.squareRoot()) { [Float32](arrayLiteral: 1, 2, 3).euclidean([4, 5, 6]) },
+        Kernel("Float64 euclidean", 27.0.squareRoot()) { [Float64](arrayLiteral: 1, 2, 3).euclidean([4, 5, 6]) },
+        Kernel("Int8 sqeuclidean", 27, within: 0) {
+            [Int8](arrayLiteral: 1, 2, 3).sqeuclidean([4, 5, 6]).map(Double.init)
+        },
+        Kernel("Float32 sqeuclidean", 27) { [Float32](arrayLiteral: 1, 2, 3).sqeuclidean([4, 5, 6]) },
+        Kernel("Float64 sqeuclidean", 27) { [Float64](arrayLiteral: 1, 2, 3).sqeuclidean([4, 5, 6]) },
+        Kernel("E4M3 dot", 32, within: 1.5) {
+            [E4M3(float: 1), E4M3(float: 2), E4M3(float: 3)]
+                .dot([E4M3(float: 4), E4M3(float: 5), E4M3(float: 6)]).map(Double.init)
+        },
         // Lanes (1, 2, 3, 4) . (4, 5, 6, 7) = 4 + 10 + 18 + 28
-        let a: [I4x2] = [I4x2(first: 1, second: 2), I4x2(first: 3, second: 4)]
-        let b: [I4x2] = [I4x2(first: 4, second: 5), I4x2(first: 6, second: 7)]
-        let result = try XCTUnwrap(a.dot(b))
-        XCTAssertEqual(result, 60)
-    }
-
-    func testDotU4x2() throws {
+        Kernel("I4x2 dot", 60, within: 0) {
+            [I4x2(first: 1, second: 2), I4x2(first: 3, second: 4)]
+                .dot([I4x2(first: 4, second: 5), I4x2(first: 6, second: 7)]).map(Double.init)
+        },
         // Lanes (15, 15, 0, 1) . (15, 1, 15, 15) = 225 + 15 + 0 + 15
-        let a: [U4x2] = [U4x2(first: 15, second: 15), U4x2(first: 0, second: 1)]
-        let b: [U4x2] = [U4x2(first: 15, second: 1), U4x2(first: 15, second: 15)]
-        let result = try XCTUnwrap(a.dot(b))
-        XCTAssertEqual(result, 255)
-    }
+        Kernel("U4x2 dot", 255, within: 0) {
+            [U4x2(first: 15, second: 15), U4x2(first: 0, second: 1)]
+                .dot([U4x2(first: 15, second: 1), U4x2(first: 15, second: 15)]).map(Double.init)
+        },
+        Kernel("I4x2 angular", 0) {
+            let a = [I4x2(first: -5, second: 3), I4x2(first: 1, second: 7)]
+            return a.angular(a).map(Double.init)
+        },
+        Kernel("U1x8 hamming", 16, within: 0) {
+            [U1x8(0xFF), U1x8(0xFF)].hamming([U1x8(0x00), U1x8(0x00)]).map(Double.init)
+        },
+        Kernel("U1x8 jaccard", 0) { [U1x8(0xFF)].jaccard([U1x8(0xFF)]).map(Double.init) },
+        Kernel("Float64 haversine buffers", 5_539_000, within: 5_000) {
+            viaBuffers(Float64.haversine(aLat:aLon:bLat:bLon:result:), c64)
+        },
+        Kernel("Float32 haversine buffers", 5_539_000, within: 5_000) {
+            viaBuffers(Float32.haversine(aLat:aLon:bLat:bLon:result:), c32)
+        },
+        Kernel("Float64 vincenty buffers", 5_570_000, within: 20_000) {
+            viaBuffers(Float64.vincenty(aLat:aLon:bLat:bLon:result:), c64)
+        },
+        Kernel("Float32 vincenty buffers", 5_570_000, within: 50_000) {
+            viaBuffers(Float32.vincenty(aLat:aLon:bLat:bLon:result:), c32)
+        },
+        Kernel("Float64 haversine", 5_539_000, within: 5_000) {
+            haversine(aLat: [c64[0]], aLon: [c64[1]], bLat: [c64[2]], bLon: [c64[3]])?.first
+        },
+        Kernel("Float32 haversine", 5_539_000, within: 5_000) {
+            haversine(aLat: [c32[0]], aLon: [c32[1]], bLat: [c32[2]], bLon: [c32[3]])?.first.map(Double.init)
+        },
+        Kernel("Float64 vincenty", 5_570_000, within: 20_000) {
+            vincenty(aLat: [c64[0]], aLon: [c64[1]], bLat: [c64[2]], bLon: [c64[3]])?.first
+        },
+        Kernel("Float32 vincenty", 5_570_000, within: 50_000) {
+            vincenty(aLat: [c32[0]], aLon: [c32[1]], bLat: [c32[2]], bLon: [c32[3]])?.first.map(Double.init)
+        },
+    ]
+    #if !((os(macOS) || targetEnvironment(macCatalyst)) && arch(x86_64))
+    kernels += [
+        Kernel("Float16 angular", 0) { [Float16](arrayLiteral: 1, 2, 3).angular([1, 2, 3]).map(Double.init) },
+        Kernel("Float16 dot", 32) { [Float16](arrayLiteral: 1, 2, 3).dot([4, 5, 6]).map(Double.init) },
+        Kernel("Float16 euclidean", 27.0.squareRoot()) {
+            [Float16](arrayLiteral: 1, 2, 3).euclidean([4, 5, 6]).map(Double.init)
+        },
+        Kernel("Float16 sqeuclidean", 27) {
+            [Float16](arrayLiteral: 1, 2, 3).sqeuclidean([4, 5, 6]).map(Double.init)
+        },
+    ]
+    #endif
+    return kernels
+}()
 
-    func testAngularI4x2() throws {
-        let a: [I4x2] = [I4x2(first: -5, second: 3), I4x2(first: 1, second: 7)]
-        let result = try XCTUnwrap(a.angular(a))
-        XCTAssertEqual(result, 0, accuracy: 0.01)
-    }
+@Test func capabilities() {
+    print("Capabilities: \(Capabilities.available)")
+}
 
-    // MARK: - Packed Matrix APIs
+@Test(arguments: kernels)
+func kernel(_ kernel: Kernel) throws {
+    let result = try #require(kernel.run())
+    #expect(abs(result - kernel.expected) <= kernel.tolerance)
+}
 
-    func testDotsPackedFloat32() throws {
-        let a: [Float32] = [
-            1, 2, 3,
-            4, 5, 6,
-        ]  // 2x3
-        let b: [Float32] = [
-            7, 8, 9,
-            1, 0, 1,
-        ]  // 2x3
-        var c = Array(repeating: Float64(0), count: 4)  // 2x2, Float32 dots accumulate into Float64
+@Test func bfloat16Roundtrip() {
+    #expect(BFloat16(float: 1.5).float == 1.5)
+}
 
-        try a.withUnsafeBufferPointer { aPtr in
-            try b.withUnsafeBufferPointer { bPtr in
-                try c.withUnsafeMutableBufferPointer { cPtr in
-                    let aMatrix = MatrixView(baseAddress: aPtr.baseAddress!, rows: 2, cols: 3)
-                    let bMatrix = MatrixView(baseAddress: bPtr.baseAddress!, rows: 2, cols: 3)
-                    var cMatrix = MatrixSpan(baseAddress: cPtr.baseAddress!, rows: 2, cols: 2)
-                    let packed = try PackedMatrix<Float32>(packing: bMatrix)
-                    try dots_packed(aMatrix, packed, &cMatrix)
-                }
-            }
-        }
+@Test func i4x2Lanes() {
+    let x = I4x2(first: 7, second: -8)
+    #expect(x.bitPattern == 0x78)
+    #expect((x.first, x.second) == (7, -8))
+    #expect((I4x2(bitPattern: 0xFF).first, I4x2(bitPattern: 0xFF).second) == (-1, -1))
+}
 
-        XCTAssertEqual(c[0], 50, accuracy: 0.01)  // [1,2,3] · [7,8,9]
-        XCTAssertEqual(c[1], 4, accuracy: 0.01)  // [1,2,3] · [1,0,1]
-        XCTAssertEqual(c[2], 122, accuracy: 0.01)  // [4,5,6] · [7,8,9]
-        XCTAssertEqual(c[3], 10, accuracy: 0.01)  // [4,5,6] · [1,0,1]
-    }
+@Test func u4x2Lanes() {
+    let x = U4x2(first: 1, second: 15)
+    #expect(x.bitPattern == 0x1F)
+    #expect((x.first, x.second) == (1, 15))
+}
 
-    func testAngularsPackedFloat32() throws {
-        let a: [Float32] = [
-            1, 0, 0,
-            0, 1, 0,
-        ]  // 2x3
-        let b: [Float32] = [
-            1, 0, 0,
-            0, 1, 0,
-        ]  // 2x3
-        var out = Array(repeating: Float64(0), count: 4)  // 2x2, Float32 spatial kernels output Float64
+@Test func u1x8Lanes() {
+    let x = U1x8(0b10110011)
+    #expect(x.bitPattern == 0b10110011)
+    #expect(x.popcount == 5)
+}
 
-        try a.withUnsafeBufferPointer { aPtr in
-            try b.withUnsafeBufferPointer { bPtr in
-                try out.withUnsafeMutableBufferPointer { outPtr in
-                    let aMatrix = MatrixView(baseAddress: aPtr.baseAddress!, rows: 2, cols: 3)
-                    let bMatrix = MatrixView(baseAddress: bPtr.baseAddress!, rows: 2, cols: 3)
-                    var outMatrix = MatrixSpan(baseAddress: outPtr.baseAddress!, rows: 2, cols: 2)
-                    let packed = try PackedMatrix<Float32>(packing: bMatrix)
-                    try angulars_packed(aMatrix, packed, &outMatrix)
-                }
-            }
-        }
+@Test func tensorFromArray() throws {
+    let t = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, cols: 3)
+    #expect((t.rows, t.cols, t.count) == (2, 3, 6))
+    #expect([t[0, 0], t[0, 2], t[1, 0], t[1, 2]] == [1, 3, 4, 6])
+}
 
-        XCTAssertEqual(out[0], 0, accuracy: 0.01)
-        XCTAssertEqual(out[1], 1, accuracy: 0.05)
-        XCTAssertEqual(out[2], 1, accuracy: 0.05)
-        XCTAssertEqual(out[3], 0, accuracy: 0.01)
-    }
+@Test func tensorZeros() throws {
+    let t = try Tensor<Float32>.zeros(rows: 3, cols: 4)
+    #expect((t.rows, t.cols) == (3, 4))
+    #expect((0..<3).allSatisfy { t.row($0).allSatisfy { $0 == 0 } })
+}
 
-    // MARK: - Owning Tensor Tests
+@Test func tensorRejectsEmpty() {
+    #expect(throws: NumKongMatrixError.invalidDimensions) { try Tensor<Float32>.zeros(rows: 0, cols: 4) }
+}
 
-    func testTensorFromArray() throws {
-        let t = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, cols: 3)
-        XCTAssertEqual(t.rows, 2)
-        XCTAssertEqual(t.cols, 3)
-        XCTAssertEqual(t.count, 6)
-        XCTAssertEqual(t[0, 0], 1)
-        XCTAssertEqual(t[0, 2], 3)
-        XCTAssertEqual(t[1, 0], 4)
-        XCTAssertEqual(t[1, 2], 6)
-    }
+@Test func tensorResizeWithinCapacity() throws {
+    let t = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6, 7, 8], rows: 2, cols: 4)
+    #expect(t.tryResize(rows: 2, cols: 2))
+    #expect((t.rows, t.cols, t.count, t.capacity) == (2, 2, 4, 8))
+    #expect((t[0, 0], t[1, 1]) == (1, 4))  // storage never moves within capacity
+    #expect(!t.tryResize(rows: 3, cols: 4))  // 12 > 8, left unchanged
+    #expect((t.rows, t.cols) == (2, 2))
+}
 
-    func testTensorZeros() throws {
-        let t = try Tensor<Float32>.zeros(rows: 3, cols: 4)
-        XCTAssertEqual(t.rows, 3)
-        XCTAssertEqual(t.cols, 4)
-        for r in 0..<3 {
-            for c in 0..<4 {
-                XCTAssertEqual(t[r, c], 0)
-            }
-        }
-    }
+@Test func tensorReserveAndClear() throws {
+    let t = try Tensor<Float32>.fromArray([1, 2, 3, 4], rows: 1, cols: 4)
+    t.reserve(64)
+    #expect(t.capacity >= 64)
+    #expect(t.count == 4)  // reserve grows capacity, it does not reshape
+    #expect((t[0, 0], t[0, 3]) == (1, 4))
+    #expect(t.tryResize(rows: 8, cols: 8))
+    #expect(t.count == 64)
+    t.clear()
+    #expect(t.count == 0)
+    #expect(t.capacity >= 64)
+}
 
-    func testTensorResizeWithinCapacity() throws {
-        let t = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6, 7, 8], rows: 2, cols: 4)  // capacity 8
-        XCTAssertEqual(t.capacity, 8)
-        XCTAssertTrue(t.tryResize(rows: 2, cols: 2))
-        XCTAssertEqual(t.rows, 2)
-        XCTAssertEqual(t.cols, 2)
-        XCTAssertEqual(t.count, 4)
-        XCTAssertEqual(t.capacity, 8)  // capacity is unchanged by resize
-        XCTAssertEqual(t[0, 0], 1)  // storage never moves within capacity
-        XCTAssertEqual(t[1, 1], 4)  // flat index 1*2 + 1 = 3
-        XCTAssertFalse(t.tryResize(rows: 3, cols: 4))  // 12 > 8, left unchanged
-        XCTAssertEqual(t.rows, 2)
-        XCTAssertEqual(t.cols, 2)
-    }
+@Test func tensorDotsPacked() throws {
+    let a = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, cols: 3)
+    let b = try Tensor<Float32>.fromArray([7, 8, 9, 1, 0, 1], rows: 2, cols: 3)
+    let result = try a.dotsPacked(b.packForDots())
+    #expect((result.rows, result.cols) == (2, 2))
+    #expect([result[0, 0], result[0, 1], result[1, 0], result[1, 1]] == [50, 4, 122, 10])
+}
 
-    func testTensorReserveAndClear() throws {
-        let t = try Tensor<Float32>.fromArray([1, 2, 3, 4], rows: 1, cols: 4)
-        t.reserve(64)
-        XCTAssertGreaterThanOrEqual(t.capacity, 64)
-        XCTAssertEqual(t.count, 4)  // reserve grows capacity, it does not reshape
-        XCTAssertEqual(t[0, 0], 1)  // contents preserved across the reallocation
-        XCTAssertEqual(t[0, 3], 4)
-        XCTAssertTrue(t.tryResize(rows: 8, cols: 8))  // the grown capacity admits a larger shape
-        XCTAssertEqual(t.count, 64)
-        t.clear()
-        XCTAssertEqual(t.count, 0)
-        XCTAssertGreaterThanOrEqual(t.capacity, 64)  // capacity retained
-    }
+@Test func tensorAngularsPacked() throws {
+    let a = try Tensor<Float32>.fromArray([1, 0, 0, 0, 1, 0], rows: 2, cols: 3)
+    let result = try a.angularsPacked(a.packForDots())
+    #expect(abs(result[0, 0]) <= 0.01)
+    #expect(abs(result[0, 1] - 1) <= 0.05)
+    #expect(abs(result[1, 0] - 1) <= 0.05)
+    #expect(abs(result[1, 1]) <= 0.01)
+}
 
-    func testTensorDotsPacked_Float32() throws {
-        let a = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, cols: 3)
-        let b = try Tensor<Float32>.fromArray([7, 8, 9, 1, 0, 1], rows: 2, cols: 3)
-        let packed = try b.packForDots()
-        let result = try a.dotsPacked(packed)
-        XCTAssertEqual(result.rows, 2)
-        XCTAssertEqual(result.cols, 2)
-        XCTAssertEqual(result[0, 0], 50, accuracy: 0.01)
-        XCTAssertEqual(result[0, 1], 4, accuracy: 0.01)
-        XCTAssertEqual(result[1, 0], 122, accuracy: 0.01)
-        XCTAssertEqual(result[1, 1], 10, accuracy: 0.01)
-    }
+@Test func hammingsPacked() throws {
+    let a = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0x00), U1x8(0x00), U1x8(0xFF)], rows: 2, cols: 2)
+    let b = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0xFF)], rows: 1, cols: 2)
+    let result = try a.hammingsPacked(b.packForDots())
+    #expect((result.rows, result.cols) == (2, 1))
+    #expect([result[0, 0], result[1, 0]] == [8, 8])  // each row misses one full byte of all-ones
+}
 
-    func testTensorAngularsPacked_Float32() throws {
-        let a = try Tensor<Float32>.fromArray([1, 0, 0, 0, 1, 0], rows: 2, cols: 3)
-        let b = try Tensor<Float32>.fromArray([1, 0, 0, 0, 1, 0], rows: 2, cols: 3)
-        let packed = try b.packForDots()
-        let result = try a.angularsPacked(packed)
-        XCTAssertEqual(result[0, 0], 0, accuracy: 0.01)
-        XCTAssertEqual(result[0, 1], 1, accuracy: 0.05)
-        XCTAssertEqual(result[1, 0], 1, accuracy: 0.05)
-        XCTAssertEqual(result[1, 1], 0, accuracy: 0.01)
-    }
+@Test func hammingsSymmetric() throws {
+    let t = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0x00), U1x8(0x0F)], rows: 3, cols: 1)
+    let result = try t.hammingsSymmetric()
+    #expect((result.rows, result.cols) == (3, 3))
+    #expect([result[0, 0], result[1, 1], result[2, 2], result[0, 1]] == [0, 0, 0, 8])
+}
 
-    // MARK: - U1x8 and Binary Metric Tests
+@Test func jaccardsPacked() throws {
+    let a = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0x00)], rows: 1, cols: 2)
+    let result = try a.jaccardsPacked(a.packForDots())
+    #expect((result.rows, result.cols) == (1, 1))
+    #expect(abs(result[0, 0]) <= 0.01)  // identical sets, and NaN fails this too
+}
 
-    func testU1x8Roundtrip() throws {
-        let x = U1x8(0b10110011)
-        XCTAssertEqual(x.bitPattern, 0b10110011)
-        XCTAssertEqual(x.popcount, 5)
-    }
+@Test func jaccardsSymmetric() throws {
+    let t = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0xFF), U1x8(0x00)], rows: 3, cols: 1)
+    let result = try t.jaccardsSymmetric()
+    #expect((result.rows, result.cols) == (3, 3))
+    #expect(abs(result[0, 1]) <= 0.01)
+}
 
-    func testHammingU1x8Scalar() throws {
-        // All bits set vs none set: hamming distance = number of bits
-        let a: [U1x8] = [U1x8(0xFF), U1x8(0xFF)]
-        let b: [U1x8] = [U1x8(0x00), U1x8(0x00)]
-        let result = try XCTUnwrap(a.hamming(b))
-        XCTAssertEqual(result, 16)  // 16 bits differ
-    }
+@Test func maxSimFloat32() throws {
+    let t = try Tensor<Float32>.fromArray([1, 0, 0, 0, 0, 1, 0, 0], rows: 2, cols: 4)
+    #expect(try t.maxSimPack().score(t.maxSimPack()).isFinite)
+}
 
-    func testJaccardU1x8Scalar() throws {
-        let a: [U1x8] = [U1x8(0xFF)]
-        let b: [U1x8] = [U1x8(0xFF)]
-        let result = try XCTUnwrap(a.jaccard(b))
-        XCTAssertTrue(result.isFinite)
-        XCTAssertEqual(result, 0, accuracy: 0.01)  // identical sets => 0 distance
-    }
-
-    func testHammingsPackedU1x8() throws {
-        // 2 vectors of 16 bits each (2 U1x8 elements per row)
-        let a = try Tensor<U1x8>.fromArray(
-            [
-                U1x8(0xFF), U1x8(0x00),
-                U1x8(0x00), U1x8(0xFF),
-            ], rows: 2, cols: 2)
-        let b = try Tensor<U1x8>.fromArray(
-            [
-                U1x8(0xFF), U1x8(0xFF),
-            ], rows: 1, cols: 2)
-        let packed = try b.packForDots()
-        let result = try a.hammingsPacked(packed)
-        XCTAssertEqual(result.rows, 2)
-        XCTAssertEqual(result.cols, 1)
-        // a[0] = 0xFF00 vs b[0] = 0xFFFF: 8 bits differ
-        XCTAssertEqual(result[0, 0], 8)
-        // a[1] = 0x00FF vs b[0] = 0xFFFF: 8 bits differ
-        XCTAssertEqual(result[1, 0], 8)
-    }
-
-    func testHammingsSymmetricU1x8() throws {
-        // 3 vectors of 8 bits each (1 U1x8 element per row)
-        let t = try Tensor<U1x8>.fromArray(
-            [
-                U1x8(0xFF),
-                U1x8(0x00),
-                U1x8(0x0F),
-            ], rows: 3, cols: 1)
-        let result = try t.hammingsSymmetric()
-        XCTAssertEqual(result.rows, 3)
-        XCTAssertEqual(result.cols, 3)
-        // Diagonal should be 0
-        XCTAssertEqual(result[0, 0], 0)
-        XCTAssertEqual(result[1, 1], 0)
-        XCTAssertEqual(result[2, 2], 0)
-        // 0xFF vs 0x00 = 8 bits
-        XCTAssertEqual(result[0, 1], 8)
-    }
-
-    func testJaccardsPackedU1x8() throws {
-        let a = try Tensor<U1x8>.fromArray(
-            [
-                U1x8(0xFF), U1x8(0x00),
-            ], rows: 1, cols: 2)
-        let b = try Tensor<U1x8>.fromArray(
-            [
-                U1x8(0xFF), U1x8(0x00),
-            ], rows: 1, cols: 2)
-        let packed = try b.packForDots()
-        let result = try a.jaccardsPacked(packed)
-        XCTAssertEqual(result.rows, 1)
-        XCTAssertEqual(result.cols, 1)
-        XCTAssertTrue(result[0, 0].isFinite)
-        XCTAssertEqual(result[0, 0], 0, accuracy: 0.01)  // identical
-    }
-
-    func testJaccardsSymmetricU1x8() throws {
-        let t = try Tensor<U1x8>.fromArray(
-            [
-                U1x8(0xFF),
-                U1x8(0xFF),
-                U1x8(0x00),
-            ], rows: 3, cols: 1)
-        let result = try t.jaccardsSymmetric()
-        XCTAssertEqual(result.rows, 3)
-        XCTAssertEqual(result.cols, 3)
-        // Identical vectors
-        XCTAssertEqual(result[0, 1], 0, accuracy: 0.01)
-    }
-
-    // MARK: - MaxSim Tests
-
-    func testMaxSimPack_Float32() throws {
-        // 2 vectors of dimension 4
-        let q = try Tensor<Float32>.fromArray([1, 0, 0, 0, 0, 1, 0, 0], rows: 2, cols: 4)
-        let d = try Tensor<Float32>.fromArray([1, 0, 0, 0, 0, 1, 0, 0], rows: 2, cols: 4)
-        let qPacked = try q.maxSimPack()
-        let dPacked = try d.maxSimPack()
-        let score = qPacked.score(dPacked)
-        XCTAssertTrue(score.isFinite)
-    }
-
-    func testMaxSimPack_BFloat16() throws {
-        let q = try Tensor<BFloat16>.fromArray(
-            [
-                BFloat16(float: 1), BFloat16(float: 0), BFloat16(float: 0), BFloat16(float: 0),
-                BFloat16(float: 0), BFloat16(float: 1), BFloat16(float: 0), BFloat16(float: 0),
-            ], rows: 2, cols: 4)
-        let d = try Tensor<BFloat16>.fromArray(
-            [
-                BFloat16(float: 1), BFloat16(float: 0), BFloat16(float: 0), BFloat16(float: 0),
-                BFloat16(float: 0), BFloat16(float: 1), BFloat16(float: 0), BFloat16(float: 0),
-            ], rows: 2, cols: 4)
-        let qPacked = try q.maxSimPack()
-        let dPacked = try d.maxSimPack()
-        let score = qPacked.score(dPacked)
-        XCTAssertTrue(score.isFinite)
-    }
+@Test func maxSimBFloat16() throws {
+    let t = try Tensor<BFloat16>.fromArray([1, 0, 0, 0, 0, 1, 0, 0].map { BFloat16(float: $0) }, rows: 2, cols: 4)
+    #expect(try t.maxSimPack().score(t.maxSimPack()).isFinite)
 }

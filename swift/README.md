@@ -338,7 +338,7 @@ Supported types and their output types:
 | `BFloat16` | `Float32`    |
 | `Float16`  | `Float32`    |
 
-`Float16` support is unavailable on x86-64 targets because Swift's `Float16` type is not available on that architecture.
+`Float16` support is unavailable on Intel macOS and Mac Catalyst, where Swift's `Float16` type does not exist; every other target, including Linux and Windows on x86-64, has it.
 
 ## Low-Precision Storage Wrappers
 

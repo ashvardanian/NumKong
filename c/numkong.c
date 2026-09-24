@@ -1080,13 +1080,7 @@ NK_HELPER_INLINE void nk_initialize_(void) {
     nk_dispatch_table_build_(nk_capabilities_available());
 }
 
-/**
- *  @brief  The capabilities this CPU can execute, probed once.
- *
- *  Probed once because the probe is not repeatable, not merely because it is slow: on Arm64 it
- *  swaps the process-wide `SIGILL` disposition and `siglongjmp`s through a global buffer to test
- *  whether `MRS` traps. The answer cannot change mid-process anyway.
- */
+/** The capabilities this CPU can execute, probed once, as the answer cannot change mid-process. */
 NK_API_RUNTIME nk_capability_t nk_capabilities_detected(void) {
     static nk_capability_t cached = nk_cap_any_k;
     if (cached == nk_cap_any_k) cached = nk_capabilities_detected_();

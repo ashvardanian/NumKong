@@ -73,6 +73,8 @@
 #define _GNU_SOURCE
 #endif
 
+#include <stdint.h> // Clang modules on glibc would otherwise credit `uint64_t` to ACLE
+
 /*  MSan, short for MemorySanitizer, cannot track data flow through SVE horizontal reductions like
  *  @c svaddv, which move data from vector registers to scalar registers via architecture-specific
  *  paths invisible to the compiler. @c nk_unpoison_ marks the resulting scalar as initialized so

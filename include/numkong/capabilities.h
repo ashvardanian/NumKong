@@ -128,17 +128,10 @@
 #include <sys/sysctl.h> // `sysctlbyname`
 #endif
 
-/*  Detect POSIX extensions for signal handling: @c sigaction, @c sigjmp_buf, and @c sigsetjmp.
- *  Linux ARM needs them to safely test whether the @c mrs instruction is available. */
-#if defined(NK_DEFINED_LINUX_) || defined(NK_DEFINED_FREEBSD_)
-#include <unistd.h> // `_POSIX_VERSION`
-#endif
-#if (defined(NK_DEFINED_LINUX_) || defined(NK_DEFINED_FREEBSD_)) && defined(_POSIX_VERSION)
-#include <setjmp.h> // `sigjmp_buf`, `sigsetjmp`, `siglongjmp`
-#include <signal.h> // `sigaction`, `SIGILL`
-#define NK_HAS_POSIX_EXTENSIONS_ 1
-#else
-#define NK_HAS_POSIX_EXTENSIONS_ 0
+/*  On Linux and FreeBSD Arm, the kernel reports through @c AT_HWCAP whether it emulates @c mrs
+ *  reads of the ID registers, so nothing has to trap to find out. */
+#if (defined(NK_DEFINED_LINUX_) || defined(NK_DEFINED_FREEBSD_)) && NK_TARGET_ARM64_
+#include <sys/auxv.h> // `getauxval`, `elf_aux_info`, `AT_HWCAP`
 #endif
 
 /*  On Linux x86 and RISC-V, AMX permission and hwprobe need `syscall()`. With `-std=c11` glibc
@@ -730,14 +723,6 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_x8664_(void) {
 
 #if NK_TARGET_ARM64_
 
-#if NK_HAS_POSIX_EXTENSIONS_
-static sigjmp_buf nk_mrs_arm64_jump_buffer_;
-static void nk_mrs_arm64_sigill_handler_(int sig) {
-    nk_unused_(sig);
-    siglongjmp(nk_mrs_arm64_jump_buffer_, 1);
-}
-#endif
-
 NK_HELPER_AUTO int nk_configure_thread_arm64_(nk_capability_t capabilities) {
 #if defined(_MSC_VER)
     nk_unused_(capabilities);
@@ -768,8 +753,8 @@ NK_HELPER_AUTO int nk_configure_thread_arm64_(nk_capability_t capabilities) {
     if (has_ebf16) fpcr_desired |= (1UL << 13);
 
 #elif defined(NK_DEFINED_LINUX_) || defined(NK_DEFINED_FREEBSD_)
-    // Read ID registers via MRS. Only safe if MRS is known to work — indicated by
-    // capabilities beyond basic NEON (nk_capabilities_detected_arm64_ validated MRS via sigaction probe).
+    // Read ID registers via MRS, safe only once MRS is known to work: any capability beyond basic
+    // NEON means nk_capabilities_detected_arm64_ saw the kernel emulate it.
     if (capabilities & ~(nk_cap_neon_k | nk_cap_serial_k)) {
         // FEAT_EBF16: ID_AA64ISAR1_EL1.BF16 bits [47:44] >= 0b0010
         register unsigned long isar1_val __asm__("x0");
@@ -828,26 +813,14 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_arm64_(void) {
 
 #elif defined(NK_DEFINED_LINUX_) || defined(NK_DEFINED_FREEBSD_)
 
-#if NK_HAS_POSIX_EXTENSIONS_
-    struct sigaction action_new, action_old;
-    action_new.sa_handler = nk_mrs_arm64_sigill_handler_;
-    sigemptyset(&action_new.sa_mask);
-    action_new.sa_flags = 0;
-
-    int mrs_works = 0;
-    if (sigaction(SIGILL, &action_new, &action_old) == 0) {
-        if (sigsetjmp(nk_mrs_arm64_jump_buffer_, 1) == 0) {
-            register unsigned long midr_value __asm__("x0");
-            __asm__ __volatile__(".inst 0xD5380000" : "=r"(midr_value)); // MRS x0, MIDR_EL1
-            mrs_works = 1;
-        }
-        sigaction(SIGILL, &action_old, NK_NULL);
-    }
-
-    if (!mrs_works) return (nk_capability_t)(nk_cap_neon_k | nk_cap_serial_k);
+#if defined(NK_DEFINED_LINUX_)
+    unsigned long hwcap = getauxval(AT_HWCAP);
 #else
-    return (nk_capability_t)(nk_cap_neon_k | nk_cap_serial_k);
+    unsigned long hwcap = 0;
+    elf_aux_info(AT_HWCAP, &hwcap, sizeof(hwcap));
 #endif
+    // HWCAP_CPUID, bit 11: the kernel emulates EL0 reads of the ID registers, which trap otherwise.
+    if (!(hwcap & (1UL << 11))) return (nk_capability_t)(nk_cap_neon_k | nk_cap_serial_k);
 
     unsigned long id_aa64isar0_el1 = 0, id_aa64isar1_el1 = 0, id_aa64pfr0_el1 = 0, id_aa64zfr0_el1 = 0,
                   id_aa64fpfr0_el1 = 0;
