@@ -168,7 +168,10 @@ def probe_isa(cc, probe_file, flags, is_msvc=False):
         prefix = [cc, "/c"] if is_msvc else [cc, "-c"]
         out_flag = ["/Fo" + obj_path] if is_msvc else ["-o", obj_path]
         extra = [] if is_msvc else cross_target_flags()
-        return subprocess.run(prefix + extra + flags + [probe_file] + out_flag, capture_output=True, timeout=30).returncode == 0
+        return (
+            subprocess.run(prefix + extra + flags + [probe_file] + out_flag, capture_output=True, timeout=30).returncode
+            == 0
+        )
     except Exception:
         return False
     finally:
@@ -191,10 +194,15 @@ PROBE_TABLE_X86: ProbeTable = [
     ("ICELAKE", "probes/x86_icelake.c", ["-mavx512vnni", "-mavx512vl"], ["/arch:AVX512"]),
     ("GENOA", "probes/x86_genoa.c", ["-mavx512bf16", "-mavx512vl"], ["/arch:AVX512"]),
     ("SAPPHIRE", "probes/x86_sapphire.c", ["-mavx512fp16", "-mavx512vl"], ["/arch:AVX512"]),
-    ("SAPPHIREAMX", "probes/x86_sapphireamx.c", ["-mamx-tile", "-mamx-int8"], ["/arch:AVX512"]),
+    (
+        "SAPPHIREAMX",
+        "probes/x86_sapphireamx.c",
+        ["-mamx-tile", "-mamx-int8", "-mamx-bf16", "-mavx512fp16"],
+        ["/arch:AVX512"],
+    ),
     ("GRANITEAMX", "probes/x86_graniteamx.c", ["-mamx-tile", "-mamx-fp16"], ["/arch:AVX512"]),
     ("DIAMOND", "probes/x86_diamond.c", ["-mavx10.2-512"], ["/arch:AVX10.2"]),
-    ("TURIN", "probes/x86_turin.c", ["-mavx512vp2intersect"], ["/arch:AVX512"]),
+    ("TURIN", "probes/x86_turin.c", ["-mavx512vp2intersect", "-mavx512bf16"], ["/arch:AVX512"]),
     ("ALDER", "probes/x86_alder.c", ["-mavxvnni"], ["/arch:AVX2"]),
     ("SIERRA", "probes/x86_sierra.c", ["-mavxvnniint8"], ["/arch:AVX2"]),
 ]

@@ -79,7 +79,7 @@ const X86_PROBES: &[IsaProbe] = &[
     IsaProbe {
         name: "NK_TARGET_SAPPHIREAMX",
         probe_file: "probes/x86_sapphireamx.c",
-        gcc_flags: &["-mamx-tile", "-mamx-int8"],
+        gcc_flags: &["-mamx-tile", "-mamx-int8", "-mamx-bf16", "-mavx512fp16"],
         msvc_flags: &["/arch:AVX512"],
     },
     IsaProbe {
@@ -97,7 +97,7 @@ const X86_PROBES: &[IsaProbe] = &[
     IsaProbe {
         name: "NK_TARGET_TURIN",
         probe_file: "probes/x86_turin.c",
-        gcc_flags: &["-mavx512vp2intersect"], // implies F+DQ
+        gcc_flags: &["-mavx512vp2intersect", "-mavx512bf16"], // implies F+DQ
         msvc_flags: &["/arch:AVX512"],
     },
     IsaProbe {

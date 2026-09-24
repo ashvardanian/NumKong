@@ -1,9 +1,9 @@
-/* NumKong ISA probe: Turin (AVX-512F + VP2INTERSECT) */
+/* NumKong ISA probe: Turin (AVX-512F + VP2INTERSECT + BF16) */
 #if defined(__APPLE__)
 #error "AVX-512 not available on macOS"
 #endif
 
-#if !defined(__AVX512VP2INTERSECT__)
+#if !defined(__AVX512VP2INTERSECT__) || !defined(__AVX512BF16__)
 #error "Feature not available"
 #endif
 #include <immintrin.h>
