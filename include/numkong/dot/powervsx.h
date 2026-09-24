@@ -30,14 +30,14 @@
  *  vec_sums(a, b)                   VSUMSWS               5cy  i32x4 horiz sum → i32 in lane 3
  *  @endverbatim
  *
- *  Power9 (POWER ISA 3.0) provides `vec_xl_len` for partial loads that zero-fill unused bytes,
+ *  Power9 (POWER ISA 3.0) provides @c vec_xl_len for partial loads that zero-fill unused bytes,
  *  enabling branchless tail handling: zero × anything = zero, so partial vectors contribute no
  *  spurious terms to dot-product accumulators.
  *
  *  @section dot_powervsx_stateful Stateful Streaming Logic
  *
  *  For memory-optimal tiled algorithms, this file defines state structures and force-inlined
- *  `NK_HELPER_INLINE` functions:
+ *  @c NK_HELPER_INLINE functions:
  *
  *  - nk_dot_f32x2 state for f32 inputs with double-precision accumulation,
  *  - nk_dot_f64x2 state with Dot2 stable dot-products for f64 inputs,
@@ -63,7 +63,7 @@ extern "C" {
 #pragma GCC target("power9-vector")
 #endif
 
-/** @brief Horizontal sum of 4 f32 lanes → scalar f32. */
+/** Horizontal sum of 4 f32 lanes → scalar f32. */
 NK_HELPER_INLINE nk_f32_t nk_hsum_f32x4_powervsx_(nk_vf32x4_t values_f32x4) {
     // Rotate by 8 bytes (2 floats) and add → {v[0]+v[2], v[1]+v[3], ...}
     nk_vf32x4_t rotated_f32x4 = vec_sld(values_f32x4, values_f32x4, 8);
@@ -74,14 +74,14 @@ NK_HELPER_INLINE nk_f32_t nk_hsum_f32x4_powervsx_(nk_vf32x4_t values_f32x4) {
     return vec_extract(total_f32x4, 0);
 }
 
-/** @brief Horizontal sum of 2 f64 lanes → scalar f64 via xxpermdi (1 domain crossing). */
+/** Horizontal sum of 2 f64 lanes → scalar f64 via xxpermdi (1 domain crossing). */
 NK_HELPER_INLINE nk_f64_t nk_hsum_f64x2_powervsx_(nk_vf64x2_t values_f64x2) {
     nk_vf64x2_t swapped_f64x2 = vec_xxpermdi(values_f64x2, values_f64x2, 2);
     nk_vf64x2_t sum_f64x2 = vec_add(values_f64x2, swapped_f64x2);
     return vec_extract(sum_f64x2, 0);
 }
 
-/** @brief Horizontal sum of 4 signed i32 lanes → scalar i32. */
+/** Horizontal sum of 4 signed i32 lanes → scalar i32. */
 NK_HELPER_INLINE nk_i32_t nk_hsum_i32x4_powervsx_(nk_vi32x4_t values_i32x4) {
     // vec_sums reduces i32x4 → i32 in lane 3 of the result
     nk_vi32x4_t zero_i32x4 = vec_splats((nk_i32_t)0);
@@ -89,7 +89,7 @@ NK_HELPER_INLINE nk_i32_t nk_hsum_i32x4_powervsx_(nk_vi32x4_t values_i32x4) {
     return vec_extract(sums_i32x4, 3);
 }
 
-/** @brief Horizontal sum of 4 unsigned u32 lanes → scalar u32. */
+/** Horizontal sum of 4 unsigned u32 lanes → scalar u32. */
 NK_HELPER_INLINE nk_u32_t nk_hsum_u32x4_powervsx_(nk_vu32x4_t values_u32x4) {
     // Rotate by 8 bytes (2 ints) and add → {v[0]+v[2], v[1]+v[3], ...}
     nk_vu32x4_t rotated_u32x4 = vec_sld(values_u32x4, values_u32x4, 8);
@@ -100,14 +100,14 @@ NK_HELPER_INLINE nk_u32_t nk_hsum_u32x4_powervsx_(nk_vu32x4_t values_u32x4) {
     return vec_extract(total_u32x4, 0);
 }
 
-/** @brief Horizontal sum of 2 unsigned u64 lanes → scalar u64 via xxpermdi. */
+/** Horizontal sum of 2 unsigned u64 lanes → scalar u64 via xxpermdi. */
 NK_HELPER_INLINE nk_u64_t nk_hsum_u64x2_powervsx_(nk_vu64x2_t values_u64x2) {
     nk_vu64x2_t swapped_u64x2 = vec_xxpermdi(values_u64x2, values_u64x2, 2);
     nk_vu64x2_t sum_u64x2 = vec_add(values_u64x2, swapped_u64x2);
     return vec_extract(sum_u64x2, 0);
 }
 
-/** @brief Compensated horizontal sum of 2 f64 lanes via TwoSum. */
+/** Compensated horizontal sum of 2 f64 lanes via TwoSum. */
 NK_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x2_powervsx_(nk_vf64x2_t sum_f64x2, nk_vf64x2_t compensation_f64x2) {
     // TwoSum merge of sum + compensation (2-wide)
     nk_vf64x2_t tentative_sum_f64x2 = vec_add(sum_f64x2, compensation_f64x2);
@@ -273,9 +273,9 @@ nk_dot_f16_powervsx_cycle:
 
 NK_API_COMPTIME void nk_dot_i8_powervsx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
                                         nk_i32_t *result) {
-    // Algebraic transform for i8×i8 using VMSUMMBM (i8×u8 → i32):
-    //   b' = b ⊕ 0x80  (reinterpret signed as unsigned)
-    //   a·b = a·b' − 128·Σa
+    // Algebraic transform for i8 × i8 using VMSUMMBM (i8 × u8 → i32):
+    //     b' = b ⊕ 0x80  (reinterpret signed as unsigned)
+    //     a · b = a · b' − 128 · Σa
     // Σ(a+128) accumulated via VSUM4UBS; correction applied after loop.
     // Tail handling is free: vec_xl_len zero-fills unused lanes.
     //   - Product: 0 × (0⊕0x80) = 0 → no spurious contribution
@@ -308,7 +308,8 @@ nk_dot_i8_powervsx_cycle:
 
     if (count_scalars) goto nk_dot_i8_powervsx_cycle;
 
-    // Correction: a·b = biased_dot − 128·Σa = biased_dot − 128·(Σ(a+128) − 128·count_padded)
+    // Correction: a · b = biased_dot − 128 · Σa, which expands to
+    // biased_dot − 128 · (Σ(a+128) − 128 · count_padded).
     nk_i32_t biased_dot = nk_hsum_i32x4_powervsx_(accumulator_i32x4);
     nk_i64_t correction = 128LL * (nk_i64_t)nk_hsum_u32x4_powervsx_(sum_a_biased_u32x4) -
                           16384LL * (nk_i64_t)count_padded;
@@ -317,7 +318,7 @@ nk_dot_i8_powervsx_cycle:
 
 NK_API_COMPTIME void nk_dot_u8_powervsx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
                                         nk_u32_t *result) {
-    // vec_msum: multiply u8×u8 pairs and accumulate 16 products → 4 u32 lanes per call
+    // vec_msum: multiply u8 × u8 pairs and accumulate 16 products → 4 u32 lanes per call
     nk_vu32x4_t accumulator_u32x4 = vec_splats((nk_u32_t)0);
     nk_vu8x16_t a_u8x16, b_u8x16;
     nk_size_t tail_bytes;
@@ -576,9 +577,9 @@ NK_HELPER_INLINE void nk_dot_f16x8_finalize_powervsx(                           
 /**
  *  @brief Running state for 128-bit dot accumulation over i8 scalars on Power VSX.
  *
- *  Algebraic transform: a·b = a·(b⊕0x80) − 128·Σa. Uses VMSUMMBM (i8×u8 → i32) for the biased
- *  product. Correction is applied at finalize using precomputed column sums from the compensated
- *  macro infrastructure.
+ *  Algebraic transform: a · b = a · (b⊕0x80) − 128 · Σa. Uses VMSUMMBM (i8 × u8 → i32) for the
+ *  biased product. Correction is applied at finalize using precomputed column sums from the
+ *  compensated macro infrastructure.
  */
 typedef struct nk_dot_i8x16_state_powervsx_t {
     nk_vi32x4_t biased_sum_i32x4;
@@ -593,9 +594,9 @@ NK_HELPER_INLINE void nk_dot_i8x16_update_powervsx(nk_dot_i8x16_state_powervsx_t
                                                    nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    // VMSUMMBM(b, a⊕0x80) = Σ(b_i · (a_i+128)) = a·b + 128·Σb
+    // VMSUMMBM(b, a⊕0x80) = Σ(b_i · (a_i+128)) = a · b + 128 · Σb
     // Swapping operands: b in signed slot, biased a in unsigned slot.
-    // Correction −128·Σb uses precomputed B column sums from the compensated macro.
+    // Correction −128 · Σb uses precomputed B column sums from the compensated macro.
     nk_vu8x16_t const bias_u8x16 = vec_splats((nk_u8_t)0x80);
     nk_vu8x16_t a_biased_u8x16 = vec_xor(a.vu8x16, bias_u8x16);
     state->biased_sum_i32x4 = vec_msum(b.vi8x16, a_biased_u8x16, state->biased_sum_i32x4);
@@ -627,14 +628,14 @@ NK_HELPER_INLINE void nk_dot_i8x16_finalize_powervsx(                           
     nk_vi32x4_t biased_i32x4 = vec_add(vec_add(sum_lane0_i32x4, sum_lane1_i32x4),
                                        vec_add(sum_lane2_i32x4, sum_lane3_i32x4));
 
-    // Correction: VMSUMMBM(b, a⊕0x80) = Σ(b_i·(a_i+128)) = a·b + 128·Σb
-    // So a·b = biased − 128·Σb. B column sums are precomputed during packing.
+    // Correction: VMSUMMBM(b, a⊕0x80) = Σ(b_i · (a_i+128)) = a · b + 128 · Σb.
+    // So a · b = biased − 128 · Σb. B column sums are precomputed during packing.
     nk_vu32x4_t shift_u32x4 = vec_splats((nk_u32_t)7);
     nk_vi32x4_t correction_i32x4 = (nk_vi32x4_t)vec_sl((nk_vu32x4_t)b_sums_vec->vi32x4, shift_u32x4);
     result_vec->vi32x4 = vec_sub(biased_i32x4, correction_i32x4);
 }
 
-/** @brief Running state for i8 column sum precomputation on Power VSX. */
+/** Running state for i8 column sum precomputation on Power VSX. */
 typedef struct nk_sum_i8x16_state_powervsx_t {
     nk_vu32x4_t biased_sum_u32x4;
 } nk_sum_i8x16_state_powervsx_t;

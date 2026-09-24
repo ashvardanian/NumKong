@@ -1,5 +1,5 @@
-// numkong/golang/set.go
-// Written by Ash Vardanian.
+// File: golang/set.go
+// Author: Ash Vardanian
 
 package numkong
 

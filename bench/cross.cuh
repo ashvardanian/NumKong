@@ -346,7 +346,7 @@ void register_packed(std::string const &name, reference_metric_t metric, pack_si
                               metric, packed_size_fn, pack_fn, kernel, height, width, depth));
 }
 
-/** Registers a symmetric row over `NK_MATRIX_HEIGHT` vectors of `NK_MATRIX_DEPTH` dimensions. */
+/** Registers a symmetric row over @c NK_MATRIX_HEIGHT vectors of @c NK_MATRIX_DEPTH dimensions. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename kernel_type_>
 void register_symmetric(std::string const &name, reference_metric_t metric, kernel_type_ kernel) {
     std::size_t const height = bench_config.matrix_height, depth = bench_config.matrix_depth;
@@ -402,7 +402,7 @@ void run_euclideans_symmetric(std::string const &name, kernel_type_ kernel) {
 
 #pragma region Attention
 
-/** Visible keys including the query itself, `NK_SIZE_MAX` when unbounded. */
+/** Visible keys including the query itself, @c NK_SIZE_MAX when unbounded. */
 inline nk_size_t attention_window(attention_visibility_t visibility) noexcept {
     return visibility == attention_visibility_t::causal_window_1024_k ? 1024 : NK_SIZE_MAX;
 }

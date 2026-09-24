@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/each/sapphire.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date October 19, 2024
  *  @brief SIMD-accelerated elementwise arithmetic for Sapphire Rapids.
  *
  *  @sa include/numkong/each.h

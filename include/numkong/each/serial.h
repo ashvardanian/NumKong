@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/each/serial.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date October 18, 2024
  *  @brief SWAR-accelerated elementwise arithmetic for SIMD-free CPUs.
  *
  *  @sa include/numkong/each.h
@@ -77,10 +77,9 @@ extern "C" {
         }                                                                                                             \
     }
 
-/*  Keep the serial instantiations below actually scalar, regardless of build type.
- *  Without this, -O3 + LTO can vectorize or clone the serial kernels under AVX-512
- *  callers in dispatch_*.c, which wastes binary and breaks the nk_*_serial-as-scalar-oracle
- *  contract. See dots/serial.h. */
+/*  Keep the serial instantiations below actually scalar, regardless of build type. Without this,
+ *  -O3 + LTO can vectorize or clone the serial kernels under AVX-512 callers in dispatch_*.c, which
+ *  wastes binary and breaks the nk_*_serial-as-scalar-oracle contract. See dots/serial.h. */
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)
 #elif defined(__GNUC__)
@@ -287,11 +286,11 @@ NK_API_COMPTIME void nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t const
 #endif
 #endif
 
-/*  SwiGLU: `y = silu(input_scale·gate) ⊙ (input_scale·up)`, with `up = NULL` collapsing to plain
- *  SiLU (`y = silu(input_scale·gate)`). Separate gate/up pointers and byte row-strides so UForm's
- *  fused `[rows, 2·ffn]` output is `gate = base, up = base + ffn`, other split-weight models fit
- *  without a v2, and the FFN head's `fc1 → SiLU → fc2` passes `up = NULL`.  `input_scale` folds an
- *  E4M3 descale onto the load (1.0 for BF16/F32). */
+/** SwiGLU: y = silu(input_scale × gate) ⊙ (input_scale × up), and a NULL @c up collapses it to
+ *  plain SiLU, y = silu(input_scale × gate). Separate gate and up pointers with their own byte
+ *  row-strides let UForm's fused @b [rows,2×ffn] output pass gate = base and up = base + ffn, let
+ *  other split-weight models fit without a v2, and let the FFN head's fc1 → SiLU → fc2 pass a NULL
+ *  @c up. @c input_scale folds an E4M3 descale onto the load, and is 1.0 for BF16 and F32. */
 #define nk_define_each_swiglu_(input_type, load_and_convert, convert_and_store)                                 \
     NK_API_COMPTIME void nk_each_swiglu_##input_type##_serial(                                                  \
         nk_##input_type##_t const *gate, nk_##input_type##_t const *up, nk_##input_type##_t *y, nk_size_t rows, \

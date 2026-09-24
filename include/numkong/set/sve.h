@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/set/sve.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date March 23, 2023
  *  @brief SIMD-accelerated set similarity measures for SVE.
  *
  *  @sa include/numkong/set.h

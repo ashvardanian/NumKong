@@ -55,25 +55,23 @@ NK_API_COMPTIME void nk_dot_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t cons
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length));
 }
 
-/** @brief Convert e2m3 to f16 via 256-entry LUT in cast/rvv.h + reinterpret. */
+/** Convert e2m3 to f16 via 256-entry LUT in cast/rvv.h + reinterpret. */
 NK_HELPER_INLINE vfloat16m2_t nk_e2m3m1_to_f16m2_rvvhalf_(vuint8m1_t raw_u8m1, nk_size_t vector_length) {
     return __riscv_vreinterpret_v_u16m2_f16m2(nk_e2m3m1_to_f16m2_rvv_(raw_u8m1, vector_length));
 }
 
-/** @brief Convert e3m2 to f16 via 256-entry LUT in cast/rvv.h + reinterpret. */
+/** Convert e3m2 to f16 via 256-entry LUT in cast/rvv.h + reinterpret. */
 NK_HELPER_INLINE vfloat16m2_t nk_e3m2m1_to_f16m2_rvvhalf_(vuint8m1_t raw_u8m1, nk_size_t vector_length) {
     return __riscv_vreinterpret_v_u16m2_f16m2(nk_e3m2m1_to_f16m2_rvv_(raw_u8m1, vector_length));
 }
 
-/** @brief Convert e4m3 to f16 via 256-entry LUT in cast/rvv.h + reinterpret. */
+/** Convert e4m3 to f16 via 256-entry LUT in cast/rvv.h + reinterpret. */
 NK_HELPER_INLINE vfloat16m2_t nk_e4m3m1_to_f16m2_rvvhalf_(vuint8m1_t raw_u8m1, nk_size_t vector_length) {
     return __riscv_vreinterpret_v_u16m2_f16m2(nk_e4m3m1_to_f16m2_rvv_(raw_u8m1, vector_length));
 }
 
-/**
- *  @brief Convert e5m2 (1-5-2 sign-exp-mantissa, 8-bit) to f16 via pure shift (no LUT).
- *  Same exponent bias (15) means f16 = (lower7 << 8) | (sign << 15). Handles all cases.
- */
+/** Convert e5m2 (1-5-2 sign-exp-mantissa, 8-bit) to f16 via pure shift (no LUT). Same exponent bias
+ *  (15) means f16 = (lower7 << 8) | (sign << 15). Handles all cases. */
 NK_HELPER_INLINE vfloat16m2_t nk_e5m2m1_to_f16m2_rvvhalf_(vuint8m1_t raw_u8m1, nk_size_t vector_length) {
     vuint16m2_t wide_u16m2 = __riscv_vzext_vf2_u16m2(raw_u8m1, vector_length);
     vuint16m2_t result_u16m2 = __riscv_vsll_vx_u16m2(wide_u16m2, 8, vector_length);

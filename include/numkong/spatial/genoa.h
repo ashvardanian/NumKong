@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/spatial/genoa.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date June 4, 2024
  *  @brief SIMD-accelerated spatial similarity measures for Genoa.
  *
  *  @sa include/numkong/spatial.h

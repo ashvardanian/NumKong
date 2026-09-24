@@ -6,16 +6,16 @@
  *
  *  @sa include/numkong/attention.h
  *
- *  Mirrors the `v128relaxed` panel-flash shape with the family-shared packed header, segment
- *  directory, base-2 streaming softmax, and `(task_start, task_count)` windows. Scores stay exact
- *  in I32: four KV rows in flight through @c SDOT over row-major I8 planes, with one lane-wise
- *  reduction per score. Softmax weights quantize to trunc(2^(s₂−m₂)·255 + 0.5) like the whole I8
- *  family — the maximum position lands on exactly 255, so the weight sum never vanishes and the 255
- *  cancels in normalization. The weighted V accumulation runs as @c UDOT over V tiles packed
- *  4-positions × 4-channels with a +128 offset: since the weights are U8, the identity Σ w·(v+128)
- *  − 128·Σw = Σ w·v holds exactly, the bias subtracts in integer before the single F32 conversion,
- *  and every panel total stays under 2^24 — bit-exact with serial at a 6× faster inner loop, still
- *  on the baseline @c dotprod extension.
+ *  Mirrors the @c v128relaxed panel-flash shape with the family-shared packed header, segment
+ *  directory, base-2 streaming softmax, and [task_start, task_start + task_count) windows. Scores
+ *  stay exact in I32: four KV rows in flight through @c SDOT over row-major I8 planes, with one
+ *  lane-wise reduction per score. Softmax weights quantize to trunc(2^(s₂−m₂) · 255 + 0.5) like the
+ *  whole I8 family — the maximum position lands on exactly 255, so the weight sum never vanishes
+ *  and the 255 cancels in normalization. The weighted V accumulation runs as @c UDOT over V tiles
+ *  packed 4-positions × 4-channels with a +128 offset: since the weights are U8, the identity Σ w ·
+ *  (v+128) − 128 · Σw = Σ w · v holds exactly, the bias subtracts in integer before the single F32
+ *  conversion, and every panel total stays under 2^24 — bit-exact with serial at a 6× faster inner
+ *  loop, still on the baseline @c dotprod extension.
  */
 #ifndef NK_ATTENTION_NEONSDOT_H
 #define NK_ATTENTION_NEONSDOT_H
@@ -41,8 +41,10 @@ extern "C" {
 #endif
 
 enum {
+
     /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
     nk_attention_panel_neonsdot_k_ = 512,
+
     /** Deepest head this backend handles in scratch; deeper heads route to the serial tier. */
     nk_attention_max_depth_neonsdot_k_ = 256,
 };
@@ -154,7 +156,8 @@ NK_API_COMPTIME void nk_attention_pack_i8_neonsdot(                             
     }
 }
 
-/** @brief Shared I8 body: row `r` reads the keys `nk_attention_row_range_(r + diagonal_offset, window, …)` admits. */
+/** Shared I8 body: row @c r reads the keys that @c nk_attention_row_range_ admits for position
+ *  r + @p diagonal_offset and @p window. */
 NK_HELPER_INLINE void nk_attention_packed_i8_neonsdot_(                          //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,      //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
@@ -178,9 +181,9 @@ NK_HELPER_INLINE void nk_attention_packed_i8_neonsdot_(                         
     nk_size_t const output_stride_floats = output_stride_bytes / sizeof(nk_f32_t);
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_;                     // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_;                     // softmax(x) = softmax₂(x · log₂e)
     nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
-    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t·255 + 0.5 < 1)
+    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t · 255 + 0.5 < 1)
         scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
     nk_size_t const panel_width = nk_attention_panel_neonsdot_k_;
 
@@ -301,7 +304,7 @@ NK_HELPER_INLINE void nk_attention_packed_i8_neonsdot_(                         
                 panel_sum = (nk_f32_t)panel_sum_u32;
                 running_sum = running_sum * correction + panel_sum;
 
-                nk_size_t const panel_quads = (panel_length + 3) / 4; // P×V as UDOT over U8 quad tiles
+                nk_size_t const panel_quads = (panel_length + 3) / 4; // P × V as UDOT over U8 quad tiles
                 char const *panel_tiles = values_plane + (panel_start / 4) * depth_padded * 4;
                 for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 4)
                     vst1q_u32(output_totals + channel_idx, vdupq_n_u32(0));
@@ -325,8 +328,8 @@ NK_HELPER_INLINE void nk_attention_packed_i8_neonsdot_(                         
                                             vld1q_u8(tile + channel_idx * 4 + 48)));
                     }
                 }
-                uint32x4_t const bias_u32x4 = vdupq_n_u32(panel_sum_u32 << 7); // 128·Σw subtracts in integer,
-                float32x4_t const correction_f32x4 = vdupq_n_f32(correction);  // so |Σ w·v| <= 512·255·128 < 2^24
+                uint32x4_t const bias_u32x4 = vdupq_n_u32(panel_sum_u32 << 7); // 128 · Σw subtracts in integer,
+                float32x4_t const correction_f32x4 = vdupq_n_f32(correction);  // so |Σ w · v| <= 512·255·128 < 2^24
                                                                                // converts to F32 exactly
                 for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 4) {
                     int32x4_t const total_i32x4 = vreinterpretq_s32_u32(

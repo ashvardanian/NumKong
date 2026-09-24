@@ -24,8 +24,8 @@ namespace ashvardanian::numkong {
  *  @param[out] r Pointer to output count
  *
  *  @tparam in_type_ Input vector element type (u1x8_t or u8_t)
- *  @tparam result_type_ Accumulator type, defaults to `in_type_::hamming_result_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Accumulator type, defaults to @c in_type_::hamming_result_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
@@ -54,8 +54,8 @@ void hamming(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *
  *  count of matching elements / total.
  *
  *  @tparam in_type_ Input vector element type (u1x8_t, u16_t, or u32_t)
- *  @tparam result_type_ Accumulator type, defaults to `in_type_::jaccard_result_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Accumulator type, defaults to @c in_type_::jaccard_result_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>

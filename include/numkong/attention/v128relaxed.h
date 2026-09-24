@@ -15,14 +15,14 @@
  *  L1-resident. `depth > 256` routes to the width-agnostic serial tier.
  *
  *  The base-2 exponent is the family's shared degree-4 polynomial, evaluated 4-wide with
- *  `wasm_f32x4_relaxed_madd` after a `wasm_f32x4_nearest` range reduction and the same
+ *  @c wasm_f32x4_relaxed_madd after a @c wasm_f32x4_nearest range reduction and the same
  *  denormal-avoiding [−125, 127] clamps as @c nk_f32_exp2_serial_; scalar panel tails call the
  *  serial helper directly to keep the family polynomial end-to-end.
  *
  *  The I8 path keeps QK scores exact in I32: @c wasm_i32x4_relaxed_dot_i8x16_i7x16_add requires a
- *  7-bit second operand, so K is bit-split as k = k₇ − 128·[k < 0] — the dot runs on the low 7 bits
- *  while an I16 pairwise correction — Σq over K-negative lanes, ×128 — is folded into the I32 sum
- *  vector before the single horizontal reduce per position. Attention weights quantize to U8
+ *  7-bit second operand, so K is bit-split as k = k₇ − 128 · [k < 0] — the dot runs on the low 7
+ *  bits while an I16 pairwise correction — Σq over K-negative lanes, × 128 — is folded into the I32
+ *  sum vector before the single horizontal reduce per position. Attention weights quantize to U8
  *  exactly like serial, trunc(2^(s₂−m₂) · 255 + 0.5), vectorized 4-wide with the same separate
  *  multiply and add so the rounding matches the scalar reference bit-for-bit. In the PV
  *  accumulation @c wasm_f32x4_relaxed_madd is safe even under that bit-exactness contract: a U8
@@ -51,7 +51,7 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
 
-/** @brief Widens 4 raw plane scalars (BF16 or E4M3 at rest) to F32 inside the hot loops. */
+/** Widens 4 raw plane scalars (BF16 or E4M3 at rest) to F32 inside the hot loops. */
 typedef v128_t (*nk_attention_load_v128relaxed_t_)(void const *plane_chunk);
 
 NK_HELPER_INLINE v128_t nk_attention_load_e4m3x4_v128relaxed_(void const *plane_chunk) {
@@ -60,10 +60,8 @@ NK_HELPER_INLINE v128_t nk_attention_load_e4m3x4_v128relaxed_(void const *plane_
     return nk_e4m3x4_to_f32x4_v128relaxed_(raw_vec).v128;
 }
 
-/**
- *  @brief Shared attention core over raw-encoded planes: per query row, panel-flash with
- *         an exact online correction; queries widen once per row, planes widen in-loop.
- */
+/** Shared attention core over raw-encoded planes: per query row, panel-flash with an exact online
+ *  correction; queries widen once per row, planes widen in-loop. */
 NK_HELPER_INLINE void nk_attention_packed_float_v128relaxed_(                    //
     void const *queries, nk_size_t element_bytes,                                //
     nk_attention_load_f32_serial_t_ load_f32,                                    //
@@ -85,7 +83,7 @@ NK_HELPER_INLINE void nk_attention_packed_float_v128relaxed_(                   
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const plane_row_bytes = depth_padded * element_bytes;
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_v128_k_;
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
@@ -301,7 +299,7 @@ NK_HELPER_INLINE void nk_attention_packed_i8_v128relaxed_(                      
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const depth_full16 = depth_padded & ~(nk_size_t)15;
     nk_size_t const depth_padded16 = nk_size_round_up_to_multiple_(depth_padded, 16);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_v128_k_;
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
@@ -310,7 +308,7 @@ NK_HELPER_INLINE void nk_attention_packed_i8_v128relaxed_(                      
     NK_ALIGN64 nk_f32_t output_row[nk_attention_max_depth_v128_k_];
     NK_ALIGN64 nk_i32_t scores[nk_attention_panel_v128_k_];
     NK_ALIGN64 nk_u8_t weights[nk_attention_panel_v128_k_];
-    NK_ALIGN64 nk_i32_t panel_acc[nk_attention_max_depth_v128_k_]; // per-panel integer P×V accumulator
+    NK_ALIGN64 nk_i32_t panel_acc[nk_attention_max_depth_v128_k_]; // per-panel integer P × V accumulator
 
     for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
@@ -418,7 +416,8 @@ NK_HELPER_INLINE void nk_attention_packed_i8_v128relaxed_(                      
                 }
                 running_sum = running_sum * correction + (nk_f32_t)nk_reduce_add_i32x4_v128_(panel_sum_i32x4);
 
-                // Integer P×V: zero the panel accumulator, sum U8·I8 products per non-zero position, then drain.
+                // Integer P × V: zero the panel accumulator, sum U8 · I8 products per non-zero
+                // position, then drain.
                 for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 4)
                     wasm_v128_store(panel_acc + channel_idx, wasm_i32x4_splat(0));
                 for (position_idx = 0; position_idx < panel_length; position_idx++) {
@@ -462,7 +461,7 @@ NK_HELPER_INLINE void nk_attention_packed_i8_v128relaxed_(                      
                     }
                 }
                 v128_t const correction_f32x4 = wasm_f32x4_splat(correction);
-                // drain: O = O·correction + panel_acc; integer products < 2^24 convert to F32 exactly
+                // drain: O = O · correction + panel_acc; integer products < 2^24 are exact in F32
                 for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 4)
                     wasm_v128_store(
                         output_row + channel_idx,

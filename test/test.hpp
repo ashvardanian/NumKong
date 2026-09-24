@@ -225,56 +225,56 @@ struct test_config_t {
     /** Show per-dimension ULP breakdown. Override: `NK_TEST_VERBOSE=1`. */
     bool verbose = false;
 
-    /** Relaxed accuracy for emulated SIMD. Override: `NK_IN_QEMU`. */
+    /** Relaxed accuracy for emulated SIMD. Override: @c NK_IN_QEMU. */
     bool running_in_qemu = false;
 
-    /** Max allowed ULP for f32. Override: `NK_ULP_THRESHOLD_F32`. */
+    /** Max allowed ULP for f32. Override: @c NK_ULP_THRESHOLD_F32. */
     std::uint64_t ulp_threshold_f32 = 4;
 
-    /** Max allowed ULP for f16. Override: `NK_ULP_THRESHOLD_F16`. */
+    /** Max allowed ULP for f16. Override: @c NK_ULP_THRESHOLD_F16. */
     std::uint64_t ulp_threshold_f16 = 32;
 
-    /** Max allowed ULP for bf16. Override: `NK_ULP_THRESHOLD_BF16`. */
+    /** Max allowed ULP for bf16. Override: @c NK_ULP_THRESHOLD_BF16. */
     std::uint64_t ulp_threshold_bf16 = 256;
 
     /** Max absolute error as a fraction of the largest reference magnitude, for the
-     *  normalized-reduction family. Override: `NK_SCALE_THRESHOLD`. */
+     *  normalized-reduction family. Override: @c NK_SCALE_THRESHOLD. */
     nk_f64_t scale_threshold = 0.02;
 
-    /** Time budget per kernel in milliseconds. Override: `NK_BUDGET_SECS`. */
+    /** Time budget per kernel in milliseconds. Override: @c NK_BUDGET_SECS. */
     std::size_t time_budget_ms = 1000;
 
-    /** Random seed for reproducible tests. Override: `NK_SEED`. */
+    /** Random seed for reproducible tests. Override: @c NK_SEED. */
     std::uint32_t seed = 42;
 
-    /** Filter tests by name (regex or substring). Override: `NK_FILTER`. */
+    /** Filter tests by name (regex or substring). Override: @c NK_FILTER. */
     char const *filter = nullptr;
 
-    /** Random distribution for test inputs. Override: `NK_RANDOM_DISTRIBUTION`. */
+    /** Random distribution for test inputs. Override: @c NK_RANDOM_DISTRIBUTION. */
     random_distribution_kind_t distribution = random_distribution_kind_t::lognormal_k;
 
-    /** For dot products, spatial metrics. Override: `NK_DENSE_DIMENSIONS`. */
+    /** For dot products, spatial metrics. Override: @c NK_DENSE_DIMENSIONS. */
     std::size_t dense_dimensions = 1536;
 
     /** For curved metrics, quadratic in dimensions. Override: @c NK_CURVED_DIMENSIONS. */
     std::size_t curved_dimensions = 64;
 
-    /** For sparse set intersection and sparse dot. Override: `NK_SPARSE_DIMENSIONS`. */
+    /** For sparse set intersection and sparse dot. Override: @c NK_SPARSE_DIMENSIONS. */
     std::size_t sparse_dimensions = 256;
 
-    /** Number of 3D points for RMSD, Kabsch. Override: `NK_MESH_POINTS`. */
+    /** Number of 3D points for RMSD, Kabsch. Override: @c NK_MESH_POINTS. */
     std::size_t mesh_points = 1000;
 
-    /** GEMM M dimension. Override: `NK_MATRIX_HEIGHT`. */
+    /** GEMM M dimension. Override: @c NK_MATRIX_HEIGHT. */
     std::size_t matrix_height = 1024;
 
-    /** GEMM N dimension. Override: `NK_MATRIX_WIDTH`. */
+    /** GEMM N dimension. Override: @c NK_MATRIX_WIDTH. */
     std::size_t matrix_width = 128;
 
-    /** GEMM K dimension. Override: `NK_MATRIX_DEPTH`. */
+    /** GEMM K dimension. Override: @c NK_MATRIX_DEPTH. */
     std::size_t matrix_depth = 1536;
 
-    /** Max angular separation in degrees for geospatial tests. Override: `NK_MAX_COORD_ANGLE`. */
+    /** Max angular separation in degrees for geospatial tests. Override: @c NK_MAX_COORD_ANGLE. */
     float max_coord_angle = 180.0f;
 
     /** Count of kernels that ran their accuracy checks. */
@@ -762,16 +762,16 @@ enum class accumulation_t {
     /** Integer products summed exactly, compared bit for bit. */
     exact_k,
 
-    /** F64 with TwoProd and TwoSum: two ulp plus 4·γ² of Σ|a·b|. */
+    /** F64 with TwoProd and TwoSum: two ulp plus 4 · γ² of Σ|a · b|. */
     dot2_k,
 
-    /** Products exact in F64 and summed in F64: (depth + 1)·2⁻⁵³ of Σ|a·b|, or exact. */
+    /** Products exact in F64 and summed in F64: (depth + 1) · 2⁻⁵³ of Σ|a · b|, or exact. */
     f64_k,
 
-    /** Products exact in F32 and summed in F32: (depth + 1)·2⁻²⁴ of Σ|a·b|, or exact. */
+    /** Products exact in F32 and summed in F32: (depth + 1) · 2⁻²⁴ of Σ|a · b|, or exact. */
     f32_k,
 
-    /** 32-deep MMA blocks into F32, truncated to ~22 bits: (depth / 32 + 1)·2⁻²² of Σ|a·b|. */
+    /** 32-deep MMA blocks into F32, truncated to ~22 bits: (depth / 32 + 1) · 2⁻²² of Σ|a · b|. */
     tensor_core_k,
 };
 
@@ -825,7 +825,7 @@ struct host_backend_t {
 #pragma region Suite Header
 
 inline bool colors_enabled() {
-    inline bool const result = [] {
+    static bool const result = [] {
         if (std::getenv("NO_COLOR")) return false;
         if (std::getenv("FORCE_COLOR")) return true;
 #if __has_include(<unistd.h>)

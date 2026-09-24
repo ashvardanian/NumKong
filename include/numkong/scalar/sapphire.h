@@ -6,7 +6,7 @@
  *
  *  @sa include/numkong/scalar.h
  *
- *  Provides native AVX-512 FP16 scalar ordering via `VCOMISH`.
+ *  Provides native AVX-512 FP16 scalar ordering via @c VCOMISH.
  */
 #ifndef NK_SCALAR_SAPPHIRE_H
 #define NK_SCALAR_SAPPHIRE_H

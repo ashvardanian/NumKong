@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dot/skylake.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date October 7, 2023
  *  @brief SIMD-accelerated dot products for Skylake.
  *
  *  @sa include/numkong/dot.h
@@ -100,7 +100,7 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-/** @brief Compensated horizontal sum of 8 f64 lanes via TwoSum tree reduction. */
+/** Compensated horizontal sum of 8 f64 lanes via TwoSum tree reduction. */
 NK_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x8_skylake_(__m512d sum_f64x8, __m512d compensation_f64x8) {
     // Stage 0: TwoSum merge of sum + compensation (8-wide)
     __m512d tentative_sum_f64x8 = _mm512_add_pd(sum_f64x8, compensation_f64x8);
@@ -129,7 +129,8 @@ NK_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x8_skylake_(__m512d sum_f64x8, __
 #pragma region F32 and F64 Floats
 
 /**
- *  @brief Internal helper state for dot-products of low-precision types, where 32-bit accumulation is enough.
+ *  @brief Internal helper state for dot-products of low-precision types, where 32-bit
+ *      accumulation is enough.
  *  @sa nk_dot_f16x16_state_skylake_t, nk_dot_bf16x16_state_skylake_t
  *  @sa nk_dot_e4m3x16_state_skylake_t, nk_dot_e5m2x16_state_skylake_t
  */
@@ -159,11 +160,9 @@ NK_HELPER_INLINE void nk_dot_through_f32_update_skylake_(nk_dot_through_f32_stat
     state->sum_f32x16 = _mm512_fmadd_ps(a.zmm_ps, b.zmm_ps, state->sum_f32x16);
 }
 
-/**
- *  @brief E5M2 byte-batched update: consumes 64 raw E5M2 bytes per call and widens inline.
- *  Two independent FMA chains (each 2-deep) merge into the single state accumulator at exit.
- *  Keeps register pressure at one __m512 across calls while breaking the FMA dep chain.
- */
+/** E5M2 byte-batched update: consumes 64 raw E5M2 bytes per call and widens inline. Two independent
+ *  FMA chains (each 2-deep) merge into the single state accumulator at exit. Keeps register
+ *  pressure at one __m512 across calls while breaking the FMA dep chain. */
 NK_HELPER_INLINE void nk_dot_e5m2x64_update_skylake_(nk_dot_through_f32_state_skylake_t_ *state, nk_b512_vec_t a_bytes,
                                                      nk_b512_vec_t b_bytes, nk_size_t depth_offset,
                                                      nk_size_t active_dimensions) {
@@ -194,9 +193,10 @@ NK_HELPER_INLINE void nk_dot_e5m2x64_update_skylake_(nk_dot_through_f32_state_sk
  *  @sa nk_dot_f16x16_update_skylake, nk_dot_bf16x16_update_skylake
  *  @sa nk_dot_e4m3x16_update_skylake, nk_dot_e5m2x16_update_skylake
  *
- *  The goal of this kernel is simple - compute 4x horizontal reductions, each involing 16x floats.
- *  The lack of vectorized horizontal instruction implies many consecutive shuffles producing a tree-like
- *  reduction. This kernel allow combinding some of those operations between different dot products.
+ *  The goal of this kernel is simple - compute 4x horizontal reductions, each involing 16x
+ *  floats. The lack of vectorized horizontal instruction implies many consecutive shuffles
+ *  producing a tree-like reduction. This kernel allow combinding some of those operations between
+ *  different dot products.
  */
 NK_HELPER_INLINE void nk_dot_through_f32_finalize_skylake_(                                                 //
     nk_dot_through_f32_state_skylake_t_ const *state_a, nk_dot_through_f32_state_skylake_t_ const *state_b, //
@@ -638,7 +638,7 @@ nk_dot_e5m2_skylake_cycle:
 
 NK_API_COMPTIME void nk_dot_e2m3_skylake(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
                                          nk_size_t count_scalars, nk_f32_t *result) {
-    // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPMADDUBSW (unsigned×signed).
+    // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPMADDUBSW (unsigned × signed).
     // 64 elements per iteration using AVX-512BW. Result = i32_dot / 256.0f (exact).
     //
     // LUTs replicated 4× for 512-bit VPSHUFB (operates per 128-bit lane):
@@ -708,7 +708,7 @@ nk_dot_e2m3_skylake_cycle:
 
 NK_API_COMPTIME void nk_dot_e3m2_skylake(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
                                          nk_size_t count_scalars, nk_f32_t *result) {
-    // Integer dot product for e3m2 using dual-VPSHUFB (low-byte LUT) + VPMADDWD (i16×i16→i32).
+    // Integer dot product for e3m2 using dual-VPSHUFB (low-byte LUT) + VPMADDWD (i16 × i16 → i32).
     // 64 elements per iteration using AVX-512BW. Magnitudes reach 448, requiring i16.
     // Result = i32_dot / 256.0f (exact, no rounding error).
     //
@@ -1048,7 +1048,7 @@ NK_HELPER_INLINE void nk_dot_e2m3x64_finalize_skylake(                          
     results->xmm = _mm_castps_si128(sum_f32x4);
 }
 
-/** @brief Integer LUT batch state for e2m1 dot-products on Skylake (AVX-512BW), 128 nibbles per update. */
+/** Integer LUT batch state for e2m1 dot-products on Skylake (AVX-512BW), 128 nibbles per update. */
 typedef struct nk_dot_e2m1x128_state_skylake_t {
     __m512i sum_i32x16;
 } nk_dot_e2m1x128_state_skylake_t;
@@ -1057,10 +1057,8 @@ NK_HELPER_INLINE void nk_dot_e2m1x128_init_skylake(nk_dot_e2m1x128_state_skylake
     state->sum_i32x16 = _mm512_setzero_si512();
 }
 
-/**
- *  Looks up twice every E2M1 value by its full nibble, sign bit included.
- *  VPMADDUBSW wants u8 × i8, so `b` is negated where `a` is negative; products ≤ 144 keep pairs in i16.
- */
+/** Looks up twice every E2M1 value by its full nibble, sign bit included. VPMADDUBSW wants u8 × i8,
+ *  so @p b is negated where @p a is negative; products ≤ 144 keep pairs in i16. */
 NK_HELPER_INLINE void nk_dot_e2m1x128_update_skylake(nk_dot_e2m1x128_state_skylake_t *state, nk_b512_vec_t a,
                                                      nk_b512_vec_t b, nk_size_t depth_offset,
                                                      nk_size_t active_dimensions) {

@@ -7,10 +7,10 @@
  *  @sa include/numkong/maxsim.h
  *
  *  Uses wasm_i32x4_relaxed_dot_i8x16_i7x16_add for coarse i8 screening. Both operands stay within
- *  i7 range [-63, 63] for native signed×signed arithmetic, so no bias correction is needed, unlike
- *  the Haswell and Alder XOR-0x80 approach. The layout's packing routines live in `maxsim/v128.h`.
+ *  i7 range [-63, 63] for native signed × signed arithmetic, so no bias correction is needed,
+ *  unlike the Haswell and Alder XOR-0x80 approach. Packing routines live in `maxsim/v128.h`.
  *
- *  1Q×1D tiling, simpler than x86 4x4, with scalar running argmax. Depth steps at 16 bytes, the
+ *  1Q × 1D tiling, simpler than x86 4x4, with scalar running argmax. Depth steps at 16 bytes, the
  *  v128 width in bytes.
  */
 #ifndef NK_MAXSIM_V128RELAXED_H
@@ -31,12 +31,9 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
 
-/**
- *  @brief Coarse i8 argmax kernel for WASM Relaxed SIMD.
- *  Uses relaxed_dot_i8x16_i7x16_add with both operands in [-63, 63].
- *  No bias correction needed (native signed×signed arithmetic).
- *  Simple 1Q×1D tiling with scalar running argmax.
- */
+/** Coarse i8 argmax kernel for WASM Relaxed SIMD. Uses relaxed_dot_i8x16_i7x16_add with both
+ *  operands in [-63, 63], so native signed × signed arithmetic needs no bias correction. Simple
+ *  1Q × 1D tiling with scalar running argmax. */
 NK_HELPER_INLINE void nk_maxsim_coarse_argmax_v128relaxed_( //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8,    //
     nk_maxsim_vector_metadata_t const *document_metadata,   //

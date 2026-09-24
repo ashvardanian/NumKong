@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/curved/serial.h
  *  @author Ash Vardanian
- *  @date January 14, 2026
+ *  @date August 29, 2024
  *  @brief SWAR-accelerated curved-space similarity for SIMD-free CPUs.
  *
  *  @sa include/numkong/curved.h

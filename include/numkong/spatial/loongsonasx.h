@@ -339,7 +339,7 @@ NK_HELPER_INLINE nk_f32_t nk_angular_normalize_f32_loongsonasx_(nk_f32_t ab, nk_
     return result > 0.0f ? result : 0.0f;
 }
 
-/** @brief Horizontal sum of 8 × f32 lanes in a 256-bit LASX register. */
+/** Horizontal sum of 8 × f32 lanes in a 256-bit LASX register. */
 NK_HELPER_INLINE nk_f32_t nk_reduce_add_f32x8_loongsonasx_(__m256 sum_f32x8) {
     // Add high 128-bit lane to low 128-bit lane
     __m256 high_f32x4 = (__m256)__lasx_xvpermi_q((__m256i)sum_f32x8, (__m256i)sum_f32x8, 0x11);

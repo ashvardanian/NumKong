@@ -1,7 +1,7 @@
 /**
  *  @file c/dispatch_f16.c
  *  @author Ash Vardanian
- *  @date February 3, 2026
+ *  @date October 3, 2023
  *  @brief Dispatch initialization for F16 data types.
  */
 #include "dispatch.h"

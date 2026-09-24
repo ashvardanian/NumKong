@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dot/neonsdot.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date October 2, 2023
  *  @brief SIMD-accelerated dot products for NEON SDOT.
  *
  *  @sa include/numkong/dot.h
@@ -145,9 +145,7 @@ NK_API_COMPTIME void nk_dot_u8_neonsdot(nk_u8_t const *a_scalars, nk_u8_t const 
     *result = sum;
 }
 
-/**
- *  @brief Running state for 128-bit dot accumulation over i8 scalars on NEON.
- */
+/** Running state for 128-bit dot accumulation over i8 scalars on NEON. */
 typedef struct nk_dot_i8x16_state_neonsdot_t {
     int32x4_t sum_i32x4;
 } nk_dot_i8x16_state_neonsdot_t;
@@ -176,9 +174,7 @@ NK_HELPER_INLINE void nk_dot_i8x16_finalize_neonsdot(                           
     result->i32x4 = vpaddq_s32(ab_i32x4, cd_i32x4);
 }
 
-/**
- *  @brief Running state for 128-bit dot accumulation over u8 scalars on NEON.
- */
+/** Running state for 128-bit dot accumulation over u8 scalars on NEON. */
 typedef struct nk_dot_u8x16_state_neonsdot_t {
     uint32x4_t sum_u32x4;
 } nk_dot_u8x16_state_neonsdot_t;
@@ -210,7 +206,7 @@ NK_HELPER_INLINE void nk_dot_u8x16_finalize_neonsdot(                           
 NK_API_COMPTIME void nk_dot_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     //
-    // ARM NEON SDOT handles signed×signed directly, so we use direct sign-extension:
+    // ARM NEON SDOT handles signed × signed directly, so we use direct sign-extension:
     // Extract nibbles [0,15], sign-extend to i8 [-8,7] via shift trick, then SDOT.
     // No algebraic correction needed unlike x86 DPBUSD.
     //
@@ -378,7 +374,7 @@ NK_HELPER_INLINE void nk_dot_u4x32_finalize_neonsdot(                           
 
 NK_API_COMPTIME void nk_dot_e2m3_neonsdot(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
                                           nk_size_t count_scalars, nk_f32_t *result) {
-    // Integer dot product for e2m3 using SDOT (signed×signed i8 → i32).
+    // Integer dot product for e2m3 using SDOT (signed × signed i8 → i32).
     // Every e2m3 value × 16 is an exact integer in [-120, +120], fits signed i8.
     // Result = i32_dot / 256.0f (exact, no rounding error).
     //
@@ -420,7 +416,7 @@ nk_dot_e2m3_neonsdot_cycle:
     int8x16_t b_signed_i8x16 = vbslq_s8(negate_mask_u8x16, vnegq_s8(vreinterpretq_s8_u8(b_unsigned_u8x16)),
                                         vreinterpretq_s8_u8(b_unsigned_u8x16));
 
-    // SDOT: signed×signed, 4 bytes → i32
+    // SDOT: signed × signed, 4 bytes → i32
     sum_i32x4 = vdotq_s32(sum_i32x4, vreinterpretq_s8_u8(a_unsigned_u8x16), b_signed_i8x16);
 
     if (count_scalars) goto nk_dot_e2m3_neonsdot_cycle;
@@ -484,7 +480,7 @@ nk_dot_e3m2_neonsdot_cycle:
     b_unsigned_low_i16x8 = vbslq_s16(negate_low_u16x8, vnegq_s16(b_unsigned_low_i16x8), b_unsigned_low_i16x8);
     b_unsigned_high_i16x8 = vbslq_s16(negate_high_u16x8, vnegq_s16(b_unsigned_high_i16x8), b_unsigned_high_i16x8);
 
-    // Widening multiply-accumulate: i16×i16 → i32
+    // Widening multiply-accumulate: i16 × i16 → i32
     sum0_i32x4 = vmlal_s16(sum0_i32x4, vget_low_s16(a_unsigned_low_i16x8), vget_low_s16(b_unsigned_low_i16x8));
     sum0_i32x4 = vmlal_high_s16(sum0_i32x4, a_unsigned_low_i16x8, b_unsigned_low_i16x8);
     sum1_i32x4 = vmlal_s16(sum1_i32x4, vget_low_s16(a_unsigned_high_i16x8), vget_low_s16(b_unsigned_high_i16x8));

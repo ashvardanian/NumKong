@@ -6,11 +6,12 @@
  *
  *  @sa include/numkong/attention.h
  *
- *  Mirrors the `v128relaxed` panel-flash shape with the family-shared packed header, segment
- *  directory, base-2 streaming softmax, and `(task_start, task_count)` windows. Every E4M3 value
- *  converts exactly to F16 at the pack boundary — the Skylake precedent — so the hot loops run pure
- *  half-precision: scores keep four KV rows in flight through widening @c FMLAL and @c FMLAL2 pairs
- *  into F32 accumulators, and the weighted V accumulation shares the F16 weight-broadcast path.
+ *  Mirrors the @c v128relaxed panel-flash shape with the family-shared packed header, segment
+ *  directory, base-2 streaming softmax, and [task_start, task_start + task_count) windows. Every
+ *  E4M3 value converts exactly to F16 at the pack boundary — the Skylake precedent — so the hot
+ *  loops run pure half-precision: scores keep four KV rows in flight through widening @c FMLAL and
+ *  @c FMLAL2 pairs into F32 accumulators, and the weighted V accumulation shares the F16
+ *  weight-broadcast path.
  */
 #ifndef NK_ATTENTION_NEONFHM_H
 #define NK_ATTENTION_NEONFHM_H
@@ -38,13 +39,15 @@ extern "C" {
 #endif
 
 enum {
+
     /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
     nk_attention_panel_neonfhm_k_ = 512,
+
     /** Deepest head this backend handles in scratch; deeper heads route to the serial tier. */
     nk_attention_max_depth_neonfhm_k_ = 256,
 };
 
-/** @brief Converts one E4M3 row to a zero-padded F16 destination, 8 lanes per step. */
+/** Converts one E4M3 row to a zero-padded F16 destination, 8 lanes per step. */
 NK_HELPER_INLINE void nk_attention_e4m3_row_to_f16_neonfhm_(nk_e4m3_t const *source, nk_u16_t *destination,
                                                             nk_size_t depth, nk_size_t depth_padded) {
     nk_size_t channel_idx = 0;
@@ -147,7 +150,7 @@ NK_HELPER_INLINE void nk_attention_packed_e4m3_neonfhm_(                        
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const plane_row_bytes = depth_padded * sizeof(nk_f16_t);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_neonfhm_k_;
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);

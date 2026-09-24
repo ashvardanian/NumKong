@@ -7,9 +7,9 @@
  *  @sa include/numkong/reduce.h
  *
  *  Uses AVX-VNNI (256-bit) for efficient widening dot-products:
- *  - `_mm256_dpwssd_epi32`: i16 × i16 → i32 accumulation (AVXVNNI, used for i16 and e3m2)
- *  - `_mm256_sad_epu8` + `_mm256_madd_epi16`: pure AVX2 SAD/MADD (used for u8)
- *  - `_mm256_cvtepu16_epi32` + `_mm256_mullo_epi32`: pure AVX2 (used for u16)
+ *  - @c _mm256_dpwssd_epi32: i16 × i16 → i32 accumulation from AVXVNNI, used for i16 and e3m2
+ *  - @c _mm256_sad_epu8 and @c _mm256_madd_epi16: pure AVX2 SAD and MADD, used for u8
+ *  - @c _mm256_cvtepu16_epi32 and @c _mm256_mullo_epi32: pure AVX2, used for u16
  */
 #ifndef NK_REDUCE_ALDER_H
 #define NK_REDUCE_ALDER_H
@@ -314,12 +314,12 @@ NK_API_COMPTIME void nk_reduce_moments_u16_alder(                  //
 }
 
 /**
- *  @section e3m2 moments via integer VNNI (dpwssd)
+ *  @section reduce_alder_e3m2_moments E3M2 moments via integer VNNI DPWSSD
  *
  *  Every e3m2 value × 16 is an exact integer in [-448, +448] (i16 range).
  *  We use dual-VPSHUFB for the low byte + threshold compare for the high byte,
- *  then UNPACKLO/HI to form unsigned i16, apply sign via `_mm256_sign_epi16`,
- *  and accumulate with `_mm256_dpwssd_epi32` (signed i16 × signed i16 → i32).
+ *  then UNPACKLO/HI to form unsigned i16, apply sign via @c _mm256_sign_epi16,
+ *  and accumulate with @c _mm256_dpwssd_epi32 (signed i16 × signed i16 → i32).
  *  Final: sum = i32_sum / 16, sumsq = i32_sumsq / 256.
  */
 NK_HELPER_INLINE void nk_reduce_moments_e3m2_alder_contiguous_( //
@@ -489,12 +489,12 @@ NK_API_COMPTIME void nk_reduce_moments_e3m2_alder(                  //
 }
 
 /**
- *  @section e2m3 moments via integer VNNI (dpbusd)
+ *  @section reduce_alder_e2m3_moments E2M3 moments via integer VNNI DPBUSD
  *
  *  Every e2m3 value × 16 is an exact integer in [-120, +120] (i8 range).
- *  We use a dual-VPSHUFB LUT to map 5-bit magnitude → unsigned i8, create a
- *  sign vector (+1/-1), then accumulate with `_mm256_dpbusd_avx_epi32` (u8 × i8 → i32).
- *  For sumsq, magnitude ≤ 120 < 128 so it's safe as both u8 and i8.
+ *  We use a dual-VPSHUFB LUT to map 5-bit magnitude → unsigned i8, create a sign vector (+1/-1),
+ *  then accumulate with @c _mm256_dpbusd_avx_epi32 (u8 × i8 → i32). For sumsq, magnitude ≤ 120 <
+ *  128, so it's safe as both u8 and i8.
  *  Final: sum = i32_sum / 16, sumsq = i32_sumsq / 256.
  */
 NK_HELPER_INLINE void nk_reduce_moments_e2m3_alder_contiguous_( //

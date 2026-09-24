@@ -1,15 +1,15 @@
 /**
  *  @file python/matrix.c
  *  @author Ash Vardanian
- *  @date February 20, 2026
+ *  @date December 24, 2025
  *  @brief Packed-matrix cross operations for NumKong Python bindings.
  *
  *  This module owns:
- *  - `PackedMatrix`: opaque pre-packed right-hand-side matrix representation.
- *  - Packing APIs: `dots_pack()` and `hammings_pack()`.
- *  - Packed cross APIs: `*_packed()` for dots, hammings, jaccards, angulars, euclideans.
- *  - Symmetric all-pairs APIs: `*_symmetric()` for the same metric families.
- *  - `Tensor @ PackedMatrix`: dot-product shortcut equivalent to `dots_packed`.
+ *  - @c PackedMatrix: the opaque pre-packed right-hand-side matrix.
+ *  - @c dots_pack and @c hammings_pack: pack a matrix into it.
+ *  - @c dots_packed and its hammings, jaccards, angulars and euclideans siblings: cross metrics.
+ *  - @c dots_symmetric and its siblings for the same families: all-pairs metrics within one matrix.
+ *  - @c Tensor times @c PackedMatrix through the `@` operator: equivalent to @c dots_packed.
  *
  *  Shape naming convention used in docs and errors:
  *  - @c a: @b [height,depth]

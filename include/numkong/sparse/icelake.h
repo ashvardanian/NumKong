@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/sparse/icelake.h
  *  @author Ash Vardanian
- *  @date February 6, 2026
+ *  @date August 24, 2024
  *  @brief Ice Lake-accelerated sparse vector operations.
  *
  *  @sa include/numkong/sparse.h
@@ -41,10 +41,8 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512dq", "bmi2", "lzcnt", "popcnt", "avx512bw", "avx512vbmi2")
 #endif
 
-/**
- *  @brief  Analogous to `_mm512_2intersect_epi16_mask`, but compatible with Ice Lake CPUs,
- *          slightly faster than the native Tiger Lake implementation, but returns only one mask.
- */
+/** Analogous to @c _mm512_2intersect_epi16_mask, but compatible with Ice Lake CPUs, slightly faster
+ *  than the native Tiger Lake implementation, but returns only one mask. */
 NK_HELPER_INLINE nk_u32_t nk_intersect_u16x32_icelake_(__m512i a, __m512i b) {
     __m512i a1_u16x32 = _mm512_alignr_epi32(a, a, 4);
     __m512i a2_u16x32 = _mm512_alignr_epi32(a, a, 8);
@@ -102,10 +100,8 @@ NK_HELPER_INLINE nk_u32_t nk_intersect_u16x32_icelake_(__m512i a, __m512i b) {
     return ~(nk_u32_t)(nm70_m32 & nk_u32_rol(nm71_m32, 8) & nk_u32_rol(nm72_m32, 16) & nk_u32_ror(nm73_m32, 8));
 }
 
-/**
- *  @brief  Analogous to `_mm512_2intersect_epi32`, but compatible with Ice Lake CPUs,
- *          slightly faster than the native Tiger Lake implementation, but returns only one mask.
- */
+/** Analogous to @c _mm512_2intersect_epi32, but compatible with Ice Lake CPUs, slightly faster than
+ *  the native Tiger Lake implementation, but returns only one mask. */
 NK_HELPER_INLINE nk_u16_t nk_intersect_u32x16_icelake_(__m512i a, __m512i b) {
     __m512i a1_u32x16 = _mm512_alignr_epi32(a, a, 4);
     __m512i b1_u32x16 = _mm512_shuffle_epi32(b, _MM_PERM_ADCB);
@@ -264,10 +260,8 @@ NK_API_COMPTIME void nk_sparse_intersect_u32_icelake( //
     *count = c + tail_count;
 }
 
-/**
- *  @brief  Analogous to `_mm512_2intersect_epi64`, but compatible with Ice Lake CPUs,
- *          returns only one mask indicating which elements in `a` have a match in `b`.
- */
+/** Analogous to @c _mm512_2intersect_epi64, but compatible with Ice Lake CPUs, and returns only one
+ *  mask indicating which elements in @p a have a match in @p b. */
 NK_HELPER_INLINE nk_u8_t nk_intersect_u64x8_icelake_(__m512i a, __m512i b) {
     __m512i a1_u64x8 = _mm512_alignr_epi64(a, a, 2);
     __m512i b1_u64x8 = _mm512_permutex_epi64(b, _MM_PERM_ADCB);

@@ -97,8 +97,7 @@ extern "C" {
 #endif
 
 /*  AMX-specific packed buffer header (64-byte aligned).
- *  Different from nk_dots_amx_packed_header_t as AMX uses tile-based layout.
- */
+ *  Different from nk_dots_amx_packed_header_t as AMX uses tile-based layout. */
 typedef struct {
     nk_u32_t columns;                // exact N; offset 0, shared front dims for nk_dots_packed_shape
     nk_u32_t depth;                  // exact K; offset 4
@@ -111,84 +110,71 @@ typedef struct {
 } nk_dots_amx_packed_header_t;
 
 /*  Composable tile structures for AMX operations.
- *  These enable reusable primitives and cross-correlation (A × Aᵀ) use cases.
- */
+ *  These enable reusable primitives and cross-correlation (A × Aᵀ) use cases. */
 
 /*  BF16 A tile: 16 rows × 32 depth-elements, row-major layout.
- *  Loaded from source matrix, used as left operand in AMX multiply.
- */
+ *  Loaded from source matrix, used as left operand in AMX multiply. */
 typedef struct {
     NK_ALIGN64 nk_bf16_t data[16][32]; // 16 rows × 32 columns = 1KB
 } nk_dots_bf16_a16x32_sapphireamx_t;
 
 /*  BF16 B tile: 32 depth × 16 columns, pair-interleaved for TDPBF16PS.
  *  Access pattern: data[depth/2][column][depth%2] for logical B[depth, column].
- *  Pre-packed from column-major or transposed source.
- */
+ *  Pre-packed from column-major or transposed source. */
 typedef struct {
     NK_ALIGN64 nk_bf16_t data[16][16][2]; // 16 depth-groups × 16 columns × 2 = 1KB
 } nk_dots_bf16_b32x16_sapphireamx_t;
 
 /*  BF16 output state: 16 × 16 F32 accumulator tile.
- *  Holds partial sums during depth-dimension accumulation.
- */
+ *  Holds partial sums during depth-dimension accumulation. */
 typedef struct {
     NK_ALIGN64 nk_f32_t data[16][16]; // 16 × 16 = 1KB
 } nk_dots_bf16_state_sapphireamx_t;
 
-/*  INT8 A tile: 16 rows × 64 depth-elements, row-major layout.
- */
+/*  INT8 A tile: 16 rows × 64 depth-elements, row-major layout. */
 typedef struct {
     NK_ALIGN64 nk_i8_t data[16][64]; // 16 rows × 64 columns = 1KB
 } nk_dots_i8_a16x64_sapphireamx_t;
 
 /*  INT8 B tile: 64 depth × 16 columns, quad-interleaved for TDPBSSD.
- *  Access pattern: data[depth/4][column][depth%4] for logical B[depth, column].
- */
+ *  Access pattern: data[depth/4][column][depth%4] for logical B[depth, column]. */
 typedef struct {
     NK_ALIGN64 nk_i8_t data[16][16][4]; // 16 depth-groups × 16 columns × 4 = 1KB
 } nk_dots_i8_b64x16_sapphireamx_t;
 
-/*  INT8 output state: 16 × 16 I32 accumulator tile.
- */
+/*  INT8 output state: 16 × 16 I32 accumulator tile. */
 typedef struct {
     NK_ALIGN64 nk_i32_t data[16][16]; // 16 × 16 = 1KB
 } nk_dots_i8_state_sapphireamx_t;
 
 /*  BF16 2 × 2 output state: 32 × 32 F32 output (4 accumulator tiles).
- *  Used for GEMM's 2 × 2 output blocking pattern.
- */
+ *  Used for GEMM's 2 × 2 output blocking pattern. */
 typedef struct {
     nk_dots_bf16_state_sapphireamx_t c[2][2]; // 4KB total
 } nk_dots_bf16_state2x2_sapphireamx_t;
 
-/*  INT8 2 × 2 output state: 32 × 32 I32 output (4 accumulator tiles).
- */
+/*  INT8 2 × 2 output state: 32 × 32 I32 output (4 accumulator tiles). */
 typedef struct {
     nk_dots_i8_state_sapphireamx_t c[2][2]; // 4KB total
 } nk_dots_i8_state2x2_sapphireamx_t;
 
 /*  UINT8 A tile: 16 rows × 64 depth-elements, row-major layout.
- *  Same layout as I8, different interpretation of signed vs unsigned.
- */
+ *  Same layout as I8, different interpretation of signed vs unsigned. */
 typedef struct {
     NK_ALIGN64 nk_u8_t data[16][64]; // 16 rows × 64 columns = 1KB
 } nk_dots_u8_a16x64_sapphireamx_t;
 
-/*  UINT8 B tile: 64 depth × 16 columns, quad-interleaved for TDPBUUD.
- */
+/*  UINT8 B tile: 64 depth × 16 columns, quad-interleaved for TDPBUUD. */
 typedef struct {
     NK_ALIGN64 nk_u8_t data[16][16][4]; // 16 depth-groups × 16 columns × 4 = 1KB
 } nk_dots_u8_b64x16_sapphireamx_t;
 
-/*  UINT8 output state: 16 × 16 U32 accumulator tile.
- */
+/*  UINT8 output state: 16 × 16 U32 accumulator tile. */
 typedef struct {
     NK_ALIGN64 nk_u32_t data[16][16]; // 16 × 16 = 1KB
 } nk_dots_u8_state_sapphireamx_t;
 
-/*  UINT8 2 × 2 output state: 32 × 32 U32 output (4 accumulator tiles).
- */
+/*  UINT8 2 × 2 output state: 32 × 32 U32 output (4 accumulator tiles). */
 typedef struct {
     nk_dots_u8_state_sapphireamx_t c[2][2]; // 4KB total
 } nk_dots_u8_state2x2_sapphireamx_t;
@@ -213,7 +199,7 @@ NK_HELPER_INLINE void nk_amx_tile_configure_sapphireamx_(void) {
     _tile_loadconfig(tile_config);
 }
 
-/** @brief Compiler memory barrier to ensure stores complete before AMX tile loads */
+/** Compiler memory barrier to ensure stores complete before AMX tile loads */
 #if defined(_MSC_VER)
 NK_HELPER_INLINE void nk_compiler_barrier_sapphireamx_(void) { _ReadWriteBarrier(); }
 #else
@@ -259,7 +245,8 @@ NK_HELPER_INLINE void nk_dots_bf16_store_sapphireamx_( //
     }
 }
 
-/* Store a 16 × 16 tile of 4-byte cells starting `column_offset` right of the diagonal, skipping cells below it */
+/** Store a 16 × 16 tile of 4-byte cells starting @p column_offset right of the diagonal, skipping
+ *  the cells below it. */
 NK_HELPER_INLINE void nk_dots_symmetric_store_sapphireamx_(     //
     void const *tile, void *dst, nk_size_t dst_stride_elements, //
     nk_size_t valid_rows, nk_size_t valid_cols, nk_size_t column_offset) {
@@ -903,7 +890,7 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_sapphireamx(nk_size_t column_co
     // All tiles for full column rows (Morton-ordered, pair-interleaved, depth remainder zero-padded)
     size += full_column_tiles * tiles_along_depth * tile_bytes;
 
-    // Column edge: remaining rows for ALL depth columns, stored row-major
+    // Column edge: remaining rows for all depth columns, stored row-major
     if (column_remainder_count > 0) size += column_remainder_count * depth * sizeof(nk_bf16_t);
 
     // Per-column norms for angular/euclidean distance (4 bytes each: f32 or u32)
@@ -1452,7 +1439,7 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_sapphireamx(nk_size_t column_coun
     // All tiles for full column rows (Morton-ordered, quad-interleaved, depth remainder zero-padded)
     size += full_column_tiles * tiles_along_depth * tile_bytes;
 
-    // Column edge: remaining rows for ALL depth columns, stored row-major
+    // Column edge: remaining rows for all depth columns, stored row-major
     if (column_remainder_count > 0) size += column_remainder_count * depth * sizeof(nk_i8_t);
 
     // Per-column norms for angular/euclidean distance (4 bytes each: f32 or u32)
@@ -3262,18 +3249,17 @@ NK_API_COMPTIME void nk_dots_symmetric_e4m3_sapphireamx(                        
 
 #pragma region E2M3 Floats
 
-/* Load E2M3 A tile with E2M3 to signed I8 conversion via VPERMB LUT.
- * Each E2M3 byte encodes: bit 5 = sign, bits 4:0 = magnitude (5-bit index).
- * The LUT maps 5-bit magnitude to value * 16, then sign is applied via conditional negation.
- * Result is stored in INT8 tile for use with _tile_dpbssd.
- */
+/** Load E2M3 A tile with E2M3 to signed I8 conversion via VPERMB LUT. Each E2M3 byte keeps the
+ *  sign in bit 5 and a 5-bit magnitude index in bits 4:0. The LUT maps the magnitude to 16 times
+ *  its value, then the sign is applied via conditional negation. The result is stored in an INT8
+ *  tile for use with @c _tile_dpbssd. */
 NK_HELPER_INLINE void nk_dots_e2m3_load_a_sapphireamx_( //
     nk_dots_i8_a16x64_sapphireamx_t *a_tile,            //
     nk_e2m3_t const *src, nk_size_t src_stride,         //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     // Build 64-byte LUT for VPERMB: 32 entries replicated to fill both halves.
-    // magnitude → value×16:
+    // magnitude → value × 16:
     //  e=0 (step 2): {0,2,4,6,8,10,12,14},
     //  e=1 (step 2): {16,18,20,22,24,26,28,30},
     //  e=2 (step 4): {32,36,40,44,48,52,56,60},
@@ -3737,7 +3723,8 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m3_sapphireamx(                        
 
 #pragma region E2M1 Floats
 
-/* Decode 64 E2M1 nibbles from 32 bytes into doubled signed I8 values, the high nibble of each byte first. */
+/** Decode 64 E2M1 nibbles from 32 bytes into doubled signed I8 values, the high nibble of each
+ *  byte first. */
 NK_HELPER_INLINE __m512i nk_e2m1x64_to_i8x64_sapphireamx_(__m256i packed_u8x32) {
     __m512i const lut_i8x64 = _mm512_broadcast_i32x4(
         _mm_setr_epi8(0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12));
@@ -3748,7 +3735,8 @@ NK_HELPER_INLINE __m512i nk_e2m1x64_to_i8x64_sapphireamx_(__m256i packed_u8x32) 
     return _mm512_permutexvar_epi8(nibbles_u8x64, lut_i8x64);
 }
 
-/* Load an E2M1 A tile of up to 64 dimensions per row, decoding nibbles to doubled I8 and zeroing past `valid_cols`. */
+/** Load an E2M1 A tile of up to 64 dimensions per row, decoding nibbles to doubled I8 and zeroing
+ *  past @p valid_cols. */
 NK_HELPER_INLINE void nk_dots_e2m1_load_a_sapphireamx_( //
     nk_dots_i8_a16x64_sapphireamx_t *a_tile,            //
     nk_e2m1x2_t const *src, nk_size_t src_stride,       //
@@ -4175,7 +4163,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m1_sapphireamx(                        
 
 #pragma region E3M2 Floats
 
-/* Load E3M2 A tile with FP8 to BF16 conversion */
+/** Load E3M2 A tile with FP8 to BF16 conversion. */
 NK_HELPER_INLINE void nk_dots_e3m2_load_a_sapphireamx_( //
     nk_dots_bf16_a16x32_sapphireamx_t *a_tile,          //
     nk_e3m2_t const *src, nk_size_t src_stride,         //

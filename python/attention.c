@@ -5,9 +5,9 @@
  *  @brief Ragged attention operations for NumKong Python bindings.
  *
  *  This module owns:
- *  - `AttentionPackedMatrix`: opaque pre-packed ragged KV-cache.
- *  - Packing API: `attention_pack()`.
- *  - Compute API: `attention_bidirectional_packed()` and `attention_causal_packed()`.
+ *  - @c AttentionPackedMatrix: the opaque pre-packed ragged KV-cache.
+ *  - @c attention_pack: packs keys and values into it.
+ *  - @c attention_bidirectional_packed and @c attention_causal_packed: compute attention over it.
  */
 #include "attention.h"
 #include "parallel.h" // `nk_parallel_for_tiles`

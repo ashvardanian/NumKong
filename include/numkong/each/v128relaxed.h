@@ -8,9 +8,9 @@
  *
  *  Provides WASM relaxed-SIMD implementations of elementwise operations:
  *  - Sum: result[i] = a[i] + b[i], for f16 only; the other dtypes live in `each/v128.h`
- *  - Scale: result[i] = α·a[i] + β
- *  - Blend: result[i] = α·a[i] + β·b[i]
- *  - FMA: result[i] = α·a[i]·b[i] + β·c[i]
+ *  - Scale: result[i] = α · a[i] + β
+ *  - Blend: result[i] = α · a[i] + β · b[i]
+ *  - FMA: result[i] = α · a[i] · b[i] + β · c[i]
  *
  *  For dtypes: f32, f16, bf16, i8, u8
  */
@@ -35,7 +35,7 @@ extern "C" {
 
 #pragma region F32 Floats
 
-/** @brief Vectorized `2^x` (Relaxed SIMD); matches `nk_f32_exp2_serial_` to polynomial precision. */
+/** Vectorized `2^x` (Relaxed SIMD); matches @c nk_f32_exp2_serial_ to polynomial precision. */
 NK_HELPER_INLINE v128_t nk_exp2_f32x4_v128relaxed_(v128_t x_f32x4) {
     x_f32x4 = wasm_f32x4_max(wasm_f32x4_min(x_f32x4, wasm_f32x4_splat(127.0f)), wasm_f32x4_splat(-125.0f));
     v128_t whole_f32x4 = wasm_f32x4_nearest(x_f32x4);

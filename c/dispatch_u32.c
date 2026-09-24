@@ -1,7 +1,7 @@
 /**
  *  @file c/dispatch_u32.c
  *  @author Ash Vardanian
- *  @date February 3, 2026
+ *  @date August 19, 2024
  *  @brief Dispatch initialization for U32 data types.
  */
 #include "dispatch.h"

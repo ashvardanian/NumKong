@@ -43,18 +43,18 @@ extern "C" {
 #endif
 
 enum {
+
     /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
     nk_attention_panel_skylake_k_ = 512,
+
     /** Widest head this backend handles in registers; larger heads route to the serial tier. */
     nk_attention_max_depth_skylake_k_ = 256,
 };
 
-/**
- *  @brief One panel of the streaming base-2 softmax: merges the panel maximum into the
- *         running one, exponentiates the scores in place into weights, and folds the panel
- *         weight-sum into the running sum. Returns the correction `2^(m_old − m_new)` the
- *         caller applies to its output accumulators.
- */
+/** One panel of the streaming base-2 softmax: merges the panel maximum into the running
+ *  one, exponentiates the scores in place into weights, and folds the panel weight-sum
+ *  into the running sum. Returns the correction 2^(m_old − m_new) the caller applies to
+ *  its output accumulators. */
 NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_skylake_(nk_f32_t *scores, nk_size_t panel_length, nk_f32_t scale2,
                                                               nk_f32_t *running_max2, nk_f32_t *running_sum) {
     __m512 max_f32x16 = _mm512_set1_ps(NK_F32_MIN);
@@ -92,7 +92,7 @@ NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_skylake_(nk_f32_t *scores, 
     return correction;
 }
 
-/** @brief Widens 16 packed-plane scalars (BF16 or F16 at rest) to F32 inside the hot loops. */
+/** Widens 16 packed-plane scalars (BF16 or F16 at rest) to F32 inside the hot loops. */
 typedef __m512 (*nk_attention_load_skylake_t_)(void const *plane_chunk);
 
 NK_HELPER_INLINE __m512 nk_attention_load_bf16x16_skylake_(void const *plane_chunk) {
@@ -107,7 +107,7 @@ NK_HELPER_INLINE __m512 nk_attention_load_f16x16_skylake_(void const *plane_chun
     return widened.zmm_ps;
 }
 
-/** @brief Narrows `count` input elements into 16-bit plane scalars, zero-filling to `padded`. */
+/** Narrows @p count input elements into 16-bit plane scalars, zero-filling to @p padded. */
 typedef void (*nk_attention_narrow_skylake_t_)(void const *source, void *destination, nk_size_t count,
                                                nk_size_t padded);
 
@@ -145,7 +145,7 @@ NK_HELPER_INLINE void nk_attention_narrow_e4m3_skylake_(void const *source, void
         _mm256_storeu_si256((__m256i *)((nk_f16_t *)destination + channel_index), _mm256_setzero_si256());
 }
 
-/** @brief Widens `count` raw query elements to F32 into `destination`, zero-filling to `padded`. */
+/** Widens @p count raw query elements to F32 into @p destination, zero-filling to @p padded. */
 typedef void (*nk_attention_widen_skylake_t_)(void const *source, nk_f32_t *destination, nk_size_t count,
                                               nk_size_t padded);
 
@@ -292,10 +292,8 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_skylake(                            
                                key_stride_bytes, value_stride_bytes, key_value_packed, task_begin, task_end);
 }
 
-/**
- *  @brief Shared attention core over 16-bit planes: per query row, panel-flash with an
- *         exact online correction; scores keep four KV rows in flight, widening in-loop.
- */
+/** Shared attention core over 16-bit planes: per query row, panel-flash with an exact online
+ *  correction; scores keep four KV rows in flight, widening in-loop. */
 NK_HELPER_INLINE void nk_attention_packed_skylake_(                                                             //
     void const *queries, nk_size_t element_bytes, nk_attention_widen_skylake_t_ widen,                          //
     nk_attention_load_skylake_t_ load,                                                                          //
@@ -315,7 +313,7 @@ NK_HELPER_INLINE void nk_attention_packed_skylake_(                             
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
     nk_size_t const plane_row_bytes = depth_padded * sizeof(nk_bf16_t);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_skylake_k_;
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);

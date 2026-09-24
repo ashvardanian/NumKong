@@ -30,7 +30,7 @@ extern "C" {
 #pragma GCC target("+sme")
 #endif
 
-/** @brief Vectorized `2^x` (SME streaming SVE); matches `nk_f32_exp2_serial_` to polynomial precision. */
+/** Vectorized `2^x` (SME streaming SVE); matches @c nk_f32_exp2_serial_ to polynomial precision. */
 NK_HELPER_INLINE svfloat32_t nk_exp2_f32x_sme_(svfloat32_t x_f32x) NK_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     x_f32x = svmax_f32_x(predicate_all_b32x, svmin_f32_x(predicate_all_b32x, x_f32x, svdup_f32(127.0f)),
@@ -47,10 +47,9 @@ NK_HELPER_INLINE svfloat32_t nk_exp2_f32x_sme_(svfloat32_t x_f32x) NK_STREAMING_
     return svmul_f32_x(predicate_all_b32x, p_f32x, svreinterpret_f32_s32(n_i32x));
 }
 
-/**
- *  @brief Degree-3 evaluation of `2^r` over the reduced fraction `r ∈ [-0.5, 0.5]`, 32 lanes at a time: the family
- *         coefficients with the degree-4 term dropped, which falls below the F16 resolution of the weights it feeds.
- */
+/** Degree-3 evaluation of `2^r` over the reduced fraction `r ∈ [-0.5, 0.5]`, 32 lanes at a time:
+ *  the family coefficients with the degree-4 term dropped, which falls below the F16 resolution of
+ *  the weights it feeds. */
 NK_HELPER_INLINE svfloat16_t nk_exp2_polynomial_f16x_sme_(svfloat16_t reduced_f16x) NK_STREAMING_ {
     svbool_t const predicate_all_b16x = svptrue_b16();
     svfloat16_t poly_f16x = svdup_f16((__fp16)5.55041087e-2f);
@@ -60,10 +59,9 @@ NK_HELPER_INLINE svfloat16_t nk_exp2_polynomial_f16x_sme_(svfloat16_t reduced_f1
     return poly_f16x;
 }
 
-/**
- *  @brief I-BERT-style integer `2^t`: takes a Q15 exponent in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8
- *         weight in each I32 lane, through a degree-3 Q14 polynomial and a lane-variable shift, with no float.
- */
+/** I-BERT-style integer 2ᵗ without floats: takes a Q15 exponent in [−10 × 2¹⁵, 0] and returns
+ *  round(2ᵗ × 255) as a U8 weight in each I32 lane, through a degree-3 Q14 polynomial and a
+ *  lane-variable shift. */
 NK_HELPER_INLINE svint32_t nk_exp2_u8_i32x_sme_(svint32_t t_q15_i32x) NK_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     svint32_t const whole_i32x = svasr_n_s32_x(predicate_all_b32x, t_q15_i32x, 15); // floor, in [-10, 0]

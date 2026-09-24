@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/sparse/serial.h
  *  @author Ash Vardanian
- *  @date February 6, 2026
+ *  @date August 19, 2024
  *  @brief Serial sparse vector operations.
  *
  *  @sa include/numkong/sparse.h
@@ -110,9 +110,9 @@ nk_define_sparse_intersect_helpers_(u16)
 nk_define_sparse_intersect_helpers_(u32)
 nk_define_sparse_intersect_helpers_(u64)
 
-/*  Keep the serial instantiations below actually scalar, regardless of build type. The search helpers
- *  above stay outside: they are `always_inline`, which clang refuses to combine with a pushed `noinline`.
- *  See dots/serial.h for rationale. */
+/*  Keep the serial instantiations below actually scalar, regardless of build type. The search
+ *  helpers above stay outside: they are @c always_inline, which clang refuses to combine with a
+ *  pushed @c noinline. See dots/serial.h for rationale. */
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)
 #elif defined(__GNUC__)

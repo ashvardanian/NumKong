@@ -149,8 +149,9 @@ NK_HELPER_INLINE vuint16m1_t nk_f32m2_to_f16m1_rvv_(vfloat32m2_t f32_f32m2, nk_s
     vuint32m2_t mantissa_u32m2 = __riscv_vand_vx_u32m2(bits_u32m2, 0x7FFFFF, vector_length);
     vuint32m2_t zeros_u32m2 = __riscv_vmv_v_x_u32m2(0, vector_length);
 
-    // Exponent buckets: under [≤102], denormal [103..112], normal [113..142], overflow [143..255],
-    // inf/nan [255]. exp==0 falls under "under" but yields 0 there, matching the serial zero case.
+    // Exponent buckets: under [ ≤ 102], denormal [103..112], normal [113..142], overflow
+    // [143..255], inf/nan [255]. exp==0 falls under "under" but yields 0 there, matching the
+    // serial zero case.
     vbool16_t under_b16 = __riscv_vmsleu_vx_u32m2_b16(exponent_u32m2, 102, vector_length);
     vbool16_t denorm_b16 = __riscv_vmand_mm_b16(__riscv_vmsgtu_vx_u32m2_b16(exponent_u32m2, 102, vector_length),
                                                 __riscv_vmsleu_vx_u32m2_b16(exponent_u32m2, 112, vector_length),

@@ -7,11 +7,11 @@
  *  @sa include/numkong/set.h
  *
  *  SpacemiT K1 and similar chips implement RVA22 profile with base RVV 1.0.
- *  This does NOT include the Zvbb extension, so we lack native element-wise popcount (`vcpop.v`).
+ *  This does not include the Zvbb extension, so we lack native element-wise popcount (`vcpop.v`).
  *
  *  @section rvv_popcount_lut Popcount via vrgather LUT
  *
- *  We implement popcount using a 16-entry nibble lookup table with `vrgather`:
+ *  We implement popcount using a 16-entry nibble lookup table with @c vrgather:
  *  - Split each byte into high and low nibbles
  *  - Use vrgather to look up popcount of each nibble (0-4)
  *  - Sum the results (0-8 per byte)

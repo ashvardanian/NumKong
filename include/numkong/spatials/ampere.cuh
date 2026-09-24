@@ -29,9 +29,11 @@ extern "C" {
 #pragma region Cross Macros
 
 /**
- *  @brief Generates angular or euclidean distances between A and a B packed by `nk_define_cross_cuda_pack_`.
- *  @param[in] norm How the pack stored the column norms and the precision the metric is computed in.
- *  @param[in] norm_update_fn Device fold of 16 staged bytes' squares, see `nk_cross_norm_update_ampere_t`.
+ *  @brief Generates angular or euclidean distances between A and a B packed by
+ *      @c nk_define_cross_cuda_pack_.
+ *  @param[in] norm How the pack stored the column norms, and the precision of the metric.
+ *  @param[in] norm_update_fn Device fold of 16 staged bytes' squares, see
+ *      @c nk_cross_norm_update_ampere_t.
  *  @param[in] norm_scale Undoes the power of two the norm update's widening introduced, or 1.
  *  @sa nk_define_cross_normalized_packed_ for the host original.
  */
@@ -62,8 +64,8 @@ extern "C" {
     }
 
 /**
- *  @brief Generates angular or euclidean distances among rows [row_start, row_start + row_count) and every vector,
- *      writing above the diagonal, zeros on it, and nothing below it.
+ *  @brief Generates angular or euclidean distances among rows [row_start, row_start + row_count)
+ *      and every vector, writing above the diagonal, zeros on it, and nothing below it.
  *  @sa nk_define_cross_normalized_symmetric_ for the host original.
  */
 #define nk_define_cross_cuda_normalized_symmetric_(metric_name, input_type_name, isa_suffix, input_value_type,         \
@@ -89,8 +91,8 @@ extern "C" {
     }
 
 /**
- *  @brief Generates angular or euclidean distances in F64 between A and a packed B on the CUDA cores, for the F32
- *      and F64 inputs, with F64 column norms read from the pack.
+ *  @brief Generates angular or euclidean distances in F64 between A and a packed B on the CUDA
+ *      cores, for the F32 and F64 inputs, with F64 column norms read from the pack.
  *  @sa nk_define_cross_normalized_packed_ for the host original.
  */
 #define nk_define_cross_cuda_fma_normalized_packed_(metric_name, input_type_name, isa_suffix, input_value_type,        \
@@ -119,8 +121,8 @@ extern "C" {
     }
 
 /**
- *  @brief Generates angular or euclidean distances in F64 on the CUDA cores among rows
- *      [row_start, row_start + row_count) and every vector, writing above the diagonal and zeros on it.
+ *  @brief Generates angular or euclidean distances in F64 on the CUDA cores among every vector and
+ *      rows [row_start, row_start + row_count), writing above the diagonal and zeros on it.
  *  @sa nk_define_cross_normalized_symmetric_ for the host original.
  */
 #define nk_define_cross_cuda_fma_normalized_symmetric_(metric_name, input_type_name, isa_suffix, input_value_type,     \

@@ -32,15 +32,15 @@
  *          ...
  *  @endcode
  *
- *  This `cdist` example takes 2 positional, 1 positional or named, and 3 named-only arguments.
- *  An alternative with `METH_FASTCALL` uses a function signature like:
+ *  This @c cdist example takes 2 positional, 1 positional or named, and 3 named-only arguments.
+ *  An alternative with @c METH_FASTCALL uses a function signature like:
  *
  *  @code{.c}
  *     static PyObject* cdist(
  *          PyObject * self,
- *          PyObject * const * args_c_array,    //! C array of `args_count` pointers
- *          Py_ssize_t const positional_args_count,   //! The `args_c_array` may be larger than this
- *          PyObject * args_names_tuple) {      //! May be smaller than `args_count`
+ *          PyObject * const * args_c_array,         //! C array of `args_count` pointers
+ *          Py_ssize_t const positional_args_count,  //! The `args_c_array` may be larger than this
+ *          PyObject * args_names_tuple) {           //! May be smaller than `args_count`
  *          Py_ssize_t args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
  *          Py_ssize_t args_count = positional_args_count + args_names_count;
  *          ...
@@ -67,8 +67,8 @@
  *  on NumPy, an allocation for the wrapper, and constraints on the supported numeric types, a
  *  limitation because PyTorch and TensorFlow have richer type systems than NumPy.
  *
- *  A PyTorch `Tensor` cannot be converted to a `memoryview` object.
- *  Converting a `bf16` TensorFlow `Tensor` to a `memoryview` raises:
+ *  A PyTorch @c Tensor cannot be converted to a @c memoryview object.
+ *  Converting a @c bf16 TensorFlow @c Tensor to a @c memoryview raises:
  *
  *      ! ValueError: cannot include dtype 'E' in a buffer
  *

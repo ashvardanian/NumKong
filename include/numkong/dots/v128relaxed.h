@@ -6,9 +6,9 @@
  *
  *  @sa include/numkong/dots.h
  *
- *  Uses relaxed SIMD dot products for integer GEMM. I8 uses 2×relaxed_dot with bit-split, b_low +
- *  (-128)·b_high. U8 uses 2×relaxed_dot with signed reinterpretation and b_sums compensation. E2M3
- *  uses standard single-register state, no correction.
+ *  Uses relaxed SIMD dot products for integer GEMM. I8 uses 2 × relaxed_dot with bit-split,
+ *  b_low + (-128) · b_high. U8 uses 2 × relaxed_dot with signed reinterpretation and b_sums
+ *  compensation. E2M3 uses standard single-register state, no correction.
  */
 #ifndef NK_DOTS_V128RELAXED_H
 #define NK_DOTS_V128RELAXED_H
@@ -45,7 +45,8 @@ nk_define_cross_packed_(dots, i8, v128relaxed, i8, i8, i32, nk_b128_vec_t, nk_do
                         nk_dot_i8x16_finalize_v128relaxed, nk_store_b128_v128_, nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
-/* U8 GEMM: depth_simd_dimensions=16 — compensated (2×relaxed_dot with bit-split + b_sums correction) */
+/*  U8 GEMM: depth_simd_dimensions = 16, compensated by 2 relaxed_dot calls with a bit split and a
+ *  b_sums correction. */
 nk_define_cross_packed_shape_(dots, u8, v128relaxed)
 nk_define_cross_compensated_pack_size_(dots, u8, v128relaxed, u8, u8,
                                        /*sum_value_type=*/u32, /*norm_value_type=*/u32,
@@ -96,7 +97,8 @@ nk_define_cross_packed_(dots, e2m3, v128relaxed, e2m3, e2m3, f32, nk_b128_vec_t,
                         nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
-/* E2M1 GEMM: depth_simd_dimensions=32 (16 bytes = 32 nibbles), B magnitudes and signed A for relaxed_dot */
+/*  E2M1 GEMM: depth_simd_dimensions = 32, as 32 nibbles span 16 bytes, with B magnitudes and signed
+ *  A for relaxed_dot. */
 nk_define_cross_pack_size_(dots, e2m1, v128relaxed, e2m1x2, e2m1x2, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/2)
@@ -117,7 +119,7 @@ nk_define_cross_packed_(dots, e2m1, v128relaxed, e2m1x2, e2m1x2, f32, nk_b128_ve
                         nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 
-/* E3M2 GEMM: depth_simd_dimensions=16 — ×4 scaled relaxed_dot (magnitudes ≤ 112, fits u7) */
+/* E3M2 GEMM: depth_simd_dimensions=16 — × 4 scaled relaxed_dot (magnitudes ≤ 112, fits u7) */
 nk_define_cross_pack_size_(dots, e3m2, v128relaxed, e3m2, e3m2, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16,
                            /*dimensions_per_value=*/1)

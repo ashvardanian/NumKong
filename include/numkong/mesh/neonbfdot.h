@@ -59,8 +59,7 @@ extern "C" {
  *  Uses vld3_u16 to de-interleave xyz triplets, then converts bf16 to f32.
  *
  *  Input: 12 contiguous bf16 [x0,y0,z0, x1,y1,z1, x2,y2,z2, x3,y3,z3]
- *  Output: x[4], y[4], z[4] vectors in f32
- */
+ *  Output: x[4], y[4], z[4] vectors in f32 */
 NK_HELPER_INLINE void nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(nk_bf16_t const *ptr, float32x4_t *x_out,
                                                                  float32x4_t *y_out, float32x4_t *z_out) {
     // Load 12 bf16 values and de-interleave into x, y, z components
@@ -327,7 +326,7 @@ NK_API_COMPTIME void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t cons
     nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -386,7 +385,7 @@ NK_API_COMPTIME void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t cons
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f32_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0f * trace_rotation_covariance;
     if (sum_squared < 0.0f) sum_squared = 0.0f;
     *result = nk_f32_sqrt_neon(sum_squared * inv_n);
@@ -575,7 +574,7 @@ NK_API_COMPTIME void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t con
     nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -642,7 +641,7 @@ NK_API_COMPTIME void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t con
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f32_t sum_squared = c * c * centered_norm_squared_a + centered_norm_squared_b -
                            2.0f * c * trace_rotation_covariance;
     if (sum_squared < 0.0f) sum_squared = 0.0f;

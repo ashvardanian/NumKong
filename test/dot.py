@@ -7,7 +7,7 @@ Matches C++ suite: test/dot.cpp.
 
 File: test/dot.py
 Author: Ash Vardanian
-Date: February 27, 2026
+Date: September 5, 2024
 """
 
 import atexit

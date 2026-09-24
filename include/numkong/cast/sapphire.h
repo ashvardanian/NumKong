@@ -52,10 +52,13 @@ NK_API_COMPTIME void nk_f16_to_f32_sapphire(nk_f16_t const *from, nk_f32_t *to) 
 
 #pragma region Vectorized Conversions
 
-/** @brief Convert 16x e4m3 → 16x f16 via bit manipulation (AVX-512 FP16).
+/**
+ *  @brief Convert 16x e4m3 → 16x f16 via bit manipulation (AVX-512 FP16).
+ *
  *  E4M3 format: S EEEE MMM (bias=7). F16: S EEEEE MMMMMMMMMM (bias=15).
  *  Normal: sign | ((exp+8)<<10) | (mant<<7).
- *  Subnormals (exp=0): value = mantissa ÷ 512, computed via f16 arithmetic. */
+ *  Subnormals (exp=0): value = mantissa ÷ 512, computed via f16 arithmetic.
+ */
 NK_HELPER_INLINE __m256h nk_e4m3x16_to_f16x16_sapphire_(__m128i e4m3_i8x16) {
     __m256i e4m3_i16x16 = _mm256_cvtepu8_epi16(e4m3_i8x16);
 
@@ -75,7 +78,7 @@ NK_HELPER_INLINE __m256h nk_e4m3x16_to_f16x16_sapphire_(__m128i e4m3_i8x16) {
     __m256i subnorm_signed_i16x16 = _mm256_or_si256(_mm256_castph_si256(subnorm_abs_f16x16), sign_i16x16);
     __m256i result_i16x16 = _mm256_mask_blend_epi16(is_subnormal_m16, normal_i16x16, subnorm_signed_i16x16);
 
-    // NaN path: E4M3FN has NaN only when exp=15 AND mant=7 (lower 7 bits == 0x7F)
+    // NaN path: E4M3FN has NaN only when exp=15 and mant=7 (lower 7 bits == 0x7F)
     __mmask16 is_nan_m16 = _mm256_cmpeq_epi16_mask(                               //
         _mm256_and_si256(e4m3_i16x16, _mm256_set1_epi16(0x7F)),                   //
         _mm256_set1_epi16(0x7F));                                                 //
@@ -83,10 +86,13 @@ NK_HELPER_INLINE __m256h nk_e4m3x16_to_f16x16_sapphire_(__m128i e4m3_i8x16) {
     return _mm256_castsi256_ph(_mm256_mask_blend_epi16(is_nan_m16, result_i16x16, nan_i16x16));
 }
 
-/** @brief Convert 16x e5m2 → 16x f16 via bit manipulation (AVX-512 FP16).
+/**
+ *  @brief Convert 16x e5m2 → 16x f16 via bit manipulation (AVX-512 FP16).
+ *
  *  E5M2 format: S EEEEE MM (bias=15). F16: S EEEEE MMMMMMMMMM (bias=15).
  *  Normal: sign | (exp<<10) | (mant<<8) (same exponent bias).
- *  Subnormals (exp=0): value = mantissa ÷ 65536, computed via f16 arithmetic. */
+ *  Subnormals (exp=0): value = mantissa ÷ 65536, computed via f16 arithmetic.
+ */
 NK_HELPER_INLINE __m256h nk_e5m2x16_to_f16x16_sapphire_(__m128i e5m2_i8x16) {
     __m256i e5m2_i16x16 = _mm256_cvtepu8_epi16(e5m2_i8x16);
 
@@ -106,9 +112,9 @@ NK_HELPER_INLINE __m256h nk_e5m2x16_to_f16x16_sapphire_(__m128i e5m2_i8x16) {
     return _mm256_castsi256_ph(_mm256_mask_blend_epi16(is_subnormal_m16, normal_i16x16, subnorm_signed_i16x16));
 }
 
-/** @brief Convert 16x f16 → 16x e4m3 via bit manipulation (AVX-512 FP16).
- *  F16: S EEEEE MMMMMMMMMM (bias=15). E4M3: S EEEE MMM (bias=7).
- *  Handles normal, subnormal, and overflow cases with RNE rounding. */
+/** Convert 16x f16 → 16x e4m3 via bit manipulation (AVX-512 FP16). F16: S EEEEE MMMMMMMMMM
+ *  (bias=15). E4M3: S EEEE MMM (bias=7). Handles normal, subnormal, and overflow cases, and
+ *  rounds to nearest even. */
 NK_HELPER_INLINE __m128i nk_f16x16_to_e4m3x16_sapphire_(__m256h f16x16) {
     __m256i bits_i16x16 = _mm256_castph_si256(f16x16);
     __m256i sign_i16x16 = _mm256_srli_epi16(bits_i16x16, 15);
@@ -161,9 +167,9 @@ NK_HELPER_INLINE __m128i nk_f16x16_to_e4m3x16_sapphire_(__m256h f16x16) {
     return _mm256_cvtepi16_epi8(e4m3_i16x16);
 }
 
-/** @brief Convert 16x f16 → 16x e5m2 via bit manipulation (AVX-512 FP16).
- *  F16: S EEEEE MMMMMMMMMM (bias=15). E5M2: S EEEEE MM (bias=15).
- *  Same exponent bias, so just round mantissa from 10 to 2 bits. */
+/** Convert 16x f16 → 16x e5m2 via bit manipulation (AVX-512 FP16). F16: S EEEEE MMMMMMMMMM
+ *  (bias=15). E5M2: S EEEEE MM (bias=15). With the same exponent bias, only the mantissa is
+ *  rounded, from 10 bits to 2. */
 NK_HELPER_INLINE __m128i nk_f16x16_to_e5m2x16_sapphire_(__m256h f16x16) {
     __m256i bits_i16x16 = _mm256_castph_si256(f16x16);
     __m256i sign_i16x16 = _mm256_srli_epi16(bits_i16x16, 15);

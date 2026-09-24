@@ -23,7 +23,7 @@ namespace ashvardanian::numkong {
  *  @param[out] c Output vector
  *
  *  @tparam in_type_ Element type
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void sum(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ *c) noexcept {
@@ -57,8 +57,8 @@ void sum(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ *c) noexc
  *  @param[out] c Output vector
  *
  *  @tparam in_type_ Element type
- *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to `in_type_`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to @c in_type_
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void scale(in_type_ const *a, std::size_t d, typename in_type_::scale_t const *alpha,
@@ -94,8 +94,8 @@ void scale(in_type_ const *a, std::size_t d, typename in_type_::scale_t const *a
  *  @param[out] c Output vector
  *
  *  @tparam in_type_ Element type
- *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to `in_type_`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to @c in_type_
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void blend(in_type_ const *a, in_type_ const *b, std::size_t d, typename in_type_::scale_t const *alpha,
@@ -147,8 +147,8 @@ void blend(in_type_ const *a, in_type_ const *b, std::size_t d, typename in_type
  *  @param[out] out Output vector
  *
  *  @tparam in_type_ Element type
- *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to `in_type_`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to @c in_type_
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void fma(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ const *c,
@@ -209,7 +209,7 @@ void fma(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ const *c,
  *  @param[in] input_scale Scalar applied to each loaded element: E4M3 descale, or 1.0 for BF16/F32
  *
  *  @tparam in_type_ Element type
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size_t rows, std::size_t cols,

@@ -6,17 +6,17 @@
  *
  *  @sa include/numkong/attention.h
  *
- *  VNNI backend for the INT8 attention triple. Q, K and V arrive caller-quantized to I8, the Q·K
+ *  VNNI backend for the INT8 attention triple. Q, K and V arrive caller-quantized to I8, the Q · K
  *  descale already folded into @c scale. Scores are exact I32 integer dot products, the base-2
  *  softmax reuses the Skylake helpers — Ice Lake caps imply Skylake — weights quantize to U8 as
- *  round(255 · 2^(s₂ − m₂)), and the P×V contraction runs natively on @c _mm512_dpbusd_epi32 with
+ *  round(255 · 2^(s₂ − m₂)), and the P × V contraction runs natively on @c _mm512_dpbusd_epi32 with
  *  the U8 weights as the unsigned operand.
  *
- *  @section attention_icelake_qk Q×Kᵀ correction placement
+ *  @section attention_icelake_qk Q × Kᵀ correction placement
  *
  *  DPBUSD multiplies an unsigned byte by a signed byte, so Q is shifted into the unsigned domain
- *  once per query row, q' = q ⊕ 0x80 = q + 128. dpbusd(q', k) then yields Σ(q+128)·k = Σq·k +
- *  128·Σk, so the exact score is dpbusd(q', k) − 128·Σk. The per-position Σk = Σ_channel
+ *  once per query row, q' = q ⊕ 0x80 = q + 128. dpbusd(q', k) then yields Σ(q+128) · k = Σq · k +
+ *  128 · Σk, so the exact score is dpbusd(q', k) − 128 · Σk. The per-position Σk = Σ_channel
  *  k[pos][channel] depends only on K, so it is precomputed once at pack time and stored as one I32
  *  per KV position in a table riding beside the K plane, see the payload layout below. To keep the
  *  score loop drain-free the score kernel never reduces across the 16 lanes: K is packed
@@ -25,19 +25,19 @@
  *  DPBUSD advances sixteen KV positions by four channels; accumulating over the depth quads leaves
  *  sixteen exact biased scores with no transpose. Sixteen queries share each K load — hold sixteen
  *  accumulators and issue sixteen broadcast DPBUSDs per K vector — so the score cost scales flat
- *  with KV length. The 128·Σk correction is one sixteen-wide `zmm ≪ 7` subtract per KV tile.
- *  Zero-padded channels stay exact: a padded k=0 adds (q+128)·0=0 to the product and 0 to Σk.
+ *  with KV length. The 128 · Σk correction is one sixteen-wide `zmm ≪ 7` subtract per KV tile.
+ *  Zero-padded channels stay exact: a padded k=0 adds (q+128) · 0=0 to the product and 0 to Σk.
  *
- *  @section attention_icelake_pv P×V layout
+ *  @section attention_icelake_pv P × V layout
  *
- *  DPBUSD contracts four adjacent bytes per I32 lane, so the P×V contraction over KV positions
- *  needs four consecutive positions of one channel adjacent in memory. V is therefore packed
- *  position-quad-interleaved at pack time: byte [group][channel][pos%4] holds v[4·group +
- *  pos%4][channel]. A single 64-byte load then covers 16 channels × 4 positions, the U8 weights of
- *  those four positions broadcast into every I32 lane, and one DPBUSD advances 16 channels by four
- *  positions with no shift and no correction. The I32 accumulators drain to F32 once per panel and
- *  fold into the online O = O·2^(m_old−m_new) + panel correction. K is VNNI-interleaved as tiles of
- *  16 positions, each a depth quad of 16 lanes by 4 channels; both planes zero-pad channels to a
+ *  DPBUSD contracts four adjacent bytes per I32 lane, so the P × V contraction over KV positions
+ *  needs four consecutive positions of one channel adjacent in memory. At pack time V is therefore
+ *  position-quad-interleaved: byte [group][channel][pos%4] holds v[4 · group + pos%4][channel]. A
+ *  single 64-byte load then covers 16 channels × 4 positions, the U8 weights of those four
+ *  positions broadcast into every I32 lane, and one DPBUSD advances 16 channels by four positions
+ *  with no shift and no correction. The I32 accumulators drain to F32 once per panel and fold into
+ *  the online O = O · 2^(m_old−m_new) + panel correction. K is VNNI-interleaved as tiles of 16
+ *  positions, each a depth quad of 16 lanes by 4 channels; both planes zero-pad channels to a
  *  multiple of 64, K pads positions to a multiple of 16, one 16-lane score tile, and V to a
  *  multiple of 4. The row-max sweep covers live columns only: a zero-padded position's score of 0
  *  could otherwise raise the max and zero out an all-negative row's weight sum. depth > 256 routes
@@ -76,18 +76,19 @@ extern "C" {
 #endif
 
 enum {
+
     /** KV panel width in positions; the I32 score row (2 KB) stays L1-resident. */
     nk_attention_panel_icelake_k_ = 512,
+
     /** Widest head this backend handles in registers; larger heads route to the serial tier. */
     nk_attention_max_depth_icelake_k_ = 256,
 };
 
-/**
- *  @brief Register 16×16 transpose of 32-bit elements (hierarchical unpack + lane shuffle). Given 16 rows
- *         (each 16 dwords), returns the 16 columns. Used at pack time to turn 16 position rows into the
- *         VNNI depth-quad tiles. The `shuffle_i32x4` stages emit rows in the group order `groups[i]` holds
- *         group `{0,1,2,3,8,9,10,11,4,5,6,7,12,13,14,15}[i]`; the caller restores natural order at store.
- */
+/** Register 16×16 transpose of 32-bit elements (hierarchical unpack + lane shuffle). Given 16
+ *  rows (each 16 dwords), returns the 16 columns. Used at pack time to turn 16 position rows into
+ *  the VNNI depth-quad tiles. The @c shuffle_i32x4 stages emit rows in the group order
+ *  `groups[i]` holds group `{0,1,2,3,8,9,10,11,4,5,6,7,12,13,14,15}[i]`; the caller restores
+ *  natural order at store. */
 NK_HELPER_INLINE void nk_attention_transpose_i32x16x16_icelake_(__m512i const rows_i32x16[16],
                                                                 __m512i groups_i32x16[16]) {
     __m512i t01_low_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[0], rows_i32x16[1]),
@@ -295,14 +296,12 @@ NK_API_COMPTIME void nk_attention_pack_i8_icelake(                              
     }
 }
 
-/**
- *  @brief Drain-free exact I32 scores for a 16-query block over one panel: for each 16-KV
- *         tile it holds 16 lane-parallel accumulators (one score per KV position), broadcasts
- *         each query's four-channel dword and issues 16 DPBUSDs reusing one K load, then
- *         accumulates over the depth quads. No lane reduction and no transpose: `Σq·k` lands
- *         directly per lane. The `128·Σk` correction is one 16-wide `zmm ≪ 7` subtract per
- *         tile. Writes a `16 × panel_width` score block, each query row `panel_width` apart.
- */
+/** Drain-free exact I32 scores for a 16-query block over one panel: for each 16-KV tile it holds 16
+ *  lane-parallel accumulators (one score per KV position), broadcasts each query's four-channel
+ *  dword and issues 16 DPBUSDs reusing one K load, then accumulates over the depth quads. No lane
+ *  reduction and no transpose: Σq · k lands directly per lane. The 128 · Σk correction is one
+ *  16-wide `zmm ≪ 7` subtract per tile. Writes a @b [16,panel_width] score block whose query rows
+ *  sit @c panel_width apart. */
 NK_HELPER_INLINE void nk_attention_score_block_icelake_(nk_u8_t const *queries_biased, nk_i8_t const *keys_plane,
                                                         nk_i32_t const *key_sums_plane, nk_size_t panel_start,
                                                         nk_size_t panel_len, nk_size_t depth_padded, nk_i32_t *scores) {
@@ -331,14 +330,12 @@ NK_HELPER_INLINE void nk_attention_score_block_icelake_(nk_u8_t const *queries_b
     }
 }
 
-/**
- *  @brief Streaming base-2 softmax over the panel-relative live range `[range_begin, range_end)`, entirely in
- *         integer arithmetic: the row max is an exact `_mm512_max_epi32` over that range only, weights come from
- *         the integer i-exp over `(score − max)·scale₂` in Q15, and the weight sum accumulates in I32. Weights
- *         outside the range, from its 16-aligned start to its quad-rounded end, are zero. Only the per-panel
- *         online correction `2^((m_old − m_new)·scale₂)` stays in F32, where it scales the F32 output
- *         accumulators anyway. Returns that correction.
- */
+/** Streaming base-2 softmax over the panel-relative live range from @p range_begin inclusive to
+ *  @p range_end exclusive, all in integer arithmetic: the row max is an exact @c _mm512_max_epi32
+ *  over that range only, weights come from the integer i-exp over (score − max) · scale₂ in Q15,
+ *  and the weight sum accumulates in I32. Weights outside the range, from its 16-aligned start to
+ *  its quad-rounded end, are zero. Only the online correction, 2^((m_old − m_new) · scale₂) per
+ *  panel, stays in F32, where it scales the F32 output accumulators anyway, and is returned. */
 NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores, nk_u8_t *weights,
                                                               nk_size_t range_begin, nk_size_t range_end,
                                                               nk_f32_t scale2, nk_i32_t scale_fixed,
@@ -423,11 +420,9 @@ NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *sc
     return correction;
 }
 
-/**
- *  @brief P×V over the quads covering the panel-relative range `[range_begin, range_end)`:
- *         `dpbusd(weight_quad, v_quad)` over the quad-interleaved V plane, I32 accumulators drained
- *         to F32 and folded into `O = O·correction + panel`.
- */
+/** P × V over the quads covering the panel-relative range from @p range_begin inclusive to
+ *  @p range_end exclusive: `dpbusd(weight_quad, v_quad)` over the quad-interleaved V plane, I32
+ *  accumulators drained to F32 and folded into O = O · correction + panel. */
 NK_HELPER_INLINE void nk_attention_weighted_sum_panel_icelake_(nk_u8_t const *weights, nk_i8_t const *values_plane,
                                                                nk_size_t panel_start, nk_size_t range_begin,
                                                                nk_size_t range_end, nk_size_t depth_padded,
@@ -449,7 +444,8 @@ NK_HELPER_INLINE void nk_attention_weighted_sum_panel_icelake_(nk_u8_t const *we
     }
 }
 
-/** @brief Shared I8 body: row `r` reads the keys `nk_attention_row_range_(r + diagonal_offset, window, …)` admits. */
+/** Shared I8 body: row @c r reads the keys that @c nk_attention_row_range_ admits for position
+ *  r + @p diagonal_offset and @p window. */
 NK_HELPER_INLINE void nk_attention_packed_i8_icelake_(                                                          //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
@@ -472,9 +468,9 @@ NK_HELPER_INLINE void nk_attention_packed_i8_icelake_(                          
     nk_size_t const output_stride_floats = output_stride_bytes / sizeof(nk_f32_t);
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_;                     // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_;                     // softmax(x) = softmax₂(x · log₂e)
     nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
-    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t·255 + 0.5 < 1)
+    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t · 255 + 0.5 < 1)
         scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
     nk_size_t const panel_width = nk_attention_panel_icelake_k_;
 

@@ -53,7 +53,7 @@ stage_fixture_with_header() { # stage_fixture_with_header <relative-path> <<< co
         ;;
     *.go)
         {
-            printf '// %s/%s\n// Written by Selftest.\n\n' "$project_directory" "$1"
+            printf '// File: %s\n// Author: Selftest\n\n' "$1"
             cat
         } > "$fixture_path"
         ;;
@@ -105,7 +105,7 @@ stage_edited_fixture() { # stage_edited_fixture <relative-path> <sed-expression>
     } > "$fixture_path"
     git -C "$fixture_directory" add -- "$1"
     git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
-    sed -i "$2" "$fixture_path"
+    sed "$2" "$fixture_path" > "$fixture_path.edited" && mv "$fixture_path.edited" "$fixture_path"
     git -C "$fixture_directory" add -- "$1"
 }
 
@@ -121,7 +121,7 @@ stage_fixture_verbatim() { # stage_fixture_verbatim <relative-path> <<< content
 run_precommit() { # run_precommit [--all-lines <relative-path>...]
     hook_output=$(cd "$fixture_directory" && "$hooks_directory/pre-commit" "$@" 2>&1)
     hook_status=$?
-    fired_count=$(printf '%s\n' "$hook_output" | sed -n 's/^pre-commit: \([0-9]\+\) check(s) failed$/\1/p')
+    fired_count=$(printf '%s\n' "$hook_output" | sed -n 's/^pre-commit: \([0-9][0-9]*\) check(s) failed$/\1/p')
     [ -n "$fired_count" ] || fired_count=0
 }
 
@@ -663,7 +663,82 @@ int first(void);
 int second(void);
 FIXTURE
 
-assert_rejects "note inside a region" "opens a region with a note inside it" include/numkong/probe.h <<'FIXTURE'
+assert_rejects "note inside a preprocessor section" "opens a section with a note inside it" include/numkong/probe.h <<'FIXTURE'
+#if PROBE_TARGET_WFET
+
+/*  WFET has no MSVC intrinsic, so the timed waiter is inline-assembly only. */
+int probe(void);
+
+#endif // PROBE_TARGET_WFET
+FIXTURE
+
+assert_rejects "note past a section's target pragmas" "opens a section with a note inside it" include/numkong/probe.h <<'FIXTURE'
+#if PROBE_TARGET_RELAXED
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
+#endif
+
+/*  The relaxed dot product forms pairwise products of signed and 7-bit bytes. */
+int probe(void);
+
+#endif // PROBE_TARGET_RELAXED
+FIXTURE
+
+assert_verbatim_accepts "note opening a file inside its include guard" include/numkong/probe.h <<'FIXTURE'
+/**
+ *  @file include/numkong/probe.h
+ *  @author Selftest
+ *  @date January 1, 2026
+ *  @brief One staged fixture for one rule.
+ */
+#ifndef NK_PROBE_H_
+#define NK_PROBE_H_
+
+/*  The probe family has one kernel. */
+int probe(void);
+
+#endif // NK_PROBE_H_
+FIXTURE
+
+assert_accepts "note on a nested directive, a group label, and a guard spelled with defined" include/numkong/probe.h <<'FIXTURE'
+#if !defined(NK_PROBE_TYPES_H_)
+#define NK_PROBE_TYPES_H_
+
+/*  Debugging and testing. */
+#if !defined(NK_PROBE_DEBUG)
+#define NK_PROBE_DEBUG 0
+#define NK_PROBE_TRACE 0
+#endif
+
+#if NK_PROBE_TARGET_EMSCRIPTEN
+#include <emscripten.h>
+
+/*  The probes trip strict-prototype warnings, silenced for this block alone. */
+#if defined(__clang__)
+#pragma clang diagnostic push
+#endif
+
+/*  Loads: plain and acquire. */
+
+int probe(void);
+#endif // NK_PROBE_TARGET_EMSCRIPTEN
+#endif // NK_PROBE_TYPES_H_
+FIXTURE
+
+assert_accepts "note above a preprocessor section, and a branch note inside a body" include/numkong/probe.h <<'FIXTURE'
+/*  WFET has no MSVC intrinsic, so the timed waiter is inline-assembly only. */
+#if PROBE_TARGET_WFET
+int probe(void) {
+#if PROBE_TARGET_X86
+    /* The x86 path pauses instead. */
+    return 1;
+#endif
+    return 0;
+}
+#endif // PROBE_TARGET_WFET
+FIXTURE
+
+assert_rejects "note inside a region" "opens a section with a note inside it" include/numkong/probe.h <<'FIXTURE'
 #pragma region Platform Capabilities
 
 /*  Layer 2 is capabilities, each answering exactly one question. */
@@ -834,7 +909,7 @@ assert_accepts "labelled lines start fresh" include/numkong/probe.h <<'FIXTURE'
 int probe(void);
 FIXTURE
 
-assert_rejects "sentence ending early mid-paragraph" "leaves a prose line underfilled" include/numkong/probe.h <<'FIXTURE'
+assert_accepts "one sentence per line" include/numkong/probe.h <<'FIXTURE'
 /**
  *  @brief Packs two nibbles per byte.
  *
@@ -907,8 +982,16 @@ int probe(void);
 FIXTURE
 
 assert_rejects "underfilled paragraph" "leaves a prose line underfilled" include/numkong/probe.h <<'FIXTURE'
-/** Quantization keeps i16 from saturating, as the worst pair sum stays low, and then
- *  XOR-0x80 turns signed queries unsigned. */
+/** Quantization keeps i16 from saturating, as the worst pair sum stays below the limit, and then
+ *  XOR-0x80 turns signed queries
+ *  unsigned before the u8 dot product. */
+int probe(void);
+FIXTURE
+
+assert_accepts "paragraph wrapped narrow throughout" include/numkong/probe.h <<'FIXTURE'
+/** Quantization keeps i16 from saturating, as the worst pair
+ *  sum stays below the limit, and then XOR-0x80 turns signed
+ *  queries unsigned before the u8 dot product runs. */
 int probe(void);
 FIXTURE
 
@@ -1321,6 +1404,122 @@ FIXTURE
 
 # region Imported Rule Fixtures
 
+assert_rejects "tuple of names in backticks" "spells a tuple of names apart from a shape" include/numkong/probe.h <<'FIXTURE'
+/** Reads the `(start, stop, limit)` a windowed call takes. */
+int probe(void);
+FIXTURE
+
+assert_rejects "tuple of names bolded with spaces" "spells a tuple of names apart from a shape" include/numkong/probe.h <<'FIXTURE'
+/** Reads the @b (start, stop, limit) a windowed call takes. */
+int probe(void);
+FIXTURE
+
+assert_rejects "one-name tuple in backticks" "spells a tuple of names apart from a shape" include/numkong/probe.h <<'FIXTURE'
+/** Edge queries take @b (initiator,target), and medium queries `(target)` alone. */
+int probe(void);
+FIXTURE
+
+assert_accepts "tuple of names bolded as one token, beside an acronym and a call" include/numkong/probe.h <<'FIXTURE'
+/** Reads the @b (start,stop,limit) a windowed call takes, avoiding @b (CAS) loops, and calls
+ *  `hints(address, level)` once per window. */
+int probe(void);
+FIXTURE
+
+assert_rejects "call with arguments after @c" "marks a call with arguments" include/numkong/probe.h <<'FIXTURE'
+/** Balances the range from @c insert(first, last) in linear time. */
+int probe(void);
+FIXTURE
+
+assert_accepts "call with arguments in backticks, and a bare call after @c" include/numkong/probe.h <<'FIXTURE'
+/** Balances the range from `insert(first, last)` in linear time, like @c reserve(). */
+int probe(void);
+FIXTURE
+
+assert_rejects "list items leading with both @c and backticks" "leads a list's items with both @c and backtick spans" include/numkong/probe.h <<'FIXTURE'
+/**
+ *  @brief Reads its configuration from the environment.
+ *
+ *  - @c PROBE_DATASET : Path to the dataset file.
+ *  - `PROBE_SEED=42` : Seed for shuffling.
+ */
+int probe(void);
+FIXTURE
+
+assert_accepts "list items leading with one markup" include/numkong/probe.h <<'FIXTURE'
+/**
+ *  @brief Reads its configuration from the environment.
+ *
+ *  - `PROBE_DATASET=path` : Path to the dataset file.
+ *  - `PROBE_SEED=42` : Seed for shuffling.
+ */
+int probe(void);
+FIXTURE
+
+assert_rejects "math operator glued to a name" "glues a math operator" include/numkong/probe.h <<'FIXTURE'
+/** True if balanced: weight(left) ≤ Δ×weight(right). */
+int probe(void);
+FIXTURE
+
+assert_accepts "spaced operators, a dimension, a factor, and a shape" include/numkong/probe.h <<'FIXTURE'
+/** True if weight(left) ≤ Δ × weight(right) on a 16×16 tile, 4× faster over @b [rows,2×ffn].
+ *  The P × V and Q × Kᵀ products cost O(n · d) each, ≈128× less than before, skipping '×'. */
+int probe(void);
+FIXTURE
+
+assert_rejects "single-letter algebra glued" "glues a math operator" include/numkong/probe.h <<'FIXTURE'
+/** Scores accumulate P×V after the softmax. */
+int probe(void);
+FIXTURE
+
+assert_rejects "trailing comment gluing an operator" "glues a math operator" test/probe.cpp <<'FIXTURE'
+int probe(int value) {
+    return value * 2; // doubles the P×V tile
+}
+FIXTURE
+
+assert_rejects "drifting comments in a code sample" "lets the trailing comments of a @code sample drift" include/numkong/probe.h <<'FIXTURE'
+/**
+ *  @brief Lays out one table.
+ *
+ *  @code{.cpp}
+ *  key_t *keys = (key_t *)memory;                  // Direct indexing
+ *  mapped_t *values = (mapped_t *)(memory + bytes);   // Direct indexing
+ *  @endcode
+ */
+int probe(void);
+FIXTURE
+
+assert_accepts "aligned comments in a code sample" include/numkong/probe.h <<'FIXTURE'
+/**
+ *  @brief Lays out one table.
+ *
+ *  @code{.cpp}
+ *  key_t *keys = (key_t *)memory;                    // Direct indexing
+ *  mapped_t *values = (mapped_t *)(memory + bytes);  // Direct indexing
+ *  @endcode
+ */
+int probe(void);
+FIXTURE
+
+assert_accepts "a vector of products in brackets" include/numkong/probe.h <<'FIXTURE'
+/** Accumulates [c_real × b_real, c_imag × b_imag, ...] with the sign flip deferred. */
+int probe(void);
+FIXTURE
+
+assert_rejects "titled paragraph" "titles a paragraph with @par" include/numkong/probe.h <<'FIXTURE'
+/**
+ *  @brief Rebalances one node.
+ *
+ *  @par Complexity O(log n).
+ */
+int probe(void);
+FIXTURE
+
+assert_rejects "capitalized emphasis beyond the modal verbs" "uses ALL-CAPS emphasis in a comment" include/numkong/probe.h <<'FIXTURE'
+/** The kernel reads BOTH halves of the row. */
+int probe(void);
+FIXTURE
+
 assert_rejects "ASCII arrow in a comment" "writes an arrow as" include/numkong/probe.h <<'FIXTURE'
 /** Maps a key -> a value. */
 int probe(void);
@@ -1333,6 +1532,83 @@ FIXTURE
 git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
 run_precommit --all-lines include/numkong/probe.h
 expect_rejection "whole-file mode reads committed lines" "writes an arrow as"
+
+stage_fixture_with_header include/numkong/probe.h <<'FIXTURE'
+#if defined(PROBE_A) || \
+    defined(PROBE_B)
+#endif
+extern "C" {
+
+/** Maps a key -> a value. */
+int probe(void);
+}
+FIXTURE
+git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
+run_precommit --all-lines include/numkong/probe.h
+expect_rejection "whole-file mode reads past a continued directive" "writes an arrow as"
+
+assert_accepts "URL inside a code sample" include/numkong/probe.h <<'FIXTURE'
+/**
+ *  @brief Tabulates the probe.
+ *
+ *  @code{.py}
+ *  url = "https://www.unicode.org/Public/UCD/latest/ucd/UnicodeData.txt"
+ *  @endcode
+ */
+int probe(void);
+FIXTURE
+
+assert_accepts "glued arrows inside an HTML code span" README.md <<'FIXTURE'
+<code>→ ↘</code> = movement direction
+FIXTURE
+
+assert_rejects "URL in code after a code block closing with its docblock" "mismatches a comment's brackets" include/numkong/probe.h <<'FIXTURE'
+/**
+ *  @brief Prints the site.
+ *
+ *  @code{.c}
+ *  puts(site);
+ *  @endcode */
+int probe(void);
+
+static char const *site = "https://example.com/probe";
+FIXTURE
+
+stage_fixture_with_header include/numkong/probe.hpp <<'FIXTURE'
+struct alignas(64) probe_t {
+
+    /** Maps a key -> a value. */
+    int field;
+};
+FIXTURE
+git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
+run_precommit --all-lines include/numkong/probe.hpp
+expect_rejection "whole-file mode reads members of an aligned struct" "writes an arrow as"
+
+assert_accepts "arrows inside HTML code spans holding a less-than" README.md <<'FIXTURE'
+* The binding reads <code>x <- y</code> and <code>a < b->c</code> as code.
+FIXTURE
+
+assert_accepts "hash inside a Python string before a return annotation" python/probe.py <<'FIXTURE'
+def probe(marker: str = "#") -> int:
+    return len(marker)
+FIXTURE
+
+assert_rejects "ASCII arrow closing a comment" "writes an arrow as" include/numkong/probe.h <<'FIXTURE'
+int probe(void); // takes the value <-
+FIXTURE
+
+assert_accepts "code span too long for the line above" include/numkong/probe.h <<'FIXTURE'
+/** FreeBSD's in-kernel cpuset framework enumerates the memory domains of this machine through
+ *  `sysctl vm.ndomains` and `cpuset_getaffinity(CPU_WHICH_DOMAIN)`, with no library at all. */
+int probe(void);
+FIXTURE
+
+assert_accepts "sentence ending inside a bracket" include/numkong/probe.h <<'FIXTURE'
+/** Pads each row to a whole cache line, as the stride says [bytes].
+ *  Reads never cross into the next row, and writes never touch the padding at all. */
+int probe(void);
+FIXTURE
 
 assert_accepts "arrow inside a fenced Rust sample" rust/probe.rs <<'FIXTURE'
 /// Allocates through the pool.
@@ -1420,6 +1696,15 @@ assert_rejects "two empty comment lines in a row" "leaves two empty comment line
 int probe(void);
 FIXTURE
 
+assert_accepts "ASCII arrow after a dereference in a macro" include/numkong/probe.h <<'FIXTURE'
+#define PROBE_READ(header, width) \
+    *width = header->column_count;
+FIXTURE
+
+assert_accepts "ASCII arrow in a C macro body" include/numkong/probe.h <<'FIXTURE'
+#define PROBE_FIELD(pointer) ((pointer)->field)
+FIXTURE
+
 assert_rejects "glued bidirectional ASCII arrow" "writes an arrow as" include/numkong/probe.h <<'FIXTURE'
 /** Converts F16<->F32 in hardware. */
 int probe(void);
@@ -1448,7 +1733,7 @@ int probe(void);
 FIXTURE
 
 assert_rejects "design justified by a sibling" "justifies a decision by another repo" include/numkong/probe.h <<'FIXTURE'
-/** Mirrors the convention StringZilla uses for its tables. */
+/** Mirrors the convention USearch uses for its tables. */
 int probe(void);
 FIXTURE
 
@@ -1519,8 +1804,9 @@ pub fn probe() {}
 FIXTURE
 
 assert_rejects "binding paragraph underfilled" "leaves a doc or comment line underfilled" rust/probe.rs <<'FIXTURE'
-/// Computes the probe over every row and
-/// writes the result into the output buffer.
+/// Computes the probe over every row of the input, accumulating in f64 so the long rows stay exact,
+/// and writes
+/// one value per row back into the output.
 pub fn probe() {}
 FIXTURE
 
@@ -1598,7 +1884,35 @@ assert_rejects "binding shape as a product" "spells a shape as a product or a tu
 pub fn probe() {}
 FIXTURE
 
-assert_rejects "Swift tag continuation aligned under the text" "misaligns a doc continuation" swift/Probe.swift <<'FIXTURE'
+assert_verbatim_rejects "Swift callouts ahead of the header body" "opens without the Swift header" swift/Probe.swift <<'FIXTURE'
+//
+//  swift/Probe.swift
+//  One staged fixture for one rule.
+//
+//  - Author: Selftest
+//  - Date: January 1, 2026
+//
+//  Docs:
+//  - Accessing the UTF-8 view: https://developer.apple.com/documentation/swift/string/utf8view
+//
+public struct Probe {}
+FIXTURE
+
+assert_verbatim_accepts "Swift callouts closing the header body" swift/Probe.swift <<'FIXTURE'
+//
+//  swift/Probe.swift
+//  One staged fixture for one rule.
+//
+//  Docs:
+//  - Accessing the UTF-8 view: https://developer.apple.com/documentation/swift/string/utf8view
+//
+//  - Author: Selftest
+//  - Date: January 1, 2026
+//
+public struct Probe {}
+FIXTURE
+
+assert_accepts "Swift - Warning: continuation aligned under the text like a bullet" swift/Probe.swift <<'FIXTURE'
 //
 //  swift/Probe.swift
 //  One staged fixture for one rule.
@@ -1613,7 +1927,7 @@ public struct Probe {
 }
 FIXTURE
 
-assert_accepts "Swift tag continuation hanging 4" swift/Probe.swift <<'FIXTURE'
+assert_rejects "Swift - Warning: continuation hanging 4 like a C tag" "misaligns a doc continuation" swift/Probe.swift <<'FIXTURE'
 //
 //  swift/Probe.swift
 //  One staged fixture for one rule.
@@ -1665,12 +1979,23 @@ char const doc_probe[] =                                              //
     "    a (Tensor): Matrix with shape (height, depth).\n";
 FIXTURE
 
-assert_rejects "Go package comment outside its file" "documents the package outside the file named after it" golang/probe.go <<'FIXTURE'
+assert_verbatim_rejects "Go package comment outside its file" "documents the package outside the file named after it" golang/probe.go <<'FIXTURE'
 // Package numkong wraps the NumKong kernels.
+//
+// File: golang/probe.go
+// Author: Selftest
 package numkong
 FIXTURE
 
-assert_accepts "Go package comment in the file named after it" golang/numkong.go <<'FIXTURE'
+assert_verbatim_accepts "Go package comment in the file named after it, closing with its fields" golang/numkong.go <<'FIXTURE'
+// Package numkong wraps the NumKong kernels for Go, one batch call per kernel family.
+//
+// File: golang/numkong.go
+// Author: Selftest
+package numkong
+FIXTURE
+
+assert_verbatim_rejects "Go package comment without its fields" "opens without its file header" golang/numkong.go <<'FIXTURE'
 // Package numkong wraps the NumKong kernels for Go, one batch call per kernel family.
 package numkong
 FIXTURE
@@ -1744,6 +2069,11 @@ export function probe(): void {
     // Reset before every call.
     probeState = 0;
 }
+FIXTURE
+
+assert_verbatim_accepts "Python dotfile config under a comment" .cmake-format.py <<'FIXTURE'
+# How wide a line may run.
+line_width = 120
 FIXTURE
 
 assert_rejects "Python attribute under a comment" "documents an attribute with a # comment" python/probe.py <<'FIXTURE'

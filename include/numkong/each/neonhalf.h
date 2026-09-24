@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/each/neonhalf.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date October 18, 2024
  *  @brief SIMD-accelerated elementwise arithmetic for NEON FP16.
  *
  *  @sa include/numkong/each.h

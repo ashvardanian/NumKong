@@ -235,7 +235,7 @@ int nk_get_buffer(PyObject *obj, Py_buffer *buffer, int flags, nk_buffer_backing
 /**
  *  @brief Re-express the last axis of a packed-dtype buffer in logical dimensions.
  *
- *  A buffer holds whole bytes, so for `u1`, `i4`, `u4`, and `e2m1` its last-axis extent counts
+ *  A buffer holds whole bytes, so for @c u1, @c i4, @c u4, and @c e2m1 its last-axis extent counts
  *  storage values; this multiplies it by the values per byte, pointing `buffer->shape` into
  *  @p backing. Strides stay in bytes, and @c len and @c PyBuffer_IsContiguous do not apply.
  *

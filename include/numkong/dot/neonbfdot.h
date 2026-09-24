@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dot/neonbfdot.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date June 3, 2024
  *  @brief SIMD-accelerated dot products for NEON BF16.
  *
  *  @sa include/numkong/dot.h
@@ -201,9 +201,7 @@ nk_dot_e5m2_neonbfdot_cycle:
     *result = vaddvq_f32(sum_f32x4);
 }
 
-/**
- *  @brief Running state for 128-bit dot accumulation over bf16 scalars on NEON.
- */
+/** Running state for 128-bit dot accumulation over bf16 scalars on NEON. */
 typedef struct nk_dot_bf16x8_state_neonbfdot_t {
     float32x4_t sum_f32x4;
 } nk_dot_bf16x8_state_neonbfdot_t;

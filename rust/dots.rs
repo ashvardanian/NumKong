@@ -2153,9 +2153,9 @@ where
     /// This is a non-allocating interface - you provide the output tensor.
     ///
     /// # Arguments
-    /// * `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::try_pack[_transposed]`
-    /// * `c` - Pre-allocated output tensor (m × n)
-    /// * `pool` - Pre-constructed thread pool
+    /// - `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::try_pack[_transposed]`
+    /// - `c` - Pre-allocated output tensor of shape [m, n]
+    /// - `pool` - Pre-constructed thread pool
     ///
     /// The output may be a `&mut Tensor<...>` or a `&mut TensorSpan<...>` —
     /// any writable tensor container that implements [`TensorMut`]. The
@@ -2329,7 +2329,7 @@ where
     /// triangular structure of symmetric matrix computation.
     ///
     /// # Arguments
-    /// * `pool` - Pre-constructed thread pool
+    /// - `pool` - Pre-constructed thread pool
     ///
     /// # Example
     /// ```ignore
@@ -2394,7 +2394,7 @@ where
         Ok(())
     }
 
-    /// Parallel computation of symmetric dot-product matrix (unwrapping version).
+    /// Parallel computation of symmetric dot-product matrix, the unwrapping version.
     ///
     /// # Panics
     /// Panics if the operation fails, for example on a wrong tensor rank.

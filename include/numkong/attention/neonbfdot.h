@@ -6,11 +6,12 @@
  *
  *  @sa include/numkong/attention.h
  *
- *  Mirrors the `v128relaxed` panel-flash shape with the family-shared packed header, segment
- *  directory, base-2 streaming softmax, and `(task_start, task_count)` windows. Scores run four KV
- *  rows in flight through @c BFDOT — one query-vector load feeds four dot steps — the softmax stays
- *  in F32, and the weighted V accumulation widens BF16 rows with one @c SHLL pair per eight
- *  channels. K/V planes keep the raw BF16 encoding, channels zero-padded to eight for dot lanes.
+ *  Mirrors the @c v128relaxed panel-flash shape with the family-shared packed header, segment
+ *  directory, base-2 streaming softmax, and [task_start, task_start + task_count) windows. Scores
+ *  run four KV rows in flight through @c BFDOT — one query-vector load feeds four dot steps — the
+ *  softmax stays in F32, and the weighted V accumulation widens BF16 rows with one @c SHLL pair per
+ *  eight channels. K/V planes keep the raw BF16 encoding, with channels zero-padded to eight for
+ *  the dot lanes.
  */
 #ifndef NK_ATTENTION_NEONBFDOT_H
 #define NK_ATTENTION_NEONBFDOT_H
@@ -36,8 +37,10 @@ extern "C" {
 #endif
 
 enum {
+
     /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
     nk_attention_panel_neonbfdot_k_ = 512,
+
     /** Deepest head this backend handles in scratch; deeper heads route to the serial tier. */
     nk_attention_max_depth_neonbfdot_k_ = 256,
 };
@@ -140,7 +143,7 @@ NK_HELPER_INLINE void nk_attention_packed_bf16_neonbfdot_(                      
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const plane_row_bytes = depth_padded * sizeof(nk_bf16_t);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_neonbfdot_k_;
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);

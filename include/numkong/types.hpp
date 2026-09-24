@@ -9,25 +9,25 @@
  *  High-Performance Computing and now NumKong exposes all of its unusual types to C++ users with
  *  support for all traditional @c operators, compatible with @c std::mdspan.
  *
- *  This file several light-weight mostly `constexpr` classes:
+ *  This file several light-weight mostly @c constexpr classes:
  *
- *  1. Wrappers for traditional types, like `f32_t`, `i16_t`, `u8_t`, and complex `f64c_t`
- *  2. Low-precision machine-learning types, like `bf16_t`, `f16_t`, `e4m3_t`, and `e5m2_t`
- *  3. Sub-byte types packed into tuples, like `u1x8_t`, `u4x2_t`, `i4x2_t`
- *  4. Extreme-precision types for accuracy tests, like `f118_t` via double-double logic
+ *  1. Wrappers for traditional types, like @c f32_t, @c i16_t, @c u8_t, and complex @c f64c_t
+ *  2. Low-precision machine-learning types, like @c bf16_t, @c f16_t, @c e4m3_t, and @c e5m2_t
+ *  3. Sub-byte types packed into tuples, like @c u1x8_t, @c u4x2_t, @c i4x2_t
+ *  4. Extreme-precision types for accuracy tests, like @c f118_t via double-double logic
  *
  *  Each of those contains:
  *
  *  - Traditional arithmetic operator overloads returning the same storage type
- *  - Trigonometric functions like the `sin`, `tanh`, `acos`
- *  - Rust-style `order`, `total_cmp`, `round`, `to_radians`, `fma` for FMA operations
+ *  - Trigonometric functions like the @c sin, @c tanh, @c acos
+ *  - Rust-style @c order, @c total_cmp, @c round, @c to_radians, @c fma for FMA operations
  *  - Type definitions for NumKong mixed-precision often-widening operations
  *
  *  @section types_terminology Terminology: Word vs Value vs Dimension
  *
  *  Each type defines three bit-width constants that describe its memory layout:
  *
- *  - @b value: A C++ container element, like the `i4x2_t`, `f32_t`, and `f64c_t`.
+ *  - @b value: A C++ container element, like the @c i4x2_t, @c f32_t, and @c f64c_t.
  *
  *  - @b word: A raw Assembly-level storage unit, like a single `unsigned char` under the @c i4x2_t
  *    or one of the two @c doubles forming the @c f64c_t.
@@ -45,8 +45,8 @@
  *  i4x2_t         8              4              8           2             1
  *  @endverbatim
  *
- *  @sa `dimensions_per_value<T>()` to convert dimension counts to value counts.
- *  @sa `bits_per_value<T>()` to infer the size of each value.
+ *  @sa @c dimensions_per_value to convert dimension counts to value counts.
+ *  @sa @c bits_per_value to infer the size of each value.
  *
  *  @section types_cpp_fp8 FP8 Numeric Types
  *
@@ -929,13 +929,13 @@ struct f32c_t {
     /** Phase angle: `atan2(b, a)`. */
     inline f32_t arg() const noexcept { return f32_t(raw_.imag).atan2(f32_t(raw_.real)); }
 
-    /** Complex exponential, e^(a+bi) = e^a(cos(b) + i·sin(b)). */
+    /** Complex exponential, e^(a+bi) = e^a(cos(b) + i · sin(b)). */
     inline f32c_t exp() const noexcept {
         f32_t ea = real().exp();
         return f32c_t {ea * imag().cos(), ea * imag().sin()};
     }
 
-    /** Complex natural logarithm, ln|z| + i·arg(z). */
+    /** Complex natural logarithm, ln|z| + i · arg(z). */
     inline f32c_t log() const noexcept { return f32c_t {abs().ln(), arg()}; }
 
     /** Complex base-10 logarithm. */
@@ -952,7 +952,7 @@ struct f32c_t {
         return f32c_t {sqrt_r * half_arg.cos(), sqrt_r * half_arg.sin()};
     }
 
-    /** Complex power, z^w = e^(w·ln(z)). */
+    /** Complex power, z^w = e^(w · ln(z)). */
     inline f32c_t pow(f32c_t w) const noexcept { return (w * log()).exp(); }
 
     /** Real power: `z^x`. */
@@ -966,20 +966,20 @@ struct f32c_t {
 
     /** Complex sine: sin(z) = (eⁱᶻ − e⁻ⁱᶻ) / 2i. */
     inline f32c_t sin() const noexcept {
-        // sin(a + bi) = sin(a)cosh(b) + i·cos(a)sinh(b)
+        // sin(a + bi) = sin(a)cosh(b) + i · cos(a)sinh(b)
         return f32c_t {real().sin() * imag().cosh(), real().cos() * imag().sinh()};
     }
 
     /** Complex cosine: cos(z) = (eⁱᶻ + e⁻ⁱᶻ) / 2. */
     inline f32c_t cos() const noexcept {
-        // cos(a + bi) = cos(a)cosh(b) - i·sin(a)sinh(b)
+        // cos(a + bi) = cos(a)cosh(b) - i · sin(a)sinh(b)
         return f32c_t {real().cos() * imag().cosh(), -(real().sin() * imag().sinh())};
     }
 
     /** Complex tangent: `tan(z) = sin(z) / cos(z)`. */
     inline f32c_t tan() const noexcept { return sin() / cos(); }
 
-    /** Complex arcsine, asin(z) = -i·ln(iz + √(1 - z²)). */
+    /** Complex arcsine, asin(z) = -i · ln(iz + √(1 - z²)). */
     inline f32c_t asin() const noexcept {
         f32c_t iz = f32c_t {-raw_.imag, raw_.real}; // i * z
         f32c_t one_minus_z2 = one() - *this * *this;
@@ -995,7 +995,7 @@ struct f32c_t {
         return f32c_t {half_pi - as.raw_.real, -as.raw_.imag};
     }
 
-    /** Complex arctangent, atan(z) = (i/2)·ln((i+z)/(i-z)). */
+    /** Complex arctangent, atan(z) = (i/2) · ln((i+z)/(i-z)). */
     inline f32c_t atan() const noexcept {
         f32c_t i_unit = i();
         f32c_t num = i_unit + *this;
@@ -1007,13 +1007,13 @@ struct f32c_t {
 
     /** Complex hyperbolic sine: sinh(z) = (eᶻ − e⁻ᶻ) / 2. */
     inline f32c_t sinh() const noexcept {
-        // sinh(a + bi) = sinh(a)cos(b) + i·cosh(a)sin(b)
+        // sinh(a + bi) = sinh(a)cos(b) + i · cosh(a)sin(b)
         return f32c_t {real().sinh() * imag().cos(), real().cosh() * imag().sin()};
     }
 
     /** Complex hyperbolic cosine: cosh(z) = (eᶻ + e⁻ᶻ) / 2. */
     inline f32c_t cosh() const noexcept {
-        // cosh(a + bi) = cosh(a)cos(b) + i·sinh(a)sin(b)
+        // cosh(a + bi) = cosh(a)cos(b) + i · sinh(a)sin(b)
         return f32c_t {real().cosh() * imag().cos(), real().sinh() * imag().sin()};
     }
 
@@ -1032,7 +1032,7 @@ struct f32c_t {
         return (*this + z2_minus_1.sqrt()).log();
     }
 
-    /** Complex inverse hyperbolic tangent, atanh(z) = (1/2)·ln((1+z)/(1-z)). */
+    /** Complex inverse hyperbolic tangent, atanh(z) = (1/2) · ln((1+z)/(1-z)). */
     inline f32c_t atanh() const noexcept {
         f32c_t one_plus_z = one() + *this;
         f32c_t one_minus_z = one() - *this;
@@ -1178,13 +1178,13 @@ struct f64c_t {
     /** Phase angle: `atan2(b, a)`. */
     inline f64_t arg() const noexcept { return f64_t(raw_.imag).atan2(f64_t(raw_.real)); }
 
-    /** Complex exponential, e^(a+bi) = e^a(cos(b) + i·sin(b)). */
+    /** Complex exponential, e^(a+bi) = e^a(cos(b) + i · sin(b)). */
     inline f64c_t exp() const noexcept {
         f64_t ea = real().exp();
         return f64c_t {ea * imag().cos(), ea * imag().sin()};
     }
 
-    /** Complex natural logarithm, ln|z| + i·arg(z). */
+    /** Complex natural logarithm, ln|z| + i · arg(z). */
     inline f64c_t log() const noexcept { return f64c_t {abs().ln(), arg()}; }
 
     /** Complex base-10 logarithm. */
@@ -1201,7 +1201,7 @@ struct f64c_t {
         return f64c_t {sqrt_r * half_arg.cos(), sqrt_r * half_arg.sin()};
     }
 
-    /** Complex power, z^w = e^(w·ln(z)). */
+    /** Complex power, z^w = e^(w · ln(z)). */
     inline f64c_t pow(f64c_t w) const noexcept { return (w * log()).exp(); }
 
     /** Real power: `z^x`. */
@@ -1215,20 +1215,20 @@ struct f64c_t {
 
     /** Complex sine: sin(z) = (eⁱᶻ − e⁻ⁱᶻ) / 2i. */
     inline f64c_t sin() const noexcept {
-        // sin(a + bi) = sin(a)cosh(b) + i·cos(a)sinh(b)
+        // sin(a + bi) = sin(a)cosh(b) + i · cos(a)sinh(b)
         return f64c_t {real().sin() * imag().cosh(), real().cos() * imag().sinh()};
     }
 
     /** Complex cosine: cos(z) = (eⁱᶻ + e⁻ⁱᶻ) / 2. */
     inline f64c_t cos() const noexcept {
-        // cos(a + bi) = cos(a)cosh(b) - i·sin(a)sinh(b)
+        // cos(a + bi) = cos(a)cosh(b) - i · sin(a)sinh(b)
         return f64c_t {real().cos() * imag().cosh(), -(real().sin() * imag().sinh())};
     }
 
     /** Complex tangent: `tan(z) = sin(z) / cos(z)`. */
     inline f64c_t tan() const noexcept { return sin() / cos(); }
 
-    /** Complex arcsine, asin(z) = -i·ln(iz + √(1 - z²)). */
+    /** Complex arcsine, asin(z) = -i · ln(iz + √(1 - z²)). */
     inline f64c_t asin() const noexcept {
         f64c_t iz = f64c_t {-raw_.imag, raw_.real}; // i * z
         f64c_t one_minus_z2 = one() - *this * *this;
@@ -1244,7 +1244,7 @@ struct f64c_t {
         return f64c_t {half_pi - as.raw_.real, -as.raw_.imag};
     }
 
-    /** Complex arctangent, atan(z) = (i/2)·ln((i+z)/(i-z)). */
+    /** Complex arctangent, atan(z) = (i/2) · ln((i+z)/(i-z)). */
     inline f64c_t atan() const noexcept {
         f64c_t i_unit = i();
         f64c_t num = i_unit + *this;
@@ -1256,13 +1256,13 @@ struct f64c_t {
 
     /** Complex hyperbolic sine: sinh(z) = (eᶻ − e⁻ᶻ) / 2. */
     inline f64c_t sinh() const noexcept {
-        // sinh(a + bi) = sinh(a)cos(b) + i·cosh(a)sin(b)
+        // sinh(a + bi) = sinh(a)cos(b) + i · cosh(a)sin(b)
         return f64c_t {real().sinh() * imag().cos(), real().cosh() * imag().sin()};
     }
 
     /** Complex hyperbolic cosine: cosh(z) = (eᶻ + e⁻ᶻ) / 2. */
     inline f64c_t cosh() const noexcept {
-        // cosh(a + bi) = cosh(a)cos(b) + i·sinh(a)sin(b)
+        // cosh(a + bi) = cosh(a)cos(b) + i · sinh(a)sin(b)
         return f64c_t {real().cosh() * imag().cos(), real().sinh() * imag().sin()};
     }
 
@@ -1281,7 +1281,7 @@ struct f64c_t {
         return (*this + z2_minus_1.sqrt()).log();
     }
 
-    /** Complex inverse hyperbolic tangent, atanh(z) = (1/2)·ln((1+z)/(1-z)). */
+    /** Complex inverse hyperbolic tangent, atanh(z) = (1/2) · ln((1+z)/(1-z)). */
     inline f64c_t atanh() const noexcept {
         f64c_t one_plus_z = one() + *this;
         f64c_t one_minus_z = one() - *this;
@@ -3160,7 +3160,8 @@ struct f118_t {
         constexpr double ln2_low = 2.3190468138462996e-17;
         f118_t ln2(ln2_high, ln2_low);
 
-        // Argument reduction: x = k·ln(2) + r, |r| < ln(2)/2 (where k = exponent_scale, r = reduced_arg)
+        // Argument reduction: x = k · ln(2) + r, |r| < ln(2)/2,
+        // where k = exponent_scale and r = reduced_arg.
         double exponent_scale = std::round(high_ / ln2_high);
         f118_t reduced_arg = *this - ln2 * f118_t(exponent_scale);
 
@@ -3193,7 +3194,8 @@ struct f118_t {
         double exponent_scale = std::ldexp(1.0, -exponent);
         f118_t mantissa_dd = two_sum_(mantissa_high, low_ * exponent_scale);
 
-        // For better convergence, adjust mantissa to be near 1: if mantissa < √0.5, use mantissa×2 and exponent−1
+        // For better convergence, adjust mantissa to be near 1:
+        // if mantissa < √0.5, use mantissa × 2 and exponent − 1.
         if (mantissa_high < 0.7071067811865476) {
             mantissa_dd = mantissa_dd + mantissa_dd; // mantissa_dd *= 2
             exponent -= 1;
@@ -3663,20 +3665,20 @@ struct f118_t {
 
         // Staged Cody-Waite reduction: subtract each π/2 component separately
         // This preserves maximum precision by using error-free transformations
-        // r = x - k·π₀ - k·π₁ - k·π₂ - k·π₃
+        // r = x - k · π₀ - k · π₁ - k · π₂ - k · π₃
 
-        // Stage 1: Subtract k·π₀ using two_prod for exact k·π₀
+        // Stage 1: Subtract k · π₀ using two_prod for exact k · π₀
         f118_t prod0 = two_prod_(half_pi_0, quarter_turns);
         reduced_angle = *this - prod0;
 
-        // Stage 2: Subtract k·π₁
+        // Stage 2: Subtract k · π₁
         f118_t prod1 = two_prod_(half_pi_1, quarter_turns);
         reduced_angle = reduced_angle - prod1;
 
-        // Stage 3: Subtract k·π₂ (scalar, precision beyond double-double)
+        // Stage 3: Subtract k · π₂ (scalar, precision beyond double-double)
         reduced_angle = reduced_angle - f118_t(half_pi_2 * quarter_turns);
 
-        // Stage 4: Subtract k·π₃ (extra precision for edge cases)
+        // Stage 4: Subtract k · π₃ (extra precision for edge cases)
         reduced_angle = reduced_angle - f118_t(half_pi_3 * quarter_turns);
     }
 
@@ -3741,8 +3743,8 @@ struct f118_t {
     /**
      *  @brief Fast error-free addition when |a| ≥ |b|.
      *
-     *  Faster variant of `two_sum_` that requires |a| ≥ |b| as a precondition.
-     *  Saves 3 floating-point operations vs `two_sum_`.
+     *  Faster variant of @c two_sum_ that requires |a| ≥ |b| as a precondition.
+     *  Saves 3 floating-point operations vs @c two_sum_.
      *
      *  @param[in] a First operand; must satisfy |a| ≥ |b|.
      *  @param[in] b Second operand.
@@ -5768,7 +5770,7 @@ struct e2m1x2_t {
  *  @brief NVIDIA NVFP4 block value: 16 E2M1 nibbles + 1 UE4M3 scale byte per value.
  *
  *  Per-tensor f32 tensor_scale multiplier lives on the enclosing tensor, not per block, and is
- *  passed explicitly to `decode_to` / `encode_from`. `sizeof(nvfp4_t) == 9`, and one value
+ *  passed explicitly to @c decode_to and @c encode_from. `sizeof(nvfp4_t) == 9`, and one value
  *  represents 16 logical elements — `nk::tensor<nvfp4_t>(n)` allocates ⌈n/16⌉ × 9 bytes.
  */
 struct nvfp4_t {
@@ -6088,7 +6090,7 @@ struct mxint8_t {
 #pragma region Enum Conversion
 
 /**
- *  @brief Maps `nk_dtype_t` enum values to their corresponding C++ wrapper types.
+ *  @brief Maps @c nk_dtype_t enum values to their corresponding C++ wrapper types.
  *  @tparam dtype_ The dtype enum value.
  */
 template <nk_dtype_t dtype_>

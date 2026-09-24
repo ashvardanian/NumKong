@@ -1,7 +1,7 @@
 /**
  *  @file python/trigonometry.c
  *  @author Ash Vardanian
- *  @date July 7, 2026
+ *  @date December 21, 2025
  *  @brief Python bindings for the trigonometry family, sin/cos/atan, and RoPE.
  *
  *  Trig entry points extracted from each.c: they build on the shared elementwise binding machinery,

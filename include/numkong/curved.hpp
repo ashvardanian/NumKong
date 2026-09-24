@@ -17,15 +17,15 @@
 namespace ashvardanian::numkong {
 
 /**
- *  @brief Bilinear form: aᵀ × C × b where C is a d×d matrix (row-major)
+ *  @brief Bilinear form: aᵀ × C × b where C is a d × d matrix (row-major)
  *  @param[in] a,b Input vectors of length d
  *  @param[in] c Matrix of size dxd (row-major)
  *  @param[in] d Number of dimensions
  *  @param[out] r Pointer to output value
  *
  *  @tparam in_type_ Input vector element type (real or complex)
- *  @tparam result_type_ Accumulator type, defaults to `in_type_::curved_result_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Accumulator type, defaults to @c in_type_::curved_result_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  *
  *  @note For weighted inner products, Mahalanobis distance, etc.
  */
@@ -65,15 +65,15 @@ void bilinear(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size
 }
 
 /**
- *  @brief Mahalanobis distance: √((a−b)ᵀ × C × (a−b)) where C is a d×d matrix (row-major)
+ *  @brief Mahalanobis distance: √((a−b)ᵀ × C × (a−b)) where C is a d × d matrix (row-major)
  *  @param[in] a,b Input vectors of length d
  *  @param[in] c Covariance matrix of size dxd (row-major)
  *  @param[in] d Number of dimensions
  *  @param[out] r Pointer to output distance value
  *
  *  @tparam in_type_ Input vector element type
- *  @tparam result_type_ Accumulator type, defaults to `in_type_::curved_result_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Accumulator type, defaults to @c in_type_::curved_result_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>

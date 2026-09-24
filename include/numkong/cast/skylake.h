@@ -46,113 +46,127 @@ extern "C" {
 
 #pragma region Type Punned Loads and Stores
 
-/** @brief Type-agnostic 512-bit full load (Skylake AVX-512). */
+/** Type-agnostic 512-bit full load (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_load_b512_skylake_(void const *src, nk_b512_vec_t *dst) { dst->zmm = _mm512_loadu_si512(src); }
 
-/** @brief Type-agnostic partial load for 64-bit elements (8 elements max) into 512-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial load for 64-bit elements (8 elements max) into 512-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_b64x8_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
     __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFF, (unsigned int)n);
     dst->zmm = _mm512_maskz_loadu_epi64(mask_m8, src);
 }
 
-/** @brief Type-agnostic partial load for 32-bit elements (16 elements max) into 512-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial load for 32-bit elements (16 elements max) into 512-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_b32x16_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
     __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)n);
     dst->zmm = _mm512_maskz_loadu_epi32(mask_m16, src);
 }
 
-/** @brief Type-agnostic partial load for 16-bit elements (32 elements max) into 512-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial load for 16-bit elements (32 elements max) into 512-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_b16x32_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
     __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
     dst->zmm = _mm512_maskz_loadu_epi16(mask_m32, src);
 }
 
-/** @brief Partial load for 8-bit elements (64 max) into 512-bit vector (zeros in remaining slots). */
+/** Partial load for 8-bit elements (64 max) into 512-bit vector (zeros in remaining slots). */
 NK_HELPER_INLINE void nk_partial_load_b8x64_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
     __mmask64 mask_m64 = _bzhi_u64(0xFFFFFFFFFFFFFFFFULL, (unsigned int)n);
     dst->zmm = _mm512_maskz_loadu_epi8(mask_m64, src);
 }
 
-/** @brief Partial load for 4-bit nibbles (128 max = 64 bytes) into 512-bit vector (Skylake AVX-512). */
+/** Partial load for 4-bit nibbles (128 max = 64 bytes) into 512-bit vector (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_b4x128_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
     nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
     __mmask64 mask_m64 = _bzhi_u64(0xFFFFFFFFFFFFFFFFULL, (unsigned int)n_bytes);
     dst->zmm = _mm512_maskz_loadu_epi8(mask_m64, src);
 }
 
-/** @brief Type-agnostic partial load for 32-bit elements (8 elements max) into 256-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial load for 32-bit elements (8 elements max) into 256-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_b32x8_skylake_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFF, (unsigned int)n);
     dst->ymm = _mm256_maskz_loadu_epi32(mask_m8, src);
 }
 
-/** @brief Type-agnostic partial load for 16-bit elements (16 elements max) into 256-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial load for 16-bit elements (16 elements max) into 256-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_b16x16_skylake_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)n);
     dst->ymm = _mm256_maskz_loadu_epi16(mask_m16, src);
 }
 
-/** @brief Type-agnostic partial load for 8-bit elements (16 elements max) into 128-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial load for 8-bit elements (16 elements max) into 128-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_b8x16_skylake_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)n);
     dst->xmm = _mm_maskz_loadu_epi8(mask_m16, src);
 }
 
-/** @brief Partial load for 1-bit elements (512 max bits = 64 bytes) into 512-bit vector (Skylake AVX-512).
+/** Partial load for 1-bit elements (512 max bits = 64 bytes) into 512-bit vector (Skylake AVX-512).
  *  Wrapper that converts bit count to byte count and delegates to byte-level masked load. */
 NK_HELPER_INLINE void nk_partial_load_b1x512_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n_bits) {
     nk_size_t const n_bytes = n_bits / NK_BITS_PER_BYTE;
     nk_partial_load_b8x64_skylake_(src, dst, n_bytes);
 }
 
-/** @brief Type-agnostic partial load for 32-bit elements (4 elements max) into 128-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial load for 32-bit elements (4 elements max) into 128-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_b32x4_skylake_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xF, (unsigned int)n);
     dst->xmm = _mm_maskz_loadu_epi32(mask_m8, src);
 }
 
-/** @brief Type-agnostic partial load for 64-bit elements (4 elements max) into 256-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial load for 64-bit elements (4 elements max) into 256-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_b64x4_skylake_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xF, (unsigned int)n);
     dst->ymm = _mm256_maskz_loadu_epi64(mask_m8, src);
 }
 
-/** @brief Type-agnostic partial store for 32-bit elements (16 elements max) from 512-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial store for 32-bit elements (16 elements max) from 512-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_store_b32x16_skylake_(nk_b512_vec_t const *src, void *dst, nk_size_t n) {
     __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)n);
     _mm512_mask_storeu_epi32(dst, mask_m16, src->zmm);
 }
 
-/** @brief Type-agnostic partial store for 32-bit elements (4 elements max) from 128-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial store for 32-bit elements (4 elements max) from 128-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_store_b32x4_skylake_(nk_b128_vec_t const *src, void *dst, nk_size_t n) {
     __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xF, (unsigned int)n);
     _mm_mask_storeu_epi32(dst, mask_m8, src->xmm);
 }
 
-/** @brief Type-agnostic partial store for 64-bit elements (4 elements max) from 256-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial store for 64-bit elements (4 elements max) from 256-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_store_b64x4_skylake_(nk_b256_vec_t const *src, void *dst, nk_size_t n) {
     __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xF, (unsigned int)n);
     _mm256_mask_storeu_epi64(dst, mask_m8, src->ymm);
 }
 
-/** @brief Type-agnostic full store for 512-bit vector (Skylake AVX-512). */
+/** Type-agnostic full store for 512-bit vector (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_store_b512_skylake_(nk_b512_vec_t const *src, void *dst) {
     _mm512_storeu_si512((__m512i *)dst, src->zmm);
 }
 
-/** @brief Type-agnostic partial store for 16-bit elements (32 elements max) from 512-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial store for 16-bit elements (32 elements max) from 512-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_store_b16x32_skylake_(nk_b512_vec_t const *src, void *dst, nk_size_t n) {
     __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
     _mm512_mask_storeu_epi16(dst, mask_m32, src->zmm);
 }
 
-/** @brief Type-agnostic partial store for 8-bit elements (64 elements max) from 512-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial store for 8-bit elements (64 elements max) from 512-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_store_b8x64_skylake_(nk_b512_vec_t const *src, void *dst, nk_size_t n) {
     __mmask64 mask_m64 = _bzhi_u64(0xFFFFFFFFFFFFFFFFULL, (unsigned int)n);
     _mm512_mask_storeu_epi8(dst, mask_m64, src->zmm);
 }
 
-/** @brief Type-agnostic partial store for 64-bit elements (8 elements max) from 512-bit vector (Skylake AVX-512). */
+/** Type-agnostic partial store for 64-bit elements (8 elements max) from 512-bit vector (Skylake
+ *  AVX-512). */
 NK_HELPER_INLINE void nk_partial_store_b64x8_skylake_(nk_b512_vec_t const *src, void *dst, nk_size_t n) {
     __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFF, (unsigned int)n);
     _mm512_mask_storeu_epi64(dst, mask_m8, src->zmm);
@@ -162,13 +176,13 @@ NK_HELPER_INLINE void nk_partial_store_b64x8_skylake_(nk_b512_vec_t const *src, 
 
 #pragma region Vectorized Conversions
 
-/** @brief Convert 16x bf16 → 16x f32 (Skylake AVX-512). */
+/** Convert 16x bf16 → 16x f32 (Skylake AVX-512). */
 NK_HELPER_INLINE __m512 nk_bf16x16_to_f32x16_skylake_(__m256i a) {
     // Upcasting from `bf16` to `f32` is done by shifting the `bf16` values by 16 bits to the left, like:
     return _mm512_castsi512_ps(_mm512_slli_epi32(_mm512_cvtepu16_epi32(a), 16));
 }
 
-/** @brief Convert 16x f32 → 16x bf16 (Skylake AVX-512). */
+/** Convert 16x f32 → 16x bf16 (Skylake AVX-512). */
 NK_HELPER_INLINE __m256i nk_f32x16_to_bf16x16_skylake_(__m512 a) {
     // Round-to-nearest-even: add (0x7FFF + lsb) to match hardware BF16 behavior
     __m512i bits_i32x16 = _mm512_castps_si512(a);
@@ -178,14 +192,20 @@ NK_HELPER_INLINE __m256i nk_f32x16_to_bf16x16_skylake_(__m512 a) {
     return _mm512_cvtepi32_epi16(x_i32x16);
 }
 
-/** @brief Convert 16x e4m3 → 16x f32 via Giesen-style fake-F16 cast (AVX-512 + F16C).
- *  E4M3 `byte = S EEEE MMM` (bias 7). Shifting the magnitude into F16 positions
- *  `((byte & 0x7F) << 7) | ((byte & 0x80) << 8)` yields a fake F16 whose F16 value
- *  differs from the true E4M3 magnitude by exactly 2⁸ (bias delta 15 − 7). The
- *  fake F16 is widened via `vcvtph2ps` and corrected by ×256 in F32. Subnormal
- *  handling falls out for free via F16 subnormal semantics. NaN (|byte|==0x7F) is
- *  the sole E4M3 special value that would misinterpret as finite; blended
- *  explicitly with F32 quiet NaN bits. */
+/**
+ *  @brief Convert 16x e4m3 → 16x f32 via Giesen-style fake-F16 cast (AVX-512 + F16C).
+ *
+ *  E4M3 packs each byte as S EEEE MMM with bias 7. Shifting the magnitude into F16 positions yields
+ *  a fake F16 whose value differs from the true E4M3 magnitude by exactly 2⁸, a bias delta of 8:
+ *
+ *  @verbatim
+ *      fake_f16 = ((byte & 0x7F) << 7) | ((byte & 0x80) << 8)
+ *  @endverbatim
+ *
+ *  The fake F16 is widened via @c vcvtph2ps and corrected by × 256 in F32. Subnormal handling falls
+ *  out for free via F16 subnormal semantics. NaN, where |byte| = 0x7F, is the only E4M3 special
+ *  value that would read as finite, so it is blended explicitly with F32 quiet-NaN bits.
+ */
 NK_HELPER_INLINE __m512 nk_e4m3x16_to_f32x16_skylake_(__m128i e4m3_i8x16) {
     __m256i const magnitude_mask_u16x16 = _mm256_set1_epi16(0x7F);
     __m256i const sign_mask_u16x16 = _mm256_set1_epi16((short)0x80);
@@ -201,13 +221,21 @@ NK_HELPER_INLINE __m512 nk_e4m3x16_to_f32x16_skylake_(__m128i e4m3_i8x16) {
     return _mm512_mul_ps(fake_f32x16, _mm512_set1_ps(256.0f));
 }
 
-/** @brief Convert 16x e4m3 → 16x f16 via arithmetic + 8-entry subnormal LUT (AVX-512BW + AVX-512VL).
- *  E4M3: S EEEE MMM (bias=7). F16: S EEEEE MMMMMMMMMM (bias=15).
- *  Normal (exp != 0): F16 = ((lower7 << 7) + 0x2000) | (sign << 8) — bias delta 8 added at the
- *  exp-position (8 << 10 = 0x2000) after placing magnitude bits at F16 positions 13..7.
- *  Subnormal (exp == 0): looked up from 8-entry F16 LUT — values 0, 1/512, 2/512, …, 7/512 encoded as
- *  F16 normals (the smallest E4M3 subnormal 1/512 = 2⁻⁹ is well within F16 normal range).
- *  NaN (|byte| == 0x7F): blended in as F16 quiet NaN with original sign. */
+/**
+ *  @brief Convert 16x e4m3 → 16x f16 via arithmetic and an 8-entry subnormal LUT (AVX-512BW, VL).
+ *
+ *  E4M3 is S EEEE MMM with bias 7, and F16 is S EEEEE MMMMMMMMMM with bias 15. Normals, where the
+ *  exponent is non-zero, place the magnitude bits at F16 positions 13..7 and add the bias delta 8
+ *  at the exponent position, 8 << 10 = 0x2000:
+ *
+ *  @verbatim
+ *      f16 = ((lower7 << 7) + 0x2000) | (sign << 8)
+ *  @endverbatim
+ *
+ *  Subnormals, where the exponent is zero, come from an 8-entry F16 LUT of the values 0, 1/512, …,
+ *  7/512, all encoded as F16 normals, as the smallest E4M3 subnormal 1/512 = 2⁻⁹ is well within the
+ *  F16 normal range. NaN, where |byte| = 0x7F, becomes an F16 quiet NaN keeping the original sign.
+ */
 NK_HELPER_INLINE __m256i nk_e4m3x16_to_f16x16_skylake_(__m128i e4m3_u8x16) {
     __m256i e4m3_i16x16 = _mm256_cvtepu8_epi16(e4m3_u8x16);
     __m256i sign_i16x16 = _mm256_and_si256(e4m3_i16x16, _mm256_set1_epi16((short)0x80));
@@ -227,19 +255,19 @@ NK_HELPER_INLINE __m256i nk_e4m3x16_to_f16x16_skylake_(__m128i e4m3_u8x16) {
     return _mm256_mask_blend_epi16(is_nan_m16, result_i16x16, nan_i16x16);
 }
 
-/** @brief Convert 16x e5m2 → 16x f32 via free-shift widen (AVX-512 + F16C).
- *  E5M2 shares F16's exponent bias (15): `(byte << 8)` is the matching F16 bit
- *  pattern for every E5M2 value (normals, subnormals, zero, ±Inf, NaN — all
- *  bit-exact). Widen u8 → u16, shift, then VCVTPH2PS to F32. Three ops total. */
+/** Convert 16x e5m2 → 16x f32 via free-shift widen (AVX-512 + F16C). E5M2 shares F16's exponent
+ *  bias (15): `(byte << 8)` is the matching F16 bit pattern for every E5M2 value (normals,
+ *  subnormals, zero, ±Inf, NaN — all bit-exact). Widen u8 → u16, shift, then VCVTPH2PS to F32.
+ *  Three ops total. */
 NK_HELPER_INLINE __m512 nk_e5m2x16_to_f32x16_skylake_(__m128i e5m2_i8x16) {
     __m256i e5m2_u16x16 = _mm256_cvtepu8_epi16(e5m2_i8x16);
     __m256i f16_u16x16 = _mm256_slli_epi16(e5m2_u16x16, 8);
     return _mm512_cvtph_ps(f16_u16x16);
 }
 
-/** @brief Convert 16x e2m3 → 16x f32 via bit manipulation (AVX-512).
- *  E2M3 format: S EE MMM (bias=1, only 6 bits used). F32: sign<<31, (exp+126)<<23, mantissa<<20.
- *  Subnormals (exp=0): value = mantissa × 2⁽¹⁻¹⁾ × 2⁻³ = mantissa ÷ 8. */
+/** Convert 16x e2m3 → 16x f32 via bit manipulation (AVX-512). E2M3 format: S EE MMM (bias=1, only 6
+ *  bits used). F32: sign<<31, (exp+126)<<23, mantissa<<20. Subnormals (exp=0): value = mantissa ×
+ *  2⁽¹⁻¹⁾ × 2⁻³ = mantissa ÷ 8. */
 NK_HELPER_INLINE __m512 nk_e2m3x16_to_f32x16_skylake_(__m128i e2m3_i8x16) {
     __m512i e2m3_i32x16 = _mm512_cvtepu8_epi32(e2m3_i8x16);
 
@@ -260,9 +288,9 @@ NK_HELPER_INLINE __m512 nk_e2m3x16_to_f32x16_skylake_(__m128i e2m3_i8x16) {
     return _mm512_mask_or_ps(result_f32x16, is_subnormal_m16, subnorm_abs_f32x16, _mm512_castsi512_ps(sign_i32x16));
 }
 
-/** @brief Convert 16x e3m2 → 16x f32 via bit manipulation (AVX-512).
- *  E3M2 format: S EEE MM (bias=3, only 6 bits used). F32: sign<<31, (exp+124)<<23, mantissa<<21.
- *  Subnormals (exp=0): value = mantissa × 2⁽¹⁻³⁾ × 2⁻² = mantissa ÷ 16. */
+/** Convert 16x e3m2 → 16x f32 via bit manipulation (AVX-512). E3M2 format: S EEE MM (bias=3, only 6
+ *  bits used). F32: sign<<31, (exp+124)<<23, mantissa<<21. Subnormals (exp=0): value = mantissa ×
+ *  2⁽¹⁻³⁾ × 2⁻² = mantissa ÷ 16. */
 NK_HELPER_INLINE __m512 nk_e3m2x16_to_f32x16_skylake_(__m128i e3m2_i8x16) {
     __m512i e3m2_i32x16 = _mm512_cvtepu8_epi32(e3m2_i8x16);
 
@@ -283,9 +311,9 @@ NK_HELPER_INLINE __m512 nk_e3m2x16_to_f32x16_skylake_(__m128i e3m2_i8x16) {
     return _mm512_mask_or_ps(result_f32x16, is_subnormal_m16, subnorm_abs_f32x16, _mm512_castsi512_ps(sign_i32x16));
 }
 
-/** @brief Convert 16x f32 → 16x e2m3 via bit manipulation (AVX-512).
- *  E2M3 format: S EE MMM (bias=1). Handles normal, subnormal, and overflow cases.
- *  Subnormals (f32_exp ≤ 126): mantissa = round(abs_f32 * 8), clamped to [0,7]. */
+/** Convert 16x f32 → 16x e2m3 via bit manipulation (AVX-512). E2M3 format: S EE MMM (bias=1).
+ *  Handles normal, subnormal, and overflow cases. Subnormals (f32_exp ≤ 126): mantissa =
+ *  round(abs_f32 * 8), clamped to [0,7]. */
 NK_HELPER_INLINE __m128i nk_f32x16_to_e2m3x16_skylake_(__m512 f32x16) {
     __m512i bits_i32x16 = _mm512_castps_si512(f32x16);
     __m512i sign_i32x16 = _mm512_srli_epi32(bits_i32x16, 31);
@@ -338,9 +366,9 @@ NK_HELPER_INLINE __m128i nk_f32x16_to_e2m3x16_skylake_(__m512 f32x16) {
     return _mm512_cvtepi32_epi8(e2m3_i32x16);
 }
 
-/** @brief Convert 16x f32 → 16x e3m2 via bit manipulation (AVX-512).
- *  E3M2 format: S EEE MM (bias=3). Handles normal, subnormal, and overflow cases.
- *  Subnormals (f32_exp ≤ 124): mantissa = round(abs_f32 * 16), clamped to [0,3]. */
+/** Convert 16x f32 → 16x e3m2 via bit manipulation (AVX-512). E3M2 format: S EEE MM (bias=3).
+ *  Handles normal, subnormal, and overflow cases. Subnormals (f32_exp ≤ 124): mantissa =
+ *  round(abs_f32 * 16), clamped to [0,3]. */
 NK_HELPER_INLINE __m128i nk_f32x16_to_e3m2x16_skylake_(__m512 f32x16) {
     __m512i bits_i32x16 = _mm512_castps_si512(f32x16);
     __m512i sign_i32x16 = _mm512_srli_epi32(bits_i32x16, 31);
@@ -393,9 +421,9 @@ NK_HELPER_INLINE __m128i nk_f32x16_to_e3m2x16_skylake_(__m512 f32x16) {
     return _mm512_cvtepi32_epi8(e3m2_i32x16);
 }
 
-/** @brief Convert 16x f32 → 16x e4m3 via bit manipulation (AVX-512).
- *  E4M3 format: S EEEE MMM (bias=7). Handles normal, subnormal, and overflow cases.
- *  Subnormals (f32_exp ≤ 120): mantissa = round(abs_f32 * 512), clamped to [0,7]. */
+/** Convert 16x f32 → 16x e4m3 via bit manipulation (AVX-512). E4M3 format: S EEEE MMM (bias=7).
+ *  Handles normal, subnormal, and overflow cases. Subnormals (f32_exp ≤ 120): mantissa =
+ *  round(abs_f32 * 512), clamped to [0,7]. */
 NK_HELPER_INLINE __m128i nk_f32x16_to_e4m3x16_skylake_(__m512 f32x16) {
     __m512i bits_i32x16 = _mm512_castps_si512(f32x16);
     __m512i sign_i32x16 = _mm512_srli_epi32(bits_i32x16, 31);
@@ -453,9 +481,8 @@ NK_HELPER_INLINE __m128i nk_f32x16_to_e4m3x16_skylake_(__m512 f32x16) {
     return _mm512_cvtepi32_epi8(e4m3_i32x16);
 }
 
-/** @brief Convert 16x f32 → 16x e5m2 via bit manipulation (AVX-512).
- *  E5M2 format: S EEEEE MM (bias=15). Handles normal, subnormal, and overflow cases.
- *  Uses RNE (round to nearest even) for mantissa rounding. */
+/** Convert 16x f32 → 16x e5m2 via bit manipulation (AVX-512). E5M2 format: S EEEEE MM (bias=15).
+ *  Handles normal, subnormal, and overflow cases, rounding the mantissa to nearest even. */
 NK_HELPER_INLINE __m128i nk_f32x16_to_e5m2x16_skylake_(__m512 f32x16) {
     __m512i bits_i32x16 = _mm512_castps_si512(f32x16);
     __m512i sign_i32x16 = _mm512_srli_epi32(bits_i32x16, 31);
@@ -644,84 +671,84 @@ NK_HELPER_INLINE __m512i nk_e2m3x64_to_i8x64_skylake_(__m512i raw_i8x64) {
 
 #pragma region Converting Loads and Stores
 
-/** @brief Load 16 f16 values and convert to 16 f32 (Skylake AVX-512). */
+/** Load 16 f16 values and convert to 16 f32 (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_load_f16x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst) {
     dst->zmm_ps = _mm512_cvtph_ps(_mm256_loadu_si256((__m256i const *)src));
 }
 
-/** @brief Partial load of up to 16 f16 values with conversion to f32 (Skylake AVX-512). */
+/** Partial load of up to 16 f16 values with conversion to f32 (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_f16x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
     nk_b256_vec_t f16_partial;
     nk_partial_load_b16x16_skylake_(src, &f16_partial, n);
     dst->zmm_ps = _mm512_cvtph_ps(f16_partial.ymm);
 }
 
-/** @brief Load 16 bf16 values and convert to 16 f32 (Skylake AVX-512). */
+/** Load 16 bf16 values and convert to 16 f32 (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_load_bf16x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst) {
     dst->zmm_ps = nk_bf16x16_to_f32x16_skylake_(_mm256_loadu_si256((__m256i const *)src));
 }
 
-/** @brief Partial load of up to 16 bf16 values with conversion to f32 (Skylake AVX-512). */
+/** Partial load of up to 16 bf16 values with conversion to f32 (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_bf16x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
     nk_b256_vec_t bf16_partial;
     nk_partial_load_b16x16_skylake_(src, &bf16_partial, n);
     dst->zmm_ps = nk_bf16x16_to_f32x16_skylake_(bf16_partial.ymm);
 }
 
-/** @brief Load 16 e4m3 values and convert to 16 f32 (Skylake AVX-512). */
+/** Load 16 e4m3 values and convert to 16 f32 (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_load_e4m3x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst) {
     dst->zmm_ps = nk_e4m3x16_to_f32x16_skylake_(_mm_loadu_si128((__m128i const *)src));
 }
 
-/** @brief Partial load of up to 16 e4m3 values with conversion to f32 (Skylake AVX-512). */
+/** Partial load of up to 16 e4m3 values with conversion to f32 (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_e4m3x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
     nk_b128_vec_t e4m3_partial;
     nk_partial_load_b8x16_skylake_(src, &e4m3_partial, n);
     dst->zmm_ps = nk_e4m3x16_to_f32x16_skylake_(e4m3_partial.xmm);
 }
 
-/** @brief Load 16 e4m3 values and convert to 16 f16 (Skylake AVX-512BW). */
+/** Load 16 e4m3 values and convert to 16 f16 (Skylake AVX-512BW). */
 NK_HELPER_INLINE void nk_load_e4m3x16_to_f16x16_skylake_(void const *src, nk_b256_vec_t *dst) {
     dst->ymm = nk_e4m3x16_to_f16x16_skylake_(_mm_loadu_si128((__m128i const *)src));
 }
 
-/** @brief Partial load of up to 16 e4m3 values with conversion to f16 (Skylake AVX-512BW). */
+/** Partial load of up to 16 e4m3 values with conversion to f16 (Skylake AVX-512BW). */
 NK_HELPER_INLINE void nk_partial_load_e4m3x16_to_f16x16_skylake_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b128_vec_t e4m3_partial;
     nk_partial_load_b8x16_skylake_(src, &e4m3_partial, n);
     dst->ymm = nk_e4m3x16_to_f16x16_skylake_(e4m3_partial.xmm);
 }
 
-/** @brief Load 16 e5m2 values and convert to 16 f32 (Skylake AVX-512). */
+/** Load 16 e5m2 values and convert to 16 f32 (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_load_e5m2x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst) {
     dst->zmm_ps = nk_e5m2x16_to_f32x16_skylake_(_mm_loadu_si128((__m128i const *)src));
 }
 
-/** @brief Partial load of up to 16 e5m2 values with conversion to f32 (Skylake AVX-512). */
+/** Partial load of up to 16 e5m2 values with conversion to f32 (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_e5m2x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
     nk_b128_vec_t e5m2_partial;
     nk_partial_load_b8x16_skylake_(src, &e5m2_partial, n);
     dst->zmm_ps = nk_e5m2x16_to_f32x16_skylake_(e5m2_partial.xmm);
 }
 
-/** @brief Load 16 e2m3 values and convert to 16 f32 (Skylake AVX-512). */
+/** Load 16 e2m3 values and convert to 16 f32 (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_load_e2m3x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst) {
     dst->zmm_ps = nk_e2m3x16_to_f32x16_skylake_(_mm_loadu_si128((__m128i const *)src));
 }
 
-/** @brief Partial load of up to 16 e2m3 values with conversion to f32 (Skylake AVX-512). */
+/** Partial load of up to 16 e2m3 values with conversion to f32 (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_e2m3x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
     nk_b128_vec_t e2m3_partial;
     nk_partial_load_b8x16_skylake_(src, &e2m3_partial, n);
     dst->zmm_ps = nk_e2m3x16_to_f32x16_skylake_(e2m3_partial.xmm);
 }
 
-/** @brief Load 16 e3m2 values and convert to 16 f32 (Skylake AVX-512). */
+/** Load 16 e3m2 values and convert to 16 f32 (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_load_e3m2x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst) {
     dst->zmm_ps = nk_e3m2x16_to_f32x16_skylake_(_mm_loadu_si128((__m128i const *)src));
 }
 
-/** @brief Partial load of up to 16 e3m2 values with conversion to f32 (Skylake AVX-512). */
+/** Partial load of up to 16 e3m2 values with conversion to f32 (Skylake AVX-512). */
 NK_HELPER_INLINE void nk_partial_load_e3m2x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
     nk_b128_vec_t e3m2_partial;
     nk_partial_load_b8x16_skylake_(src, &e3m2_partial, n);
@@ -939,9 +966,13 @@ NK_API_COMPTIME void nk_cast_skylake(void const *from, nk_dtype_t from_type, nk_
     nk_cast_serial(from, from_type, n, to, to_type);
 }
 
-/** @brief Convert 16× e2m1 → 16× f32 via 8-magnitude LUT + sign flip (AVX-512).
+/**
+ *  @brief Convert 16× e2m1 → 16× f32 via 8-magnitude LUT + sign flip (AVX-512).
+ *
  *  Input: 8 bytes (low 64 bits of @p packed) holding 16 nibbles, high nibble of byte → even lane.
- *  E2M1 magnitudes {0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0} indexed by nibble bits 2..0; bit 3 → sign. */
+ *  E2M1 magnitudes {0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0} are indexed by nibble bits 2..0, and
+ *  bit 3 carries the sign.
+ */
 NK_HELPER_INLINE __m512 nk_e2m1x16_to_f32x16_skylake_(__m128i packed) {
     // Expand 8 packed bytes to 16 nibble bytes via shift + mask + unpack interleave
     __m128i low_nibbles_u8x16 = _mm_and_si128(packed, _mm_set1_epi8(0x0F));
@@ -960,8 +991,12 @@ NK_HELPER_INLINE __m512 nk_e2m1x16_to_f32x16_skylake_(__m128i packed) {
     return _mm512_castsi512_ps(_mm512_xor_si512(_mm512_castps_si512(magnitudes_f32x16), sign_f32_i32x16));
 }
 
-/** @brief Convert 16× f32 → 16× e2m1 via bit manipulation, packed to 8 bytes (AVX-512).
- *  Output: 8 bytes in the low 64 bits of the result. Lane 0 → high nibble of byte 0, lane 1 → low nibble. */
+/**
+ *  @brief Convert 16× f32 → 16× e2m1 via bit manipulation, packed to 8 bytes (AVX-512).
+ *
+ *  Output: 8 bytes in the low 64 bits of the result.
+ *  Lane 0 lands in the high nibble of byte 0, and lane 1 in its low nibble.
+ */
 NK_HELPER_INLINE __m128i nk_f32x16_to_e2m1x16_skylake_(__m512 f32x16) {
     __m512i bits_i32x16 = _mm512_castps_si512(f32x16);
     __m512i sign_i32x16 = _mm512_srli_epi32(bits_i32x16, 31);
@@ -1009,7 +1044,7 @@ NK_HELPER_INLINE __m128i nk_f32x16_to_e2m1x16_skylake_(__m512 f32x16) {
     return _mm_packus_epi16(packed_i16x8, _mm_setzero_si128());
 }
 
-/** @brief Reduce a block of `block_count` f32s to `amax = max(|x|)`. `block_count` ≤ 32. */
+/** Reduce a block of @p block_count f32s to `amax = max(|x|)`. @p block_count ≤ 32. */
 NK_HELPER_INLINE nk_f32_t nk_block_amax_f32_skylake_(nk_f32_t const *block, nk_size_t block_count) {
     __m512i abs_mask_i32x16 = _mm512_set1_epi32(0x7FFFFFFF);
     __mmask16 const full_mask_m16 = 0xFFFF;
@@ -1027,9 +1062,6 @@ NK_HELPER_INLINE nk_f32_t nk_block_amax_f32_skylake_(nk_f32_t const *block, nk_s
     return _mm512_reduce_max_ps(_mm512_max_ps(abs_low_f32x16, abs_high_f32x16));
 }
 
-/** @brief Skylake-optimised block-scaled cast. Uses AVX-512 amax + broadcast reciprocal multiply
- *  around the serial element codec hub, which vectorises the dominant scale-derivation cost for
- *  MXFP8 / MXFP6 / MXFP4 / MXINT8 / NVFP4 without duplicating per-format packing logic. */
 NK_API_COMPTIME void nk_cast_block_scaled_skylake(                                                             //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //

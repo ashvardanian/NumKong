@@ -490,7 +490,7 @@ nk_angular_e3m2_alder_cycle:
     __m256i b_signed_low_i16x16 = _mm256_sign_epi16(b_low_i16x16, sign_low_i16x16);
     __m256i b_signed_high_i16x16 = _mm256_sign_epi16(b_high_i16x16, sign_high_i16x16);
 
-    // VPDPWSSD: i16×i16→i32 fused dot-product-accumulate (replaces VPMADDWD + VPADDD)
+    // VPDPWSSD: i16 × i16 → i32 fused dot-product-accumulate (replaces VPMADDWD + VPADDD)
     dot_i32x8 = _mm256_dpwssd_avx_epi32(dot_i32x8, a_low_i16x16, b_signed_low_i16x16);
     dot_i32x8 = _mm256_dpwssd_avx_epi32(dot_i32x8, a_high_i16x16, b_signed_high_i16x16);
     a_norm_i32x8 = _mm256_dpwssd_avx_epi32(a_norm_i32x8, a_low_i16x16, a_low_i16x16);

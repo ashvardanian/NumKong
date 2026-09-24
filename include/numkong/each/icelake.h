@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/each/icelake.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date November 8, 2024
  *  @brief SIMD-accelerated elementwise arithmetic for Ice Lake.
  *
  *  @sa include/numkong/each.h

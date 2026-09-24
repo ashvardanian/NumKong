@@ -332,8 +332,8 @@ static PyObject *tensor_read_packed_scalar(Tensor *tensor, size_t byte_offset, s
  *  @brief Bounded free-list of dead view headers, recycled to skip PyObject_New / tp_free churn.
  *
  *  Views, `parent != NULL`, borrowing the parent's storage, churn heavily: every slice, integer
- *  index, `.T`, `flatten`, and iteration step mints a fixed-size header torn down moments later.
- *  Rather than round-trip each header through the allocator, `Tensor_dealloc` parks a dead view on
+ *  index, `.T`, @c flatten, and iteration step mints a fixed-size header torn down moments later.
+ *  Rather than round-trip each header through the allocator, @c Tensor_dealloc parks a dead view on
  *  this intrusive list — the @c parent field doubles as the next-link — and the view constructors
  *  pop one back, reviving it with @c _Py_NewReference. Legal because Tensor is a non-GC,
  *  fixed-basicsize type. Owning tensors are never pooled: their `parent == NULL` sentinel would
@@ -787,7 +787,7 @@ static PyObject *Tensor_subtract(PyObject *self, PyObject *other) {
                 return NULL;
             }
 
-        // Single-pass subtract via blend: result = 1·a + (−1)·b
+        // Single-pass subtract via blend: result = 1 · a + (−1) · b
         nk_each_blend_punned_t kernel = NULL;
         nk_capability_t cap = nk_cap_serial_k;
         nk_find_kernel_punned(nk_kernel_each_blend_k, a->dtype, (nk_kernel_punned_t *)&kernel, &cap);
@@ -884,7 +884,7 @@ static PyObject *Tensor_multiply(PyObject *self, PyObject *other) {
         Py_buffer const *bufs[] = {&a_buf, &b_buf};
         size_t contiguous_tail = shared_contiguous_tail_dimensions(bufs, 2, a->rank);
 
-        // fma(a, b, dummy, n, α=1, β=0) → 1·a·b + 0·dummy
+        // fma(a, b, dummy, n, α=1, β=0) → 1 · a · b + 0 · dummy
         nk_scalar_buffer_t alpha_buf, beta_buf;
         alpha_buf.f64 = 1.0, beta_buf.f64 = 0.0;
         nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(a->dtype);
@@ -1283,7 +1283,7 @@ static PyGetSetDef Tensor_getset[] = {
 /**
  *  @brief Validate a user-supplied `out=` Tensor for an into-buffer op and return its data pointer.
  *
- *  Requires `out` to be a Tensor of exactly @p out_dtype, matching @p rank / @p shape, and
+ *  Requires @c out to be a Tensor of exactly @p out_dtype, matching @p rank / @p shape, and
  *  C-contiguous — the layout @c linearize_cast_into writes. Sets a Python error and returns NULL on
  *  any mismatch. Shared by @c astype, @c copy, and @c flatten.
  */
@@ -2451,16 +2451,16 @@ static PyObject *Tensor_argmax(PyObject *self, PyObject *const *args, Py_ssize_t
 }
 
 /**
- *  @brief Build a `ScaledTensor` by quantizing a dense tensor into @p target_dtype.
+ *  @brief Build a @c ScaledTensor by quantizing a dense tensor into @p target_dtype.
  *
  *  The dense source is linearized into a contiguous f32 staging buffer — quantization is on the
  *  last axis, the last dim must be a multiple of the format's block size. The element and scale
- *  buffers are sized via `nk_block_scaled_elements_size` / `nk_block_scaled_scales_size`, allocated
- *  as child Tensors, and filled by a single `nk_cast_block_scaled` call over the flattened element
- *  count — blocks never span rows because the last dim is block-aligned.
+ *  buffers are sized via @c nk_block_scaled_elements_size and @c nk_block_scaled_scales_size,
+ *  allocated as child Tensors, and filled by a single @c nk_cast_block_scaled call over the
+ *  flattened element count — blocks never span rows because the last dim is block-aligned.
  *
  *  For NVFP4, `tensor_scale_dtype == f32`, the per-tensor scale is auto-derived by handing the
- *  kernel a zero-initialised `to_tensor_scale` and reading the result back into `.tensor_scale`.
+ *  kernel a zero-initialised @c to_tensor_scale and reading the result back into `.tensor_scale`.
  *  The MX family carries no per-tensor scale, `.tensor_scale is None`.
  */
 static PyObject *Tensor_encode_block_scaled(Tensor *tensor, nk_dtype_t target_dtype) {
@@ -3782,7 +3782,7 @@ PyTypeObject ScaledTensorType = {
 /**
  *  @brief Fill a fresh contiguous tensor with `first + index * step` in row-major order.
  *
- *  A packed dtype shares bytes between elements, so it converts an f64 staging row with `nk_cast`.
+ *  A packed dtype shares bytes between elements, so it converts an f64 staging row with @c nk_cast.
  *  Returns 0 and releases @p tensor on allocation failure.
  */
 static int tensor_fill_affine(Tensor *tensor, nk_f64_t first, nk_f64_t step) {
@@ -3932,7 +3932,7 @@ PyObject *api_from_pointer(PyObject *self, PyObject *const *args, Py_ssize_t con
     else { compute_contiguous_strides(rank, shape, dtype, strides); }
 
     // Use a sentinel owner if none provided — a non-NULL parent makes Tensor_dealloc treat this
-    // as a view and NOT free the caller's external data buffer.
+    // as a view and not free the caller's external data buffer.
     if (!owner_obj || owner_obj == Py_None) owner_obj = Py_None;
 
     return (PyObject *)Tensor_view_object(owner_obj, (char *)data, dtype, rank, shape, strides);

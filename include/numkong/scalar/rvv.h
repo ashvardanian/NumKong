@@ -7,7 +7,7 @@
  *  @sa include/numkong/scalar.h
  *
  *  RVV scalar helpers use vector instructions with VL=1 for hardware sqrt/rsqrt.
- *  `vfrsqrt7` provides 7-bit mantissa precision; Newton-Raphson refines to full precision.
+ *  @c vfrsqrt7 provides 7-bit mantissa precision; Newton-Raphson refines to full precision.
  */
 #ifndef NK_SCALAR_RVV_H
 #define NK_SCALAR_RVV_H

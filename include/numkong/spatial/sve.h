@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/spatial/sve.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date March 14, 2023
  *  @brief SIMD-accelerated spatial similarity measures for SVE.
  *
  *  @sa include/numkong/spatial.h
@@ -53,18 +53,19 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve")
 #endif
 
-/** @brief Reciprocal square root of an f32 SVE vector via estimate + 2 Newton-Raphson steps.
+/**
+ *  @brief Reciprocal square root of an f32 SVE vector via estimate + 2 Newton-Raphson steps.
  *
- *  Computes 1/sqrt(x) for each active lane. The initial estimate from `svrsqrte_f32`
- *  has ~8 bits of precision; each Newton-Raphson iteration via `svrsqrts_f32` roughly
- *  doubles the mantissa bits, giving ~23 bits (~full f32 precision) after 2 steps.
+ *  Computes 1/√x for each active lane. The initial estimate from @c svrsqrte_f32 has ~8 bits of
+ *  precision; each Newton-Raphson iteration via @c svrsqrts_f32 roughly doubles the mantissa bits,
+ *  giving ~23 bits (~full f32 precision) after 2 steps.
  *
- *  Marked `__arm_streaming_compatible` so the helper is callable from both streaming
+ *  Marked @c __arm_streaming_compatible so the helper is callable from both streaming
  *  (SME) and non-streaming (SVE) contexts without mode transitions.
  *
- *  @param predicate_b32x Active-lane mask
- *  @param x Input vector (must be positive for meaningful results)
- *  @return Approximate 1/sqrt(x) with ~23-bit mantissa accuracy
+ *  @param[in] predicate_b32x Active-lane mask.
+ *  @param[in] x Input vector, which must be positive for meaningful results.
+ *  @return Approximate 1/√x with ~23-bit mantissa accuracy.
  */
 NK_HELPER_INLINE svfloat32_t nk_rsqrt_f32x_sve_(svbool_t predicate_b32x, svfloat32_t x) NK_STREAMING_COMPATIBLE_ {
     svfloat32_t r_f32x = svrsqrte_f32(x);
@@ -73,18 +74,19 @@ NK_HELPER_INLINE svfloat32_t nk_rsqrt_f32x_sve_(svbool_t predicate_b32x, svfloat
     return r_f32x;
 }
 
-/** @brief Reciprocal square root of an f64 SVE vector via estimate + 3 Newton-Raphson steps.
+/**
+ *  @brief Reciprocal square root of an f64 SVE vector via estimate + 3 Newton-Raphson steps.
  *
- *  Computes 1/sqrt(x) for each active lane. The initial estimate from `svrsqrte_f64`
- *  has ~8 bits of precision; three Newton-Raphson iterations via `svrsqrts_f64` yield
- *  ~52-bit mantissa accuracy (full f64 precision).
+ *  Computes 1/√x for each active lane. The initial estimate from @c svrsqrte_f64 has ~8 bits of
+ *  precision; three Newton-Raphson iterations via @c svrsqrts_f64 yield ~52-bit mantissa accuracy
+ *  (full f64 precision).
  *
- *  Marked `__arm_streaming_compatible` so the helper is callable from both streaming
+ *  Marked @c __arm_streaming_compatible so the helper is callable from both streaming
  *  (SME) and non-streaming (SVE) contexts without mode transitions.
  *
- *  @param predicate_b64x Active-lane mask
- *  @param x Input vector (must be positive for meaningful results)
- *  @return Approximate 1/sqrt(x) with ~52-bit mantissa accuracy
+ *  @param[in] predicate_b64x Active-lane mask.
+ *  @param[in] x Input vector, which must be positive for meaningful results.
+ *  @return Approximate 1/√x with ~52-bit mantissa accuracy.
  */
 NK_HELPER_INLINE svfloat64_t nk_rsqrt_f64x_sve_(svbool_t predicate_b64x, svfloat64_t x) NK_STREAMING_COMPATIBLE_ {
     svfloat64_t r_f64x = svrsqrte_f64(x);

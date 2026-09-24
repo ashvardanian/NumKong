@@ -62,7 +62,8 @@ NK_HELPER_DEVICE_INLINE void nk_mma_e2m3_blackwellrtx_(nk_fui32_t accumulator[4]
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-/* One 16 × 8 × 64 step from nibble pairs, both block scales at 2⁰ so the products are the codes' own. */
+/*  One 16 × 8 × 64 step from nibble pairs, both block scales at 2⁰ so the products are the codes'
+ *  own. */
 NK_HELPER_DEVICE_INLINE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
                                                        nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k64.row.col.kind::mxf4.block_scale.scale_vec::2X.f32.e2m1.e2m1.f32.ue8m0 " //

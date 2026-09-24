@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/spatial/icelake.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date October 3, 2023
  *  @brief SIMD-accelerated spatial similarity measures for Ice Lake.
  *
  *  @sa include/numkong/spatial.h
@@ -689,7 +689,7 @@ nk_sqeuclidean_e4m3_icelake_cycle:
     ab_f32x16 = _mm512_fmadd_ps(_mm512_cvtepi32_ps(ab5_i32x16), _mm512_set1_ps(1.0f), ab_f32x16);
     ab_f32x16 = _mm512_fmadd_ps(_mm512_cvtepi32_ps(ab6_i32x16), _mm512_set1_ps(16.0f), ab_f32x16);
 
-    // Reduce ||a||² and ||b||² (even-k only: scale = 2^(8·oct − 20))
+    // Reduce ||a||² and ||b||² (even-k only: scale = 2^(8 · oct − 20))
     __m512 a2_f32x16 = _mm512_mul_ps(_mm512_cvtepi32_ps(a2_0_i32x16), _mm512_set1_ps(9.5367431640625e-07f));
     a2_f32x16 = _mm512_fmadd_ps(_mm512_cvtepi32_ps(a2_2_i32x16), _mm512_set1_ps(2.44140625e-04f), a2_f32x16);
     a2_f32x16 = _mm512_fmadd_ps(_mm512_cvtepi32_ps(a2_4_i32x16), _mm512_set1_ps(6.25e-02f), a2_f32x16);
@@ -700,7 +700,7 @@ nk_sqeuclidean_e4m3_icelake_cycle:
     b2_f32x16 = _mm512_fmadd_ps(_mm512_cvtepi32_ps(b2_4_i32x16), _mm512_set1_ps(6.25e-02f), b2_f32x16);
     b2_f32x16 = _mm512_fmadd_ps(_mm512_cvtepi32_ps(b2_6_i32x16), _mm512_set1_ps(16.0f), b2_f32x16);
 
-    // (a-b)² = ||a||² + ||b||² - 2·dot(a,b)
+    // (a-b)² = ||a||² + ||b||² - 2 · dot(a,b)
     __m512 sum_sq_f32x16 = _mm512_add_ps(a2_f32x16, b2_f32x16);
     *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16));
 }
@@ -887,7 +887,7 @@ nk_sqeuclidean_e2m3_icelake_cycle:
 
     if (n) goto nk_sqeuclidean_e2m3_icelake_cycle;
 
-    // (a-b)² = a² + b² − 2·ab, scaled by 256 (16² from LUT)
+    // (a-b)² = a² + b² − 2 · ab, scaled by 256 (16² from LUT)
     __m512 a2_f32x16 = _mm512_cvtepi32_ps(a2_i32x16);
     __m512 b2_f32x16 = _mm512_cvtepi32_ps(b2_i32x16);
     __m512 ab_f32x16 = _mm512_cvtepi32_ps(ab_i32x16);

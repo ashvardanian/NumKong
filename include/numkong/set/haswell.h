@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/set/haswell.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date March 3, 2024
  *  @brief SIMD-accelerated set similarity measures for Haswell.
  *
  *  @sa include/numkong/set.h
@@ -106,7 +106,7 @@ NK_API_COMPTIME void nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, n
     // - `_mm256_loadu_si256`:   p23, 1cy latency (load)
     // - `_mm256_cmpeq_epi8`:    p015, 1cy latency, 0.33cy throughput
     // - `_mm256_extracti128`:   p5, 3cy latency, 1cy throughput
-    // - `_mm_popcnt_u64`:       p1 ONLY, 3cy latency, 1cy throughput (BOTTLENECK)
+    // - `_mm_popcnt_u64`:       p1 only, 3cy latency, 1cy throughput (bottleneck)
     //
     // For counting mismatches, we XOR and popcount the resulting bits set to 1.
     // Alternative: compare -> movemask -> popcount, but movemask only works per-byte MSBs.
@@ -153,7 +153,7 @@ NK_API_COMPTIME void nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t const *b
     // - `_mm256_cmpeq_epi16`:   p015, 1cy latency, 0.33cy throughput
     // - `_mm256_packs_epi16`:   p5, 1cy latency, 1cy throughput (pack 16->8 bit)
     // - `_mm_movemask_epi8`:    p0, 3cy latency (extracts MSB of each byte)
-    // - `_mm_popcnt_u32`:       p1 ONLY, 3cy latency, 1cy throughput
+    // - `_mm_popcnt_u32`:       p1 only, 3cy latency, 1cy throughput
 
     nk_u32_t matches = 0;
     nk_size_t n_remaining = n;
@@ -290,7 +290,7 @@ NK_HELPER_INLINE void nk_jaccard_u1x64_finalize_haswell( //
     result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_b32x4);
 }
 
-/** @brief Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (Haswell). */
+/** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (Haswell). */
 NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_haswell_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
                                                          nk_b128_vec_t const *target_pops_vec,
                                                          nk_b128_vec_t *result_vec) {
@@ -300,7 +300,7 @@ NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_haswell_(nk_b128_vec_t const *do
     result_vec->xmm = _mm_sub_epi32(_mm_add_epi32(query_i32x4, target_i32x4), _mm_slli_epi32(dots_i32x4, 1));
 }
 
-/** @brief Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Haswell). */
+/** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Haswell). */
 NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_haswell_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
                                                          nk_b128_vec_t const *target_pops_vec,
                                                          nk_b128_vec_t *result_vec) {

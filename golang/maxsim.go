@@ -1,5 +1,5 @@
-// numkong/golang/maxsim.go
-// Written by Ash Vardanian.
+// File: golang/maxsim.go
+// Author: Ash Vardanian
 
 package numkong
 

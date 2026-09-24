@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/matrix.hpp
  *  @author Ash Vardanian
- *  @date March 2026
+ *  @date March 5, 2026
  *  @brief NumKong packed_matrix type for efficient GEMM.
  *
  *  Provides a pre-packed matrix type over @c dots_pack and @c dots_packed for cache-efficient GEMM.
@@ -34,7 +34,7 @@ namespace ashvardanian::numkong {
  *  @return Size in bytes for row-major B data plus stride metadata
  *
  *  @tparam in_type_ Input element type
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 NK_API_COMPTIME size_t dots_pack_size(size_t row_count, size_t depth) {
@@ -68,7 +68,7 @@ NK_API_COMPTIME size_t dots_pack_size(size_t row_count, size_t depth) {
  *  @param[out] b_packed Output buffer for packed row-major B with metadata
  *
  *  @tparam in_type_ Input element type
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 NK_API_COMPTIME void dots_pack(in_type_ const *b, size_t row_count, size_t depth, size_t b_stride_in_bytes,
@@ -130,7 +130,7 @@ NK_API_COMPTIME void dots_pack(in_type_ const *b, size_t row_count, size_t depth
  *  @return Size in bytes for the packed buffer.
  *
  *  @tparam in_type_ Input element type (bf16_t, f32_t, f16_t).
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 NK_API_COMPTIME std::size_t maxsim_pack_size(std::size_t vector_count, std::size_t depth) {
@@ -151,7 +151,7 @@ NK_API_COMPTIME std::size_t maxsim_pack_size(std::size_t vector_count, std::size
  *  @param[out] packed Output packed buffer from maxsim_pack_size.
  *
  *  @tparam in_type_ Input element type (bf16_t, f32_t, f16_t).
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 NK_API_COMPTIME void maxsim_pack(typename in_type_::raw_t const *vectors, std::size_t vector_count, std::size_t depth,
@@ -180,7 +180,7 @@ NK_API_COMPTIME void maxsim_pack(typename in_type_::raw_t const *vectors, std::s
  *  @tparam value_type_ Element type, e.g., f32_t, bf16_t.
  *  @tparam allocator_type_ Allocator for the packed buffer, default aligned_allocator<char>.
  *
- *  Wraps `dots_pack` to pre-arrange a matrix B into a cache-friendly layout.
+ *  Wraps @c dots_pack to pre-arrange a matrix B into a cache-friendly layout.
  *  Use `try_pack()` to create from a matrix_view, then pass to `dots_packed()` for computation.
  */
 template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<char>>

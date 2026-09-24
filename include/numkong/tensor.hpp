@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/tensor.hpp
  *  @author Ash Vardanian
- *  @date March 2026
+ *  @date January 11, 2026
  *  @brief NumKong tensor types and tensor-level operations for C++20 and newer.
  *
  *  Provides owning and non-owning N-dimensional tensor types:
@@ -9,7 +9,7 @@
  *  - `nk::tensor<T, A, max_rank>`: Owning, non-resizable
  *  - `nk::tensor_view<T, max_rank>`: Non-owning, const
  *  - `nk::tensor_span<T, max_rank>`: Non-owning, mutable
- *  - `nk::matrix` / `nk::matrix_view` / `nk::matrix_span`: 2D aliases
+ *  - `nk::matrix<T, A>`, `nk::matrix_view<T>`, `nk::matrix_span<T>`: rank-2 aliases
  *
  *  Tensor-level free functions:
  *  - Non-allocating scalar results: `sum(view)`, `min(view)`, `max(view)`, etc.
@@ -102,14 +102,14 @@ struct shape_storage_ {
     std::ptrdiff_t strides[max_rank_] = {};
     std::size_t rank = 0;
 
-    /** @brief Total number of elements. */
+    /** Total number of elements. */
     constexpr std::size_t numel() const noexcept {
         std::size_t n = 1;
         for (std::size_t i = 0; i < rank; ++i) n *= extents[i];
         return n;
     }
 
-    /** @brief Linearize multi-dimensional coordinates to a byte offset. */
+    /** Linearize multi-dimensional coordinates to a byte offset. */
     constexpr std::ptrdiff_t linearize(std::size_t const *coords) const noexcept {
         std::ptrdiff_t offset = 0;
         for (std::size_t i = 0; i < rank; ++i) offset += static_cast<std::ptrdiff_t>(coords[i]) * strides[i];
@@ -119,9 +119,9 @@ struct shape_storage_ {
     /**
      *  @brief Reset the spare slots [rank, max_rank_) to a harmless 1x0 layout.
      *
-     *  `tensor_flat_lookup_` iterates a runtime `rank` bound (`flat % extents[d]; flat /= extents[d]`),
-     *  but under `-flto` the compiler unrolls/vectorises that loop to `max_rank_` iterations and
-     *  speculatively evaluates `flat / extents[d]` for every `d` - including `d >= rank`. Leaving
+     *  @c tensor_flat_lookup_ runs `flat % extents[d]; flat /= extents[d]` up to a runtime @c rank,
+     *  but under `-flto` the compiler unrolls/vectorises that loop to @c max_rank_ iterations and
+     *  speculatively evaluates `flat / extents[d]` for every @c d - including `d >= rank`. Leaving
      *  those extents at the in-class `= {}` zero turns the unused speculative quotient into a
      *  hardware divide-by-zero trap. Any builder that produces a reduced-rank shape must call this.
      */
@@ -132,7 +132,7 @@ struct shape_storage_ {
         }
     }
 
-    /** @brief Create contiguous (row-major) shape storage. */
+    /** Create contiguous (row-major) shape storage. */
     static constexpr shape_storage_ contiguous(std::size_t const *exts, std::size_t rank_val,
                                                std::size_t elem_bytes) noexcept {
         shape_storage_ s;
@@ -466,7 +466,7 @@ struct tensor_view {
 
     static constexpr std::size_t max_rank = max_rank_;
 
-    /** Element iterator, begin: yields `(position, scalar)` pairs. */
+    /** Element iterator, begin: yields @b (position,scalar) pairs. */
     constexpr tensor_view_iterator_<tensor_view> begin() const noexcept { return {*this}; }
 
     /** Element iterator, end. */
@@ -746,7 +746,7 @@ struct tensor_span {
 
     static constexpr std::size_t max_rank = max_rank_;
 
-    /** Mutable element iterator, begin: yields `(position, ref_or_proxy)` pairs. */
+    /** Mutable element iterator, begin: yields @b (position,ref_or_proxy) pairs. */
     constexpr tensor_span_iterator_<tensor_span> begin() const noexcept { return {const_cast<tensor_span &>(*this)}; }
 
     /** Mutable element iterator, end. */
@@ -1023,7 +1023,7 @@ constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, range r, rest_ty
 
 /**
  *  @brief Random-access iterator over slices along the leading dimension.
- *  @tparam view_type_ Either `tensor_view` or `tensor_span`.
+ *  @tparam view_type_ Either @c tensor_view or @c tensor_span.
  *
  *  For a rank-2 matrix, iterating yields rank-1 row views/spans.
  *  Dereference calls `parent_.slice_leading(index_)` to produce each sub-view.
@@ -1325,7 +1325,7 @@ struct tensor_dims_view_ {
  *
  *  `try_resize()` adjusts the *shape* within the allocated `capacity()` and fails beyond it, so
  *  `data()` is stable across resizes — the contract capture-replaying GPU code depends on.
- *  `reserve()` is the explicit opt-in that MAY reallocate to grow `capacity()`, and thus move
+ *  `reserve()` is the explicit opt-in that may reallocate to grow `capacity()`, and thus move
  *  `data()`. Allocate at the worst-case extents, or `reserve()` up front, then `try_resize()` to
  *  each step's live extents; `clear()` drops back to an empty shape while keeping the buffer.
  */
@@ -1381,7 +1381,7 @@ struct tensor {
      *  @brief Reshape in place to contiguous @p extents, without reallocating: succeeds iff the new
      *      volume fits `capacity()` and the rank fits @c max_rank_, so `data()` never moves —
      *      resizing to a step's live extents is safe under captured GPU graphs.
-     *  @return `true` on success; `false` leaves the shape untouched.
+     *  @return @c true on success; @c false leaves the shape untouched.
      */
     [[nodiscard]] constexpr bool try_resize(std::initializer_list<size_type> extents) noexcept {
         return try_resize(extents.begin(), extents.size());
@@ -1398,7 +1398,7 @@ struct tensor {
 
     /**
      *  @brief Grow the allocated `capacity()` to at least @p values elements. Unlike
-     *      `try_resize()`, this MAY reallocate and move `data()`; the live `numel()`-storage
+     *      `try_resize()`, this may reallocate and move `data()`; the live `numel()`-storage
      *      elements are preserved. No-op when `capacity() >= values`.
      *  @return `true` on success or no-op; @c false if allocation failed, state unchanged.
      */
@@ -1903,7 +1903,7 @@ using matrix_span = tensor_span<value_type_, 2>;
  *
  *  Because the scales are a real reduced-shape tensor, slicing reuses the tensor machinery and
  *  slices both components in lockstep; a last-axis, column, range is divided by @c block_size.
- *  Encode / decode / transcode all go through `cast()` in `cast.hpp`; `scaled_tensor` itself is
+ *  Encode / decode / transcode all go through `cast()` in `cast.hpp`; @c scaled_tensor itself is
  *  pure storage and never calls a kernel. The struct-of-arrays layout is exactly the NVFP4/MXFP8
  *  GPU representation — `elements()` and `block_scales()` each export a DLPack / CUDA-array
  *  interface for zero-copy access.
@@ -1990,7 +1990,7 @@ struct scaled_tensor_view {
     /**
      *  @brief Block-aligned last-axis (column) range; preserves every leading axis. Zero-copy.
      *
-     *  @p start and @p stop must be multiples of `block_size` so both the element and the scale
+     *  @p start and @p stop must be multiples of @c block_size so both the element and the scale
      *  offsets stay integral and land on container boundaries, essential for packed sub-byte
      *  elements. Returns an empty view otherwise; materialize sub-block ranges with `cast()` first.
      */
@@ -2199,7 +2199,7 @@ struct scaled_tensor {
     }
 
     /** Grow capacity to at least @p values logical elements, plus the matching per-block scales;
-     *  MAY reallocate/move the component buffers. No-op when already large enough. */
+     *  may reallocate/move the component buffers. No-op when already large enough. */
     [[nodiscard]] bool reserve(size_type values) noexcept {
         size_type const scale_values = (values + block_size - 1) / block_size;
         return elements_.reserve(values) && block_scales_.reserve(scale_values);
@@ -2511,7 +2511,7 @@ tensor_span<value_type_, max_rank_> collapse_contiguous_tail_(tensor_span<value_
     return {input.byte_data(), s};
 }
 
-/** Unary elementwise traversal: validates shapes, then recurses on rank≥2 or invokes leaf on a
+/** Unary elementwise traversal: validates shapes, then recurses on rank ≥ 2 or invokes leaf on a
  *  rank-1 slice. */
 template <typename value_type_, std::size_t max_rank_, typename leaf_fn_>
 bool elementwise_into_(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output,
@@ -2538,7 +2538,7 @@ bool elementwise_into_(tensor_view<value_type_, max_rank_> input, tensor_span<va
     return true;
 }
 
-/** Binary elementwise traversal: validates shapes, then recurses on rank≥2 or invokes leaf on a
+/** Binary elementwise traversal: validates shapes, then recurses on rank ≥ 2 or invokes leaf on a
  *  rank-1 slice. */
 template <typename value_type_, std::size_t max_rank_, typename leaf_fn_>
 bool elementwise_into_(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_rank_> rhs,
@@ -2569,7 +2569,7 @@ bool elementwise_into_(tensor_view<value_type_, max_rank_> lhs, tensor_view<valu
     return true;
 }
 
-/** Ternary elementwise traversal: validates shapes, then recurses on rank≥2 or invokes leaf on a
+/** Ternary elementwise traversal: validates shapes, then recurses on rank ≥ 2 or invokes leaf on a
  *  rank-1 slice. */
 template <typename value_type_, std::size_t max_rank_, typename leaf_fn_>
 bool elementwise_into_(tensor_view<value_type_, max_rank_> a, tensor_view<value_type_, max_rank_> b,

@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/geospatial/skylake.h
  *  @author Ash Vardanian
- *  @date February 6, 2026
+ *  @date December 21, 2025
  *  @brief SIMD-accelerated geospatial distances for Skylake.
  *
  *  @sa include/numkong/geospatial.h

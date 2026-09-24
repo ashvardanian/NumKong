@@ -35,46 +35,56 @@ extern "C" {
 /**
  *  @brief N-dimensional array type with NumPy-like interface.
  *
- *  Supports arbitrary strides for views and slices, reference counting
- *  for memory management, and NumKong's extended type system.
+ *  Supports arbitrary strides for views and slices, reference counting for memory management, and
+ *  NumKong's extended type system.
  *
  *  Memory layout:
- *  - If parent == NULL: owns a heap-allocated `data` buffer holding `capacity` elements
- *  - If parent != NULL: view into parent's memory, `data` points there
+ *  - If parent == NULL: owns a heap-allocated @c data buffer holding @c capacity elements
+ *  - If parent != NULL: view into parent's memory, @c data points there
  *
- *  Storage lives in a separately heap-allocated buffer (not inline in the object), so `reserve()`
- *  can grow it in place; `resize()` reshapes within `capacity` without moving `data`.
+ *  Storage lives in a separately heap-allocated buffer, not inline in the object, so `reserve()`
+ *  can grow it in place; `resize()` reshapes within @c capacity without moving @c data.
  */
 typedef struct Tensor {
     PyObject_HEAD
+
     /** Logical dtype (f32, f64, bf16, etc.). */
     nk_dtype_t dtype;
+
     /** Number of dimensions (0 for scalar). */
     size_t rank;
+
     /** Extent along each dimension. */
     Py_ssize_t shape[NK_TENSOR_MAX_RANK];
+
     /** Stride in bytes for each dimension. */
     Py_ssize_t strides[NK_TENSOR_MAX_RANK];
+
     /** Reference to parent (NULL if owns data). */
     PyObject *parent;
+
     /** Data pointer: owned heap buffer when `parent == NULL`, else into parent's memory. */
     char *data;
+
     /** Allocated element capacity of the owned buffer (>= numel); equals numel for views. */
     size_t capacity;
-    /** Outstanding buffer-protocol exports; `resize`/`reserve` raise `BufferError` while > 0. */
+
+    /** Outstanding buffer-protocol exports; `resize()`/`reserve()` raise @c BufferError if > 0. */
     Py_ssize_t exports;
 } Tensor;
 
 /**
  *  @brief Iterator for Tensor.
  *
- *  Iterates over the first dimension of a Tensor, yielding views
- *  (for rank > 1) or scalars (for rank == 1).
+ *  Iterates over the first dimension of a Tensor, yielding views (for rank > 1) or scalars (for
+ *  rank == 1).
  */
 typedef struct TensorIter {
     PyObject_HEAD
+
     /** Tensor being iterated. */
     Tensor *array;
+
     /** Current position. */
     Py_ssize_t index;
 } TensorIter;
@@ -82,41 +92,47 @@ typedef struct TensorIter {
 /**
  *  @brief Block-scaled tensor (OCP MX family + NVIDIA NVFP4).
  *
- *  Wraps two ordinary @ref Tensor objects — the packed sub-byte @ref elements and the
- *  per-block @ref block_scales — plus a composite @p dtype, the @p block_size, and an
- *  optional per-tensor @p tensor_scale (NVFP4 only; absent for the MX family).
+ *  Wraps two ordinary @ref Tensor objects — the packed sub-byte @ref elements and the per-block
+ *  @ref block_scales — plus a composite @c dtype, the @c block_size, and an optional per-tensor
+ *  @c tensor_scale (NVFP4 only; absent for the MX family).
  *
- *  Quantization is always along the last axis: @ref elements keeps the logical dense shape,
- *  and the last dimension of @ref block_scales counts blocks (`last_dim / block_size`). Leading dimensions match the
- * dense source. Both child tensors own their storage and DLPack-export zero-copy (e2m1/e8m0/ue4m3 codes), so a
- * ScaledTensor is fully self-contained and caller-free.
+ *  Quantization is always along the last axis: @ref elements keeps the logical dense shape, and the
+ *  last dimension of @ref block_scales counts blocks, last_dim ÷ block_size. Leading dimensions
+ *  match the dense source. Both child tensors own their storage and DLPack-export zero-copy
+ *  (e2m1/e8m0/ue4m3 codes), so a ScaledTensor is fully self-contained and caller-free.
  *
- *  Produced by `dense_tensor.astype("nvfp4")` and materialized back via
- *  `scaled.astype("float32")`.
+ *  Produced by `dense_tensor.astype("nvfp4")` and materialized back via `scaled.astype("float32")`.
  */
 typedef struct ScaledTensor {
     PyObject_HEAD
+
     /** Packed sub-byte element bytes (Tensor of element dtype, e.g. e2m1). */
     Tensor *elements;
+
     /** Per-block scale bytes (Tensor of scale dtype, e.g. ue4m3 / ue8m0). */
     Tensor *block_scales;
+
     /** Composite block-scaled dtype enum (e.g. nk_nvfp4_k) — drives `.dtype`. */
     nk_dtype_t dtype;
+
     /** Elements per block: 16 (NVFP4) or 32 (MX). */
     size_t block_size;
+
     /** Per-tensor f32 multiplier (NVFP4). Ignored when @ref has_tensor_scale is 0. */
     float tensor_scale;
-    /** 1 when @ref tensor_scale is meaningful (NVFP4); 0 for the MX family (`.tensor_scale is None`). */
+
+    /** 1 when @ref tensor_scale is meaningful (NVFP4); 0 for the MX family, where
+     *  `.tensor_scale is None`. */
     int has_tensor_scale;
 } ScaledTensor;
 
-/** @brief Tensor Python type object.  */
+/** Tensor Python type object. */
 extern PyTypeObject TensorType;
 
-/** @brief Block-scaled tensor Python type object.  */
+/** Block-scaled tensor Python type object. */
 extern PyTypeObject ScaledTensorType;
 
-/** @brief Tensor iterator Python type object.  */
+/** Tensor iterator Python type object. */
 extern PyTypeObject TensorIterType;
 
 /**
@@ -144,53 +160,51 @@ Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape);
 Tensor *Tensor_view(Tensor *parent, char *data, nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape,
                     Py_ssize_t const *strides);
 
-/** @brief Drain the recycled view-header free-list; call once at interpreter teardown.  */
+/** Drain the recycled view-header free-list; call once at interpreter teardown. */
 void nk_tensor_view_freelist_clear(void);
 
-/** @brief Copy the tensor.  */
+/** Copy the tensor. */
 PyObject *Tensor_copy(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
-/** @brief Reshape the tensor (returns view if possible).  */
+/** Reshape the tensor (returns view if possible). */
 PyObject *Tensor_reshape(PyObject *self, PyObject *const *args, Py_ssize_t nargs);
 
-/** @brief Compute moments (sum, sum-of-squares). Returns (sum, sumsq) tuple.  */
+/** Compute moments (sum, sum-of-squares). Returns (sum, sumsq) tuple. */
 PyObject *Tensor_moments(PyObject *self, PyObject *args);
 
-/** @brief Find min and max with indices. Returns (min_val, min_idx, max_val, max_idx) tuple.  */
+/** Find min and max with indices. Returns (min_val, min_idx, max_val, max_idx) tuple. */
 PyObject *Tensor_minmax(PyObject *self, PyObject *args);
 
-/** @brief Cast tensor to a different dtype. Returns a new tensor.  */
+/** Cast tensor to a different dtype. Returns a new tensor. */
 PyObject *Tensor_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
-/**
- *  @brief Compute C-contiguous strides for a tensor shape.
- */
+/** Compute C-contiguous strides for a tensor shape. */
 void compute_contiguous_strides(size_t rank, Py_ssize_t const *shape, nk_dtype_t dtype, Py_ssize_t *strides_out);
 
-/** @brief Storage values holding @p dimensions logical dimensions of @p dtype. */
+/** Storage values holding @p dimensions logical dimensions of @p dtype. */
 size_t dimensions_to_values(nk_dtype_t dtype, size_t dimensions);
 
-/** @brief Storage values along `shape[dimension]`; the last axis of a packed dtype holds several per value. */
+/** Storage values along `shape[dimension]`; a packed dtype's last axis holds several per value. */
 Py_ssize_t storage_extent(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape, size_t dimension);
 
-/** @brief Reject a packed-dtype shape whose last dimension is not a multiple of the values per byte. */
+/** Reject a packed-dtype shape whose last dimension is not a multiple of the values per byte. */
 int validate_packed_dimensions(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape);
 
-/** @brief Whether byte @p strides lay out a logical @p shape of @p dtype densely in row-major order. */
+/** Whether byte @p strides lay out a logical @p shape of @p dtype densely in row-major order. */
 int strides_are_c_contiguous(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape, Py_ssize_t const *strides);
 
 /**
  *  @brief Linearize strided source data into a contiguous destination, with optional dtype cast.
  *
- *  Walks the source tensor's strides recursively. For each contiguous inner slice,
- *  calls nk_cast (or memcpy if same dtype) directly into @p dest_data. Zero allocations.
+ *  Walks the source tensor's strides recursively. For each contiguous inner slice, calls nk_cast
+ *  (or memcpy if same dtype) directly into @p dest_data. Zero allocations.
  */
 void linearize_cast_into(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype,
                          size_t rank, Py_ssize_t const *shape, Py_ssize_t const *strides, size_t total_elements);
 
 /**
  *  @brief Convert a dense source into an arbitrarily-strided destination — the mirror of
- *         linearize_cast_into, for writing results back into a caller's non-contiguous buffer.
+ *      linearize_cast_into, for writing results back into a caller's non-contiguous buffer.
  *
  *  Collapses to a single nk_cast when the destination is fully packed. Zero allocations.
  */
@@ -199,7 +213,8 @@ void cast_into_strided(char const *src_data, nk_dtype_t src_dtype, char *dest_da
 
 /**
  *  @brief Produce a contiguous buffer in the target dtype from arbitrary-strided input.
- *  @return Contiguous data pointer, or NULL on error. Caller must PyMem_Free if *needs_free is set.
+ *  @return Contiguous data pointer, or NULL on error. The caller must PyMem_Free it
+ *      whenever @p needs_free is set.
  */
 char *ensure_contiguous_buffer(char const *src_data, nk_dtype_t src_dtype, nk_dtype_t target_dtype, size_t rank,
                                Py_ssize_t const *shape, Py_ssize_t const *strides, size_t total_elements,
@@ -212,7 +227,7 @@ char *ensure_contiguous_buffer(char const *src_data, nk_dtype_t src_dtype, nk_dt
 int buffers_shapes_match(Py_buffer const *first, Py_buffer const *second);
 
 /**
- *  @brief Validate a caller-supplied `out` buffer for an operation that writes it densely.
+ *  @brief Validate a caller-supplied @c out buffer for an operation that writes it densely.
  *
  *  Requires the expected dtype, C-contiguity — the layout linearize_cast_into writes, as it
  *  derives destination offsets from shape alone — writability, and no address overlap with
@@ -222,14 +237,9 @@ int buffers_shapes_match(Py_buffer const *first, Py_buffer const *second);
  */
 char *validate_out_py_buffer(Py_buffer const *out_buffer, Py_buffer const *input_buffer, nk_dtype_t expected_dtype);
 
-/**
- *  @brief Compute the number of trailing contiguous dimensions shared across multiple buffers.
- */
+/** Compute the number of trailing contiguous dimensions shared across multiple buffers. */
 size_t shared_contiguous_tail_dimensions(Py_buffer const *buffers[], size_t num_buffers, size_t num_dims);
 
-/**
- *  @brief Recursively apply a binary elementwise sum kernel to N-D tensors.
- */
 void each_sum_recursive(                                           //
     nk_each_sum_punned_t kernel,                                   //
     char const *a_data, char const *b_data, char *result_data,     //
@@ -237,9 +247,7 @@ void each_sum_recursive(                                           //
     Py_ssize_t const *b_strides, Py_ssize_t const *result_strides, //
     size_t remaining_dims, size_t contiguous_tail_dims);
 
-/**
- *  @brief Recursively apply a unary elementwise scale kernel to an N-D tensor.
- */
+/** Recursively apply a unary elementwise scale kernel to an N-D tensor. */
 void each_scale_recursive(                                           //
     nk_each_scale_punned_t kernel,                                   //
     char const *a_data, char *result_data,                           //
@@ -248,9 +256,7 @@ void each_scale_recursive(                                           //
     Py_ssize_t const *result_strides,                                //
     size_t remaining_dims, size_t contiguous_tail_dims);
 
-/**
- *  @brief Recursively apply a ternary fused-multiply-add kernel to N-D tensors.
- */
+/** Recursively apply a ternary fused-multiply-add kernel to N-D tensors. */
 void each_fma_recursive(                                                           //
     nk_each_fma_punned_t kernel,                                                   //
     char const *a_data, char const *b_data, char const *c_data, char *result_data, //
@@ -260,9 +266,7 @@ void each_fma_recursive(                                                        
     Py_ssize_t const *result_strides,                                              //
     size_t remaining_dims, size_t contiguous_tail_dims);
 
-/**
- *  @brief Recursively apply a binary elementwise blend kernel to N-D tensors.
- */
+/** Recursively apply a binary elementwise blend kernel to N-D tensors. */
 void each_blend_recursive(                                           //
     nk_each_blend_punned_t kernel,                                   //
     char const *a_data, char const *b_data, char *result_data,       //
@@ -271,9 +275,7 @@ void each_blend_recursive(                                           //
     Py_ssize_t const *b_strides, Py_ssize_t const *result_strides,   //
     size_t remaining_dims, size_t contiguous_tail_dims);
 
-/**
- *  @brief Recursively apply a unary elementwise kernel (sin/cos/atan) to an N-D tensor.
- */
+/** Recursively apply a unary elementwise kernel (sin/cos/atan) to an N-D tensor. */
 void each_unary_recursive(                                //
     nk_kernel_trig_punned_t kernel,                       //
     char const *a_data, char *result_data,                //

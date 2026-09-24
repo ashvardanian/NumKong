@@ -1,7 +1,7 @@
 /**
  *  @file c/dispatch_e5m2.c
  *  @author Ash Vardanian
- *  @date February 3, 2026
+ *  @date December 21, 2025
  *  @brief Dispatch initialization for E5M2 data types.
  */
 #include "dispatch.h"

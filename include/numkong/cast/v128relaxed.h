@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 /**
- *  @brief F16→F32 via Giesen's magic-number multiply trick.
+ *  @brief F16 → F32 via Giesen's magic-number multiply trick.
  *  @see https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
  *
  *  Shifts the 15-bit magnitude into F32 exponent+mantissa position, then multiplies
@@ -46,7 +46,7 @@ NK_HELPER_INLINE nk_b128_vec_t nk_f16x4_to_f32x4_v128relaxed_(nk_b64_vec_t f16_v
     v128_t magic_f32x4 = wasm_i32x4_splat(0x77800000);
     v128_t rebiased_f32x4 = wasm_f32x4_mul((v128_t)shifted_u32x4, (v128_t)magic_f32x4);
 
-    // Fix inf/NaN: exp=31 after shift becomes 0x1F<<13 = 0x000F8000, ×2^112 overflows.
+    // Fix inf/NaN: exp=31 after shift becomes 0x1F<<13 = 0x000F8000, × 2^112 overflows.
     // Detect via threshold on shifted magnitude and apply direct rebias instead.
     v128_t infnan_threshold_u32x4 = wasm_i32x4_splat(0x38800000);
     v128_t infnan_mask_u32x4 = wasm_u32x4_ge(shifted_u32x4, infnan_threshold_u32x4);
@@ -61,11 +61,9 @@ NK_HELPER_INLINE nk_b128_vec_t nk_f16x4_to_f32x4_v128relaxed_(nk_b64_vec_t f16_v
     return result;
 }
 
-/**
- *  @brief E4M3→F32 via Giesen's magic multiply (×2^120).
- *  Shift 7-bit magnitude left by 20 into f32 position, multiply by 2^120 to rebias exponent.
- *  The multiply also normalizes subnormals. NaN fixup for magnitude 0x7F only.
- */
+/** E4M3 → F32 via Giesen's magic multiply (× 2^120). Shift 7-bit magnitude left by 20 into f32
+ *  position, multiply by 2^120 to rebias exponent. The multiply also normalizes subnormals. NaN
+ *  fixup for magnitude 0x7F only. */
 NK_HELPER_INLINE nk_b128_vec_t nk_e4m3x4_to_f32x4_v128relaxed_(nk_b32_vec_t e4m3_vec) {
     v128_t raw_u32x4 = wasm_u32x4_extend_low_u16x8(wasm_u16x8_extend_low_u8x16(wasm_i32x4_splat(e4m3_vec.u32)));
     v128_t sign_u32x4 = wasm_i32x4_shl(wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x80)), 24);
@@ -80,10 +78,8 @@ NK_HELPER_INLINE nk_b128_vec_t nk_e4m3x4_to_f32x4_v128relaxed_(nk_b32_vec_t e4m3
     return result_vec;
 }
 
-/**
- *  @brief F32→F16 via bit manipulation with RNE (WASM).
- *  Handles normal, subnormal, overflow (→inf), and inf/NaN cases.
- */
+/** F32 → F16 via bit manipulation with RNE (WASM). Handles normal, subnormal, and inf/NaN cases,
+ *  with overflow going to inf. */
 NK_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_f16x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_i32x4_shl(wasm_u32x4_shr(bits_u32x4, 31), 15);
@@ -135,7 +131,7 @@ NK_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_f16x4_v128relaxed_(nk_b128_vec_t hub_v
     return result_vec;
 }
 
-/** @brief Convert f32x4 → 4x e4m3 via bit manipulation with RNE (WASM). */
+/** Convert f32x4 → 4x e4m3 via bit manipulation with RNE (WASM). */
 NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e4m3x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_u32x4_shr(bits_u32x4, 31);
@@ -186,7 +182,7 @@ NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e4m3x4_v128relaxed_(nk_b128_vec_t hub_
     return result_vec;
 }
 
-/** @brief Convert f32x4 → 4x e5m2 via bit manipulation with RNE (WASM). */
+/** Convert f32x4 → 4x e5m2 via bit manipulation with RNE (WASM). */
 NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e5m2x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_u32x4_shr(bits_u32x4, 31);
@@ -233,7 +229,7 @@ NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e5m2x4_v128relaxed_(nk_b128_vec_t hub_
     return result_vec;
 }
 
-/** @brief Convert f32x4 → 4x e2m3 via bit manipulation with RNE (WASM). */
+/** Convert f32x4 → 4x e2m3 via bit manipulation with RNE (WASM). */
 NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e2m3x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_u32x4_shr(bits_u32x4, 31);
@@ -277,7 +273,7 @@ NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e2m3x4_v128relaxed_(nk_b128_vec_t hub_
     return result_vec;
 }
 
-/** @brief Convert f32x4 → 4x e3m2 via bit manipulation with RNE (WASM). */
+/** Convert f32x4 → 4x e3m2 via bit manipulation with RNE (WASM). */
 NK_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e3m2x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_u32x4_shr(bits_u32x4, 31);

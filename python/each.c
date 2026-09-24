@@ -1,7 +1,7 @@
 /**
  *  @file python/each.c
  *  @author Ash Vardanian
- *  @date February 19, 2026
+ *  @date October 25, 2024
  *  @brief Elementwise operation implementations for NumKong Python bindings.
  *
  *  Implements fma, blend, scale, add, multiply, and trigonometric, sin, cos, atan, element-wise

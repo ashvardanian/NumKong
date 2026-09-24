@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/sparse/turin.h
  *  @author Ash Vardanian
- *  @date February 6, 2026
+ *  @date October 7, 2024
  *  @brief Turin-accelerated sparse vector operations.
  *
  *  @sa include/numkong/sparse.h

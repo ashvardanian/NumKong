@@ -6,7 +6,7 @@
  *
  *  @sa include/numkong/maxsim.h
  *
- *  Uses AVX-VNNI VPDPBUSD, u8×i8 → i32 with accumulate, for coarse i8 screening. Unlike Haswell's
+ *  Uses AVX-VNNI VPDPBUSD, u8 × i8 → i32 with accumulate, for coarse i8 screening. Unlike Haswell's
  *  VPMADDUBSW+VPMADDWD, DPBUSD has no i16 intermediate, so no saturation concern. Quantization
  *  range [-127, 127], versus Haswell's [-79, 79], gives better precision. Bias correction via
  *  XOR-0x80 converts signed queries to unsigned, then subtracts 128 × sum_quantized.
@@ -145,11 +145,8 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_alder( //
     }
 }
 
-/**
- *  @brief Factored coarse i8 argmax kernel for Alder Lake using DPBUSD.
- *  Uses single VPDPBUSD instruction per query×doc pair (no i16 intermediate).
- *  4Q×4D register tiling with 16 YMM accumulators.
- */
+/** Factored coarse i8 argmax kernel for Alder Lake using DPBUSD. Uses single VPDPBUSD instruction
+ *  per query × doc pair (no i16 intermediate). 4Q × 4D register tiling with 16 YMM accumulators. */
 NK_HELPER_INLINE void nk_maxsim_coarse_argmax_alder_(     //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8,  //
     nk_maxsim_vector_metadata_t const *document_metadata, //
@@ -164,7 +161,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_alder_(     //
         __m128i running_max_i32x4 = _mm_set1_epi32(NK_I32_MIN);
         __m128i running_argmax_i32x4 = _mm_setzero_si128();
 
-        // 4Q×4D document blocking
+        // 4Q × 4D document blocking
         nk_size_t document_block_start_index = 0;
         for (; document_block_start_index + 4 <= document_count; document_block_start_index += 4) {
             __m256i accumulator_tiles_i32x8[4][4];
@@ -308,7 +305,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_alder_(     //
             running_argmax_i32x4 = _mm_blendv_epi8(running_argmax_i32x4, document_index_i32x4, comparison_mask_i32x4);
         }
 
-        // Document tail: 4Q×1D
+        // Document tail: 4Q × 1D
         for (nk_size_t document_index = document_block_start_index; document_index < document_count; document_index++) {
             nk_i8_t const *document_i8_row = document_i8 + document_index * depth_i8_padded;
 
@@ -370,7 +367,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_alder_(     //
         best_document_indices[query_block_start_index + 3] = (nk_u32_t)_mm_extract_epi32(running_argmax_i32x4, 3);
     }
 
-    // Query tail: 1Q×1D
+    // Query tail: 1Q × 1D
     for (nk_size_t query_index = query_block_start_index; query_index < query_count; query_index++) {
         nk_i8_t const *query_i8_row = query_i8 + query_index * depth_i8_padded;
         nk_i32_t running_max_i32 = NK_I32_MIN;

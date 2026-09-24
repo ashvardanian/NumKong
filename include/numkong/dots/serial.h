@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dots/serial.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date September 14, 2024
  *  @brief SWAR-accelerated Batched Dot Products for SIMD-free CPUs.
  *
  *  @sa include/numkong/dots.h for API overview and use cases
@@ -253,7 +253,7 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                                    norm_value_type, depth_simd_dimensions, dimensions_per_value)                 \
     NK_API_COMPTIME nk_size_t nk_##api_name##_pack_size_##input_type_name##_##isa_suffix(nk_size_t column_count, \
                                                                                          nk_size_t depth) {      \
-        /* `depth` counts dimensions, a multiple of the values per byte */                                       \
+        /* @c depth counts dimensions, a multiple of the values per byte */                                      \
         /* depth_simd_dimensions is also in logical dimensions */                                                \
                                                                                                                  \
         /* Pad depth in dimensions */                                                                            \
@@ -384,7 +384,7 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
     }
 
 /**
- *  @brief Like nk_define_cross_pack_ but stores both per-column norms AND column sums.
+ *  @brief Like nk_define_cross_pack_ but stores both per-column norms and column sums.
  *
  *  Layout: [ Header 64B ] [ Packed data ] [ Norms (norm_type) ] [ Column sums (sum_type) ]
  */
@@ -450,39 +450,37 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *  paths that are automatically selected based on the remaining work at each blocking level. The
  *  kernel requires B to be pre-packed using nk_define_cross_pack_ before invocation.
  *
- *  @par Mathematical Operation
+ *  Mathematically, the kernel computes:
  *
  *  @verbatim
  *  C[row_count, column_count] = A[row_count, depth] × Bᵀ[column_count, depth] where operation can
  *  be dot product, Hamming distance, Jaccard similarity, etc.
  *  @endverbatim
  *
- *  @par Three Kernel Variants for Adaptive Performance
+ *  Three kernel variants adapt to the work that remains:
  *
  *  1. @b 4×4 @b register @b tile @b kernel (primary path, ~80% of work):
  *     - Processes 4 rows of A × 4 columns of B simultaneously
  *     - Maintains 16 independent accumulators in registers (state_type[4][4])
  *     - Achieves maximum instruction-level parallelism (16 FMAs per depth iteration)
- *     - Used when: row_count ≥ 4 AND column_count ≥ 4
+ *     - Used when: row_count ≥ 4 and column_count ≥ 4
  *     - Performance: Peak throughput, optimal register utilization
  *
  *  2. @b 1×8 @b register @b tile @b kernel (edge case, ~15% of work):
  *     - Processes 1 row of A × 8 columns of B when remaining rows < 4
  *     - Maintains 8 independent accumulators (state_type[1][8])
  *     - Balances vectorization with low row count
- *     - Used when: row_count < 4 AND column_count ≥ 8
+ *     - Used when: row_count < 4 and column_count ≥ 8
  *     - Performance: Better throughput than generic fallback for wide matrices
  *
  *  3. @b Generic @b fallback @b kernel (edge cases, ~5% of work):
- *     - Handles all irregular cases (row_count < 4 AND column_count < 8)
+ *     - Handles all irregular cases (row_count < 4 and column_count < 8)
  *     - Single accumulator, minimal unrolling
  *     - Used for: Small tiles, remainder handling
  *     - Performance: Lower throughput but handles all edge cases correctly
  *
- *  @par Cache Blocking Strategy (No Depth Blocking)
- *
- *  Unlike traditional GEMM which blocks all three dimensions (M, N, K), this implementation
- *  deliberately omits depth (K) blocking for several reasons:
+ *  The cache blocking strategy skips depth. Unlike traditional GEMM, which blocks all three
+ *  dimensions (M, N, K), this implementation omits depth (K) blocking for several reasons:
  *
  *  1. @b Streaming @b access @b pattern: A and B are read sequentially along depth dimension
  *     - Prefetcher-friendly access (hardware prefetch works well)
@@ -496,16 +494,15 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *     - Fewer nested loops = better instruction cache utilization
  *     - Simpler control flow = easier for compiler to optimize
  *
- *  @par Pre-Packing Benefits
- *
- *  B matrix is pre-packed using nk_define_cross_pack_ before kernel invocation:
+ *  Pre-packing the B matrix with @c nk_define_cross_pack_ before kernel invocation pays off in
+ *  three ways:
  *  - @b Type @b conversion @b amortization: Convert B values once, bf16 → f32 for example, rather
  *    than per A row access. Saves (row_count - 1) × column_count conversions.
  *  - @b Cache @b line @b optimization: Pad depth to break power-of-2 strides that cause cache
  *    associativity conflicts (e.g., 8192 → 8200 values).
  *  - @b Spatial @b locality: Transpose B so columns are contiguous, enabling efficient SIMD loads.
  *
- *  @par Loop Structure
+ *  The loop structure, in Python-like pseudocode:
  *
  *  @code{.py}
  *  for column_block in columns:        # step varies based on available columns
@@ -521,7 +518,7 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *                  partial_store_fn(results, C[row_tile, column_tile])
  *  @endcode
  *
- *  @par Generated Function
+ *  The generated function has this signature:
  *
  *  @code{.c}
  *  nk_##api_name##_packed_##input_type_name##_##isa_suffix##_aligned_(
@@ -624,7 +621,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                     for (nk_size_t tile_row_start_index = row_block_start_index;                                       \
                          tile_row_start_index < row_block_end_index; tile_row_start_index += register_row_count) {     \
                                                                                                                        \
-                        /* Initialize register_row_count × register_column_count accumulator states */                 \
+                        /* Initialize the register_row_count × register_column_count grid                             \
+                         * of accumulator states */                                                                    \
                         state_type accumulator_tiles[4][4];                                                            \
                         init_accumulator_fn(&accumulator_tiles[0][0]), init_accumulator_fn(&accumulator_tiles[0][1]),  \
                             init_accumulator_fn(&accumulator_tiles[0][2]),                                             \
@@ -704,7 +702,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                             inner_product_fn(&accumulator_tiles[3][3], a_vector_3, b_vector_3,                         \
                                              depth_index * dimensions_per_value, depth_simd_dimensions);               \
                         }                                                                                              \
-                        /* Finalize and store register_rows x register_cols results using batched 4-way reduction */   \
+                        /* Finalize and store register_rows x register_cols results                                    \
+                         * using a batched 4-way reduction */                                                          \
                         result_vec_type result_vector;                                                                 \
                         nk_##result_value_type##_t *c_row_ptr_0 =                                                      \
                             (nk_##result_value_type##_t *)((char *)c_matrix +                                          \
@@ -1094,7 +1093,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                                              aligned_depth * dimensions_per_value, remainder_dimensions);              \
                         }                                                                                              \
                                                                                                                        \
-                        /* Finalize and store register_rows x register_cols results using batched 4-way reduction */   \
+                        /* Finalize and store register_rows x register_cols results                                    \
+                         * using a batched 4-way reduction */                                                          \
                         for (nk_size_t r = 0; r < tile_row_count; ++r) {                                               \
                             result_vec_type result_vector;                                                             \
                             reduce_accumulators_fn(&accumulator_tiles[r][0], &accumulator_tiles[r][1],                 \
@@ -1520,7 +1520,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         nk_size_t result_stride_values, nk_size_t finalizer_batch_size, nk_size_t depth) {                             \
         nk_unused_(finalizer_batch_size);                                                                              \
         nk_unused_(dimensions_per_value_runtime);                                                                      \
-        /* Compute sums via stateful helpers — separate loop is fine since diagonal is ~1.6% of work */                \
+        /* Compute sums via stateful helpers — a separate loop is fine,                                              \
+         * since the diagonal is ~1.6% of work */                                                                      \
         nk_size_t padded_depth_dimensions = aligned_depth * dimensions_per_value +                                     \
                                             (remainder_depth > 0 ? depth_simd_dimensions : 0);                         \
         nk_##sum_value_type##_t precomputed_sums[32];                                                                  \
@@ -1858,7 +1859,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                                 inner_product_fn(&accumulators[row][col], row_vecs[row], col_vecs[col], vector_offset, \
                                                  depth_simd_dimensions);                                               \
                     }                                                                                                  \
-                    /* Progressive sum accumulation (SADs on port 5, parallel with DPBUSD on ports 0+1) */             \
+                    /* Progressive sum accumulation, with SADs on port 5 running                                       \
+                     * in parallel with DPBUSD on ports 0+1 */                                                         \
                     if (compute_row_sums_flag) {                                                                       \
                         update_sum_fn(&rsum[0], row_vecs[0]);                                                          \
                         if (tile_rows > 1) update_sum_fn(&rsum[1], row_vecs[1]);                                       \
@@ -1942,7 +1944,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         nk_size_t const result_stride_values = result_stride_in_bytes / sizeof(nk_##result_value_type##_t);            \
         nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;   \
                                                                                                                        \
-        /* Process upper triangle with L3/L2/L1 blocking (column blocks → row blocks → 32×32 macro-tiles) */           \
+        /* Process the upper triangle with L3/L2/L1 blocking: column                                                   \
+         * blocks → row blocks → 32×32 macro-tiles */                                                             \
         for (nk_size_t j_block = 0; j_block < vectors_count; j_block += column_block_size) {                           \
             nk_size_t j_block_end = (j_block + column_block_size < vectors_count) ? j_block + column_block_size        \
                                                                                   : vectors_count;                     \
@@ -1950,8 +1953,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
             for (nk_size_t i_block = row_start; i_block < row_end; i_block += row_block_size) {                        \
                 nk_size_t i_block_end = (i_block + row_block_size < row_end) ? i_block + row_block_size : row_end;     \
                                                                                                                        \
-                /* Skip blocks entirely below diagonal. Blocks fully above the diagonal are still part of the upper    \
-                 * triangle and must be computed. */                                                                   \
+                /* Skip blocks entirely below diagonal. Blocks fully above the diagonal are still                      \
+                 * part of the upper triangle and must be computed. */                                                 \
                 if (i_block >= j_block_end) continue;                                                                  \
                                                                                                                        \
                 for (nk_size_t i_macro = i_block, macro_i_size; i_macro < i_block_end; i_macro += macro_i_size) {      \
@@ -2001,20 +2004,20 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *  Symmetric computation exploits the property that C[i,j] = C[j,i], computing only the upper
  *  triangle and avoiding redundant computation and storage.
  *
- *  @par Mathematical Operation For each pair (i,j) where i ≤ j:
+ *  Mathematically, for each pair @b (i,j) where i ≤ j, it computes:
  *
  *  @verbatim
  *  C[i,j] = operation(A[i,:], A[j,:]) where operation can be dot product, Hamming distance,
  *  Jaccard similarity, etc.
  *  @endverbatim
  *
- *  @par Architecture - Three-Level Tiling Hierarchy
+ *  The architecture is a three-level tiling hierarchy:
  *
  *  1. @b 32×32 @b macro-tiles (outermost): Divides the upper triangle into 32×32 blocks
  *     - Rationale: Fits well in L1 cache (32 vectors × depth × value_size)
  *     - Enables diagonal vs off-diagonal specialization
  *     - Amortizes vector loads across all depth iterations
- *     - Pre-loads and upcasts ALL 32 vectors ONCE per depth iteration (not per FMA)
+ *     - Pre-loads and upcasts all 32 vectors once per depth iteration (not per FMA)
  *
  *  2. @b 4×4 @b register @b tiles (middle): Within each macro-tile, process 4×4 sub-blocks
  *     - Rationale: Maximizes register reuse (4 A vectors × 4 A vectors = 16 accumulators)
@@ -2022,13 +2025,13 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *     - Balances register pressure with instruction-level parallelism
  *
  *  3. @b Depth @b loop (innermost): For each depth chunk, accumulate outer products
- *     - Depth loop is INSIDE macro-tile, OUTSIDE register tiles
- *     - Type conversion (e.g., bf16→f32) happens at macro-tile level (once per vector)
+ *     - Depth loop is inside macro-tile, outside register tiles
+ *     - Type conversion (e.g., bf16 → f32) happens at macro-tile level (once per vector)
  *
- *  @par Diagonal vs Off-Diagonal Optimization
+ *  Diagonal and off-diagonal macro-tiles are optimized separately:
  *
  *  - @b Diagonal @b macro-tiles (i_macro == j_macro): Computes C[i:i+32, i:i+32]
- *    - Loads 32 vectors ONCE (50% load reduction vs off-diagonal)
+ *    - Loads 32 vectors once (50% load reduction vs off-diagonal)
  *    - Computes upper triangle only within the tile (10 FMAs per 4×4 block)
  *    - Uses nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_ helper
  *
@@ -2037,9 +2040,9 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *    - Computes full 32×32 block (16 FMAs per 4×4 block)
  *    - Uses nk_##api_name##_symmetric_offdiagonal_##input_type_name##_##isa_suffix##_ helper
  *
- *  @par When to Use Symmetric vs Packed Variant
+ *  Choose between the symmetric and packed variants by whether both sides are the same matrix:
  *
- *  - Use symmetric (this macro) when: A is the SAME matrix for both sides (C = A × Aᵀ)
+ *  - Use symmetric (this macro) when: A is the same matrix for both sides (C = A × Aᵀ)
  *    - Saves 50% computation and storage (upper triangle only)
  *    - Automatic diagonal optimization (50% fewer loads on diagonal tiles)
  *    - Ideal for: distance matrices, correlation matrices, Gram matrices
@@ -2048,9 +2051,7 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *    - Full matrix computation (no symmetry to exploit)
  *    - B can be pre-packed for cache efficiency
  *
- *  @par Generated Functions
- *
- *  This macro generates THREE functions:
+ *  This macro generates three functions:
  *  1. nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_ (NK_HELPER_INLINE)
  *  2. nk_##api_name##_symmetric_offdiagonal_##input_type_name##_##isa_suffix##_ (NK_HELPER_INLINE)
  *  3. nk_##api_name##_symmetric_##input_type_name##_##isa_suffix (NK_API_COMPTIME wrapper)
@@ -2092,7 +2093,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                                                                                                                        \
         nk_unused_(dimensions_per_value_runtime);                                                                      \
         nk_unused_(finalizer_batch_size);                                                                              \
-        /* Tile-first architecture: Process 32×32 macro-tile as 4×4 register tiles (depth innermost) */                \
+        /* Tile-first architecture: process a 32×32 macro-tile as                                                     \
+         * 4×4 register tiles, depth innermost */                                                                     \
         for (nk_size_t tile_row_start = 0; tile_row_start < macro_size; tile_row_start += 4) {                         \
             for (nk_size_t tile_column_start = tile_row_start; tile_column_start < macro_size;                         \
                  tile_column_start += 4) {                                                                             \
@@ -2101,8 +2103,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                 nk_size_t tile_columns = (tile_column_start + 4 <= macro_size) ? 4 : (macro_size - tile_column_start); \
                 int is_diagonal_tile = (tile_row_start == tile_column_start);                                          \
                                                                                                                        \
-                /* Initialize register-resident accumulators — padded to [4][7] so that the reduce call  */            \
-                /* (which always reads 4 consecutive entries starting at column_start) stays in bounds */              \
+                /* Register-resident accumulators, padded to [4][7] so that the reduce call, */                        \
+                /* which always reads 4 entries from column_start on, stays in bounds */                               \
                 NK_ALIGN64 state_type accumulators[4][7];                                                              \
                 for (nk_size_t row = 0; row < tile_rows; row++) {                                                      \
                     nk_size_t init_start = is_diagonal_tile ? row : 0;                                                 \
@@ -2274,7 +2276,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                                                                                                                        \
         nk_unused_(dimensions_per_value_runtime);                                                                      \
         nk_unused_(finalizer_batch_size);                                                                              \
-        /* Tile-first architecture: Process 32×32 macro-tile as 4×4 register tiles (depth innermost) */                \
+        /* Tile-first architecture: process a 32×32 macro-tile as                                                     \
+         * 4×4 register tiles, depth innermost */                                                                     \
         for (nk_size_t tile_row_start = 0; tile_row_start < macro_i_size; tile_row_start += 4) {                       \
             for (nk_size_t tile_column_start = 0; tile_column_start < macro_j_size; tile_column_start += 4) {          \
                                                                                                                        \
@@ -2282,7 +2285,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
                 nk_size_t tile_columns = (tile_column_start + 4 <= macro_j_size) ? 4                                   \
                                                                                  : (macro_j_size - tile_column_start); \
                                                                                                                        \
-                /* Initialize 4×4 register-resident accumulators (full rectangle for off-diagonal) */                  \
+                /* Initialize 4×4 register-resident accumulators, the full                                            \
+                 * rectangle for off-diagonal tiles */                                                                 \
                 NK_ALIGN64 state_type accumulators[4][4];                                                              \
                 for (nk_size_t row = 0; row < tile_rows; row++) {                                                      \
                     for (nk_size_t column = 0; column < tile_columns; column++) {                                      \
@@ -2422,7 +2426,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         nk_size_t const depth_step_values = depth_simd_dimensions / dimensions_per_value;                              \
         nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;   \
                                                                                                                        \
-        /* Process upper triangle with L3/L2/L1 blocking (column blocks → row blocks → 32×32 macro-tiles) */           \
+        /* Process the upper triangle with L3/L2/L1 blocking: column                                                   \
+         * blocks → row blocks → 32×32 macro-tiles */                                                             \
         for (nk_size_t j_block = 0; j_block < vectors_count; j_block += column_block_size) {                           \
             nk_size_t j_block_end = (j_block + column_block_size < vectors_count) ? j_block + column_block_size        \
                                                                                   : vectors_count;                     \
@@ -2430,8 +2435,8 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
             for (nk_size_t i_block = row_start; i_block < row_end; i_block += row_block_size) {                        \
                 nk_size_t i_block_end = (i_block + row_block_size < row_end) ? i_block + row_block_size : row_end;     \
                                                                                                                        \
-                /* Skip blocks entirely below diagonal. Blocks fully above the diagonal are still part of the upper    \
-                 * triangle and must be computed. */                                                                   \
+                /* Skip blocks entirely below diagonal. Blocks fully above the diagonal are still                      \
+                 * part of the upper triangle and must be computed. */                                                 \
                 if (i_block >= j_block_end) continue;                                                                  \
                                                                                                                        \
                 for (nk_size_t i_macro = i_block, macro_i_size; i_macro < i_block_end; i_macro += macro_i_size) {      \
@@ -2477,7 +2482,7 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *  wastes ~1 MB of binary and — more importantly — breaks the nk_*_serial-as-scalar-oracle contract
  *  that tests and the numerical-stability docs in this header rely on.
  *
- *  Clang gets no blanket region here: one expansion of `nk_define_cross_packed_` /
+ *  Clang gets no blanket region here: one expansion of @c nk_define_cross_packed_ /
  *  @c nk_define_cross_symmetric_ emits @c always_inline @c _aligned_ fast paths next to the kernel,
  *  and clang rejects @c noinline there; `no-ipa-cp-clone` stops the cloning instead. */
 #if defined(__GNUC__) && !defined(__clang__)

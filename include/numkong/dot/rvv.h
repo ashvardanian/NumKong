@@ -40,7 +40,8 @@
 extern "C" {
 #endif
 
-/** @brief Compensated horizontal sum of RVV f64m1 lanes via TwoSum tree reduction.
+/**
+ *  @brief Compensated horizontal sum of RVV f64m1 lanes via TwoSum tree reduction.
  *
  *  Uses vslidedown to extract the upper half at each tree level (same pattern as
  *  nk_reduce_vsaddu_u64m1_rvv_ in reduce/rvv.h). Tail lanes beyond vector_length are zero
@@ -284,7 +285,7 @@ NK_API_COMPTIME void nk_dot_e2m3_rvv(nk_e2m3_t const *a_scalars, nk_e2m3_t const
         vint8m1_t b_signed_i8m1 = __riscv_vmerge_vvm_i8m1(b_positive_i8m1, b_negated_i8m1, negate_mask_b8,
                                                           vector_length);
 
-        // Widening multiply: i8×i8 → i16, then accumulate: i32 += i16
+        // Widening multiply: i8 × i8 → i16, then accumulate: i32 += i16
         vint8m1_t a_signed_i8m1 = __riscv_vreinterpret_v_u8m1_i8m1(a_unsigned_u8m1);
         vint16m2_t products_i16m2 = __riscv_vwmul_vv_i16m2(a_signed_i8m1, b_signed_i8m1, vector_length);
         sum_i32m4 = __riscv_vwadd_wv_i32m4_tu(sum_i32m4, sum_i32m4, products_i16m2, vector_length);
@@ -366,7 +367,7 @@ NK_API_COMPTIME void nk_dot_e3m2_rvv(nk_e3m2_t const *a_scalars, nk_e3m2_t const
         vint16m2_t b_signed_i16m2 = __riscv_vreinterpret_v_u16m2_i16m2(b_unsigned_u16m2);
         b_signed_i16m2 = __riscv_vneg_v_i16m2_mu(b_negate_b8, b_signed_i16m2, b_signed_i16m2, vector_length);
 
-        // Widening multiply-accumulate: i16×i16 → i32
+        // Widening multiply-accumulate: i16 × i16 → i32
         sum_i32m4 = __riscv_vwmacc_vv_i32m4_tu(sum_i32m4, a_signed_i16m2, b_signed_i16m2, vector_length);
     }
     vint32m1_t zero_i32m1 = __riscv_vmv_v_x_i32m1(0, max_vector_length);

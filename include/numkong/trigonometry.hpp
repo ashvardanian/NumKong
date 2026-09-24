@@ -23,8 +23,8 @@ namespace ashvardanian::numkong {
  *  @param[out] out Output array
  *
  *  @tparam in_type_ Element type (f32_t, f64_t, f16_t)
- *  @tparam precision_type_ Precision type for scalar fallback, defaults to `in_type_`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void sin(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
@@ -46,8 +46,8 @@ void sin(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
  *  @param[out] out Output array
  *
  *  @tparam in_type_ Element type (f32_t, f64_t, f16_t)
- *  @tparam precision_type_ Precision type for scalar fallback, defaults to `in_type_`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void cos(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
@@ -69,8 +69,8 @@ void cos(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
  *  @param[out] out Output array
  *
  *  @tparam in_type_ Element type (f32_t, f64_t, f16_t)
- *  @tparam precision_type_ Precision type for scalar fallback, defaults to `in_type_`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void atan(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
@@ -94,13 +94,13 @@ void atan(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
  *  @param[out] y Output, same shape and dtype as x; may alias x for in-place rotation
  *  @param[in] cos,sin `[rows, @p half_dim]` per-token angle grids, shared across heads
  *  @param[in] rows,heads Token count and heads per token
- *  @param[in] half_dim Half the head dimension; channel `i` pairs with `i + half_dim`
+ *  @param[in] half_dim Half the head dimension; channel @c i pairs with `i + half_dim`
  *  @param[in] x_row_stride Row (token) stride of x in bytes
  *  @param[in] y_row_stride Row (token) stride of y in bytes
  *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32)
  *
  *  @tparam in_type_ Element type
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void rope(in_type_ const *x, in_type_ *y, f32_t const *cos, f32_t const *sin, std::size_t rows, std::size_t heads,

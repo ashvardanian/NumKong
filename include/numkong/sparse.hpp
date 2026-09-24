@@ -25,7 +25,7 @@ namespace ashvardanian::numkong {
  *  @param[out] count Output intersection count
  *
  *  @tparam index_type_ Index type (u16_t, u32_t, u64_t)
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype index_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void sparse_intersect(index_type_ const *a, index_type_ const *b, std::size_t a_length, std::size_t b_length,
@@ -66,8 +66,8 @@ void sparse_intersect(index_type_ const *a, index_type_ const *b, std::size_t a_
  *
  *  @tparam index_type_ Index type (u16_t, u32_t, u64_t)
  *  @tparam weight_t Weight type (bf16_t for u16 indices, f32_t for u32 indices)
- *  @tparam result_type_ Result type, defaults to `f32_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Result type, defaults to @c f32_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  *
  *  @note Computes sum of @p a_weights[i] * @p b_weights[j] for all i,j where a[i] == b[j]
  */

@@ -16,7 +16,7 @@
  *
  *  @section reduce_skylake_block_caps Block-Cap Overflow Thresholds
  *
- *  Dispatch functions use pairwise recursion when `count` exceeds a block cap.
+ *  Dispatch functions use pairwise recursion when @c count exceeds a block cap.
  *  The cap is sized so the iteration counter in the contiguous kernel never wraps.
  *
  *  Iteration counters start at 0, initial load, and increment by 1 per SIMD chunk. A u8 counter
@@ -57,7 +57,7 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-/** @brief Horizontal sum of 16 floats in a ZMM register (native f32 precision). */
+/** Horizontal sum of 16 floats in a ZMM register (native f32 precision). */
 NK_HELPER_INLINE nk_f32_t nk_reduce_add_f32x16_skylake_(__m512 sum_f32x16) {
     __m256 low_f32x8 = _mm512_castps512_ps256(sum_f32x16);
     __m256 high_f32x8 = _mm512_extractf32x8_ps(sum_f32x16, 1);
@@ -70,7 +70,7 @@ NK_HELPER_INLINE nk_f32_t nk_reduce_add_f32x16_skylake_(__m512 sum_f32x16) {
     return _mm_cvtss_f32(sum_f32x4);
 }
 
-/** @brief Horizontal sum of 8 doubles in a ZMM register. */
+/** Horizontal sum of 8 doubles in a ZMM register. */
 NK_HELPER_INLINE nk_f64_t nk_reduce_add_f64x8_skylake_(__m512d sum_f64x8) {
     __m256d low_f64x4 = _mm512_castpd512_pd256(sum_f64x8);
     __m256d high_f64x4 = _mm512_extractf64x4_pd(sum_f64x8, 1);
@@ -82,7 +82,7 @@ NK_HELPER_INLINE nk_f64_t nk_reduce_add_f64x8_skylake_(__m512d sum_f64x8) {
     return _mm_cvtsd_f64(sum_f64x2);
 }
 
-/** @brief Horizontal min of 16 floats in a ZMM register. */
+/** Horizontal min of 16 floats in a ZMM register. */
 NK_HELPER_INLINE nk_f32_t nk_reduce_min_f32x16_skylake_(__m512 min_f32x16) {
     __m256 low_f32x8 = _mm512_castps512_ps256(min_f32x16);
     __m256 high_f32x8 = _mm512_extractf32x8_ps(min_f32x16, 1);
@@ -95,7 +95,7 @@ NK_HELPER_INLINE nk_f32_t nk_reduce_min_f32x16_skylake_(__m512 min_f32x16) {
     return _mm_cvtss_f32(min_f32x4);
 }
 
-/** @brief Horizontal max of 16 floats in a ZMM register. */
+/** Horizontal max of 16 floats in a ZMM register. */
 NK_HELPER_INLINE nk_f32_t nk_reduce_max_f32x16_skylake_(__m512 max_f32x16) {
     __m256 low_f32x8 = _mm512_castps512_ps256(max_f32x16);
     __m256 high_f32x8 = _mm512_extractf32x8_ps(max_f32x16, 1);
@@ -108,7 +108,7 @@ NK_HELPER_INLINE nk_f32_t nk_reduce_max_f32x16_skylake_(__m512 max_f32x16) {
     return _mm_cvtss_f32(max_f32x4);
 }
 
-/** @brief Horizontal min of 8 doubles in a ZMM register. */
+/** Horizontal min of 8 doubles in a ZMM register. */
 NK_HELPER_INLINE nk_f64_t nk_reduce_min_f64x8_skylake_(__m512d min_f64x8) {
     __m256d low_f64x4 = _mm512_castpd512_pd256(min_f64x8);
     __m256d high_f64x4 = _mm512_extractf64x4_pd(min_f64x8, 1);
@@ -120,7 +120,7 @@ NK_HELPER_INLINE nk_f64_t nk_reduce_min_f64x8_skylake_(__m512d min_f64x8) {
     return _mm_cvtsd_f64(min_f64x2);
 }
 
-/** @brief Horizontal max of 8 doubles in a ZMM register. */
+/** Horizontal max of 8 doubles in a ZMM register. */
 NK_HELPER_INLINE nk_f64_t nk_reduce_max_f64x8_skylake_(__m512d max_f64x8) {
     __m256d low_f64x4 = _mm512_castpd512_pd256(max_f64x8);
     __m256d high_f64x4 = _mm512_extractf64x4_pd(max_f64x8, 1);
@@ -132,7 +132,7 @@ NK_HELPER_INLINE nk_f64_t nk_reduce_max_f64x8_skylake_(__m512d max_f64x8) {
     return _mm_cvtsd_f64(max_f64x2);
 }
 
-/** @brief Horizontal sum of 16 i32s in a ZMM register. */
+/** Horizontal sum of 16 i32s in a ZMM register. */
 NK_HELPER_INLINE nk_i32_t nk_reduce_add_i32x16_skylake_(__m512i sum_i32x16) {
     __m256i low_i32x8 = _mm512_castsi512_si256(sum_i32x16);
     __m256i high_i32x8 = _mm512_extracti32x8_epi32(sum_i32x16, 1);
@@ -145,7 +145,7 @@ NK_HELPER_INLINE nk_i32_t nk_reduce_add_i32x16_skylake_(__m512i sum_i32x16) {
     return _mm_cvtsi128_si32(sum_i32x4);
 }
 
-/** @brief Horizontal sum of 8 i64s in a ZMM register. */
+/** Horizontal sum of 8 i64s in a ZMM register. */
 NK_HELPER_INLINE nk_i64_t nk_reduce_add_i64x8_skylake_(__m512i sum_i64x8) {
     __m256i low_i64x4 = _mm512_castsi512_si256(sum_i64x8);
     __m256i high_i64x4 = _mm512_extracti64x4_epi64(sum_i64x8, 1);
@@ -253,9 +253,7 @@ NK_HELPER_INLINE __mmask8 nk_stride_mask_b64x8_(nk_size_t stride) {
     }
 }
 
-/**
- *  @brief Returns number of logical elements per 16-scalar chunk for given stride.
- */
+/** Returns number of logical elements per 16-scalar chunk for given stride. */
 NK_HELPER_INLINE nk_size_t nk_stride_elems_b32x16_(nk_size_t stride) {
     switch (stride) {
     case 2: return 8;
@@ -269,9 +267,7 @@ NK_HELPER_INLINE nk_size_t nk_stride_elems_b32x16_(nk_size_t stride) {
     }
 }
 
-/**
- *  @brief Returns number of logical elements per 8-scalar chunk for given stride.
- */
+/** Returns number of logical elements per 8-scalar chunk for given stride. */
 NK_HELPER_INLINE nk_size_t nk_stride_elems_b64x8_(nk_size_t stride) {
     switch (stride) {
     case 2: return 4;
@@ -285,7 +281,7 @@ NK_HELPER_INLINE nk_size_t nk_stride_elems_b64x8_(nk_size_t stride) {
     }
 }
 
-/** @brief Horizontal min of 64 signed i8s in a ZMM register. */
+/** Horizontal min of 64 signed i8s in a ZMM register. */
 NK_HELPER_INLINE nk_i8_t nk_reduce_min_i8x64_skylake_(__m512i min_i8x64) {
     __m256i low_i8x32 = _mm512_castsi512_si256(min_i8x64);
     __m256i high_i8x32 = _mm512_extracti64x4_epi64(min_i8x64, 1);
@@ -300,7 +296,7 @@ NK_HELPER_INLINE nk_i8_t nk_reduce_min_i8x64_skylake_(__m512i min_i8x64) {
     return (nk_i8_t)_mm_cvtsi128_si32(min_i8x16);
 }
 
-/** @brief Horizontal max of 64 signed i8s in a ZMM register. */
+/** Horizontal max of 64 signed i8s in a ZMM register. */
 NK_HELPER_INLINE nk_i8_t nk_reduce_max_i8x64_skylake_(__m512i max_i8x64) {
     __m256i low_i8x32 = _mm512_castsi512_si256(max_i8x64);
     __m256i high_i8x32 = _mm512_extracti64x4_epi64(max_i8x64, 1);
@@ -315,7 +311,7 @@ NK_HELPER_INLINE nk_i8_t nk_reduce_max_i8x64_skylake_(__m512i max_i8x64) {
     return (nk_i8_t)_mm_cvtsi128_si32(max_i8x16);
 }
 
-/** @brief Horizontal min of 64 unsigned u8s in a ZMM register. */
+/** Horizontal min of 64 unsigned u8s in a ZMM register. */
 NK_HELPER_INLINE nk_u8_t nk_reduce_min_u8x64_skylake_(__m512i min_u8x64) {
     __m256i low_u8x32 = _mm512_castsi512_si256(min_u8x64);
     __m256i high_u8x32 = _mm512_extracti64x4_epi64(min_u8x64, 1);
@@ -330,7 +326,7 @@ NK_HELPER_INLINE nk_u8_t nk_reduce_min_u8x64_skylake_(__m512i min_u8x64) {
     return (nk_u8_t)_mm_cvtsi128_si32(min_u8x16);
 }
 
-/** @brief Horizontal max of 64 unsigned u8s in a ZMM register. */
+/** Horizontal max of 64 unsigned u8s in a ZMM register. */
 NK_HELPER_INLINE nk_u8_t nk_reduce_max_u8x64_skylake_(__m512i max_u8x64) {
     __m256i low_u8x32 = _mm512_castsi512_si256(max_u8x64);
     __m256i high_u8x32 = _mm512_extracti64x4_epi64(max_u8x64, 1);
@@ -345,7 +341,7 @@ NK_HELPER_INLINE nk_u8_t nk_reduce_max_u8x64_skylake_(__m512i max_u8x64) {
     return (nk_u8_t)_mm_cvtsi128_si32(max_u8x16);
 }
 
-/** @brief Horizontal min of 32 signed i16s in a ZMM register. */
+/** Horizontal min of 32 signed i16s in a ZMM register. */
 NK_HELPER_INLINE nk_i16_t nk_reduce_min_i16x32_skylake_(__m512i min_i16x32) {
     __m256i low_i16x16 = _mm512_castsi512_si256(min_i16x32);
     __m256i high_i16x16 = _mm512_extracti64x4_epi64(min_i16x32, 1);
@@ -359,7 +355,7 @@ NK_HELPER_INLINE nk_i16_t nk_reduce_min_i16x32_skylake_(__m512i min_i16x32) {
     return (nk_i16_t)_mm_cvtsi128_si32(min_i16x8);
 }
 
-/** @brief Horizontal max of 32 signed i16s in a ZMM register. */
+/** Horizontal max of 32 signed i16s in a ZMM register. */
 NK_HELPER_INLINE nk_i16_t nk_reduce_max_i16x32_skylake_(__m512i max_i16x32) {
     __m256i low_i16x16 = _mm512_castsi512_si256(max_i16x32);
     __m256i high_i16x16 = _mm512_extracti64x4_epi64(max_i16x32, 1);
@@ -373,7 +369,7 @@ NK_HELPER_INLINE nk_i16_t nk_reduce_max_i16x32_skylake_(__m512i max_i16x32) {
     return (nk_i16_t)_mm_cvtsi128_si32(max_i16x8);
 }
 
-/** @brief Horizontal min of 32 unsigned u16s in a ZMM register. */
+/** Horizontal min of 32 unsigned u16s in a ZMM register. */
 NK_HELPER_INLINE nk_u16_t nk_reduce_min_u16x32_skylake_(__m512i min_u16x32) {
     __m256i low_u16x16 = _mm512_castsi512_si256(min_u16x32);
     __m256i high_u16x16 = _mm512_extracti64x4_epi64(min_u16x32, 1);
@@ -387,7 +383,7 @@ NK_HELPER_INLINE nk_u16_t nk_reduce_min_u16x32_skylake_(__m512i min_u16x32) {
     return (nk_u16_t)_mm_cvtsi128_si32(min_u16x8);
 }
 
-/** @brief Horizontal max of 32 unsigned u16s in a ZMM register. */
+/** Horizontal max of 32 unsigned u16s in a ZMM register. */
 NK_HELPER_INLINE nk_u16_t nk_reduce_max_u16x32_skylake_(__m512i max_u16x32) {
     __m256i low_u16x16 = _mm512_castsi512_si256(max_u16x32);
     __m256i high_u16x16 = _mm512_extracti64x4_epi64(max_u16x32, 1);
@@ -401,7 +397,7 @@ NK_HELPER_INLINE nk_u16_t nk_reduce_max_u16x32_skylake_(__m512i max_u16x32) {
     return (nk_u16_t)_mm_cvtsi128_si32(max_u16x8);
 }
 
-/** @brief Horizontal min of 16 signed i32s in a ZMM register. */
+/** Horizontal min of 16 signed i32s in a ZMM register. */
 NK_HELPER_INLINE nk_i32_t nk_reduce_min_i32x16_skylake_(__m512i min_i32x16) {
     __m256i low_i32x8 = _mm512_castsi512_si256(min_i32x16);
     __m256i high_i32x8 = _mm512_extracti64x4_epi64(min_i32x16, 1);
@@ -414,7 +410,7 @@ NK_HELPER_INLINE nk_i32_t nk_reduce_min_i32x16_skylake_(__m512i min_i32x16) {
     return _mm_cvtsi128_si32(min_i32x4);
 }
 
-/** @brief Horizontal max of 16 signed i32s in a ZMM register. */
+/** Horizontal max of 16 signed i32s in a ZMM register. */
 NK_HELPER_INLINE nk_i32_t nk_reduce_max_i32x16_skylake_(__m512i max_i32x16) {
     __m256i low_i32x8 = _mm512_castsi512_si256(max_i32x16);
     __m256i high_i32x8 = _mm512_extracti64x4_epi64(max_i32x16, 1);
@@ -427,7 +423,7 @@ NK_HELPER_INLINE nk_i32_t nk_reduce_max_i32x16_skylake_(__m512i max_i32x16) {
     return _mm_cvtsi128_si32(max_i32x4);
 }
 
-/** @brief Horizontal min of 16 unsigned u32s in a ZMM register. */
+/** Horizontal min of 16 unsigned u32s in a ZMM register. */
 NK_HELPER_INLINE nk_u32_t nk_reduce_min_u32x16_skylake_(__m512i min_u32x16) {
     __m256i low_u32x8 = _mm512_castsi512_si256(min_u32x16);
     __m256i high_u32x8 = _mm512_extracti64x4_epi64(min_u32x16, 1);
@@ -440,7 +436,7 @@ NK_HELPER_INLINE nk_u32_t nk_reduce_min_u32x16_skylake_(__m512i min_u32x16) {
     return (nk_u32_t)_mm_cvtsi128_si32(min_u32x4);
 }
 
-/** @brief Horizontal max of 16 unsigned u32s in a ZMM register. */
+/** Horizontal max of 16 unsigned u32s in a ZMM register. */
 NK_HELPER_INLINE nk_u32_t nk_reduce_max_u32x16_skylake_(__m512i max_u32x16) {
     __m256i low_u32x8 = _mm512_castsi512_si256(max_u32x16);
     __m256i high_u32x8 = _mm512_extracti64x4_epi64(max_u32x16, 1);
@@ -453,7 +449,7 @@ NK_HELPER_INLINE nk_u32_t nk_reduce_max_u32x16_skylake_(__m512i max_u32x16) {
     return (nk_u32_t)_mm_cvtsi128_si32(max_u32x4);
 }
 
-/** @brief Horizontal min of 8 signed i64s in a ZMM register. */
+/** Horizontal min of 8 signed i64s in a ZMM register. */
 NK_HELPER_INLINE nk_i64_t nk_reduce_min_i64x8_skylake_(__m512i min_i64x8) {
     __m256i low_i64x4 = _mm512_castsi512_si256(min_i64x8);
     __m256i high_i64x4 = _mm512_extracti64x4_epi64(min_i64x8, 1);
@@ -466,7 +462,7 @@ NK_HELPER_INLINE nk_i64_t nk_reduce_min_i64x8_skylake_(__m512i min_i64x8) {
     return _mm_cvtsi128_si64(final_i64x2);
 }
 
-/** @brief Horizontal max of 8 signed i64s in a ZMM register. */
+/** Horizontal max of 8 signed i64s in a ZMM register. */
 NK_HELPER_INLINE nk_i64_t nk_reduce_max_i64x8_skylake_(__m512i max_i64x8) {
     __m256i low_i64x4 = _mm512_castsi512_si256(max_i64x8);
     __m256i high_i64x4 = _mm512_extracti64x4_epi64(max_i64x8, 1);
@@ -479,7 +475,7 @@ NK_HELPER_INLINE nk_i64_t nk_reduce_max_i64x8_skylake_(__m512i max_i64x8) {
     return _mm_cvtsi128_si64(final_i64x2);
 }
 
-/** @brief Horizontal min of 8 unsigned u64s in a ZMM register. */
+/** Horizontal min of 8 unsigned u64s in a ZMM register. */
 NK_HELPER_INLINE nk_u64_t nk_reduce_min_u64x8_skylake_(__m512i min_u64x8) {
     __m256i low_u64x4 = _mm512_castsi512_si256(min_u64x8);
     __m256i high_u64x4 = _mm512_extracti64x4_epi64(min_u64x8, 1);
@@ -492,7 +488,7 @@ NK_HELPER_INLINE nk_u64_t nk_reduce_min_u64x8_skylake_(__m512i min_u64x8) {
     return (nk_u64_t)_mm_cvtsi128_si64(final_u64x2);
 }
 
-/** @brief Horizontal max of 8 unsigned u64s in a ZMM register. */
+/** Horizontal max of 8 unsigned u64s in a ZMM register. */
 NK_HELPER_INLINE nk_u64_t nk_reduce_max_u64x8_skylake_(__m512i max_u64x8) {
     __m256i low_u64x4 = _mm512_castsi512_si256(max_u64x8);
     __m256i high_u64x4 = _mm512_extracti64x4_epi64(max_u64x8, 1);
@@ -505,7 +501,7 @@ NK_HELPER_INLINE nk_u64_t nk_reduce_max_u64x8_skylake_(__m512i max_u64x8) {
     return (nk_u64_t)_mm_cvtsi128_si64(final_u64x2);
 }
 
-/** @brief Horizontal sum of 8 unsigned u64s in a ZMM register. */
+/** Horizontal sum of 8 unsigned u64s in a ZMM register. */
 NK_HELPER_INLINE nk_u64_t nk_reduce_add_u64x8_skylake_(__m512i sum_u64x8) {
     __m256i low_u64x4 = _mm512_castsi512_si256(sum_u64x8);
     __m256i high_u64x4 = _mm512_extracti64x4_epi64(sum_u64x8, 1);
@@ -534,14 +530,14 @@ NK_HELPER_INLINE __m512i nk_u8x64_comparable_to_fp8x64_skylake_(__m512i cmp_i8x6
     return _mm512_xor_si512(cmp_i8x64, xor_i8x64);
 }
 
-/** @brief Horizontal argmin: returns index of first minimum unsigned byte in ZMM register. */
+/** Horizontal argmin: returns index of first minimum unsigned byte in ZMM register. */
 NK_HELPER_INLINE nk_size_t nk_argmin_u8x64_skylake_(__m512i data_u8x64) {
     nk_u8_t min_value = nk_reduce_min_u8x64_skylake_(data_u8x64);
     __mmask64 eq_m64 = _mm512_cmpeq_epi8_mask(data_u8x64, _mm512_set1_epi8((char)min_value));
     return (nk_size_t)_tzcnt_u64(eq_m64);
 }
 
-/** @brief Horizontal argmax: returns index of first maximum unsigned byte in ZMM register. */
+/** Horizontal argmax: returns index of first maximum unsigned byte in ZMM register. */
 NK_HELPER_INLINE nk_size_t nk_argmax_u8x64_skylake_(__m512i data_u8x64) {
     nk_u8_t max_value = nk_reduce_max_u8x64_skylake_(data_u8x64);
     __mmask64 eq_m64 = _mm512_cmpeq_epi8_mask(data_u8x64, _mm512_set1_epi8((char)max_value));
@@ -1706,14 +1702,14 @@ NK_API_COMPTIME void nk_reduce_minmax_u16_skylake(                     //
                                     max_index_ptr);
 }
 
-/** @brief Unsigned saturating add of two u64x8 vectors (3 uops). */
+/** Unsigned saturating add of two u64x8 vectors (3 uops). */
 NK_HELPER_INLINE __m512i nk_u64_sadd_epi64_skylake_(__m512i a, __m512i b) {
     __m512i result_u64x8 = _mm512_add_epi64(a, b);
     __mmask8 ovf_m8 = _mm512_cmp_epu64_mask(result_u64x8, a, _MM_CMPINT_LT);
     return _mm512_mask_mov_epi64(result_u64x8, ovf_m8, _mm512_set1_epi64((nk_i64_t)-1));
 }
 
-/** @brief Saturating i64 square: clamp when |val| > floor(sqrt(INT64_MAX)). */
+/** Saturating i64 square, clamping when the magnitude of @p value exceeds ⌊√INT64_MAX⌋. */
 NK_HELPER_INLINE __m512i nk_i64_smul_sq_epi64_skylake_(__m512i value) {
     __m512i sq_i64x8 = _mm512_mullo_epi64(value, value);
     __m512i abs_value_u64x8 = _mm512_abs_epi64(value);
@@ -1721,17 +1717,16 @@ NK_HELPER_INLINE __m512i nk_i64_smul_sq_epi64_skylake_(__m512i value) {
     return _mm512_mask_mov_epi64(sq_i64x8, ovf_m8, _mm512_set1_epi64(9223372036854775807ll));
 }
 
-/** @brief Saturating u64 square: clamp when val > floor(sqrt(UINT64_MAX)). */
+/** Saturating u64 square, clamping when @p value > ⌊√UINT64_MAX⌋. */
 NK_HELPER_INLINE __m512i nk_u64_smul_sq_epi64_skylake_(__m512i value) {
     __m512i sq_u64x8 = _mm512_mullo_epi64(value, value);
     __mmask8 ovf_m8 = _mm512_cmp_epu64_mask(value, _mm512_set1_epi64(4294967295ll), _MM_CMPINT_NLE);
     return _mm512_mask_mov_epi64(sq_u64x8, ovf_m8, _mm512_set1_epi64((nk_i64_t)-1));
 }
 
-/** @brief Saturating horizontal sum of 8 unsigned u64 lanes.
- *  Tree reduction: unsigned saturating add is order-independent because the
- *  accumulator can only increase — once saturated to UINT64_MAX, it stays there.
- *  Result equals min(true_sum, UINT64_MAX) regardless of reduction order. */
+/** Saturating horizontal sum of 8 unsigned u64 lanes by tree reduction. Unsigned saturating add is
+ *  order-independent because the accumulator can only increase, and once saturated to UINT64_MAX it
+ *  stays there, so the result equals min(true_sum, UINT64_MAX) regardless of reduction order. */
 NK_HELPER_INLINE nk_u64_t nk_reduce_sadd_u64x8_skylake_(__m512i v) {
     // 8→4: fold high 256 bits into low 256 bits (VSHUFI64X2 + 3-uop sat-add)
     v = nk_u64_sadd_epi64_skylake_(v, _mm512_shuffle_i64x2(v, v, _MM_SHUFFLE(1, 0, 3, 2)));

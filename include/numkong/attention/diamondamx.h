@@ -54,15 +54,18 @@ extern "C" {
 #endif
 
 enum {
+
     /** KV panel width in positions; the F32 score row stays L1-resident. */
     nk_attention_panel_diamondamx_k_ = 512,
+
     /** Widest head this backend handles in registers; larger heads route to the serial tier. */
     nk_attention_max_depth_diamondamx_k_ = 256,
 };
 
-/** @brief Drains the four FP32 accumulator tiles (TDPBF16PS / TDPHF8PS) of one 2×2 register block to the
- *  score panel, one ZMM row per tile per iteration. Tiles 0/1 fill the top 16 rows, 2/3 the bottom 16;
- *  `_tile_movrow` takes the tile as a compile-time immediate, so all four are written out explicitly. */
+/** Drains the four FP32 accumulator tiles (TDPBF16PS / TDPHF8PS) of one 2×2 register block to
+ *  the score panel, one ZMM row per tile per iteration. Tiles 0/1 fill the top 16 rows, 2/3 the
+ *  bottom 16; @c _tile_movrow takes the tile as a compile-time immediate, so all four are
+ *  written out explicitly. */
 NK_HELPER_INLINE void nk_attention_f32_store_grid_diamondamx_(nk_f32_t *scores_panel, nk_size_t pair_idx,
                                                               nk_size_t panel_width) {
     for (unsigned row_idx = 0; row_idx < 16; row_idx++) {
@@ -75,9 +78,9 @@ NK_HELPER_INLINE void nk_attention_f32_store_grid_diamondamx_(nk_f32_t *scores_p
     }
 }
 
-/** @brief Fuses the four FP32 accumulator tiles of one 2×2 register block into `o_acc` row-wise as
- *  `o = o·correction + drained`. Tiles 0/1 use the top row-tile's corrections, 2/3 the bottom's;
- *  `_tile_movrow` needs a compile-time tile immediate, so all four are written out explicitly. */
+/** Fuses the four FP32 accumulator tiles of one 2×2 register block into @p o_acc row-wise as o = o
+ *  · correction + drained. Tiles 0/1 use the top row-tile's corrections, 2/3 the bottom's;
+ *  @c _tile_movrow needs a compile-time tile immediate, so all four are written out explicitly. */
 NK_HELPER_INLINE void nk_attention_f32_accumulate_grid_diamondamx_(nk_size_t channel_start, nk_f32_t *o_acc,
                                                                    nk_size_t output_stride_floats,
                                                                    nk_f32_t const (*corrections)[16]) {
@@ -97,19 +100,19 @@ NK_HELPER_INLINE void nk_attention_f32_accumulate_grid_diamondamx_(nk_size_t cha
     }
 }
 
-/** @brief Quantizes 16 F32 probabilities to E4M3: F32→F16 (VCVTPS2PHX) then F16→E4M3 (VCVT2PH2HF8).
+/** Quantizes 16 F32 probabilities to E4M3: F32 → F16 (VCVTPS2PHX) then F16 → E4M3 (VCVT2PH2HF8).
  *  The second VCVT2PH2HF8 operand fills the result's low half, so the payload rides there. */
 NK_HELPER_INLINE __m128i nk_attention_quantize_e4m3x16_diamondamx_(__m512 weights_f32x16) {
     __m512h const weights_f16x32 = _mm512_castph256_ph512(_mm512_cvtxps_ph(weights_f32x16));
     return _mm512_castsi512_si128(_mm512_cvts_2ph_hf8(_mm512_setzero_ph(), weights_f16x32));
 }
 
-/** @brief Widens 16 E4M3 probabilities back to F32 (VCVTHF82PH + VCVTPH2PSX) for a consistent sum. */
+/** Widens 16 E4M3 probabilities back to F32 (VCVTHF82PH + VCVTPH2PSX) for a consistent sum. */
 NK_HELPER_INLINE __m512 nk_attention_dequantize_e4m3x16_diamondamx_(__m128i weights_e4m3x16) {
     return _mm512_cvtxph_ps(_mm256_cvthf8_ph(weights_e4m3x16));
 }
 
-/** @brief E4M3 native and I8 share a raw 1-byte, 64-deep, quad-interleaved tile layout. */
+/** E4M3 native and I8 share a raw 1-byte, 64-deep, quad-interleaved tile layout. */
 NK_HELPER_INLINE nk_size_t nk_attention_pack_size_quad_diamondamx_(nk_size_t key_value_head_count, nk_size_t depth,
                                                                    nk_u32_t const *segment_lengths,
                                                                    nk_size_t segment_count) {
@@ -135,7 +138,7 @@ NK_API_COMPTIME void nk_attention_packed_shape_e4m3_diamondamx(void const *key_v
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
 }
 
-/** @brief Raw 1-byte packing shared by E4M3-native and I8: K transposed, V quad-interleaved. */
+/** Raw 1-byte packing shared by E4M3-native and I8: K transposed, V quad-interleaved. */
 NK_HELPER_INLINE void nk_attention_pack_quad_diamondamx_(                                        //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
@@ -251,7 +254,8 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_diamondamx( //
                                        value_stride_bytes, key_value_packed, task_begin, task_end);
 }
 
-/** @brief Lanes of the 16 columns starting at `position_idx` that fall inside `[column_begin, column_end)`. */
+/** Lanes of the 16 columns starting at @p position_idx that fall between @p column_begin inclusive
+ *  and @p column_end exclusive. */
 NK_HELPER_INLINE __mmask16 nk_attention_columns_mask_diamondamx_(nk_size_t position_idx, nk_size_t column_begin,
                                                                  nk_size_t column_end) {
     nk_u32_t const below = column_begin > position_idx ? (nk_u32_t)(column_begin - position_idx) : 0;
@@ -259,7 +263,8 @@ NK_HELPER_INLINE __mmask16 nk_attention_columns_mask_diamondamx_(nk_size_t posit
     return (__mmask16)(((1u << above) - 1) & ~((1u << below) - 1));
 }
 
-/** @brief Row maxima of an FP32 score panel, row `r` over its columns `[column_begins[r], column_ends[r])`. */
+/** Row maxima of an FP32 score panel, row @c r over its columns from @p column_begins at @c r
+ *  inclusive to @p column_ends at @c r exclusive. */
 NK_HELPER_INLINE void nk_attention_panel_rowmax_diamondamx_(nk_f32_t const *scores_panel, nk_size_t panel_width,
                                                             nk_size_t const *column_begins,
                                                             nk_size_t const *column_ends, nk_f32_t (*panel_max)[16]) {
@@ -275,7 +280,7 @@ NK_HELPER_INLINE void nk_attention_panel_rowmax_diamondamx_(nk_f32_t const *scor
     }
 }
 
-/** @brief E4M3 native Q×Kᵀ: `_tile_dphf8ps` over 64-deep raw E4M3 tiles, drained to FP32. */
+/** E4M3 native Q × Kᵀ: @c _tile_dphf8ps over 64-deep raw E4M3 tiles, drained to FP32. */
 NK_HELPER_INLINE void nk_attention_score_panel_e4m3_diamondamx_(
     nk_dots_i8_a16x64_sapphireamx_t const (*queries_tiles)[4], nk_i8_t const *keys_head_tiles,
     nk_size_t panel_first_tile, nk_size_t panel_pairs, nk_size_t depth_blocks, nk_f32_t *scores_panel,
@@ -302,15 +307,12 @@ NK_HELPER_INLINE void nk_attention_score_panel_e4m3_diamondamx_(
     }
 }
 
-/**
- *  @brief Streaming base-2 softmax → E4M3 weights, stored as `e4m3(256 · 2^(s₂ − m₂))`.
- *  The ×256 amplitude (the U8 tier's 255, rounded to a power of two so it divides out
- *  exactly) keeps every live weight down to 2⁻¹⁴ of the row maximum in E4M3's @b normal
- *  range: TDPHF8PS treats subnormal inputs as zero, so unscaled sub-2⁻⁶ weights would
- *  vanish from the P×V numerator while the dequantized sum kept them — a shrink-toward-zero
- *  bias that grows with context length. The sum accumulates the dequantized scaled
- *  weights, so the 256 cancels in normalization.
- */
+/** Streaming base-2 softmax → E4M3 weights, stored as e4m3(256 · 2^(s₂ − m₂)). The × 256 amplitude
+ *  (the U8 tier's 255, rounded to a power of two so it divides out exactly) keeps every live weight
+ *  down to 2⁻¹⁴ of the row maximum in E4M3's @b normal range: TDPHF8PS treats subnormal inputs as
+ *  zero, so unscaled sub-2⁻⁶ weights would vanish from the P × V numerator while the dequantized
+ *  sum kept them — a shrink-toward-zero bias that grows with context length. The sum accumulates
+ *  the dequantized scaled weights, so the 256 cancels in normalization. */
 NK_HELPER_INLINE void nk_attention_exp_panel_e4m3_diamondamx_(nk_f32_t const *scores_panel, nk_e4m3_t *weights_panel,
                                                               nk_size_t panel_length, nk_size_t const *column_begins,
                                                               nk_size_t const *column_ends, nk_size_t panel_width,
@@ -343,7 +345,7 @@ NK_HELPER_INLINE void nk_attention_exp_panel_e4m3_diamondamx_(nk_f32_t const *sc
     }
 }
 
-/** @brief E4M3 native P×V: `_tile_dphf8ps` (E4M3 weights × E4M3 values → FP32), fused on drain. */
+/** E4M3 native P × V: @c _tile_dphf8ps (E4M3 weights × E4M3 values → FP32), fused on drain. */
 NK_HELPER_INLINE void nk_attention_weighted_sum_panel_e4m3_diamondamx_(
     nk_e4m3_t const *weights_panel, nk_size_t panel_width, nk_i8_t const *values_head_tiles,
     nk_size_t position_blocks_total, nk_size_t panel_first_block, nk_size_t panel_blocks, nk_size_t depth_tiles,
@@ -372,7 +374,7 @@ NK_HELPER_INLINE void nk_attention_weighted_sum_panel_e4m3_diamondamx_(
     }
 }
 
-/** @brief E4M3 native per-call scratch: FP32 scores, E4M3 weights, output accumulators, raw Q tiles. */
+/** E4M3 native per-call scratch: FP32 scores, E4M3 weights, output accumulators, raw Q tiles. */
 typedef struct {
     NK_ALIGN64 nk_f32_t scores_panel[32 * nk_attention_panel_diamondamx_k_];
     NK_ALIGN64 nk_e4m3_t weights_panel[32 * nk_attention_panel_diamondamx_k_];
@@ -380,8 +382,9 @@ typedef struct {
     nk_dots_i8_a16x64_sapphireamx_t queries_tiles[4][2][4];
 } nk_attention_scratch_e4m3_diamondamx_t_;
 
-/** @brief E4M3 native (segment, head) task: `_tile_dphf8ps` scores and P×V with E4M3-quantized weights.
- *  Row `r` reads only the keys `nk_attention_row_range_(r + diagonal_offset, window, …)` admits. */
+/** E4M3 native (segment, head) task: @c _tile_dphf8ps scores and P × V with E4M3-quantized weights.
+ *  Row @c r reads only the keys that @c nk_attention_row_range_ admits for position r +
+ *  @p diagonal_offset and @p window. */
 NK_HELPER_INLINE void nk_attention_task_e4m3_diamondamx_(
     nk_e4m3_t const *queries, nk_f32_t *output, nk_i8_t const *keys_head_tiles, nk_i8_t const *values_head_tiles,
     nk_size_t head_idx, nk_size_t depth, nk_size_t position_count, nk_size_t position_count_padded,
@@ -534,7 +537,8 @@ NK_HELPER_INLINE void nk_attention_task_e4m3_diamondamx_(
     }
 }
 
-/** @brief E4M3 attention over `(task_start, task_count)`, reading only the keys each row's range admits. */
+/** E4M3 attention over [task_start, task_start + task_count), reading only the keys each row's
+ *  range admits. */
 NK_HELPER_INLINE void nk_attention_packed_e4m3_diamondamx_(                      //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //

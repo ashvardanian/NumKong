@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/spatials.hpp
  *  @author Ash Vardanian
- *  @date March 2026
+ *  @date March 6, 2026
  *  @brief C++ wrappers for SIMD-accelerated batched spatial distance matrices.
  */
 #ifndef NK_SPATIALS_HPP
@@ -29,8 +29,8 @@ namespace ashvardanian::numkong {
  *  @param[in] row_count Number of rows to compute, default all
  *
  *  @tparam in_type_ Input element type
- *  @tparam result_type_ Output type, defaults to `in_type_::angular_result_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Output type, defaults to @c in_type_::angular_result_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
@@ -117,8 +117,8 @@ void angulars_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_
  *  @param[in] row_count Number of rows to compute, default all
  *
  *  @tparam in_type_ Input element type
- *  @tparam result_type_ Output type, defaults to `in_type_::euclidean_result_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Output type, defaults to @c in_type_::euclidean_result_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::euclidean_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
@@ -200,8 +200,8 @@ void euclideans_symmetric(in_type_ const *a, std::size_t vectors_count, std::siz
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
  *
  *  @tparam in_type_ Input element type
- *  @tparam result_type_ Output type, defaults to `in_type_::angular_result_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Output type, defaults to @c in_type_::angular_result_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
@@ -293,8 +293,8 @@ void angulars_packed(in_type_ const *a, void const *b_packed, result_type_ *c, s
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
  *
  *  @tparam in_type_ Input element type
- *  @tparam result_type_ Output type, defaults to `in_type_::euclidean_result_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Output type, defaults to @c in_type_::euclidean_result_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::euclidean_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>

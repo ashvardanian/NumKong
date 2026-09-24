@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/probability/serial.h
  *  @author Ash Vardanian
- *  @date February 6, 2026
+ *  @date October 20, 2023
  *  @brief Serial probability distribution similarity measures.
  *
  *  @sa include/numkong/probability.h
@@ -49,20 +49,18 @@ extern "C" {
     }
 
 /**
- *  @brief  Computes `log(x)` for any positive float using IEEE 754 bit extraction
- *          and a fast-converging series expansion.
+ *  @brief Computes log(x) for any positive float using IEEE 754 bit extraction and a
+ *      fast-converging series expansion.
  *
- *  Exploits the IEEE 754 representation to extract the exponent and mantissa:
- *  `log(x) = log(2) * exponent + log(mantissa)`. The mantissa is reduced to the
- *  range `[√2/2, √2]` for optimal convergence. Uses the transformation
- *  `u = (m-1)/(m+1)` which converges much faster than the classic Mercator series,
- *  since `u` is bounded to approximately `[-0.17, 0.17]` after range reduction.
+ *  Exploits the IEEE 754 representation to extract the exponent and mantissa, as log(x) = log(2) ×
+ *  exponent + log(mantissa). The mantissa is reduced to the range [√2/2, √2] for optimal
+ *  convergence. The transformation u = (m − 1) / (m + 1) converges much faster than the classic
+ *  Mercator series, since u is bounded to approximately [−0.17, 0.17] after range reduction.
  *
- *  Maximum relative error is approximately 0.00001% across all positive floats,
- *  roughly 300,000x more accurate than the 3-term Mercator series (which also
- *  only converges for inputs in `(0, 2)`).
+ *  Maximum relative error is approximately 0.00001% across all positive floats, roughly 300,000×
+ *  more accurate than the 3-term Mercator series, which also only converges for inputs in (0, 2).
  *
- *  https://en.wikipedia.org/wiki/Logarithm#Power_series
+ *  @see Logarithm power series: https://en.wikipedia.org/wiki/Logarithm#Power_series
  */
 NK_HELPER_INLINE nk_f32_t nk_f32_log_serial_(nk_f32_t x) {
     nk_fui32_t conv;
@@ -81,19 +79,18 @@ NK_HELPER_INLINE nk_f32_t nk_f32_log_serial_(nk_f32_t x) {
 }
 
 /**
- *  @brief  Computes `log(x)` for any positive double using IEEE 754 bit extraction
- *          and a fast-converging series expansion.
+ *  @brief Computes log(x) for any positive double using IEEE 754 bit extraction and a
+ *      fast-converging series expansion.
  *
- *  Exploits the IEEE 754 representation to extract the 11-bit exponent and 52-bit mantissa:
- *  `log(x) = log(2) * exponent + log(mantissa)`. The mantissa is reduced to the
- *  range `[√2/2, √2]` for optimal convergence. Uses the transformation
- *  `u = (m-1)/(m+1)` which converges much faster than the classic Mercator series,
- *  since `u` is bounded to approximately `[-0.17, 0.17]` after range reduction.
+ *  Exploits the IEEE 754 representation to extract the 11-bit exponent and 52-bit mantissa, as
+ *  log(x) = log(2) × exponent + log(mantissa). The mantissa is reduced to the range [√2/2, √2] for
+ *  optimal convergence. The transformation u = (m − 1) / (m + 1) converges much faster than the
+ *  classic Mercator series, since u stays within about [−0.17, 0.17] after range reduction.
  *
- *  Uses more series terms than the f32 version to achieve near-full f64 precision,
- *  with maximum relative error approximately 0.00000000000001% across all positive doubles.
+ *  Uses more series terms than the f32 version to achieve near-full f64 precision, with a maximum
+ *  relative error of approximately 0.00000000000001% across all positive doubles.
  *
- *  https://en.wikipedia.org/wiki/Logarithm#Power_series
+ *  @see Logarithm power series: https://en.wikipedia.org/wiki/Logarithm#Power_series
  */
 NK_HELPER_INLINE nk_f64_t nk_f64_log_serial_(nk_f64_t x) {
     nk_fui64_t conv;

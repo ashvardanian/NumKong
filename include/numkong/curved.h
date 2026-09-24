@@ -62,7 +62,7 @@ extern "C" {
  *
  *  @param[in] a The first vector.
  *  @param[in] b The second vector.
- *  @param[in] c The metric tensor or covariance matrix, stored row-major as an n×n matrix.
+ *  @param[in] c The metric tensor or covariance matrix, stored row-major as an n × n matrix.
  *  @param[in] n The number of dimensions in the vectors.
  *  @param[out] result The output bilinear form value.
  *
@@ -87,14 +87,14 @@ NK_API_RUNTIME void nk_bilinear_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_
  *
  *  @param[in] a The first vector.
  *  @param[in] b The second vector.
- *  @param[in] c The Positive Semi-Definite (PSD) matrix, stored row-major as an n×n matrix.
+ *  @param[in] c The Positive Semi-Definite (PSD) matrix, stored row-major as an n × n matrix.
  *  @param[in] n The number of dimensions in the vectors.
  *  @param[out] result The output distance value.
  *
  *  @note The output value is non-negative when C is PSD.
  *  @note The output value is zero if and only if the two vectors are identical.
- *  @note The matrix C must be positive semi-definite. If C is not PSD, the quadratic form
- *        (a-b)ᵀ C (a-b) may be negative, and the square root will produce NaN.
+ *  @note The matrix C must be positive semi-definite. If C is not PSD, the quadratic form (a-b)ᵀ C
+ *      (a-b) may be negative, and the square root will produce NaN.
  */
 NK_API_RUNTIME void nk_mahalanobis_f64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
                                        nk_f64_t *result);
@@ -113,7 +113,7 @@ NK_API_RUNTIME void nk_mahalanobis_bf16(nk_bf16_t const *a, nk_bf16_t const *b, 
  *
  *  @param[in] a The first complex vector.
  *  @param[in] b The second complex vector.
- *  @param[in] c The complex metric tensor, stored row-major as an n×n matrix.
+ *  @param[in] c The complex metric tensor, stored row-major as an n × n matrix.
  *  @param[in] n The number of dimensions in the vectors.
  *  @param[out] results The output complex value with real and imaginary parts.
  */
@@ -301,9 +301,7 @@ NK_API_COMPTIME void nk_mahalanobis_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const
                                              nk_f32_t *result);
 #endif // NK_TARGET_RVV
 
-/**
- *  @brief  Returns the output dtype for bilinear forms.
- */
+/** Returns the output dtype for bilinear forms. */
 NK_HELPER_INLINE nk_dtype_t nk_bilinear_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
@@ -318,9 +316,7 @@ NK_HELPER_INLINE nk_dtype_t nk_bilinear_output_dtype(nk_dtype_t dtype) {
     }
 }
 
-/**
- *  @brief  Returns the output dtype for Mahalanobis metrics.
- */
+/** Returns the output dtype for Mahalanobis metrics. */
 NK_HELPER_INLINE nk_dtype_t nk_mahalanobis_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;

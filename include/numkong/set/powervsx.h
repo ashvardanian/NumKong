@@ -273,7 +273,7 @@ NK_HELPER_INLINE void nk_jaccard_u1x128_finalize_powervsx( //
     result_vec->vf32x4 = vec_sel(jaccard_f32x4, zero_f32x4, zero_union_mask_u32x4);
 }
 
-/** @brief Hamming from_dot: computes pop_a + pop_b - 2 × dot for 4 pairs (Power VSX). */
+/** Hamming from_dot: computes pop_a + pop_b - 2 × dot for 4 pairs (Power VSX). */
 NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
                                                           nk_b128_vec_t const *target_pops_vec,
                                                           nk_b128_vec_t *result_vec) {
@@ -284,7 +284,7 @@ NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_powervsx_(nk_b128_vec_t const *d
     result_vec->vu32x4 = vec_sub(vec_add(query_u32x4, target_u32x4), two_dots_u32x4);
 }
 
-/** @brief Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Power VSX). */
+/** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Power VSX). */
 NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
                                                           nk_b128_vec_t const *target_pops_vec,
                                                           nk_b128_vec_t *result_vec) {

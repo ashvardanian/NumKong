@@ -35,7 +35,7 @@
  *
  *  @section transformation_convention Transformation Convention
  *
- *  All functions compute a transformation that aligns the FIRST point cloud (a) to the SECOND (b).
+ *  All functions compute a transformation that aligns the first point cloud (a) to the second (b).
  *  The transformation to apply is:
  *
  *      a′ᵢ = scale × R × (aᵢ - ā) + b̄
@@ -63,7 +63,7 @@
  *
  *  @section numerical_notes Numerical Notes
  *
- *  Let `n` be the number of 3D points:
+ *  Let @c n be the number of 3D points:
  *
  *  - `O(n)` stages are the point-cloud passes for centroids, cross-covariance, source variance, and
  *    transformed SSD.
@@ -76,7 +76,7 @@
  *  - @c f32: point coordinates load as @c f32, widen before arithmetic, keep `O(n)` reductions in
  *    @c f64, keep the `O(1)` @b [3,3] solve in @c f64, and only narrow public transform outputs on
  *    store.
- *  - `f16`/`bf16`: keep both `O(n)` and `O(1)` stages in `f32`.
+ *  - @c f16 and @c bf16: keep both `O(n)` and `O(1)` stages in @c f32.
  *
  *  - @c f32 transform outputs stay narrow because they are typically applied back onto @c f32 point
  *    clouds.
@@ -117,8 +117,8 @@ extern "C" {
  *
  *  The transformation aligns a to b: a′ᵢ = scale × R × (aᵢ - ā) + b̄
  *
- *  @param[in] a First point cloud (source), n×3 interleaved [x0,y0,z0, x1,y1,z1, ...].
- *  @param[in] b Second point cloud (target), n×3 interleaved [x0,y0,z0, x1,y1,z1, ...].
+ *  @param[in] a First point cloud (source), n × 3 interleaved [x0,y0,z0, x1,y1,z1, ...].
+ *  @param[in] b Second point cloud (target), n × 3 interleaved [x0,y0,z0, x1,y1,z1, ...].
  *  @param[in] n Number of 3D points in each cloud.
  *  @param[out] a_centroid Centroid of first cloud (3 values). Can be NULL.
  *  @param[out] b_centroid Centroid of second cloud (3 values). Can be NULL.
@@ -143,8 +143,8 @@ NK_API_RUNTIME void nk_rmsd_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size
  *
  *  The transformation aligns a to b: a′ᵢ = scale × R × (aᵢ - ā) + b̄
  *
- *  @param[in] a First point cloud (source), n×3 interleaved [x0,y0,z0, x1,y1,z1, ...].
- *  @param[in] b Second point cloud (target), n×3 interleaved [x0,y0,z0, x1,y1,z1, ...].
+ *  @param[in] a First point cloud (source), n × 3 interleaved [x0,y0,z0, x1,y1,z1, ...].
+ *  @param[in] b Second point cloud (target), n × 3 interleaved [x0,y0,z0, x1,y1,z1, ...].
  *  @param[in] n Number of 3D points in each cloud.
  *  @param[out] a_centroid Centroid of first cloud (3 values). Can be NULL.
  *  @param[out] b_centroid Centroid of second cloud (3 values). Can be NULL.
@@ -169,8 +169,8 @@ NK_API_RUNTIME void nk_kabsch_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_si
  *
  *  The transformation aligns a to b: a′ᵢ = scale × R × (aᵢ - ā) + b̄
  *
- *  @param[in] a First point cloud (source), n×3 interleaved [x0,y0,z0, x1,y1,z1, ...].
- *  @param[in] b Second point cloud (target), n×3 interleaved [x0,y0,z0, x1,y1,z1, ...].
+ *  @param[in] a First point cloud (source), n × 3 interleaved [x0,y0,z0, x1,y1,z1, ...].
+ *  @param[in] b Second point cloud (target), n × 3 interleaved [x0,y0,z0, x1,y1,z1, ...].
  *  @param[in] n Number of 3D points in each cloud.
  *  @param[out] a_centroid Centroid of first cloud (3 values). Can be NULL.
  *  @param[out] b_centroid Centroid of second cloud (3 values). Can be NULL.
@@ -231,8 +231,7 @@ NK_API_COMPTIME void nk_umeyama_bf16_serial(nk_bf16_t const *a, nk_bf16_t const 
                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
                                             nk_f32_t *result);
 
-/*  SIMD-powered backends for AVX512 CPUs of Skylake generation and newer.
- */
+/*  SIMD-powered backends for AVX512 CPUs of Skylake generation and newer. */
 #if NK_TARGET_SKYLAKE
 /** @copydoc nk_rmsd_f32 */
 NK_API_COMPTIME void nk_rmsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
@@ -279,8 +278,8 @@ NK_API_COMPTIME void nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const
                                              nk_f32_t *result);
 #endif // NK_TARGET_SKYLAKE
 
-/*  SIMD-powered backends for AVX512-BF16 CPUs of AMD Genoa / Intel Sapphire Rapids generation and newer.
- */
+/*  SIMD-powered backends for AVX512-BF16 CPUs of AMD Genoa / Intel Sapphire Rapids
+ *  generation and newer. */
 #if NK_TARGET_GENOA
 /** @copydoc nk_rmsd_bf16 */
 NK_API_COMPTIME void nk_rmsd_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
@@ -293,8 +292,7 @@ NK_API_COMPTIME void nk_umeyama_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *
                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
 #endif // NK_TARGET_GENOA
 
-/*  SIMD-powered backends for AVX2 CPUs of Haswell generation and newer.
- */
+/*  SIMD-powered backends for AVX2 CPUs of Haswell generation and newer. */
 #if NK_TARGET_HASWELL
 /** @copydoc nk_rmsd_f32 */
 NK_API_COMPTIME void nk_rmsd_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
@@ -342,8 +340,7 @@ NK_API_COMPTIME void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const
                                              nk_f32_t *result);
 #endif // NK_TARGET_HASWELL
 
-/*  SIMD-powered backends for Arm NEON CPUs.
- */
+/*  SIMD-powered backends for Arm NEON CPUs. */
 #if NK_TARGET_NEON
 /** @copydoc nk_rmsd_f32 */
 NK_API_COMPTIME void nk_rmsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
@@ -364,10 +361,18 @@ NK_API_COMPTIME void nk_kabsch_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk
 /** @copydoc nk_umeyama_f64 */
 NK_API_COMPTIME void nk_umeyama_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
                                          nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result);
-/** @copydoc nk_rmsd_f16 */
+
+/**
+ *  @copydoc nk_rmsd_f16
+ *  @note Widens FP16 to FP32 before accumulating.
+ */
 NK_API_COMPTIME void nk_rmsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_kabsch_f16 */
+
+/**
+ *  @copydoc nk_kabsch_f16
+ *  @note Widens FP16 to FP32 before accumulating.
+ */
 NK_API_COMPTIME void nk_kabsch_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
 /** @copydoc nk_umeyama_f16 */
@@ -375,8 +380,7 @@ NK_API_COMPTIME void nk_umeyama_f16_neon(nk_f16_t const *a, nk_f16_t const *b, n
                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
 #endif // NK_TARGET_NEON
 
-/*  SIMD-powered backends for Arm NEON BF16 CPUs.
- */
+/*  SIMD-powered backends for Arm NEON BF16 CPUs. */
 #if NK_TARGET_NEONBFDOT
 /** @copydoc nk_rmsd_bf16 */
 NK_API_COMPTIME void nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
@@ -392,16 +396,27 @@ NK_API_COMPTIME void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t con
                                                nk_f32_t *scale, nk_f32_t *result);
 #endif // NK_TARGET_NEONBFDOT
 
-/*  SIMD-powered backends for Arm NEON FHM (FP16 widening FMA) CPUs.
- */
+/*  SIMD-powered backends for Arm NEON FHM (FP16 widening FMA) CPUs. */
 #if NK_TARGET_NEONFHM
-/** @copydoc nk_rmsd_f16 */
+
+/**
+ *  @copydoc nk_rmsd_f16
+ *  @note Accumulates FP16 products into FP32 with the FHM widening FMA.
+ */
 NK_API_COMPTIME void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_kabsch_f16 */
+
+/**
+ *  @copydoc nk_kabsch_f16
+ *  @note Accumulates FP16 products into FP32 with the FHM widening FMA.
+ */
 NK_API_COMPTIME void nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_umeyama_f16 */
+
+/**
+ *  @copydoc nk_umeyama_f16
+ *  @note Accumulates FP16 products into FP32 with the FHM widening FMA.
+ */
 NK_API_COMPTIME void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
                                             nk_f32_t *result);
@@ -446,8 +461,7 @@ NK_API_COMPTIME void nk_umeyama_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b,
                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
 #endif // NK_TARGET_RVV
 
-/*  WASM Relaxed SIMD backends using wasm_f32x4_relaxed_madd for FMA.
- */
+/*  WASM Relaxed SIMD backends using wasm_f32x4_relaxed_madd for FMA. */
 #if NK_TARGET_V128RELAXED
 /** @copydoc nk_rmsd_f32 */
 NK_API_COMPTIME void nk_rmsd_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
@@ -475,10 +489,8 @@ NK_API_COMPTIME void nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t cons
                                                 nk_f64_t *result);
 #endif // NK_TARGET_V128RELAXED
 
-/**
- *  @brief  Returns the metric output dtype for mesh alignment operations.
- *  Matches the C++ `mesh_metric_t` alias in types.hpp.
- */
+/** Returns the metric output dtype for mesh alignment operations. Matches the C++ @c mesh_metric_t
+ *  alias in types.hpp. */
 NK_HELPER_INLINE nk_dtype_t nk_mesh_metric_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
@@ -489,10 +501,8 @@ NK_HELPER_INLINE nk_dtype_t nk_mesh_metric_dtype(nk_dtype_t dtype) {
     }
 }
 
-/**
- *  @brief  Returns the transform output dtype for mesh alignment operations.
- *  Matches the C++ `mesh_transform_t` alias in types.hpp.
- */
+/** Returns the transform output dtype for mesh alignment operations. Matches the C++
+ *  @c mesh_transform_t alias in types.hpp. */
 NK_HELPER_INLINE nk_dtype_t nk_mesh_transform_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;

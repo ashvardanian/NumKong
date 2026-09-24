@@ -22,21 +22,21 @@
 extern "C" {
 #endif
 
-/** @brief Broadcast f32 scalar into all 4 lanes of a 128-bit register (GCC/Clang portable). */
+/** Broadcast f32 scalar into all 4 lanes of a 128-bit register (GCC/Clang portable). */
 NK_HELPER_INLINE __m128 nk_xvreplgr2vr_s_128_(float x) {
     nk_fui32_t c;
     c.f = x;
     return (__m128)__lsx_vreplgr2vr_w((int)c.u);
 }
 
-/** @brief Broadcast f32 scalar into all 8 lanes of a 256-bit register (GCC/Clang portable). */
+/** Broadcast f32 scalar into all 8 lanes of a 256-bit register (GCC/Clang portable). */
 NK_HELPER_INLINE __m256 nk_xvfreplgr2vr_s_(float x) {
     nk_fui32_t c;
     c.f = x;
     return (__m256)__lasx_xvreplgr2vr_w((int)c.u);
 }
 
-/** @brief Broadcast f64 scalar into all 4 lanes of a 256-bit register (GCC/Clang portable). */
+/** Broadcast f64 scalar into all 4 lanes of a 256-bit register (GCC/Clang portable). */
 NK_HELPER_INLINE __m256d nk_xvfreplgr2vr_d_(double x) {
     nk_fui64_t c;
     c.f = x;

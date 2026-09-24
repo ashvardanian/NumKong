@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/set/serial.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date March 23, 2023
  *  @brief SWAR-accelerated set similarity measures for SIMD-free CPUs.
  *
  *  @sa include/numkong/set.h
@@ -34,7 +34,8 @@
 extern "C" {
 #endif
 
-/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at
+ *  the Armv8-A floor. */
 #if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC push_options
 #pragma GCC target("arch=armv8-a")
@@ -171,14 +172,14 @@ NK_HELPER_INLINE void nk_hamming_u1x128_finalize_serial( //
     result->u32s[3] = (nk_u32_t)state_d->intersection_count;
 }
 
-/** @brief Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (serial). */
+/** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (serial). */
 NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
                                                         nk_b128_vec_t const *target_pops_vec,
                                                         nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) result_vec->u32s[i] = query_pop + target_pops_vec->u32s[i] - 2 * dots_vec->u32s[i];
 }
 
-/** @brief Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (serial). */
+/** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (serial). */
 NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
                                                         nk_b128_vec_t const *target_pops_vec,
                                                         nk_b128_vec_t *result_vec) {

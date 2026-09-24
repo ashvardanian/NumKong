@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/spatial/sierra.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date October 14, 2024
  *  @brief SIMD-accelerated spatial similarity measures for Sierra Forest.
  *
  *  @sa include/numkong/spatial.h

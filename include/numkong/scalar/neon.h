@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/scalar/neon.h
  *  @author Ash Vardanian
- *  @date March 1, 2026
+ *  @date January 3, 2026
  *  @brief SIMD-accelerated scalar math helpers for NEON.
  *
  *  @sa include/numkong/scalar.h

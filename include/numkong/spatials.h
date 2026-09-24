@@ -46,7 +46,7 @@
  *
  *  @section spatials_packing Packing
  *
- *  Uses the SAME pack functions as dot products, nk_dots_pack_size_*, nk_dots_pack_*. The packed
+ *  Uses the same pack functions as dot products, nk_dots_pack_size_*, nk_dots_pack_*. The packed
  *  buffer includes norms appended after the data.
  */
 
@@ -67,7 +67,8 @@ extern "C" {
  *  @param[out] result Output matrix (rows x cols) of angular distances.
  *  @param[in] rows Number of rows in A.
  *  @param[in] cols Number of columns in B (packed).
- *  @param[in] depth Shared inner dimension (vector length). Counts dimensions, a multiple of the values per byte.
+ *  @param[in] depth Shared inner dimension (vector length). Counts dimensions, a multiple of the
+ *      values per byte.
  *  @param[in] a_stride_in_bytes Row stride in bytes for A.
  *  @param[in] r_stride_in_bytes Row stride in bytes for the result matrix.
  */
@@ -81,7 +82,7 @@ NK_API_RUNTIME void nk_angulars_packed_f32(nk_f32_t const *a, void const *b_pack
  *  @param[in] vectors_count Number of vectors (rows) in the input matrix.
  *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride Row stride in bytes for the input matrix.
- *  @param[out] result Output symmetric matrix (vectors_count x vectors_count).
+ *  @param[out] result Output symmetric matrix of @p vectors_count × @p vectors_count.
  *  @param[in] result_stride Row stride in bytes for the result matrix.
  *  @param[in] row_start Starting row offset of results to compute (for parallelism).
  *  @param[in] row_count Number of rows of results to compute (for parallelism).
@@ -97,7 +98,8 @@ NK_API_RUNTIME void nk_angulars_symmetric_f32(nk_f32_t const *vectors, nk_size_t
  *  @param[out] result Output matrix (rows x cols) of euclidean distances.
  *  @param[in] rows Number of rows in A.
  *  @param[in] cols Number of columns in B (packed).
- *  @param[in] depth Shared inner dimension (vector length). Counts dimensions, a multiple of the values per byte.
+ *  @param[in] depth Shared inner dimension (vector length). Counts dimensions, a multiple of the
+ *      values per byte.
  *  @param[in] a_stride_in_bytes Row stride in bytes for A.
  *  @param[in] r_stride_in_bytes Row stride in bytes for the result matrix.
  */
@@ -111,7 +113,7 @@ NK_API_RUNTIME void nk_euclideans_packed_f32(nk_f32_t const *a, void const *b_pa
  *  @param[in] vectors_count Number of vectors (rows) in the input matrix.
  *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride Row stride in bytes for the input matrix.
- *  @param[out] result Output symmetric matrix (vectors_count x vectors_count).
+ *  @param[out] result Output symmetric matrix of @p vectors_count × @p vectors_count.
  *  @param[in] result_stride Row stride in bytes for the result matrix.
  *  @param[in] row_start Starting row offset of results to compute (for parallelism).
  *  @param[in] row_count Number of rows of results to compute (for parallelism).
@@ -562,8 +564,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_u4_serial(nk_u4x2_t const *vectors,
 
 /*  Genoa backends using AVX-512 with BF16 extensions.
  *  These use VDPBF16PS for BF16 dot products.
- *  Packing interleaves elements for SIMD broadcast patterns.
- */
+ *  Packing interleaves elements for SIMD broadcast patterns. */
 #if NK_TARGET_GENOA
 /** @copydoc nk_angulars_packed_bf16 */
 NK_API_COMPTIME void nk_angulars_packed_bf16_genoa(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
@@ -667,8 +668,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e5m2_diamond(nk_e5m2_t const *vecto
 /*  Sapphire Rapids backends using Intel AMX (Advanced Matrix Extensions).
  *  AMX provides 8 tile registers (TMM0-TMM7), each holding up to 1KB of data.
  *  Tiles are configured as 16 rows x 64 bytes, enabling (16 x 32) BF16 or (16 x 64) INT8 tiles.
- *  Packing arranges data into AMX-native tile layout with pair interleaving for TDPBF16PS.
- */
+ *  Packing arranges data into AMX-native tile layout with pair interleaving for TDPBF16PS. */
 #if NK_TARGET_SAPPHIREAMX
 /** @copydoc nk_angulars_packed_bf16 */
 NK_API_COMPTIME void nk_angulars_packed_bf16_sapphireamx(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
@@ -823,8 +823,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_u8_sapphireamx(nk_u8_t const *vecto
 #endif // NK_TARGET_SAPPHIREAMX
 
 /*  Granite Rapids backends using Intel AMX-FP16.
- *  Native FP16 spatial kernels.
- */
+ *  Native FP16 spatial kernels. */
 #if NK_TARGET_GRANITEAMX
 /** @copydoc nk_angulars_packed_f16 */
 NK_API_COMPTIME void nk_angulars_packed_f16_graniteamx(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
@@ -866,8 +865,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e5m2_graniteamx(nk_e5m2_t const *ve
 
 /*  ARM SME backends using Scalable Matrix Extension.
  *  SME provides ZA tile registers for outer product operations.
- *  F16/BF16/I8/U8/E4M3 use ZA32 tiles, F32/F64 use ZA64 tiles (FEAT_SME_F64F64).
- */
+ *  F16/BF16/I8/U8/E4M3 use ZA32 tiles, F32/F64 use ZA64 tiles (FEAT_SME_F64F64). */
 #if NK_TARGET_SME
 /** @copydoc nk_angulars_packed_f16 */
 NK_API_COMPTIME void nk_angulars_packed_f16_sme(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
@@ -1063,8 +1061,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_u4_sme(nk_u4x2_t const *vectors, nk
 #endif // NK_TARGET_SME
 
 /*  ARM SME with FEAT_SME_F64F64 (F32/F64 with F64 accumulators).
- *  Requires Apple M4 or equivalent with F64 outer product support.
- */
+ *  Requires Apple M4 or equivalent with F64 outer product support. */
 #if NK_TARGET_SMEF64
 /** @copydoc nk_angulars_packed_f32 */
 NK_API_COMPTIME void nk_angulars_packed_f32_smef64(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
@@ -1104,8 +1101,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_f64_smef64(nk_f64_t const *vectors,
 #endif // NK_TARGET_SMEF64
 
 /*  Haswell backends using AVX2 (Intel Core 4th gen).
- *  Supports F32/F64 via FMA, F16/BF16/FP8 via software emulation, I8/U8 via VPMADDUBSW+VPADDD.
- */
+ *  Supports F32/F64 via FMA, F16/BF16/FP8 via software emulation, I8/U8 via VPMADDUBSW+VPADDD. */
 #if NK_TARGET_HASWELL
 /** @copydoc nk_angulars_packed_f32 */
 NK_API_COMPTIME void nk_angulars_packed_f32_haswell(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
@@ -1313,8 +1309,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_u8_haswell(nk_u8_t const *vectors, 
 #endif // NK_TARGET_HASWELL
 
 /*  Skylake backends using AVX-512 (Intel Core 6th gen+).
- *  Provides 512-bit vectors (16x f32, 8x f64), supporting F32/F64/F16/BF16/FP8 with FMA.
- */
+ *  Provides 512-bit vectors (16x f32, 8x f64), supporting F32/F64/F16/BF16/FP8 with FMA. */
 #if NK_TARGET_SKYLAKE
 /** @copydoc nk_angulars_packed_f32 */
 NK_API_COMPTIME void nk_angulars_packed_f32_skylake(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
@@ -1488,8 +1483,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e3m2_skylake(nk_e3m2_t const *vecto
 #endif // NK_TARGET_SKYLAKE
 
 /*  Ice Lake backends using AVX-512 with VNNI (Vector Neural Network Instructions).
- *  Adds VPDPBUSD for I8/U8, VPDPWSSD for I4/U4 with efficient dot products.
- */
+ *  Adds VPDPBUSD for I8/U8, VPDPWSSD for I4/U4 with efficient dot products. */
 #if NK_TARGET_ICELAKE
 /** @copydoc nk_angulars_packed_i8 */
 NK_API_COMPTIME void nk_angulars_packed_i8_icelake(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
@@ -1638,8 +1632,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e2m1_alder(nk_e2m1x2_t const *vecto
 #endif // NK_TARGET_ALDER
 
 /*  Sierra backends using AVX10.2 with VMPSADBW.
- *  Optimized for I8/U8 via VMPSADBW (vector multiply-sum of absolute differences).
- */
+ *  Optimized for I8/U8 via VMPSADBW (vector multiply-sum of absolute differences). */
 #if NK_TARGET_SIERRA
 /** @copydoc nk_angulars_packed_i8 */
 NK_API_COMPTIME void nk_angulars_packed_i8_sierra(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
@@ -1712,8 +1705,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e2m1_sierra(nk_e2m1x2_t const *vect
 #endif // NK_TARGET_SIERRA
 
 /*  WASM Relaxed SIMD backends for angular/euclidean distances.
- *  Covers I8/U8/E2M3/BF16/F32/F64 spatial distance operations.
- */
+ *  Covers I8/U8/E2M3/BF16/F32/F64 spatial distance operations. */
 #if NK_TARGET_V128RELAXED
 /** @copydoc nk_angulars_packed_i8 */
 NK_API_COMPTIME void nk_angulars_packed_i8_v128relaxed(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
@@ -1968,8 +1960,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_u8_v128(nk_u8_t const *vectors, nk_
 #endif // NK_TARGET_V128
 
 /*  ARM NEON backends (base NEON with F32/F64 support).
- *  Uses FMLA for F32 dots, FMLA (scalar) for F64.
- */
+ *  Uses FMLA for F32 dots, FMLA (scalar) for F64. */
 #if NK_TARGET_NEON
 /** @copydoc nk_angulars_packed_f32 */
 NK_API_COMPTIME void nk_angulars_packed_f32_neon(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
@@ -2040,8 +2031,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_f16_neon(nk_f16_t const *vectors, n
 #endif // NK_TARGET_NEON
 
 /*  ARM NEON with BF16 dot product (ARMv8.6-A BF16).
- *  Uses BFDOT/BFMMLA for efficient BF16 matrix operations.
- */
+ *  Uses BFDOT/BFMMLA for efficient BF16 matrix operations. */
 #if NK_TARGET_NEONBFDOT
 /** @copydoc nk_angulars_packed_bf16 */
 NK_API_COMPTIME void nk_angulars_packed_bf16_neonbfdot(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
@@ -2064,8 +2054,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_bf16_neonbfdot(nk_bf16_t const *vec
 #endif // NK_TARGET_NEONBFDOT
 
 /*  ARM NEON with signed/unsigned dot product (ARMv8.2-A DotProd).
- *  Provides SDOT/UDOT for I8/U8 vector dot products.
- */
+ *  Provides SDOT/UDOT for I8/U8 vector dot products. */
 #if NK_TARGET_NEONSDOT
 /** @copydoc nk_angulars_packed_i8 */
 NK_API_COMPTIME void nk_angulars_packed_i8_neonsdot(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
@@ -2179,8 +2168,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e2m1_neonsdot(nk_e2m1x2_t const *ve
 #endif // NK_TARGET_NEONSDOT
 
 /*  ARM NEON with FP16 FML (fused multiply-long, ARMv8.2-A FP16FML).
- *  Uses FMLAL/FMLSL for F16 and custom FP8 (E2M3/E3M2) operations.
- */
+ *  Uses FMLAL/FMLSL for F16 and custom FP8 (E2M3/E3M2) operations. */
 #if NK_TARGET_NEONFHM
 /** @copydoc nk_angulars_packed_f16 */
 NK_API_COMPTIME void nk_angulars_packed_f16_neonfhm(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
@@ -2242,8 +2230,7 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e5m2_neonfhm(nk_e5m2_t const *vecto
 #endif // NK_TARGET_NEONFHM
 
 /*  ARM NEON with FP8 (ARMv9.2-A FP8).
- *  Uses native FP8 dot-product instructions for E4M3/E5M2/E2M3/E3M2 operations.
- */
+ *  Uses native FP8 dot-product instructions for E4M3/E5M2/E2M3/E3M2 operations. */
 #if NK_TARGET_NEONFP8
 /** @copydoc nk_angulars_packed_e4m3 */
 NK_API_COMPTIME void nk_angulars_packed_e4m3_neonfp8(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
@@ -2535,10 +2522,10 @@ NK_API_COMPTIME void nk_euclideans_symmetric_u8_rvv(nk_u8_t const *vectors, nk_s
                                                     nk_size_t row_start, nk_size_t row_count);
 #endif // NK_TARGET_RVV
 
-/*  NVIDIA backends from Ampere on, reusing the CUDA dots packs and tiles with the metric applied in the epilogue: F64
- *  outputs for F64 and F32 inputs, F32 for the rest. Pointers are device-reachable, and every call is asynchronous on
- *  its `stream` and returns the launch status.
- */
+/*  NVIDIA backends from Ampere on, reusing the CUDA dots packs and tiles with the metric
+ *  applied in the epilogue: F64 outputs for F64 and F32 inputs, F32 for the rest.
+ *  Pointers are device-reachable, and every call is asynchronous on its @c stream and
+ *  returns the launch status. */
 #if NK_TARGET_AMPERE
 /** @copydoc nk_angulars_packed_f64 */
 NK_API_COMPTIME cudaError_t nk_angulars_packed_f64_ampere(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
@@ -2785,9 +2772,8 @@ NK_API_COMPTIME cudaError_t nk_euclideans_symmetric_u4_ampere(nk_u4x2_t const *v
                                                               nk_size_t row_count, cudaStream_t stream);
 #endif // NK_TARGET_AMPERE
 
-/*  NVIDIA backends for the compute capability 12.x family, with Float8, Float6 and Float4 products on the tensor cores
- *  natively.
- */
+/*  NVIDIA backends for the compute capability 12.x family, with Float8, Float6 and Float4 products
+ *  on the tensor cores natively. */
 #if NK_TARGET_BLACKWELLRTX
 /** @copydoc nk_angulars_packed_e5m2 */
 NK_API_COMPTIME cudaError_t nk_angulars_packed_e5m2_blackwellrtx(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,

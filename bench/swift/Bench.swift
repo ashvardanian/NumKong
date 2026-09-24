@@ -2,9 +2,6 @@
 //  bench/swift/Bench.swift
 //  Swift Testing benchmarks for NumKong.
 //
-//  - Author: Ash Vardanian
-//  - Date: March 14, 2026
-//
 //  Runs on an iPad, iPhone or Mac through Xcode, or anywhere SwiftPM runs:
 //
 //  ```sh
@@ -19,6 +16,10 @@
 //      NK_MATRIX_DEPTH      — GEMM K / vector dims, defaulting to 1536
 //
 //  `xcodebuild` forwards them to the tests only with a `TEST_RUNNER_` prefix.
+//
+//  - Author: Ash Vardanian
+//  - Date: March 14, 2026
+//
 
 import Foundation
 import NumKong

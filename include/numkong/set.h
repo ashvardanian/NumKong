@@ -1,15 +1,16 @@
 /**
  *  @file include/numkong/set.h
  *  @author Ash Vardanian
- *  @date July 1, 2023
+ *  @date March 23, 2023
  *  @brief SIMD-accelerated set similarity measures.
  *
  *  Contains following similarity measures:
  *
- *  - Bit-level Hamming distance → `u32` counter
- *  - Byte-level Hamming distance → `u32` counter
- *  - Bit-level Jaccard distance (Tanimoto coefficient) → `f32` ratio
- *  - Word-level Jaccard distance for `u16` and `u32` MinHash vectors from StringZilla → `f32` ratio
+ *  - Bit-level Hamming distance → @c u32 counter
+ *  - Byte-level Hamming distance → @c u32 counter
+ *  - Bit-level Jaccard distance (Tanimoto coefficient) → @c f32 ratio
+ *  - Word-level Jaccard distance for @c u16 and @c u32 MinHash vectors from StringZilla →
+ *    @c f32 ratio
  *
  *  For hardware architectures:
  *
@@ -108,8 +109,8 @@
  *  nk_jaccard_u1x512_init_icelake(&state_second);
  *  nk_jaccard_u1x512_init_icelake(&state_third);
  *  nk_jaccard_u1x512_init_icelake(&state_fourth);
- *  nk_jaccard_u1x512_update_icelake(&state_first, &query[0], &target_first[0], 0, 512); // First 512 bits
- *  nk_jaccard_u1x512_update_icelake(&state_first, &query[64], &target_first[64], 512, 512); // Second 512 bits
+ *  nk_jaccard_u1x512_update_icelake(&state_first, &query[0], &target_first[0], 0, 512);      // First 512 bits
+ *  nk_jaccard_u1x512_update_icelake(&state_first, &query[64], &target_first[64], 512, 512);  // Second 512 bits
  *  // ... update state_second, state_third, state_fourth similarly ...
  *
  *  nk_f32_t results[4];
@@ -154,7 +155,8 @@ extern "C" {
 #endif
 
 /**
- *  @brief Binary Hamming distance computing the number of differing bits between two binary vectors.
+ *  @brief Binary Hamming distance computing the number of differing bits between
+ *      two binary vectors.
  *
  *  @param[in] a The first binary vector.
  *  @param[in] b The second binary vector.
@@ -315,9 +317,7 @@ NK_API_COMPTIME void nk_jaccard_u16_v128(nk_u16_t const *a, nk_u16_t const *b, n
 NK_API_COMPTIME void nk_jaccard_u32_v128(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_V128
 
-/**
- *  @brief  Returns the output dtype for Hamming distance.
- */
+/** Returns the output dtype for Hamming distance. */
 NK_HELPER_INLINE nk_dtype_t nk_hamming_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_u1_k: return nk_u32_k;
@@ -326,9 +326,7 @@ NK_HELPER_INLINE nk_dtype_t nk_hamming_output_dtype(nk_dtype_t dtype) {
     }
 }
 
-/**
- *  @brief  Returns the output dtype for Jaccard distance.
- */
+/** Returns the output dtype for Jaccard distance. */
 NK_HELPER_INLINE nk_dtype_t nk_jaccard_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_u1_k: return nk_f32_k;

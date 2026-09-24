@@ -94,7 +94,8 @@
  *  accepted. The exporter still always reports @c kDLCPU; this widening only affects what
  *  `numkong.from_dlpack` will consume.
  *
- *  @par Accepted — pointer is CPU-readable
+ *  Accepted, because the pointer is CPU-readable:
+ *
  *  - @c kDLCPU — plain host memory, the default.
  *  - @c kDLCUDAHost — @c cudaMallocHost pinned host memory; semantically equivalent to @c kDLCPU.
  *  - @c kDLROCMHost — AMD ROCm pinned host equivalent.
@@ -107,7 +108,8 @@
  *  - @c kDLMetal — Metal buffer, host-readable on Apple Silicon's unified-memory SoC, the practical
  *    user being MLX, but not on an Intel-Mac dGPU.
  *
- *  @par Rejected — pure device memory
+ *  Rejected, because the memory is device-only:
+ *
  *  - @c kDLCUDA, @c kDLROCM, @c kDLOpenCL, @c kDLVulkan, @c kDLWebGPU, @c kDLHexagon, @c kDLMAIA,
  *    @c kDLTrn, @c kDLVPI, @c kDLExtDev — error names the device code so the caller can debug.
  */
@@ -168,7 +170,7 @@ static DLDataType nk_dtype_to_dl(nk_dtype_t dtype, int versioned) {
 /**
  *  @brief Map a DLPack @c DLDataType to a NumKong dtype.
  *
- *  Returns `nk_dtype_unknown_k` if the combination isn't supported.
+ *  Returns @c nk_dtype_unknown_k if the combination isn't supported.
  *  @p flags is the `DLManagedTensorVersioned.flags` field, 0 for legacy capsules, used to
  *  distinguish padded from packed FP6.
  */

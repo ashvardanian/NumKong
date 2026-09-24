@@ -71,11 +71,12 @@ typedef enum {
     nk_attention_split_positions_k, // each warp owns 16 positions of each 64-position panel and all 16 rows
 } nk_attention_split_t;
 
-/** Adds one 32-byte depth step of 16 rows against 16 positions: Q as `nk_attention_query_ampere_` forms it, K as
- *  `ldmatrix.x4` loads it. */
+/** Adds one 32-byte depth step of 16 rows against 16 positions: Q as @c nk_attention_query_ampere_
+ *  forms it, K as `ldmatrix.x4` loads it. */
 typedef void (*nk_attention_scores_ampere_t)(nk_fui32_t scores[2][4], nk_u32_t const query[8], nk_u32_t const keys[4]);
 
-/** Packs one row's 4 probabilities of 16 positions into A-fragment registers and adds the values P·V sees to @p sum. */
+/** Packs one row's 4 probabilities of 16 positions into A-fragment registers and adds the values
+ *  P · V sees to @p sum. */
 typedef void (*nk_attention_weights_ampere_t)(nk_f32_t const probabilities[4], nk_u32_t packed[2], nk_f32_t *sum);
 
 /** Everything one attention launch shares, passed by value as the kernels' only argument. */
@@ -113,7 +114,8 @@ typedef struct {
     nk_size_t items_before;        // items in the segments before the chunk
 } nk_attention_schedule_ampere_t;
 
-/** One work item: up to 64 rows `query × heads_selected + head` of one segment against one K and V head. */
+/** One work item: up to 64 rows, each row being query × heads_selected + head, of one segment
+ *  against one K and V head. */
 typedef struct {
     nk_size_t segment;        // segment index
     nk_size_t key_value_head; // K and V head
@@ -128,9 +130,8 @@ typedef struct {
 
 #pragma region Instructions
 
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
-
 /* Rounds two F32 into a BF16 pair, @p low in the low half. */
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
 NK_HELPER_DEVICE_INLINE nk_u32_t nk_f32x2_to_bf16x2_ampere_(nk_f32_t low, nk_f32_t high) {
     nk_u32_t pair;
     asm("cvt.rn.bf16x2.f32 %0, %1, %2;\n" : "=r"(pair) : "f"(high), "f"(low));
@@ -180,7 +181,7 @@ NK_HELPER_DEVICE_INLINE void nk_attention_scores_bf16_ampere_(nk_fui32_t scores[
     nk_mma_bf16_ampere_(scores[1], query, keys[2], keys[3]);
 }
 
-/** Widens K as the E4M3 dots do, in the depth order `nk_attention_query_ampere_` widened Q in. */
+/** Widens K as the E4M3 dots do, in the depth order @c nk_attention_query_ampere_ widened Q in. */
 NK_HELPER_DEVICE_INLINE void nk_attention_scores_e4m3_ampere_(nk_fui32_t scores[2][4], nk_u32_t const query[8],
                                                               nk_u32_t const keys[4]) {
 #pragma unroll
@@ -199,7 +200,8 @@ NK_HELPER_DEVICE_INLINE void nk_attention_scores_i8_ampere_(nk_fui32_t scores[2]
     nk_mma_i8_ampere_(scores[1], query, keys[2], keys[3]);
 }
 
-/** Q's A fragment for one 32-byte depth step, E4M3 codes widened once into two F16 fragments of 16 depths each. */
+/** Q's A fragment for one 32-byte depth step, E4M3 codes widened once into two F16 fragments of
+ *  16 depths each. */
 NK_HELPER_DEVICE_INLINE void nk_attention_query_ampere_(nk_attention_kind_t kind, nk_u32_t const fragment[4],
                                                         nk_u32_t query[8]) {
     if (kind != nk_attention_kind_widened_k) {
@@ -232,7 +234,7 @@ NK_HELPER_DEVICE_INLINE void nk_attention_weights_f16_ampere_(nk_f32_t const pro
                 __half2float(__ushort_as_half((unsigned short)(packed[word] >> 16)));
 }
 
-/** U8 weights `round(255 · p)`, the max-scoring position landing on 255. */
+/** U8 weights round(255 · p), the max-scoring position landing on 255. */
 NK_HELPER_DEVICE_INLINE void nk_attention_weights_u8_ampere_(nk_f32_t const probabilities[4], nk_u32_t packed[2],
                                                              nk_f32_t *sum) {
     nk_u32_t bytes = 0, total = 0;
@@ -245,17 +247,19 @@ NK_HELPER_DEVICE_INLINE void nk_attention_weights_u8_ampere_(nk_f32_t const prob
     *sum += (nk_f32_t)total;
 }
 
-/** Slot of @p position in a transposed V: within every 16, position `2t + 8h + e` sits at `4t + 2h + e`. */
+/** Slot of @p position in a transposed V: within every 16, position `2t + 8h + e` sits at
+ *  `4t + 2h + e`. */
 NK_HELPER_DEVICE_INLINE nk_size_t nk_attention_slot_ampere_(nk_size_t position) {
     return (position & ~(nk_size_t)15) | ((position & 6) << 1) | ((position & 8) >> 2) | (position & 1);
 }
 
-/** Position held by @p slot of a transposed V, inverting `nk_attention_slot_ampere_`. */
+/** Position held by @p slot of a transposed V, inverting @c nk_attention_slot_ampere_. */
 NK_HELPER_DEVICE_INLINE nk_size_t nk_attention_slot_position_ampere_(nk_size_t slot) {
     return (slot & ~(nk_size_t)15) | ((slot & 12) >> 1) | ((slot & 2) << 2) | (slot & 1);
 }
 
-/** Visible keys `[*key_begin, *key_end)` of the query at @p position, with the serial backend's rule. */
+/** Writes the half-open range of keys visible to the query at @p position into @p key_begin and
+ *  @p key_end, with the serial backend's rule. */
 NK_HELPER_DEVICE_INLINE void nk_attention_row_keys_ampere_(nk_i64_t position, nk_size_t window, nk_size_t length,
                                                            unsigned *key_begin, unsigned *key_end) {
     if (position < 0 || window == 0) {
@@ -298,7 +302,8 @@ NK_HELPER_DEVICE_INLINE nk_size_t nk_attention_row_blocks_ampere_(nk_size_t quer
     return (queries * heads + nk_attention_block_rows_ampere_k - 1) / nk_attention_block_rows_ampere_k;
 }
 
-/** Heads of @p segment inside the task window, as `[*head_begin, *head_end)` counted within the segment. */
+/** Writes the half-open range of heads of @p segment inside the task window into @p head_begin and
+ *  @p head_end, counted within the segment. */
 NK_HELPER_DEVICE_INLINE void nk_attention_segment_heads_ampere_(nk_attention_schedule_ampere_t const *schedule,
                                                                 nk_size_t segment, nk_size_t *head_begin,
                                                                 nk_size_t *head_end) {
@@ -323,7 +328,8 @@ NK_HELPER_DEVICE_INLINE nk_size_t nk_attention_segment_items_ampere_(nk_attentio
            nk_attention_row_blocks_ampere_(queries, head_end - last * group);
 }
 
-/** Fills @p prefix with the running item counts of the 128 segments from `schedule->chunk_first`. */
+/** Fills @p prefix with the running item counts of the 128 segments from
+ *  `schedule->chunk_first`. */
 NK_HELPER_DEVICE_INLINE void nk_attention_schedule_chunk_ampere_(nk_attention_schedule_ampere_t const *schedule,
                                                                  nk_u64_t *prefix, nk_u64_t *warp_totals) {
     nk_u64_t const items = nk_attention_segment_items_ampere_(schedule, schedule->chunk_first + threadIdx.x);
@@ -334,7 +340,8 @@ NK_HELPER_DEVICE_INLINE void nk_attention_schedule_chunk_ampere_(nk_attention_sc
     __syncthreads();
 }
 
-/** Finds work item @p item, returning 0 once the window has no more; every thread of the block calls it in step. */
+/** Finds work item @p item, returning 0 once the window has no more; every thread of the block
+ *  calls it in step. */
 NK_HELPER_DEVICE_INLINE int nk_attention_schedule_next_ampere_(nk_attention_schedule_ampere_t *schedule,
                                                                nk_u64_t *prefix, nk_u64_t *warp_totals, nk_size_t item,
                                                                nk_attention_work_ampere_t *work) {
@@ -382,7 +389,8 @@ NK_HELPER_DEVICE_INLINE int nk_attention_schedule_next_ampere_(nk_attention_sche
     return 1;
 }
 
-/** Reads the header, returning 0 when it disagrees with the arguments, and primes the schedule's first chunk. */
+/** Reads the header, returning 0 when it disagrees with the arguments, and primes the
+ *  schedule's first chunk. */
 NK_HELPER_DEVICE_INLINE int nk_attention_schedule_start_ampere_(nk_attention_arguments_ampere_t const *arguments,
                                                                 nk_attention_schedule_ampere_t *schedule,
                                                                 nk_u64_t *prefix, nk_u64_t *warp_totals) {
@@ -404,7 +412,7 @@ NK_HELPER_DEVICE_INLINE int nk_attention_schedule_start_ampere_(nk_attention_arg
     return 1;
 }
 
-/** K plane of the work item's head; its V plane follows `key_value_head_count` planes later. */
+/** K plane of the work item's head; its V plane follows @c key_value_head_count planes later. */
 NK_HELPER_DEVICE_INLINE unsigned char const *nk_attention_keys_plane_ampere_(
     nk_attention_arguments_ampere_t const *arguments, nk_attention_work_ampere_t const *work, nk_size_t row_bytes,
     nk_size_t *length, nk_size_t *plane_bytes) {
@@ -423,7 +431,8 @@ NK_HELPER_DEVICE_INLINE unsigned char const *nk_attention_keys_plane_ampere_(
 
 #pragma region Tile
 
-/** Issues `rows × row_bytes` bytes of a position-major plane from @p first_position into padded shared rows. */
+/** Issues @p rows × @p row_bytes bytes of a position-major plane from @p first_position into
+ *  padded shared rows. */
 NK_HELPER_DEVICE_INLINE void nk_attention_stage_rows_ampere_(unsigned char *shared, unsigned char const *plane,
                                                              nk_size_t first_position, unsigned rows,
                                                              unsigned row_bytes) {
@@ -450,14 +459,15 @@ NK_HELPER_DEVICE_INLINE void nk_attention_stage_columns_ampere_(unsigned char *s
 }
 
 /**
- *  @brief One work item on one block: scores, online softmax and P·V over every panel its rows see, then the output.
- *  @param[in] kind How fragments are formed, see `nk_attention_kind_t`.
- *  @param[in] tier Panel width and where Q fragments live, see `nk_attention_tier_t`.
- *  @param[in] split Whether warps own rows or positions, see `nk_attention_split_t`.
- *  @param[in] epilogue F32 scores and P·V sums, or exact I32 ones converted per panel.
- *  @param[in] scores One depth step of S, see `nk_attention_scores_ampere_t`.
- *  @param[in] values_mma One 16 × 8 step of P·V on the packed P and V fragments.
- *  @param[in] weights P from probabilities, see `nk_attention_weights_ampere_t`.
+ *  @brief One work item on one block: scores, online softmax and P · V over every panel its rows
+ *      see, then the output.
+ *  @param[in] kind How fragments are formed, see @c nk_attention_kind_t.
+ *  @param[in] tier Panel width and where Q fragments live, see @c nk_attention_tier_t.
+ *  @param[in] split Whether warps own rows or positions, see @c nk_attention_split_t.
+ *  @param[in] epilogue F32 scores and P · V sums, or exact I32 ones converted per panel.
+ *  @param[in] scores One depth step of S, see @c nk_attention_scores_ampere_t.
+ *  @param[in] values_mma One 16 × 8 step of P · V on the packed P and V fragments.
+ *  @param[in] weights P from probabilities, see @c nk_attention_weights_ampere_t.
  */
 NK_HELPER_DEVICE_INLINE void nk_attention_block_ampere_(
     nk_attention_kind_t kind, nk_attention_tier_t tier, nk_attention_split_t split, nk_cross_epilogue_t epilogue,
@@ -890,7 +900,8 @@ NK_HELPER_DEVICE_INLINE void nk_attention_block_ampere_(
 }
 
 /**
- *  @brief Every work item of a launch, walked with a stride of the grid, each on the split its row count calls for.
+ *  @brief Every work item of a launch, walked with a stride of the grid, each on the split its row
+ *      count calls for.
  *  @sa nk_attention_block_ampere_ for the parameters.
  */
 NK_HELPER_DEVICE_INLINE void nk_attention_tile_ampere_(nk_attention_kind_t kind, nk_attention_tier_t tier,
@@ -926,10 +937,8 @@ NK_HELPER_DEVICE_INLINE nk_f32_t nk_attention_decode_ampere_(nk_dtype_t dtype, u
     return __half2float(__ushort_as_half((unsigned short)(((code & 0x7Fu) << 7) | ((code & 0x80u) << 8)))) * 256.0f;
 }
 
-/**
- *  @brief The CUDA-core kernel for depths past 256: one warp per row, two sweeps over its keys like the serial
- *      backend, the output row doubling as the accumulator, so any depth fits.
- */
+/** The CUDA-core kernel for depths past 256: one warp per row, two sweeps over its keys like the
+ *  serial backend, the output row doubling as the accumulator, so any depth fits. */
 NK_HELPER_DEVICE_INLINE void nk_attention_fallback_ampere_(nk_dtype_t dtype,
                                                            nk_attention_arguments_ampere_t const *arguments) {
     __shared__ nk_u64_t prefix[nk_attention_threads_ampere_k + 1];
@@ -1038,7 +1047,8 @@ static __global__ void nk_attention_pack_directory_ampere_kernel_(unsigned char 
         packed[sizeof(nk_attention_packed_header_t) + byte] = 0;
 }
 
-/** Copies the K and V planes of each `(segment, kv_head)` task, one block per task, zeroing every padded element. */
+/** Copies the K and V planes of each @b (segment,kv_head) task, one block per task, zeroing
+ *  every padded element. */
 NK_HELPER_DEVICE_INLINE void nk_attention_pack_payload_ampere_(
     nk_attention_kind_t kind, unsigned char const *keys, unsigned char const *values, nk_size_t key_value_head_count,
     nk_size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
@@ -1099,7 +1109,8 @@ NK_HELPER_INLINE nk_size_t nk_attention_pack_size_ampere_(nk_size_t key_value_he
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-/** Launches the directory writer for a window starting at task 0, then @p payload_kernel over the window. */
+/** Launches the directory writer for a window starting at task 0, then @p payload_kernel
+ *  over the window. */
 NK_HELPER_INLINE cudaError_t nk_attention_pack_launch_ampere_(
     void const *payload_kernel, nk_size_t element_bytes, void const *keys, void const *values,
     nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
@@ -1139,7 +1150,8 @@ NK_HELPER_INLINE cudaError_t nk_attention_pack_launch_ampere_(
 
 #pragma region Launch
 
-/** Places the panel buffers of a tier in dynamic shared memory, returning the bytes a block needs. */
+/** Places the panel buffers of a tier in dynamic shared memory, returning the bytes
+ *  a block needs. */
 NK_HELPER_INLINE nk_size_t nk_attention_shared_layout_ampere_(nk_attention_kind_t kind, nk_attention_tier_t tier,
                                                               nk_size_t depth,
                                                               nk_attention_arguments_ampere_t *arguments) {
@@ -1189,8 +1201,10 @@ NK_HELPER_INLINE nk_size_t nk_attention_shared_layout_ampere_(nk_attention_kind_
 }
 
 /**
- *  @brief Validates the contract and launches the kernel for the depth's tier with as many blocks as stay resident.
- *  @param[in] score_scale,output_scale Undo the tile's widenings, see `nk_attention_arguments_ampere_t`.
+ *  @brief Validates the contract and launches the kernel for the depth's tier with as many blocks
+ *      as stay resident.
+ *  @param[in] score_scale Undoes the Q and K widenings in the tile, or 1.
+ *  @param[in] output_scale Undoes the V widening in the tile, or 1.
  */
 NK_HELPER_INLINE cudaError_t nk_attention_launch_ampere_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_attention_kind_t kind,
@@ -1244,7 +1258,8 @@ NK_HELPER_INLINE cudaError_t nk_attention_launch_ampere_(
 
 #pragma region Attention Macros
 
-/** Generates the host-side size of a pack: header, directory, and both planes of every segment and head. */
+/** Generates the host-side size of a pack: header, directory, and both planes of every
+ *  segment and head. */
 #define nk_define_attention_cuda_pack_size_(input_type_name, isa_suffix, element_bytes)                              \
     NK_API_COMPTIME nk_size_t nk_attention_pack_size_##input_type_name##_##isa_suffix(                               \
         nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *segment_lengths, nk_size_t segment_count) { \
@@ -1266,8 +1281,10 @@ NK_HELPER_INLINE cudaError_t nk_attention_launch_ampere_(
     }
 
 /**
- *  @brief Generates a device pack: the directory when the window starts at task 0, then one block per task.
- *  @param[in] kind Selects the V layout: position rows for BF16, σ-ordered depth rows for 1-byte codes.
+ *  @brief Generates a device pack: the directory when the window starts at task 0, then one
+ *      block per task.
+ *  @param[in] kind Selects the V layout: position rows for BF16, σ-ordered depth rows
+ *      for 1-byte codes.
  */
 #define nk_define_attention_cuda_pack_(input_type_name, isa_suffix, input_value_type, kind)                      \
     static __global__ void nk_attention_pack_##input_type_name##_##isa_suffix##_kernel_(                         \
@@ -1293,8 +1310,8 @@ NK_HELPER_INLINE cudaError_t nk_attention_launch_ampere_(
     }
 
 /**
- *  @brief Generates the narrow, wide and fallback kernels of one dtype and both public attention entry points, each
- *      passing its `nk_attention_mask_t` to the shared launch.
+ *  @brief Generates the narrow, wide and fallback kernels of one dtype and both public attention
+ *      entry points, each passing its @c nk_attention_mask_t to the shared launch.
  *  @param[in] score_scale Undoes the power of two the tile's score widening introduces, or 1.
  *  @param[in] output_scale Undoes the power of two the tile's value widening introduces, or 1.
  *  @param[in] fallback_dtype How the CUDA-core kernel decodes the pack past depth 256.

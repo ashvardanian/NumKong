@@ -31,9 +31,11 @@ extern "C" {
 #endif
 
 enum {
-    /** @brief KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
+
+    /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
     nk_attention_panel_v128_k_ = 512,
-    /** @brief Deepest head this backend handles in scratch; deeper heads route to the serial tier. */
+
+    /** Deepest head this backend handles in scratch; deeper heads route to the serial tier. */
     nk_attention_max_depth_v128_k_ = 256,
 };
 
@@ -90,7 +92,7 @@ NK_API_COMPTIME void nk_attention_packed_shape_i8_v128(void const *key_value_pac
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
 }
 
-/** @brief Raw strided-row repack: source encoding is preserved, tails zero-padded, 16-byte chunks. */
+/** Raw strided-row repack: source encoding is preserved, tails zero-padded, 16-byte chunks. */
 NK_HELPER_INLINE void nk_attention_pack_v128_(                                         //
     void const *keys, void const *values, nk_size_t element_bytes,                     //
     nk_size_t key_value_head_count, nk_size_t depth,                                   //

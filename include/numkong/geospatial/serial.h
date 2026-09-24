@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/geospatial/serial.h
  *  @author Ash Vardanian
- *  @date February 6, 2026
+ *  @date December 21, 2025
  *  @brief Serial geospatial distances.
  *
  *  @sa include/numkong/geospatial.h
@@ -42,7 +42,7 @@ NK_API_COMPTIME void nk_haversine_f64_serial(       //
         nk_f64_t latitude_delta = second_latitude - first_latitude;
         nk_f64_t longitude_delta = second_longitude - first_longitude;
 
-        // Haversine formula: a = sin²(Δlat/2) + cos(lat1)×cos(lat2)×sin²(Δlon/2)
+        // Haversine formula: a = sin²(Δlat/2) + cos(lat1) × cos(lat2) × sin²(Δlon/2)
         nk_f64_t sin_latitude_delta_half = nk_f64_sin(latitude_delta * 0.5);
         nk_f64_t sin_longitude_delta_half = nk_f64_sin(longitude_delta * 0.5);
         nk_f64_t cos_first_latitude = nk_f64_cos(first_latitude);
@@ -81,7 +81,7 @@ NK_API_COMPTIME void nk_haversine_f32_serial(       //
         nk_f32_t latitude_delta = second_latitude - first_latitude;
         nk_f32_t longitude_delta = second_longitude - first_longitude;
 
-        // Haversine formula: a = sin²(Δlat/2) + cos(lat1)×cos(lat2)×sin²(Δlon/2)
+        // Haversine formula: a = sin²(Δlat/2) + cos(lat1) × cos(lat2) × sin²(Δlon/2)
         nk_f32_t sin_latitude_delta_half = nk_f32_sin(latitude_delta * 0.5f);
         nk_f32_t sin_longitude_delta_half = nk_f32_sin(longitude_delta * 0.5f);
         nk_f32_t cos_first_latitude = nk_f32_cos(first_latitude);

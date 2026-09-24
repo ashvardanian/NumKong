@@ -6,16 +6,16 @@
  *
  *  Contains:
  *
- *  - Set intersection for sorted unique arrays → `u32` count
+ *  - Set intersection for sorted unique arrays → @c u32 count
  *  - Sparse dot products for weighted sparse vectors
  *
  *  For dtypes:
  *
- *  - `u16`: indices for vocabularies under 64 thousand tokens
- *  - `u32`: indices for vocabularies under 4 billion tokens
- *  - `u64`: indices for trillion-scale combinatorics and graphs
- *  - `u16` indices + `bf16` weights → `f32` product
- *  - `u32` indices + `f32` weights → `f64` product
+ *  - @c u16: indices for vocabularies under 64 thousand tokens
+ *  - @c u32: indices for vocabularies under 4 billion tokens
+ *  - @c u64: indices for trillion-scale combinatorics and graphs
+ *  - @c u16 indices + @c bf16 weights → @c f32 product
+ *  - @c u32 indices + @c f32 weights → @c f64 product
  *
  *  For hardware architectures:
  *
@@ -266,9 +266,7 @@ NK_API_COMPTIME void nk_sparse_dot_u32f32_turin(nk_u32_t const *a, nk_u32_t cons
                                                 nk_f64_t *product);
 #endif // NK_TARGET_TURIN
 
-/**
- *  @brief  Returns the output dtype for sparse dot products.
- */
+/** Returns the output dtype for sparse dot products. */
 NK_HELPER_INLINE nk_dtype_t nk_sparse_dot_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f32_k: return nk_f64_k;

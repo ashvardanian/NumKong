@@ -86,7 +86,8 @@ nk_define_cross_compensated_packed_(dots, u8, alder, u8, u8, u32,
                                     nk_partial_load_b32x4_haswell_, nk_dots_reduce_sum_u8_stub_,
                                     /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 
-/* E2M3 GEMM via DPBUSD integer path: depth_simd_dimensions=32 (32 e2m3s = 32 bytes = AVX2 register width) */
+/*  E2M3 GEMM via the DPBUSD integer path: depth_simd_dimensions = 32, as 32 e2m3s span the 32 bytes
+ *  of an AVX2 register. */
 nk_define_cross_pack_size_(dots, e2m3, alder, e2m3, e2m3, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/1)
 nk_define_cross_packed_shape_(dots, e2m3, alder)
@@ -105,7 +106,8 @@ nk_define_cross_packed_(dots, e2m3, alder, e2m3, e2m3, f32, nk_b256_vec_t, nk_do
                         nk_dot_e2m3x32_finalize_alder, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 
-/* E2M1 GEMM via DPBUSD integer path: depth_simd_dimensions=64 (32 bytes = 64 nibbles = AVX2 register width) */
+/*  E2M1 GEMM via the DPBUSD integer path: depth_simd_dimensions = 64, as 64 nibbles span the 32
+ *  bytes of an AVX2 register. */
 nk_define_cross_pack_size_(dots, e2m1, alder, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/64,
                            /*dimensions_per_value=*/2)
 nk_define_cross_packed_shape_(dots, e2m1, alder)

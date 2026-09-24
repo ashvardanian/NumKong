@@ -18,11 +18,11 @@
  *  - 8-bit signed and unsigned integers (i8, u8)
  *
  *  Key improvements:
- *  - F32→F64 upcast for angular_f32 (matches Haswell/NEON precision strategy)
+ *  - F32 → F64 upcast for angular_f32 (matches Haswell/NEON precision strategy)
  *  - Parallel SIMD sqrt for normalization (computes both sqrts simultaneously)
  *  - Edge case handling (zero vectors, numerical stability)
  *  - Uses relaxed FMA for optimal throughput
- *  - Integer distances ride one `relaxed_dot` sign-split pass for the dot and both norms
+ *  - Integer distances ride one @c relaxed_dot sign-split pass for the dot and both norms
  *
  *  @sa include/numkong/spatial/v128.h for the SIMD128 twins of the bf16, i8 and u8 kernels.
  *  @sa include/numkong/spatial/haswell.h for the matching x86 pattern.
@@ -145,7 +145,7 @@ nk_angular_f32_v128relaxed_cycle:
     v128_t a_f64x2 = wasm_f64x2_promote_low_f32x4(a_f32x2);
     v128_t b_f64x2 = wasm_f64x2_promote_low_f32x4(b_f32x2);
 
-    // Accumulate: ab += a·b, a2 += a·a, b2 += b·b
+    // Accumulate: ab += a · b, a2 += a · a, b2 += b · b
     ab_f64x2 = wasm_f64x2_relaxed_madd(a_f64x2, b_f64x2, ab_f64x2);
     a2_f64x2 = wasm_f64x2_relaxed_madd(a_f64x2, a_f64x2, a2_f64x2);
     b2_f64x2 = wasm_f64x2_relaxed_madd(b_f64x2, b_f64x2, b2_f64x2);
@@ -178,7 +178,7 @@ nk_angular_f64_v128relaxed_cycle:
         a_scalars += 2, b_scalars += 2, count_scalars -= 2;
     }
 
-    // Accumulate: ab += a·b, a2 += a·a, b2 += b·b
+    // Accumulate: ab += a · b, a2 += a · a, b2 += b · b
     ab_f64x2 = wasm_f64x2_relaxed_madd(a_vec.v128, b_vec.v128, ab_f64x2);
     a2_f64x2 = wasm_f64x2_relaxed_madd(a_vec.v128, a_vec.v128, a2_f64x2);
     b2_f64x2 = wasm_f64x2_relaxed_madd(b_vec.v128, b_vec.v128, b2_f64x2);
@@ -622,7 +622,7 @@ nk_angular_e3m2_v128relaxed_cycle:
 #pragma region I8 and U8 Integers
 
 /**
- *  @brief Σa·b, Σa·a and Σb·b of two u8 vectors in one pass, the shared front of the u8 distances.
+ *  @brief Σa · b, Σa · a and Σb · b of two u8 vectors in one pass, shared by the u8 distances.
  *
  *  Bias u8 [0,255] → i8 [-128,127] via XOR 0x80, then use the i8 magnitude+sign
  *  decomposition for saturation-safe relaxed_dot.
@@ -631,13 +631,15 @@ nk_angular_e3m2_v128relaxed_cycle:
  *  u8*i8 pairwise sums can reach 64770, exceeding i16 max (32767).
  *  Biasing first ensures i8*u7 products stay in [-16256, 16129], pairs in [-32512, 32258].
  *
- *  Let a' = a - 128, b' = b - 128 (via XOR 0x80).
- *  Compute biased dots via relaxed_dot with i7 magnitude trick:
- *    a'·b' = relaxed_dot(a', b'&0x7F) - 128·Σ(a'[i] where b'[i]<0)
- *  Then recover true unsigned dots:
- *    a·b = a'·b' + 128·(Σa + Σb) - n·16384
- *    a·a = a'·a' + 256·Σa - n·16384
- *    b·b = b'·b' + 256·Σb - n·16384
+ *  Let a' = a - 128 and b' = b - 128, via XOR 0x80. The biased dots come from relaxed_dot with the
+ *  i7 magnitude trick, and the true unsigned dots are recovered from them:
+ *
+ *  @verbatim
+ *  a'·b' = relaxed_dot(a', b'&0x7F) - 128·Σ(a'[i] where b'[i]<0)
+ *  a·b = a'·b' + 128·(Σa + Σb) - n·16384
+ *  a·a = a'·a' + 256·Σa - n·16384
+ *  b·b = b'·b' + 256·Σb - n·16384
+ *  @endverbatim
  */
 NK_HELPER_INLINE void nk_dots_triple_u8_v128relaxed_(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_i64_t *dot_ab,
                                                      nk_i64_t *dot_aa, nk_i64_t *dot_bb) {
@@ -718,9 +720,9 @@ NK_HELPER_INLINE void nk_dots_triple_u8_v128relaxed_(nk_u8_t const *a, nk_u8_t c
     }
 
     // Recover true unsigned dots from biased:
-    //   a·b = (a-128)·(b-128) + 128·Σa + 128·Σb - n·16384
-    //   a·a = (a-128)·(a-128) + 256·Σa - n·16384
-    //   b·b = (b-128)·(b-128) + 256·Σb - n·16384
+    //     a · b = (a-128) · (b-128) + 128 · Σa + 128 · Σb - n · 16384
+    //     a · a = (a-128) · (a-128) + 256 · Σa - n · 16384
+    //     b · b = (b-128) · (b-128) + 256 · Σb - n · 16384
     nk_i64_t n_correction = (nk_i64_t)n * 16384LL;
     *dot_ab = biased_ab + 128LL * (sum_a_total + sum_b_total) - n_correction;
     *dot_aa = biased_aa + 256LL * sum_a_total - n_correction;
@@ -728,7 +730,7 @@ NK_HELPER_INLINE void nk_dots_triple_u8_v128relaxed_(nk_u8_t const *a, nk_u8_t c
 }
 
 NK_API_COMPTIME void nk_sqeuclidean_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
-    nk_i64_t dot_ab, dot_aa, dot_bb; // |a-b|² = a·a + b·b - 2·a·b, exact integers from one sign-split pass
+    nk_i64_t dot_ab, dot_aa, dot_bb; // |a-b|² = a · a + b · b - 2 · a · b, exact integers from one sign-split pass
     nk_dots_triple_u8_v128relaxed_(a, b, n, &dot_ab, &dot_aa, &dot_bb);
     *result = (nk_u32_t)(dot_aa + dot_bb - 2 * dot_ab);
 }
@@ -746,12 +748,12 @@ NK_API_COMPTIME void nk_angular_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *
 }
 
 /**
- *  @brief Σa·b, Σa·a and Σb·b of two i8 vectors in one pass, the shared front of the i8 distances.
+ *  @brief Σa · b, Σa · a and Σb · b of two i8 vectors in one pass, shared by the i8 distances.
  *
  *  Uses the same relaxed_dot decomposition as nk_dot_i8_v128relaxed:
- *    a·b = relaxed_dot(a, b&0x7F) - 128·Σ(a[i] where b[i]<0)
- *    a·a = relaxed_dot(a, a&0x7F) - 128·Σ(a[i] where a[i]<0)
- *    b·b = relaxed_dot(b, b&0x7F) - 128·Σ(b[i] where b[i]<0)
+ *    a · b = relaxed_dot(a, b&0x7F) - 128 · Σ(a[i] where b[i]<0)
+ *    a · a = relaxed_dot(a, a&0x7F) - 128 · Σ(a[i] where a[i]<0)
+ *    b · b = relaxed_dot(b, b&0x7F) - 128 · Σ(b[i] where b[i]<0)
  */
 NK_HELPER_INLINE void nk_dots_triple_i8_v128relaxed_(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i64_t *dot_ab,
                                                      nk_i64_t *dot_aa, nk_i64_t *dot_bb) {
@@ -824,7 +826,7 @@ NK_HELPER_INLINE void nk_dots_triple_i8_v128relaxed_(nk_i8_t const *a, nk_i8_t c
 }
 
 NK_API_COMPTIME void nk_sqeuclidean_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
-    nk_i64_t dot_ab, dot_aa, dot_bb; // |a-b|² = a·a + b·b - 2·a·b, exact integers from one sign-split pass
+    nk_i64_t dot_ab, dot_aa, dot_bb; // |a-b|² = a · a + b · b - 2 · a · b, exact integers from one sign-split pass
     nk_dots_triple_i8_v128relaxed_(a, b, n, &dot_ab, &dot_aa, &dot_bb);
     *result = (nk_u32_t)(dot_aa + dot_bb - 2 * dot_ab);
 }

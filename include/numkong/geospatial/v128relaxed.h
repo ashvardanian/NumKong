@@ -46,8 +46,7 @@ extern "C" {
 #endif
 
 /*  WASM Relaxed SIMD implementations using 2-wide f64 and 4-wide f32 SIMD.
- *  These require WASM trigonometric kernels from trigonometry/v128relaxed.h.
- */
+ *  These require WASM trigonometric kernels from trigonometry/v128relaxed.h. */
 
 NK_HELPER_INLINE v128_t nk_haversine_f64x2_v128relaxed_(         //
     v128_t first_latitudes_f64x2, v128_t first_longitudes_f64x2, //

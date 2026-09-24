@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/probability/neon.h
  *  @author Ash Vardanian
- *  @date February 6, 2026
+ *  @date October 20, 2023
  *  @brief NEON-accelerated probability distribution similarity measures.
  *
  *  @sa include/numkong/probability.h

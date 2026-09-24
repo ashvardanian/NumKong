@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/spatial/neonbfdot.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date June 6, 2024
  *  @brief SIMD-accelerated spatial similarity measures for NEON BF16.
  *
  *  @sa include/numkong/spatial.h

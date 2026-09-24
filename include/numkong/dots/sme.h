@@ -16,19 +16,19 @@
  *
  *  SME tile dimensions, for SVL=512, i.e., Apple M4:
  *
- *  - @c ZA32 tile: @b [16,16] @c f32 and @c i32 elements, 1KB
- *  - `f16`/`bf16` vectors: 32 elements per SVE vector
- *  - `i8`/`u8` vectors: 64 elements per SVE vector
- *  - `f32`/`i32` vectors: 16 elements per SVE vector
+ *  - @c ZA32 tile: @b [16,16] @c f32 or @c i32 elements, 1 KB
+ *  - @c f16 and @c bf16 vectors: 32 elements per SVE vector
+ *  - @c i8 and @c u8 vectors: 64 elements per SVE vector
+ *  - @c f32 and @c i32 vectors: 16 elements per SVE vector
  *
  *  Output pattern: each @c svmopa accumulates a 16 × 16 tile from input vectors. We process
  *  multiple ZA tiles, 0-3, to form larger output blocks.
  *
  *  Performance characteristics (Apple M4):
  *
- *  - `f16` → `f32` peak: ~2 TFLOPS per core
- *  - `bf16` → `f32` peak: ~2 TFLOPS per core
- *  - `i8` → `i32` peak: ~2 TOPS per core
+ *  - f16 → f32 peak: ~2 TFLOPS per core
+ *  - bf16 → f32 peak: ~2 TFLOPS per core
+ *  - i8 → i32 peak: ~2 TOPS per core
  *  - Streaming mode has different register set from normal NEON
  *
  *  Acceleration opportunities:
@@ -78,10 +78,8 @@ extern "C" {
 #pragma GCC target("+sme")
 #endif
 
-/**
- *  SME-specific packed buffer header (64-byte aligned).
- *  Layout optimized for SME outer product access patterns with predicate-based edge handling.
- */
+/** SME-specific packed buffer header (64-byte aligned).
+ *  Layout optimized for SME outer product access patterns with predicate-based edge handling. */
 typedef struct {
     nk_u32_t column_tile_count; // ⌈columns/tile_dimension⌉: number of column tiles
     nk_u32_t depth_tile_count;  // ⌈depth/depth_tile_size⌉: number of depth tiles
@@ -94,8 +92,7 @@ typedef struct {
 
 /*  Selective ZA tile zeroing masks for `svzero_mask_za(mask)`.
  *  These zero individual ZA.S tiles without destroying other accumulators.
- *  ZA.D tiles (8 tiles, 8x8 each): ZA0.D = mask bit 0, ..., ZA7.D = mask bit 7.
- */
+ *  ZA.D tiles (8 tiles, 8x8 each): ZA0.D = mask bit 0, ..., ZA7.D = mask bit 7. */
 enum {
     nk_sme_zero_za32_tile_0_ = 0x11,
     nk_sme_zero_za32_tile_1_ = 0x22,
@@ -110,30 +107,28 @@ enum {
     nk_sme_zero_za64_tiles_1_7_ = 0xFE, /* Accumulators ZA1-7.D (preserves ZA0.D staging) */
 };
 
-/** @brief Clears the lanes of `bound` left of the diagonal on row `row_index`, for a tile starting at `column_start`.
- */
+/** Clears the lanes of @p bound left of the diagonal on row @p row_index, for a tile starting at
+ *  @p column_start. */
 NK_HELPER_INLINE svbool_t nk_sme_diagonal_cut_b32x_(svbool_t bound, nk_size_t column_start,
                                                     nk_size_t row_index) NK_STREAMING_ {
     return svbic_b_z(bound, bound, svwhilelt_b32_u64(column_start, row_index));
 }
 
-/** @brief Clears the lanes of `bound` left of the diagonal on row `row_index`, for a tile starting at `column_start`.
- */
+/** Clears the lanes of @p bound left of the diagonal on row @p row_index, for a tile starting at
+ *  @p column_start. */
 NK_HELPER_INLINE svbool_t nk_sme_diagonal_cut_b64x_(svbool_t bound, nk_size_t column_start,
                                                     nk_size_t row_index) NK_STREAMING_ {
     return svbic_b_z(bound, bound, svwhilelt_b64_u64(column_start, row_index));
 }
 
-/*
- *  f16/bf16 → f32 GEMM using FMOPA/BFMOPA with ZA32 tiles.
+/*  f16/bf16 → f32 GEMM using FMOPA/BFMOPA with ZA32 tiles.
  *
  *  Tile layout (SVL=512, Apple M4):
  *  - ZA32 output tile: 16 × 16 f32 elements (1 KB)
  *  - Input vectors: 32 f16/bf16 elements (SVL/16)
  *  - Depth per FMOPA: 2 f16 pairs → 1 f32 (widening 2:1)
  *  - FMOPA predicates: b16 (input granularity), not b32
- *  - 4-tile path: ZA0-ZA3 process 4 column tiles simultaneously
- */
+ *  - 4-tile path: ZA0-ZA3 process 4 column tiles simultaneously */
 #pragma region F16 Floats
 
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_f16_sme(nk_size_t columns, nk_size_t depth) {
@@ -168,9 +163,9 @@ NK_API_COMPTIME void nk_dots_packed_shape_bf16_sme(void const *b_packed, nk_size
 /**
  *  @brief Streaming pack helper for 16-bit types (f16/bf16) using ZA tile transpose.
  *
- *  Uses SME write-horizontal + read-vertical on ZA0 to perform the pair-interleaving
- *  required by FMOPA/BFMOPA: each f32 word in the output vector holds a pair of 16-bit values
- *  from the same column but adjacent depth positions.
+ *  Uses SME write-horizontal + read-vertical on ZA0 to perform the pair-interleaving required by
+ *  FMOPA/BFMOPA: each f32 word in the output vector holds a pair of 16-bit values from the same
+ *  column but adjacent depth positions.
  *
  *  Replaces the scalar scatter loop with hardware-accelerated tile transpose.
  */
@@ -224,7 +219,7 @@ __arm_new("za") static void nk_dots_pack_b16_sme_streaming_( //
 }
 
 /**
- *  @brief Streaming pack helper for 8-bit types (i8/u8/e4m3/e5m2/e2m3/e3m2) using ZA tile transpose.
+ *  @brief Streaming ZA-transpose pack helper for 8-bit types: i8, u8, e4m3, e5m2, e2m3 and e3m2.
  *
  *  Uses SME write-horizontal + read-vertical on ZA0 to perform the quad-interleaving
  *  required by SMOPA/UMOPA: each i32 word in the output vector holds four 8-bit values
@@ -357,15 +352,18 @@ NK_API_COMPTIME void nk_dots_pack_bf16_sme(                 //
 }
 
 /**
- *  `f16` → `f32` GEMM core kernel using SME outer products.
+ *  @brief f16 × f16 → f32 GEMM core kernel using SME outer products.
  *
- *  FMOPA f16 → f32 semantics: ZA[s][d] += Σ(k=0..1) Zn[2s+k] * Zm[2d+k]
- *  So Zn is interpreted as a 16×2 sub-matrix and Zm as a 2×16 sub-matrix.
+ *  FMOPA f16 → f32 treats Zn as a 16×2 sub-matrix and Zm as a 2×16 sub-matrix. For a correct GEMM,
+ *  each A row gathers 2 depth elements, B is pre-packed and interleaved, and the depth loop steps
+ *  by 2, the expansion factor:
  *
- *  For correct GEMM C[i][j] = Σ_k A[i][k]*B[j][k]:
- *  - Zn[2*s+k] = A[row_start+s, depth_base+k]  (gather 2 depth elements per A row)
- *  - Zm[2*d+k] = B[column_start+d, depth_base+k]   (pre-packed interleaved)
- *  - Loop over depth in steps of 2 (expansion factor)
+ *  @verbatim
+ *  ZA[s][d] += Σ(k=0..1) Zn[2s+k] × Zm[2d+k]
+ *  C[i][j]   = Σₖ A[i][k] × B[j][k]
+ *  Zn[2s+k]  = A[row_start+s, depth_base+k]
+ *  Zm[2d+k]  = B[column_start+d, depth_base+k]
+ *  @endverbatim
  */
 __arm_new("za") static void nk_dots_packed_f16_sme_streaming_( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
@@ -452,7 +450,7 @@ __arm_new("za") static void nk_dots_packed_f16_sme_streaming_( //
                 }
             }
 
-            // Extract from ZA1, ZA2, ZA3 (accumulated across ALL batches)
+            // Extract from ZA1, ZA2, ZA3 (accumulated across all batches)
             for (nk_size_t row = 0; row < rows_remaining; row++) {
                 nk_size_t const column_start_0 = (column_tile_index + 0) * tile_dimension;
                 nk_size_t const column_start_1 = (column_tile_index + 1) * tile_dimension;
@@ -510,10 +508,8 @@ __arm_new("za") static void nk_dots_packed_f16_sme_streaming_( //
     }
 }
 
-/**
- *  `bf16` → `f32` GEMM core kernel using SME outer products.
- *  Same interleaved algorithm as f16 kernel, using BFMOPA bf16 → f32.
- */
+/** bf16 → f32 GEMM core kernel using SME outer products.
+ *  Same interleaved algorithm as f16 kernel, using BFMOPA bf16 → f32. */
 __arm_new("za") static void nk_dots_packed_bf16_sme_streaming_( //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
@@ -676,12 +672,9 @@ NK_API_COMPTIME void nk_dots_packed_bf16_sme(              //
     nk_sme_stop_streaming_();
 }
 
-/**
- *   `f16` × `f16` → `f32` symmetric kernel using MOPA self-GEMM.
- *   Time-shares ZA0 for both A and B transposition: loads A horizontally,
- *   pre-reads A columns into Z registers, then reloads ZA0 with B data
- *   per column tile. Eliminates all scalar B-packing loops.
- */
+/** f16 × f16 → f32 symmetric kernel using MOPA self-GEMM. Time-shares ZA0 for both A and B
+ *  transposition: loads A horizontally, pre-reads A columns into Z registers, then reloads ZA0 with
+ *  B data per column tile. Eliminates all scalar B-packing loops. */
 __arm_new("za") static void nk_dots_symmetric_f16_sme_streaming_( //
     nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
@@ -1125,17 +1118,17 @@ NK_API_COMPTIME void nk_dots_symmetric_bf16_sme( //
 #pragma endregion F16 Floats
 
 /*
- *  `i8` × `i8` → `i32` GEMM using SME outer products.
+ *  i8 × i8 → i32 GEMM using SME outer products.
  *
- *  Uses `svmopa_za32_s8_m` for signed 8-bit integer outer product accumulate.
+ *  Uses @c svmopa_za32_s8_m for signed 8-bit integer outer product accumulate.
  *  Available on Apple M4 (SME_I8I32 = 1).
  *
- *  Tile dimensions for `i8` → `i32` (512-bit SVL):
- *  - Input vectors: 64 `i8` elements (SVL/8 = 64)
- *  - Output tile: 16 × 16 `i32` elements (`ZA32`)
- *  - Each output `i32` is a dot product of 4 `i8` pairs
+ *  Tile dimensions for i8 → i32 (512-bit SVL):
+ *  - Input vectors: 64 @c i8 elements (SVL/8 = 64)
+ *  - Output tile: 16 × 16 i32 elements in @c ZA32
+ *  - Each output @c i32 is a dot product of 4 @c i8 pairs
  *
- *  Expected performance: ~2 TOPS (4× `f16` due to 4:1 element packing)
+ *  Expected performance: ~2 TOPS (4× f16 due to 4:1 element packing)
  */
 
 #pragma region I8 Integers
@@ -1199,15 +1192,18 @@ NK_API_COMPTIME void nk_dots_pack_i8_sme( //
 }
 
 /**
- *  `i8` × `i8` → `i32` GEMM core kernel using SME outer products.
+ *  @brief i8 × i8 → i32 GEMM core kernel using SME outer products.
  *
- *  SMOPA i8→i32 semantics: ZA[s][d] += Σ(k=0..3) Zn[4s+k] * Zm[4d+k]
- *  So Zn is interpreted as a 16×4 sub-matrix and Zm as a 4×16 sub-matrix.
+ *  SMOPA i8 → i32 treats Zn as a 16×4 sub-matrix and Zm as a 4×16 sub-matrix. For a correct GEMM,
+ *  each A row gathers 4 depth elements, B is pre-packed and interleaved, and the depth loop steps
+ *  by 4, the expansion factor:
  *
- *  For correct GEMM C[i][j] = Σ_k A[i][k]*B[j][k]:
- *  - Zn[4*s+k] = A[row_start+s, depth_base+k]  (gather 4 depth elements per A row)
- *  - Zm[4*d+k] = B[column_start+d, depth_base+k]   (pre-packed interleaved)
- *  - Loop over depth in steps of 4 (expansion factor)
+ *  @verbatim
+ *  ZA[s][d] += Σ(k=0..3) Zn[4s+k] × Zm[4d+k]
+ *  C[i][j]   = Σₖ A[i][k] × B[j][k]
+ *  Zn[4s+k]  = A[row_start+s, depth_base+k]
+ *  Zm[4d+k]  = B[column_start+d, depth_base+k]
+ *  @endverbatim
  */
 __arm_new("za") static void nk_dots_packed_i8_sme_streaming_( //
     nk_i8_t const *a, void const *b_packed, nk_i32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
@@ -1569,26 +1565,24 @@ NK_API_COMPTIME void nk_dots_symmetric_i8_sme( //
 #pragma region E4M3 Floats
 
 /**
- *  Inline `e4m3` → `f16` conversion for streaming SVE.
+ *  @brief Inline e4m3 → f16 conversion for streaming SVE.
  *
- *  E4M3FN: S EEEE MMM (bias=7, no ∞, NaN = mag 0x7F)
- *  F16:    S EEEEE MMMMMMMMMM (bias=15)
+ *  @verbatim
+ *  E4M3FN:  S EEEE MMM          bias = 7, no ∞, NaN = magnitude 0x7F
+ *  F16:     S EEEEE MMMMMMMMMM  bias = 15
+ *  Normal:     magnitude 8..126 → f16 = sign | ((magnitude << 7) + 0x2000)
+ *  Subnormal:  magnitude 0..7   → f16(0x4000 | mantissa) = 2.0 + mantissa / 512, minus 2.0
+ *  NaN:        magnitude 127    → f16 quiet NaN 0x7E00 | sign
+ *  @endverbatim
  *
- *  Normal (mag 8..126): f16 = sign | ((mag << 7) + 0x2000).
- *  The +0x2000 encodes the bias difference (15−7=8) and left-aligns the mantissa.
+ *  For normal values, the +0x2000 encodes the bias difference 15 − 7 = 8 and left-aligns the
+ *  mantissa. Subnormal values use the Giesen multiplication trick: the FPU renormalizes
+ *  automatically, producing exact subnormal f16 values without a lookup table. All operations use
+ *  @c _z zeroing, so inactive lanes are always zero.
  *
- *  Subnormal (mag 0..7): uses the Giesen multiplication trick — constructs
- *  f16(0x4000 | mantissa) = 2.0 + mantissa/512, then subtracts 2.0.
- *  The FPU renormalizes automatically, producing exact subnormal f16 values
- *  without a lookup table.
- *
- *  NaN (mag 127): patched to f16 quiet NaN (0x7E00 | sign).
- *
- *  All operations use `_z` (zeroing) so inactive lanes are always zero.
- *
- *  @param predicate_b16x Active-lane predicate
- *  @param bytes_u8x Pre-loaded e4m3 bytes from `svld1_u8`
- *  @return `svfloat16_t` with converted values (zero for inactive lanes)
+ *  @param[in] predicate_b16x Active-lane predicate.
+ *  @param[in] bytes_u8x Pre-loaded e4m3 bytes from @c svld1_u8.
+ *  @return @c svfloat16_t with converted values, zero for inactive lanes.
  */
 NK_HELPER_AUTO svfloat16_t nk_e4m3x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NK_STREAMING_ {
     svuint16_t vals_u16x = svunpklo_u16(bytes_u8x); // 1: UUNPKLO
@@ -1623,30 +1617,31 @@ NK_HELPER_AUTO svfloat16_t nk_e4m3x_to_f16x_ssve_(svbool_t predicate_b16x, svuin
 }
 
 /**
- *  Inline `e5m2` → `f16` conversion returning `svfloat16_t` for direct use in GEMM.
- *  This avoids memory round-trip when used inside a streaming kernel.
+ *  @brief Inline e5m2 → f16 conversion returning @c svfloat16_t for direct use in GEMM.
  *
- *  E5M2 format: S EEEEE MM (1+5+2 bits, bias=15, range [-57344, 57344])
- *  F16 format:  S EEEEE MMMMMMMMMM (1+5+10 bits, bias=15)
+ *  This avoids a memory round-trip when used inside a streaming kernel.
  *
- *  Since E5M2 and F16 share the same exponent bias (15), normal values convert
- *  by simply shifting the magnitude left by 8 bits.
+ *  @verbatim
+ *  E5M2:  S EEEEE MM          1+5+2 bits, bias = 15, range [-57344, 57344]
+ *  F16:   S EEEEE MMMMMMMMMM  1+5+10 bits, bias = 15
+ *  @endverbatim
  *
- *  @param predicate_b16x Predicate for 16-bit elements (use svptrue_b16())
- *  @param bytes_u8x Pre-loaded 64 bytes (svuint8_t from svld1_u8)
- *  @return 32 F16 values as svfloat16_t (from lower 32 bytes)
+ *  Since E5M2 and F16 share the same exponent bias of 15, normal values convert by simply shifting
+ *  the magnitude left by 8 bits.
+ *
+ *  @param[in] predicate_b16x Predicate for 16-bit elements, as from @c svptrue_b16.
+ *  @param[in] bytes_u8x Pre-loaded 64 bytes, an @c svuint8_t from @c svld1_u8.
+ *  @return 32 F16 values as @c svfloat16_t, from the lower 32 bytes.
  */
 NK_HELPER_AUTO svfloat16_t nk_e5m2x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NK_STREAMING_ {
     // E5M2 and F16 share the same exponent bias (15), sign position, exponent width,
-    // and mantissa field alignment. The conversion f16 = byte << 8 is exact for ALL
+    // and mantissa field alignment. The conversion f16 = byte << 8 is exact for all
     // 256 values including subnormals, infinity, and NaN.
     return svreinterpret_f16_u16(svlsl_n_u16_x(predicate_b16x, svunpklo_u16(bytes_u8x), 8));
 }
 
-/**
- *  Fused `e4m3` × `e4m3` → `f32` GEMM kernel using interleaved FMOPA.
- *  Converts `e4m3` → `f16` on-the-fly for A, B is pre-converted during packing.
- */
+/** Fused e4m3 × e4m3 → f32 GEMM kernel using interleaved FMOPA.
+ *  Converts e4m3 → f16 on-the-fly for A, B is pre-converted during packing. */
 __arm_new("za") static void nk_dots_packed_e4m3_sme_streaming_( //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
@@ -1799,7 +1794,7 @@ NK_API_COMPTIME void nk_dots_packed_shape_e4m3_sme(void const *b_packed, nk_size
     *depth = header->depth;
 }
 
-/** @brief Streaming e4m3 → f16 pack using ZA tile transpose. */
+/** Streaming e4m3 → f16 pack using ZA tile transpose. */
 __arm_new("za") static void nk_dots_pack_e4m3_to_b16_sme_streaming_( //
     void const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_bytes, void *tiles_ptr,
     nk_size_t columns_begin, nk_size_t columns_end) NK_STREAMING_ {
@@ -1847,7 +1842,7 @@ __arm_new("za") static void nk_dots_pack_e4m3_to_b16_sme_streaming_( //
     }
 }
 
-/** @brief Streaming e5m2 → f16 pack using ZA tile transpose. */
+/** Streaming e5m2 → f16 pack using ZA tile transpose. */
 __arm_new("za") static void nk_dots_pack_e5m2_to_b16_sme_streaming_( //
     void const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_bytes, void *tiles_ptr,
     nk_size_t columns_begin, nk_size_t columns_end) NK_STREAMING_ {
@@ -1948,12 +1943,9 @@ NK_API_COMPTIME void nk_dots_packed_e4m3_sme(              //
     nk_sme_stop_streaming_();
 }
 
-/**
- * `e4m3` × `e4m3` → `f32` symmetric kernel using MOPA self-GEMM.
- *  Time-shares ZA0 for both A and B transposition with e4m3 → f16 conversion.
- *  Pre-reads A columns into Z registers, then reloads ZA0 with converted B data
- *  per column tile. Eliminates all scalar B-packing loops.
- */
+/** e4m3 × e4m3 → f32 symmetric kernel using MOPA self-GEMM. Time-shares ZA0 for both A and B
+ *  transposition with e4m3 → f16 conversion. Pre-reads A columns into Z registers, then reloads ZA0
+ *  with converted B data per column tile. Eliminates all scalar B-packing loops. */
 __arm_new("za") static void nk_dots_symmetric_e4m3_sme_streaming_( //
     nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
@@ -2198,10 +2190,8 @@ NK_API_COMPTIME void nk_dots_symmetric_e4m3_sme( //
  */
 #pragma region E5M2 Floats
 
-/**
- *  Fused `e5m2` × `e5m2` → `f32` GEMM kernel using interleaved FMOPA.
- *  Converts `e5m2` → `f16` on-the-fly for A, B is pre-converted during packing.
- */
+/** Fused e5m2 × e5m2 → f32 GEMM kernel using interleaved FMOPA.
+ *  Converts e5m2 → f16 on-the-fly for A, B is pre-converted during packing. */
 __arm_new("za") static void nk_dots_packed_e5m2_sme_streaming_( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
@@ -2392,9 +2382,6 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_sme(nk_e5m2_t const *b, nk_size_t columns
     }
 }
 
-/*  `e5m2` × `e5m2` → `f32` GEMM: public interface.
- *  Predicate-based edge handling eliminates scalar fallbacks.
- */
 NK_API_COMPTIME void nk_dots_packed_e5m2_sme( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
@@ -2407,12 +2394,9 @@ NK_API_COMPTIME void nk_dots_packed_e5m2_sme( //
     nk_sme_stop_streaming_();
 }
 
-/**
- * `e5m2` × `e5m2` → `f32` symmetric kernel using MOPA self-GEMM.
- *  Time-shares ZA0 for both A and B transposition with e5m2 → f16 conversion.
- *  Pre-reads A columns into Z registers, then reloads ZA0 with converted B data
- *  per column tile. Eliminates all scalar B-packing loops.
- */
+/** e5m2 × e5m2 → f32 symmetric kernel using MOPA self-GEMM. Time-shares ZA0 for both A and B
+ *  transposition with e5m2 → f16 conversion. Pre-reads A columns into Z registers, then reloads ZA0
+ *  with converted B data per column tile. Eliminates all scalar B-packing loops. */
 __arm_new("za") static void nk_dots_symmetric_e5m2_sme_streaming_( //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
@@ -2645,35 +2629,33 @@ NK_API_COMPTIME void nk_dots_symmetric_e5m2_sme( //
 
 #pragma endregion E5M2 Floats
 
-/*
- *  `e2m3` × `e2m3` → `f32` GEMM using `i8` SME outer products.
+/*  e2m3 × e2m3 → f32 GEMM using i8 SME outer products.
  *
  *  E2M3 format: S MMMMM (1+2+3 = 6 bits, stored in a byte with upper 2 bits unused).
- *  Values are converted to signed `i8` via a 32-entry magnitude LUT, then processed
- *  with `svmopa_za32_s8_m`. The `i32` accumulator is converted to `f32` and scaled
+ *  Values are converted to signed @c i8 via a 32-entry magnitude LUT, then processed
+ *  with @c svmopa_za32_s8_m. The @c i32 accumulator is converted to @c f32 and scaled
  *  by 1/256 to recover the true floating-point dot product.
  *
- *  This gives 2x throughput over the `f16` path since `i8` SMOPA processes 4 elements
- *  per `i32` word vs 2 `f16` elements per `f32` word.
+ *  This gives 2x throughput over the @c f16 path since @c i8 SMOPA processes 4 elements
+ *  per @c i32 word vs 2 @c f16 elements per @c f32 word.
  *
  *  Tile dimensions (SVL=512, Apple M4):
- *  - Input vectors: 64 `i8` elements (after conversion)
- *  - Output tile: 16 × 16 `i32` → `f32` elements (`ZA32`)
- *  - Each output word accumulates 4 `i8` pairs, scaled by 1/256
- */
+ *  - Input vectors: 64 @c i8 elements (after conversion)
+ *  - Output tile: 16 × 16 i32 → f32 elements in @c ZA32
+ *  - Each output word accumulates 4 @c i8 pairs, scaled by 1/256 */
 
 #pragma region E2M3 Floats
 
 /**
- *  Inline `e2m3` → signed `i8` conversion returning `svint8_t` for direct use in GEMM.
- *  Uses a 32-entry magnitude LUT via SVE TBL instruction.
+ *  @brief Inline e2m3 → signed i8 conversion returning @c svint8_t for direct use in GEMM.
  *
- *  E2M3 encoding: bit 5 = sign, bits 4:0 = magnitude index (0..27 used).
- *  LUT maps magnitude index → unsigned integer value, then sign is applied.
+ *  Uses a 32-entry magnitude LUT via the SVE TBL instruction. The e2m3 encoding keeps the sign in
+ *  bit 5 and a magnitude index in bits 4:0, of which 0..27 are used. The LUT maps the magnitude
+ *  index → an unsigned integer value, then the sign is applied.
  *
- *  @param predicate_b8x Predicate for 8-bit elements
- *  @param raw_bytes_u8x Pre-loaded e2m3 bytes as `svuint8_t`
- *  @return              Signed `i8` values as `svint8_t`
+ *  @param[in] predicate_b8x Predicate for 8-bit elements.
+ *  @param[in] raw_bytes_u8x Pre-loaded e2m3 bytes as @c svuint8_t.
+ *  @return Signed i8 values as @c svint8_t.
  */
 NK_HELPER_AUTO svint8_t nk_e2m3x_to_i8x_ssve_(svbool_t predicate_b8x, svuint8_t raw_bytes_u8x) NK_STREAMING_ {
     // 32-entry magnitude LUT, replicated for SVE TBL (handles SVL > 256 bits)
@@ -2693,11 +2675,9 @@ NK_HELPER_AUTO svint8_t nk_e2m3x_to_i8x_ssve_(svbool_t predicate_b8x, svuint8_t 
     return svsel_s8(negate_mask_b8x, negated_value_i8x, positive_value_i8x);
 }
 
-/**
- *  Fused `e2m3` × `e2m3` → `f32` GEMM kernel using interleaved SMOPA.
- *  Converts `e2m3` → `i8` on-the-fly for A, B is pre-converted during packing.
- *  Accumulates in `i32` via `svmopa_za32_s8_m`, then converts to `f32` with 1/256 scaling.
- */
+/** Fused e2m3 × e2m3 → f32 GEMM kernel using interleaved SMOPA.
+ *  Converts e2m3 → i8 on-the-fly for A, B is pre-converted during packing.
+ *  Accumulates in @c i32 via @c svmopa_za32_s8_m, then converts to @c f32 with 1/256 scaling. */
 __arm_new("za") static void nk_dots_packed_e2m3_sme_streaming_( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
@@ -2860,7 +2840,7 @@ NK_API_COMPTIME void nk_dots_packed_shape_e2m3_sme(void const *b_packed, nk_size
     *depth = header->depth;
 }
 
-/** @brief Streaming pack helper for e2m3 → i8 conversion + quad-interleave using ZA tile transpose. */
+/** Streaming pack helper for e2m3 → i8 conversion + quad-interleave using ZA tile transpose. */
 __arm_new("za") static void nk_dots_pack_e2m3_to_b8_sme_streaming_( //
     void const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_bytes, void *tiles_ptr,
     nk_size_t columns_begin, nk_size_t columns_end) NK_STREAMING_ {
@@ -2959,12 +2939,10 @@ NK_API_COMPTIME void nk_dots_packed_e2m3_sme( //
     nk_sme_stop_streaming_();
 }
 
-/**
- *  `e2m3` × `e2m3` → `f32` symmetric kernel using SMOPA self-GEMM.
- *  Time-shares ZA0 for both A and B transposition with e2m3 → i8 conversion.
- *  Pre-reads A columns into Z registers, then reloads ZA0 with converted B data
- *  per column tile. Accumulates in i32, converts to f32 with 1/256 scaling.
- */
+/** e2m3 × e2m3 → f32 symmetric kernel using SMOPA self-GEMM. Time-shares ZA0 for both A and B
+ *  transposition with e2m3 → i8 conversion. Pre-reads A columns into Z registers, then
+ *  reloads ZA0 with converted B data per column tile. Accumulates in i32, converts to f32
+ *  with 1/256 scaling. */
 __arm_new("za") static void nk_dots_symmetric_e2m3_sme_streaming_( //
     nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
@@ -3204,20 +3182,16 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m3_sme( //
 
 #pragma endregion E2M3 Floats
 
-/*
- *  `e2m1` × `e2m1` → `f32` GEMM using `i8` SME outer products.
+/*  e2m1 × e2m1 → f32 GEMM using i8 SME outer products.
  *
- *  Every E2M1 nibble times two is an exact integer in [-12, +12], so one 16-entry signed TBL
- *  widens nibble pairs into `i8` lanes for `svmopa_za32_s8_m`. The `i32` accumulator is converted
- *  to `f32` and scaled by 1/4. B is widened to `i8` once at pack time, A per depth batch.
- */
+ *  Every E2M1 nibble times two is an exact integer in [-12, +12], so one 16-entry signed TBL widens
+ *  nibble pairs into i8 lanes for @c svmopa_za32_s8_m. The i32 accumulator is converted to f32 and
+ *  scaled by 1/4. B is widened to i8 once at pack time, A per depth batch. */
 
 #pragma region E2M1 Floats
 
-/**
- *  Widens up to `svcntb()` E2M1 dimensions into doubled signed `i8` lanes, zeroing lanes past @p dimensions.
- *  Even dimensions live in high nibbles.
- */
+/** Widens up to `svcntb()` E2M1 dimensions into doubled signed i8 lanes, zeroing lanes past
+ *  @p dimensions. Even dimensions live in high nibbles. */
 NK_HELPER_AUTO svint8_t nk_e2m1x_to_i8x_ssve_(nk_e2m1x2_t const *pairs, nk_size_t dimensions) NK_STREAMING_ {
     static NK_ALIGN64 nk_i8_t const lut_data[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
     nk_size_t const vector_dimensions = svcntb();
@@ -3233,11 +3207,9 @@ NK_HELPER_AUTO svint8_t nk_e2m1x_to_i8x_ssve_(nk_e2m1x2_t const *pairs, nk_size_
     return svsel_s8(svwhilelt_b8_u64(0u, dimensions), doubled_i8x, svdup_n_s8(0));
 }
 
-/**
- *  Fused `e2m1` × `e2m1` → `f32` GEMM kernel using interleaved SMOPA.
- *  Converts `e2m1` → `i8` on-the-fly for A, B is pre-converted during packing.
- *  Accumulates in `i32` via `svmopa_za32_s8_m`, then converts to `f32` with 1/4 scaling.
- */
+/** Fused e2m1 × e2m1 → f32 GEMM kernel using interleaved SMOPA.
+ *  Converts e2m1 → i8 on-the-fly for A, B is pre-converted during packing.
+ *  Accumulates in @c i32 via @c svmopa_za32_s8_m, then converts to @c f32 with 1/4 scaling. */
 __arm_new("za") static void nk_dots_packed_e2m1_sme_streaming_( //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
@@ -3394,7 +3366,7 @@ NK_API_COMPTIME void nk_dots_packed_shape_e2m1_sme(void const *b_packed, nk_size
     *depth = header->depth;
 }
 
-/** @brief Streaming pack helper for e2m1 → i8 conversion + quad-interleave using ZA tile transpose. */
+/** Streaming pack helper for e2m1 → i8 conversion + quad-interleave using ZA tile transpose. */
 __arm_new("za") static void nk_dots_pack_e2m1_to_b8_sme_streaming_( //
     void const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_bytes, void *tiles_ptr,
     nk_size_t columns_begin, nk_size_t columns_end) NK_STREAMING_ {
@@ -3492,12 +3464,10 @@ NK_API_COMPTIME void nk_dots_packed_e2m1_sme( //
     nk_sme_stop_streaming_();
 }
 
-/**
- *  `e2m1` × `e2m1` → `f32` symmetric kernel using SMOPA self-GEMM.
+/** e2m1 × e2m1 → f32 symmetric kernel using SMOPA self-GEMM.
  *  Time-shares ZA0 for both A and B transposition with e2m1 → i8 conversion.
  *  Pre-reads A columns into Z registers, then reloads ZA0 with converted B data
- *  per column tile. Accumulates in i32, converts to f32 with 1/4 scaling.
- */
+ *  per column tile. Accumulates in i32, converts to f32 with 1/4 scaling. */
 __arm_new("za") static void nk_dots_symmetric_e2m1_sme_streaming_( //
     nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
@@ -3735,26 +3705,26 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m1_sme( //
  *  - Handles subnormals (exp=0, mant!=0) via integer → float conversion + scaling
  *  - No infinity or NaN in E3M2FN format
  *
- *  SME I16I32 alternative - the `svmopa_za32_s16_m` (SMOPA 2-way i16×i16 → i32) was considered for
- *  e3m2 GEMM via an integer LUT (e3m2 → i16, max magnitude 448). Same ZA32 tile geometry (16×16)
- *  and same 2-way expansion as the f16 → f32 path used here — no throughput benefit. Worse, i32
- *  accumulation overflows at depth ~10,698 elements (max product per MOPA = 2 × 448² = 401,408,
+ *  SME I16I32 alternative - the @c svmopa_za32_s16_m (SMOPA 2-way i16 × i16 → i32) was considered
+ *  for e3m2 GEMM via an integer LUT (e3m2 → i16, max magnitude 448). Same ZA32 tile geometry
+ *  (16×16) and same 2-way expansion as the f16 → f32 path used here — no throughput benefit. Worse,
+ *  i32 accumulation overflows at depth ~10,698 elements (max product per MOPA = 2 × 448² = 401,408,
  *  i32 max = 2,147,483,647). The f16 → f32 path has no such depth constraint (f32 range ~3.4e38).
  *  Apple M4 has `hw.optional.arm.SME_I16I32: 1` but the feature offers no advantage here.
  */
 #pragma region E3M2 Floats
 
 /**
- *  Inline `e3m2` → `f16` conversion returning `svfloat16_t` for direct use in GEMM.
+ *  @brief Inline e3m2 → f16 conversion returning @c svfloat16_t for direct use in GEMM.
  *
  *  The packed-B path already uses the serial `e3m2 → f32 → f16` LUT semantics. Mirror those bit
  *  patterns here with a byte TBL over the 5-bit magnitude, then widen the selected high bytes into
- *  16-bit lanes and apply the sign bit. All representable `e3m2` values map to `f16` bit patterns
- *  with a zero low byte, so a single-byte lookup is sufficient.
+ *  16-bit lanes and apply the sign bit. All representable e3m2 values map to f16 bit patterns with
+ *  a zero low byte, so a single-byte lookup is sufficient.
  *
- *  @param predicate_b16x Predicate for 16-bit elements
- *  @param bytes_u8x      Pre-loaded bytes (svuint8_t from svld1_u8)
- *  @return               F16 values as svfloat16_t (from lower half of bytes via unpack)
+ *  @param[in] predicate_b16x Predicate for 16-bit elements.
+ *  @param[in] bytes_u8x Pre-loaded bytes, an @c svuint8_t from @c svld1_u8.
+ *  @return F16 values as @c svfloat16_t, from the lower half of the bytes via unpack.
  */
 NK_HELPER_AUTO svfloat16_t nk_e3m2x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NK_STREAMING_ {
     static NK_ALIGN64 nk_u8_t const magnitude_high_lut[64] = {
@@ -3775,10 +3745,8 @@ NK_HELPER_AUTO svfloat16_t nk_e3m2x_to_f16x_ssve_(svbool_t predicate_b16x, svuin
     return svreinterpret_f16_u16(svorr_u16_x(predicate_b16x, magnitude_bits_u16x, sign_u16x));
 }
 
-/**
- *  Fused `e3m2` × `e3m2` → `f32` GEMM kernel using interleaved FMOPA.
- *  Converts `e3m2` → `f16` on-the-fly for A, B is pre-converted during packing.
- */
+/** Fused e3m2 × e3m2 → f32 GEMM kernel using interleaved FMOPA.
+ *  Converts e3m2 → f16 on-the-fly for A, B is pre-converted during packing. */
 __arm_new("za") static void nk_dots_packed_e3m2_sme_streaming_( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
@@ -3929,7 +3897,7 @@ NK_API_COMPTIME void nk_dots_packed_shape_e3m2_sme(void const *b_packed, nk_size
     *depth = header->depth;
 }
 
-/** @brief Streaming e3m2 → f16 pack using ZA tile transpose. */
+/** Streaming e3m2 → f16 pack using ZA tile transpose. */
 __arm_new("za") static void nk_dots_pack_e3m2_to_b16_sme_streaming_( //
     void const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_bytes, void *tiles_ptr,
     nk_size_t columns_begin, nk_size_t columns_end) NK_STREAMING_ {
@@ -4017,9 +3985,6 @@ NK_API_COMPTIME void nk_dots_pack_e3m2_sme( //
     }
 }
 
-/*  `e3m2` × `e3m2` → `f32` GEMM: public interface.
- *  Predicate-based edge handling eliminates scalar fallbacks.
- */
 NK_API_COMPTIME void nk_dots_packed_e3m2_sme( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
@@ -4032,12 +3997,9 @@ NK_API_COMPTIME void nk_dots_packed_e3m2_sme( //
     nk_sme_stop_streaming_();
 }
 
-/**
- * `e3m2` × `e3m2` → `f32` symmetric kernel using MOPA self-GEMM.
- *  Time-shares ZA0 for both A and B transposition with e3m2 → f16 conversion.
- *  Pre-reads A columns into Z registers, then reloads ZA0 with converted B data
- *  per column tile. Eliminates all scalar B-packing loops.
- */
+/** e3m2 × e3m2 → f32 symmetric kernel using MOPA self-GEMM. Time-shares ZA0 for both A and B
+ *  transposition with e3m2 → f16 conversion. Pre-reads A columns into Z registers, then reloads ZA0
+ *  with converted B data per column tile. Eliminates all scalar B-packing loops. */
 __arm_new("za") static void nk_dots_symmetric_e3m2_sme_streaming_( //
     nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
@@ -4270,17 +4232,15 @@ NK_API_COMPTIME void nk_dots_symmetric_e3m2_sme( //
 
 #pragma endregion I8 Integers
 
-/*
- *  `u8` × `u8` → `u32` GEMM using SME outer products.
+/*  u8 × u8 → u32 GEMM using SME outer products.
  *
- *  Uses `svmopa_za32_u8_m` for unsigned 8-bit integer outer product accumulate.
+ *  Uses @c svmopa_za32_u8_m for unsigned 8-bit integer outer product accumulate.
  *  Available on Apple M4 (SME_I8I32 = 1, covers both signed and unsigned).
  *
- *  Tile dimensions identical to `i8` → `i32` (512-bit SVL):
- *  - Input vectors: 64 `u8` elements (SVL/8 = 64)
- *  - Output tile: 16 × 16 `u32` elements (`ZA32`)
- *  - Each output `u32` is a dot product of 4 `u8` pairs
- */
+ *  Tile dimensions identical to i8 → i32 (512-bit SVL):
+ *  - Input vectors: 64 @c u8 elements (SVL/8 = 64)
+ *  - Output tile: 16 × 16 u32 elements in @c ZA32
+ *  - Each output @c u32 is a dot product of 4 @c u8 pairs */
 
 #pragma region U8 Integers
 
@@ -4333,10 +4293,8 @@ NK_API_COMPTIME void nk_dots_pack_u8_sme( //
     }
 }
 
-/**
- *  `u8` × `u8` → `u32` GEMM core kernel using SME outer products.
- *  Same interleaved algorithm as i8 kernel, using UMOPA u8→u32.
- */
+/** u8 × u8 → u32 GEMM core kernel using SME outer products.
+ *  Same interleaved algorithm as i8 kernel, using UMOPA u8 → u32. */
 __arm_new("za") static void nk_dots_packed_u8_sme_streaming_( //
     nk_u8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
@@ -4690,17 +4648,19 @@ NK_API_COMPTIME void nk_dots_symmetric_u8_sme( //
 /*
  *  4-bit integer GEMM (u4, i4) using direct mask-and-double-MOPA.
  *
- *  Each byte packs two 4-bit values (nk_u4x2_t / nk_i4x2_t): byte = (hi << 4) | lo.
- *  Pack functions copy raw packed bytes into the tiled layout (no nibble→byte expansion).
- *  Kernels load packed bytes directly into ZA0, then split into low/high nibbles in
- *  registers and issue 2 MOPAs per depth step:
+ *  Each byte packs two 4-bit values (nk_u4x2_t / nk_i4x2_t): byte = (hi << 4) | lo. Pack functions
+ *  copy raw packed bytes into the tiled layout, with no nibble → byte expansion. Kernels load
+ *  packed bytes directly into ZA0, then split them into low and high nibbles in registers and issue
+ *  2 MOPAs per depth step:
  *
- *    u4: a_low = a & 0x0F,  a_high = a >> 4   → UMOPA(tile, a_low, b_low) + UMOPA(tile, a_high, b_high)
- *    i4: a_low = (a<<4)>>4, a_high = a >> 4    → SMOPA(tile, a_low, b_low) + SMOPA(tile, a_high, b_high)
+ *  @verbatim
+ *  u4: a_low = a & 0x0F,      a_high = a >> 4  → UMOPA(tile, a_low, b_low) + UMOPA(tile, a_high, b_high)
+ *  i4: a_low = (a << 4) >> 4, a_high = a >> 4  → SMOPA(tile, a_low, b_low) + SMOPA(tile, a_high, b_high)
+ *  @endverbatim
  *
- *  This eliminates the bounce buffer entirely, halves memory bandwidth, and matches
- *  i8/u8 throughput since the dominant cost is 2 MOPAs per step × ceil(depth/8) steps
- *  = ceil(depth/4) total MOPAs — same as the unpacked path.
+ *  This eliminates the bounce buffer entirely, halves memory bandwidth, and matches i8/u8
+ *  throughput, since the dominant cost is 2 MOPAs per step × ⌈depth / 8⌉ steps = ⌈depth / 4⌉ total
+ *  MOPAs, the same as the unpacked path.
  */
 
 #pragma region U4 Integers
@@ -4799,12 +4759,10 @@ NK_API_COMPTIME void nk_dots_pack_u4_sme( //
     }
 }
 
-/**
- *  `u4` × `u4` → `u32` packed GEMM kernel using SME UMOPA with direct mask-and-double-MOPA.
+/** u4 × u4 → u32 packed GEMM kernel using SME UMOPA with direct mask-and-double-MOPA.
  *  A input is nibble-packed — loaded directly into ZA0, split into low/high nibbles in registers.
  *  B input is pre-split low/high nibble vectors from nk_dots_pack_u4_sme.
- *  Two UMOPAs per depth step: one for low nibbles, one for high nibbles.
- */
+ *  Two UMOPAs per depth step: one for low nibbles, one for high nibbles. */
 __arm_new("za") static void nk_dots_packed_u4_sme_streaming_( //
     nk_u4x2_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
@@ -5093,12 +5051,10 @@ NK_API_COMPTIME void nk_dots_pack_i4_sme(                   //
     }
 }
 
-/**
- *  `i4` × `i4` → `i32` packed GEMM kernel using SME SMOPA with direct mask-and-double-MOPA.
+/** i4 × i4 → i32 packed GEMM kernel using SME SMOPA with direct mask-and-double-MOPA.
  *  A input is nibble-packed — loaded directly into ZA0, sign-extended via LSL+ASR in registers.
  *  B input is pre-split sign-extended nibble vectors from nk_dots_pack_i4_sme.
- *  Two SMOPAs per depth step: one for low nibbles, one for high nibbles.
- */
+ *  Two SMOPAs per depth step: one for low nibbles, one for high nibbles. */
 __arm_new("za") static void nk_dots_packed_i4_sme_streaming_( //
     nk_i4x2_t const *a, void const *b_packed, nk_i32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
@@ -5292,11 +5248,9 @@ NK_API_COMPTIME void nk_dots_packed_i4_sme( //
     nk_sme_stop_streaming_();
 }
 
-/**
- *  `u4` × `u4` → `u32` symmetric kernel using SME UMOPA with direct mask-and-double-MOPA.
+/** u4 × u4 → u32 symmetric kernel using SME UMOPA with direct mask-and-double-MOPA.
  *  Loads packed nibble bytes directly into ZA0, splits into low/high nibbles in registers,
- *  issues 2 UMOPAs per depth step. ZA0 = staging tile, ZA1-ZA3 = accumulators.
- */
+ *  issues 2 UMOPAs per depth step. ZA0 = staging tile, ZA1-ZA3 = accumulators. */
 __arm_new("za") static void nk_dots_symmetric_u4_sme_streaming_( //
     nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_u32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
@@ -5604,11 +5558,9 @@ NK_API_COMPTIME void nk_dots_symmetric_u4_sme( //
     nk_sme_stop_streaming_();
 }
 
-/**
- *  `i4` × `i4` → `i32` symmetric kernel using SME SMOPA with direct mask-and-double-MOPA.
+/** i4 × i4 → i32 symmetric kernel using SME SMOPA with direct mask-and-double-MOPA.
  *  Loads packed nibble bytes directly into ZA0, sign-extends via LSL+ASR in registers,
- *  issues 2 SMOPAs per depth step. ZA0 = staging tile, ZA1-ZA3 = accumulators.
- */
+ *  issues 2 SMOPAs per depth step. ZA0 = staging tile, ZA1-ZA3 = accumulators. */
 __arm_new("za") static void nk_dots_symmetric_i4_sme_streaming_( //
     nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_i32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {

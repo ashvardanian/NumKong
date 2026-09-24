@@ -7,7 +7,7 @@ Matches C++ suite: test/spatial.cpp.
 
 File: test/spatial.py
 Author: Ash Vardanian
-Date: February 27, 2026
+Date: February 22, 2024
 """
 
 import atexit

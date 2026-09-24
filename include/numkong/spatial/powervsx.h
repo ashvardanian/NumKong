@@ -55,7 +55,7 @@ extern "C" {
 /**
  *  @brief Reciprocal square root of 4 floats with Newton-Raphson refinement.
  *
- *  Uses `vec_rsqrte` (~12-bit initial estimate) followed by two Newton-Raphson
+ *  Uses @c vec_rsqrte (~12-bit initial estimate) followed by two Newton-Raphson
  *  iterations, achieving ~23-bit precision sufficient for f32.
  *  NR step: rsqrt = rsqrt × (1.5 − 0.5 × x × rsqrt × rsqrt)
  */
@@ -76,7 +76,7 @@ NK_HELPER_INLINE nk_vf32x4_t nk_rsqrt_f32x4_powervsx_(nk_vf32x4_t x) {
 /**
  *  @brief Reciprocal square root of 2 doubles with Newton-Raphson refinement.
  *
- *  Uses `vec_rsqrte` (~12-bit estimate) followed by three Newton-Raphson
+ *  Uses @c vec_rsqrte (~12-bit estimate) followed by three Newton-Raphson
  *  iterations, achieving ~48-bit precision for f64.
  */
 NK_HELPER_INLINE nk_vf64x2_t nk_rsqrt_f64x2_powervsx_(nk_vf64x2_t x) {
@@ -259,7 +259,7 @@ nk_angular_f64_powervsx_cycle:
         b_f64x2 = vec_xl(0, b);
         a += 2, b += 2, n -= 2;
     }
-    // TwoProd for ab: product = a×b, error = msub(a, b, product) captures rounding error
+    // TwoProd for ab: product = a × b, error = msub(a, b, product) captures rounding error
     nk_vf64x2_t product_f64x2 = vec_mul(a_f64x2, b_f64x2);
     nk_vf64x2_t product_error_f64x2 = vec_msub(a_f64x2, b_f64x2, product_f64x2);
     // TwoSum: (t, q) = TwoSum(sum, product) where t = sum + product rounded, q = error
@@ -473,9 +473,9 @@ NK_API_COMPTIME void nk_euclidean_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b
 
 NK_API_COMPTIME void nk_angular_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
     // Hybrid approach for 3-accumulator i8 angular distance:
-    //   a·b: algebraic transform — VMSUMMBM(a, b⊕0x80) with correction −128·Σa
-    //   a·a: abs-based unsigned   — VMSUMUBM(|a|, |a|), no correction needed
-    //   b·b: abs-based unsigned   — VMSUMUBM(|b|, |b|), no correction needed
+    //   a · b: algebraic transform — VMSUMMBM(a, b⊕0x80) with correction −128 · Σa
+    //   a · a: abs-based unsigned   — VMSUMUBM(|a|, |a|), no correction needed
+    //   b · b: abs-based unsigned   — VMSUMUBM(|b|, |b|), no correction needed
     // abs(-128)→-128 in i8 → 128 as u8 → 128²=16384=(-128)². Safe for all values.
     // 3 independent MSUM chains → excellent ILP on POWER9's dual-issue p01.
     nk_vu8x16_t const bias_u8x16 = vec_splats((nk_u8_t)0x80);
@@ -514,7 +514,8 @@ nk_angular_i8_powervsx_cycle:
 
     if (n) goto nk_angular_i8_powervsx_cycle;
 
-    // Correct the biased dot product: a·b = biased − 128·Σa = biased − 128·(Σ(a+128) − 128·count_padded)
+    // Correct the biased dot product: a · b = biased − 128 · Σa, which expands to
+    // biased − 128 · (Σ(a+128) − 128 · count_padded).
     nk_i64_t correction = 128LL * (nk_i64_t)nk_hsum_u32x4_powervsx_(sum_a_biased_u32x4) -
                           16384LL * (nk_i64_t)count_padded;
     nk_i32_t dot_product_i32 = (nk_i32_t)((nk_i64_t)nk_hsum_i32x4_powervsx_(dot_product_i32x4) - correction);
@@ -589,8 +590,9 @@ nk_angular_u8_powervsx_cycle:
     *result = nk_angular_normalize_f32_powervsx_((nk_f32_t)ab, (nk_f32_t)aa, (nk_f32_t)bb);
 }
 
-/** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq) × rsqrt(target_sumsq) for 4 pairs in f64.
- *  Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms. */
+/** Angular from_dot: computes 1 − dot × rsqrt(q) × rsqrt(t) for 4 pairs in f64, where q is
+ *  @p query_sumsq and t each target's sum of squares. Separate reciprocal square roots avoid
+ *  overflowing the product of two finite-but-large norms. */
 NK_HELPER_INLINE void nk_angular_through_f64_from_dot_powervsx_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                                 nk_b256_vec_t const *target_sumsqs_vec,
                                                                 nk_b256_vec_t *result_vec) {
@@ -625,7 +627,8 @@ NK_HELPER_INLINE void nk_angular_through_f64_from_dot_powervsx_(nk_b256_vec_t co
     result_vec->vf64x2s[1] = result_cd_f64x2;
 }
 
-/** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2×dot) for 4 pairs in f64. */
+/** Euclidean from_dot: computes √(q + t − 2 × dot) for 4 pairs in f64, where q is @p query_sumsq
+ *  and t each target's sum of squares. */
 NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_powervsx_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                                   nk_b256_vec_t const *target_sumsqs_vec,
                                                                   nk_b256_vec_t *result_vec) {
@@ -642,8 +645,9 @@ NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_powervsx_(nk_b256_vec_t 
     result_vec->vf64x2s[1] = vec_sqrt(dist_sq_cd_f64x2);
 }
 
-/** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq) × rsqrt(target_sumsq) for 4 pairs in f32.
- *  Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms. */
+/** Angular from_dot: computes 1 − dot × rsqrt(q) × rsqrt(t) for 4 pairs in f32, where q is
+ *  @p query_sumsq and t each target's sum of squares. Separate reciprocal square roots avoid
+ *  overflowing the product of two finite-but-large norms. */
 NK_HELPER_INLINE void nk_angular_through_f32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                                 nk_b128_vec_t const *target_sumsqs_vec,
                                                                 nk_b128_vec_t *result_vec) {
@@ -657,7 +661,8 @@ NK_HELPER_INLINE void nk_angular_through_f32_from_dot_powervsx_(nk_b128_vec_t co
     result_vec->vf32x4 = result_f32x4;
 }
 
-/** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2×dot) for 4 pairs in f32. */
+/** Euclidean from_dot: computes √(q + t − 2 × dot) for 4 pairs in f32, where q is @p query_sumsq
+ *  and t each target's sum of squares. */
 NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                                   nk_b128_vec_t const *target_sumsqs_vec,
                                                                   nk_b128_vec_t *result_vec) {
@@ -672,7 +677,7 @@ NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_powervsx_(nk_b128_vec_t 
     result_vec->vf32x4 = dist_f32x4;
 }
 
-/** @brief Angular from_dot for i32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
+/** Angular from_dot for i32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
 NK_HELPER_INLINE void nk_angular_through_i32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
                                                                 nk_b128_vec_t const *target_sumsqs_vec,
                                                                 nk_b128_vec_t *result_vec) {
@@ -688,7 +693,7 @@ NK_HELPER_INLINE void nk_angular_through_i32_from_dot_powervsx_(nk_b128_vec_t co
     result_vec->vf32x4 = result_f32x4;
 }
 
-/** @brief Euclidean from_dot for i32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
+/** Euclidean from_dot for i32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
 NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
                                                                   nk_b128_vec_t const *target_sumsqs_vec,
                                                                   nk_b128_vec_t *result_vec) {
@@ -703,7 +708,7 @@ NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_powervsx_(nk_b128_vec_t 
     result_vec->vf32x4 = dist_f32x4;
 }
 
-/** @brief Angular from_dot for u32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
+/** Angular from_dot for u32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
 NK_HELPER_INLINE void nk_angular_through_u32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                                 nk_b128_vec_t const *target_sumsqs_vec,
                                                                 nk_b128_vec_t *result_vec) {
@@ -719,7 +724,7 @@ NK_HELPER_INLINE void nk_angular_through_u32_from_dot_powervsx_(nk_b128_vec_t co
     result_vec->vf32x4 = result_f32x4;
 }
 
-/** @brief Euclidean from_dot for u32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
+/** Euclidean from_dot for u32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
 NK_HELPER_INLINE void nk_euclidean_through_u32_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                                   nk_b128_vec_t const *target_sumsqs_vec,
                                                                   nk_b128_vec_t *result_vec) {

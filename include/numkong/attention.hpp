@@ -17,7 +17,7 @@ namespace ashvardanian::numkong {
 /**
  *  @brief Returns the packed KV-cache size in bytes for a ragged batch of segments.
  *  @tparam in_type_ Input element type (bf16_t, e4m3_t, i8_t).
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 NK_API_COMPTIME std::size_t attention_pack_size(std::size_t key_value_head_count, std::size_t depth,
@@ -41,7 +41,7 @@ NK_API_COMPTIME std::size_t attention_pack_size(std::size_t key_value_head_count
 /**
  *  @brief Packs ragged K/V token matrices into a backend-opaque KV-cache blob.
  *  @tparam in_type_ Input element type (bf16_t, e4m3_t, i8_t).
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 NK_API_COMPTIME void attention_pack(in_type_ const *keys, in_type_ const *values, std::size_t key_value_head_count,
@@ -82,7 +82,7 @@ NK_API_COMPTIME void attention_pack(in_type_ const *keys, in_type_ const *values
 /**
  *  @brief Ragged bidirectional scaled-dot-product attention against a pre-packed KV-cache.
  *  @tparam in_type_ Input element type (bf16_t, e4m3_t, i8_t).
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::attention_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
@@ -128,7 +128,7 @@ NK_API_COMPTIME void attention_bidirectional_packed(in_type_ const *queries, voi
 /**
  *  @brief Ragged causal, optionally sliding-window, attention against a pre-packed KV-cache.
  *  @tparam in_type_ Input element type (bf16_t, e4m3_t, i8_t).
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::attention_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>

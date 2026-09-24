@@ -1,7 +1,7 @@
 /**
  *  @file c/dispatch_f64c.c
  *  @author Ash Vardanian
- *  @date February 3, 2026
+ *  @date March 3, 2024
  *  @brief Dispatch initialization for F64C data types.
  */
 #include "dispatch.h"

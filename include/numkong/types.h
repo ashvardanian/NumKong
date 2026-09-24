@@ -6,9 +6,9 @@
  *
  *  Defines:
  *
- *  - Sized aliases for numeric types, like: `nk_i32_t` and `nk_f64_t`.
- *  - Macros for internal compiler/hardware checks, like: `NK_TARGET_ARM64_`.
- *  - Macros for feature controls, like: `NK_TARGET_NEON`
+ *  - Sized aliases for numeric types, like: @c nk_i32_t and @c nk_f64_t.
+ *  - Macros for internal compiler/hardware checks, like: @c NK_TARGET_ARM64_.
+ *  - Macros for feature controls, like: @c NK_TARGET_NEON
  *
  *  @section types_fp8 FP8 Numeric Types
  *
@@ -559,7 +559,7 @@
  *  with AVX2 in the Haswell generation. Moreover, Haswell adds FMA support.
  *
  *  On MSVC, most GCC-style ISA macros are unavailable. MSVC defines __AVX__, __AVX2__,
- *  __AVX512F/BW/CD/DQ/VL__, and __AVX10_VER__, but NOT __AVXVNNI__, __AVX512VNNI__, __AVX512BF16__,
+ *  __AVX512F/BW/CD/DQ/VL__, and __AVX10_VER__, but not __AVXVNNI__, __AVX512VNNI__, __AVX512BF16__,
  *  __AVX512FP16__, __AMX_*__, etc. Instead, MSVC makes all intrinsics available once the toolset
  *  version supports them, without requiring `/arch:AVX512`. We gate on _MSC_VER to auto-enable
  *  targets:
@@ -938,83 +938,101 @@ typedef __vector double nk_vf64x2_t;
 extern "C" {
 #endif
 
-/** @brief Packed 8-bit bit-vector (8 booleans in one byte), LSB = dimension 0.
- *  Used for Hamming distance and Jaccard similarity via popcount.
- *  Dimension count must be a multiple of 8, the values per byte. */
+/** Packed 8-bit bit-vector (8 booleans in one byte), LSB = dimension 0. Used for Hamming
+ *  distance and Jaccard similarity via popcount. Dimension count must be a multiple of 8, the
+ *  values per byte. */
 typedef unsigned char nk_u1x8_t;
-/** @brief Packed 4-bit signed integer pair (2 × i4 in one byte), [high nibble : low nibble].
- *  Range per element: [−8, +7]. Elements sign-extended to i8 for arithmetic.
- *  Dimension count must be a multiple of 2, the values per byte. */
+
+/** Packed 4-bit signed integer pair (2 × i4 in one byte), [high nibble : low nibble]. Range per
+ *  element: [−8, +7]. Elements sign-extended to i8 for arithmetic. Dimension count must be a
+ *  multiple of 2, the values per byte. */
 typedef unsigned char nk_i4x2_t;
-/** @brief Packed 4-bit unsigned integer pair (2 × u4 in one byte), [high nibble : low nibble].
- *  Range per element: [0, 15]. Elements zero-extended to u8 for arithmetic.
- *  Dimension count must be a multiple of 2, the values per byte. */
+
+/** Packed 4-bit unsigned integer pair (2 × u4 in one byte), [high nibble : low nibble]. Range per
+ *  element: [0, 15]. Elements zero-extended to u8 for arithmetic. Dimension count must be a
+ *  multiple of 2, the values per byte. */
 typedef unsigned char nk_u4x2_t;
 
-/** @brief 8-bit E4M3 float (OCP FP8): sign(1) + exponent(4) + mantissa(3), bias=7.
- *  Range: ±448, no infinities (all-ones exponent → NaN at 0x7F/0xFF).
- *  114 of 254 finite values (44.9%) fall in [−1, +1]. */
+/** 8-bit E4M3 float (OCP FP8): sign(1) + exponent(4) + mantissa(3), bias=7. Range: ±448, no
+ *  infinities (all-ones exponent → NaN at 0x7F/0xFF). 114 of 254 finite values, or 44.9%, fall
+ *  in [−1, +1]. */
 typedef unsigned char nk_e4m3_t;
-/** @brief 8-bit E5M2 float (OCP FP8): sign(1) + exponent(5) + mantissa(2), bias=15.
- *  Range: ±57 344, supports infinities at 0x7C/0xFC.
- *  122 of 248 finite values (49.2%) fall in [−1, +1]. */
+
+/** 8-bit E5M2 float (OCP FP8): sign(1) + exponent(5) + mantissa(2), bias=15. Range: ±57 344,
+ *  supports infinities at 0x7C/0xFC. 122 of 248 finite values (49.2%) fall in [−1, +1]. */
 typedef unsigned char nk_e5m2_t;
-/** @brief 6-bit E2M3 micro-float (OCP MX v1.0): sign(1) + exponent(2) + mantissa(3), bias=1.
- *  Stored as 0b00SEEMMM with 2 bits of padding. Range: ±7.5, no infinities or NaN.
- *  64 total codes: 48 normal, 14 subnormal (exp=0, mant≠0), 2 zeros (±0).
- *  18 of 64 values (28.1%) fall in [−1, +1]. Subnormal values span [±0.125, ±0.875].
- *  Losslessly promotable to E4M3 by rebiasing exponent +6 (normals) or normalizing (subnormals). */
+
+/** 6-bit E2M3 micro-float (OCP MX v1.0): sign(1) + exponent(2) + mantissa(3), bias=1. Stored as
+ *  0b00SEEMMM with 2 bits of padding. Range: ±7.5, no infinities or NaN. 64 total codes: 48 normal,
+ *  14 subnormal (exp=0, mant ≠ 0), 2 zeros (±0). 18 of 64 values (28.1%) fall in [−1, +1].
+ *  Subnormal values span [±0.125, ±0.875]. Losslessly promotable to E4M3 by rebiasing exponent +6
+ *  (normals) or normalizing (subnormals). */
 typedef unsigned char nk_e2m3_t;
-/** @brief 6-bit E3M2 micro-float (OCP MX v1.0): sign(1) + exponent(3) + mantissa(2), bias=3.
- *  Stored as 0b00SEEEMM with 2 bits of padding. Range: ±28, no infinities or NaN.
- *  64 total codes: 56 normal, 6 subnormal (exp=0, mant≠0), 2 zeros (±0).
- *  26 of 64 values (40.6%) fall in [−1, +1]. Subnormal values span [±0.0625, ±0.1875].
- *  Losslessly promotable to E5M2 by rebiasing exponent +12 (normals) or normalizing (subnormals). */
+
+/** 6-bit E3M2 micro-float (OCP MX v1.0): sign(1) + exponent(3) + mantissa(2), bias=3. Stored as
+ *  0b00SEEEMM with 2 bits of padding. Range: ±28, no infinities or NaN. 64 total codes: 56 normal,
+ *  6 subnormal (exp=0, mant ≠ 0), 2 zeros (±0). 26 of 64 values (40.6%) fall in [−1, +1]. Subnormal
+ *  values span [±0.0625, ±0.1875]. Losslessly promotable to E5M2 by rebiasing exponent +12
+ *  (normals) or normalizing (subnormals). */
 typedef unsigned char nk_e3m2_t;
-/** @brief Packed 4-bit E2M1 micro-float pair (2 × e2m1 in one byte), [high nibble : low nibble].
- *  OCP MX v1.0 sub-format: sign(1) + exponent(2) + mantissa(1), bias=1. Range: ±6.0, no Inf or NaN.
- *  16 total codes: 8 magnitudes {0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0} × 2 signs (two zeros).
- *  Used as the element type of MXFP4 (block=32, UE8M0 scales) and NVFP4 (block=16, UE4M3 scales).
- *  Dimension count must be a multiple of 2, the values per byte. */
+
+/** Packed 4-bit E2M1 micro-float pair (2 × e2m1 in one byte), [high nibble : low nibble]. OCP MX
+ *  v1.0 sub-format: sign(1) + exponent(2) + mantissa(1), bias=1. Range: ±6.0, no Inf or NaN. 16
+ *  total codes: 8 magnitudes {0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0} × 2 signs (two zeros). Used as
+ *  the element type of MXFP4 (block=32, UE8M0 scales) and NVFP4 (block=16, UE4M3 scales). Dimension
+ *  count must be a multiple of 2, the values per byte. */
 typedef unsigned char nk_e2m1x2_t;
-/** @brief Unsigned 8-bit power-of-two scale (OCP MX v1.0): 8-bit biased exponent, no sign or mantissa.
- *  Encodes 2^(v - 127) for v ∈ [1, 254]; v = 0 is zero; v = 255 is the NaN-block sentinel.
- *  Used as the per-block scale byte for MXFP4, MXFP6, MXFP8, MXINT8. */
+
+/** Unsigned 8-bit power-of-two scale (OCP MX v1.0): 8-bit biased exponent, no sign or mantissa.
+ *  Encodes 2^(v - 127) for v ∈ [1, 254]; v = 0 is zero; v = 255 is the NaN-block sentinel. Used as
+ *  the per-block scale byte for MXFP4, MXFP6, MXFP8, MXINT8. */
 typedef unsigned char nk_ue8m0_t;
-/** @brief Unsigned 8-bit E4M3 scale (NVFP4): sign-bit forced to 0, otherwise identical to E4M3.
- *  Range: [0, +448]. Used as the per-block scale byte for NVFP4 (block=16) alongside an f32 "tensor scale". */
+
+/** Unsigned 8-bit E4M3 scale (NVFP4): sign-bit forced to 0, otherwise identical to E4M3. Range: [0,
+ *  +448]. Used as the per-block scale byte for NVFP4 (block=16) alongside an f32 "tensor scale". */
 typedef unsigned char nk_ue4m3_t;
 
-/** @brief Signed 8-bit integer. Range: [−128, +127]. */
+/** Signed 8-bit integer. Range: [−128, +127]. */
 typedef signed char nk_i8_t;
-/** @brief Unsigned 8-bit integer. Range: [0, 255]. */
+
+/** Unsigned 8-bit integer. Range: [0, 255]. */
 typedef unsigned char nk_u8_t;
-/** @brief Signed 16-bit integer. Range: [−32 768, +32 767]. */
+
+/** Signed 16-bit integer. Range: [−32 768, +32 767]. */
 typedef signed short nk_i16_t;
-/** @brief Unsigned 16-bit integer. Range: [0, 65 535]. */
+
+/** Unsigned 16-bit integer. Range: [0, 65 535]. */
 typedef unsigned short nk_u16_t;
-/** @brief Signed 32-bit integer. Range: [−2³¹, +2³¹−1]. */
+
+/** Signed 32-bit integer. Range: [−2³¹, +2³¹−1]. */
 typedef signed int nk_i32_t;
-/** @brief Unsigned 32-bit integer. Range: [0, 2³²−1]. */
+
+/** Unsigned 32-bit integer. Range: [0, 2³²−1]. */
 typedef unsigned int nk_u32_t;
-/*  On LP64 targets (Linux ARM64, RISC-V 64), `long` and `long long` are both 64-bit but distinct types.
- *  NEON/RVV intrinsics on Linux expect `long*`, while Apple's NEON intrinsics expect `long long*`.
- *  Windows uses LLP64 where `long` is 32-bit, so it must use `long long` for 64-bit types. */
+/*  On LP64 targets (Linux ARM64, RISC-V 64), @c long and `long long` are both 64-bit but
+ *  distinct types. NEON/RVV intrinsics on Linux expect `long*`, while Apple's NEON intrinsics
+ *  expect `long long*`. Windows uses LLP64 where @c long is 32-bit, so it must use `long long`
+ *  for 64-bit types. */
 #if ((NK_TARGET_ARM64_ && !defined(NK_DEFINED_APPLE_)) || NK_TARGET_RISCV64_) && !defined(NK_DEFINED_WINDOWS_)
-/** @brief Signed 64-bit integer. Range: [−2⁶³, +2⁶³−1]. */
+
+/** Signed 64-bit integer. Range: [−2⁶³, +2⁶³−1]. */
 typedef signed long nk_i64_t;
-/** @brief Unsigned 64-bit integer. Range: [0, 2⁶⁴−1]. */
+
+/** Unsigned 64-bit integer. Range: [0, 2⁶⁴−1]. */
 typedef unsigned long nk_u64_t;
 #else
-/** @brief Signed 64-bit integer. Range: [−2⁶³, +2⁶³−1]. */
+
+/** Signed 64-bit integer. Range: [−2⁶³, +2⁶³−1]. */
 typedef signed long long nk_i64_t;
-/** @brief Unsigned 64-bit integer. Range: [0, 2⁶⁴−1]. */
+
+/** Unsigned 64-bit integer. Range: [0, 2⁶⁴−1]. */
 typedef unsigned long long nk_u64_t;
 #endif
 
-/** @brief Single-precision (32-bit) IEEE 754 float. sign(1) + exponent(8) + mantissa(23), bias=127. */
+/** Single-precision (32-bit) IEEE 754 float. sign(1) + exponent(8) + mantissa(23), bias=127. */
 typedef float nk_f32_t;
-/** @brief Double-precision (64-bit) IEEE 754 float. sign(1) + exponent(11) + mantissa(52), bias=1023. */
+
+/** Double-precision (64-bit) IEEE 754 float. sign(1) + exponent(11) + mantissa(52), bias=1023. */
 typedef double nk_f64_t;
 
 #if NK_TARGET_X8664_ || NK_TARGET_ARM64_ || NK_TARGET_RISCV64_ || NK_TARGET_POWER64_ || NK_TARGET_LOONGARCH64_
@@ -1034,12 +1052,10 @@ typedef nk_f64_t nk_fmax_t;
 
 #define NK_SIZE_MAX ((nk_size_t) - 1)
 
-/**
- *  @brief `NK_NULL`, analogous to `NULL`, so headers need not pull in `<stddef.h>`.
- *         `__null` gives better null-pointer diagnostics where the compiler provides it.
- *         The `nullptr` branch matters for MSVC C++: unlike C, it forbids a `void *`
- *         arm in a typed conditional, so `(void *)0` there fails to compile.
- */
+/** @c NK_NULL, analogous to @c NULL, so headers need not pull in `<stddef.h>`. @c __null gives
+ *      better null-pointer diagnostics where the compiler provides it. The @c nullptr branch
+ *      matters for MSVC C++: unlike C, it forbids a `void *` arm in a typed conditional, so
+ *      `(void *)0` there fails to compile. */
 #ifdef __GNUG__
 #define NK_NULL __null
 #elif defined(__cplusplus)
@@ -1053,11 +1069,12 @@ typedef nk_f64_t nk_fmax_t;
 #define NK_F32_MAX 3.402823466e+38f
 #define NK_F32_MIN (-3.402823466e+38f)
 
-/*  Fundamental math constants shared across the scalar, elementwise, reduction, and probability
- *  kernels. Base-2 polynomial evaluation means natural-log/exp quantities fold through log₂e and
- *  ln2, so both the single- and double-precision spellings are provided and each site keeps its
- *  exact bits. Trigonometric range-reduction constants (π high/low, 1/π, π/2) are intentionally
- *  not here — they are a Cody-Waite set local to the `trigonometry/` sources, tuned per approximation. */
+/** Fundamental math constants shared across the scalar, elementwise, reduction, and probability
+ *  kernels. Base-2 polynomial evaluation means natural-log/exp quantities fold through log₂e
+ *  and ln2, so both the single- and double-precision spellings are provided and each site keeps
+ *  its exact bits. Trigonometric range-reduction constants (π high/low, 1/π, π/2) are
+ *  intentionally not here — they are a Cody-Waite set local to the `trigonometry/` sources,
+ *  tuned per approximation. */
 #define NK_F32_LN2_   0.6931471805599453f // ln2 (single precision)
 #define NK_F64_LN2_   0.6931471805599453  // ln2 (double precision)
 #define NK_F32_LOG2E_ 1.4426950408889634f // log₂e = 1/ln2 (single)
@@ -1119,72 +1136,142 @@ typedef nk_f64_t nk_fmax_t;
 /**
  *  @brief  Enumeration of supported scalar data types.
  *
- *  Includes complex type descriptors which in C code would use the real counterparts,
- *  but the independent flags contain metadata to be passed between programming language
- *  interfaces.
+ *  Includes complex type descriptors which in C code would use the real counterparts, but the
+ *  independent flags contain metadata to be passed between programming language interfaces.
  */
 typedef enum {
-    nk_dtype_unknown_k = 0, ///< Unknown data type
-    nk_u1_k = 1 << 1,       ///< Single-bit values packed into 8-bit words
 
-    nk_i8_k = 1 << 2,  ///< 8-bit signed integer
-    nk_i16_k = 1 << 3, ///< 16-bit signed integer
-    nk_i32_k = 1 << 4, ///< 32-bit signed integer
-    nk_i64_k = 1 << 5, ///< 64-bit signed integer
+    /** Unknown data type. */
+    nk_dtype_unknown_k = 0,
 
-    nk_u8_k = 1 << 6,  ///< 8-bit unsigned integer
-    nk_u16_k = 1 << 7, ///< 16-bit unsigned integer
-    nk_u32_k = 1 << 8, ///< 32-bit unsigned integer
-    nk_u64_k = 1 << 9, ///< 64-bit unsigned integer
+    /** Single-bit values packed into 8-bit words. */
+    nk_u1_k = 1 << 1,
 
-    nk_f64_k = 1 << 10,  ///< Double precision floating point
-    nk_f32_k = 1 << 11,  ///< Single precision floating point
-    nk_f16_k = 1 << 12,  ///< Half precision floating point
-    nk_bf16_k = 1 << 13, ///< Brain floating point
+    /** 8-bit signed integer. */
+    nk_i8_k = 1 << 2,
 
-    nk_e4m3_k = 1 << 14, ///< FP8 E4M3 floating point
-    nk_e5m2_k = 1 << 15, ///< FP8 E5M2 floating point
-    nk_i4_k = 1 << 16,   ///< 4-bit signed integers packed into 8-bit words
-    nk_u4_k = 1 << 17,   ///< 4-bit unsigned integers packed into 8-bit words
-    nk_e2m3_k = 1 << 18, ///< FP6 E2M3 floating point
-    nk_e3m2_k = 1 << 19, ///< FP6 E3M2 floating point
+    /** 16-bit signed integer. */
+    nk_i16_k = 1 << 3,
 
-    nk_f64c_k = 1 << 20,  ///< Complex double precision floating point
-    nk_f32c_k = 1 << 21,  ///< Complex single precision floating point
-    nk_f16c_k = 1 << 22,  ///< Complex half precision floating point
-    nk_bf16c_k = 1 << 23, ///< Complex brain floating point
+    /** 32-bit signed integer. */
+    nk_i32_k = 1 << 4,
 
-    nk_e2m1_k = 1 << 24,  ///< FP4 E2M1 floating point (element of MXFP4 and NVFP4)
-    nk_ue8m0_k = 1 << 25, ///< UE8M0 unsigned pow-2 scale byte (MX family block scale)
-    nk_ue4m3_k = 1 << 26, ///< UE4M3 unsigned E4M3 scale byte (NVFP4 block scale)
+    /** 64-bit signed integer. */
+    nk_i64_k = 1 << 5,
+
+    /** 8-bit unsigned integer. */
+    nk_u8_k = 1 << 6,
+
+    /** 16-bit unsigned integer. */
+    nk_u16_k = 1 << 7,
+
+    /** 32-bit unsigned integer. */
+    nk_u32_k = 1 << 8,
+
+    /** 64-bit unsigned integer. */
+    nk_u64_k = 1 << 9,
+
+    /** Double precision floating point. */
+    nk_f64_k = 1 << 10,
+
+    /** Single precision floating point. */
+    nk_f32_k = 1 << 11,
+
+    /** Half precision floating point. */
+    nk_f16_k = 1 << 12,
+
+    /** Brain floating point. */
+    nk_bf16_k = 1 << 13,
+
+    /** FP8 E4M3 floating point. */
+    nk_e4m3_k = 1 << 14,
+
+    /** FP8 E5M2 floating point. */
+    nk_e5m2_k = 1 << 15,
+
+    /** 4-bit signed integers packed into 8-bit words. */
+    nk_i4_k = 1 << 16,
+
+    /** 4-bit unsigned integers packed into 8-bit words. */
+    nk_u4_k = 1 << 17,
+
+    /** FP6 E2M3 floating point. */
+    nk_e2m3_k = 1 << 18,
+
+    /** FP6 E3M2 floating point. */
+    nk_e3m2_k = 1 << 19,
+
+    /** Complex double precision floating point. */
+    nk_f64c_k = 1 << 20,
+
+    /** Complex single precision floating point. */
+    nk_f32c_k = 1 << 21,
+
+    /** Complex half precision floating point. */
+    nk_f16c_k = 1 << 22,
+
+    /** Complex brain floating point. */
+    nk_bf16c_k = 1 << 23,
+
+    /** FP4 E2M1 floating point (element of MXFP4 and NVFP4). */
+    nk_e2m1_k = 1 << 24,
+
+    /** UE8M0 unsigned pow-2 scale byte (MX family block scale). */
+    nk_ue8m0_k = 1 << 25,
+
+    /** UE4M3 unsigned E4M3 scale byte (NVFP4 block scale). */
+    nk_ue4m3_k = 1 << 26,
 
     // Composite block-scaled formats encoded as `element_dtype | scale_dtype`. Each OR is unique
     // (popcount = 2) and cannot collide with any singleton (popcount = 1). Block size is implicit
     // from the scale dtype: `ue4m3` → 16 (NVFP4), `ue8m0` → 32 (MX family).
-    nk_nvfp4_k = nk_e2m1_k | nk_ue4m3_k,      ///< NVIDIA NVFP4 (block=16, f32 tensor scale)
-    nk_mxfp4_k = nk_e2m1_k | nk_ue8m0_k,      ///< OCP MXFP4 (block=32)
-    nk_mxfp6_e2m3_k = nk_e2m3_k | nk_ue8m0_k, ///< OCP MXFP6 (E2M3 variant, block=32)
-    nk_mxfp6_e3m2_k = nk_e3m2_k | nk_ue8m0_k, ///< OCP MXFP6 (E3M2 variant, block=32)
-    nk_mxfp8_e4m3_k = nk_e4m3_k | nk_ue8m0_k, ///< OCP MXFP8 (E4M3 variant, block=32)
-    nk_mxfp8_e5m2_k = nk_e5m2_k | nk_ue8m0_k, ///< OCP MXFP8 (E5M2 variant, block=32)
-    nk_mxint8_k = nk_i8_k | nk_ue8m0_k,       ///< OCP MXINT8 (block=32)
+
+    /** NVIDIA NVFP4 (block=16, f32 tensor scale). */
+    nk_nvfp4_k = nk_e2m1_k | nk_ue4m3_k,
+
+    /** OCP MXFP4 (block=32). */
+    nk_mxfp4_k = nk_e2m1_k | nk_ue8m0_k,
+
+    /** OCP MXFP6 (E2M3 variant, block=32). */
+    nk_mxfp6_e2m3_k = nk_e2m3_k | nk_ue8m0_k,
+
+    /** OCP MXFP6 (E3M2 variant, block=32). */
+    nk_mxfp6_e3m2_k = nk_e3m2_k | nk_ue8m0_k,
+
+    /** OCP MXFP8 (E4M3 variant, block=32). */
+    nk_mxfp8_e4m3_k = nk_e4m3_k | nk_ue8m0_k,
+
+    /** OCP MXFP8 (E5M2 variant, block=32). */
+    nk_mxfp8_e5m2_k = nk_e5m2_k | nk_ue8m0_k,
+
+    /** OCP MXINT8 (block=32). */
+    nk_mxint8_k = nk_i8_k | nk_ue8m0_k,
 } nk_dtype_t;
 
 /**
  *  @brief  Descriptor for a block-scaled tensor layout (OCP MX family + NVIDIA NVFP4).
  *
- *  Elements are grouped in fixed-size contiguous blocks; each block has its own @p scale_dtype
- *  scale byte stored in a separate scales buffer. An optional @p tensor_scale_dtype scalar multiplier
- *  applies to the whole tensor (NVFP4's per-tensor FP32 factor; absent for the MX family).
+ *  Elements are grouped in fixed-size contiguous blocks; each block has its own
+ *  @c scale_dtype scale byte stored in a separate scales buffer. An optional
+ *  @c tensor_scale_dtype scalar multiplier applies to the whole tensor (NVFP4's per-tensor
+ *  FP32 factor; absent for the MX family).
  *
  *  Plain (non-block-scaled) buffers are described by `scale_dtype = nk_dtype_unknown_k`,
  *  `tensor_scale_dtype = nk_dtype_unknown_k`, and `block_size = 0` — use the `nk_plain()` factory.
  */
 typedef struct {
-    nk_dtype_t element_dtype;      ///< Per-element dtype: e2m1/e4m3/e5m2/e2m3/e3m2/i8 (or any for plain)
-    nk_dtype_t scale_dtype;        ///< Per-block scale: ue8m0 (MX) or ue4m3 (NVFP4); unknown for plain
-    nk_dtype_t tensor_scale_dtype; ///< Per-tensor multiplier: f32 (NVFP4) or unknown (MX, plain)
-    nk_size_t block_size;          ///< Elements per block: 16 (NVFP4) or 32 (MX); 0 for plain
+
+    /** Per-element dtype: e2m1/e4m3/e5m2/e2m3/e3m2/i8 (or any for plain). */
+    nk_dtype_t element_dtype;
+
+    /** Per-block scale: ue8m0 (MX) or ue4m3 (NVFP4); unknown for plain. */
+    nk_dtype_t scale_dtype;
+
+    /** Per-tensor multiplier: f32 (NVFP4) or unknown (MX, plain). */
+    nk_dtype_t tensor_scale_dtype;
+
+    /** Elements per block: 16 (NVFP4) or 32 (MX); 0 for plain. */
+    nk_size_t block_size;
 } nk_block_scaled_format_t;
 
 typedef enum {
@@ -1195,7 +1282,7 @@ typedef enum {
     nk_dtype_family_uint_k,
 } nk_dtype_family_t;
 
-/** @brief True when @p dtype encodes a composite block-scaled format. */
+/** True when @p dtype encodes a composite block-scaled format. */
 NK_API_COMPTIME int nk_dtype_is_block_scaled(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_nvfp4_k: return 1;
@@ -1209,7 +1296,7 @@ NK_API_COMPTIME int nk_dtype_is_block_scaled(nk_dtype_t dtype) {
     }
 }
 
-/** @brief Extracts the element dtype from a composite; returns @p dtype unchanged for plain inputs. */
+/** Extracts the element dtype from a composite; returns @p dtype unchanged for plain inputs. */
 NK_API_COMPTIME nk_dtype_t nk_dtype_element(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_nvfp4_k: return nk_e2m1_k;
@@ -1223,7 +1310,7 @@ NK_API_COMPTIME nk_dtype_t nk_dtype_element(nk_dtype_t dtype) {
     }
 }
 
-/** @brief Extracts the scale dtype from a composite; returns `nk_dtype_unknown_k` for plain inputs. */
+/** Extracts the scale dtype from a composite; returns @c nk_dtype_unknown_k for plain inputs. */
 NK_API_COMPTIME nk_dtype_t nk_dtype_scale(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_nvfp4_k: return nk_ue4m3_k;
@@ -1237,7 +1324,7 @@ NK_API_COMPTIME nk_dtype_t nk_dtype_scale(nk_dtype_t dtype) {
     }
 }
 
-/** @brief Block size implied by a composite dtype; 0 for plain inputs. */
+/** Block size implied by a composite dtype; 0 for plain inputs. */
 NK_API_COMPTIME nk_size_t nk_dtype_block_size(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_nvfp4_k: return 16;
@@ -1251,7 +1338,7 @@ NK_API_COMPTIME nk_size_t nk_dtype_block_size(nk_dtype_t dtype) {
     }
 }
 
-/** @brief Classifies the family of the dtype. */
+/** Classifies the family of the dtype. */
 NK_API_COMPTIME nk_dtype_family_t nk_dtype_family(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_dtype_family_float_k;
@@ -1292,7 +1379,7 @@ NK_API_COMPTIME nk_dtype_family_t nk_dtype_family(nk_dtype_t dtype) {
     }
 }
 
-/** @brief Returns the number of bits in a single scalar of a given type. */
+/** Returns the number of bits in a single scalar of a given type. */
 NK_API_COMPTIME nk_size_t nk_dtype_bits(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return 64;
@@ -1335,7 +1422,7 @@ NK_API_COMPTIME nk_size_t nk_dtype_bits(nk_dtype_t dtype) {
     }
 }
 
-/** @brief Compares an explicit-length string against a NUL-terminated literal. */
+/** Compares an explicit-length string against a NUL-terminated literal. */
 NK_API_COMPTIME int nk_same_literal_(char const *name, nk_size_t length, char const *literal) {
     nk_size_t position = 0;
     for (; position != length; ++position)
@@ -1343,8 +1430,8 @@ NK_API_COMPTIME int nk_same_literal_(char const *name, nk_size_t length, char co
     return literal[position] == '\0';
 }
 
-/** @brief Canonical name of a data type - the spelling bindings parse and interchange
- *  formats carry; "unknown" for unrecognized values. */
+/** Canonical name of a data type - the spelling bindings parse and interchange formats carry;
+ *  "unknown" for unrecognized values. */
 NK_API_COMPTIME char const *nk_dtype_name(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return "f64";
@@ -1384,8 +1471,8 @@ NK_API_COMPTIME char const *nk_dtype_name(nk_dtype_t dtype) {
     }
 }
 
-/** @brief Inverse of `nk_dtype_name` over an explicit-length string;
- *  `nk_dtype_unknown_k` for unrecognized names. */
+/** Inverse of @c nk_dtype_name over an explicit-length string; @c nk_dtype_unknown_k
+ *  for unrecognized names. */
 NK_API_COMPTIME nk_dtype_t nk_dtype_named(char const *name, nk_size_t length) {
     if (nk_same_literal_(name, length, "f64")) return nk_f64_k;
     if (nk_same_literal_(name, length, "f32")) return nk_f32_k;
@@ -1423,9 +1510,8 @@ NK_API_COMPTIME nk_dtype_t nk_dtype_named(char const *name, nk_size_t length) {
     return nk_dtype_unknown_k;
 }
 
-/** @brief Returns how many logical dimensions are packed into one storage value.
- *  For sub-byte types multiple dimensions share a single byte container.
- *  For byte-or-larger types this is always 1. */
+/** Returns how many logical dimensions are packed into one storage value. For sub-byte types
+ *  multiple dimensions share a single byte container. For byte-or-larger types this is always 1. */
 NK_API_COMPTIME nk_size_t nk_dimensions_per_value(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_u1_k: return 8;
@@ -1444,19 +1530,20 @@ NK_API_COMPTIME nk_size_t nk_dimensions_per_value(nk_dtype_t dtype) {
     }
 }
 
-/** @brief Half-precision (16-bit) IEEE 754 float.
+/**
+ *  @brief Half-precision (16-bit) IEEE 754 float.
  *
  *  Layout: sign(1) + exponent(5) + mantissa(10), bias=15.
  *  Range: ±65 504, epsilon at 1.0 ≈ 9.77×10⁻⁴. 30 722 of 63 488 finite values (48.4%) in [−1, +1].
  *
  *  - `unsigned short` by default, on every compiler and architecture.
- *  - `NK_NATIVE_F16=1`: `__fp16` on Arm, `_Float16` elsewhere.
+ *  - `NK_NATIVE_F16=1`: @c __fp16 on Arm, @c _Float16 elsewhere.
  *
- *  The type crosses the exported ABI by value — `nk_f16_sqrt`, `nk_f16_order` — and a native half
+ *  The type crosses the exported ABI by value — @c nk_f16_sqrt, @c nk_f16_order — and a native half
  *  is passed in a different register class than `unsigned short`. Deriving it from `-march`, as
  *  this once did, let each consumer reach its own answer: Swift's header import sees a native half
  *  on Apple silicon while the C sources it links were built `unsigned short`, and `rust/scalar.rs`
- *  binds `u16` outright. Enabling it is a decision for a whole build, never for one translation
+ *  binds @c u16 outright. Enabling it is a decision for a whole build, never for one translation
  *  unit, so the default cannot depend on flags.
  */
 #if !defined(NK_NATIVE_F16)
@@ -1466,9 +1553,9 @@ NK_API_COMPTIME nk_size_t nk_dimensions_per_value(nk_dtype_t dtype) {
 #if NK_NATIVE_F16
 #if defined(__ARM_FP16_FORMAT_IEEE)
 typedef __fp16 nk_f16_t;
-// `__FLT16_MAX__` covers GCC 12+ and Clang; `nk_is_keyword_` catches any Clang that predates it.
-// Between them no compiler-version test is needed, which matters because Apple Clang's
-// `__clang_major__` does not track upstream LLVM.
+/*  @c __FLT16_MAX__ covers GCC 12+ and Clang; @c nk_is_keyword_ catches any Clang that predates it.
+ *  Between them no compiler-version test is needed, which matters because Apple Clang's
+ *  @c __clang_major__ does not track upstream LLVM. */
 #elif defined(__FLT16_MAX__) || nk_is_keyword_(_Float16)
 typedef _Float16 nk_f16_t;
 #else
@@ -1478,40 +1565,39 @@ typedef _Float16 nk_f16_t;
 typedef unsigned short nk_f16_t;
 #endif
 
-/** @brief BFloat16 (16-bit) float — truncated IEEE 754 single-precision.
+/**
+ *  @brief BFloat16 (16-bit) float — truncated IEEE 754 single-precision.
  *
  *  Layout: sign(1) + exponent(8) + mantissa(7), bias=127.
  *  Same dynamic range as f32, epsilon ≈ 7.81×10⁻³.
  *  32 514 of 65 280 finite values (49.8%) in [−1, +1]. Wider range than f16 but lower precision.
  *
  *  - `unsigned short` by default, on every compiler and architecture.
- *  - `NK_NATIVE_BF16=1`: `__bf16` on GCC and Clang. See `nk_f16_t` for why this is opt-in.
+ *  - `NK_NATIVE_BF16=1`: @c __bf16 on GCC and Clang. See @c nk_f16_t for why this is opt-in.
  *
- *  The compilers have added `__bf16` support in compliance with the x86-64 psABI spec.
- *  The motivation for this new special type is summed up as:
+ *  The compilers have added @c __bf16 support in compliance with the x86-64 psABI spec. The
+ *  motivation for this new special type is summed up as:
  *
- *      Currently `__bfloat16` is a typedef of short, which creates a problem where the
- *      compiler does not raise any alarms if it is used to add, subtract, multiply or
- *      divide, but the result of the calculation is actually meaningless.
- *      To solve this problem, a real scalar type `__Bfloat16` needs to be introduced.
- *      It is mainly used for intrinsics, not available for C standard operators.
- *      `__Bfloat16` will also be used for movement like passing parameter, load and store,
- *      vector initialization, vector shuffle, and etc. It creates a need for a
- *      corresponding psABI.
+ *  "Currently @c __bfloat16 is a typedef of short, which creates a problem where the compiler does
+ *  not raise any alarms if it is used to add, subtract, multiply or divide, but the result of the
+ *  calculation is actually meaningless. To solve this problem, a real scalar type @c __Bfloat16
+ *  needs to be introduced. It is mainly used for intrinsics, not available for C standard
+ *  operators. @c __Bfloat16 will also be used for movement like passing parameter, load and store,
+ *  vector initialization, vector shuffle, and etc. It creates a need for a corresponding psABI."
  *
  *  @warning Apple Clang has hard time with bf16.
- *  https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms
- *  https://forums.developer.apple.com/forums/thread/726201
- *  https://www.phoronix.com/news/GCC-LLVM-bf16-BFloat16-Type
+ *  @see Writing ARM64 code for Apple platforms: https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms
+ *  @see Apple Developer Forums thread on bf16: https://forums.developer.apple.com/forums/thread/726201
+ *  @see GCC and LLVM bf16 support on Phoronix: https://www.phoronix.com/news/GCC-LLVM-bf16-BFloat16-Type
  */
 #if !defined(NK_NATIVE_BF16)
 #define NK_NATIVE_BF16 0
 #endif
 
+/*  GCC 13+ is the first to define @c __BFLT16_MAX__; Clang defines no bf16 macro at all, so it is
+ *  caught by @c nk_is_keyword_ instead. The AVX512BF16 feature macro is deliberately not consulted:
+ *  GCC 11 and 12 define it while rejecting @c __bf16, since it names instructions, not the type. */
 #if NK_NATIVE_BF16
-// GCC 13+ is the first to define `__BFLT16_MAX__`; Clang defines no bf16 macro at all, so it is
-// caught by `nk_is_keyword_` instead. The AVX512BF16 feature macro is deliberately not consulted:
-// GCC 11 and 12 define it while rejecting `__bf16`, since it names instructions, not the type.
 #if defined(__ARM_BF16_FORMAT_ALTERNATIVE) || defined(__BFLT16_MAX__) || nk_is_keyword_(__bf16)
 typedef __bf16 nk_bf16_t;
 #else
@@ -1522,13 +1608,13 @@ typedef unsigned short nk_bf16_t;
 #endif
 
 /**
- *  @brief  Alias for the half-precision floating-point type on Arm.
+ *  @brief Alias for the half-precision floating-point type on Arm.
  *
- *  Clang and GCC bring the `float16_t` symbol when you compile for Aarch64.
- *  MSVC lacks it, and it's `vld1_f16`-like intrinsics are in reality macros,
+ *  Clang and GCC bring the @c float16_t symbol when you compile for AArch64.
+ *  MSVC lacks it, and it's @c vld1_f16-like intrinsics are in reality macros,
  *  that cast to 16-bit integers internally, instead of using floats.
  *  Some of those are defined as aliases, so we use `#define` preprocessor
- *  directives instead of `typedef` to avoid errors.
+ *  directives instead of @c typedef to avoid errors.
  */
 #if NK_TARGET_ARM64_
 #if defined(_MSC_VER)
@@ -1540,10 +1626,8 @@ typedef unsigned short nk_bf16_t;
 #endif
 #endif
 
-/**
- *  RISC-V Vector (RVV) intrinsics use `_Float16` for half-precision floats.
- *  This is the standard C23 type, also available in GCC/Clang with RVV extensions.
- */
+/** RISC-V Vector (RVV) intrinsics use @c _Float16 for half-precision floats.
+ *  This is the standard C23 type, also available in GCC/Clang with RVV extensions. */
 #if NK_TARGET_RISCV64_
 #define nk_f16_for_rvv_intrinsics_t _Float16
 #endif
@@ -1557,17 +1641,26 @@ typedef unsigned short nk_bf16_t;
  *  value is reported by `nk_dimensions_per_value(composite_dtype)` (16 for NVFP4, 32 for MX).
  *  Dimension count must be a multiple of that block size.
  *
- *  The NVFP4 per-tensor f32 tensor scale multiplier is not part of the block value — it lives on the
- *  enclosing tensor and is passed explicitly to encode/decode helpers.
+ *  The NVFP4 per-tensor f32 tensor scale multiplier is not part of the block value — it lives on
+ *  the enclosing tensor and is passed explicitly to encode/decode helpers.
  */
 typedef struct NK_MAY_ALIAS_ {
-    nk_e2m1x2_t elements_[8]; ///< 16 E2M1 nibbles packed 2/byte
-    nk_ue4m3_t scale_;        ///< per-block UE4M3 scale
+
+    /** 16 E2M1 nibbles packed 2/byte. */
+    nk_e2m1x2_t elements_[8];
+
+    /** Per-block UE4M3 scale. */
+    nk_ue4m3_t scale_;
+
 } nk_nvfp4_t;
 
 typedef struct NK_MAY_ALIAS_ {
-    nk_e2m1x2_t elements_[16]; ///< 32 E2M1 nibbles packed 2/byte
-    nk_ue8m0_t scale_;         ///< per-block UE8M0 pow-2 scale
+
+    /** 32 E2M1 nibbles packed 2/byte. */
+    nk_e2m1x2_t elements_[16];
+
+    /** Per-block UE8M0 pow-2 scale. */
+    nk_ue8m0_t scale_;
 } nk_mxfp4_t;
 
 typedef struct NK_MAY_ALIAS_ {
@@ -1595,10 +1688,7 @@ typedef struct NK_MAY_ALIAS_ {
     nk_ue8m0_t scale_;
 } nk_mxint8_t;
 
-/*
- *  Let's make sure the sizes of the types are as expected.
- *  In C the `_Static_assert` is only available with C11 and later.
- */
+/** Makes sure the sizes of the types are as expected, as C only has @c _Static_assert from C11. */
 #define NK_STATIC_ASSERT(cond, msg) typedef char static_assertion_##msg[(cond) ? 1 : -1]
 NK_STATIC_ASSERT(sizeof(nk_u1x8_t) == 1, nk_u1x8_t_must_be_1_byte);
 NK_STATIC_ASSERT(sizeof(nk_i4x2_t) == 1, nk_i4_t_must_be_1_byte);
@@ -1632,7 +1722,7 @@ NK_STATIC_ASSERT(sizeof(nk_mxint8_t) == 33, nk_mxint8_t_must_be_33_bytes);
 
 #define nk_assign_from_to_(src, dest) (*(dest) = *(src))
 
-/** @brief 16-bit union for f16/bf16/u16/i16 bit manipulation. */
+/** 16-bit union for f16/bf16/u16/i16 bit manipulation. */
 typedef union NK_MAY_ALIAS_ {
     nk_u16_t u;
     nk_i16_t i;
@@ -1640,45 +1730,46 @@ typedef union NK_MAY_ALIAS_ {
     nk_bf16_t bf;
 } nk_fui16_t;
 
-/** @brief 32-bit union for f32/u32/i32 bit manipulation. */
+/** 32-bit union for f32/u32/i32 bit manipulation. */
 typedef union NK_MAY_ALIAS_ {
     nk_u32_t u;
     nk_i32_t i;
     nk_f32_t f;
 } nk_fui32_t;
 
-/** @brief 64-bit union for f64/u64/i64 bit manipulation. */
+/** 64-bit union for f64/u64/i64 bit manipulation. */
 typedef union NK_MAY_ALIAS_ {
     nk_u64_t u;
     nk_i64_t i;
     nk_f64_t f;
 } nk_fui64_t;
 
-/** @brief Half-precision (32-bit) complex number — {real: f16, imag: f16}. Kernel outputs widened to f32c. */
+/** Half-precision (32-bit) complex number — {real: f16, imag: f16}. Kernel outputs widened to
+ *  f32c. */
 typedef struct {
     nk_f16_t real;
     nk_f16_t imag;
 } nk_f16c_t;
 
-/** @brief BFloat16 (32-bit) complex number — {real: bf16, imag: bf16}. Kernel outputs widened to f32c. */
+/** BFloat16 (32-bit) complex number — {real: bf16, imag: bf16}. Kernel outputs widened to f32c. */
 typedef struct {
     nk_bf16_t real;
     nk_bf16_t imag;
 } nk_bf16c_t;
 
-/** @brief Single-precision (64-bit) complex number — {real: f32, imag: f32}. */
+/** Single-precision (64-bit) complex number — {real: f32, imag: f32}. */
 typedef struct {
     nk_f32_t real;
     nk_f32_t imag;
 } nk_f32c_t;
 
-/** @brief Double-precision (128-bit) complex number — {real: f64, imag: f64}. */
+/** Double-precision (128-bit) complex number — {real: f64, imag: f64}. */
 typedef struct {
     nk_f64_t real;
     nk_f64_t imag;
 } nk_f64c_t;
 
-/** @brief  Small 4-byte memory slice viewable as different types. */
+/** Small 4-byte memory slice viewable as different types. */
 typedef union NK_MAY_ALIAS_ nk_b32_vec_t {
     nk_u32_t u32;
     nk_i32_t i32;
@@ -1691,7 +1782,7 @@ typedef union NK_MAY_ALIAS_ nk_b32_vec_t {
     nk_e5m2_t e5m2s[4];
 } nk_b32_vec_t;
 
-/** @brief  Small 8-byte memory slice viewable as different types. */
+/** Small 8-byte memory slice viewable as different types. */
 typedef union NK_MAY_ALIAS_ nk_b64_vec_t {
 #if NK_TARGET_NEON
     uint8x8_t u8x8;
@@ -1718,7 +1809,7 @@ typedef union NK_MAY_ALIAS_ nk_b64_vec_t {
     nk_f32_t f32s[2];
 } nk_b64_vec_t;
 
-/** @brief  Small 16-byte memory slice viewable as different types. */
+/** Small 16-byte memory slice viewable as different types. */
 typedef union NK_MAY_ALIAS_ nk_b128_vec_t {
 #if NK_TARGET_HASWELL || NK_TARGET_LOONGSONASX
     __m128i xmm;
@@ -1776,7 +1867,7 @@ typedef union NK_MAY_ALIAS_ nk_b128_vec_t {
     nk_f64_t f64s[2];
 } nk_b128_vec_t;
 
-/** @brief  Small 32-byte memory slice viewable as different types. */
+/** Small 32-byte memory slice viewable as different types. */
 typedef union NK_MAY_ALIAS_ nk_b256_vec_t {
 #if NK_TARGET_HASWELL || NK_TARGET_LOONGSONASX
     __m256i ymm;
@@ -1832,12 +1923,14 @@ typedef union NK_MAY_ALIAS_ nk_b256_vec_t {
     nk_f64_t f64s[4];
 } nk_b256_vec_t;
 
-/** @brief  Small 64-byte memory slice viewable as different types.
+/**
+ *  @brief  Small 64-byte memory slice viewable as different types.
  *
- *  TODO: On GCC and Clang we use `__transparent_union__` attribute to allow implicit conversions
- *  between the different vector types when passing them as function arguments. The most important side-effect
- *  of this is that the argument of such type is passed to functions using the calling convention of the first
- *  member of the union, which in our case is a register-based calling convention for SIMD types.
+ *  TODO: On GCC and Clang we use @c __transparent_union__ attribute to allow implicit conversions
+ *  between the different vector types when passing them as function arguments. The most important
+ *  side-effect of this is that the argument of such type is passed to functions using the calling
+ *  convention of the first member of the union, which in our case is a register-based calling
+ *  convention for SIMD types.
  */
 typedef union NK_MAY_ALIAS_ nk_b512_vec_t {
 #if NK_TARGET_SKYLAKE
@@ -1879,15 +1972,18 @@ typedef union NK_MAY_ALIAS_ nk_b512_vec_t {
 
 /**
  *  @brief Advances the Multi-Dimensional iterator to the next set of indicies.
- *  @param[in] extents The extents of the tensor, defined by an array of at least `rank` scalars.
- *  @param[in] strides The @b signed strides of the tensor in bytes, defined by an array of at least `rank` scalars.
+ *  @param[in] extents The extents of the tensor, defined by an array of at least @c rank scalars.
+ *  @param[in] strides The @b signed strides of the tensor in bytes, defined by an array of at least
+ *      @c rank scalars.
  *  @param[in] rank The number of dimensions in the tensor (its rank).
- *  @param[inout] coordinates The array of offsets along each of `rank` dimensions, which will be updated.
- *  @param[inout] byte_offset The @b signed byte offset of the current element, which will be advanced.
+ *  @param[inout] coordinates The array of offsets along each of @c rank dimensions, which
+ *      will be updated.
+ *  @param[inout] byte_offset The @b signed byte offset of the current element, which
+ *      will be advanced.
  *  @return 1 if the iterator was successfully advanced, 0 if the end of iteration was reached.
  *
- *  For flexibility, the API is decoupled from from the `nk_tensor_position_t` structure, and
- *  can be used on any-rank tensors, independent of the `NK_TENSOR_MAX_RANK` constant.
+ *  For flexibility, the API is decoupled from from the @c nk_tensor_position_t structure, and
+ *  can be used on any-rank tensors, independent of the @c NK_TENSOR_MAX_RANK constant.
  */
 NK_API_COMPTIME int nk_tensor_position_next(                             //
     nk_size_t const *extents, nk_ssize_t const *strides, nk_size_t rank, //
@@ -1905,11 +2001,14 @@ NK_API_COMPTIME int nk_tensor_position_next(                             //
 }
 
 /**
- *  @brief Advances the Multi-Dimensional iterator to the provided coordinates, updating the byte offset.
- *  @param[in] extents The extents of the tensor, defined by an array of at least `rank` scalars.
- *  @param[in] strides The @b signed strides of the tensor in bytes, defined by an array of at least `rank` scalars.
+ *  @brief Advances the Multi-Dimensional iterator to the provided coordinates, updating
+ *      the byte offset.
+ *  @param[in] extents The extents of the tensor, defined by an array of at least @c rank scalars.
+ *  @param[in] strides The @b signed strides of the tensor in bytes, defined by an array of at least
+ *      @c rank scalars.
  *  @param[in] rank The number of dimensions in the tensor (its rank).
- *  @param[in] coordinates The array of offsets along each of `rank` dimensions, which will be updated.
+ *  @param[in] coordinates The array of offsets along each of @c rank dimensions, which
+ *      will be updated.
  *  @param[out] byte_offset The byte offset of the current element, which will be advanced.
  *  @return 1 if the offset was successfully advanced, 0 if the end of iteration was reached.
  */
@@ -1929,11 +2028,12 @@ NK_API_COMPTIME int nk_tensor_position_linearize(                        //
 }
 
 /**
- *  @brief  A @b beefy structure to iterate through Multi-Dimensional arrays.
- *          Occupies 512 + 8 = 520 bytes on a 64-bit machine, or @b 9 cache-lines, by default.
+ *  @brief A @b beefy structure to iterate through Multi-Dimensional arrays.
  *
- *  When advancing through a structure, its overall size and strides should be stored somewhere else.
- *  The `byte_offset` starts at zero and grow monotonically during iteration, if the strides are positive.
+ *  Occupies 512 + 8 = 520 bytes on a 64-bit machine, or @b 9 cache-lines, by default.
+ *  When advancing through a structure, its overall size and strides should be stored somewhere
+ *  else. The @c byte_offset starts at zero and grow monotonically during iteration, if the
+ *  strides are positive.
  */
 typedef struct nk_tensor_position_t {
     nk_size_t coordinates[NK_TENSOR_MAX_RANK]; // Coordinate offsets along each dimension
@@ -1946,17 +2046,18 @@ NK_API_COMPTIME void nk_tensor_position_init(nk_tensor_position_t *tensor_positi
 }
 
 /**
- *  @brief  A @b beefy structure describing the shape and memory layout of a Multi-Dimensional array.
- *          Similar to `md::span` in C++20 and `numpy.ndarray` in Python, but with a focus on compatibility.
- *          Occupies 512 + 512 + 8 = 2052 bytes on a 64-bit machine, or @b 17 cache-lines, by default.
+ *  @brief A @b beefy structure describing the shape and memory layout of a Multi-Dimensional array.
  *
- *  Unlike NumPy and the CPython "Buffer Protocol", we don't use `suboffsets` for pointer indirection.
- *  The logic is that such layouts aren't friendly to conventional SIMD operations and dense matrix algorithms.
- *  If the tensor is sparse, consider using a different data structure or a different memory layout.
+ *  Similar to @c md::span in C++20 and @c numpy.ndarray in Python, but with a focus on
+ *  compatibility. Occupies 512 + 512 + 8 = 2052 bytes on a 64-bit machine, or @b 17 cache-lines, by
+ *  default. Unlike NumPy and the CPython "Buffer Protocol", we don't use @c suboffsets for pointer
+ *  indirection. The logic is that such layouts aren't friendly to conventional SIMD operations and
+ *  dense matrix algorithms. If the tensor is sparse, consider using a different data structure or a
+ *  different memory layout.
  *
- *  Most NumKong algorithms don't work with the entire structure, but expect the fields to be passed separately.
- *  It would also require storing the @b start-pointer and the @b dtype/item-size separately, as it's not
- *  stored inside the structure.
+ *  Most NumKong algorithms don't work with the entire structure, but expect the fields to be passed
+ *  separately. It would also require storing the @b start-pointer and the @b dtype/item-size
+ *  separately, as it's not stored inside the structure.
  */
 typedef struct nk_tensor_shape_t {
     nk_size_t extents[NK_TENSOR_MAX_RANK];  /// Number of elements along each dimension
@@ -1969,8 +2070,9 @@ NK_API_COMPTIME void nk_tensor_shape_init(nk_tensor_shape_t *tensor_shape) {
     tensor_shape->rank = 0;
 }
 
-/*  The helpers below are inlined by vector kernels that pin their own ISA, and GCC refuses an `always_inline` callee
- *  carrying options its caller lacks - so they let the compiler decide, which for one-liners it does anyway. */
+/*  The helpers below are inlined by vector kernels that pin their own ISA, and GCC refuses an
+ *  @c always_inline callee carrying options its caller lacks - so they let the compiler decide,
+ *  which for one-liners it does anyway. */
 NK_HELPER_AUTO nk_u32_t nk_u32_rol(nk_u32_t x, int n) { return (x << n) | (x >> (32 - n)); }
 NK_HELPER_AUTO nk_u16_t nk_u16_rol(nk_u16_t x, int n) { return (x << n) | (x >> (16 - n)); }
 NK_HELPER_AUTO nk_u8_t nk_u8_rol(nk_u8_t x, int n) { return (x << n) | (x >> (8 - n)); }
@@ -2009,23 +2111,24 @@ NK_HELPER_AUTO unsigned char nk_u1x8_popcount_(nk_u1x8_t x) {
     return lookup_table[x];
 }
 
-/** @brief Divides the number rounding up to the next multiple of the given divisor. */
+/** Divides the number rounding up to the next multiple of the given divisor. */
 NK_HELPER_AUTO nk_size_t nk_size_divide_round_up_(nk_size_t number, nk_size_t divisor) NK_STREAMING_COMPATIBLE_ {
     return (number + divisor - 1) / divisor;
 }
 
-/** @brief Rounds up the number to the next multiple of the given divisor. */
+/** Rounds up the number to the next multiple of the given divisor. */
 NK_HELPER_AUTO nk_size_t nk_size_round_up_to_multiple_(nk_size_t number, nk_size_t divisor) NK_STREAMING_COMPATIBLE_ {
     return nk_size_divide_round_up_(number, divisor) * divisor;
 }
 
-/** @brief The smaller of two values of any comparable type; each argument is evaluated twice. */
+/** The smaller of two values of any comparable type; each argument is evaluated twice. */
 #define nk_min_of_two(first, second) ((first) < (second) ? (first) : (second))
-/** @brief The larger of two values of any comparable type; each argument is evaluated twice. */
+
+/** The larger of two values of any comparable type; each argument is evaluated twice. */
 #define nk_max_of_two(first, second) ((first) < (second) ? (second) : (first))
 
-/** @brief Multiplies two sizes with overflow detection. Writes the product and returns 1 on success;
- *         returns 0 (leaving @p product unchanged) when @p a * @p b would overflow `nk_size_t`. */
+/** Multiplies two sizes with overflow detection. Writes the product and returns 1 on success;
+ *  returns 0 (leaving @p product unchanged) when @p a * @p b would overflow @c nk_size_t. */
 NK_HELPER_AUTO int nk_size_mul_checked_(nk_size_t a, nk_size_t b, nk_size_t *product) NK_STREAMING_COMPATIBLE_ {
     if (b != 0 && a > NK_SIZE_MAX / b) return 0;
     *product = a * b;
@@ -2039,24 +2142,26 @@ NK_HELPER_AUTO nk_u64_t nk_u64_abs_(nk_u64_t x) { return x; }
 NK_HELPER_AUTO nk_i64_t nk_i32_abs_(nk_i32_t x) { return x < 0 ? -x : x; }
 NK_HELPER_AUTO nk_u32_t nk_u32_abs_(nk_u32_t x) { return x; }
 
-/** @brief Extract low (bits 0-3) unsigned nibble from packed u4x2 byte. */
+/** Extract low (bits 0-3) unsigned nibble from packed u4x2 byte. */
 NK_HELPER_AUTO nk_u8_t nk_u4x2_low_(nk_u4x2_t byte_val) { return byte_val & 0x0F; }
-/** @brief Extract high (bits 4-7) unsigned nibble from packed u4x2 byte. */
+
+/** Extract high (bits 4-7) unsigned nibble from packed u4x2 byte. */
 NK_HELPER_AUTO nk_u8_t nk_u4x2_high_(nk_u4x2_t byte_val) { return (byte_val >> 4) & 0x0F; }
 
-/** @brief Extract low (bits 0-3) signed nibble from packed i4x2 byte as i8. */
+/** Extract low (bits 0-3) signed nibble from packed i4x2 byte as i8. */
 NK_HELPER_AUTO nk_i8_t nk_i4x2_low_(nk_i4x2_t byte_val) { return (nk_i8_t)(((byte_val & 0x0F) ^ 8) - 8); }
-/** @brief Extract high (bits 4-7) signed nibble from packed i4x2 byte as i8. */
+
+/** Extract high (bits 4-7) signed nibble from packed i4x2 byte as i8. */
 NK_HELPER_AUTO nk_i8_t nk_i4x2_high_(nk_i4x2_t byte_val) { return (nk_i8_t)((((byte_val >> 4) & 0x0F) ^ 8) - 8); }
 
-/** @brief Extract n-th nibble (n=0: high, n=1: low) — branchless. */
+/** Extract n-th nibble (n=0: high, n=1: low) — branchless. */
 NK_HELPER_AUTO nk_u8_t nk_u4x2_get_(nk_u4x2_t byte_val, int n) { return (byte_val >> ((~n & 1) * 4)) & 0x0F; }
 NK_HELPER_AUTO nk_i8_t nk_i4x2_get_(nk_i4x2_t byte_val, int n) {
     nk_u8_t nibble = (byte_val >> ((~n & 1) * 4)) & 0x0F;
     return (nk_i8_t)((nibble ^ 8) - 8);
 }
 
-/** @brief Extract bit at position n (0-7) from packed u1x8 byte. */
+/** Extract bit at position n (0-7) from packed u1x8 byte. */
 NK_HELPER_AUTO nk_u8_t nk_u1x8_get_(nk_u1x8_t byte_val, int n) { return (byte_val >> (n & 7)) & 1; }
 
 NK_HELPER_AUTO nk_f16_t nk_u16_as_f16_(nk_u16_t bits) {
@@ -2081,39 +2186,38 @@ NK_HELPER_AUTO void nk_f32_from_i32_(nk_i32_t const *src, nk_f32_t *dest) { *des
 NK_HELPER_AUTO void nk_f32_from_u32_(nk_u32_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
 NK_HELPER_AUTO void nk_f32_from_f64_(nk_f64_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
 
-/** @brief E4M3: NaN when (raw & 0x7F) == 0x7F  (two NaN values: 0x7F, 0xFF). */
+/** E4M3: NaN when (raw & 0x7F) == 0x7F (two NaN values: 0x7F, 0xFF). */
 NK_HELPER_AUTO int nk_e4m3_is_nan_(nk_e4m3_t x) { return (x & 0x7F) == 0x7F; }
 
-/** @brief E5M2: NaN when exponent=31 and mantissa!=0, i.e. (raw & 0x7F) > 0x7C.
- *  Values: 0x7D-0x7F (positive), 0xFD-0xFF (negative). Infinity = 0x7C/0xFC is NOT NaN. */
+/** E5M2: NaN when exponent=31 and mantissa!=0, i.e. (raw & 0x7F) > 0x7C. Values: 0x7D-0x7F
+ *  (positive), 0xFD-0xFF (negative). Infinity = 0x7C/0xFC is not NaN. */
 NK_HELPER_AUTO int nk_e5m2_is_nan_(nk_e5m2_t x) { return (x & 0x7F) > 0x7C; }
 
-/** @brief F16: NaN when (raw & 0x7FFF) > 0x7C00. */
+/** F16: NaN when (raw & 0x7FFF) > 0x7C00. */
 NK_HELPER_AUTO int nk_f16_is_nan_(nk_f16_t x) {
     nk_fui16_t x_fui;
     x_fui.f = x;
     return (x_fui.u & 0x7FFF) > 0x7C00;
 }
 
-/** @brief BF16: NaN when (raw & 0x7FFF) > 0x7F80. */
+/** BF16: NaN when (raw & 0x7FFF) > 0x7F80. */
 NK_HELPER_AUTO int nk_bf16_is_nan_(nk_bf16_t x) {
     nk_fui16_t x_fui;
     x_fui.bf = x;
     return (x_fui.u & 0x7FFF) > 0x7F80;
 }
 
-/*  Safe SVE vector-length queries usable from non-streaming context.
- *  On Apple M4 (and other SME-only-SVE cores), SVE instructions like CNTW/CNTH/CNTB
- *  trap with SIGILL outside streaming mode. These helpers bracket the query with
- *  SMSTART SM / SMSTOP SM so the calling function's ABI is unchanged.
- *  Inside `__arm_locally_streaming` functions the plain `svcntXX()` intrinsics are fine.
- *  The transitions zero every Z and P register, so the asm declares the V and P
- *  registers clobbered — the "v" spelling is the one Clang reliably honors for values
- *  it keeps in FP/SIMD registers; with bare "z" names Clang kept a live `s0` argument
- *  in place across the bracket and the first SMSTART silently zeroed it.
- */
+/*  Safe SVE vector-length queries usable from non-streaming context. On Apple M4 (and other
+ *  SME-only-SVE cores), SVE instructions like CNTW/CNTH/CNTB trap with SIGILL outside streaming
+ *  mode. These helpers bracket the query with SMSTART SM / SMSTOP SM so the calling function's ABI
+ *  is unchanged. Inside @c __arm_locally_streaming functions the plain `svcntXX()` intrinsics are
+ *  fine. The transitions zero every Z and P register, so the asm declares the V and P registers
+ *  clobbered — the "v" spelling is the one Clang reliably honors for values it keeps in FP/SIMD
+ *  registers; with bare "z" names Clang kept a live @c s0 argument in place across the bracket and
+ *  the first SMSTART silently zeroed it. */
 #if NK_TARGET_ARM64_ && NK_TARGET_SME
-/** @brief Streaming SVL byte-element count (SVL/8) via SMSTART SM bracket. */
+
+/** Streaming SVL byte-element count (SVL/8) via SMSTART SM bracket. */
 NK_HELPER_INLINE nk_size_t nk_sme_cntb_(void) {
     nk_u64_t r;
     __asm__ __volatile__("smstart sm\n\t" "cntb %0\n\t" "smstop sm"
@@ -2125,7 +2229,8 @@ NK_HELPER_INLINE nk_size_t nk_sme_cntb_(void) {
                            "p9", "p10", "p11", "p12", "p13", "p14", "p15");
     return (nk_size_t)r;
 }
-/** @brief Streaming SVL half-element count (SVL/16) via SMSTART SM bracket. */
+
+/** Streaming SVL half-element count (SVL/16) via SMSTART SM bracket. */
 NK_HELPER_INLINE nk_size_t nk_sme_cnth_(void) {
     nk_u64_t r;
     __asm__ __volatile__("smstart sm\n\t" "cnth %0\n\t" "smstop sm"
@@ -2137,7 +2242,8 @@ NK_HELPER_INLINE nk_size_t nk_sme_cnth_(void) {
                            "p9", "p10", "p11", "p12", "p13", "p14", "p15");
     return (nk_size_t)r;
 }
-/** @brief Streaming SVL word-element count (SVL/32) via SMSTART SM bracket. */
+
+/** Streaming SVL word-element count (SVL/32) via SMSTART SM bracket. */
 NK_HELPER_INLINE nk_size_t nk_sme_cntw_(void) {
     nk_u64_t r;
     __asm__ __volatile__("smstart sm\n\t" "cntw %0\n\t" "smstop sm"
@@ -2149,7 +2255,8 @@ NK_HELPER_INLINE nk_size_t nk_sme_cntw_(void) {
                            "p9", "p10", "p11", "p12", "p13", "p14", "p15");
     return (nk_size_t)r;
 }
-/** @brief Streaming SVL double-element count (SVL/64) via SMSTART SM bracket. */
+
+/** Streaming SVL double-element count (SVL/64) via SMSTART SM bracket. */
 NK_HELPER_INLINE nk_size_t nk_sme_cntd_(void) {
     nk_u64_t r;
     __asm__ __volatile__("smstart sm\n\t" "cntd %0\n\t" "smstop sm"
@@ -2162,9 +2269,9 @@ NK_HELPER_INLINE nk_size_t nk_sme_cntd_(void) {
     return (nk_size_t)r;
 }
 
-/** @brief Enter streaming SVE mode (PSTATE.SM = 1). Caller is responsible for smstop.
- *  The transition zeroes every Z and P register, so they are declared clobbered — otherwise
- *  values the compiler caches in the callee-saved V8-V15 are silently lost. */
+/** Enter streaming SVE mode (PSTATE.SM = 1). Caller is responsible for smstop. The transition
+ *  zeroes every Z and P register, so they are declared clobbered — otherwise values the compiler
+ *  caches in the callee-saved V8-V15 are silently lost. */
 NK_HELPER_INLINE void nk_sme_start_streaming_(void) {
     __asm__ __volatile__("smstart sm"
                          :
@@ -2174,7 +2281,8 @@ NK_HELPER_INLINE void nk_sme_start_streaming_(void) {
                            "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
                            "p9", "p10", "p11", "p12", "p13", "p14", "p15", "memory");
 }
-/** @brief Exit streaming SVE mode (PSTATE.SM = 0). Must pair with nk_sme_start_streaming_. */
+
+/** Exit streaming SVE mode (PSTATE.SM = 0). Must pair with nk_sme_start_streaming_. */
 NK_HELPER_INLINE void nk_sme_stop_streaming_(void) {
     __asm__ __volatile__("smstop sm"
                          :
@@ -2186,21 +2294,21 @@ NK_HELPER_INLINE void nk_sme_stop_streaming_(void) {
 }
 
 /**
- *  SME runtime stubs — weak definitions for symbols the compiler may reference
- *  from __arm_streaming or __arm_new("za") functions. Every TU that includes
- *  this header emits a weak copy; the linker deduplicates to one.
+ *  @brief SME runtime stubs — weak definitions for symbols the compiler may reference from
+ *      @c __arm_streaming or `__arm_new("za")` functions.
  *
- *  - __arm_tpidr2_save / __arm_tpidr2_restore: lazy ZA save/restore protocol
- *    used in __arm_new("za") prologues. Always no-ops in NumKong because no
- *    NK_API_COMPTIME function carries ZA state (TPIDR2_EL0 is always null at entry).
- *    `used` is load-bearing under LTO: the prologue call is synthesized by the
- *    backend, long after IPA would drop these as unreferenced.
+ *  Every TU that includes this header emits a weak copy; the linker deduplicates to one.
  *
- *  - __arm_sc_memset / __arm_sc_memcpy / __arm_sc_memmove: streaming-compatible
- *    memory routines the compiler may emit inside __arm_streaming functions.
- *    Apple Clang provides these in its runtime; upstream LLVM does not. GCC
- *    needs no stub because it never emits calls to them — and must not get one,
- *    as its `arm_sme.h` declares them with C++ linkage.
+ *  @c __arm_tpidr2_save and @c __arm_tpidr2_restore implement the lazy ZA save/restore protocol
+ *  used in `__arm_new("za")` prologues. They are always no-ops in NumKong because no
+ *  @c NK_API_COMPTIME function carries ZA state, so TPIDR2_EL0 is always null at entry. The @c used
+ *  attribute is load-bearing under LTO: the prologue call is synthesized by the backend, long after
+ *  IPA would drop these as unreferenced.
+ *
+ *  @c __arm_sc_memset, @c __arm_sc_memcpy, and @c __arm_sc_memmove are streaming-compatible memory
+ *  routines the compiler may emit inside @c __arm_streaming functions. Apple Clang provides these
+ *  in its runtime; upstream LLVM does not. GCC needs no stub because it never emits calls to them —
+ *  and must not get one, as its `arm_sme.h` declares them with C++ linkage.
  */
 __attribute__((weak, used)) void __arm_tpidr2_save(void) {}
 __attribute__((weak, used)) void __arm_tpidr2_restore(void *blk) { nk_unused_(blk); }

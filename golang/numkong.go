@@ -1,6 +1,3 @@
-// numkong/golang/numkong.go
-// Written by Ash Vardanian.
-
 // Package numkong provides SIMD-accelerated similarity measures and numeric kernels.
 //
 // # Operations
@@ -54,6 +51,9 @@
 //
 // Every function panics on invalid inputs such as mismatched lengths or short slices. Scalar
 // functions return zero for empty inputs.
+//
+// File: golang/numkong.go
+// Author: Ash Vardanian
 package numkong
 
 /*

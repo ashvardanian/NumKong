@@ -123,7 +123,7 @@ void reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_
  *  @tparam in_type_ Input vector element type
  *  @tparam minmax_type_ Result type for min/max values, defaults to
  *      @c in_type_::reduce_minmax_value_t
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
@@ -224,7 +224,7 @@ void reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride_b
  *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32)
  *
  *  @tparam in_type_ Element type
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t rows, std::size_t groups, std::size_t cols,

@@ -8,8 +8,8 @@
  *
  *  FlashAttention-style panel sweep on the SME outer-product engine, mirroring the @c sapphireamx
  *  skeleton with the shared packed header, segment directory, base-2 streaming softmax, and
- *  `(task_start, task_count)` windows — but restructured around three Arm-specific properties
- *  measured on Apple M5.
+ *  [task_start, task_start + task_count) windows — but restructured around three Arm-specific
+ *  properties measured on Apple M5.
  *
  *  Streaming mode is entered once per public call and never left: matrix work runs as widening MOPA
  *  outer products into ZA32 tiles, and the softmax stays on the streaming SVE vector unit, so there
@@ -27,8 +27,8 @@
  *  ZA tile roles per stage (SVL = 512: four 16×16 F32 tiles):
  *
  *  - Q staging & output transpose: ZA0 horizontal-write / vertical-read (pair interleave)
- *  - Q×Kᵀ scores: ZA0-ZA3 = (two query row-tiles) × (two K position-tiles)
- *  - P×V: ZA0-ZA3 = (two probability row-tiles) × (two V channel-tiles)
+ *  - Q × Kᵀ scores: ZA0-ZA3 = (two query row-tiles) × (two K position-tiles)
+ *  - P × V: ZA0-ZA3 = (two probability row-tiles) × (two V channel-tiles)
  *
  *  Widening MOPA keeps every reduction in F32 accumulators: the non-widening ZA16 forms measure ~2×
  *  faster but lose ~12% relative accuracy on signed depth-256 reductions, which fails the family's
@@ -59,19 +59,22 @@ extern "C" {
 #endif
 
 enum {
-    /** KV panel width in positions; the position-major F32 score panel (64 KB) stays L2-resident. */
+
+    /** KV panel width in positions; the position-major F32 score panel (64
+     *  KB) stays L2-resident. */
     nk_attention_panel_sme_k_ = 512,
+
     /** Widest head this backend handles in tiles; larger heads route to the serial tier. */
     nk_attention_max_depth_sme_k_ = 256,
-    /** Widest ZA32 tile dimension the stack scratch is sized for (SVL ≤ 512); larger routes to serial. */
+
+    /** Widest ZA32 tile dimension the stack scratch is sized for (SVL ≤ 512); larger
+     *  routes to serial. */
     nk_attention_max_tile_sme_k_ = 16,
 };
 
-/**
- *  @brief Rounds two F32 weight vectors to BF16 and interleaves them pair-wise in one `TRN2`:
- *         lane `2i` gets `even[i]`, lane `2i + 1` gets `odd[i]` — the exact widening-BFMOPA
- *         operand layout, produced without any memory round-trip.
- */
+/** Rounds two F32 weight vectors to BF16 and interleaves them pair-wise in one @c TRN2: lane `2i`
+ *  gets `even[i]`, lane `2i + 1` gets `odd[i]` — the exact widening-BFMOPA operand layout, produced
+ *  without any memory round-trip. */
 NK_HELPER_INLINE svuint16_t nk_attention_bf16_pair_sme_(svfloat32_t even_f32x, svfloat32_t odd_f32x) NK_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     svuint32_t even_u32x = svreinterpret_u32_f32(even_f32x);
@@ -83,7 +86,7 @@ NK_HELPER_INLINE svuint16_t nk_attention_bf16_pair_sme_(svfloat32_t even_f32x, s
     return svtrn2_u16(svreinterpret_u16_u32(even_u32x), svreinterpret_u16_u32(odd_u32x));
 }
 
-/** @brief Lanes whose visible key range `[key_begins, key_ends)` contains `position`. */
+/** Lanes whose visible key range `[key_begins, key_ends)` contains @p position. */
 NK_HELPER_INLINE svbool_t nk_attention_visible_sme_(svuint32_t key_begins_u32x, svuint32_t key_ends_u32x,
                                                     nk_size_t position) NK_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
@@ -91,11 +94,9 @@ NK_HELPER_INLINE svbool_t nk_attention_visible_sme_(svuint32_t key_begins_u32x, 
                      svcmpgt_n_u32(predicate_all_b32x, key_ends_u32x, (uint32_t)position));
 }
 
-/**
- *  @brief Widens E4M3 bytes to their exact BF16 representations: every E4M3 value (3-bit
- *         mantissa, ±448 range) is exactly representable in BF16, so the F16 hop through the
- *         `dots` converter and the final narrowing round are lossless.
- */
+/** Widens E4M3 bytes to their exact BF16 representations: every E4M3 value (3-bit mantissa, ±448
+ *  range) is exactly representable in BF16, so the F16 hop through the @c dots converter and the
+ *  final narrowing round are lossless. */
 NK_HELPER_INLINE svuint16_t nk_attention_e4m3_to_bf16_sme_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NK_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     svfloat16_t const halves_f16x = nk_e4m3x_to_f16x_ssve_(predicate_b16x, bytes_u8x);
@@ -138,9 +139,9 @@ NK_API_COMPTIME void nk_attention_packed_shape_bf16_sme(void const *key_value_pa
  *  @brief Streaming pack core for 16-bit K/V planes.
  *
  *  K becomes pair-interleaved MOPA operand vectors `[position_tile][depth_pair]` through the
- *  ZA0 horizontal-write / vertical-read transpose (the `dots` packer idiom); V becomes
- *  transposed pair-interleaved vectors `[channel_tile][position_pair]` through one `ZIP1` per
- *  position pair, so P×V runs as outer products over positions. Rows beyond the segment and
+ *  ZA0 horizontal-write / vertical-read transpose (the @c dots packer idiom); V becomes
+ *  transposed pair-interleaved vectors `[channel_tile][position_pair]` through one @c ZIP1 per
+ *  position pair, so P × V runs as outer products over positions. Rows beyond the segment and
  *  channels beyond the head are zero-filled by the predicated loads and the ZA0 pre-zeroing.
  */
 __arm_new("za") static void nk_attention_pack_b16_sme_streaming_(                      //
@@ -312,8 +313,8 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_sme(                                
 }
 
 /**
- *  @brief Streaming attention core for the BF16-compute dtypes (raw BF16, E4M3 widened at
- *         the query loads): the whole task loop runs inside one ZA context.
+ *  @brief Streaming attention core for the BF16-compute dtypes (raw BF16, E4M3 widened at the query
+ *      loads): the whole task loop runs inside one ZA context.
  *
  *  Per (segment, head) task and per query block of two row-tiles:
  *
@@ -322,14 +323,14 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_sme(                                
  *  2. Scores: 2×2 widening BFMOPA blocking (two Q row-tiles × two K position-tiles), one
  *     vector load per MOPA; tiles drain through vertical stores into a position-major
  *     F32 panel with one query per lane.
- *  3. Softmax: lane-parallel running maximum, correction `2^(m_old − m_new)`, and weight
+ *  3. Softmax: lane-parallel running maximum, correction 2^(m_old − m_new), and weight
  *     sums; each position pair's weights convert to pair-interleaved BF16 in registers.
- *  4. P×V: 2×2 widening BFMOPA over position pairs into (row-tile × channel-tile)
+ *  4. P × V: 2×2 widening BFMOPA over position pairs into (row-tile × channel-tile)
  *     accumulators; vertical-slice drains fuse the correction FMA into the channel-major
  *     output accumulator, keeping queries in lanes end to end.
  *
  *  The channel-major accumulator transposes back to output rows through ZA0 once per block,
- *  with the `1 / Σweights` normalization applied on the way in.
+ *  with the 1 / Σweights normalization applied on the way in.
  */
 __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(                                             //
     void const *queries, nk_size_t element_bytes, void const *key_value_packed, nk_f32_t *output,               //
@@ -354,7 +355,7 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
                                nk_attention_pack_directory_size_(segment_count);
     nk_size_t const output_stride_floats = output_stride_bytes / sizeof(nk_f32_t);
     nk_size_t const head_group_size = head_count / key_value_head_count;
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x · log₂e)
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
@@ -642,7 +643,7 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
                                                     panel_sum_high_f32x);
 
                 nk_size_t const panel_pair_first = panel_start / 2;
-                // Stage 4: P×V outer products over position pairs; vertical drains fuse the
+                // Stage 4: P × V outer products over position pairs; vertical drains fuse the
                 // correction FMA into the channel-major accumulator.
                 for (nk_size_t channel_tile_idx = 0; channel_tile_idx < channel_tiles; channel_tile_idx += 2) {
                     int const has_second_tile = channel_tile_idx + 1 < channel_tiles;
@@ -861,10 +862,10 @@ NK_API_COMPTIME void nk_attention_packed_shape_i8_sme(void const *key_value_pack
 /**
  *  @brief Streaming pack core for I8 K/V planes.
  *
- *  K becomes quad-interleaved SMOPA operand vectors `[position_tile][depth_quad]` through the
- *  ZA0 horizontal-write / vertical-read transpose; V becomes transposed quad-interleaved
- *  vectors `[channel_tile][position_quad]` through a two-level `ZIP1`, so P×V runs as
- *  USMOPA outer products over positions with the U8 probabilities.
+ *  K becomes quad-interleaved SMOPA operand vectors `[position_tile][depth_quad]` through the ZA0
+ *  horizontal-write / vertical-read transpose; V becomes transposed quad-interleaved vectors
+ *  `[channel_tile][position_quad]` through a two-level @c ZIP1, so P × V runs as USMOPA outer
+ *  products over positions with the U8 probabilities.
  */
 __arm_new("za") static void nk_attention_pack_i8_sme_streaming_(                       //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count,        //
@@ -997,12 +998,12 @@ NK_API_COMPTIME void nk_attention_pack_i8_sme(                                  
 
 /**
  *  @brief Streaming attention core for I8: exact I32 scores through SMOPA, U8-quantized
- *         probabilities, and USMOPA for the probability × value product.
+ *      probabilities, and USMOPA for the probability × value product.
  *
  *  Mirrors the B16 core's structure — ZA0 quad-interleaving Q staging, 2×2 score blocking
  *  with position-major F32 drains, lane-parallel softmax, channel-major F32 accumulator —
- *  with two I8 twists: weights quantize to `trunc(2^(s₂−m₂)·255 + 0.5)` and assemble into
- *  quad-interleaved U8 operands with three shift-ors per vector, and the P×V drain converts
+ *  with two I8 twists: weights quantize to trunc(2^(s₂ − m₂) · 255 + 0.5) and assemble into
+ *  quad-interleaved U8 operands with three shift-ors per vector, and the P × V drain converts
  *  the exact I32 outer products to F32 before the correction FMA.
  */
 __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(                                              //
@@ -1028,12 +1029,12 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                                nk_attention_pack_directory_size_(segment_count);
     nk_size_t const output_stride_floats = output_stride_bytes / sizeof(nk_f32_t);
     nk_size_t const head_group_size = head_count / key_value_head_count;
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x · log₂e)
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
     nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
-    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t·255 + 0.5 < 1)
+    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t · 255 + 0.5 < 1)
         scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
 
     NK_ALIGN64 nk_u8_t queries_packed[2][(nk_attention_max_depth_sme_k_ / 4) * 4 * nk_attention_max_tile_sme_k_];
@@ -1290,7 +1291,7 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
                                                     svcvt_f32_u32_x(predicate_all_b32x, panel_sum_high_u32x));
 
                 nk_size_t const panel_quad_first = panel_start / 4;
-                // Stage 4: P×V as USMOPA outer products over position quads; drains convert
+                // Stage 4: P × V as USMOPA outer products over position quads; drains convert
                 // the exact I32 totals to F32 and fuse the correction FMA.
                 for (nk_size_t channel_tile_idx = 0; channel_tile_idx < channel_tiles; channel_tile_idx += 2) {
                     int const has_second_tile = channel_tile_idx + 1 < channel_tiles;

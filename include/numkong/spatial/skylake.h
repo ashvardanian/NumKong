@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/spatial/skylake.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date October 7, 2023
  *  @brief SIMD-accelerated spatial similarity measures for Skylake.
  *
  *  @sa include/numkong/spatial.h
@@ -44,7 +44,7 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-/** @brief Reciprocal square root of 16 floats with Newton-Raphson refinement (~28-bit precision). */
+/** Reciprocal square root of 16 floats with Newton-Raphson refinement (~28-bit precision). */
 NK_HELPER_INLINE __m512 nk_rsqrt_f32x16_skylake_(__m512 x) {
     __m512 rsqrt_f32x16 = _mm512_rsqrt14_ps(x);
     __m512 nr_f32x16 = _mm512_mul_ps(_mm512_mul_ps(x, rsqrt_f32x16), rsqrt_f32x16);
@@ -52,7 +52,7 @@ NK_HELPER_INLINE __m512 nk_rsqrt_f32x16_skylake_(__m512 x) {
     return _mm512_mul_ps(_mm512_mul_ps(_mm512_set1_ps(0.5f), rsqrt_f32x16), nr_f32x16);
 }
 
-/** @brief Reciprocal square root of 8 doubles with Newton-Raphson refinement (~28-bit precision). */
+/** Reciprocal square root of 8 doubles with Newton-Raphson refinement (~28-bit precision). */
 NK_HELPER_INLINE __m512d nk_rsqrt_f64x8_skylake_(__m512d x) {
     __m512d rsqrt_f64x8 = _mm512_rsqrt14_pd(x);
     __m512d nr_f64x8 = _mm512_mul_pd(_mm512_mul_pd(x, rsqrt_f64x8), rsqrt_f64x8);
@@ -227,8 +227,9 @@ nk_angular_f64_skylake_cycle:
     *result = nk_angular_normalize_f64_skylake_(dot_product_f64, a_norm_sq_f64, b_norm_sq_f64);
 }
 
-/** @brief Angular from_dot for native f64: 1 − dot / (√query_sumsq × √target_sumsq) for 4 pairs.
- *  Separate square roots avoid overflowing the product of two finite-but-large norms. */
+/** Angular from_dot for native f64: 1 − dot / (√q × √t) for 4 pairs, where q is @p query_sumsq and
+ *  t each target's sum of squares. Separate square roots avoid overflowing the product of two
+ *  finite-but-large norms. */
 NK_HELPER_INLINE void nk_angular_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                          nk_b256_vec_t const *target_sumsqs_vec,
                                                          nk_b256_vec_t *result_vec) {
@@ -242,7 +243,8 @@ NK_HELPER_INLINE void nk_angular_f64x4_from_dot_skylake_(nk_b256_vec_t const *do
     result_vec->ymm_pd = _mm256_max_pd(angular_f64x4, _mm256_setzero_pd());
 }
 
-/** @brief Euclidean from_dot for native f64: √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs. */
+/** Euclidean from_dot for native f64: √(q + t − 2 × dot) for 4 pairs, where q is @p query_sumsq and
+ *  t each target's sum of squares. */
 NK_HELPER_INLINE void nk_euclidean_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                            nk_b256_vec_t const *target_sumsqs_vec,
                                                            nk_b256_vec_t *result_vec) {
@@ -256,8 +258,8 @@ NK_HELPER_INLINE void nk_euclidean_f64x4_from_dot_skylake_(nk_b256_vec_t const *
     result_vec->ymm_pd = _mm256_sqrt_pd(clamped_f64x4);
 }
 
-/** @brief Angular from_dot: f32 dots upcast to f64 for precision. Output via nk_b128_vec_t (f32).
- *  Separate square roots avoid overflowing the product of two finite-but-large norms. */
+/** Angular from_dot: f32 dots upcast to f64 for precision. Output via nk_b128_vec_t (f32). Separate
+ *  square roots avoid overflowing the product of two finite-but-large norms. */
 NK_HELPER_INLINE void nk_angular_through_f64_from_dot_skylake_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                                nk_b128_vec_t const *target_sumsqs_vec,
                                                                nk_b128_vec_t *result_vec) {
@@ -273,7 +275,7 @@ NK_HELPER_INLINE void nk_angular_through_f64_from_dot_skylake_(nk_b128_vec_t con
     result_vec->xmm_ps = _mm256_cvtpd_ps(angular_f64x4);
 }
 
-/** @brief Euclidean from_dot: f32 dots upcast to f64 for precision. Output via nk_b128_vec_t (f32). */
+/** Euclidean from_dot: f32 dots upcast to f64 for precision. Output via nk_b128_vec_t (f32). */
 NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_skylake_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                                  nk_b128_vec_t const *target_sumsqs_vec,
                                                                  nk_b128_vec_t *result_vec) {

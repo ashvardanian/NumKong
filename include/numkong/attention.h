@@ -14,7 +14,7 @@
  *  For dtypes:
  *
  *  - 16-bit brain-floating point numbers → 32-bit floats
- *  - 8-bit `e4m3` floating point numbers → 32-bit floats
+ *  - 8-bit @c e4m3 floating point numbers → 32-bit floats
  *
  *  For hardware architectures:
  *
@@ -44,8 +44,8 @@
  *
  *  Q, K, V, O use the activations-natural layout of shape @b [tokens,heads,depth] with byte
  *  strides, so a fused QKV projection output of shape @b [tokens,3,hidden] is consumable in place.
- *  Packing takes a half-open `(task_begin, task_end)` window over the flat @b [segments,kv_heads]
- *  grid, and attention a `(task_start, task_count)` window over the flat @b [segments,heads] grid;
+ *  Packing takes a [task_begin, task_end) window over the flat @b [segments,kv_heads] grid, and
+ *  attention a [task_start, task_start + task_count) window over the flat @b [segments,heads] grid;
  *  tasks touch disjoint outputs, so callers parallelize by distributing tasks across threads — one
  *  per physical core, longest segments first. Outputs are F32: every consumer in a transformer
  *  block — normalization, residual epilogues — wants the accumulator precision anyway.
@@ -76,13 +76,13 @@
  *  @see Polynomial softmax substitutes as Frobenius-norm regularization of attention: https://arxiv.org/abs/2410.18613
  *
  *  Linearized attention, also called kernelized, computes O = φ(Q) · (φ(K)ᵀ V), moving the
- *  nonlinearity from per-pair to per-token: the O(n·d) feature maps run on vector units while both
- *  contractions stay in the matrix unit, meeting at a d×d intermediate — the only attention class
- *  with no O(n²) tile ↔ vector crossover at all, and O(n·d²) complexity — ≈128× less arithmetic at
- *  16K tokens, d = 128. Bottlenecks: quality at contrastive encoder scale is unproven; production
- *  encoder adoption is near zero; converting pretrained softmax checkpoints needs distillation —
- *  0.005-2% of pretraining tokens — never a gradient-free swap; and the d×d state must requantize
- *  to BF16 between the two matrix multiplications.
+ *  nonlinearity from per-pair to per-token: the O(n · d) feature maps run on vector units while
+ *  both contractions stay in the matrix unit, meeting at a d × d intermediate — the only attention
+ *  class with no O(n²) tile ↔ vector crossover at all, and O(n · d²) complexity — ≈128× less
+ *  arithmetic at 16K tokens, d = 128. Bottlenecks: quality at contrastive encoder scale is
+ *  unproven; production encoder adoption is near zero; converting pretrained softmax checkpoints
+ *  needs distillation — 0.005-2% of pretraining tokens — never a gradient-free swap; and the d × d
+ *  state must requantize to BF16 between the two matrix multiplications.
  *
  *  @see EfficientViT-SAM, a shipped ReLU-kernel linear attention encoder at SAM-ViT-H quality: https://arxiv.org/abs/2402.05008
  *  @see LoLCATs low-rank linearization of Llamas: https://arxiv.org/abs/2410.10254
@@ -91,7 +91,7 @@
  *
  *  @section attention_causal Causal and Sliding-Window Attention
  *
- *  `nk_attention_causal_packed_*` covers decoder inference with two scalars: query row `r` sits at
+ *  `nk_attention_causal_packed_*` covers decoder inference with two scalars: query row @c r sits at
  *  position `p = r + diagonal_offset` and sees the @c window keys ending at @c p, inclusive.
  *  `offset = 0` gives causal prefill, `offset = position_count − row_count` gives decode and
  *  chunked prefill against a longer cache, a finite @c window gives sliding-window attention, and
@@ -128,7 +128,7 @@ extern "C" {
  *  @brief Returns the packed KV-cache size in bytes for a ragged batch of segments.
  *  @param[in] key_value_head_count Number of K/V heads (≤ query heads for grouped-query attention).
  *  @param[in] depth Head dimension; any value ≥ 1.
- *  @param[in] segment_lengths Live token counts per segment, `[segment_count]`; zeros allowed.
+ *  @param[in] segment_lengths Live token counts, one per segment; zeros allowed.
  *  @param[in] segment_count Number of segments packed together.
  *  @note The packed layout is backend-specific and must be produced by the matching pack function.
  */
@@ -159,14 +159,18 @@ NK_API_RUNTIME void nk_attention_packed_shape_i8(void const *key_value_packed, n
 
 /**
  *  @brief Packs a ragged batch of K and V segments into a backend-opaque layout.
- *  @param[in] keys,values `[total_tokens, key_value_head_count × depth]` matrices with strided rows.
- *  @param[in] segment_offsets Start token of each segment, `[segment_count + 1]` prefix sums.
- *  @param[in] segment_lengths Live token counts, `[segment_count]`; zeros mark padding slots.
- *  @param[in] key_stride_bytes,value_stride_bytes Row (token) strides in bytes.
+ *  @param[in] keys,values Token-major matrices, one row of @p key_value_head_count × @p depth
+ *      elements per token, with strided rows.
+ *  @param[in] segment_offsets Start token of each segment, @p segment_count + 1 prefix sums.
+ *  @param[in] segment_lengths Live token counts, one per segment; zeros mark padding slots.
+ *  @param[in] key_stride_bytes Row (token) stride of @p keys in bytes.
+ *  @param[in] value_stride_bytes Row (token) stride of @p values in bytes.
  *  @param[out] key_value_packed 64-byte-aligned buffer of `nk_attention_pack_size_*` bytes.
- *  @param[in] task_begin,task_end Half-open window over the `segments × kv_heads` grid for parallel
- *      packing, with `task_end` clipped to the grid. Tasks write disjoint ranges; the header and
- *      directory are written by the window starting at task 0.
+ *  @param[in] task_begin First task of a window over the segments × K/V heads grid.
+ *  @param[in] task_end End of that half-open window, clipped to the grid.
+ *
+ *  Windows let callers pack in parallel: tasks write disjoint ranges, and the header and directory
+ *  are written by the window starting at task 0.
  */
 NK_API_RUNTIME void nk_attention_pack_bf16(nk_bf16_t const *keys, nk_bf16_t const *values,
                                            nk_size_t key_value_head_count, nk_size_t depth,
@@ -189,19 +193,23 @@ NK_API_RUNTIME void nk_attention_pack_i8(nk_i8_t const *keys, nk_i8_t const *val
                                          void *key_value_packed, nk_size_t task_begin, nk_size_t task_end);
 
 /**
- *  @brief Ragged bidirectional scaled-dot-product attention: `O[s] = softmax(Q[s]K[s]ᵀ·scale)V[s]`.
+ *  @brief Ragged bidirectional scaled-dot-product attention.
  *
- *  Covers self-attention (`query_offsets` equal to the pack-time `segment_offsets`),
- *  cross-attention, and pooling (`query_offsets = {0, 1, 2, …}` — one query per segment),
- *  plus GQA/MQA via `key_value_head_count < head_count`.
+ *  Computes O[s] = softmax(Q[s] × K[s]ᵀ × scale) × V[s] for every segment s. Covers self-attention,
+ *  where @p query_offsets equal the pack-time @c segment_offsets, cross-attention, and pooling,
+ *  where `query_offsets = {0, 1, 2, …}` holds one query per segment, plus GQA/MQA via
+ *  @p key_value_head_count < @p head_count.
  *
- *  @param[in] queries `[total_query_tokens, head_count × depth]` with `query_stride_bytes` bytes between rows.
+ *  @param[in] queries Token-major matrix, one row of @p head_count × @p depth elements per query
+ *      token, with @p query_stride_bytes bytes between rows.
  *  @param[in] key_value_packed Buffer produced by the matching `nk_attention_pack_*` backend.
- *  @param[out] output `[total_query_tokens, head_count × depth]` F32, `output_stride_bytes` bytes between rows.
- *  @param[in] query_offsets First query row of each segment, `[segment_count + 1]` prefix sums.
- *  @param[in] scale Score multiplier, typically `1 / sqrt(depth)`.
- *  @param[in] task_start,task_count Window over the `segments × heads` grid, with `task_count` clipped to
- *      `segments · heads − task_start`. Tasks write disjoint output regions, so callers parallelize freely.
+ *  @param[out] output Token-major F32 matrix, one row of @p head_count × @p depth elements per
+ *      query token, with @p output_stride_bytes bytes between rows.
+ *  @param[in] query_offsets First query row of each segment, as segment count + 1 prefix sums.
+ *  @param[in] scale Score multiplier, typically 1 / √depth.
+ *  @param[in] task_start,task_count Window over the segments × heads grid, with @p task_count
+ *      clipped to segments × heads − @p task_start. Tasks write disjoint output regions, so
+ *      callers parallelize freely.
  */
 NK_API_RUNTIME void nk_attention_bidirectional_packed_bf16(nk_bf16_t const *queries, void const *key_value_packed,
                                                            nk_f32_t *output, nk_size_t head_count,
@@ -209,15 +217,18 @@ NK_API_RUNTIME void nk_attention_bidirectional_packed_bf16(nk_bf16_t const *quer
                                                            nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
                                                            nk_size_t output_stride_bytes, nk_f32_t scale,
                                                            nk_size_t task_start, nk_size_t task_count);
+
 /**
  *  @brief Ragged causal scaled-dot-product attention with an optional sliding window.
  *
- *  Query row `r` of a segment sits at position `p = r + diagonal_offset` and attends to the keys
+ *  Query row @c r of a segment sits at position `p = r + diagonal_offset` and attends to the keys
  *  `[max(0, p − window + 1), min(p, length − 1)]`; rows with an empty range produce zeros.
- *  Packing is shared with `nk_attention_bidirectional_packed_bf16`, as are all other parameters.
+ *  Packing is shared with @c nk_attention_bidirectional_packed_bf16, as are all other parameters.
  *
- *  @param[in] diagonal_offset Position of query row 0: `0` for prefill, `length − query_count` against a cache.
- *  @param[in] window Visible keys including the query itself; `NK_SIZE_MAX` is unbounded, `0` masks every key.
+ *  @param[in] diagonal_offset Position of query row 0: `0` for prefill, `length − query_count`
+ *      against a cache.
+ *  @param[in] window Visible keys including the query itself; @c NK_SIZE_MAX is unbounded, `0`
+ *      masks every key.
  */
 NK_API_RUNTIME void nk_attention_causal_packed_bf16(nk_bf16_t const *queries, void const *key_value_packed,
                                                     nk_f32_t *output, nk_size_t head_count,
@@ -628,9 +639,10 @@ NK_API_COMPTIME void nk_attention_causal_packed_i8_sapphireamx(
     nk_size_t task_count);
 #endif // NK_TARGET_SAPPHIREAMX
 
+/*  Diamond Rapids AMX provides only the E4M3 attention variant: its native FP8 tiles, driven by
+ *  @c _tile_dphf8ps, are its differentiator, while its I8/BF16 paths would merely clone the
+ *  Sapphire AMX backend. */
 #if NK_TARGET_DIAMONDAMX
-/* Diamond Rapids AMX provides only the E4M3 attention variant: its native FP8 tiles (`_tile_dphf8ps`)
- * are its differentiator, while its I8/BF16 paths would merely clone the Sapphire AMX backend. */
 /** @copydoc nk_attention_pack_size_bf16 */
 NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_diamondamx(nk_size_t key_value_head_count, nk_size_t depth,
                                                                  nk_u32_t const *segment_lengths,
@@ -982,10 +994,10 @@ NK_API_COMPTIME void nk_attention_causal_packed_i8_v128relaxed(
     nk_size_t task_count);
 #endif // NK_TARGET_V128RELAXED
 
-/*  NVIDIA backends from Ampere on, asynchronous on their `stream` and returning the launch status. Only
- *  `pack_size` reads `segment_lengths` on the host: the pack and both attention kernels read the offsets and lengths on
- *  the device, so every pointer they take must be device or managed memory.
- */
+/*  NVIDIA backends from Ampere on, asynchronous on their @c stream and returning the launch
+ *  status. Only @c pack_size reads @c segment_lengths on the host: the pack and both attention
+ *  kernels read the offsets and lengths on the device, so every pointer they take must be device
+ *  or managed memory. */
 #if NK_TARGET_AMPERE
 /** @copydoc nk_attention_pack_size_bf16 */
 NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_ampere(nk_size_t key_value_head_count, nk_size_t depth,
@@ -1067,9 +1079,8 @@ NK_API_COMPTIME cudaError_t nk_attention_causal_packed_i8_ampere(
     nk_size_t task_count, cudaStream_t stream);
 #endif // NK_TARGET_AMPERE
 
-/*  NVIDIA backends for the compute capability 12.x family, with E4M3 on the tensor cores natively. BF16 and I8 there
- * use the Ampere kernels, which already run at the native rate.
- */
+/*  NVIDIA backends for the compute capability 12.x family, with E4M3 on the tensor cores natively.
+ *  BF16 and I8 there use the Ampere kernels, which already run at the native rate. */
 #if NK_TARGET_BLACKWELLRTX
 /** @copydoc nk_attention_pack_size_e4m3 */
 NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_blackwellrtx(nk_size_t key_value_head_count, nk_size_t depth,
@@ -1098,9 +1109,7 @@ NK_API_COMPTIME cudaError_t nk_attention_causal_packed_e4m3_blackwellrtx(
     nk_size_t task_count, cudaStream_t stream);
 #endif // NK_TARGET_BLACKWELLRTX
 
-/**
- *  @brief Returns the output dtype for attention: accumulator-precision F32 for all inputs.
- */
+/** Returns the output dtype for attention: accumulator-precision F32 for all inputs. */
 NK_HELPER_INLINE nk_dtype_t nk_attention_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_bf16_k: return nk_f32_k;

@@ -35,12 +35,15 @@ extern "C" {
 #endif
 
 /**
- *  SME u1 dot-product kernel using ZA transpose for unpacked A.
- *  ZA0.S = staging (A rows loaded horizontally, read vertically for BMOPA).
- *  ZA1-3.S = BMOPA accumulation (3 B column tiles in fast path).
+ *  @brief SME u1 dot-product kernel using ZA transpose for unpacked A.
  *
- *  BMOPA gives matching = popcount(XNOR(a,b)).
- *  dot(a,b) = popcount(a AND b) = (pop_a + pop_b - depth_bits + matching) / 2
+ *  ZA0.S stages A rows, loaded horizontally and read vertically for BMOPA, while ZA1-3.S hold the
+ *  BMOPA accumulation of 3 B column tiles in the fast path. BMOPA gives the matching bit count:
+ *
+ *  @verbatim
+ *  matching  = popcount(XNOR(a, b))
+ *  dot(a, b) = popcount(a AND b) = (pop_a + pop_b - depth_bits + matching) / 2
+ *  @endverbatim
  */
 __arm_new("za") static void nk_dots_packed_u1_smebi32_streaming_( //
     nk_u1x8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
@@ -54,7 +57,7 @@ __arm_new("za") static void nk_dots_packed_u1_smebi32_streaming_( //
     nk_size_t const depth_tile_size = svcntw(); // 16 u32 per depth tile
     nk_size_t const tile_elements = tile_dim * depth_tile_size;
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
-    // handles one u32 (32 bits) across all row×column pairs simultaneously.
+    // handles one u32 (32 bits) across all row × column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
     nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;
 
@@ -216,10 +219,8 @@ NK_API_COMPTIME void nk_dots_packed_u1_smebi32( //
     nk_sme_stop_streaming_();
 }
 
-/**
- *  Symmetric u1 dot-product using ZA0 time-sharing + 3-tile fast path.
- *  Same ZA transpose pattern as hammings_symmetric, but with dot extraction.
- */
+/** Symmetric u1 dot-product using ZA0 time-sharing and a 3-tile fast path. Same ZA transpose
+ *  pattern as hammings_symmetric, but with dot extraction. */
 __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
     nk_u32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
@@ -227,7 +228,7 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
     nk_size_t const tile_dim = svcntw();        // 16 for 512-bit SVL
     nk_size_t const depth_tile_size = svcntw(); // 16 u32 per depth tile
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
-    // handles one u32 (32 bits) across all row×column pairs simultaneously.
+    // handles one u32 (32 bits) across all row × column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
     nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;
     nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth_words, depth_tile_size);

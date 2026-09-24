@@ -8,7 +8,7 @@
  *
  *  @section reduce_haswell_block_caps Block-Cap Overflow Thresholds
  *
- *  Dispatch functions use pairwise recursion when `count` exceeds a block cap.
+ *  Dispatch functions use pairwise recursion when @c count exceeds a block cap.
  *  The cap is sized so the iteration counter in the contiguous kernel never wraps.
  *
  *  Iteration counters start at 0, initial load, and increment by 1 per SIMD chunk. A u8 counter
@@ -45,7 +45,7 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-/** @brief Horizontal sum of 4 doubles in a YMM register. */
+/** Horizontal sum of 4 doubles in a YMM register. */
 NK_HELPER_INLINE nk_f64_t nk_reduce_add_f64x4_haswell_(__m256d sum_f64x4) {
     __m128d low_f64x2 = _mm256_castpd256_pd128(sum_f64x4);
     __m128d high_f64x2 = _mm256_extractf128_pd(sum_f64x4, 1);
@@ -54,7 +54,7 @@ NK_HELPER_INLINE nk_f64_t nk_reduce_add_f64x4_haswell_(__m256d sum_f64x4) {
     return _mm_cvtsd_f64(sum_f64x2);
 }
 
-/** @brief Horizontal sum of 8 floats in a YMM register (native f32 precision). */
+/** Horizontal sum of 8 floats in a YMM register (native f32 precision). */
 NK_HELPER_INLINE nk_f32_t nk_reduce_add_f32x8_haswell_(__m256 sum_f32x8) {
     __m128 low_f32x4 = _mm256_castps256_ps128(sum_f32x8);
     __m128 high_f32x4 = _mm256_extractf128_ps(sum_f32x8, 1);
@@ -64,7 +64,7 @@ NK_HELPER_INLINE nk_f32_t nk_reduce_add_f32x8_haswell_(__m256 sum_f32x8) {
     return _mm_cvtss_f32(sum_f32x4);
 }
 
-/** @brief Horizontal sum of 8 i32s in a YMM register. */
+/** Horizontal sum of 8 i32s in a YMM register. */
 NK_HELPER_INLINE nk_i32_t nk_reduce_add_i32x8_haswell_(__m256i sum_i32x8) {
     __m128i low_i32x4 = _mm256_castsi256_si128(sum_i32x8);
     __m128i high_i32x4 = _mm256_extracti128_si256(sum_i32x8, 1);
@@ -74,7 +74,7 @@ NK_HELPER_INLINE nk_i32_t nk_reduce_add_i32x8_haswell_(__m256i sum_i32x8) {
     return _mm_cvtsi128_si32(sum_i32x4);
 }
 
-/** @brief Horizontal sum of 4 i64s in a YMM register. */
+/** Horizontal sum of 4 i64s in a YMM register. */
 NK_HELPER_INLINE nk_i64_t nk_reduce_add_i64x4_haswell_(__m256i sum_i64x4) {
     __m128i low_i64x2 = _mm256_castsi256_si128(sum_i64x4);
     __m128i high_i64x2 = _mm256_extracti128_si256(sum_i64x4, 1);
@@ -84,7 +84,7 @@ NK_HELPER_INLINE nk_i64_t nk_reduce_add_i64x4_haswell_(__m256i sum_i64x4) {
     return _mm_cvtsi128_si64(final_i64x2);
 }
 
-/** @brief Horizontal min of 8 signed i8s in a YMM register. */
+/** Horizontal min of 8 signed i8s in a YMM register. */
 NK_HELPER_INLINE nk_i8_t nk_reduce_min_i8x32_haswell_(__m256i min_i8x32) {
     __m128i low_i8x16 = _mm256_castsi256_si128(min_i8x32);
     __m128i high_i8x16 = _mm256_extracti128_si256(min_i8x32, 1);
@@ -96,7 +96,7 @@ NK_HELPER_INLINE nk_i8_t nk_reduce_min_i8x32_haswell_(__m256i min_i8x32) {
     return (nk_i8_t)_mm_cvtsi128_si32(min_i8x16);
 }
 
-/** @brief Horizontal max of 8 signed i8s in a YMM register. */
+/** Horizontal max of 8 signed i8s in a YMM register. */
 NK_HELPER_INLINE nk_i8_t nk_reduce_max_i8x32_haswell_(__m256i max_i8x32) {
     __m128i low_i8x16 = _mm256_castsi256_si128(max_i8x32);
     __m128i high_i8x16 = _mm256_extracti128_si256(max_i8x32, 1);
@@ -108,7 +108,7 @@ NK_HELPER_INLINE nk_i8_t nk_reduce_max_i8x32_haswell_(__m256i max_i8x32) {
     return (nk_i8_t)_mm_cvtsi128_si32(max_i8x16);
 }
 
-/** @brief Horizontal min of 8 unsigned u8s in a YMM register. */
+/** Horizontal min of 8 unsigned u8s in a YMM register. */
 NK_HELPER_INLINE nk_u8_t nk_reduce_min_u8x32_haswell_(__m256i min_u8x32) {
     __m128i low_u8x16 = _mm256_castsi256_si128(min_u8x32);
     __m128i high_u8x16 = _mm256_extracti128_si256(min_u8x32, 1);
@@ -120,7 +120,7 @@ NK_HELPER_INLINE nk_u8_t nk_reduce_min_u8x32_haswell_(__m256i min_u8x32) {
     return (nk_u8_t)_mm_cvtsi128_si32(min_u8x16);
 }
 
-/** @brief Horizontal max of 8 unsigned u8s in a YMM register. */
+/** Horizontal max of 8 unsigned u8s in a YMM register. */
 NK_HELPER_INLINE nk_u8_t nk_reduce_max_u8x32_haswell_(__m256i max_u8x32) {
     __m128i low_u8x16 = _mm256_castsi256_si128(max_u8x32);
     __m128i high_u8x16 = _mm256_extracti128_si256(max_u8x32, 1);
@@ -132,7 +132,7 @@ NK_HELPER_INLINE nk_u8_t nk_reduce_max_u8x32_haswell_(__m256i max_u8x32) {
     return (nk_u8_t)_mm_cvtsi128_si32(max_u8x16);
 }
 
-/** @brief Horizontal min of 16 signed i16s in a YMM register. */
+/** Horizontal min of 16 signed i16s in a YMM register. */
 NK_HELPER_INLINE nk_i16_t nk_reduce_min_i16x16_haswell_(__m256i min_i16x16) {
     __m128i low_i16x8 = _mm256_castsi256_si128(min_i16x16);
     __m128i high_i16x8 = _mm256_extracti128_si256(min_i16x16, 1);
@@ -143,7 +143,7 @@ NK_HELPER_INLINE nk_i16_t nk_reduce_min_i16x16_haswell_(__m256i min_i16x16) {
     return (nk_i16_t)_mm_cvtsi128_si32(min_i16x8);
 }
 
-/** @brief Horizontal max of 16 signed i16s in a YMM register. */
+/** Horizontal max of 16 signed i16s in a YMM register. */
 NK_HELPER_INLINE nk_i16_t nk_reduce_max_i16x16_haswell_(__m256i max_i16x16) {
     __m128i low_i16x8 = _mm256_castsi256_si128(max_i16x16);
     __m128i high_i16x8 = _mm256_extracti128_si256(max_i16x16, 1);
@@ -154,7 +154,7 @@ NK_HELPER_INLINE nk_i16_t nk_reduce_max_i16x16_haswell_(__m256i max_i16x16) {
     return (nk_i16_t)_mm_cvtsi128_si32(max_i16x8);
 }
 
-/** @brief Horizontal min of 16 unsigned u16s in a YMM register. */
+/** Horizontal min of 16 unsigned u16s in a YMM register. */
 NK_HELPER_INLINE nk_u16_t nk_reduce_min_u16x16_haswell_(__m256i min_u16x16) {
     __m128i low_u16x8 = _mm256_castsi256_si128(min_u16x16);
     __m128i high_u16x8 = _mm256_extracti128_si256(min_u16x16, 1);
@@ -165,7 +165,7 @@ NK_HELPER_INLINE nk_u16_t nk_reduce_min_u16x16_haswell_(__m256i min_u16x16) {
     return (nk_u16_t)_mm_cvtsi128_si32(min_u16x8);
 }
 
-/** @brief Horizontal max of 16 unsigned u16s in a YMM register. */
+/** Horizontal max of 16 unsigned u16s in a YMM register. */
 NK_HELPER_INLINE nk_u16_t nk_reduce_max_u16x16_haswell_(__m256i max_u16x16) {
     __m128i low_u16x8 = _mm256_castsi256_si128(max_u16x16);
     __m128i high_u16x8 = _mm256_extracti128_si256(max_u16x16, 1);
@@ -176,7 +176,7 @@ NK_HELPER_INLINE nk_u16_t nk_reduce_max_u16x16_haswell_(__m256i max_u16x16) {
     return (nk_u16_t)_mm_cvtsi128_si32(max_u16x8);
 }
 
-/** @brief Horizontal min of 8 signed i32s in a YMM register. */
+/** Horizontal min of 8 signed i32s in a YMM register. */
 NK_HELPER_INLINE nk_i32_t nk_reduce_min_i32x8_haswell_(__m256i min_i32x8) {
     __m128i low_i32x4 = _mm256_castsi256_si128(min_i32x8);
     __m128i high_i32x4 = _mm256_extracti128_si256(min_i32x8, 1);
@@ -186,7 +186,7 @@ NK_HELPER_INLINE nk_i32_t nk_reduce_min_i32x8_haswell_(__m256i min_i32x8) {
     return _mm_cvtsi128_si32(min_i32x4);
 }
 
-/** @brief Horizontal max of 8 signed i32s in a YMM register. */
+/** Horizontal max of 8 signed i32s in a YMM register. */
 NK_HELPER_INLINE nk_i32_t nk_reduce_max_i32x8_haswell_(__m256i max_i32x8) {
     __m128i low_i32x4 = _mm256_castsi256_si128(max_i32x8);
     __m128i high_i32x4 = _mm256_extracti128_si256(max_i32x8, 1);
@@ -196,7 +196,7 @@ NK_HELPER_INLINE nk_i32_t nk_reduce_max_i32x8_haswell_(__m256i max_i32x8) {
     return _mm_cvtsi128_si32(max_i32x4);
 }
 
-/** @brief Horizontal min of 8 unsigned u32s in a YMM register. */
+/** Horizontal min of 8 unsigned u32s in a YMM register. */
 NK_HELPER_INLINE nk_u32_t nk_reduce_min_u32x8_haswell_(__m256i min_u32x8) {
     __m128i low_u32x4 = _mm256_castsi256_si128(min_u32x8);
     __m128i high_u32x4 = _mm256_extracti128_si256(min_u32x8, 1);
@@ -206,7 +206,7 @@ NK_HELPER_INLINE nk_u32_t nk_reduce_min_u32x8_haswell_(__m256i min_u32x8) {
     return (nk_u32_t)_mm_cvtsi128_si32(min_u32x4);
 }
 
-/** @brief Horizontal max of 8 unsigned u32s in a YMM register. */
+/** Horizontal max of 8 unsigned u32s in a YMM register. */
 NK_HELPER_INLINE nk_u32_t nk_reduce_max_u32x8_haswell_(__m256i max_u32x8) {
     __m128i low_u32x4 = _mm256_castsi256_si128(max_u32x8);
     __m128i high_u32x4 = _mm256_extracti128_si256(max_u32x8, 1);
@@ -216,7 +216,7 @@ NK_HELPER_INLINE nk_u32_t nk_reduce_max_u32x8_haswell_(__m256i max_u32x8) {
     return (nk_u32_t)_mm_cvtsi128_si32(max_u32x4);
 }
 
-/** @brief Horizontal min of 4 signed i64s in a YMM register using comparison+blend. */
+/** Horizontal min of 4 signed i64s in a YMM register using comparison+blend. */
 NK_HELPER_INLINE nk_i64_t nk_reduce_min_i64x4_haswell_(__m256i min_i64x4) {
     __m128i low_i64x2 = _mm256_castsi256_si128(min_i64x4);
     __m128i high_i64x2 = _mm256_extracti128_si256(min_i64x4, 1);
@@ -228,7 +228,7 @@ NK_HELPER_INLINE nk_i64_t nk_reduce_min_i64x4_haswell_(__m256i min_i64x4) {
     return _mm_cvtsi128_si64(result_i64x2);
 }
 
-/** @brief Horizontal max of 4 signed i64s in a YMM register using comparison+blend. */
+/** Horizontal max of 4 signed i64s in a YMM register using comparison+blend. */
 NK_HELPER_INLINE nk_i64_t nk_reduce_max_i64x4_haswell_(__m256i max_i64x4) {
     __m128i low_i64x2 = _mm256_castsi256_si128(max_i64x4);
     __m128i high_i64x2 = _mm256_extracti128_si256(max_i64x4, 1);
@@ -240,7 +240,7 @@ NK_HELPER_INLINE nk_i64_t nk_reduce_max_i64x4_haswell_(__m256i max_i64x4) {
     return _mm_cvtsi128_si64(result_i64x2);
 }
 
-/** @brief Horizontal min of 4 unsigned u64s in a YMM register using XOR trick for unsigned comparison. */
+/** Horizontal min of 4 unsigned u64s in a YMM register using XOR trick for unsigned comparison. */
 NK_HELPER_INLINE nk_u64_t nk_reduce_min_u64x4_haswell_(__m256i min_u64x4) {
     __m128i sign_bit_i64x2 = _mm_set1_epi64x((nk_i64_t)0x8000000000000000ull);
     __m128i low_u64x2 = _mm256_castsi256_si128(min_u64x4);
@@ -255,7 +255,7 @@ NK_HELPER_INLINE nk_u64_t nk_reduce_min_u64x4_haswell_(__m256i min_u64x4) {
     return (nk_u64_t)_mm_cvtsi128_si64(result_u64x2);
 }
 
-/** @brief Horizontal max of 4 unsigned u64s in a YMM register using XOR trick for unsigned comparison. */
+/** Horizontal max of 4 unsigned u64s in a YMM register using XOR trick for unsigned comparison. */
 NK_HELPER_INLINE nk_u64_t nk_reduce_max_u64x4_haswell_(__m256i max_u64x4) {
     __m128i sign_bit_i64x2 = _mm_set1_epi64x((nk_i64_t)0x8000000000000000ull);
     __m128i low_u64x2 = _mm256_castsi256_si128(max_u64x4);
@@ -270,7 +270,7 @@ NK_HELPER_INLINE nk_u64_t nk_reduce_max_u64x4_haswell_(__m256i max_u64x4) {
     return (nk_u64_t)_mm_cvtsi128_si64(result_u64x2);
 }
 
-/** @brief Horizontal min of 8 floats in a YMM register. */
+/** Horizontal min of 8 floats in a YMM register. */
 NK_HELPER_INLINE nk_f32_t nk_reduce_min_f32x8_haswell_(__m256 min_f32x8) {
     __m128 low_f32x4 = _mm256_castps256_ps128(min_f32x8);
     __m128 high_f32x4 = _mm256_extractf128_ps(min_f32x8, 1);
@@ -280,7 +280,7 @@ NK_HELPER_INLINE nk_f32_t nk_reduce_min_f32x8_haswell_(__m256 min_f32x8) {
     return _mm_cvtss_f32(min_f32x4);
 }
 
-/** @brief Horizontal max of 8 floats in a YMM register. */
+/** Horizontal max of 8 floats in a YMM register. */
 NK_HELPER_INLINE nk_f32_t nk_reduce_max_f32x8_haswell_(__m256 max_f32x8) {
     __m128 low_f32x4 = _mm256_castps256_ps128(max_f32x8);
     __m128 high_f32x4 = _mm256_extractf128_ps(max_f32x8, 1);
@@ -290,7 +290,7 @@ NK_HELPER_INLINE nk_f32_t nk_reduce_max_f32x8_haswell_(__m256 max_f32x8) {
     return _mm_cvtss_f32(max_f32x4);
 }
 
-/** @brief Horizontal min of 4 doubles in a YMM register. */
+/** Horizontal min of 4 doubles in a YMM register. */
 NK_HELPER_INLINE nk_f64_t nk_reduce_min_f64x4_haswell_(__m256d min_f64x4) {
     __m128d low_f64x2 = _mm256_castpd256_pd128(min_f64x4);
     __m128d high_f64x2 = _mm256_extractf128_pd(min_f64x4, 1);
@@ -299,7 +299,7 @@ NK_HELPER_INLINE nk_f64_t nk_reduce_min_f64x4_haswell_(__m256d min_f64x4) {
     return _mm_cvtsd_f64(min_f64x2);
 }
 
-/** @brief Horizontal max of 4 doubles in a YMM register. */
+/** Horizontal max of 4 doubles in a YMM register. */
 NK_HELPER_INLINE nk_f64_t nk_reduce_max_f64x4_haswell_(__m256d max_f64x4) {
     __m128d low_f64x2 = _mm256_castpd256_pd128(max_f64x4);
     __m128d high_f64x2 = _mm256_extractf128_pd(max_f64x4, 1);
@@ -327,7 +327,7 @@ NK_HELPER_INLINE __m256i nk_u8x32_comparable_to_fp8x32_haswell_(__m256i cmp_i8x3
     return _mm256_xor_si256(cmp_i8x32, xor_i8x32);
 }
 
-/** @brief Horizontal argmin: returns index of first minimum unsigned byte in YMM register. */
+/** Horizontal argmin: returns index of first minimum unsigned byte in YMM register. */
 NK_HELPER_INLINE nk_size_t nk_argmin_u8x32_haswell_(__m256i data_u8x32) {
     nk_u8_t min_val = nk_reduce_min_u8x32_haswell_(data_u8x32);
     __m256i eq_i8x32 = _mm256_cmpeq_epi8(data_u8x32, _mm256_set1_epi8((char)min_val));
@@ -335,7 +335,7 @@ NK_HELPER_INLINE nk_size_t nk_argmin_u8x32_haswell_(__m256i data_u8x32) {
     return (nk_size_t)_tzcnt_u32((unsigned int)eq_bits);
 }
 
-/** @brief Horizontal argmax: returns index of first maximum unsigned byte in YMM register. */
+/** Horizontal argmax: returns index of first maximum unsigned byte in YMM register. */
 NK_HELPER_INLINE nk_size_t nk_argmax_u8x32_haswell_(__m256i data_u8x32) {
     nk_u8_t max_val = nk_reduce_max_u8x32_haswell_(data_u8x32);
     __m256i eq_i8x32 = _mm256_cmpeq_epi8(data_u8x32, _mm256_set1_epi8((char)max_val));
@@ -2720,7 +2720,7 @@ NK_HELPER_INLINE void nk_reduce_minmax_e5m2_haswell_contiguous_( //
     nk_e5m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
     // E5M2 NaN in comparable form: 0x00-0x02 (neg NaN) and 0xFD-0xFF (pos NaN).
-    // Infinity (comparable 0x03/0xFC) is NOT NaN and IS included.
+    // Infinity (comparable 0x03/0xFC) is not NaN and is included.
     nk_b256_vec_t min_vec, max_vec;
     min_vec.ymm = _mm256_set1_epi8((char)0xFF);
     max_vec.ymm = _mm256_setzero_si256();

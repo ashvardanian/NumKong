@@ -42,12 +42,10 @@ extern "C" {
 
 #pragma region Type Punned Loads and Stores
 
-/**
- *  LSX and LASX share the same physical register file, so widening __m128i → __m256i and
- *  extracting __m256i → __m128i are no-ops on hardware. Empty inline asm with "f" constraints
- *  avoids the stack round-trip that union punning causes on GCC 14.
- *  Named after x86 `_mm256_castsi128_si256` / `_mm256_castsi256_si128` / `_mm256_castps256_ps128`.
- */
+/** LSX and LASX share the same physical register file, so widening __m128i → __m256i and extracting
+ *  __m256i → __m128i are no-ops on hardware. Empty inline asm with "f" constraints avoids the stack
+ *  round-trip that union punning causes on GCC 14. The helpers are named after the x86 intrinsics
+ *  _mm256_castsi128_si256, _mm256_castsi256_si128 and _mm256_castps256_ps128. */
 NK_HELPER_INLINE __m256i nk_lasx_castsi128_si256_(__m128i low_i64x2) {
     __m256i wide_i64x4;
     __asm__("" : "=f"(wide_i64x4) : "f"(low_i64x2));
@@ -64,23 +62,24 @@ NK_HELPER_INLINE __m128 nk_lasx_castps256_ps128_(__m256 wide_f32x8) {
     return low_f32x4;
 }
 
-/** @brief Type-agnostic 256-bit full load (LASX). */
+/** Type-agnostic 256-bit full load (LASX). */
 NK_HELPER_INLINE void nk_load_b256_loongsonasx_(void const *src, nk_b256_vec_t *dst) { dst->ymm = __lasx_xvld(src, 0); }
 
-/** @brief Type-agnostic 256-bit full store (LASX). */
+/** Type-agnostic 256-bit full store (LASX). */
 NK_HELPER_INLINE void nk_store_b256_loongsonasx_(nk_b256_vec_t const *src, void *dst) { __lasx_xvst(src->ymm, dst, 0); }
 
-/** @brief Type-agnostic 128-bit full load (LSX subset of LASX). */
+/** Type-agnostic 128-bit full load (LSX subset of LASX). */
 NK_HELPER_INLINE void nk_load_b128_loongsonasx_(void const *src, nk_b128_vec_t *dst) { dst->xmm = __lsx_vld(src, 0); }
 
-/** @brief Type-agnostic 128-bit full store (LSX subset of LASX). */
+/** Type-agnostic 128-bit full store (LSX subset of LASX). */
 NK_HELPER_INLINE void nk_store_b128_loongsonasx_(nk_b128_vec_t const *src, void *dst) { __lsx_vst(src->xmm, dst, 0); }
 
-/** @brief Convert 8 × bf16 → 8 × f32 by interleaving with zero so bf16 lands in upper 16 bits (LASX).
+/**
+ *  @brief Convert 8 × bf16 → 8 × f32 on LASX by interleaving with zero into the upper 16 bits.
  *
  *  Duplicates the 128-bit input into both lanes, then `xvilvl_h(bf16, zero)` places each bf16
  *  value in the high 16 bits of a 32-bit slot — which is valid f32 with no shift needed.
- *  `xvpermi_q` combines the low-element and high-element halves into a single register.
+ *  @c xvpermi_q combines the low-element and high-element halves into a single register.
  */
 NK_HELPER_INLINE __m256i nk_bf16x8_to_f32x8_loongsonasx_(__m128i bf16_i16x8) {
     __m256i duped_bf16x16 = __lasx_xvpermi_q(nk_lasx_castsi128_si256_(bf16_i16x8), nk_lasx_castsi128_si256_(bf16_i16x8),
@@ -91,12 +90,12 @@ NK_HELPER_INLINE __m256i nk_bf16x8_to_f32x8_loongsonasx_(__m128i bf16_i16x8) {
     return __lasx_xvpermi_q(high_f32x8, low_f32x8, 0x20);
 }
 
-/** @brief Load 8 × bf16 from memory, convert to 8 × f32, store in 256-bit vector (LASX). */
+/** Load 8 × bf16 from memory, convert to 8 × f32, store in 256-bit vector (LASX). */
 NK_HELPER_INLINE void nk_load_bf16x8_to_f32x8_loongsonasx_(void const *src, nk_b256_vec_t *dst) {
     dst->ymm = nk_bf16x8_to_f32x8_loongsonasx_(__lsx_vld(src, 0));
 }
 
-/** @brief Partial load for bf16 elements (up to 8) with conversion to f32 (LASX). */
+/** Partial load for bf16 elements (up to 8) with conversion to f32 (LASX). */
 NK_HELPER_INLINE void nk_partial_load_bf16x8_to_f32x8_loongsonasx_(nk_bf16_t const *src, nk_b256_vec_t *dst,
                                                                    nk_size_t n) {
     nk_b128_vec_t vec;
@@ -104,7 +103,7 @@ NK_HELPER_INLINE void nk_partial_load_bf16x8_to_f32x8_loongsonasx_(nk_bf16_t con
     dst->ymm = nk_bf16x8_to_f32x8_loongsonasx_(vec.xmm);
 }
 
-/** @brief Convert 8 × f16 → 8 × f32 via native LASX hardware conversion. */
+/** Convert 8 × f16 → 8 × f32 via native LASX hardware conversion. */
 NK_HELPER_INLINE __m256i nk_f16x8_to_f32x8_loongsonasx_(__m128i f16_i16x8) {
     __m256i duped_f16x16 = __lasx_xvpermi_q(nk_lasx_castsi128_si256_(f16_i16x8), nk_lasx_castsi128_si256_(f16_i16x8),
                                             0x00);
@@ -113,12 +112,12 @@ NK_HELPER_INLINE __m256i nk_f16x8_to_f32x8_loongsonasx_(__m128i f16_i16x8) {
     return __lasx_xvpermi_q(high_f32x8, low_f32x8, 0x20);
 }
 
-/** @brief Load 8 × f16 from memory, convert to 8 × f32 via native LASX conversion. */
+/** Load 8 × f16 from memory, convert to 8 × f32 via native LASX conversion. */
 NK_HELPER_INLINE void nk_load_f16x8_to_f32x8_loongsonasx_(void const *src, nk_b256_vec_t *dst) {
     dst->ymm = nk_f16x8_to_f32x8_loongsonasx_(__lsx_vld(src, 0));
 }
 
-/** @brief Partial load for f16 elements (up to 8) with conversion to f32 (LASX). */
+/** Partial load for f16 elements (up to 8) with conversion to f32 (LASX). */
 NK_HELPER_INLINE void nk_partial_load_f16x8_to_f32x8_loongsonasx_(nk_f16_t const *src, nk_b256_vec_t *dst,
                                                                   nk_size_t n) {
     nk_b128_vec_t vec;
@@ -130,19 +129,25 @@ NK_HELPER_INLINE void nk_partial_load_f16x8_to_f32x8_loongsonasx_(nk_f16_t const
 
 #pragma region Vectorized From Dot Helpers
 
-/** @brief Safe square root of 8 floats with zero-clamping for numerical stability (LASX 256-bit). */
+/** Safe square root of 8 floats with zero-clamping for numerical stability (LASX 256-bit). */
 NK_HELPER_INLINE __m256 nk_sqrt_f32x8_loongsonasx_(__m256 x_f32x8) {
     __m256 zero_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     return __lasx_xvfsqrt_s(__lasx_xvfmax_s(x_f32x8, zero_f32x8));
 }
 
-/** @brief Safe square root of 4 floats with zero-clamping for numerical stability (LSX 128-bit). */
+/** Safe square root of 4 floats with zero-clamping for numerical stability (LSX 128-bit). */
 NK_HELPER_INLINE __m128 nk_sqrt_f32x4_loongsonasx_(__m128 x_f32x4) {
     __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
     return __lsx_vfsqrt_s(__lsx_vfmax_s(x_f32x4, zero_f32x4));
 }
 
-/** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq × target_sumsq) for 4 pairs (LSX 128-bit f32). */
+/**
+ *  @brief Angular from_dot for 4 pairs (LSX 128-bit f32).
+ *
+ *  @verbatim
+ *      1 − dot × rsqrt(query_sumsq × target_sumsq)
+ *  @endverbatim
+ */
 NK_HELPER_INLINE void nk_angular_through_f32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                                    nk_b128_vec_t const *target_sumsqs_vec,
                                                                    nk_b128_vec_t *result_vec) {
@@ -157,7 +162,13 @@ NK_HELPER_INLINE void nk_angular_through_f32_from_dot_loongsonasx_(nk_b128_vec_t
     result_vec->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
 }
 
-/** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs (LSX 128-bit f32). */
+/**
+ *  @brief Euclidean from_dot for 4 pairs (LSX 128-bit f32).
+ *
+ *  @verbatim
+ *      √(query_sumsq + target_sumsq − 2 × dot)
+ *  @endverbatim
+ */
 NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec,
                                                                      nk_f32_t query_sumsq,
                                                                      nk_b128_vec_t const *target_sumsqs_vec,
@@ -171,7 +182,13 @@ NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_loongsonasx_(nk_b128_vec
     result_vec->xmm_ps = nk_sqrt_f32x4_loongsonasx_(dist_sq_f32x4);
 }
 
-/** @brief Angular from_dot for native f64: 1 − dot / √(query_sumsq × target_sumsq) for 4 pairs (LASX 256-bit). */
+/**
+ *  @brief Angular from_dot for native f64, over 4 pairs (LASX 256-bit).
+ *
+ *  @verbatim
+ *      1 − dot / √(query_sumsq × target_sumsq)
+ *  @endverbatim
+ */
 NK_HELPER_INLINE void nk_angular_through_f64_from_dot_loongsonasx_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                                    nk_b256_vec_t const *target_sumsqs_vec,
                                                                    nk_b256_vec_t *result_vec) {
@@ -186,7 +203,13 @@ NK_HELPER_INLINE void nk_angular_through_f64_from_dot_loongsonasx_(nk_b256_vec_t
     result_vec->ymm_pd = __lasx_xvfmax_d(angular_f64x4, zero_f64x4);
 }
 
-/** @brief Euclidean from_dot for native f64: √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs (LASX 256-bit). */
+/**
+ *  @brief Euclidean from_dot for native f64, over 4 pairs (LASX 256-bit).
+ *
+ *  @verbatim
+ *      √(query_sumsq + target_sumsq − 2 × dot)
+ *  @endverbatim
+ */
 NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_loongsonasx_(nk_b256_vec_t const *dots_vec,
                                                                      nk_f64_t query_sumsq,
                                                                      nk_b256_vec_t const *target_sumsqs_vec,
@@ -201,7 +224,8 @@ NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_loongsonasx_(nk_b256_vec
     result_vec->ymm_pd = __lasx_xvfsqrt_d(__lasx_xvfmax_d(dist_sq_f64x4, zero_f64x4));
 }
 
-/** @brief Angular from_dot for i32 accumulators: cast i32 → f32, rsqrt+NR, clamp. 4 pairs (LSX 128-bit). */
+/** Angular from_dot for 4 pairs of i32 accumulators (LSX 128-bit): casts i32 → f32, then rsqrt+NR,
+ *  then clamp. */
 NK_HELPER_INLINE void nk_angular_through_i32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
                                                                    nk_b128_vec_t const *target_sumsqs_vec,
                                                                    nk_b128_vec_t *result_vec) {
@@ -216,7 +240,8 @@ NK_HELPER_INLINE void nk_angular_through_i32_from_dot_loongsonasx_(nk_b128_vec_t
     result_vec->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
 }
 
-/** @brief Euclidean from_dot for i32 accumulators: cast i32 → f32, then √(a² + b² − 2ab). 4 pairs (LSX 128-bit). */
+/** Euclidean from_dot for 4 pairs of i32 accumulators (LSX 128-bit): casts i32 → f32, then
+ *  computes √(a² + b² − 2ab). */
 NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec,
                                                                      nk_i32_t query_sumsq,
                                                                      nk_b128_vec_t const *target_sumsqs_vec,
@@ -229,7 +254,8 @@ NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_loongsonasx_(nk_b128_vec
     result_vec->xmm_ps = nk_sqrt_f32x4_loongsonasx_(dist_sq_f32x4);
 }
 
-/** @brief Angular from_dot for u32 accumulators: cast u32 → f32, rsqrt+NR, clamp. 4 pairs (LSX 128-bit). */
+/** Angular from_dot for 4 pairs of u32 accumulators (LSX 128-bit): casts u32 → f32, then rsqrt+NR,
+ *  then clamp. */
 NK_HELPER_INLINE void nk_angular_through_u32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                                    nk_b128_vec_t const *target_sumsqs_vec,
                                                                    nk_b128_vec_t *result_vec) {
@@ -244,7 +270,8 @@ NK_HELPER_INLINE void nk_angular_through_u32_from_dot_loongsonasx_(nk_b128_vec_t
     result_vec->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
 }
 
-/** @brief Euclidean from_dot for u32 accumulators: cast u32 → f32, then √(a² + b² − 2ab). 4 pairs (LSX 128-bit). */
+/** Euclidean from_dot for 4 pairs of u32 accumulators (LSX 128-bit): casts u32 → f32, then
+ *  computes √(a² + b² − 2ab). */
 NK_HELPER_INLINE void nk_euclidean_through_u32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec,
                                                                      nk_u32_t query_sumsq,
                                                                      nk_b128_vec_t const *target_sumsqs_vec,

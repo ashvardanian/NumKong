@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/spatial/svebfdot.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date September 14, 2024
  *  @brief SIMD-accelerated spatial similarity measures for SVE BF16.
  *
  *  @sa include/numkong/spatial.h

@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dot/haswell.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date March 14, 2023
  *  @brief SIMD-accelerated dot products for Haswell.
  *
  *  @sa include/numkong/dot.h
@@ -60,7 +60,7 @@
  *
  *  Not every numeric type has dedicated dot-product SIMD circuitry on each ISA. Smaller float types
  *  like f16, bf16, e4m3, e5m2, e2m3, and e3m2 on Haswell use ISA-specific upcasting to f32 combined
- *  with native FMA instructions, sharing the `nk_dot_through_f32` accumulation logic:
+ *  with native FMA instructions, sharing the @c nk_dot_through_f32 accumulation logic:
  *
  *  @code{.c}
  *  nk_dot_e4m3x16_state_haswell_t state_first, state_second, state_third, state_fourth;
@@ -107,7 +107,8 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-/** @brief Compensated horizontal sum of 4 f64 lanes via TwoSum tree reduction.
+/**
+ *  @brief Compensated horizontal sum of 4 f64 lanes via TwoSum tree reduction.
  *  @sa nk_reduce_sum_f64_serial_ for the serial equivalent
  */
 NK_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x4_haswell_(__m256d sum_f64x4, __m256d compensation_f64x4) {
@@ -737,7 +738,7 @@ nk_dot_e5m2_haswell_cycle:
 
 NK_API_COMPTIME void nk_dot_e2m3_haswell(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
                                          nk_size_t count_scalars, nk_f32_t *result) {
-    // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPMADDUBSW (unsigned×signed).
+    // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPMADDUBSW (unsigned × signed).
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
     // Result = i32_dot / 256.0f (exact, no rounding error).
     //
@@ -807,7 +808,7 @@ nk_dot_e2m3_haswell_cycle:
 
 NK_API_COMPTIME void nk_dot_e3m2_haswell(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
                                          nk_size_t count_scalars, nk_f32_t *result) {
-    // Integer dot product for e3m2 using dual-VPSHUFB (low-byte LUT) + VPMADDWD (i16×i16→i32).
+    // Integer dot product for e3m2 using dual-VPSHUFB (low-byte LUT) + VPMADDWD (i16 × i16 → i32).
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
     // Result = i32_dot / 256.0f (exact, no rounding error).
     //
@@ -896,7 +897,8 @@ nk_dot_e3m2_haswell_cycle:
 }
 
 /**
- *  @brief Internal helper state for dot-products of low-precision types, where 32-bit accumulation is enough.
+ *  @brief Internal helper state for dot-products of low-precision types, where 32-bit
+ *      accumulation is enough.
  *  @sa nk_dot_f16x8_state_haswell_t, nk_dot_bf16x16_state_haswell_t
  *  @sa nk_dot_e4m3x16_state_haswell_t, nk_dot_e5m2x16_state_haswell_t
  */
@@ -926,10 +928,8 @@ NK_HELPER_INLINE void nk_dot_through_f32_update_haswell_(nk_dot_through_f32_stat
     state->sum_f32x8 = _mm256_fmadd_ps(a.ymm_ps, b.ymm_ps, state->sum_f32x8);
 }
 
-/**
- *  @brief E5M2 byte-batched update: consumes 32 raw E5M2 bytes per call and widens inline.
- *  Two independent FMA chains (each 2-deep) merge into the single __m256 state accumulator.
- */
+/** E5M2 byte-batched update: consumes 32 raw E5M2 bytes per call and widens inline. Two independent
+ *  FMA chains (each 2-deep) merge into the single __m256 state accumulator. */
 NK_HELPER_INLINE void nk_dot_e5m2x32_update_haswell_(nk_dot_through_f32_state_haswell_t_ *state, nk_b256_vec_t a_bytes,
                                                      nk_b256_vec_t b_bytes, nk_size_t depth_offset,
                                                      nk_size_t active_dimensions) {
@@ -963,10 +963,8 @@ NK_HELPER_INLINE void nk_dot_e5m2x32_update_haswell_(nk_dot_through_f32_state_ha
     state->sum_f32x8 = _mm256_add_ps(state->sum_f32x8, _mm256_add_ps(first_chain_f32x8, second_chain_f32x8));
 }
 
-/**
- *  @brief E4M3 byte-batched update: consumes 32 raw E4M3 bytes per call. Widens through the
- *  Giesen cast helper. Two independent FMA chains merge into the single state accumulator.
- */
+/** E4M3 byte-batched update: consumes 32 raw E4M3 bytes per call. Widens through the Giesen cast
+ *  helper. Two independent FMA chains merge into the single state accumulator. */
 NK_HELPER_INLINE void nk_dot_e4m3x32_update_haswell_(nk_dot_through_f32_state_haswell_t_ *state, nk_b256_vec_t a_bytes,
                                                      nk_b256_vec_t b_bytes, nk_size_t depth_offset,
                                                      nk_size_t active_dimensions) {
@@ -996,9 +994,10 @@ NK_HELPER_INLINE void nk_dot_e4m3x32_update_haswell_(nk_dot_through_f32_state_ha
  *  @sa nk_dot_f16x8_finalize_haswell, nk_dot_bf16x16_finalize_haswell
  *  @sa nk_dot_e4m3x16_finalize_haswell, nk_dot_e5m2x16_finalize_haswell
  *
- *  The goal of this kernel is simple - compute 4x horizontal reductions, each involving 8x floats.
- *  The lack of vectorized horizontal instruction implies many consecutive shuffles producing a tree-like
- *  reduction. This kernel allows combining some of those operations between different dot products.
+ *  The goal of this kernel is simple - compute 4x horizontal reductions, each involving 8x
+ *  floats. The lack of vectorized horizontal instruction implies many consecutive shuffles
+ *  producing a tree-like reduction. This kernel allows combining some of those operations between
+ *  different dot products.
  */
 NK_HELPER_INLINE void nk_dot_through_f32_finalize_haswell_(                                                 //
     nk_dot_through_f32_state_haswell_t_ const *state_a, nk_dot_through_f32_state_haswell_t_ const *state_b, //
@@ -1088,10 +1087,8 @@ typedef struct nk_dot_through_f32_state_haswell_t_ nk_dot_e2m3x16_state_haswell_
  */
 typedef struct nk_dot_through_f32_state_haswell_t_ nk_dot_e3m2x16_state_haswell_t;
 
-/**
- *  @brief Integer LUT batch state for e2m3 dot-products on Haswell (AVX2).
- *  Uses VPMADDUBSW (u8×i8→i16) + VPMADDWD (i16→i32) instead of Sierra's VPDPBUSD.
- */
+/** Integer LUT batch state for e2m3 dot-products on Haswell (AVX2). Uses VPMADDUBSW (u8 × i8 → i16)
+ *  + VPMADDWD (i16 → i32) instead of Sierra's VPDPBUSD. */
 typedef struct nk_dot_e2m3x32_state_haswell_t {
     __m256i sum_i32x8;
 } nk_dot_e2m3x32_state_haswell_t;
@@ -1144,7 +1141,7 @@ NK_HELPER_INLINE void nk_dot_e2m3x32_update_haswell(nk_dot_e2m3x32_state_haswell
     __m256i b_negated_u8x32 = _mm256_sub_epi8(_mm256_setzero_si256(), b_unsigned_u8x32);
     __m256i b_signed_i8x32 = _mm256_blendv_epi8(b_unsigned_u8x32, b_negated_u8x32, negate_mask_u8x32);
 
-    // VPMADDUBSW + VPMADDWD: u8×i8→i16→i32
+    // VPMADDUBSW + VPMADDWD: u8 × i8 → i16 → i32
     __m256i products_i16x16 = _mm256_maddubs_epi16(a_unsigned_u8x32, b_signed_i8x32);
     __m256i products_i32x8 = _mm256_madd_epi16(products_i16x16, ones_i16x16);
     state->sum_i32x8 = _mm256_add_epi32(state->sum_i32x8, products_i32x8);
@@ -1156,7 +1153,7 @@ NK_HELPER_INLINE void nk_dot_e2m3x32_finalize_haswell(                          
     nk_size_t total_dimensions, nk_b128_vec_t *results) {
     nk_unused_(total_dimensions);
 
-    // ILP-optimized 4-way horizontal reduction: i32x8 → scalar i32, then → f32 with ÷256
+    // ILP-optimized 4-way horizontal reduction: i32x8 → scalar i32, then → f32 with ÷ 256
     __m128i sum_a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(state_a->sum_i32x8),
                                         _mm256_extracti128_si256(state_a->sum_i32x8, 1));
     __m128i sum_b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(state_b->sum_i32x8),
@@ -1182,7 +1179,7 @@ NK_HELPER_INLINE void nk_dot_e2m3x32_finalize_haswell(                          
     results->xmm = _mm_castps_si128(sum_f32x4);
 }
 
-/** @brief Integer LUT batch state for e2m1 dot-products on Haswell (AVX2), 64 nibbles per update. */
+/** Integer LUT batch state for e2m1 dot-products on Haswell (AVX2), 64 nibbles per update. */
 typedef struct nk_dot_e2m1x64_state_haswell_t {
     __m256i sum_i32x8;
 } nk_dot_e2m1x64_state_haswell_t;
@@ -1191,10 +1188,8 @@ NK_HELPER_INLINE void nk_dot_e2m1x64_init_haswell(nk_dot_e2m1x64_state_haswell_t
     state->sum_i32x8 = _mm256_setzero_si256();
 }
 
-/**
- *  Looks up twice every E2M1 value by its full nibble, sign bit included.
- *  VPMADDUBSW wants u8 × i8, so the sign of `a` moves onto `b`; products ≤ 144 keep pairs in i16.
- */
+/** Looks up twice every E2M1 value by its full nibble, sign bit included. VPMADDUBSW wants u8 × i8,
+ *  so the sign of @p a moves onto @p b; products ≤ 144 keep pairs in i16. */
 NK_HELPER_INLINE void nk_dot_e2m1x64_update_haswell(nk_dot_e2m1x64_state_haswell_t *state, nk_b256_vec_t a,
                                                     nk_b256_vec_t b, nk_size_t depth_offset,
                                                     nk_size_t active_dimensions) {
@@ -1259,10 +1254,8 @@ NK_API_COMPTIME void nk_dot_e2m1_haswell(nk_e2m1x2_t const *a, nk_e2m1x2_t const
     *result = (nk_f32_t)nk_reduce_add_i32x8_haswell_(state.sum_i32x8) * 0.25f;
 }
 
-/**
- *  @brief Integer LUT batch state for e3m2 dot-products on Haswell (AVX2).
- *  Uses i16 widening via VPMADDWD (i16×i16→i32) with two accumulators for lo/hi halves.
- */
+/** Integer LUT batch state for e3m2 dot-products on Haswell (AVX2). Uses i16 widening via VPMADDWD
+ *  (i16 × i16 → i32) with two accumulators for lo/hi halves. */
 typedef struct nk_dot_e3m2x32_state_haswell_t {
     __m256i sum_a_i32x8;
     __m256i sum_b_i32x8;
@@ -1488,7 +1481,7 @@ nk_dot_i4_haswell_cycle:
     __m256i d_low_i16x16 = _mm256_cvtepu8_epi16(d_low_u8x16);
     __m256i d_high_i16x16 = _mm256_cvtepu8_epi16(d_high_u8x16);
 
-    // Multiply i16×i16 and accumulate to i32 using MADD
+    // Multiply i16 × i16 and accumulate to i32 using MADD
     sum_cd_i32x8 = _mm256_add_epi32(sum_cd_i32x8, _mm256_madd_epi16(c_low_i16x16, d_low_i16x16));
     sum_cd_i32x8 = _mm256_add_epi32(sum_cd_i32x8, _mm256_madd_epi16(c_high_i16x16, d_high_i16x16));
 
@@ -1552,7 +1545,7 @@ nk_dot_u4_haswell_cycle:
     __m256i b_low_i16x16 = _mm256_cvtepu8_epi16(b_low_u8x16);
     __m256i b_high_i16x16 = _mm256_cvtepu8_epi16(b_high_u8x16);
 
-    // Multiply i16×i16 and accumulate to i32 using MADD
+    // Multiply i16 × i16 and accumulate to i32 using MADD
     sum_i32x8 = _mm256_add_epi32(sum_i32x8, _mm256_madd_epi16(a_low_i16x16, b_low_i16x16));
     sum_i32x8 = _mm256_add_epi32(sum_i32x8, _mm256_madd_epi16(a_high_i16x16, b_high_i16x16));
 
@@ -1562,7 +1555,8 @@ nk_dot_u4_haswell_cycle:
 }
 
 /**
- *  @brief Internal helper state for dot-products of integer types, where 32-bit accumulation is enough.
+ *  @brief Internal helper state for dot-products of integer types, where 32-bit
+ *      accumulation is enough.
  *  @sa nk_dot_i8x16_state_haswell_t, nk_dot_u8x16_state_haswell_t
  */
 typedef struct nk_dot_through_i32_state_haswell_t_ {
@@ -1663,12 +1657,10 @@ NK_HELPER_INLINE void nk_dot_u8x16_finalize_haswell(                            
     nk_dot_through_i32_finalize_haswell_(state_a, state_b, state_c, state_d, total_dimensions, result);
 }
 
-/**
- *  @brief State for batched i4 dot products on Haswell.
- *  Processes 32 nibbles (16 bytes) per update iteration for optimal ILP.
- */
+/** State for batched i4 dot products on Haswell. Processes 32 nibbles (16 bytes) per update
+ *  iteration for optimal ILP. */
 typedef struct nk_dot_i4x32_state_haswell_t {
-    __m256i biased_product_sum_i32x8; // Single accumulator: (a^8)×(b^8) products
+    __m256i biased_product_sum_i32x8; // Single accumulator: (a^8) × (b^8) products
 } nk_dot_i4x32_state_haswell_t;
 
 NK_HELPER_INLINE void nk_dot_i4x32_init_haswell(nk_dot_i4x32_state_haswell_t *state) {
@@ -1678,7 +1670,7 @@ NK_HELPER_INLINE void nk_dot_i4x32_init_haswell(nk_dot_i4x32_state_haswell_t *st
 NK_HELPER_INLINE void nk_dot_i4x32_update_haswell(nk_dot_i4x32_state_haswell_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
                                                   nk_size_t depth_offset, nk_size_t active_dimensions) {
     // Process 32 nibbles (16 bytes) from the full 128-bit vector
-    // Algebraic transformation: a×b = (a^8)×(b^8) − 8×(Σa + Σb) − 64×n
+    // Algebraic transformation: a × b = (a^8) × (b^8) − 8 × (Σa + Σb) − 64 × n
     // Correction applied at finalize time using precomputed sums.
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
@@ -1723,7 +1715,7 @@ NK_HELPER_INLINE void nk_dot_i4x32_finalize_haswell(                            
     nk_b128_vec_t *result_vec) {
 
     // Compensated 4-way reduction with external correction sums.
-    // Formula: result = biased_product − 8×(Σa + Σb) − 64×depth_padded
+    // Formula: result = biased_product − 8 × (Σa + Σb) − 64 × depth_padded
     nk_size_t depth_nibbles = nk_size_round_up_to_multiple_(total_dimensions, 32);
 
     // Reduce main products from ymm (i32x8) to xmm (i32x4)
@@ -1747,7 +1739,7 @@ NK_HELPER_INLINE void nk_dot_i4x32_finalize_haswell(                            
         _mm_add_epi32(_mm_unpacklo_epi64(transpose_ab_high_i32x4, transpose_cd_high_i32x4),
                       _mm_unpackhi_epi64(transpose_ab_high_i32x4, transpose_cd_high_i32x4)));
 
-    // Apply compensation: result = biased − 8×(Σa + Σb) − 64×depth_padded
+    // Apply compensation: result = biased − 8 × (Σa + Σb) − 64 × depth_padded
     __m128i a_sum_broadcast_i32x4 = _mm_set1_epi32(a_sum);
     __m128i ab_sums_i32x4 = _mm_add_epi32(a_sum_broadcast_i32x4, b_sums_vec->xmm);
     __m128i correction_i32x4 = _mm_slli_epi32(ab_sums_i32x4, 3); // × 8
@@ -1755,10 +1747,8 @@ NK_HELPER_INLINE void nk_dot_i4x32_finalize_haswell(                            
     result_vec->xmm = _mm_add_epi32(_mm_sub_epi32(biased_i32x4, correction_i32x4), offset_i32x4);
 }
 
-/**
- *  @brief State for batched u4 dot products on Haswell.
- *  Processes 32 nibbles (16 bytes) per update iteration for optimal ILP.
- */
+/** State for batched u4 dot products on Haswell. Processes 32 nibbles (16 bytes) per update
+ *  iteration for optimal ILP. */
 typedef struct nk_dot_u4x32_state_haswell_t {
     __m256i product_sum_i32x8; // Main product accumulator
 } nk_dot_u4x32_state_haswell_t;

@@ -411,7 +411,7 @@ struct vector_view {
  *  @brief Non-owning, mutable, strided view into a vector.
  *  @tparam value_type_ Element type.
  *
- *  Same as `vector_view` but allows mutation. Implicitly converts to `vector_view`.
+ *  Same as @c vector_view but allows mutation. Implicitly converts to @c vector_view.
  */
 template <typename value_type_>
 struct vector_span {
@@ -780,7 +780,7 @@ struct vector {
 
     /**
      *  @brief Grow the allocated `capacity()` to at least @p values storage values. Unlike
-     *      `try_resize()`, this MAY reallocate and move `values_data()`; the live elements are
+     *      `try_resize()`, this may reallocate and move `values_data()`; the live elements are
      *      preserved. No-op when already large enough.
      *  @return `true` on success/no-op; @c false on allocation failure (state unchanged).
      */
@@ -832,8 +832,7 @@ struct vector {
 
     /**
      *  @brief Signed dimension access. Negative indices wrap from end.
-     *  @retval For sub-byte types, returns proxy reference.
-     *  @retval For normal types, returns direct reference.
+     *  @return A proxy reference for sub-byte types, or a direct reference for normal types.
      */
     template <std::integral index_type_>
     constexpr decltype(auto) operator[](index_type_ idx) noexcept {

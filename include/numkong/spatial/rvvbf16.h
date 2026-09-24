@@ -46,7 +46,7 @@ NK_API_COMPTIME void nk_sqeuclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_
         vbfloat16m1_t a_bf16m1 = __riscv_vreinterpret_v_u16m1_bf16m1(a_u16m1);
         vbfloat16m1_t b_bf16m1 = __riscv_vreinterpret_v_u16m1_bf16m1(b_u16m1);
 
-        // Accumulate a², b², and a×b per-lane (no per-iteration reduction)
+        // Accumulate a², b², and a × b per-lane (no per-iteration reduction)
         sq_sum_f32m2 = __riscv_vfwmaccbf16_vv_f32m2_tu(sq_sum_f32m2, a_bf16m1, a_bf16m1, vector_length);
         sq_sum_f32m2 = __riscv_vfwmaccbf16_vv_f32m2_tu(sq_sum_f32m2, b_bf16m1, b_bf16m1, vector_length);
         ab_sum_f32m2 = __riscv_vfwmaccbf16_vv_f32m2_tu(ab_sum_f32m2, a_bf16m1, b_bf16m1, vector_length);

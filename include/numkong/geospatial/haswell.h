@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/geospatial/haswell.h
  *  @author Ash Vardanian
- *  @date February 6, 2026
+ *  @date December 21, 2025
  *  @brief SIMD-accelerated geospatial distances for Haswell.
  *
  *  @sa include/numkong/geospatial.h
@@ -40,8 +40,7 @@ extern "C" {
 #endif
 
 /*  Haswell AVX2 implementations using 4-wide f64 and 8-wide f32 SIMD.
- *  These require AVX2 trigonometric kernels from trigonometry.h.
- */
+ *  These require AVX2 trigonometric kernels from trigonometry.h. */
 
 NK_HELPER_INLINE __m256d nk_haversine_f64x4_haswell_(              //
     __m256d first_latitudes_f64x4, __m256d first_longitudes_f64x4, //

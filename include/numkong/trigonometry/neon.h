@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/trigonometry/neon.h
  *  @author Ash Vardanian
- *  @date December 28, 2025
+ *  @date November 20, 2024
  *  @brief SIMD-accelerated trigonometric functions for NEON.
  *
  *  @sa include/numkong/trigonometry.h
@@ -51,9 +51,8 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd")
 #endif
 
-/*  NEON trigonometry kernels (4-way f32, 2-way f64)
- *  These implement polynomial approximations using 128-bit NEON vectors.
- */
+/*  NEON trigonometry kernels, 4-way f32 and 2-way f64, implementing polynomial approximations using
+ *  128-bit NEON vectors. */
 
 NK_HELPER_INLINE float32x4_t nk_sin_f32x4_neon_(float32x4_t const angles_radians) {
     // Cody-Waite constants for argument reduction

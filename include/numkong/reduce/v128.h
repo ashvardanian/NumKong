@@ -24,7 +24,7 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("simd128"))), apply_to = function)
 #endif
 
-/** @brief Horizontal sum of 4 floats using shuffle tree. */
+/** Horizontal sum of 4 floats using shuffle tree. */
 NK_HELPER_INLINE nk_f32_t nk_reduce_add_f32x4_v128_(v128_t vec_f32x4) {
     v128_t high_f32x4 = wasm_i32x4_shuffle(vec_f32x4, vec_f32x4, 2, 3, 0, 0);
     v128_t sum1_f32x4 = wasm_f32x4_add(vec_f32x4, high_f32x4);
@@ -33,7 +33,7 @@ NK_HELPER_INLINE nk_f32_t nk_reduce_add_f32x4_v128_(v128_t vec_f32x4) {
     return wasm_f32x4_extract_lane(sum2_f32x4, 0);
 }
 
-/** @brief Horizontal maximum of 4 floats using shuffle tree. */
+/** Horizontal maximum of 4 floats using shuffle tree. */
 NK_HELPER_INLINE nk_f32_t nk_reduce_max_f32x4_v128_(v128_t vec_f32x4) {
     v128_t high_f32x4 = wasm_i32x4_shuffle(vec_f32x4, vec_f32x4, 2, 3, 0, 0);
     v128_t max1_f32x4 = wasm_f32x4_max(vec_f32x4, high_f32x4);
@@ -42,14 +42,14 @@ NK_HELPER_INLINE nk_f32_t nk_reduce_max_f32x4_v128_(v128_t vec_f32x4) {
     return wasm_f32x4_extract_lane(max2_f32x4, 0);
 }
 
-/** @brief Horizontal sum of 2 doubles using single shuffle. */
+/** Horizontal sum of 2 doubles using single shuffle. */
 NK_HELPER_INLINE nk_f64_t nk_reduce_add_f64x2_v128_(v128_t vec_f64x2) {
     v128_t high_f64x2 = wasm_i64x2_shuffle(vec_f64x2, vec_f64x2, 1, 0);
     v128_t sum_f64x2 = wasm_f64x2_add(vec_f64x2, high_f64x2);
     return wasm_f64x2_extract_lane(sum_f64x2, 0);
 }
 
-/** @brief Horizontal sum of 4 signed 32-bit integers using shuffle tree. */
+/** Horizontal sum of 4 signed 32-bit integers using shuffle tree. */
 NK_HELPER_INLINE nk_i32_t nk_reduce_add_i32x4_v128_(v128_t vec_i32x4) {
     v128_t high_i32x4 = wasm_i32x4_shuffle(vec_i32x4, vec_i32x4, 2, 3, 0, 0);
     v128_t sum1_i32x4 = wasm_i32x4_add(vec_i32x4, high_i32x4);
@@ -58,7 +58,7 @@ NK_HELPER_INLINE nk_i32_t nk_reduce_add_i32x4_v128_(v128_t vec_i32x4) {
     return wasm_i32x4_extract_lane(sum2_i32x4, 0);
 }
 
-/** @brief Horizontal sum of 4 unsigned 32-bit integers using shuffle tree. */
+/** Horizontal sum of 4 unsigned 32-bit integers using shuffle tree. */
 NK_HELPER_INLINE nk_u32_t nk_reduce_add_u32x4_v128_(v128_t vec_u32x4) {
     v128_t high_u32x4 = wasm_i32x4_shuffle(vec_u32x4, vec_u32x4, 2, 3, 0, 0);
     v128_t sum1_u32x4 = wasm_i32x4_add(vec_u32x4, high_u32x4);
@@ -67,7 +67,7 @@ NK_HELPER_INLINE nk_u32_t nk_reduce_add_u32x4_v128_(v128_t vec_u32x4) {
     return (nk_u32_t)wasm_i32x4_extract_lane(sum2_u32x4, 0);
 }
 
-/** @brief  Horizontal sum of 16 unsigned 8-bit integers using pairwise widening. */
+/** Horizontal sum of 16 unsigned 8-bit integers using pairwise widening. */
 NK_HELPER_INLINE nk_u32_t nk_reduce_add_u8x16_v128_(v128_t vec_u8x16) {
     v128_t sum_u16x8 = wasm_u16x8_extadd_pairwise_u8x16(vec_u8x16);
     v128_t sum_u32x4 = wasm_u32x4_extadd_pairwise_u16x8(sum_u16x8);

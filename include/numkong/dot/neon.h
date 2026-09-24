@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dot/neon.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date March 14, 2023
  *  @brief SIMD-accelerated dot products for NEON.
  *
  *  @sa include/numkong/dot.h
@@ -105,7 +105,7 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd")
 #endif
 
-/** @brief Compensated horizontal sum of 2 f64 lanes via TwoSum. */
+/** Compensated horizontal sum of 2 f64 lanes via TwoSum. */
 NK_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x2_neon_(float64x2_t sum_f64x2, float64x2_t compensation_f64x2) {
     // TwoSum merge of sum + compensation (2-wide)
     float64x2_t tentative_sum_f64x2 = vaddq_f64(sum_f64x2, compensation_f64x2);

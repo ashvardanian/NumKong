@@ -102,7 +102,7 @@ typedef enum {
     kDLFloat4_e2m1fn = 17,
 } DLDataTypeCode;
 
-/** Compact tensor element-type descriptor. The triple `(code, bits, lanes)` is enough for any
+/** Compact tensor element-type descriptor. The triple @b (code,bits,lanes) is enough for any
  *  consumer to compute element size as `(bits * lanes + 7) / 8` bytes — sub-byte types round up. */
 typedef struct {
 

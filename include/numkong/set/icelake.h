@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/set/icelake.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date March 23, 2023
  *  @brief SIMD-accelerated set similarity measures for Ice Lake.
  *
  *  @sa include/numkong/set.h
@@ -331,23 +331,23 @@ NK_HELPER_INLINE void nk_hamming_u1x512_finalize_icelake( //
     // Port-optimized 4-way horizontal reduction, matching the Jaccard finalizer pattern.
     // Truncate i64 → i32 early so we can use `VPHADDD` (p01) instead of shuffle-heavy i64 reductions (p5).
 
-    // Truncate 8×i64 → 8×i32 per state via VPMOVQD (p01, 4cy, 0.5/cy)
+    // Truncate 8 × i64 → 8 × i32 per state via VPMOVQD (p01, 4cy, 0.5/cy)
     __m256i a_i32x8 = _mm512_cvtepi64_epi32(state_a->intersection_count_i64x8);
     __m256i b_i32x8 = _mm512_cvtepi64_epi32(state_b->intersection_count_i64x8);
     __m256i c_i32x8 = _mm512_cvtepi64_epi32(state_c->intersection_count_i64x8);
     __m256i d_i32x8 = _mm512_cvtepi64_epi32(state_d->intersection_count_i64x8);
 
-    // Fold 8×i32 → 4×i32 (add high 128-bit lane to low)
+    // Fold 8 × i32 → 4 × i32 (add high 128-bit lane to low)
     __m128i a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(a_i32x8), _mm256_extracti128_si256(a_i32x8, 1));
     __m128i b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(b_i32x8), _mm256_extracti128_si256(b_i32x8, 1));
     __m128i c_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(c_i32x8), _mm256_extracti128_si256(c_i32x8, 1));
     __m128i d_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(d_i32x8), _mm256_extracti128_si256(d_i32x8, 1));
 
-    // Interleaved horizontal adds — 4×i32 → 2×i32 via VPHADDD (p01, 3cy, 0.5/cy)
+    // Interleaved horizontal adds — 4 × i32 → 2 × i32 via VPHADDD (p01, 3cy, 0.5/cy)
     __m128i ab_i32x4 = _mm_hadd_epi32(a_i32x4, b_i32x4); // [a01, a23, b01, b23]
     __m128i cd_i32x4 = _mm_hadd_epi32(c_i32x4, d_i32x4); // [c01, c23, d01, d23]
 
-    // Final horizontal add — 2×i32 → 1×i32 per state
+    // Final horizontal add — 2 × i32 → 1 × i32 per state
     result->xmm = _mm_hadd_epi32(ab_i32x4, cd_i32x4); // [sum_a, sum_b, sum_c, sum_d]
 }
 
@@ -439,7 +439,7 @@ NK_HELPER_INLINE void nk_jaccard_u1x512_finalize_icelake( //
     result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_b32x4);
 }
 
-/** @brief Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (Icelake). */
+/** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (Icelake). */
 NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_icelake_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
                                                          nk_b128_vec_t const *target_pops_vec,
                                                          nk_b128_vec_t *result_vec) {
@@ -449,7 +449,7 @@ NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_icelake_(nk_b128_vec_t const *do
     result_vec->xmm = _mm_sub_epi32(_mm_add_epi32(query_i32x4, target_i32x4), _mm_slli_epi32(dots_i32x4, 1));
 }
 
-/** @brief Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Icelake). */
+/** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Icelake). */
 NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_icelake_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
                                                          nk_b128_vec_t const *target_pops_vec,
                                                          nk_b128_vec_t *result_vec) {

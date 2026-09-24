@@ -6,14 +6,14 @@
  *
  *  @sa include/numkong/dots.h
  *
- *  Uses ARM SME with `FEAT_SME_F64F64` for high-precision GEMM.
- *  Requires Apple M4 or equivalent with `f64` outer product support.
+ *  Uses ARM SME with @c FEAT_SME_F64F64 for high-precision GEMM.
+ *  Requires Apple M4 or equivalent with @c f64 outer product support.
  *
- *  Provides `f32` and `f64` GEMM using `ZA64` tiles:
- *  - `f32` inputs with `f64` accumulation: higher precision than `ZA32`
- *  - Native `f64` GEMM via 3-way Ozaki splitting (19+17+17 mantissa bits)
+ *  Provides @c f32 and @c f64 GEMM using @c ZA64 tiles:
+ *  - @c f32 inputs with @c f64 accumulation: higher precision than @c ZA32
+ *  - Native @c f64 GEMM via 3-way Ozaki splitting (19+17+17 mantissa bits)
  *
- *  Ozaki splitting for `f64`:
+ *  Ozaki splitting for @c f64:
  *  Each @c f64 value decomposes into 3 non-overlapping mantissa-masked slices that each fit in
  *  @c f32, at most 19 significant bits < 24. All cross-products with index sum i + j ≤ 2 accumulate
  *  via 6 FMOPAs into 3 merged accumulators. Products are exact in @c f64, at most 19 + 19 = 38 < 53
@@ -22,13 +22,13 @@
  *
  *  Tile dimensions for SVL=512 (Apple M4):
  *  - @c ZA64 tile: @b [8,8] @c f64 elements, 512B total
- *  - `f64` vectors: 8 elements per SVE vector
- *  - `f32` vectors: 16 elements per SVE vector, converted to `f64`
+ *  - @c f64 vectors: 8 elements per SVE vector
+ *  - @c f32 vectors: 16 elements per SVE vector, converted to @c f64
  *
  *  Key instructions:
- *  - `svmopa_za64_f64_m` / `FMOPA`: `f64` outer product, 16cy amortized
- *  - `svcvt_f64_f32_x` / `FCVT`: `f32` → `f64` conversion
- *  - `svwrite_hor_za64_f64_m` / `MOVA`: direct Z → ZA tile write (no bounce buffer)
+ *  - @c svmopa_za64_f64_m or @c FMOPA: f64 outer product, 16cy amortized
+ *  - @c svcvt_f64_f32_x or @c FCVT: f32 → f64 conversion
+ *  - @c svwrite_hor_za64_f64_m or @c MOVA: direct Z → ZA tile write, without a bounce buffer
  */
 #ifndef NK_DOTS_SMEF64_H
 #define NK_DOTS_SMEF64_H
@@ -50,27 +50,25 @@ extern "C" {
 #pragma GCC target("+sme+sme-f64f64")
 #endif
 
-/*
- *  f32 → f64 GEMM using FMOPA with ZA64 tiles (FEAT_SME_F64F64).
+/*  f32 → f64 GEMM using FMOPA with ZA64 tiles (FEAT_SME_F64F64).
  *
  *  Tile layout (SVL=512, Apple M4):
  *  - ZA64 output tile: 8 × 8 f64 elements (512 B)
  *  - f32 input vectors: 16 elements (SVL/32), converted to f64 in chunks of 8
- *  - Depth sub-loop: processes 8 f32 values per iteration (→ 8 f64)
+ *  - Depth sub-loop: processes 8 f32 values per iteration, widened into 8 f64
  *  - FMOPA predicates: b64 (f64 output granularity)
  *  - f32 load predicates: b32 (f32 input granularity)
  *  - 4-tile path: ZA0-ZA3 process 4 column tiles simultaneously
  *  - Output: native f64 results written directly from ZA64 tiles
  *
- *  Non-widening alternative (FEAT_SME_F32F32, `svmopa_za32_f32_m`): ZA32 tiles are 16×16
- *  (4× area vs ZA64 8×8) with no f32↔f64 conversion, offering ~3-4× raw throughput. However,
- *  ZA32 and ZA64 tiles alias physically (ZA0.S overlaps ZA0.D+ZA1.D), so a periodic flush to
- *  f64 stack accumulators would be needed for precision above f32 — erasing most speedup.
- *  Pure f32 accumulation (no flush) provides only f32 precision, which is already served by
- *  the f16 → f32 GEMM path for reduced-precision workloads. This f64 path exists specifically
- *  for higher-than-f32 accumulation precision; replacing it with f32 FMOPA would be
- *  counterproductive. Apple M4 has `hw.optional.arm.SME_F32F32: 1` but we don't use it here.
- */
+ *  Non-widening alternative (FEAT_SME_F32F32, @c svmopa_za32_f32_m): ZA32 tiles are 16×16, 4× the
+ *  area of ZA64 8×8, with no f32 ↔ f64 conversion, offering ~3-4× raw throughput. However, ZA32
+ *  and ZA64 tiles alias physically, as ZA0.S overlaps ZA0.D+ZA1.D, so a periodic flush to f64
+ *  stack accumulators would be needed for precision above f32, erasing most of the speedup. Pure
+ *  f32 accumulation without a flush provides only f32 precision, which is already served by the
+ *  f16 → f32 GEMM path for reduced-precision workloads. This f64 path exists specifically for
+ *  higher-than-f32 accumulation precision; replacing it with f32 FMOPA would be counterproductive.
+ *  Apple M4 has `hw.optional.arm.SME_F32F32: 1` but we don't use it here. */
 #pragma region F32 Floats
 
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_f32_smef64(nk_size_t columns, nk_size_t depth) {
@@ -415,12 +413,9 @@ NK_API_COMPTIME void nk_dots_packed_f32_smef64( //
     nk_sme_stop_streaming_();
 }
 
-/**
- *  `f32` × `f32` → `f32` symmetric kernel using MOPA self-GEMM with f64 accumulation.
- *  Time-shares ZA0 for both A and B transposition: loads A horizontally,
- *  pre-reads A columns into Z registers, then reloads ZA0 with widened B data
- *  per column tile. Eliminates all scalar B-packing loops.
- */
+/** f32 × f32 → f32 symmetric kernel using MOPA self-GEMM with f64 accumulation. Time-shares ZA0 for
+ *  both A and B transposition: loads A horizontally, pre-reads A columns into Z registers, then
+ *  reloads ZA0 with widened B data per column tile. Eliminates all scalar B-packing loops. */
 __arm_new("za") static void nk_dots_symmetric_f32_smef64_streaming_( //
     nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
@@ -771,8 +766,7 @@ NK_API_COMPTIME void nk_dots_symmetric_f32_smef64( //
 
 #pragma endregion F32 Floats
 
-/*
- *  f64 GEMM via 3-way Ozaki splitting using FMOPA with ZA64 tiles.
+/*  f64 GEMM via 3-way Ozaki splitting using FMOPA with ZA64 tiles.
  *  Uses ZA transpose for A-vector construction (expansion=1, no interleaving needed).
  *
  *  Each f64 is split into 3 non-overlapping mantissa-masked slices (19+17+17 bits).
@@ -783,12 +777,12 @@ NK_API_COMPTIME void nk_dots_symmetric_f32_smef64( //
  *
  *  Packed GEMM tile allocation (2-column fast path):
  *  - ZA0.D: A-staging (horizontal load, vertical read, shared by both col tiles)
- *  - ZA1.D: col0 acc0 — a₀×b₀              (i+j=0, dominant)
- *  - ZA2.D: col0 acc1 — a₀×b₁ + a₁×b₀      (i+j=1)
- *  - ZA3.D: col0 acc2 — a₀×b₂ + a₁×b₁ + a₂×b₀  (i+j=2, smallest)
- *  - ZA4.D: col1 acc0 — a₀×b₀              (i+j=0)
- *  - ZA5.D: col1 acc1 — a₀×b₁ + a₁×b₀      (i+j=1)
- *  - ZA6.D: col1 acc2 — a₀×b₂ + a₁×b₁ + a₂×b₀  (i+j=2)
+ *  - ZA1.D: col0 acc0 — a₀ × b₀              (i+j=0, dominant)
+ *  - ZA2.D: col0 acc1 — a₀ × b₁ + a₁ × b₀      (i+j=1)
+ *  - ZA3.D: col0 acc2 — a₀ × b₂ + a₁ × b₁ + a₂ × b₀  (i+j=2, smallest)
+ *  - ZA4.D: col1 acc0 — a₀ × b₀              (i+j=0)
+ *  - ZA5.D: col1 acc1 — a₀ × b₁ + a₁ × b₀      (i+j=1)
+ *  - ZA6.D: col1 acc2 — a₀ × b₂ + a₁ × b₁ + a₂ × b₀  (i+j=2)
  *  - ZA7.D: unused
  *
  *  1-column remainder uses ZA1-3 only.
@@ -803,22 +797,24 @@ NK_API_COMPTIME void nk_dots_symmetric_f32_smef64( //
  *  Tile dimensions for SVL=512 (Apple M4):
  *  - ZA64 tile: 8 × 8 f64 elements (512B)
  *  - f64 input vectors: 8 elements (SVL/64)
- *  - FMOPA predicates: b64 (native f64 granularity)
- */
+ *  - FMOPA predicates: b64 (native f64 granularity) */
 #pragma region F64 Floats
 
-/*  Mantissa bit masks for 3-way Ozaki splitting of f64 values.
+/**
+ *  @brief Mantissa bit masks for 3-way Ozaki splitting of f64 values.
  *
- *  f64 layout: [63]=sign, [62:52]=exponent (11 bits), [51:0]=mantissa (52 bits).
- *  Significand = implicit 1 + mantissa = 53 significant bits.
+ *  @verbatim
+ *  f64 layout:   [63] = sign, [62:52] = exponent (11 bits), [51:0] = mantissa (52 bits)
+ *  Significand:  implicit 1 + mantissa = 53 significant bits
+ *  Slice 0:      19 significant bits, keeps sign, exponent and the top 18 mantissa bits,
+ *                zeroes mantissa bits [33:0] (34 bits), mask 0xFFFFFFFC00000000
+ *  Slice 1:      17 significant bits, keeps sign, exponent and the top 16 mantissa bits of the
+ *                residual, zeroes mantissa bits [35:0] (36 bits), mask 0xFFFFFFF000000000
+ *  Slice 2:      residual of the residual, at most 17 significant bits, fits f32
+ *  @endverbatim
  *
- *  Slice 0 (19 significant bits): keep sign + exponent + top 18 mantissa bits.
- *    Zeroes mantissa bits [33:0] (34 bits). Mask = 0xFFFFFFFC00000000.
- *  Slice 1 (17 significant bits): keep sign + exponent + top 16 mantissa bits of residual.
- *    Zeroes mantissa bits [35:0] (36 bits). Mask = 0xFFFFFFF000000000.
- *  Slice 2 = residual of residual (at most 17 significant bits, fits f32).
- *
- *  All slices fit in f32 (24-bit significand). Products: max 19+19 = 38 ≤ 53, exact in f64.
+ *  All slices fit in the 24-bit significand of f32. Products reach at most 19 + 19 = 38 ≤ 53 bits,
+ *  so they are exact in f64.
  */
 NK_HELPER_AUTO nk_u64_t nk_f64_smef64_ozaki_mask_19_bits_(void) {
     return 0xFFFFFFFC00000000ULL; // keep top 19 sig bits

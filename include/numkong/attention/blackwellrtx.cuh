@@ -9,7 +9,7 @@
  *
  *  The Ampere tile with E4M3 going to the tensor cores as it is: S takes one
  *  `mma.m16n8k32.kind::f8f6f4` per 16 × 8 scores, at twice the F16 rate, and P is quantized to
- *  e4m3(256 · p) for the same instruction against the transposed V codes. The ×256 keeps every
+ *  e4m3(256 · p) for the same instruction against the transposed V codes. The × 256 keeps every
  *  weight down to 2⁻¹⁴ of the row maximum in E4M3's normal range, and the row sum adds the
  *  dequantized weights, so 256 cancels in the normalization. BF16 and I8 reuse Ampere's kernels.
  */
@@ -67,7 +67,7 @@ NK_HELPER_DEVICE_INLINE void nk_attention_scores_e4m3_blackwellrtx_(nk_fui32_t s
     nk_mma_e4m3_blackwellrtx_(scores[1], query, keys[2], keys[3]);
 }
 
-/** E4M3 weights `e4m3(256 · p)`, summed as the tensor cores will read them. */
+/** E4M3 weights e4m3(256 · p), summed as the tensor cores will read them. */
 NK_HELPER_DEVICE_INLINE void nk_attention_weights_e4m3_blackwellrtx_(nk_f32_t const probabilities[4],
                                                                      nk_u32_t packed[2], nk_f32_t *sum) {
     unsigned short const low = nk_f32x2_to_e4m3x2_blackwellrtx_(probabilities[0] * 256.0f, probabilities[1] * 256.0f);

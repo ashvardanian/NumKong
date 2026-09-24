@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dot.h
  *  @author Ash Vardanian
- *  @date February 24, 2024
+ *  @date March 14, 2023
  *  @brief SIMD-accelerated dot products for real and complex numbers.
  *
  *  Contains:
@@ -182,7 +182,8 @@ NK_API_RUNTIME void nk_dot_e2m1(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_s
 NK_API_RUNTIME void nk_dot_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
 
 /**
- *  @brief Complex dot product computing the sum of elementwise products between two complex vectors.
+ *  @brief Complex dot product computing the sum of elementwise products between
+ *      two complex vectors.
  *
  *  @param[in] a_pairs The first complex vector.
  *  @param[in] b_pairs The second complex vector.
@@ -661,9 +662,7 @@ NK_API_COMPTIME void nk_dot_f64c_v128relaxed(nk_f64c_t const *a, nk_f64c_t const
 NK_API_COMPTIME void nk_vdot_f64c_v128relaxed(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result);
 #endif // NK_TARGET_V128RELAXED
 
-/**
- *  @brief  Returns the output dtype for dot products.
- */
+/** Returns the output dtype for dot products. */
 NK_HELPER_INLINE nk_dtype_t nk_dot_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;

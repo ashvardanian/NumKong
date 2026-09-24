@@ -97,7 +97,7 @@ struct cuda_device_allocator {
     }
 };
 
-/** An `nk::vector` in device memory. */
+/** An @c nk::vector in device memory. */
 template <typename value_type_>
 using device_vector = vector<value_type_, cuda_device_allocator<value_type_>>;
 

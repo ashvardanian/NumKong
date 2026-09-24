@@ -1257,8 +1257,9 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         Ok(())
     }
 
-    /// Causal ragged attention parallelized over the `(segment, head)` task grid with a
-    /// ForkUnion thread pool; masking follows [`try_causal_attention_into`](Self::try_causal_attention_into).
+    /// Causal ragged attention parallelized over the `(segment, head)` task grid with a ForkUnion
+    /// thread pool, applying the masking of
+    /// [`try_causal_attention_into`](Self::try_causal_attention_into).
     pub fn try_causal_attention_parallel_into<
         QueriesTensor,
         OutTensor,
@@ -1319,7 +1320,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     }
 
     /// Ragged attention parallelized over the task grid, allocating a fresh `f32` output tensor
-    /// of shape `[tokens, heads * depth]`. The allocating twin of
+    /// of shape [tokens, heads × depth]. The allocating twin of
     /// [`try_attention_parallel_into`](Self::try_attention_parallel_into).
     pub fn try_attention_parallel<QueriesTensor, const MAX_RANK: usize>(
         &self,
@@ -1338,7 +1339,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     }
 
     /// Causal ragged attention parallelized over the task grid, allocating a fresh `f32` output
-    /// tensor. The allocating twin of [`try_causal_attention_parallel_into`](Self::try_causal_attention_parallel_into).
+    /// tensor. The allocating twin of
+    /// [`try_causal_attention_parallel_into`](Self::try_causal_attention_parallel_into).
     pub fn try_causal_attention_parallel<QueriesTensor, const MAX_RANK: usize>(
         &self,
         queries: &QueriesTensor,
@@ -1366,9 +1368,10 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     }
 
     /// Pack ragged K/V token matrices into this cache in parallel over the `(segment, kv_head)`
-    /// task grid with a ForkUnion thread pool. Sizing and any (re)allocation run serially up
-    /// front; only the per-task packing fans out. Like [`try_pack_into`](Self::try_pack_into),
-    /// packing overwrites, so a grow discards the old contents rather than copying them.
+    /// task grid with a ForkUnion thread pool. Sizing and any allocation or reallocation run
+    /// serially up front; only the per-task packing fans out. Like
+    /// [`try_pack_into`](Self::try_pack_into), packing overwrites, so a grow discards the old
+    /// contents rather than copying them.
     pub fn try_pack_parallel_into<KeysTensor, ValuesTensor, const MAX_RANK: usize>(
         &mut self,
         keys: &KeysTensor,
@@ -1540,7 +1543,7 @@ mod tests {
         // tail and each plane's padding. Both windows are 64-aligned so the layout is identical.
         crate::capabilities::configure_thread();
         let (heads, depth) = (2usize, 64usize);
-        let offsets = [0u32, 7, 7, 40]; // three segments, including a 0-length PAD (7..7)
+        let offsets = [0u32, 7, 7, 40]; // three segments, including a 0-length pad (7..7)
         let segment_lengths: Vec<u32> = offsets.windows(2).map(|pair| pair[1] - pair[0]).collect();
         let segment_count = segment_lengths.len();
         let tokens = *offsets.last().unwrap() as usize;

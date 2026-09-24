@@ -7,7 +7,7 @@ Matches C++ suite: test/cross_*.cpp.
 
 File: test/similarities.py
 Author: Ash Vardanian
-Date: March 4, 2026
+Date: September 9, 2024
 """
 
 import atexit

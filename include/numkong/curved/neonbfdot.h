@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/curved/neonbfdot.h
  *  @author Ash Vardanian
- *  @date January 14, 2026
+ *  @date August 29, 2024
  *  @brief SIMD-accelerated curved-space similarity for NEON BF16.
  *
  *  @sa include/numkong/curved.h

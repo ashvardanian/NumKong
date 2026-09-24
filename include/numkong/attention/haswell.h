@@ -42,13 +42,15 @@ extern "C" {
 #endif
 
 enum {
+
     /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
     nk_attention_panel_haswell_k_ = 512,
+
     /** Widest head this backend handles in registers; larger heads route to the serial tier. */
     nk_attention_max_depth_haswell_k_ = 256,
 };
 
-/** @brief Widens 8 raw plane scalars (BF16 or E4M3 at rest) to F32 inside the hot loops. */
+/** Widens 8 raw plane scalars (BF16 or E4M3 at rest) to F32 inside the hot loops. */
 typedef __m256 (*nk_attention_load_haswell_t_)(void const *plane_chunk);
 
 NK_HELPER_INLINE __m256 nk_attention_load_bf16x8_haswell_(void const *plane_chunk) {
@@ -63,7 +65,7 @@ NK_HELPER_INLINE __m256 nk_attention_load_e4m3x8_haswell_(void const *plane_chun
     return widened.ymm_ps;
 }
 
-/** @brief Widens `count` raw query elements to F32 into `destination`, zero-filling to `padded`. */
+/** Widens @p count raw query elements to F32 into @p destination, zero-filling to @p padded. */
 typedef void (*nk_attention_widen_haswell_t_)(void const *source, nk_f32_t *destination, nk_size_t count,
                                               nk_size_t padded);
 
@@ -140,7 +142,7 @@ NK_API_COMPTIME void nk_attention_packed_shape_e4m3_haswell(void const *key_valu
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
 }
 
-/** @brief Raw strided-row repack: source encoding is preserved, tails zero-padded. */
+/** Raw strided-row repack: source encoding is preserved, tails zero-padded. */
 NK_HELPER_INLINE void nk_attention_pack_haswell_(                                                              //
     void const *keys, void const *values, nk_size_t element_bytes,                                             //
     nk_size_t key_value_head_count, nk_size_t depth,                                                           //
@@ -217,10 +219,8 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_haswell(                            
                                task_begin, task_end);
 }
 
-/**
- *  @brief Shared attention core over raw-encoded planes: per query row, panel-flash with
- *         an exact online correction; scores keep four KV rows in flight, widening in-loop.
- */
+/** Shared attention core over raw-encoded planes: per query row, panel-flash with an exact online
+ *  correction; scores keep four KV rows in flight, widening in-loop. */
 NK_HELPER_INLINE void nk_attention_packed_haswell_(                                                             //
     void const *queries, nk_size_t element_bytes, nk_attention_widen_haswell_t_ widen,                          //
     nk_attention_load_haswell_t_ load,                                                                          //
@@ -240,7 +240,7 @@ NK_HELPER_INLINE void nk_attention_packed_haswell_(                             
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const plane_row_bytes = depth_padded * element_bytes;
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_haswell_k_;
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
@@ -425,12 +425,10 @@ NK_API_COMPTIME void nk_attention_bidirectional_packed_e4m3_haswell(            
                                             NK_I64_MAX / 2, NK_SIZE_MAX, task_start, task_count);
 }
 
-/**
- *  @brief Register 8×8 transpose of 16-bit elements (128-bit hierarchical unpack). Given 8 rows
- *         (each 8 words), returns the 8 columns. Used at pack time to turn 8 position rows into the
- *         drain-free K tiles: each column is one depth pair (two channels) of eight KV positions.
- *         The 128-bit unpacks never cross lanes, so the columns emerge in natural pair order.
- */
+/** Register 8×8 transpose of 16-bit elements (128-bit hierarchical unpack). Given 8 rows (each 8
+ *  words), returns the 8 columns. Used at pack time to turn 8 position rows into the drain-free K
+ *  tiles: each column is one depth pair (two channels) of eight KV positions. The 128-bit unpacks
+ *  never cross lanes, so the columns emerge in natural pair order. */
 NK_HELPER_INLINE void nk_attention_transpose_i16x8x8_haswell_(__m128i const rows_i16x8[8], __m128i columns_i16x8[8]) {
     __m128i const stage01_low_i16x8 = _mm_unpacklo_epi16(rows_i16x8[0], rows_i16x8[1]);
     __m128i const stage23_low_i16x8 = _mm_unpacklo_epi16(rows_i16x8[2], rows_i16x8[3]);
@@ -459,12 +457,14 @@ NK_HELPER_INLINE void nk_attention_transpose_i16x8x8_haswell_(__m128i const rows
 }
 
 /**
- *  @brief Drain-free exact I32 scores for a query block over one panel. K is packed `[tile of 8
- *         positions][depth pair][8 lanes × 2 channels]`, so a 128-bit load widened to I16 holds two
- *         channels of eight KV positions — one score per lane. Each query's two channels broadcast as
- *         one dword and one VPMADDWD advances eight KV positions by two channels; accumulating over the
- *         depth pairs leaves eight exact scores per lane with no transpose. Eight queries share each K
- *         load. Writes a `block_rows × panel` score block, rows `nk_attention_panel_haswell_k_` apart.
+ *  @brief Drain-free exact I32 scores for a query block over one panel.
+ *
+ *  K is packed in tiles of 8 positions, each holding depth pairs of 8 lanes by 2 channels, so a
+ *  128-bit load widened to I16 holds two channels of eight KV positions — one score per lane. Each
+ *  query's two channels broadcast as one dword and one VPMADDWD advances eight KV positions by two
+ *  channels; accumulating over the depth pairs leaves eight exact scores per lane with no
+ *  transpose. Eight queries share each K load. Writes a @b [block_rows,panel] score block, rows
+ *  @c nk_attention_panel_haswell_k_ apart.
  */
 NK_HELPER_INLINE void nk_attention_score_block_i8_haswell_(nk_i16_t const *queries_i16, nk_size_t block_rows,
                                                            char const *keys_plane, nk_size_t panel_start,
@@ -494,12 +494,10 @@ NK_HELPER_INLINE void nk_attention_score_block_i8_haswell_(nk_i16_t const *queri
     }
 }
 
-/**
- *  @brief Streaming base-2 softmax over one panel for a single query row, entirely in integer
- *         arithmetic: the row max is an exact `_mm256_max_epi32` over live columns, weights come from
- *         the integer i-exp over `(score − max)·scale₂` in Q15, and the weight sum accumulates in I32.
- *         Only the online correction `2^((m_old − m_new)·scale₂)` stays in F32. Returns that correction.
- */
+/** Streaming base-2 softmax over one panel for a single query row, entirely in integer arithmetic:
+ *  the row max is an exact @c _mm256_max_epi32 over live columns, weights come from the integer
+ *  i-exp over (score − max) · scale₂ in Q15, and the weight sum accumulates in I32. Only the online
+ *  correction 2^((m_old − m_new) · scale₂) stays in F32. Returns that correction. */
 NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_i8_haswell_(nk_i32_t const *scores, nk_size_t panel_length,
                                                                  nk_f32_t scale2, nk_i32_t scale_fixed,
                                                                  nk_i32_t delta_floor, nk_i32_t *running_max,
@@ -571,13 +569,10 @@ NK_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_i8_haswell_(nk_i32_t const 
     return correction;
 }
 
-/**
- *  @brief `O = O · correction + Σ w̃ · widened V-row` for one query row over one panel; V stays
- *         token-major and widens on the fly, exact-zero weights skipped like the serial reference.
- *         The skip is load-bearing here: this P×V is a scalar-broadcast FP FMA per position, and
- *         U8 softmax weights are sparse (most positions quantize to zero), so dropping it runs the
- *         full dense sweep and regresses ~3×.
- */
+/** O = O · correction + Σ w̃ · widened V-row for one query row over one panel; V stays token-major
+ *  and widens on the fly, exact-zero weights skipped like the serial reference. The skip is
+ *  load-bearing here: this P × V is a scalar-broadcast FP FMA per position, and U8 softmax weights
+ *  are sparse, most positions quantizing to zero, so the full dense sweep would run ~3× slower. */
 NK_HELPER_INLINE void nk_attention_weighted_sum_panel_i8_haswell_(nk_u8_t const *weights, char const *values_plane,
                                                                   nk_size_t panel_start, nk_size_t panel_length,
                                                                   nk_size_t depth_padded, nk_f32_t correction,
@@ -685,7 +680,8 @@ NK_API_COMPTIME void nk_attention_pack_i8_haswell(                              
             }
         }
 
-        // V is token-major, zero-padded through the 8-position tile so the scalar-broadcast P×V reads clean rows.
+        // V is token-major, zero-padded through the 8-position tile so the scalar-broadcast P × V
+        // reads clean rows.
         for (nk_size_t position_idx = 0; position_idx < position_count_padded; position_idx++) {
             char *values_destination = values_plane + position_idx * depth_padded;
             if (position_idx < position_count) {
@@ -705,10 +701,9 @@ NK_API_COMPTIME void nk_attention_pack_i8_haswell(                              
     }
 }
 
-/**
- *  @brief I8 attention core: 8-row query blocks share each K panel, each row softmaxes only the slice of the
- *         panel inside its `nk_attention_row_range_`, and panels outside the block's union are skipped.
- */
+/** I8 attention core: 8-row query blocks share each K panel, each row softmaxes only the
+ *  slice of the panel inside its @c nk_attention_row_range_, and panels outside the block's
+ *  union are skipped. */
 NK_HELPER_INLINE void nk_attention_packed_i8_haswell_(                                                          //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
@@ -726,9 +721,9 @@ NK_HELPER_INLINE void nk_attention_packed_i8_haswell_(                          
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const depth_padded16 = nk_size_round_up_to_multiple_(depth_padded, 16);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_;                     // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_;                     // softmax(x) = softmax₂(x · log₂e)
     nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
-    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t·255 + 0.5 < 1)
+    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t · 255 + 0.5 < 1)
         scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
     nk_size_t const panel_width = nk_attention_panel_haswell_k_;
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);

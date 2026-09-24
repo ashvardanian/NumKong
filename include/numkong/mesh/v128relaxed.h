@@ -50,8 +50,7 @@ extern "C" {
 /*  Deinterleave 12 contiguous f32 values (4 XYZ triplets) into separate x, y, z vectors.
  *
  *  Input:  [x0,y0,z0, x1,y1,z1, x2,y2,z2, x3,y3,z3]
- *  Output: x[4], y[4], z[4] vectors
- */
+ *  Output: x[4], y[4], z[4] vectors */
 NK_HELPER_INLINE void nk_deinterleave_f32x4_v128relaxed_(nk_f32_t const *ptr, v128_t *xs_f32x4, v128_t *ys_f32x4,
                                                          v128_t *zs_f32x4) {
     v128_t v0_f32x4 = wasm_v128_load(ptr);     // x0 y0 z0 x1
@@ -71,8 +70,7 @@ NK_HELPER_INLINE void nk_deinterleave_f32x4_v128relaxed_(nk_f32_t const *ptr, v1
 /*  Deinterleave 6 contiguous f64 values (2 XYZ triplets) into separate x, y, z vectors.
  *
  *  Input:  [x0,y0,z0, x1,y1,z1]
- *  Output: x[2], y[2], z[2] vectors
- */
+ *  Output: x[2], y[2], z[2] vectors */
 NK_HELPER_INLINE void nk_deinterleave_f64x2_v128relaxed_(nk_f64_t const *ptr, v128_t *xs_f64x2, v128_t *ys_f64x2,
                                                          v128_t *zs_f64x2) {
     v128_t v0_f64x2 = wasm_v128_load(ptr);                    // x0 y0
@@ -556,7 +554,7 @@ NK_API_COMPTIME void nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const
         b_centroid[0] = (nk_f32_t)centroid_b_x, b_centroid[1] = (nk_f32_t)centroid_b_y,
         b_centroid[2] = (nk_f32_t)centroid_b_z;
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -613,7 +611,7 @@ NK_API_COMPTIME void nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const
         for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f64_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0 * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
     *result = nk_f64_sqrt_v128(sum_squared / (nk_f64_t)n);
@@ -779,7 +777,7 @@ NK_API_COMPTIME void nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const
     nk_f64_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -821,7 +819,7 @@ NK_API_COMPTIME void nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const
 
     if (scale) *scale = 1.0;
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f64_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0 * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
     *result = nk_f64_sqrt_v128(sum_squared * inv_points_count);
@@ -855,7 +853,7 @@ NK_API_COMPTIME void nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t cons
         b_centroid[0] = (nk_f32_t)centroid_b_x, b_centroid[1] = (nk_f32_t)centroid_b_y,
         b_centroid[2] = (nk_f32_t)centroid_b_z;
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -917,7 +915,7 @@ NK_API_COMPTIME void nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t cons
         for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
     if (scale) *scale = (nk_f32_t)computed_scale;
 
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f64_t sum_squared = computed_scale * computed_scale * centered_norm_squared_a + centered_norm_squared_b -
                            2.0 * computed_scale * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
@@ -1084,7 +1082,7 @@ NK_API_COMPTIME void nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t cons
     nk_f64_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -1130,7 +1128,7 @@ NK_API_COMPTIME void nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t cons
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = computed_scale;
 
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f64_t sum_squared = computed_scale * computed_scale * centered_norm_squared_a + centered_norm_squared_b -
                            2.0 * computed_scale * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;

@@ -38,7 +38,7 @@ extern "C" {
 
 #pragma region Horizontal Reduction Helpers
 
-/** @brief Horizontal sum of 4 f64 lanes in a 256-bit LASX register. */
+/** Horizontal sum of 4 f64 lanes in a 256-bit LASX register. */
 NK_HELPER_INLINE nk_f64_t nk_reduce_add_f64x4_loongsonasx_(__m256d sum_f64x4) {
     // Add high 128-bit lane to low 128-bit lane
     __m256d high_f64x4 = (__m256d)__lasx_xvpermi_q((__m256i)sum_f64x4, (__m256i)sum_f64x4, 0x11);
@@ -51,7 +51,7 @@ NK_HELPER_INLINE nk_f64_t nk_reduce_add_f64x4_loongsonasx_(__m256d sum_f64x4) {
     return c.f;
 }
 
-/** @brief Horizontal sum of 8 i32 lanes in a 256-bit LASX register. */
+/** Horizontal sum of 8 i32 lanes in a 256-bit LASX register. */
 NK_HELPER_INLINE nk_i32_t nk_reduce_add_i32x8_loongsonasx_(__m256i sum_i32x8) {
     __m256i high_i32x8 = __lasx_xvpermi_q(sum_i32x8, sum_i32x8, 0x11);
     __m256i sum_i32x4 = __lasx_xvadd_w(sum_i32x8, high_i32x8);
@@ -60,7 +60,8 @@ NK_HELPER_INLINE nk_i32_t nk_reduce_add_i32x8_loongsonasx_(__m256i sum_i32x8) {
     return (nk_i32_t)(__lasx_xvpickve2gr_d(sum_i64x2, 0) + __lasx_xvpickve2gr_d(sum_i64x2, 1));
 }
 
-/** @brief Compensated horizontal sum of 4 f64 lanes via TwoSum tree reduction.
+/**
+ *  @brief Compensated horizontal sum of 4 f64 lanes via TwoSum tree reduction.
  *  @sa nk_reduce_sum_f64_serial_ for the serial equivalent
  */
 NK_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x4_loongsonasx_(__m256d sum_f64x4, __m256d compensation_f64x4) {
@@ -353,7 +354,8 @@ NK_HELPER_INLINE void nk_dot_f32x8_finalize_loongsonasx(                        
 #pragma region I8 and U8 Integers
 
 /**
- *  @brief Internal helper state for dot-products of integer types, where 32-bit accumulation is enough.
+ *  @brief Internal helper state for dot-products of integer types, where 32-bit
+ *      accumulation is enough.
  *  @sa nk_dot_i8x32_state_loongsonasx_t, nk_dot_u8x32_state_loongsonasx_t
  */
 typedef struct nk_dot_through_i32_state_loongsonasx_t_ {
@@ -465,7 +467,8 @@ NK_HELPER_INLINE void nk_dot_u8x32_finalize_loongsonasx(                        
 #pragma region F16 and BF16 Floats
 
 /**
- *  @brief Internal helper state for dot-products of low-precision types, where 32-bit accumulation is enough.
+ *  @brief Internal helper state for dot-products of low-precision types, where 32-bit
+ *      accumulation is enough.
  *  @sa nk_dot_bf16x16_state_loongsonasx_t
  */
 typedef struct nk_dot_through_f32_state_loongsonasx_t_ {

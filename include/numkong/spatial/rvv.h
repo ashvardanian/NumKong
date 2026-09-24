@@ -43,7 +43,7 @@ extern "C" {
 #endif
 
 /**
- *  @brief  Vectorized `1/√x` for f32 m1 register group using `vfrsqrt7` + 2 Newton-Raphson steps.
+ *  @brief Vectorized 1/√x for an f32 m1 register group via @c vfrsqrt7 and 2 Newton-Raphson steps.
  *
  *  Achieves ~28 bits of precision, sufficient for f32's 23-bit mantissa.
  *  Formula per iteration: y' = y × (3 − x × y²) × 0.5
@@ -61,7 +61,7 @@ NK_HELPER_INLINE vfloat32m1_t nk_rsqrt_f32m1_rvv_(vfloat32m1_t values_f32m1, siz
 }
 
 /**
- *  @brief  Vectorized `1/√x` for f64 m1 register group using `vfrsqrt7` + 3 Newton-Raphson steps.
+ *  @brief Vectorized 1/√x for an f64 m1 register group via @c vfrsqrt7 and 3 Newton-Raphson steps.
  *
  *  Achieves ~56 bits of precision, sufficient for f64's 52-bit mantissa.
  *  Formula per iteration: y' = y × (3 − x × y²) × 0.5
@@ -78,10 +78,8 @@ NK_HELPER_INLINE vfloat64m1_t nk_rsqrt_f64m1_rvv_(vfloat64m1_t values_f64m1, siz
     return rsqrt_f64m1;
 }
 
-/**
- *  @brief Approximate reciprocal of f32 vector (m4) using vfrec7 + 2 Newton-Raphson steps.
- *  Achieves ~28-bit precision, sufficient for f32 (24-bit mantissa).
- */
+/** Approximate reciprocal of f32 vector (m4) using vfrec7 + 2 Newton-Raphson steps. Achieves
+ *  ~28-bit precision, sufficient for f32 (24-bit mantissa). */
 NK_HELPER_INLINE vfloat32m4_t nk_f32m4_reciprocal_rvv_(vfloat32m4_t x_f32m4, nk_size_t vector_length) {
     vfloat32m4_t est_f32m4 = __riscv_vfrec7_v_f32m4(x_f32m4, vector_length);
     vfloat32m4_t two_f32m4 = __riscv_vfmv_v_f_f32m4(2.0f, vector_length);
@@ -95,10 +93,8 @@ NK_HELPER_INLINE vfloat32m4_t nk_f32m4_reciprocal_rvv_(vfloat32m4_t x_f32m4, nk_
     return est_f32m4;
 }
 
-/**
- *  @brief Approximate reciprocal of f32 vector (m2) using vfrec7 + 2 Newton-Raphson steps.
- *  Achieves ~28-bit precision, sufficient for f32 (24-bit mantissa).
- */
+/** Approximate reciprocal of f32 vector (m2) using vfrec7 + 2 Newton-Raphson steps. Achieves
+ *  ~28-bit precision, sufficient for f32 (24-bit mantissa). */
 NK_HELPER_INLINE vfloat32m2_t nk_f32m2_reciprocal_rvv_(vfloat32m2_t x_f32m2, nk_size_t vector_length) {
     vfloat32m2_t est_f32m2 = __riscv_vfrec7_v_f32m2(x_f32m2, vector_length);
     vfloat32m2_t two_f32m2 = __riscv_vfmv_v_f_f32m2(2.0f, vector_length);
@@ -112,10 +108,8 @@ NK_HELPER_INLINE vfloat32m2_t nk_f32m2_reciprocal_rvv_(vfloat32m2_t x_f32m2, nk_
     return est_f32m2;
 }
 
-/**
- *  @brief Approximate reciprocal of f64 vector (m4) using vfrec7 + 3 Newton-Raphson steps.
- *  Achieves ~56-bit precision, sufficient for f64 (52-bit mantissa).
- */
+/** Approximate reciprocal of f64 vector (m4) using vfrec7 + 3 Newton-Raphson steps. Achieves
+ *  ~56-bit precision, sufficient for f64 (52-bit mantissa). */
 NK_HELPER_INLINE vfloat64m4_t nk_f64m4_reciprocal_rvv_(vfloat64m4_t x_f64m4, nk_size_t vector_length) {
     vfloat64m4_t est_f64m4 = __riscv_vfrec7_v_f64m4(x_f64m4, vector_length);
     vfloat64m4_t two_f64m4 = __riscv_vfmv_v_f_f64m4(2.0, vector_length);

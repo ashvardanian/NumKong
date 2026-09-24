@@ -549,7 +549,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
     /// Grow the allocated `capacity()` to hold at least `new_dims` dimensions, reallocating and
     /// copying the live elements if needed. A no-op when already large enough. Unlike
-    /// [`try_resize`](Self::try_resize) it MAY move storage, invalidating any raw pointer captured
+    /// [`try_resize`](Self::try_resize) it may move storage, invalidating any raw pointer captured
     /// outside the borrow system. Returns [`TensorError::AllocationFailed`] on failure, unchanged.
     pub fn try_reserve(&mut self, new_dims: usize) -> Result<(), TensorError> {
         let needed = Scalar::dimensions_to_values(new_dims);

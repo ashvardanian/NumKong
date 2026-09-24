@@ -7,8 +7,8 @@
  *  @sa include/numkong/reduce.h
  *
  *  Uses AVX-VNNI-INT8 (256-bit) for efficient widening dot-products on i8, u8, and e2m3:
- *  - `_mm256_dpbssd_epi32`: i8 × i8 → i32 signed dot product (AVXVNNIINT8)
- *  - `_mm256_dpbuud_epi32`: u8 × u8 → u32 unsigned dot product (AVXVNNIINT8)
+ *  - @c _mm256_dpbssd_epi32: i8 × i8 → i32 signed dot product (AVXVNNIINT8)
+ *  - @c _mm256_dpbuud_epi32: u8 × u8 → u32 unsigned dot product (AVXVNNIINT8)
  */
 #ifndef NK_REDUCE_SIERRA_H
 #define NK_REDUCE_SIERRA_H
@@ -110,12 +110,12 @@ NK_API_COMPTIME void nk_reduce_moments_i8_sierra(                 //
 }
 
 /**
- *  @section u8 moments via VPDPBUUD (unsigned u8 × u8 → u32)
+ *  @section reduce_sierra_u8_moments U8 moments via VPDPBUUD, unsigned u8 × u8 → u32
  *
- *  Sierra's `_mm256_dpbuud_epi32` provides native u8×u8→u32 dot product, replacing
+ *  Sierra's @c _mm256_dpbuud_epi32 provides native u8 × u8 → u32 dot product, replacing
  *  Haswell's 8-instruction SAD+widen+MADD sequence with 3 instructions per 32 elements.
  *  - sum:   dot(data, ones) via DPBUUD — each group of 4 bytes sums into a u32 lane
- *  - sumsq: dot(data, data) via DPBUUD — native u8×u8 squaring and accumulation
+ *  - sumsq: dot(data, data) via DPBUUD — native u8 × u8 squaring and accumulation
  */
 NK_HELPER_INLINE void nk_reduce_moments_u8_sierra_contiguous_( //
     nk_u8_t const *data, nk_size_t count,                      //
@@ -195,11 +195,11 @@ NK_API_COMPTIME void nk_reduce_moments_u8_sierra(                 //
 }
 
 /**
- *  @section e2m3 moments via integer VNNI (dpbssd)
+ *  @section reduce_sierra_e2m3_moments E2M3 moments via integer VNNI DPBSSD
  *
  *  Every e2m3 value × 16 is an exact integer in [-120, +120] (i8 range).
  *  We use a dual-VPSHUFB LUT to map 5-bit magnitude → unsigned i8, apply the sign,
- *  then accumulate with `_mm256_dpbssd_epi32` (signed i8 × signed i8 → i32).
+ *  then accumulate with @c _mm256_dpbssd_epi32 (signed i8 × signed i8 → i32).
  *  Final: sum = i32_sum / 16, sumsq = i32_sumsq / 256.
  */
 NK_HELPER_INLINE void nk_reduce_moments_e2m3_sierra_contiguous_( //

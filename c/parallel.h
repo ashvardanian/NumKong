@@ -5,7 +5,7 @@
  *  @brief Tile-parallel execution for NumKong language bindings.
  *
  *  Compiled only by `setup.py` and `binding.gyp`, never by CMake or Cargo.
- *  Each platform's own pool runs the tiles, so no binding ships a `libomp`.
+ *  Each platform's own pool runs the tiles, so no binding ships a @c libomp.
  */
 #ifndef NUMKONG_PARALLEL_H
 #define NUMKONG_PARALLEL_H

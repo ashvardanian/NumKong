@@ -60,7 +60,7 @@ NK_API_COMPTIME void nk_rmsd_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, 
 
     // 32-lane bf16 chunks = 10 triplets + 2 padding bf16 per register.
     // VDPBF16PS pairs adjacent bf16 per fp32 lane: lane[i] += a[2i]*b[2i] + a[2i+1]*b[2i+1].
-    // For RMSD we need Σ(a-b)², computed via Σ a² + Σ b² - 2 Σ a·b.
+    // For RMSD we need Σ(a-b)², computed via Σ a² + Σ b² - 2 Σ a · b.
     __m512 const zeros_f32x16 = _mm512_setzero_ps();
     __m512 norm_squared_a_f32x16 = zeros_f32x16;
     __m512 norm_squared_b_f32x16 = zeros_f32x16;
@@ -100,19 +100,21 @@ NK_API_COMPTIME void nk_rmsd_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, 
     *result = nk_f32_sqrt_haswell(sum_squared / (nk_f32_t)n);
 }
 
-// Channel-grouping permute: 10 xyz triplets + 2 padding bf16 → [x0..x9, y0..y9, z0..z9, _, _].
-// After VPERMW lanes 0..4 carry the x-channel (2 bf16 per fp32 lane), 5..9 carry y, 10..14 carry z.
+/** Channel-grouping permute: 10 xyz triplets and 2 padding bf16 → [x0..x9, y0..y9, z0..z9, _, _].
+ *  After VPERMW, fp32 lanes 0..4 carry the x-channel, 2 bf16 each, while lanes 5..9 carry y and
+ *  lanes 10..14 carry z. */
 #define NK_MESH_GENOA_CHANNEL_GROUP_INDICES_                                                                           \
     _mm512_set_epi16(31, 30, 29, 26, 23, 20, 17, 14, 11, 8, 5, 2, 28, 25, 22, 19, 16, 13, 10, 7, 4, 1, 27, 24, 21, 18, \
                      15, 12, 9, 6, 3, 0)
 
-// Rotation-1 applied during channel-grouping: each channel slot carries the *next* channel of b.
-//    x-slot gets b.y, y-slot gets b.z, z-slot gets b.x.  Pairs covariance cells (xy, yz, zx).
+/** Rotation-1 applied during channel-grouping: each channel slot carries the next channel of b, so
+ *  the x-slot gets b.y, the y-slot b.z, and the z-slot b.x, pairing covariance cells xy, yz, zx. */
 #define NK_MESH_GENOA_ROTATION_1_INDICES_                                                                             \
     _mm512_set_epi16(31, 30, 27, 24, 21, 18, 15, 12, 9, 6, 3, 0, 29, 26, 23, 20, 17, 14, 11, 8, 5, 2, 28, 25, 22, 19, \
                      16, 13, 10, 7, 4, 1)
 
-// Rotation-2: x-slot gets b.z, y-slot gets b.x, z-slot gets b.y.  Pairs covariance cells (xz, yx, zy).
+/** Rotation-2: the x-slot gets b.z, the y-slot b.x, and the z-slot b.y, which pairs the covariance
+ *  cells xz, yx and zy. */
 #define NK_MESH_GENOA_ROTATION_2_INDICES_                                                                             \
     _mm512_set_epi16(31, 30, 28, 25, 22, 19, 16, 13, 10, 7, 4, 1, 27, 24, 21, 18, 15, 12, 9, 6, 3, 0, 29, 26, 23, 20, \
                      17, 14, 11, 8, 5, 2)
@@ -286,7 +288,7 @@ NK_API_COMPTIME void nk_kabsch_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f32_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0f * trace_rotation_covariance;
     if (sum_squared < 0.0f) sum_squared = 0.0f;
     *result = nk_f32_sqrt_haswell(sum_squared * inv_n);
@@ -470,7 +472,7 @@ NK_API_COMPTIME void nk_umeyama_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f32_t sum_squared = c * c * centered_norm_squared_a + centered_norm_squared_b -
                            2.0f * c * trace_rotation_covariance;
     if (sum_squared < 0.0f) sum_squared = 0.0f;

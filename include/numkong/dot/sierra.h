@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dot/sierra.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date October 14, 2024
  *  @brief SIMD-accelerated dot products for Sierra Forest.
  *
  *  @sa include/numkong/dot.h
@@ -126,7 +126,7 @@ nk_dot_i8_sierra_cycle:
 }
 
 typedef struct nk_dot_i8x32_state_sierra_t {
-    __m256i sum_i32x8; // DPBSSD accumulator: i8 * i8 -> i32
+    __m256i sum_i32x8; // DPBSSD accumulator: i8 × i8 → i32
 } nk_dot_i8x32_state_sierra_t;
 
 NK_HELPER_INLINE void nk_dot_i8x32_init_sierra(nk_dot_i8x32_state_sierra_t *state) {
@@ -200,7 +200,7 @@ nk_dot_u8_sierra_cycle:
 }
 
 typedef struct nk_dot_u8x32_state_sierra_t {
-    __m256i sum_u32x8; // DPBUUD accumulator: u8 * u8 -> u32
+    __m256i sum_u32x8; // DPBUUD accumulator: u8 × u8 → u32
 } nk_dot_u8x32_state_sierra_t;
 
 NK_HELPER_INLINE void nk_dot_u8x32_init_sierra(nk_dot_u8x32_state_sierra_t *state) {
@@ -308,7 +308,7 @@ nk_dot_e2m3_sierra_cycle:
 }
 
 typedef struct nk_dot_e2m3x32_state_sierra_t {
-    __m256i sum_i32x8; // DPBSSD accumulator: i8_signed * i8_signed -> i32
+    __m256i sum_i32x8; // DPBSSD accumulator: i8_signed × i8_signed → i32
 } nk_dot_e2m3x32_state_sierra_t;
 
 NK_HELPER_INLINE void nk_dot_e2m3x32_init_sierra(nk_dot_e2m3x32_state_sierra_t *state) {
@@ -393,7 +393,8 @@ NK_HELPER_INLINE void nk_dot_e2m3x32_finalize_sierra(                           
     results->xmm = _mm_castps_si128(sum_f32x4);
 }
 
-/** @brief Integer LUT batch state for e2m1 dot-products on Sierra Forest (AVX-VNNI-INT8), 64 nibbles per update. */
+/** Integer LUT batch state for e2m1 dot-products on Sierra Forest (AVX-VNNI-INT8), 64 nibbles per
+ *  update. */
 typedef struct nk_dot_e2m1x64_state_sierra_t {
     __m256i sum_i32x8;
 } nk_dot_e2m1x64_state_sierra_t;

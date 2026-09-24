@@ -1,5 +1,5 @@
-// numkong/test/golang/numkong_test.go
-// Written by Ash Vardanian.
+// File: test/golang/numkong_test.go
+// Author: Ash Vardanian
 
 package numkong_test
 

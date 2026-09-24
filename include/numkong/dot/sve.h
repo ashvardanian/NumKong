@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dot/sve.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date March 14, 2023
  *  @brief SIMD-accelerated dot products for SVE.
  *
  *  @sa include/numkong/dot.h

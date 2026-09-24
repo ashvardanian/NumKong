@@ -1,5 +1,5 @@
-// numkong/golang/geospatial.go
-// Written by Ash Vardanian.
+// File: golang/geospatial.go
+// Author: Ash Vardanian
 
 package numkong
 

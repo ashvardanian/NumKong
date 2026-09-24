@@ -49,8 +49,7 @@ extern "C" {
 
 /*  Deinterleave 8 f64 3D points from xyz,xyz,xyz... to separate x,y,z vectors.
  *  Input: 24 consecutive f64 values (8 points * 3 coordinates)
- *  Output: Three __m512d vectors containing the x, y, z coordinates separately.
- */
+ *  Output: Three __m512d vectors containing the x, y, z coordinates separately. */
 NK_HELPER_INLINE void nk_deinterleave_f64x8_skylake_(                                        //
     nk_f64_t const *ptr, __m512d *x_f64x8_out, __m512d *y_f64x8_out, __m512d *z_f64x8_out) { //
     __m512d reg0_f64x8 = _mm512_loadu_pd(ptr);                                               // elements 0-7
@@ -98,20 +97,24 @@ NK_HELPER_INLINE void nk_accumulate_square_f64x8_skylake_(__m512d *sum_f64x8, __
     *compensation_f64x8 = _mm512_add_pd(*compensation_f64x8, _mm512_add_pd(sum_error_f64x8, product_error_f64x8));
 }
 
-/*  Single-pass streaming statistics over an f32 xyz point-cloud pair.
- *  Processes 5 xyz triplets per chunk (15 fp32 lanes, lane 15 masked to zero) so the stride-3
- *  phase is identical across all chunks and no deinterleave is needed. All accumulators are f64.
- *  Outputs via pointers:
- *    sum_a_out[3] / sum_b_out[3]     - per-channel Sum(a), Sum(b)
- *    raw_covarianceariance_out[9]                  - row-major uncentered Sum(a_j * b_k)
- *    norm_squared_a_out / norm_squared_b_out       - Sum(||a||^2), Sum(||b||^2) across all three channels
+/**
+ *  @brief Single-pass streaming statistics over an f32 xyz point-cloud pair, accumulated in f64.
  *
- *  The 9 H-cells come from three product accumulators prod_{diag,rot1,rot2} demuxed post-loop
- *  by a-channel. Rotations of b happen in fp64 via permutex2var_pd on the already-widened
- *  halves: widening the rotated fp32 vector would add two extra cvtps_pd per chunk, which we
- *  skip. Post-loop, each (accumulator, channel) pair is gathered into a single 8-lane vector
- *  via one maskz-permutex2var_pd and reduced once — 17 horizontal reductions total (the
- *  theoretical minimum for 17 scalar outputs) instead of 32 masked ones.
+ *  Processes 5 xyz triplets per chunk, 15 fp32 lanes with lane 15 masked to zero, so the stride-3
+ *  phase is identical across all chunks and no deinterleave is needed. It writes these outputs:
+ *
+ *  @verbatim
+ *  sum_a_out[3], sum_b_out[3]                  per-channel Σa and Σb
+ *  raw_covarianceariance_out[9]                row-major uncentered Σ aⱼ × bₖ
+ *  norm_squared_a_out, norm_squared_b_out      Σ‖a‖² and Σ‖b‖² across all three channels
+ *  @endverbatim
+ *
+ *  The 9 H-cells come from three product accumulators prod_{diag,rot1,rot2} demuxed post-loop by
+ *  a-channel. Rotations of b happen in fp64 via permutex2var_pd on the already-widened halves,
+ *  since widening the rotated fp32 vector would add two extra cvtps_pd per chunk. Post-loop, each
+ *  (accumulator, channel) pair is gathered into a single 8-lane vector via one
+ *  maskz-permutex2var_pd and reduced once: 17 horizontal reductions in total, the theoretical
+ *  minimum for 17 scalar outputs, instead of 32 masked ones.
  */
 NK_HELPER_INLINE void nk_mesh_streaming_stats_f32_skylake_( //
     nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *sum_a_out, nk_f64_t *sum_b_out,
@@ -408,7 +411,7 @@ NK_API_COMPTIME void nk_kabsch_f32_skylake(nk_f32_t const *a, nk_f32_t const *b,
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f64_t centered_norm_squared_a = norm_squared_a -
                                        n_f64 * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
                                                 centroid_a_z * centroid_a_z);
@@ -693,7 +696,7 @@ NK_API_COMPTIME void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b,
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
 
-    // Compute centered covariance matrix: Hᵢⱼ = Σ(aᵢ×bⱼ) - Σaᵢ × Σbⱼ / n.
+    // Compute centered covariance matrix: Hᵢⱼ = Σ(aᵢ × bⱼ) - Σaᵢ × Σbⱼ / n.
     nk_f64_t cross_covariance[9];
     cross_covariance[0] = covariance_x_x - sum_a_x * sum_b_x * inv_n;
     cross_covariance[1] = covariance_x_y - sum_a_x * sum_b_y * inv_n;
@@ -745,7 +748,7 @@ NK_API_COMPTIME void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b,
     if (scale) *scale = 1.0;
 
     // Folded SSD via trace identity - no second pass over the buffers:
-    //   SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    //   SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f64_t centered_norm_squared_a = norm_squared_a_sum -
                                        (nk_f64_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
                                                       centroid_a_z * centroid_a_z);
@@ -858,7 +861,7 @@ NK_API_COMPTIME void nk_umeyama_f32_skylake(nk_f32_t const *a, nk_f32_t const *b
         for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
 
     // Folded SSD with scale: sum(|| s*R*(a-abar) - (b-bbar) ||^2)
-    //    = s²·‖a-ā‖² + ‖b-b̄‖² − 2s·trace(R · H_centered).
+    //    = s² · ‖a-ā‖² + ‖b-b̄‖² − 2s · trace(R · H_centered).
     nk_f64_t sum_squared = applied_scale * applied_scale * centered_norm_squared_a + centered_norm_squared_b -
                            2.0 * applied_scale * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
@@ -1034,7 +1037,7 @@ NK_API_COMPTIME void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b
     if (centered_norm_squared_a < 0.0) centered_norm_squared_a = 0.0;
     if (centered_norm_squared_b < 0.0) centered_norm_squared_b = 0.0;
 
-    // Compute centered covariance matrix: Hᵢⱼ = Σ(aᵢ×bⱼ) - Σaᵢ × Σbⱼ / n.
+    // Compute centered covariance matrix: Hᵢⱼ = Σ(aᵢ × bⱼ) - Σaᵢ × Σbⱼ / n.
     nk_f64_t cross_covariance[9];
     cross_covariance[0] = covariance_x_x - sum_a_x * sum_b_x * inv_n;
     cross_covariance[1] = covariance_x_y - sum_a_x * sum_b_y * inv_n;
@@ -1095,7 +1098,7 @@ NK_API_COMPTIME void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b
         for (int j = 0; j < 9; ++j) rotation[j] = (nk_f64_t)optimal_rotation[j];
 
     // Folded SSD with scale: Sum(|| c*R*(a-abar) - (b-bbar) ||^2)
-    //   = c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    //   = c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f64_t sum_squared = c * c * centered_norm_squared_a + centered_norm_squared_b -
                            2.0 * c * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
@@ -1300,7 +1303,7 @@ NK_API_COMPTIME void nk_kabsch_f16_skylake(nk_f16_t const *a, nk_f16_t const *b,
     if (scale) *scale = 1.0f;
 
     // Folded SSD via trace identity:
-    //    SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered)
+    //    SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered)
     //    trace(R · H_centered) = Σⱼₖ R[j,k] · H[k,j]  (note transpose on H).
     nk_f32_t centered_norm_squared_a = norm_squared_a -
                                        (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
@@ -1437,7 +1440,7 @@ NK_API_COMPTIME void nk_kabsch_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const 
     if (scale) *scale = 1.0f;
 
     // Folded SSD via trace identity:
-    //    SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered)
+    //    SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered)
     //    trace(R · H_centered) = Σⱼₖ R[j,k] · H[k,j]  (note transpose on H).
     nk_f32_t centered_norm_squared_a = norm_squared_a -
                                        (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
@@ -1586,7 +1589,7 @@ NK_API_COMPTIME void nk_umeyama_f16_skylake(nk_f16_t const *a, nk_f16_t const *b
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
     // Folded SSD with scale:
-    //    SSD = c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    //    SSD = c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f32_t trace_rotation_covariance =
         optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
         optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
@@ -1727,7 +1730,7 @@ NK_API_COMPTIME void nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
     // Folded SSD with scale:
-    //    SSD = c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    //    SSD = c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f32_t trace_rotation_covariance =
         optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
         optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +

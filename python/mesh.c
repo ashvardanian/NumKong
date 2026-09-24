@@ -1,7 +1,7 @@
 /**
  *  @file python/mesh.c
  *  @author Ash Vardanian
- *  @date February 19, 2026
+ *  @date December 24, 2025
  *  @brief Mesh alignment, Kabsch, Umeyama, RMSD, for NumKong Python bindings.
  *
  *  Implements the MeshAlignmentResult type and the three mesh-alignment API functions, kabsch,

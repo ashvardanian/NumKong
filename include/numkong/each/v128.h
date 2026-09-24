@@ -68,11 +68,9 @@ NK_API_COMPTIME void nk_each_sum_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *
 #pragma endregion BF16 Floats
 #pragma region I32 Integers
 
-/**
- *  @brief I-BERT-style integer `2^t`: takes a Q15 exponent in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8
- *         weight in each I32 lane; SIMD128 has no per-lane variable shift, so a 4-stage `bitselect` barrel network
- *         keyed on `−whole ∈ [0, 10]` applies the bias and the shift.
- */
+/** I-BERT-style integer 2ᵗ: takes a Q15 exponent in [−10 × 2¹⁵, 0] and returns round(2ᵗ × 255) as a
+ *  U8 weight in each I32 lane; SIMD128 has no per-lane variable shift, so a 4-stage @c bitselect
+ *  barrel network keyed on −whole ∈ [0, 10] applies the bias and the shift. */
 NK_HELPER_INLINE v128_t nk_exp2_u8_i32x4_v128_(v128_t t_q15_i32x4) {
     v128_t const zero_i32x4 = wasm_i32x4_splat(0);
     v128_t const whole_i32x4 = wasm_i32x4_shr(t_q15_i32x4, 15); // arithmetic floor, in [-10,0]
@@ -83,7 +81,7 @@ NK_HELPER_INLINE v128_t nk_exp2_u8_i32x4_v128_(v128_t t_q15_i32x4) {
                                 wasm_i32x4_splat(11410));
     poly_i32x4 = wasm_i32x4_add(wasm_i32x4_shr(wasm_i32x4_mul(fraction_i32x4, poly_i32x4), 15),
                                 wasm_i32x4_splat(16382));
-    v128_t const scaled_i32x4 = wasm_i32x4_sub(wasm_i32x4_shl(poly_i32x4, 8), poly_i32x4); // poly·255
+    v128_t const scaled_i32x4 = wasm_i32x4_sub(wasm_i32x4_shl(poly_i32x4, 8), poly_i32x4); // poly · 255
     v128_t const nlz_i32x4 = wasm_i32x4_sub(zero_i32x4, whole_i32x4);                      // -whole, in [0,10]
     v128_t const mask1_i32x4 = wasm_i32x4_ne(wasm_v128_and(nlz_i32x4, wasm_i32x4_splat(1)), zero_i32x4);
     v128_t const mask2_i32x4 = wasm_i32x4_ne(wasm_v128_and(nlz_i32x4, wasm_i32x4_splat(2)), zero_i32x4);

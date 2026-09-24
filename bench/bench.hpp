@@ -38,10 +38,10 @@
 #define NK_COMPARE_TO_ACCELERATE 0
 #endif
 
-#if NK_COMPARE_TO_MKL
 /*  MKL provides additional GEMM routines:
  *  - cblas_gemm_bf16bf16f32: BF16 inputs to F32 output
  *  - cblas_hgemm: F16 GEMM, if available */
+#if NK_COMPARE_TO_MKL
 #include <mkl.h>
 #elif NK_COMPARE_TO_ACCELERATE
 #include <Accelerate/Accelerate.h> // Apple Accelerate framework
@@ -63,40 +63,40 @@ namespace ashvardanian::numkong::bench {
 
 struct bench_config_t {
 
-    /** Vector dimension for dot products and spatial metrics. Override: `NK_DENSE_DIMENSIONS`. */
+    /** Vector dimension for dot products and spatial metrics. Override: @c NK_DENSE_DIMENSIONS. */
     std::size_t dense_dimensions = 1536;
 
-    /** Curved metric dimensions (quadratic impact). Override: `NK_CURVED_DIMENSIONS`. */
+    /** Curved metric dimensions (quadratic impact). Override: @c NK_CURVED_DIMENSIONS. */
     std::size_t curved_dimensions = 64;
 
-    /** Number of 3D points for mesh metrics (RMSD, Kabsch). Override: `NK_MESH_POINTS`. */
+    /** Number of 3D points for mesh metrics (RMSD, Kabsch). Override: @c NK_MESH_POINTS. */
     std::size_t mesh_points = 1000;
 
-    /** GEMM M dimension. Override: `NK_MATRIX_HEIGHT`. */
+    /** GEMM M dimension. Override: @c NK_MATRIX_HEIGHT. */
     std::size_t matrix_height = 1024;
 
-    /** GEMM N dimension. Override: `NK_MATRIX_WIDTH`. */
+    /** GEMM N dimension. Override: @c NK_MATRIX_WIDTH. */
     std::size_t matrix_width = 128;
 
-    /** GEMM K dimension. Override: `NK_MATRIX_DEPTH`. */
+    /** GEMM K dimension. Override: @c NK_MATRIX_DEPTH. */
     std::size_t matrix_depth = 1536;
 
-    /** Random seed for reproducible benchmarks. Override: `NK_SEED`. */
+    /** Random seed for reproducible benchmarks. Override: @c NK_SEED. */
     std::uint32_t seed = 42;
 
-    /** First sparse set size. Override: `NK_SPARSE_FIRST_LENGTH`. */
+    /** First sparse set size. Override: @c NK_SPARSE_FIRST_LENGTH. */
     std::size_t sparse_first_length = 1024;
 
-    /** Second sparse set size. Override: `NK_SPARSE_SECOND_LENGTH`. */
+    /** Second sparse set size. Override: @c NK_SPARSE_SECOND_LENGTH. */
     std::size_t sparse_second_length = 8192;
 
-    /** Sparse intersection share [0.0, 1.0]. Override: `NK_SPARSE_INTERSECTION`. */
+    /** Sparse intersection share [0.0, 1.0]. Override: @c NK_SPARSE_INTERSECTION. */
     double sparse_intersection_share = 0.5;
 
     /** Max geospatial angular separation, in degrees. Override: @c NK_MAX_COORD_ANGLE. */
     float max_coord_angle = 180.0f;
 
-    /** Memory budget in bytes for pre-allocated inputs. Override: `NK_BUDGET_MB`. */
+    /** Memory budget in bytes for pre-allocated inputs. Override: @c NK_BUDGET_MB. */
 #if defined(__wasi__)
     std::size_t budget_bytes = std::size_t(32) * 1024 * 1024;
 #else
@@ -227,14 +227,14 @@ inline std::mt19937 make_random_engine() { return std::mt19937(bench_config.seed
 /**
  *  @brief Byte count for @p count elements of @p dtype, handling sub-byte and complex types.
  *
- *  Uses `nk_dtype_bits` to get the correct bits per element, then rounds up to whole bytes.
+ *  Uses @c nk_dtype_bits to get the correct bits per element, then rounds up to whole bytes.
  */
 inline std::size_t bench_dtype_bytes(nk_dtype_t dtype, std::size_t count) {
     return nk::divide_round_up(count * nk_dtype_bits(dtype), std::size_t(NK_BITS_PER_BYTE));
 }
 
 /**
- *  @brief Compute the number of pre-allocated input sets that fit within `bench_budget`.
+ *  @brief Compute the number of pre-allocated input sets that fit within @c bench_budget.
  *
  *  Returns a power-of-two count in [1, 1024]; the benchmark loop uses it as a fast modulo:
  *  `iterations & (count - 1)` for input cycling.

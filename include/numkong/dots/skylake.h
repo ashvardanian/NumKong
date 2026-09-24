@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dots/skylake.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date September 14, 2024
  *  @brief SIMD-accelerated Batched Dot Products for Skylake.
  *
  *  @sa include/numkong/dots.h
@@ -120,11 +120,12 @@ nk_define_cross_packed_(dots, f16, skylake, f16, f32, f32, nk_b512_vec_t, nk_dot
                         nk_dot_through_f32_finalize_skylake_, nk_store_b128_haswell_, nk_partial_store_b32x4_skylake_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
-/* E4M3 GEMM: F16-pack with asymmetric A/B representations at compute time. Pack converts
- * E4M3 → F16 once (~10 ops/16 elements, 2 bytes/elt stored). A-stream uses the Giesen E4M3→F32
- * cast (identical cost to F32-pack path). B-loader widens F16 → F32 inline (1 vcvtph2ps per 16
- * lanes). Update takes both as F32 → plain fmadd. Saves 2 bytes/elt vs F32-pack; inner loop
- * adds one cvtph2ps per B-read. Symmetric uses E4M3→F32 for both sides (no pack involved). */
+/*  E4M3 GEMM: F16-pack with asymmetric A and B representations at compute time. Packing converts
+ *  E4M3 → F16 once, at ~10 ops per 16 elements and 2 bytes stored per element. The A stream uses
+ *  the Giesen E4M3 → F32 cast, at the same cost as the F32-pack path. The B loader widens F16 → F32
+ *  inline, with 1 vcvtph2ps per 16 lanes. Update takes both as F32 into a plain fmadd. This saves 2
+ *  bytes per element against F32-pack, while the inner loop adds one cvtph2ps per B read. Symmetric
+ *  uses E4M3 → F32 for both sides, with no pack involved. */
 nk_define_cross_pack_size_(dots, e4m3, skylake, e4m3, f16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/16,
                            /*dimensions_per_value=*/1)
 nk_define_cross_packed_shape_(dots, e4m3, skylake)
@@ -167,7 +168,8 @@ nk_define_cross_packed_(dots, e5m2, skylake, e5m2, f32, f32, nk_b512_vec_t, nk_d
                         nk_partial_store_b32x4_skylake_,
                         /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
 
-/* E2M3 GEMM: integer LUT path, depth_simd_dimensions=64 (64 e2m3s = 64 bytes = AVX-512 register width) */
+/*  E2M3 GEMM via the integer LUT path: depth_simd_dimensions = 64, as 64 e2m3s span the 64 bytes of
+ *  an AVX-512 register. */
 nk_define_cross_pack_size_(dots, e2m3, skylake, e2m3, e2m3, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/64,
                            /*dimensions_per_value=*/1)
 nk_define_cross_packed_shape_(dots, e2m3, skylake)
@@ -187,7 +189,8 @@ nk_define_cross_packed_(dots, e2m3, skylake, e2m3, e2m3, f32, nk_b512_vec_t, nk_
                         nk_partial_store_b32x4_skylake_,
                         /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
 
-/* E2M1 GEMM: integer LUT path, depth_simd_dimensions=128 (64 bytes = 128 nibbles = AVX-512 register width) */
+/*  E2M1 GEMM via the integer LUT path: depth_simd_dimensions = 128, as 128 nibbles span the 64
+ *  bytes of an AVX-512 register. */
 nk_define_cross_pack_size_(dots, e2m1, skylake, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/128,
                            /*dimensions_per_value=*/2)
 nk_define_cross_packed_shape_(dots, e2m1, skylake)
@@ -206,7 +209,8 @@ nk_define_cross_packed_(dots, e2m1, skylake, e2m1x2, e2m1x2, f32, nk_b512_vec_t,
                         nk_dot_e2m1x128_update_skylake, nk_dot_e2m1x128_finalize_skylake, nk_store_b128_haswell_,
                         nk_partial_store_b32x4_skylake_, /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
 
-/* E3M2 GEMM: integer LUT path, depth_simd_dimensions=64 (64 e3m2s = 64 bytes = AVX-512 register width) */
+/*  E3M2 GEMM via the integer LUT path: depth_simd_dimensions = 64, as 64 e3m2s span the 64 bytes of
+ *  an AVX-512 register. */
 nk_define_cross_pack_size_(dots, e3m2, skylake, e3m2, e3m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/64,
                            /*dimensions_per_value=*/1)
 nk_define_cross_packed_shape_(dots, e3m2, skylake)

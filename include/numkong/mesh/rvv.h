@@ -8,15 +8,15 @@
  *
  *  RVV mesh operations leverage:
  *
- *  - `vlseg3e32`/`vlseg3e64`: deinterleave xyz triplets in hardware
- *  - `vfwcvt`/`vfwmacc`: widening FMA for f32→f64 accumulation
- *  - `vfredusum`: single-instruction horizontal reduction
+ *  - @c vlseg3e32 and @c vlseg3e64: deinterleave xyz triplets in hardware
+ *  - @c vfwcvt and @c vfwmacc: widening FMA for f32 → f64 accumulation
+ *  - @c vfredusum: single-instruction horizontal reduction
  *  - Serial SVD/determinant from mesh/serial.h for fixed 3×3 matrix operations
  *
  *  Fused helpers minimize data passes:
  *
  *  - RMSD: fully fused single-pass (centroids + squared diffs), no separate helper
- *  - `nk_centroid_and_cross_covariance_*_rvv_`: centroids + H + centered ‖·‖² of a and b (Kabsch)
+ *  - `nk_centroid_and_cross_covariance_*_rvv_`: centroids + H + centered ‖ · ‖² of a and b (Kabsch)
  *  - `nk_centroid_and_cross_covariance_and_variance_*_rvv_`: same outputs, used by Umeyama
  *
  *  Math for fused centroid+covariance:
@@ -98,8 +98,8 @@ NK_HELPER_INLINE void nk_accumulate_product_f64m1_rvv_(vfloat64m1_t *sum_f64m1, 
  *    H[i][j] = raw[i][j] - n * ca[i] * cb[j]
  *
  *  Reduces Kabsch from 4 passes to 2 (fused centroid+covariance + SSD).
- *  Cross-products use per-lane `vfwmacc_vv` accumulation (vfloat64m2_t) with
- *  deferred `vfredusum` after the loop — eliminates 9 reductions per iteration.
+ *  Cross-products use per-lane @c vfwmacc_vv accumulation (vfloat64m2_t) with
+ *  deferred @c vfredusum after the loop — eliminates 9 reductions per iteration.
  */
 NK_HELPER_INLINE void nk_centroid_and_cross_covariance_f32_rvv_(            //
     nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,           //
@@ -234,7 +234,7 @@ NK_HELPER_INLINE void nk_centroid_and_cross_covariance_f32_rvv_(            //
 /**
  *  @brief Compute centroids and cross-covariance matrix in a single pass (f64).
  *
- *  Per-lane `vfadd_vv`/`vfmacc_vv` accumulation with deferred `vfredusum` after the loop
+ *  Per-lane @c vfadd_vv and @c vfmacc_vv accumulation with deferred @c vfredusum after the loop
  *  — eliminates 15 horizontal reductions per iteration.
  */
 NK_HELPER_INLINE void nk_centroid_and_cross_covariance_f64_rvv_(            //
@@ -374,8 +374,8 @@ NK_HELPER_INLINE void nk_centroid_and_cross_covariance_f64_rvv_(            //
  *
  *  These enable the trace-identity SSD fold in Kabsch/Umeyama callers.
  *
- *  Cross-products use per-lane `vfwmacc_vv` accumulation (vfloat64m2_t) with
- *  deferred `vfredusum` after the loop — eliminates 9 reductions per iteration.
+ *  Cross-products use per-lane @c vfwmacc_vv accumulation (vfloat64m2_t) with
+ *  deferred @c vfredusum after the loop — eliminates 9 reductions per iteration.
  */
 NK_HELPER_INLINE void nk_centroid_and_cross_covariance_and_variance_f32_rvv_( //
     nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,             //
@@ -509,7 +509,7 @@ NK_HELPER_INLINE void nk_centroid_and_cross_covariance_and_variance_f32_rvv_( //
  *  @brief Compute centroids, cross-covariance, and centered norm-squared of both point sets (f64).
  *
  *  Same outputs as the f32 variant; used by the Umeyama caller for the trace-identity SSD fold.
- *  Per-lane `vfadd_vv`/`vfmacc_vv` accumulation with deferred `vfredusum` after the loop
+ *  Per-lane @c vfadd_vv and @c vfmacc_vv accumulation with deferred @c vfredusum after the loop
  *  — eliminates 16 horizontal reductions per iteration.
  */
 NK_HELPER_INLINE void nk_centroid_and_cross_covariance_and_variance_f64_rvv_( //
@@ -639,7 +639,7 @@ NK_HELPER_INLINE void nk_centroid_and_cross_covariance_and_variance_f64_rvv_( //
     if (*centered_norm_squared_b < 0.0) *centered_norm_squared_b = 0.0;
 }
 
-/** @brief Compute R = V * Uᵀ from SVD factors (f32), vectorized with `vfmul_vf`/`vfmacc_vf`. */
+/** Compute R = V * Uᵀ from SVD factors (f32), vectorized with @c vfmul_vf and @c vfmacc_vf. */
 NK_HELPER_INLINE void nk_rotation_from_svd_f32_rvv_( //
     nk_f32_t *svd_left, nk_f32_t *svd_right, nk_f32_t optimal_rotation[9]) {
     nk_size_t vl3 = __riscv_vsetvl_e32m1(3);
@@ -783,7 +783,7 @@ NK_API_COMPTIME void nk_kabsch_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_
         b_centroid[0] = (nk_f32_t)centroid_b_x, b_centroid[1] = (nk_f32_t)centroid_b_y,
         b_centroid[2] = (nk_f32_t)centroid_b_z;
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -817,7 +817,7 @@ NK_API_COMPTIME void nk_kabsch_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_
     }
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f64_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0 * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
     *result = nk_f64_sqrt_rvv(sum_squared / (nk_f64_t)points_count);
@@ -847,7 +847,7 @@ NK_API_COMPTIME void nk_kabsch_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -881,7 +881,7 @@ NK_API_COMPTIME void nk_kabsch_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_
     }
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f64_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0 * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
     *result = nk_f64_sqrt_rvv(sum_squared / (nk_f64_t)points_count);
@@ -914,7 +914,7 @@ NK_API_COMPTIME void nk_umeyama_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk
         b_centroid[0] = (nk_f32_t)centroid_b_x, b_centroid[1] = (nk_f32_t)centroid_b_y,
         b_centroid[2] = (nk_f32_t)centroid_b_z;
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -956,7 +956,7 @@ NK_API_COMPTIME void nk_umeyama_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk
     if (scale) *scale = (nk_f32_t)scale_factor;
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f64_t sum_squared = scale_factor * scale_factor * centered_norm_squared_a + centered_norm_squared_b -
                            2.0 * scale_factor * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
@@ -986,7 +986,7 @@ NK_API_COMPTIME void nk_umeyama_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk
     if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
     if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -1028,7 +1028,7 @@ NK_API_COMPTIME void nk_umeyama_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk
     if (scale) *scale = scale_factor;
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f64_t sum_squared = scale_factor * scale_factor * centered_norm_squared_a + centered_norm_squared_b -
                            2.0 * scale_factor * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;

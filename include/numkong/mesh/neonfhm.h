@@ -26,12 +26,12 @@
  *  process a full @c float16x8_t of data into two @c float32x4_t accumulators with full FP32
  *  accumulator precision.
  *
- *  For 3D mesh alignment (RMSD, Kabsch, Umeyama), this replaces the two-step FP16→FP32 widen
- *  (`vcvt_f32_f16` + `vcvt_high_f32_f16`) followed by FP32 FMA (`vfmaq_f32`) in the covariance and
- *  norm-squared accumulation, fusing widen + multiply-accumulate. The low/high halves are kept as
- *  separate `float32x4_t` accumulators and combined only at reduction time. Sums of raw coordinates
- *  (for centroids) still use a conventional widen-then-add path since there is no widening-add
- *  intrinsic for FP16 inputs.
+ *  For 3D mesh alignment, as in RMSD, Kabsch and Umeyama, this fuses widening and multiply-add in
+ *  the covariance and norm-squared accumulation. It replaces a two-step FP16 → FP32 widen through
+ *  `vcvt_f32_f16 + vcvt_high_f32_f16` followed by an FP32 FMA through @c vfmaq_f32. The low and
+ *  high halves stay in separate @c float32x4_t accumulators, combined only at reduction time. Sums
+ *  of raw coordinates for centroids still take a conventional widen-then-add path, since there is
+ *  no widening-add intrinsic for FP16 inputs.
  */
 #ifndef NK_MESH_NEONFHM_H
 #define NK_MESH_NEONFHM_H
@@ -59,8 +59,7 @@ extern "C" {
  *  unavailable on MSVC for ARM64).
  *
  *  Input: 24 contiguous fp16 [x0,y0,z0, ..., x7,y7,z7]
- *  Output: x_f16x8, y_f16x8, z_f16x8 channel vectors (8 lanes each)
- */
+ *  Output: x_f16x8, y_f16x8, z_f16x8 channel vectors (8 lanes each) */
 NK_HELPER_INLINE void nk_deinterleave_f16x8_to_f16x8x3_neonfhm_(nk_f16_t const *ptr, //
                                                                 float16x8_t *x_out, float16x8_t *y_out,
                                                                 float16x8_t *z_out) {
@@ -79,10 +78,6 @@ NK_HELPER_INLINE void nk_partial_deinterleave_f16_to_f16x8x3_neonfhm_(nk_f16_t c
     nk_deinterleave_f16x8_to_f16x8x3_neonfhm_((nk_f16_t const *)buf, x_out, y_out, z_out);
 }
 
-/**
- *  @brief RMSD (Root Mean Square Deviation) using NEON FHM widening FMA.
- *  Matches the serial-RMSD contract: zero centroids, identity rotation, raw √(Σ‖a-b‖² / n).
- */
 NK_API_COMPTIME void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
     if (rotation)
@@ -145,10 +140,6 @@ NK_API_COMPTIME void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, n
     *result = nk_f32_sqrt_neon(sum_squared / (nk_f32_t)n);
 }
 
-/**
- *  @brief Kabsch algorithm for optimal rigid body superposition using NEON FHM widening FMA.
- *  Finds the rotation matrix R that minimizes RMSD between two point sets.
- */
 NK_API_COMPTIME void nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
                                            nk_f32_t *result) {
@@ -346,7 +337,7 @@ NK_API_COMPTIME void nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b,
     cross_covariance[7] = covariance_z_y - (nk_f32_t)n * centroid_a_z * centroid_b_y;
     cross_covariance[8] = covariance_z_z - (nk_f32_t)n * centroid_a_z * centroid_b_z;
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -407,7 +398,7 @@ NK_API_COMPTIME void nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b,
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f32_t centered_norm_squared_a = norm_squared_a -
                                        (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
                                                       centroid_a_z * centroid_a_z);
@@ -421,10 +412,6 @@ NK_API_COMPTIME void nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b,
     *result = nk_f32_sqrt_neon(sum_squared * inv_n);
 }
 
-/**
- *  @brief Umeyama algorithm (Kabsch with uniform scale) using NEON FHM widening FMA.
- *  Finds rotation R and scale c minimizing ‖c·R·a − b‖² after centroid alignment.
- */
 NK_API_COMPTIME void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
                                             nk_f32_t *result) {
@@ -621,7 +608,7 @@ NK_API_COMPTIME void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b
     cross_covariance[7] = covariance_z_y - (nk_f32_t)n * centroid_a_z * centroid_b_y;
     cross_covariance[8] = covariance_z_z - (nk_f32_t)n * centroid_a_z * centroid_b_z;
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -688,7 +675,7 @@ NK_API_COMPTIME void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f32_t sum_squared = scale_factor * scale_factor * centered_norm_squared_a + centered_norm_squared_b -
                            2.0f * scale_factor * trace_rotation_covariance;
     if (sum_squared < 0.0f) sum_squared = 0.0f;

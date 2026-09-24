@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/spatial/neonsdot.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date June 15, 2023
  *  @brief SIMD-accelerated spatial similarity measures for NEON SDOT.
  *
  *  @sa include/numkong/spatial.h

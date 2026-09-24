@@ -1,7 +1,7 @@
 /**
  *  @file c/dispatch.h
  *  @author Ash Vardanian
- *  @date February 3, 2026
+ *  @date March 13, 2024
  *  @brief Common definitions for dispatch files.
  */
 #ifndef NK_DISPATCH_H
@@ -9,10 +9,10 @@
 
 #define NK_RUNTIME_DISPATCH 1
 
-/*  `NK_NATIVE_F16` and `NK_NATIVE_BF16` are deliberately not pinned here. These are the only
- *  translation units that define `nk_f16_sqrt` and friends, so pinning them made the library
- *  disagree with the bindings that call it — `python/*.c` do not include this header and honoured
- *  the build system instead. `types.h` defaults both to 0 for everyone.
+/*  @c NK_NATIVE_F16 and @c NK_NATIVE_BF16 are deliberately not pinned here. These are the only
+ *  translation units that define @c nk_f16_sqrt and friends, so pinning them would make the library
+ *  disagree with the bindings that call it — `python/*.c` do not include this header and honour the
+ *  build system instead. `types.h` defaults both to 0 for everyone.
  *
  *  NK_TARGET_* defines are set by the build system:
  *  - Python: setup.py
@@ -507,7 +507,7 @@ typedef struct {
     int (*e2m3_order)(nk_e2m3_t, nk_e2m3_t);
 
     /**
-     *  @brief  The capabilities this table was built from, and the set `nk_find_kernel_punned`
+     *  @brief  The capabilities this table was built from, and the set @c nk_find_kernel_punned
      *      searches. Lives inside the table so the two cannot drift.
      *
      *  Zero until the table is built. A built table always retains @b nk_cap_serial_k, so zero

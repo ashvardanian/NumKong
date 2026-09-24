@@ -24,7 +24,7 @@
  *  @section dot_diamond_stateful Stateful Streaming Logic
  *
  *  Defines stateful init/update/finalize helpers for tiled GEMM via the dots/ macros:
- *  - nk_dot_through_f16_state_diamond_t_ shared by both E4M3 and E5M2 (FP16→VDPPHPS→FP32)
+ *  - nk_dot_through_f16_state_diamond_t_ shared by both E4M3 and E5M2 (FP16 → VDPPHPS → FP32)
  */
 #ifndef NK_DOT_DIAMOND_H
 #define NK_DOT_DIAMOND_H

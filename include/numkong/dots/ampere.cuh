@@ -39,11 +39,13 @@ enum {
     nk_cross_pack_warps_ampere_k = 8,
 };
 
-/** Folds one warp's fragments of a 32-byte sub-slab, A as 4 row tiles of 16 and B as 8 column tiles of 8. */
+/** Folds one warp's fragments of a 32-byte sub-slab, A as 4 row tiles of 16 and B as 8 column
+ *  tiles of 8. */
 typedef void (*nk_cross_multiply_ampere_t)(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
                                            nk_u32_t const b[8][2]);
 
-/** Splits one fragment register into two narrower-typed ones: 4 codes into F16 pairs, or 8 nibbles into i8 quads. */
+/** Splits one fragment register into two narrower-typed ones: 4 codes into F16 pairs, or 8 nibbles
+ *  into i8 quads. */
 typedef void (*nk_cross_widen_ampere_t)(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high);
 
 /** One 16 × 8 tensor-core step on registers of the type a widening produced. */
@@ -87,7 +89,8 @@ typedef enum {
     nk_cross_norm_u32_k, // wrapping U32 sums, the metric in F32
 } nk_cross_norm_t;
 
-/** Adds the squares of 16 staged bytes: exact integer codes into @p integer_sum, the others into @p real_sum. */
+/** Adds the squares of 16 staged bytes: exact integer codes into @p integer_sum, the others
+ *  into @p real_sum. */
 typedef void (*nk_cross_norm_update_ampere_t)(nk_u32_t const words[4], nk_u32_t *integer_sum, nk_f32_t *real_sum);
 
 /** Everything one launch shares, passed by value as the kernels' only argument. */
@@ -126,7 +129,8 @@ NK_HELPER_DEVICE_INLINE void nk_copy_b128_async_ampere_(nk_u32_t shared, void co
 
 NK_HELPER_DEVICE_INLINE void nk_commit_async_ampere_(void) { asm volatile("cp.async.commit_group;\n" ::); }
 
-/* Waits until at most @p pending committed groups are in flight, capped at 2, since PTX takes an immediate. */
+/*  Waits until at most @p pending committed groups are in flight, capped at 2, since PTX
+ *  takes an immediate. */
 NK_HELPER_DEVICE_INLINE void nk_wait_async_ampere_(unsigned pending) {
     switch (pending) {
     case 0: asm volatile("cp.async.wait_group 0;\n" ::); break;
@@ -205,8 +209,8 @@ NK_HELPER_DEVICE_INLINE void nk_mma_u4_ampere_(nk_fui32_t accumulator[4], nk_u32
 
 #else
 
-/*  Device passes older than 8.0 and the host pass get trapping bodies, so a cubin picked for the wrong device
- *  fails loudly rather than returning zeros. */
+/*  Device passes older than 8.0 and the host pass get trapping bodies, so a cubin picked for the
+ *  wrong device fails loudly rather than returning zeros. */
 NK_HELPER_DEVICE_INLINE nk_u32_t nk_shared_address_ampere_(void const *pointer) {
     __trap();
     return 0;
@@ -253,10 +257,9 @@ NK_HELPER_DEVICE_INLINE void nk_mma_u4_ampere_(nk_fui32_t accumulator[4], nk_u32
 
 #pragma endregion Instructions
 
+/*  Four codes become two pairs of F16 patterns scaled by a power of two: each first lands in the
+ *  high byte of a half, `code << 8`, and then keeps only its fields. */
 #pragma region Conversions
-
-/*  Four codes become two pairs of F16 patterns scaled by a power of two: each first lands in the high byte of a half,
- *  `code << 8`, and then keeps only its fields. */
 
 NK_HELPER_DEVICE_INLINE void nk_e5m2x4_to_f16x4_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
     *low = __byte_perm(codes, 0, 0x1404), *high = __byte_perm(codes, 0, 0x3424);
@@ -274,13 +277,15 @@ NK_HELPER_DEVICE_INLINE void nk_e3m2x4_to_f16x4_ampere_(nk_u32_t codes, nk_u32_t
     *high = (high_halves & 0x1F001F00u) | ((high_halves << 2) & 0x80008000u);
 }
 
-/** Negates the bytes of @p magnitudes under @p sign_mask, each magnitude below 128 so no borrow crosses a byte. */
+/** Negates the bytes of @p magnitudes under @p sign_mask, each magnitude below 128 so no borrow
+ *  crosses a byte. */
 NK_HELPER_DEVICE_INLINE nk_u32_t nk_i8x4_apply_signs_ampere_(nk_u32_t magnitudes, nk_u32_t sign_mask) {
     nk_u32_t const negated = (0x80808080u - magnitudes) ^ 0x80808080u;
     return (magnitudes & ~sign_mask) | (negated & sign_mask);
 }
 
-/** Four E2M3 magnitudes times 8 as u8: `e = 0` gives `m`, otherwise `(8 + m) << (e - 1)`, at most 60. */
+/** Four E2M3 magnitudes times 8 as u8: `e = 0` gives @c m, otherwise `(8 + m) << (e - 1)`,
+ *  at most 60. */
 NK_HELPER_DEVICE_INLINE nk_u32_t nk_e2m3x4_to_u8x4_magnitudes_ampere_(nk_u32_t codes) {
     nk_u32_t const exponent_low = (codes >> 3) & 0x01010101u, exponent_high = (codes >> 4) & 0x01010101u;
     nk_u32_t const significand = (codes & 0x07070707u) | ((exponent_low | exponent_high) << 3);
@@ -294,7 +299,8 @@ NK_HELPER_DEVICE_INLINE nk_u32_t nk_e2m3x4_to_i8x4_ampere_(nk_u32_t codes) {
                                        ((codes >> 5) & 0x01010101u) * 0xFFu);
 }
 
-/** Four E2M1 nibbles of @p codes times 2 as i8 through one table lookup; bit 3 of each nibble is its sign. */
+/** Four E2M1 nibbles of @p codes times 2 as i8 through one table lookup; bit 3 of each nibble
+ *  is its sign. */
 NK_HELPER_DEVICE_INLINE nk_u32_t nk_e2m1x4_to_i8x4_ampere_(nk_u32_t codes) {
     nk_u32_t const magnitudes = __byte_perm(0x03020100u, 0x0C080604u, codes & 0x7777u);
     nk_u32_t replicated;
@@ -309,7 +315,8 @@ NK_HELPER_DEVICE_INLINE void nk_e2m1x8_to_i8x8_ampere_(nk_u32_t codes, nk_u32_t 
     *low = nk_e2m1x4_to_i8x4_ampere_(codes), *high = nk_e2m1x4_to_i8x4_ampere_(codes >> 16);
 }
 
-/** Eight i4 nibbles become two registers of four sign-extended i8, each `(v ^ 8) - 8` without cross-byte borrows. */
+/** Eight i4 nibbles become two registers of four sign-extended i8, each `(v ^ 8) - 8`
+ *  without cross-byte borrows. */
 NK_HELPER_DEVICE_INLINE void nk_i4x8_to_i8x8_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
     nk_u32_t const low_nibbles = codes & 0x0F0F0F0Fu, high_nibbles = (codes >> 4) & 0x0F0F0F0Fu;
     *low = (((low_nibbles ^ 0x08080808u) | 0x80808080u) - 0x08080808u) ^ 0x80808080u;
@@ -365,8 +372,9 @@ NK_HELPER_DEVICE_INLINE nk_f64_t nk_dots_reduce_sumsq_f32_ampere_(unsigned char 
     return sum;
 }
 
-/*  Each returns one lane's share of a column's sum of squares, over indices `lane`, `lane + 32`, … below `depth`;
- *  the pack adds the 32 shares. Rows are read bytewise, since `b_stride` need not be element-aligned. */
+/*  Each returns one lane's share of a column's sum of squares, over indices @c lane, `lane + 32`,
+ *  … below @c depth; the pack adds the 32 shares. Rows are read bytewise, since @c b_stride need
+ *  not be element-aligned. */
 
 NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_ampere_(unsigned char const *row, nk_size_t depth,
                                                                    unsigned lane) {
@@ -433,7 +441,8 @@ NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_ampere_(unsigned char
     return sum;
 }
 
-/*  Nibble types hold element `2 × i` in the high nibble of byte `i` and element `2 × i + 1` in the low one. */
+/*  Nibble types hold element `2 × i` in the high nibble of byte @c i and element `2 × i + 1` in
+ *  the low one. */
 
 NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_ampere_(unsigned char const *row, nk_size_t depth,
                                                                    unsigned lane) {
@@ -484,8 +493,9 @@ NK_HELPER_DEVICE_INLINE nk_u32_t nk_dots_reduce_sumsq_u4_ampere_(unsigned char c
     return sum;
 }
 
-/*  Each adds the squares of one 16-byte chunk of a staged row, in any order, since a sum of squares has none. Float8
- *  and Float6 square their F16 widenings, and E2M3 and E2M1 their scaled i8 ones, so the tile scales them back. */
+/*  Each adds the squares of one 16-byte chunk of a staged row, in any order, since a sum of squares
+ *  has none. Float8 and Float6 square their F16 widenings, and E2M3 and E2M1 their scaled i8 ones,
+ *  so the tile scales them back. */
 
 NK_HELPER_DEVICE_INLINE void nk_f16x2_norm_update_ampere_(nk_u32_t halves, nk_f32_t *real_sum) {
     nk_f32_t const low = __half2float(__ushort_as_half((unsigned short)(halves & 0xFFFFu)));
@@ -594,7 +604,8 @@ NK_HELPER_DEVICE_INLINE void nk_u4_norm_update_ampere_(nk_u32_t const words[4], 
 
 #pragma region Metrics
 
-/** An integer dot product as F32, signed unless its norms are unsigned, the way the serial metrics read it. */
+/** An integer dot product as F32, signed unless its norms are unsigned, the way the serial
+ *  metrics read it. */
 NK_HELPER_DEVICE_INLINE nk_f32_t nk_cross_dot_to_f32_ampere_(nk_fui32_t sum, nk_cross_epilogue_t epilogue,
                                                              nk_cross_norm_t norm, nk_f32_t output_scale) {
     if (epilogue == nk_cross_epilogue_f32_k) return sum.f * output_scale;
@@ -608,7 +619,8 @@ NK_HELPER_DEVICE_INLINE nk_f32_t nk_cross_norm_to_f32_ampere_(nk_fui32_t bits, n
     return bits.f;
 }
 
-/** A thread's accumulated squared norm in the 32 bits the epilogue reads: integers as summed, floats in true units. */
+/** A thread's accumulated squared norm in the 32 bits the epilogue reads: integers as summed,
+ *  floats in true units. */
 NK_HELPER_DEVICE_INLINE nk_fui32_t nk_cross_norm_finalize_ampere_(nk_cross_norm_t norm, nk_u32_t integer_sum,
                                                                   nk_f32_t real_sum, nk_f32_t norm_scale) {
     nk_fui32_t result;
@@ -645,7 +657,8 @@ NK_HELPER_DEVICE_INLINE nk_f64_t nk_f64_euclidean_ampere_(nk_f64_t dot, nk_f64_t
 
 #pragma region Tile
 
-/** Issues one 64-byte depth slab of A and B into a pipeline stage, 16 bytes per copy, 8 copies per thread. */
+/** Issues one 64-byte depth slab of A and B into a pipeline stage, 16 bytes per copy, 8
+ *  copies per thread. */
 NK_HELPER_DEVICE_INLINE void nk_cross_stage_ampere_(unsigned char *a_stage, unsigned char *b_stage,
                                                     nk_cross_tile_arguments_ampere_t const *arguments,
                                                     nk_size_t first_row, nk_size_t first_column,
@@ -674,7 +687,8 @@ NK_HELPER_DEVICE_INLINE void nk_cross_stage_ampere_(unsigned char *a_stage, unsi
     }
 }
 
-/** Adds the squares of this thread's staged row, summing each slab apart before folding it into the running sum. */
+/** Adds the squares of this thread's staged row, summing each slab apart before folding it into
+ *  the running sum. */
 NK_HELPER_DEVICE_INLINE void nk_cross_stage_norm_ampere_(nk_cross_norm_update_ampere_t norm_update,
                                                          unsigned char const *stage, nk_u32_t *integer_sum,
                                                          nk_f32_t *real_sum) {
@@ -692,8 +706,10 @@ NK_HELPER_DEVICE_INLINE void nk_cross_stage_norm_ampere_(nk_cross_norm_update_am
 }
 
 /**
- *  @brief The whole GEMM of one 128 × 128 output tile, shared by every dtype, both CUDA backends and every metric.
- *  @param[in] multiply Folds one 32-byte sub-slab into the warp's accumulators; inlined, being a constant.
+ *  @brief The whole GEMM of one 128 × 128 output tile, shared by every dtype, both CUDA backends
+ *      and every metric.
+ *  @param[in] multiply Folds one 32-byte sub-slab into the warp's accumulators; inlined,
+ *      being a constant.
  *  @param[in] epilogue What the accumulators hold and how they reach the output.
  *  @param[in] output_scale Undoes the power of two a widening introduced, or 1.
  *  @param[in] triangle Whether tiles and outputs below the diagonal are skipped.
@@ -702,8 +718,9 @@ NK_HELPER_DEVICE_INLINE void nk_cross_stage_norm_ampere_(nk_cross_norm_update_am
  *  @param[in] norm_update Adds staged squares; unused for dots.
  *  @param[in] norm_scale Undoes the power of two the norm update's widening introduced, or 1.
  *
- *  Row norms, and for `symmetric` the column norms, accumulate from the staged slabs, one row per thread; `packed`
- *  reads its column norms from `b_norms`. After the loop both go to the idle ring for the epilogue.
+ *  Row norms, and for @c symmetric the column norms, accumulate from the staged slabs, one row per
+ *  thread; @c packed reads its column norms from @c b_norms. After the loop both go to the idle
+ *  ring for the epilogue.
  */
 NK_HELPER_DEVICE_INLINE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t multiply, nk_cross_epilogue_t epilogue,
                                                    nk_f32_t output_scale, nk_cross_triangle_t triangle,
@@ -848,7 +865,8 @@ NK_HELPER_DEVICE_INLINE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t mu
     }
 }
 
-/** Adds a × b into a running sum: one F64 FMA, or Dot2's TwoProd and TwoSum with both errors kept apart. */
+/** Adds a × b into a running sum: one F64 FMA, or Dot2's TwoProd and TwoSum with both
+ *  errors kept apart. */
 NK_HELPER_DEVICE_INLINE void nk_cross_fma_step_ampere_(nk_cross_accumulation_t accumulation, nk_f64_t a, nk_f64_t b,
                                                        nk_f64_t *sum, nk_f64_t *compensation) {
     if (accumulation == nk_cross_accumulation_f64_k) {
@@ -880,13 +898,15 @@ NK_HELPER_DEVICE_INLINE void nk_cross_fma_merge_lanes_ampere_(nk_cross_accumulat
 }
 
 /**
- *  @brief The F32 and F64 GEMM of one 64 × 64 output tile on the CUDA cores, each of 256 threads owning a 4 × 4 grid
- *      of outputs strided by 16, so shared-memory reads broadcast along one axis and sweep the banks along the other.
+ *  @brief The F32 and F64 GEMM of one 64 × 64 output tile on the CUDA cores, each of 256 threads
+ *      owning a 4 × 4 grid of outputs strided by 16, so shared-memory reads broadcast along one
+ *      axis and sweep the banks along the other.
  *
- *  Tensor-core F64 MMA never exposes a product's rounding error, which Dot2 needs, and outside the 8.0 and 9.0
- *  datacenter parts it runs no faster than these FMAs. The rounded intrinsics keep the compiler from contracting
- *  TwoSum's additions into FMAs, which would break its error terms. For a metric, each thread also squares the 4 A
- *  and, for `symmetric`, 4 B elements it loads, and the 16 threads sharing a row merge their sums after the loop.
+ *  Tensor-core F64 MMA never exposes a product's rounding error, which Dot2 needs, and outside the
+ *  8.0 and 9.0 datacenter parts it runs no faster than these FMAs. The rounded intrinsics keep the
+ *  compiler from contracting TwoSum's additions into FMAs, which would break its error terms. For a
+ *  metric, each thread also squares the 4 A and, for @c symmetric, 4 B elements it loads, and the
+ *  16 threads sharing a row merge their sums after the loop.
  */
 NK_HELPER_DEVICE_INLINE void nk_cross_fma_tile_ampere_(nk_cross_load_f64_ampere_t load,
                                                        nk_cross_accumulation_t accumulation,
@@ -1011,7 +1031,8 @@ NK_HELPER_DEVICE_INLINE void nk_cross_fma_tile_ampere_(nk_cross_load_f64_ampere_
     }
 }
 
-/** Mirrors `nk_define_cross_pack_size_`: depth padded to whole slabs, plus one more when the stride is a power of 2. */
+/** Mirrors @c nk_define_cross_pack_size_: depth padded to whole slabs, plus one more when the
+ *  stride is a power of 2. */
 NK_HELPER_INLINE nk_size_t nk_cross_padded_values_ampere_(nk_size_t depth, nk_size_t depth_simd_dimensions,
                                                           nk_size_t dimensions_per_value, nk_size_t value_bytes) {
     nk_size_t values = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions) / dimensions_per_value;
@@ -1021,8 +1042,9 @@ NK_HELPER_INLINE nk_size_t nk_cross_padded_values_ampere_(nk_size_t depth, nk_si
     return values;
 }
 
-/** Validates the contract and launches as many blocks of @p kernel as stay resident, each walking @p tile × @p tile
- *  output tiles with a stride of the grid. @p b_norms is the packed column norms a `packed` metric reads, or null. */
+/** Validates the contract and launches as many blocks of @p kernel as stay resident, each walking
+ *  @p tile × @p tile output tiles with a stride of the grid. @p b_norms is the packed column norms
+ *  a @c packed metric reads, or null. */
 NK_HELPER_INLINE cudaError_t nk_cross_launch_ampere_(void const *kernel, unsigned tile, unsigned threads, void const *a,
                                                      void const *b, void const *b_norms, void *c,
                                                      nk_size_t result_bytes, nk_size_t row_start, nk_size_t row_end,
@@ -1101,10 +1123,12 @@ NK_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, vo
 /**
  *  @brief Generates a pack into the serial layout on the device, one warp per column.
  *
- *  The header is written only when @p columns_begin is zero, and each packed column gets its row and its norm, so
- *  disjoint column ranges may be packed by separate calls, exactly as with `nk_define_cross_pack_`.
+ *  The header is written only when @p columns_begin is zero, and each packed column gets its row
+ *  and its norm, so disjoint column ranges may be packed by separate calls, exactly as with
+ *  @c nk_define_cross_pack_.
  *
- *  @param[in] load_fn Device map from an input byte to its packed byte, the identity unless the multiply wants a remap.
+ *  @param[in] load_fn Device map from an input byte to its packed byte, the identity unless the
+ *      multiply wants a remap.
  *  @param[in] compute_norm_fn Device share of a column's sum of squares for one lane of 32.
  *  @sa nk_define_cross_pack_ for the host original.
  */
@@ -1151,9 +1175,12 @@ NK_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, vo
     }
 
 /**
- *  @brief Generates C = A × Bᵀ over a B packed by `nk_define_cross_cuda_pack_`, one block per 128 × 128 tile.
- *  @param[in] multiply_fn Device fold of one 32-byte sub-slab of fragments, see `nk_cross_multiply_ampere_t`.
- *  @param[in] epilogue What the accumulators hold and how they reach the output, see `nk_cross_epilogue_t`.
+ *  @brief Generates C = A × Bᵀ over a B packed by @c nk_define_cross_cuda_pack_, one block per
+ *      128 × 128 tile.
+ *  @param[in] multiply_fn Device fold of one 32-byte sub-slab of fragments, see
+ *      @c nk_cross_multiply_ampere_t.
+ *  @param[in] epilogue What the accumulators hold and how they reach the output, see
+ *      @c nk_cross_epilogue_t.
  *  @param[in] output_scale Undoes the power of two a widening introduced, or 1.
  *  @sa nk_define_cross_packed_ for the host original.
  */
@@ -1183,8 +1210,8 @@ NK_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, vo
     }
 
 /**
- *  @brief Generates the Gram matrix C = A × Aᵀ over rows [row_start, row_start + row_count), writing the upper
- *      triangle with its diagonal and skipping tiles wholly below it.
+ *  @brief Generates the Gram matrix C = A × Aᵀ over rows [row_start, row_start + row_count),
+ *      writing the upper triangle with its diagonal and skipping tiles wholly below it.
  *  @sa nk_define_cross_symmetric_ for the host original.
  */
 #define nk_define_cross_cuda_symmetric_(api_name, input_type_name, isa_suffix, input_value_type, result_value_type,    \
@@ -1209,10 +1236,10 @@ NK_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, vo
     }
 
 /**
- *  @brief Generates C = A × Bᵀ over a packed B on the CUDA cores, one block per 64 × 64 tile, for the F32 and F64
- *      inputs whose serial backends accumulate in F64 or Dot2.
- *  @param[in] load_fn Device reader of one element as F64, see `nk_cross_load_f64_ampere_t`.
- *  @param[in] accumulation Plain F64 FMAs or Dot2, see `nk_cross_accumulation_t`.
+ *  @brief Generates C = A × Bᵀ over a packed B on the CUDA cores, one block per 64 × 64 tile, for
+ *      the F32 and F64 inputs whose serial backends accumulate in F64 or Dot2.
+ *  @param[in] load_fn Device reader of one element as F64, see @c nk_cross_load_f64_ampere_t.
+ *  @param[in] accumulation Plain F64 FMAs or Dot2, see @c nk_cross_accumulation_t.
  *  @sa nk_define_cross_packed_ for the host original.
  */
 #define nk_define_cross_cuda_fma_packed_(api_name, input_type_name, isa_suffix, input_value_type, packed_value_type,   \
@@ -1239,8 +1266,8 @@ NK_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, vo
     }
 
 /**
- *  @brief Generates the Gram matrix C = A × Aᵀ on the CUDA cores over rows [row_start, row_start + row_count),
- *      writing the upper triangle with its diagonal.
+ *  @brief Generates the Gram matrix C = A × Aᵀ on the CUDA cores over rows [row_start, row_start +
+ *      row_count), writing the upper triangle with its diagonal.
  *  @sa nk_define_cross_symmetric_ for the host original.
  */
 #define nk_define_cross_cuda_fma_symmetric_(api_name, input_type_name, isa_suffix, input_value_type,                   \
@@ -1286,7 +1313,8 @@ NK_HELPER_DEVICE_INLINE void nk_dots_f16_multiply_ampere_(nk_fui32_t accumulator
             nk_mma_f16_ampere_(accumulators[row_tile][column_tile], a[row_tile], b[column_tile][0], b[column_tile][1]);
 }
 
-/** Widens 1-byte fragments into F16: 4 codes per register become the depth of two m16n8k16 steps. */
+/** Widens 1-byte fragments into F16: 4 codes per register become the depth of
+ *  two m16n8k16 steps. */
 NK_HELPER_DEVICE_INLINE void nk_dots_widened_f16_multiply_ampere_(nk_cross_widen_ampere_t widen,
                                                                   nk_fui32_t accumulators[4][8][4],
                                                                   nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
@@ -1329,7 +1357,8 @@ NK_HELPER_DEVICE_INLINE void nk_dots_e3m2_multiply_ampere_(nk_fui32_t accumulato
     nk_dots_widened_f16_multiply_ampere_(nk_e3m2x4_to_f16x4_ampere_, accumulators, a, b);
 }
 
-/** E2M3 against the scaled i8 its pack produced: only A converts, one integer step per 16 × 8 output. */
+/** E2M3 against the scaled i8 its pack produced: only A converts, one integer step per
+ *  16 × 8 output. */
 NK_HELPER_DEVICE_INLINE void nk_dots_e2m3_packed_multiply_ampere_(nk_fui32_t accumulators[4][8][4],
                                                                   nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
 #pragma unroll
@@ -1343,7 +1372,7 @@ NK_HELPER_DEVICE_INLINE void nk_dots_e2m3_packed_multiply_ampere_(nk_fui32_t acc
     }
 }
 
-/** E2M3 on both sides, for `symmetric`, where B is the raw codes again. */
+/** E2M3 on both sides, for @c symmetric, where B is the raw codes again. */
 NK_HELPER_DEVICE_INLINE void nk_dots_e2m3_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
                                                            nk_u32_t const b[8][2]) {
     nk_u32_t b_scaled[8][2];
@@ -1355,7 +1384,8 @@ NK_HELPER_DEVICE_INLINE void nk_dots_e2m3_multiply_ampere_(nk_fui32_t accumulato
     nk_dots_e2m3_packed_multiply_ampere_(accumulators, a, b_scaled);
 }
 
-/** Widens nibble fragments into 1-byte ones: 8 nibbles per register become the depth of two m16n8k32 steps. */
+/** Widens nibble fragments into 1-byte ones: 8 nibbles per register become the depth of
+ *  two m16n8k32 steps. */
 NK_HELPER_DEVICE_INLINE void nk_dots_widened_i8_multiply_ampere_(nk_cross_widen_ampere_t widen,
                                                                  nk_cross_mma_ampere_t mma,
                                                                  nk_fui32_t accumulators[4][8][4],
@@ -1405,7 +1435,8 @@ NK_HELPER_DEVICE_INLINE void nk_dots_u8_multiply_ampere_(nk_fui32_t accumulators
             nk_mma_u8_ampere_(accumulators[row_tile][column_tile], a[row_tile], b[column_tile][0], b[column_tile][1]);
 }
 
-/*  From 9.0 on `ptxas` lowers 4-bit MMA to a software routine, so there the nibbles widen to 8-bit steps instead. */
+/*  From 9.0 on @c ptxas lowers 4-bit MMA to a software routine, so there the nibbles widen to
+ *  8-bit steps instead. */
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
 
 NK_HELPER_DEVICE_INLINE void nk_dots_i4_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],

@@ -70,22 +70,40 @@ extern "C" {
 
 #pragma region I8 Header
 
-/**
- *  i8 packed buffer header for AMX coarse+refine MaxSim (64 bytes).
- *  Stores both A-side (row-major) and B-side (quad-interleaved) i8 tile formats,
- *  original f32/f16 vectors for full-precision refinement, and per-vector inverse norms.
- */
+/** i8 packed buffer header for AMX coarse+refine MaxSim (64 bytes). Stores both A-side (row-major)
+ *  and B-side (quad-interleaved) i8 tile formats, original f32/f16 vectors for full-precision
+ *  refinement, and per-vector inverse norms. */
 typedef struct {
-    nk_u32_t column_tile_count;     ///< ceil(n / 16) — number of vector-tile groups
-    nk_u32_t depth_tile_count;      ///< ceil(depth / 64) — TDPBSSD processes 64 i8 per tile
-    nk_u32_t columns;               ///< actual vector count
-    nk_u32_t depth;                 ///< actual depth (dimensions per vector)
-    nk_u32_t a_side_offset;         ///< byte offset from buffer start to 64B-aligned A-side tiles
-    nk_u32_t b_side_offset;         ///< byte offset from buffer start to i8 B-side tiles
-    nk_u32_t originals_offset;      ///< byte offset from buffer start to original f32/f16 vectors
-    nk_u32_t original_stride_bytes; ///< 64B-aligned stride for originals
-    nk_u32_t norms_offset;          ///< byte offset from buffer start to f32 inverse norms
-    nk_u32_t reserved[7];           ///< padding to 64 bytes
+
+    /** Number of vector-tile groups, ⌈n / 16⌉. */
+    nk_u32_t column_tile_count;
+
+    /** Number of depth tiles, ⌈depth / 64⌉, as TDPBSSD processes 64 i8 per tile. */
+    nk_u32_t depth_tile_count;
+
+    /** Actual vector count. */
+    nk_u32_t columns;
+
+    /** Actual depth (dimensions per vector). */
+    nk_u32_t depth;
+
+    /** Byte offset from buffer start to 64B-aligned A-side tiles. */
+    nk_u32_t a_side_offset;
+
+    /** Byte offset from buffer start to i8 B-side tiles. */
+    nk_u32_t b_side_offset;
+
+    /** Byte offset from buffer start to original f32/f16 vectors. */
+    nk_u32_t originals_offset;
+
+    /** 64B-aligned stride for originals. */
+    nk_u32_t original_stride_bytes;
+
+    /** Byte offset from buffer start to f32 inverse norms. */
+    nk_u32_t norms_offset;
+
+    /** Padding to 64 bytes. */
+    nk_u32_t reserved[7];
 } nk_maxsim_sapphireamx_i8_header_t;
 
 NK_STATIC_ASSERT(sizeof(nk_maxsim_sapphireamx_i8_header_t) == 64, nk_maxsim_sapphireamx_i8_header_must_be_64_bytes);
@@ -620,20 +638,34 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
 
 #pragma region BF16 Floats
 
-/**
- *  BF16 packed buffer header for AMX fused MaxSim (64 bytes).
- *  Stores both A-side (row-major) and B-side (pair-interleaved) tile formats
- *  plus per-vector inverse norms for angular distance finalization.
- */
+/** BF16 packed buffer header for AMX fused MaxSim (64 bytes). Stores both A-side (row-major) and
+ *  B-side (pair-interleaved) tile formats, plus per-vector inverse norms for finalizing the angular
+ *  distance of every query-document pair. */
 typedef struct {
-    nk_u32_t column_tile_count; ///< ceil(n / 16) — number of row-tile groups
-    nk_u32_t depth_tile_count;  ///< ceil(depth / 32) — BF16 TDPBF16PS depth granularity
-    nk_u32_t columns;           ///< actual vector count
-    nk_u32_t depth;             ///< actual depth (dimensions per vector)
-    nk_u32_t a_side_offset;     ///< byte offset from buffer start to 64B-aligned A-side tiles
-    nk_u32_t b_side_offset;     ///< byte offset from buffer start to B-side tiles
-    nk_u32_t norms_offset;      ///< byte offset from buffer start to inverse norms (f32)
-    nk_u32_t reserved[9];       ///< padding to 64 bytes
+
+    /** Number of row-tile groups, ⌈n / 16⌉. */
+    nk_u32_t column_tile_count;
+
+    /** Number of depth tiles, ⌈depth / 32⌉, the depth granularity of BF16 TDPBF16PS. */
+    nk_u32_t depth_tile_count;
+
+    /** Actual vector count. */
+    nk_u32_t columns;
+
+    /** Actual depth (dimensions per vector). */
+    nk_u32_t depth;
+
+    /** Byte offset from buffer start to 64B-aligned A-side tiles. */
+    nk_u32_t a_side_offset;
+
+    /** Byte offset from buffer start to B-side tiles. */
+    nk_u32_t b_side_offset;
+
+    /** Byte offset from buffer start to inverse norms (f32). */
+    nk_u32_t norms_offset;
+
+    /** Padding to 64 bytes. */
+    nk_u32_t reserved[9];
 } nk_maxsim_sapphireamx_bf16_header_t;
 
 NK_STATIC_ASSERT(sizeof(nk_maxsim_sapphireamx_bf16_header_t) == 64, nk_maxsim_sapphireamx_bf16_header_must_be_64_bytes);
@@ -726,15 +758,6 @@ NK_API_COMPTIME void nk_maxsim_pack_bf16_sapphireamx( //
     }
 }
 
-/**
- *  BF16 fused AMX compute: TDPBF16PS tile multiply + column extraction + angular finalization.
- *
- *  For each group of 16 queries, processes all document tiles via AMX TDPBF16PS.
- *  Fast path uses 4 accumulators (TMM4-7) for 4-way document tile pipelining.
- *  Column extraction from the 16×16 f32 accumulator tiles uses AVX-512 gather
- *  to build per-document dot product vectors, then element-wise max tracks the
- *  running best document per query.
- */
 NK_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {

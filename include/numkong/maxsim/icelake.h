@@ -124,7 +124,7 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_icelake( //
 
 #pragma region Coarse Argmax
 
-/** @brief Reduces 4 ZMM i32x16 accumulators to a single __m128i with 4 horizontal sums. */
+/** Reduces 4 ZMM i32x16 accumulators to a single __m128i with 4 horizontal sums. */
 NK_HELPER_INLINE __m128i nk_maxsim_reduce_i32x16x4_icelake_(    //
     __m512i accumulator_a_i32x16, __m512i accumulator_b_i32x16, //
     __m512i accumulator_c_i32x16, __m512i accumulator_d_i32x16) {
@@ -155,10 +155,8 @@ NK_HELPER_INLINE __m128i nk_maxsim_reduce_i32x16x4_icelake_(    //
                          _mm_add_epi32(sum_lane_2_i32x4, sum_lane_3_i32x4));
 }
 
-/**
- *  @brief Factored coarse i8 argmax kernel for Ice Lake / Genoa.
- *  Uses AVX-512 VNNI VPDPBUSD with XOR-0x80 bias and 128*sum_quantized correction.
- */
+/** Factored coarse i8 argmax kernel for Ice Lake / Genoa. Uses AVX-512 VNNI VPDPBUSD with XOR-0x80
+ *  bias and 128*sum_quantized correction. */
 NK_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_(   //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8,  //
     nk_maxsim_vector_metadata_t const *document_metadata, //
@@ -310,7 +308,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_(   //
             running_argmax_i32x4 = _mm_blendv_epi8(running_argmax_i32x4, document_index_i32x4, comparison_mask_i32x4);
         }
 
-        // Document tail: 4Q×1D
+        // Document tail: 4Q × 1D
         for (nk_size_t document_index = document_block_start_index; document_index < document_count; document_index++) {
             nk_i8_t const *document_i8_row = document_i8 + document_index * depth_i8_padded;
 
@@ -371,7 +369,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_(   //
         best_document_indices[query_block_start_index + 3] = (nk_u32_t)_mm_extract_epi32(running_argmax_i32x4, 3);
     }
 
-    // Query tail: 1Q×1D
+    // Query tail: 1Q × 1D
     for (nk_size_t query_index = query_block_start_index; query_index < query_count; query_index++) {
         nk_i8_t const *query_i8_row = query_i8 + query_index * depth_i8_padded;
         nk_i32_t running_max_i32 = NK_I32_MIN;

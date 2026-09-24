@@ -32,7 +32,7 @@ NK_HELPER_INLINE nk_u64_t nk_reduce_sadd_u64x2_neon_(uint64x2_t v_u64x2) {
     return vgetq_lane_u64(vqaddq_u64(v_u64x2, swapped_u64x2), 0);
 }
 
-/** @brief Saturating square of each i64 lane → u64. If |a| >= 2^32, a² overflows u64 → saturate. */
+/** Saturating square of each i64 lane → u64. If |a| >= 2^32, a² overflows u64 → saturate. */
 NK_HELPER_INLINE uint64x2_t nk_i64_smul_sq_i64x2_neon_(int64x2_t value_i64x2) {
     uint64x2_t abs_u64x2 = vreinterpretq_u64_s64(vabsq_s64(value_i64x2));
     uint32x2_t low_halves_u32x2 = vmovn_u64(abs_u64x2);
@@ -42,7 +42,7 @@ NK_HELPER_INLINE uint64x2_t nk_i64_smul_sq_i64x2_neon_(int64x2_t value_i64x2) {
     return vbslq_u64(is_small_u64x2, low_sq_u64x2, vdupq_n_u64(NK_U64_MAX));
 }
 
-/** @brief Saturating square of each u64 lane → u64. If a >= 2^32, a² overflows u64 → saturate. */
+/** Saturating square of each u64 lane → u64. If a >= 2^32, a² overflows u64 → saturate. */
 NK_HELPER_INLINE uint64x2_t nk_u64_smul_sq_u64x2_neon_(uint64x2_t value_u64x2) {
     uint32x2_t low_halves_u32x2 = vmovn_u64(value_u64x2);
     uint64x2_t high_u64x2 = vshrq_n_u64(value_u64x2, 32);
@@ -2437,8 +2437,8 @@ NK_API_COMPTIME void nk_reduce_minmax_u64_neon(                        //
                                     max_index_ptr);
 }
 
-/** @brief Convert 16 raw FP6 (e2m3/e3m2) sign-magnitude bytes to unsigned-comparable bytes.
- *  FP6: sign bit 5, 5-bit magnitude. Positive maps to [0x20..0x3F], negative to [0x00..0x1F]. */
+/** Convert 16 raw FP6 (e2m3/e3m2) sign-magnitude bytes to unsigned-comparable bytes. FP6: sign bit
+ *  5, 5-bit magnitude. Positive maps to [0x20..0x3F], negative to [0x00..0x1F]. */
 NK_HELPER_INLINE uint8x16_t nk_fp6x16_to_comparable_neon_(uint8x16_t raw_u8x16) {
     uint8x16_t magnitude_u8x16 = vandq_u8(raw_u8x16, vdupq_n_u8(0x1F));
     uint8x16_t sign_mask_u8x16 = vdupq_n_u8(0x20);
@@ -2448,13 +2448,13 @@ NK_HELPER_INLINE uint8x16_t nk_fp6x16_to_comparable_neon_(uint8x16_t raw_u8x16) 
     return vbslq_u8(is_negative_u8x16, negative_u8x16, positive_u8x16);
 }
 
-/** @brief Convert a single comparable byte back to raw FP6 sign-magnitude byte. */
+/** Convert a single comparable byte back to raw FP6 sign-magnitude byte. */
 NK_HELPER_INLINE nk_u8_t nk_comparable_to_fp6_(nk_u8_t comparable) {
     if (comparable >= 0x20) return comparable ^ 0x20; // was positive
     else return (0x1F - comparable) | 0x20;           // was negative
 }
 
-/** @brief Convert 16 raw FP8 (e4m3/e5m2) sign-magnitude bytes to unsigned-comparable bytes. */
+/** Convert 16 raw FP8 (e4m3/e5m2) sign-magnitude bytes to unsigned-comparable bytes. */
 NK_HELPER_INLINE uint8x16_t nk_fp8x16_to_comparable_neon_(uint8x16_t raw_u8x16) {
     uint8x16_t sign_mask_u8x16 = vdupq_n_u8(0x80);
     uint8x16_t is_negative_u8x16 = vtstq_u8(raw_u8x16, sign_mask_u8x16);
@@ -2463,7 +2463,7 @@ NK_HELPER_INLINE uint8x16_t nk_fp8x16_to_comparable_neon_(uint8x16_t raw_u8x16) 
     return vbslq_u8(is_negative_u8x16, flip_negative_u8x16, flip_positive_u8x16);
 }
 
-/** @brief Convert a single comparable byte back to raw FP8 sign-magnitude byte. */
+/** Convert a single comparable byte back to raw FP8 sign-magnitude byte. */
 NK_HELPER_INLINE nk_u8_t nk_comparable_to_fp8_(nk_u8_t comparable) {
     if (comparable >= 0x80) return comparable ^ 0x80; // was positive
     else return ~comparable;                          // was negative
@@ -2472,7 +2472,7 @@ NK_HELPER_INLINE nk_u8_t nk_comparable_to_fp8_(nk_u8_t comparable) {
 NK_HELPER_INLINE void nk_reduce_moments_e2m3_neon_contiguous_( //
     nk_e2m3_t const *data_ptr, nk_size_t count,                //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    // VTBL LUT: maps 6-bit magnitude (0..31) to value×16 (unsigned), fits in u8
+    // VTBL LUT: maps 6-bit magnitude (0..31) to value × 16 (unsigned), fits in u8
     uint8x16x2_t lut_e2m3_x16_u8x16x2;
     // table[0]: values for magnitudes 0..15
     // 0x0E0C0A0806040200 → bytes [0..7]  = 0,2,4,6,8,10,12,14
@@ -2814,7 +2814,7 @@ NK_API_COMPTIME void nk_reduce_minmax_e2m3_neon(                        //
 NK_HELPER_INLINE void nk_reduce_moments_e3m2_neon_contiguous_( //
     nk_e3m2_t const *data_ptr, nk_size_t count,                //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    // VTBL LUT: maps 6-bit magnitude (0..31) to (value×16) low byte; max value×16 = 448 needs i16
+    // VTBL LUT: maps 6-bit magnitude (0..31) to the low byte of value × 16, whose max 448 needs i16
     uint8x16x2_t lut_e3m2_low_u8x16x2;
     // table[0]: low bytes for magnitudes 0..15
     // 0x0706050403020100 → bytes [0..7]  = 0,1,2,3,4,5,6,7

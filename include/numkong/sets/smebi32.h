@@ -134,7 +134,7 @@ NK_API_COMPTIME void nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t row_c
     nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;
 
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
-    // handles one u32 (32 bits) across all row×column pairs simultaneously.
+    // handles one u32 (32 bits) across all row × column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
     nk_size_t const row_tile_count = nk_size_divide_round_up_(row_count, tile_dim);
     nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth_words, depth_tile_size);
@@ -207,12 +207,13 @@ NK_API_COMPTIME void nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t row_c
 }
 
 /**
- *  SME Hamming kernel using ZA transpose for unpacked A.
- *  ZA0.S = staging (A rows loaded horizontally, read vertically for BMOPA).
- *  ZA1-3.S = BMOPA accumulation (3 B column tiles in fast path).
+ *  @brief SME Hamming kernel using ZA transpose for unpacked A.
  *
- *  Each ZA0.S batch covers 16 depth u32 steps (one full depth tile).
- *  BMOPA expansion=1 for u32: each u32 contributes 32 bits via XNOR+POPCNT.
+ *  ZA0.S stages A rows, loaded horizontally and read vertically for BMOPA, while ZA1-3.S hold the
+ *  BMOPA accumulators for the 3 B column tiles of the fast path.
+ *
+ *  Each ZA0.S batch covers 16 depth u32 steps, one full depth tile. BMOPA has an expansion of 1 for
+ *  u32, so each u32 contributes 32 bits via XNOR and POPCNT.
  */
 __arm_new("za") static void nk_hammings_packed_u1_smebi32_streaming_( //
     nk_u1x8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
@@ -226,7 +227,7 @@ __arm_new("za") static void nk_hammings_packed_u1_smebi32_streaming_( //
     nk_size_t const depth_tile_size = svcntw(); // 16 u32 per depth tile
     nk_size_t const tile_elements = tile_dim * depth_tile_size;
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
-    // handles one u32 (32 bits) across all row×column pairs simultaneously.
+    // handles one u32 (32 bits) across all row × column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
     nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;
 
@@ -364,12 +365,9 @@ NK_API_COMPTIME void nk_hammings_packed_u1_smebi32( //
     nk_sme_stop_streaming_();
 }
 
-/**
- *  Symmetric Hamming using ZA0 time-sharing + 3-tile fast path.
- *  ZA0.S = staging (A rows loaded horizontally, read vertically for BMOPA).
- *  ZA1-3.S = BMOPA accumulators (3 B column tiles in fast path).
- *  Mirrors the unpacked kernel nk_hammings_packed_u1_smebi32_streaming_ pattern.
- */
+/** Symmetric Hamming using ZA0 time-sharing and a 3-tile fast path. ZA0.S stages A rows, loaded
+ *  horizontally and read vertically for BMOPA, while ZA1-3.S hold the BMOPA accumulators for 3 B
+ *  column tiles, mirroring the unpacked @c nk_hammings_packed_u1_smebi32_streaming_ kernel. */
 __arm_new("za") static void nk_hammings_symmetric_u1_smebi32_streaming_( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
     nk_u32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
@@ -377,7 +375,7 @@ __arm_new("za") static void nk_hammings_symmetric_u1_smebi32_streaming_( //
     nk_size_t const tile_dim = svcntw();        // 16 for 512-bit SVL
     nk_size_t const depth_tile_size = svcntw(); // 16 u32 per depth tile
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
-    // handles one u32 (32 bits) across all row×column pairs simultaneously.
+    // handles one u32 (32 bits) across all row × column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
     nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;
     nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth_words, depth_tile_size);
@@ -590,30 +588,36 @@ NK_API_COMPTIME void nk_hammings_symmetric_u1_smebi32( //
 #pragma endregion Hamming Distance
 
 /*
- *  Jaccard distance via BMOPA matching counts + algebraic normalization.
+ *  Jaccard distance via BMOPA matching counts and algebraic normalization, where BMOPA gives the
+ *  matching count and the rest follows:
  *
- *  BMOPA gives: matching = popcount(XNOR(a,b))
- *  Then:
- *    hamming      = depth_bits - matching
- *    intersection = (norm_a + norm_b - hamming) / 2  =  (norm_a + norm_b - depth_bits + matching) / 2
- *    union        = (norm_a + norm_b + hamming) / 2  =  sum_norms - intersection
- *    jaccard      = 1 - intersection / union          (1.0 when union == 0)
+ *  @verbatim
+ *  matching     = popcount(XNOR(a,b))
+ *  hamming      = depth_bits - matching
+ *  intersection = (norm_a + norm_b - hamming) / 2 = (norm_a + norm_b - depth_bits + matching) / 2
+ *  union        = (norm_a + norm_b + hamming) / 2 = sum_norms - intersection
+ *  jaccard      = 1 - intersection / union, or 1.0 when union == 0
+ *  @endverbatim
  *
- *  Inner BMOPA loop is identical to Hamming; only the extraction phase differs.
- *  Packed format shares the Hamming tile layout for B operand, plus per-row norms.
+ *  The inner BMOPA loop is identical to Hamming, and only the extraction phase differs. The packed
+ *  format shares the Hamming tile layout for the B operand, plus per-row norms.
  */
 
 #pragma region Jaccard Distance
 
 /**
- *  SME Jaccard kernel using BMOPA for matching-bit counts.
- *  Mirrors nk_hammings_packed_u1_smebi32_streaming_ exactly in structure,
- *  but derives intersection/union algebraically from the matching counts:
- *    matching      = popcount(XNOR(a,b))          (from BMOPA)
- *    hamming       = depth_bits - matching
- *    intersection  = (norm_a + norm_b - hamming) / 2
- *    union         = (norm_a + norm_b + hamming) / 2
- *    jaccard       = 1 - intersection / union      (1.0 when union == 0)
+ *  @brief SME Jaccard kernel using BMOPA for matching-bit counts.
+ *
+ *  Mirrors @c nk_hammings_packed_u1_smebi32_streaming_ exactly in structure, but derives the
+ *  intersection and union algebraically from the matching counts BMOPA produces:
+ *
+ *  @verbatim
+ *  matching     = popcount(XNOR(a,b))
+ *  hamming      = depth_bits - matching
+ *  intersection = (norm_a + norm_b - hamming) / 2
+ *  union        = (norm_a + norm_b + hamming) / 2
+ *  jaccard      = 1 - intersection / union, or 1.0 when union == 0
+ *  @endverbatim
  */
 __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
     nk_u1x8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
@@ -627,7 +631,7 @@ __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
     nk_size_t const depth_tile_size = svcntw(); // 16 u32 per depth tile
     nk_size_t const tile_elements = tile_dim * depth_tile_size;
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
-    // handles one u32 (32 bits) across all row×column pairs simultaneously.
+    // handles one u32 (32 bits) across all row × column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
     nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;
 
@@ -839,11 +843,9 @@ NK_API_COMPTIME void nk_jaccards_packed_u1_smebi32( //
     nk_sme_stop_streaming_();
 }
 
-/**
- *  Symmetric Jaccard kernel using ZA0 time-sharing + 3-tile fast path.
- *  Fills upper triangle only (column_tile >= row_tile); caller sees result[i][j] for j >= i.
- *  Norms computed on-the-fly using streaming SVE popcount.
- */
+/** Symmetric Jaccard kernel using ZA0 time-sharing and a 3-tile fast path. Fills the upper triangle
+ *  only, where column_tile ≥ row_tile, so the caller sees result[i][j] for j ≥ i. Norms are
+ *  computed on the fly using streaming SVE popcount. */
 __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
@@ -851,7 +853,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
     nk_size_t const tile_dim = svcntw();        // 16 for 512-bit SVL
     nk_size_t const depth_tile_size = svcntw(); // 16 u32 per depth tile
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
-    // handles one u32 (32 bits) across all row×column pairs simultaneously.
+    // handles one u32 (32 bits) across all row × column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
     nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth_words, depth_tile_size);
     nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;

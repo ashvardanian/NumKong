@@ -7,7 +7,7 @@ Matches C++ suite: test/sparse.cpp.
 
 File: test/sparse.py
 Author: Ash Vardanian
-Date: February 27, 2026
+Date: September 1, 2024
 """
 
 import atexit

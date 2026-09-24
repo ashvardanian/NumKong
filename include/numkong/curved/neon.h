@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/curved/neon.h
  *  @author Ash Vardanian
- *  @date January 14, 2026
+ *  @date August 29, 2024
  *  @brief SIMD-accelerated curved-space similarity for NEON.
  *
  *  @sa include/numkong/curved.h
@@ -163,7 +163,7 @@ NK_API_COMPTIME void nk_bilinear_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t c
             inner_sum_real_f64x2 = vfmaq_f64(inner_sum_real_f64x2, c_real_f64x2, b_real_f64x2);
             inner_sum_real_f64x2 = vfmsq_f64(inner_sum_real_f64x2, c_imag_f64x2, b_imag_f64x2);
 
-            // Imaginary part: c_real×b_imag + c_imag×b_real
+            // Imaginary part: c_real × b_imag + c_imag × b_real
             inner_sum_imag_f64x2 = vfmaq_f64(inner_sum_imag_f64x2, c_real_f64x2, b_imag_f64x2);
             inner_sum_imag_f64x2 = vfmaq_f64(inner_sum_imag_f64x2, c_imag_f64x2, b_real_f64x2);
         }

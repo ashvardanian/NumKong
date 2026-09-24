@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dots/haswell.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date September 14, 2024
  *  @brief SIMD-accelerated Batched Dot Products for Haswell.
  *
  *  @sa include/numkong/dots.h
@@ -41,7 +41,8 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-/* F32 GEMM: depth_simd_dimensions=4 (4 f32s = 16 bytes for f32->f64 upcast accumulation) */
+/*  F32 GEMM: depth_simd_dimensions = 4, as 4 f32s span 16 bytes for f32 → f64 upcast
+ *  accumulation. */
 nk_define_cross_pack_size_(dots, f32, haswell, f32, f32, /*norm_value_type=*/f64, /*depth_simd_dimensions=*/4,
                            /*dimensions_per_value=*/1)
 nk_define_cross_packed_shape_(dots, f32, haswell)
@@ -80,7 +81,8 @@ nk_define_cross_packed_(dots, f64, haswell, f64, f64, f64, nk_b256_vec_t, nk_dot
                         nk_dot_f64x4_finalize_haswell, nk_store_b256_haswell_, nk_partial_store_b64x4_haswell_,
                         /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1)
 
-/* F16 GEMM: depth_simd_dimensions=8 (8 f16s = 16 bytes = 128-bit input) → upcasted to 8×f32 (256-bit) */
+/*  F16 GEMM: depth_simd_dimensions = 8, as 8 f16s span a 16-byte, 128-bit input, upcast to 8 f32s
+ *  in 256 bits. */
 nk_define_cross_pack_size_(dots, f16, haswell, f16, f32, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/8,
                            /*dimensions_per_value=*/1)
 nk_define_cross_packed_shape_(dots, f16, haswell)
@@ -102,7 +104,8 @@ nk_define_cross_packed_(dots, f16, haswell, f16, f32, f32, nk_b256_vec_t, nk_dot
                         nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 
-/* BF16 GEMM: depth_simd_dimensions=8 (8 bf16s = 16 bytes = 128-bit input) → upcasted to 8×f32 (256-bit) */
+/*  BF16 GEMM: depth_simd_dimensions = 8, as 8 bf16s span a 16-byte, 128-bit input, upcast to 8 f32s
+ *  in 256 bits. */
 /* BF16 GEMM: depth_simd_dimensions=16, raw bf16 storage, unpack(zero, bf16) → f32 inline */
 nk_define_cross_pack_size_(dots, bf16, haswell, bf16, bf16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/16,
                            /*dimensions_per_value=*/1)
@@ -165,7 +168,8 @@ nk_define_cross_packed_(dots, e5m2, haswell, e5m2, f32, f32, nk_b256_vec_t, nk_d
                         nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 
-/* E2M3 GEMM: integer LUT path, depth_simd_dimensions=32 (32 e2m3s = 32 bytes = AVX2 register width) */
+/*  E2M3 GEMM via the integer LUT path: depth_simd_dimensions = 32, as 32 e2m3s span the 32 bytes of
+ *  an AVX2 register. */
 nk_define_cross_pack_size_(dots, e2m3, haswell, e2m3, e2m3, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/1)
 nk_define_cross_packed_shape_(dots, e2m3, haswell)
@@ -185,7 +189,8 @@ nk_define_cross_packed_(dots, e2m3, haswell, e2m3, e2m3, f32, nk_b256_vec_t, nk_
                         nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 
-/* E2M1 GEMM: integer LUT path, depth_simd_dimensions=64 (32 bytes = 64 nibbles = AVX2 register width) */
+/*  E2M1 GEMM via the integer LUT path: depth_simd_dimensions = 64, as 64 nibbles span the 32 bytes
+ *  of an AVX2 register. */
 nk_define_cross_pack_size_(dots, e2m1, haswell, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/64,
                            /*dimensions_per_value=*/2)
 nk_define_cross_packed_shape_(dots, e2m1, haswell)
@@ -204,7 +209,8 @@ nk_define_cross_packed_(dots, e2m1, haswell, e2m1x2, e2m1x2, f32, nk_b256_vec_t,
                         nk_dot_e2m1x64_update_haswell, nk_dot_e2m1x64_finalize_haswell, nk_store_b128_haswell_,
                         nk_partial_store_b32x4_haswell_, /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
 
-/* E3M2 GEMM: integer LUT path, depth_simd_dimensions=32 (32 e3m2s = 32 bytes = AVX2 register width) */
+/*  E3M2 GEMM via the integer LUT path: depth_simd_dimensions = 32, as 32 e3m2s span the 32 bytes of
+ *  an AVX2 register. */
 nk_define_cross_pack_size_(dots, e3m2, haswell, e3m2, e3m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/1)
 nk_define_cross_packed_shape_(dots, e3m2, haswell)
@@ -264,8 +270,8 @@ nk_define_cross_packed_(dots, u8, haswell, u8, u8, u32, nk_b128_vec_t, nk_dot_u8
                         nk_dot_u8x16_finalize_haswell, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
-/* I4 GEMM: depth_simd_dimensions=32 — compensated (A+B sums precomputed)
- * Note: dimensions_per_value=2 because 2 nibbles (i4 values) are packed per byte */
+/*  I4 GEMM: depth_simd_dimensions=32 — compensated (A+B sums precomputed)
+ *  Note: dimensions_per_value=2 because 2 nibbles (i4 values) are packed per byte */
 nk_define_cross_packed_shape_(dots, i4, haswell)
 nk_define_cross_compensated_pack_size_(dots, i4, haswell, i4x2, i4x2,
                                        /*sum_value_type=*/i32, /*norm_value_type=*/u32,
@@ -294,8 +300,8 @@ nk_define_cross_compensated_packed_(dots, i4, haswell, i4x2, i4x2, i32,
                                     nk_partial_load_b32x4_haswell_, nk_dots_reduce_sum_i4_,
                                     /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 
-/* U4 GEMM: depth_simd_dimensions=32 (32 nibbles = 16 bytes = 128-bit input)
- * Note: dimensions_per_value=2 because 2 nibbles (u4 values) are packed per byte */
+/*  U4 GEMM: depth_simd_dimensions=32 (32 nibbles = 16 bytes = 128-bit input)
+ *  Note: dimensions_per_value=2 because 2 nibbles (u4 values) are packed per byte */
 nk_define_cross_pack_size_(dots, u4, haswell, u4x2, u4x2, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/2)
 nk_define_cross_packed_shape_(dots, u4, haswell)

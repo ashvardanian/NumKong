@@ -7,7 +7,7 @@ Matches C++ suite: test/set.cpp.
 
 File: test/set.py
 Author: Ash Vardanian
-Date: February 27, 2026
+Date: February 22, 2024
 """
 
 import array

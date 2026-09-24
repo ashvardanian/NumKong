@@ -21,7 +21,8 @@
 extern "C" {
 #endif
 
-/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at
+ *  the Armv8-A floor. */
 #if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC push_options
 #pragma GCC target("arch=armv8-a")
@@ -767,13 +768,17 @@ NK_API_COMPTIME void nk_reduce_minmax_u1_serial(                    //
     *max_value_ptr = max_value, *max_index_ptr = max_idx;
 }
 
-/*  RMSNorm: `y = x · rsqrt(mean(x²) + eps) · γ`, with `γ = NULL` meaning unit scale.
- *  Grouped: each row (byte stride `x_row_stride`/`y_row_stride`) holds `groups` independent
- *  `cols`-vectors, each normalized separately — `groups = 1, γ` learned covers pre/post/final/head
- *  norm, while `groups = heads, cols = head_dim, γ = NULL` is the in-place unit QK-norm over the
- *  strided sections of a fused `[tokens, 3·hidden]` QKV buffer. Pass 1 reuses the strided moments
- *  reducer above; pass 2 rescales with the same widening converters.  `input_scale` folds an E4M3
- *  descale onto the load (1.0 for BF16/F32), matching the scale-free GEMM contract. */
+/**
+ *  @brief RMSNorm: y = x × rsqrt(mean(x²) + eps) × γ, where a NULL γ means unit scale.
+ *
+ *  Grouped: each row, with byte strides @c x_row_stride and @c y_row_stride, holds @c groups
+ *  independent vectors of @c cols elements, each normalized separately. One group with a learned γ
+ *  covers the pre, post, final and head norms, while groups = heads, cols = head_dim and a NULL γ
+ *  give the in-place unit QK-norm over the strided sections of a fused @b [tokens,3×hidden] QKV
+ *  buffer. Pass 1 reuses the strided moments reducer above, and pass 2 rescales with the same
+ *  widening converters. @c input_scale folds an E4M3 descale onto the load, and is 1.0 for BF16 and
+ *  F32, matching the scale-free GEMM contract.
+ */
 #define nk_define_reduce_rmsnorm_(input_type, accumulator_type, load_and_convert, convert_and_store)                   \
     NK_API_COMPTIME void nk_reduce_rmsnorm_##input_type##_serial(                                                      \
         nk_##input_type##_t const *x, nk_f32_t const *gamma, nk_##input_type##_t *y, nk_size_t rows, nk_size_t groups, \

@@ -6,8 +6,8 @@
  *
  *  Contains:
  *
- *  - Sine and Cosine approximations: fast for `f32` vs accurate for `f64`
- *  - Tangent and the 2-argument arctangent: fast for `f32` vs accurate for `f64`
+ *  - Sine and Cosine approximations: fast for @c f32 vs accurate for @c f64
+ *  - Tangent and the 2-argument arctangent: fast for @c f32 vs accurate for @c f64
  *
  *  For dtypes:
  *
@@ -124,9 +124,7 @@
 extern "C" {
 #endif
 
-/**
- *  @brief RoPE rotation-coefficient type for the cos/sin angle grids.
- */
+/** RoPE rotation-coefficient type for the cos/sin angle grids. */
 typedef nk_f32_t nk_rope_angle_t;
 
 /**
@@ -244,26 +242,31 @@ NK_API_COMPTIME void nk_trig_cos_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f
 NK_API_COMPTIME void nk_trig_atan_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
 #endif // NK_TARGET_NEON
 
-/*  SIMD-powered backends for AVX2 CPUs of Haswell generation and newer, using 32-bit arithmetic over 256-bit words.
- *  First demonstrated in 2011, at least one Haswell-based processor was still being sold in 2022 — the Pentium G3420.
- *  Practically all modern x86 CPUs support AVX2, FMA, and F16C, making it a perfect baseline for SIMD algorithms.
- *  On other hand, there is no need to implement AVX2 versions of `f32` and `f64` functions, as those are
- *  properly vectorized by recent compilers.
- */
+/*  SIMD-powered backends for AVX2 CPUs of Haswell generation and newer, using 32-bit arithmetic
+ *  over 256-bit words. First demonstrated in 2011, at least one Haswell-based processor was
+ *  still being sold in 2022 — the Pentium G3420. Practically all modern x86 CPUs support AVX2,
+ *  FMA, and F16C, making it a perfect baseline for SIMD algorithms. On other hand, there is no
+ *  need to implement AVX2 versions of @c f32 and @c f64 functions, as those are properly
+ *  vectorized by recent compilers. */
 
 /**
- *  @brief NeoX split-half rotary position embedding (RoPE): rotates channel pairs by per-token angles.
+ *  @brief NeoX split-half rotary position embedding (RoPE): rotates channel pairs
+ *      by per-token angles.
  *
- *  Rotates each pair `(i, i + half_dim)` of every head: `y[i] = x[i]·cos - x[i+half_dim]·sin`,
- *  `y[i+half_dim] = x[i]·sin + x[i+half_dim]·cos`, over the whole `[rows, heads · 2·half_dim]` tensor.
+ *  Rotates the channel pair i and i + @p half_dim of every head in every row:
  *
- *  @param[in] x Input token matrix of shape rows by (heads * 2 * half_dim).
+ *  @verbatim
+ *  y[i]            = x[i] · cos - x[i + half_dim] · sin
+ *  y[i + half_dim] = x[i] · sin + x[i + half_dim] · cos
+ *  @endverbatim
+ *
+ *  @param[in] x Input token matrix of shape rows by (heads * 2 * @p half_dim).
  *  @param[out] y Output matrix, same shape and dtype as x; may alias x for in-place rotation.
- *  @param[in] cos Per-token cosine angle grid of shape rows by half_dim, shared across heads.
- *  @param[in] sin Per-token sine angle grid of shape rows by half_dim, shared across heads.
+ *  @param[in] cos Per-token cosine angle grid of shape rows by @p half_dim, shared across heads.
+ *  @param[in] sin Per-token sine angle grid of shape rows by @p half_dim, shared across heads.
  *  @param[in] rows The number of token rows.
  *  @param[in] heads The number of heads per token.
- *  @param[in] half_dim Half the head dimension; channel i pairs with channel i + half_dim.
+ *  @param[in] half_dim Half the head dimension; channel i pairs with channel i + @p half_dim.
  *  @param[in] x_row_stride Row (token) stride of x in bytes.
  *  @param[in] y_row_stride Row (token) stride of y in bytes.
  *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32).
@@ -336,9 +339,8 @@ NK_API_COMPTIME void nk_trig_cos_f32_haswell(nk_f32_t const *ins, nk_size_t n, n
 NK_API_COMPTIME void nk_trig_atan_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
 #endif // NK_TARGET_HASWELL
 
-/*  SIMD-powered backends for various generations of AVX512 CPUs.
- *  Skylake is handy, as it supports masked loads and other operations, avoiding the need for the tail loop.
- */
+/*  SIMD-powered backends for various generations of AVX512 CPUs. Skylake is handy, as it supports
+ *  masked loads and other operations, avoiding the need for the tail loop. */
 #if NK_TARGET_SKYLAKE
 /** @copydoc nk_trig_sin_f64 */
 NK_API_COMPTIME void nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);

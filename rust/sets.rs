@@ -4,7 +4,7 @@
 //!
 //! - [`Hammings`] / [`Jaccards`]: Low-level per-scalar batched metric traits — FFI-backed
 //! - [`HammingsPackedOps`] / [`JaccardsPackedOps`]: `C = metric(A, Bᵀ)` for any [`TensorRef`]
-//! - `HammingsPackedParallelOps` / `JaccardsPackedParallelOps`: the same over a thread pool
+//! - [`HammingsPackedParallelOps`] / [`JaccardsPackedParallelOps`]: the same over a thread pool
 //! - [`SymmetricHammingsOps`] / [`SymmetricJaccardsOps`]: self-metric upper triangle
 //!
 //! The right-hand operand is a [`DotsPackedMatrix`] from the [`crate::dots`] module.

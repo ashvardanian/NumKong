@@ -307,8 +307,9 @@ NK_API_COMPTIME void nk_angular_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_s
 #pragma endregion I8 and U8 Integers
 #pragma region Spatial From Dot Helpers
 
-/** @brief Angular from_dot: computes 1 − dot / (√query_sumsq × √target_sumsq) for 4 pairs in f32.
- *  Separate square roots avoid overflowing the product of two finite-but-large norms. */
+/** Angular from_dot: computes 1 − dot / (√q × √t) for 4 pairs in f32, where q is @p query_sumsq and
+ *  t each target's sum of squares. Separate square roots avoid overflowing the product of two
+ *  finite-but-large norms. */
 NK_HELPER_INLINE void nk_angular_through_f32_from_dot_v128_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                             nk_b128_vec_t const *target_sumsqs_vec,
                                                             nk_b128_vec_t *result_vec) {
@@ -321,7 +322,8 @@ NK_HELPER_INLINE void nk_angular_through_f32_from_dot_v128_(nk_b128_vec_t const 
     result_vec->v128 = wasm_f32x4_max(angular_f32x4, wasm_f32x4_splat(0.0f));
 }
 
-/** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs in f32. */
+/** Euclidean from_dot: computes √(q + t − 2 × dot) for 4 pairs in f32, where q is @p query_sumsq
+ *  and t each target's sum of squares. */
 NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_v128_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                               nk_b128_vec_t const *target_sumsqs_vec,
                                                               nk_b128_vec_t *result_vec) {
@@ -334,7 +336,7 @@ NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_v128_(nk_b128_vec_t cons
     result_vec->v128 = wasm_f32x4_sqrt(dist_sq_f32x4);
 }
 
-/** @brief Angular from_dot for i32 accumulators: cast to f32, separate-sqrt normalization. 4 pairs. */
+/** Angular from_dot for i32 accumulators: cast to f32, separate-sqrt normalization. 4 pairs. */
 NK_HELPER_INLINE void nk_angular_through_i32_from_dot_v128_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
                                                             nk_b128_vec_t const *target_sumsqs_vec,
                                                             nk_b128_vec_t *result_vec) {
@@ -347,7 +349,7 @@ NK_HELPER_INLINE void nk_angular_through_i32_from_dot_v128_(nk_b128_vec_t const 
     result_vec->v128 = wasm_f32x4_max(angular_f32x4, wasm_f32x4_splat(0.0f));
 }
 
-/** @brief Euclidean from_dot for i32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
+/** Euclidean from_dot for i32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
 NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_v128_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
                                                               nk_b128_vec_t const *target_sumsqs_vec,
                                                               nk_b128_vec_t *result_vec) {
@@ -360,7 +362,7 @@ NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_v128_(nk_b128_vec_t cons
     result_vec->v128 = wasm_f32x4_sqrt(dist_sq_f32x4);
 }
 
-/** @brief Angular from_dot for u32 accumulators: cast to f32, separate-sqrt normalization. 4 pairs. */
+/** Angular from_dot for u32 accumulators: cast to f32, separate-sqrt normalization. 4 pairs. */
 NK_HELPER_INLINE void nk_angular_through_u32_from_dot_v128_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                             nk_b128_vec_t const *target_sumsqs_vec,
                                                             nk_b128_vec_t *result_vec) {
@@ -373,7 +375,7 @@ NK_HELPER_INLINE void nk_angular_through_u32_from_dot_v128_(nk_b128_vec_t const 
     result_vec->v128 = wasm_f32x4_max(angular_f32x4, wasm_f32x4_splat(0.0f));
 }
 
-/** @brief Euclidean from_dot for u32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
+/** Euclidean from_dot for u32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
 NK_HELPER_INLINE void nk_euclidean_through_u32_from_dot_v128_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                               nk_b128_vec_t const *target_sumsqs_vec,
                                                               nk_b128_vec_t *result_vec) {

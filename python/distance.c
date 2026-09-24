@@ -1,7 +1,7 @@
 /**
  *  @file python/distance.c
  *  @author Ash Vardanian
- *  @date February 19, 2026
+ *  @date September 1, 2024
  *  @brief Distance metric implementations for NumKong Python bindings.
  *
  *  Extracted from numkong.c. Contains all distance-metric API functions, pointer-access wrappers,

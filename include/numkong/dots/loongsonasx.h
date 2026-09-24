@@ -23,7 +23,8 @@
 extern "C" {
 #endif
 
-/* F32 GEMM: depth_simd_dimensions=8 (8 f32s = 256-bit input → f64 accumulation via low/high widening) */
+/*  F32 GEMM: depth_simd_dimensions = 8, as 8 f32s span a 256-bit input, accumulated in f64 through
+ *  low and high widening. */
 nk_define_cross_pack_size_(dots, f32, loongsonasx, f32, f32, /*norm_value_type=*/f64, /*depth_simd_dimensions=*/8,
                            /*dimensions_per_value=*/1)
 nk_define_cross_packed_shape_(dots, f32, loongsonasx)
@@ -150,8 +151,9 @@ nk_define_cross_packed_(dots, bf16, loongsonasx, bf16, bf16, f32, nk_b256_vec_t,
                         nk_store_b128_loongsonasx_, nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
-/* F16 GEMM: symmetric uses 256-bit raw f16 tiles (depth_simd_dimensions=16) with hardware xvfcvtl/xvfcvth,
- *           packed pre-converts to f32 during packing (depth_simd_dimensions=8) since conversion is expensive. */
+/*  F16 GEMM: symmetric uses 256-bit raw f16 tiles, depth_simd_dimensions = 16, with hardware
+ *  xvfcvtl and xvfcvth, while packed pre-converts to f32 during packing, depth_simd_dimensions = 8,
+ *  since conversion is expensive. */
 nk_define_cross_pack_size_(dots, f16, loongsonasx, f16, f32, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/8,
                            /*dimensions_per_value=*/1)
 nk_define_cross_packed_shape_(dots, f16, loongsonasx)

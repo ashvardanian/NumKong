@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/scalar/serial.h
  *  @author Ash Vardanian
- *  @date March 1, 2026
+ *  @date January 3, 2026
  *  @brief Software-emulated scalar math helpers for SIMD-free CPUs.
  *
  *  @sa include/numkong/scalar.h
@@ -19,7 +19,8 @@
 extern "C" {
 #endif
 
-/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at
+ *  the Armv8-A floor. */
 #if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC push_options
 #pragma GCC target("arch=armv8-a")
@@ -83,12 +84,6 @@ NK_API_COMPTIME nk_f16_t nk_f16_rsqrt_serial(nk_f16_t x) {
     return result;
 }
 
-/**
- *  @brief Software FMA (Fused Multiply-Add) emulation for f64.
- *  Computes (multiplicand * multiplier + addend) with improved precision
- *  using Dekker's error-free multiplication and Knuth's TwoSum.
- *  @sa std::fma, @sa Rust f64::mul_add
- */
 NK_API_COMPTIME nk_f64_t nk_f64_fma_serial(nk_f64_t multiplicand, nk_f64_t multiplier, nk_f64_t addend) {
     nk_f64_t product = multiplicand * multiplier;
     // Dekker splitting: break each operand into non-overlapping high and low halves
@@ -111,12 +106,6 @@ NK_API_COMPTIME nk_f64_t nk_f64_fma_serial(nk_f64_t multiplicand, nk_f64_t multi
     return result + (product_error + addition_error);
 }
 
-/**
- *  @brief Software FMA (Fused Multiply-Add) emulation for f32.
- *  Computes (multiplicand * multiplier + addend) with improved precision
- *  using Dekker's error-free multiplication and Knuth's TwoSum.
- *  @sa std::fma, @sa Rust f32::mul_add
- */
 NK_API_COMPTIME nk_f32_t nk_f32_fma_serial(nk_f32_t multiplicand, nk_f32_t multiplier, nk_f32_t addend) {
     nk_f32_t product = multiplicand * multiplier;
     // Dekker splitting: break each operand into non-overlapping high and low halves
@@ -145,11 +134,9 @@ NK_API_COMPTIME nk_f32_t nk_f32_fma_serial(nk_f32_t multiplicand, nk_f32_t multi
 #pragma GCC pop_options
 #endif
 
-/**
- *  @brief Scalar Dot2 accumulator: sum += a * b with error compensation.
- *  Uses TwoProd (via FMA) and TwoSum error-free transformations.
- *  @see Ogita, T., Rump, S.M., Oishi, S. (2005). "Accurate Sum and Dot Product"
- */
+/** Scalar Dot2 accumulator: sum += a × b with error compensation, using the TwoProd, via FMA, and
+ *  TwoSum error-free transformations from "Accurate Sum and Dot Product" by T. Ogita, S. M. Rump
+ *  and S. Oishi, 2005. */
 NK_HELPER_INLINE void nk_f64_dot2_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t a,
                                    nk_f64_t b) NK_STREAMING_COMPATIBLE_ {
     nk_f64_t product = a * b;
@@ -364,13 +351,11 @@ NK_API_COMPTIME int nk_f16_order_serial(nk_f16_t a, nk_f16_t b) {
 #pragma GCC pop_options
 #endif
 
-/**
- *  @brief Scalar `2^x` via a degree-4 minimax polynomial; no libm.
- *  The lower clamp is −125 (not the F32 limit) so the smallest result stays a normal float:
- *  a denormal operand in a downstream multiply costs a ~150-cycle microcode assist on most cores.
- *  Shared reference for every fused kernel needing a sigmoid / SiLU / softmax weight; the SIMD
- *  backends match this polynomial to keep serial and vector paths in agreement.
- */
+/** Scalar `2^x` via a degree-4 minimax polynomial; no libm. The lower clamp is −125 (not the F32
+ *  limit) so the smallest result stays a normal float: a denormal operand in a downstream multiply
+ *  costs a ~150-cycle microcode assist on most cores. Shared reference for every fused kernel
+ *  needing a sigmoid / SiLU / softmax weight; the SIMD backends match this polynomial to keep
+ *  serial and vector paths in agreement. */
 NK_HELPER_INLINE nk_f32_t nk_f32_exp2_serial_(nk_f32_t x) {
     x = x > 127.0f ? 127.0f : x;
     x = x < -125.0f ? -125.0f : x;
@@ -386,12 +371,12 @@ NK_HELPER_INLINE nk_f32_t nk_f32_exp2_serial_(nk_f32_t x) {
     return poly * power.f;
 }
 
-/** @brief Scalar logistic sigmoid `1 / (1 + e^-x)`, built on the shared fast exponent. */
+/** Scalar logistic sigmoid `1 / (1 + e^-x)`, built on the shared fast exponent. */
 NK_HELPER_INLINE nk_f32_t nk_f32_sigmoid_serial_(nk_f32_t x) {
     return 1.0f / (1.0f + nk_f32_exp2_serial_(-x * NK_F32_LOG2E_));
 }
 
-/** @brief Scalar SiLU / swish `x · sigmoid(x)`, built on the shared fast exponent. */
+/** Scalar SiLU, or swish, x × sigmoid(x), built on the shared fast exponent. */
 NK_HELPER_INLINE nk_f32_t nk_f32_silu_serial_(nk_f32_t x) { return x * nk_f32_sigmoid_serial_(x); }
 
 #if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_

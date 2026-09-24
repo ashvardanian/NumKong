@@ -44,13 +44,15 @@ extern "C" {
 #endif
 
 enum {
+
     /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
     nk_attention_panel_genoa_k_ = 512,
+
     /** Widest head this backend handles in registers; larger heads route to the serial tier. */
     nk_attention_max_depth_genoa_k_ = 256,
 };
 
-/** @brief Narrows or converts `count` elements to BF16 into `destination`, zero-filling to `padded`. */
+/** Narrows or converts @p count elements to BF16 into @p destination, zero-filling to @p padded. */
 typedef void (*nk_attention_narrow_genoa_t_)(void const *source, nk_bf16_t *destination, nk_size_t count,
                                              nk_size_t padded);
 
@@ -194,10 +196,8 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_genoa(                              
                              value_stride_bytes, key_value_packed, task_begin, task_end);
 }
 
-/**
- *  @brief Shared attention core over BF16 planes: per query row, panel-flash with an exact
- *         online correction; scores use `vdpbf16ps` with four KV rows in flight.
- */
+/** Shared attention core over BF16 planes: per query row, panel-flash with an exact online
+ *  correction; scores use @c vdpbf16ps with four KV rows in flight. */
 NK_HELPER_INLINE void nk_attention_packed_genoa_(                                                               //
     void const *queries, nk_size_t element_bytes, nk_attention_narrow_genoa_t_ narrow,                          //
     void const *key_value_packed, nk_f32_t *output,                                                             //
@@ -215,7 +215,7 @@ NK_HELPER_INLINE void nk_attention_packed_genoa_(                               
     nk_size_t const output_stride_floats = output_stride_bytes / sizeof(nk_f32_t);
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 32);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_genoa_k_;
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);

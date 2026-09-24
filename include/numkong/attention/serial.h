@@ -8,8 +8,8 @@
  *
  *  Width-agnostic reference implementation of the ragged scaled-dot-product attention family: any
  *  `depth ≥ 1`, any segment lengths, GQA/MQA, the same base-2 softmax formulation and the same
- *  `(task_start, task_count)` windows over the flat @b [segment,head] grid as the SIMD backends, in
- *  both the bidirectional and the causal mode.
+ *  [task_start, task_start + task_count) windows over the flat @b [segment,head] grid as the SIMD
+ *  backends, in both the bidirectional and the causal mode.
  *
  *  @section attention_serial_roles Roles in the Family
  *
@@ -55,33 +55,46 @@
 extern "C" {
 #endif
 
-/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at
+ *  the Armv8-A floor. */
 #if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC push_options
 #pragma GCC target("arch=armv8-a")
 #endif
 
-/**
- *  @brief Packed ragged KV cache header (64 bytes), shared by all attention backends.
- *  Followed by the segment offsets table; the payload beyond it is backend-specific.
- */
+/** Packed ragged KV cache header (64 bytes), shared by all attention backends. Followed by the
+ *  segment offsets table; the payload beyond it is backend-specific. */
 typedef struct {
-    nk_u32_t heads;        /**< Number of K/V heads (≤ query heads for GQA) */
-    nk_u32_t depth;        /**< Head dimension the buffer was packed for */
-    nk_u32_t segments;     /**< Number of independent segments packed */
-    nk_u32_t reserved[13]; /**< Zeroed; pads the header to 64 bytes */
+
+    /** Number of K/V heads, ≤ query heads for GQA. */
+    nk_u32_t heads;
+
+    /** Head dimension the buffer was packed for. */
+    nk_u32_t depth;
+
+    /** Number of independent segments packed. */
+    nk_u32_t segments;
+
+    /** Zeroed; pads the header to 64 bytes. */
+    nk_u32_t reserved[13];
 } nk_attention_packed_header_t;
 
-/** @brief Offsets table size in bytes: u64 payload offsets [count+1] + u32 lengths [count], 64-byte padded. */
+/** Offsets table size in bytes, 64-byte padded: @p segment_count + 1 u64 payload offsets, then
+ *  @p segment_count u32 lengths. */
 NK_HELPER_INLINE nk_size_t nk_attention_pack_directory_size_(nk_size_t segment_count) {
     return nk_size_round_up_to_multiple_((segment_count + 1) * sizeof(nk_u64_t) + segment_count * sizeof(nk_u32_t), 64);
 }
 
 /**
  *  @brief Writes the family-shared packed-KV header and segment offsets table.
+ *
  *  Only the window covering task 0 writes — later windows require the offsets table present
- *  (the race-free parallel-pack contract). Per-segment payload bytes follow
- *  `2 · key_value_head_count · round_up(len, position_multiple) · unit_bytes`, which covers every backend.
+ *  (the race-free parallel-pack contract). Per-segment payload bytes follow a formula that
+ *  covers every backend:
+ *
+ *  @verbatim
+ *  2 · key_value_head_count · round_up(length, position_multiple) · unit_bytes
+ *  @endverbatim
  */
 NK_HELPER_INLINE void nk_attention_pack_directory_(void *key_value_packed, nk_size_t key_value_head_count,
                                                    nk_size_t depth, nk_u32_t const *segment_lengths,
@@ -127,10 +140,9 @@ NK_HELPER_INLINE void nk_attention_packed_shape_(void const *key_value_packed, n
     *segments = header->segments;
 }
 
-/**
- *  @brief Visible keys `[*key_begin, *key_end)` of the query at `position` in a segment of `length` keys.
- *  `window` counts the visible keys including the query itself; a negative `position` or a zero `window` is empty.
- */
+/** Writes the half-open range of keys visible to the query at @p position, in a segment of
+ *  @p length keys, into @p key_begin and @p key_end. @p window counts the visible keys including
+ *  the query itself; a negative @p position or a zero @p window is empty. */
 NK_HELPER_INLINE void nk_attention_row_range_(nk_i64_t position, nk_size_t window, nk_size_t length,
                                               nk_size_t *key_begin, nk_size_t *key_end) {
     if (position < 0 || window == 0) {
@@ -143,13 +155,14 @@ NK_HELPER_INLINE void nk_attention_row_range_(nk_i64_t position, nk_size_t windo
     if (*key_begin > *key_end) *key_begin = *key_end;
 }
 
-/** @brief Exclusive end of the `(task_start, task_count)` window, clipped to `total_tasks`. */
+/** Exclusive end of the window of @p task_count tasks from @p task_start, clipped to
+ *  @p total_tasks. */
 NK_HELPER_INLINE nk_size_t nk_attention_task_end_(nk_size_t task_start, nk_size_t task_count, nk_size_t total_tasks) {
     if (task_start >= total_tasks) return task_start;
     return task_count < total_tasks - task_start ? task_start + task_count : total_tasks;
 }
 
-/** @brief Per-element widening converter, `maxsim/serial.h`-style dtype abstraction. */
+/** Per-element widening converter, `maxsim/serial.h`-style dtype abstraction. */
 typedef nk_f32_t (*nk_attention_load_f32_serial_t_)(void const *element);
 
 NK_HELPER_INLINE nk_f32_t nk_attention_load_bf16_serial_(void const *element) {
@@ -208,11 +221,9 @@ NK_API_COMPTIME void nk_attention_packed_shape_e4m3_serial(void const *key_value
 #pragma GCC pop_options
 #endif
 
-/**
- *  @brief Shared packing core: widen K and V rows to F32 planes `[key_value_head][position][channel]`.
- *  The header and offsets table are deterministic functions of the arguments, so concurrent
- *  packing tasks may rewrite them with identical bytes.
- */
+/** Shared packing core: widen K and V rows to F32 planes `[key_value_head][position][channel]`. The
+ *  header and offsets table are deterministic functions of the arguments, so concurrent packing
+ *  tasks may rewrite them with identical bytes. */
 NK_HELPER_INLINE void nk_attention_pack_serial_(                                                               //
     void const *keys, void const *values, nk_size_t element_bytes,                                             //
     nk_attention_load_f32_serial_t_ load_f32,                                                                  //
@@ -290,12 +301,12 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_serial(                             
 /**
  *  @brief Shared attention core: exact two-sweep softmax attention per (segment, head) task.
  *
- *  Per query row: sweep 1 finds the row maximum of `score · scale₂`; sweep 2 recomputes the
- *  scores, accumulating `2^(score·scale₂ − max₂)`-weighted V rows straight into the output
- *  row (used as the accumulator — no scratch, so `depth` and `position_count` are unbounded),
- *  then normalizes by the accumulated sum. Recomputing scores costs ~1.5× the arithmetic
- *  of a buffered implementation and buys exact width-agnosticism with zero allocations.
- *  Row `r` reads only the keys `nk_attention_row_range_(r + diagonal_offset, window, …)` admits.
+ *  Per query row: sweep 1 finds the row maximum of score · scale₂; sweep 2 recomputes the scores,
+ *  accumulating V rows weighted by 2^(score · scale₂ − max₂) straight into the output row, used as
+ *  the accumulator, then normalizes by the accumulated sum. With no scratch, @p depth and
+ *  @c position_count are unbounded. Recomputing scores costs ~1.5× the arithmetic of a buffered
+ *  implementation and buys exact width-agnosticism with zero allocations. Row @c r reads only the
+ *  keys that @c nk_attention_row_range_ admits for position r + @p diagonal_offset and @p window.
  */
 NK_HELPER_INLINE void nk_attention_serial_(                                                                     //
     void const *queries, nk_size_t element_bytes, nk_attention_load_f32_serial_t_ load_f32,                     //
@@ -313,7 +324,7 @@ NK_HELPER_INLINE void nk_attention_serial_(                                     
                                nk_attention_pack_directory_size_(segment_count);
     nk_size_t const output_stride_floats = output_stride_bytes / sizeof(nk_f32_t);
     nk_size_t const head_group_size = head_count / key_value_head_count;
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
     for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
@@ -362,7 +373,8 @@ NK_HELPER_INLINE void nk_attention_serial_(                                     
     }
 }
 
-/** @brief I8 attention core: exact I32 scores, U8-quantized weights, same row ranges as `nk_attention_serial_`. */
+/** I8 attention core: exact I32 scores, U8-quantized weights, same row ranges as
+ *  @c nk_attention_serial_. */
 NK_HELPER_INLINE void nk_attention_packed_i8_serial_(                                                           //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
@@ -378,7 +390,7 @@ NK_HELPER_INLINE void nk_attention_packed_i8_serial_(                           
                                nk_attention_pack_directory_size_(segment_count);
     nk_size_t const output_stride_floats = output_stride_bytes / sizeof(nk_f32_t);
     nk_size_t const head_group_size = head_count / key_value_head_count;
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
     for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {

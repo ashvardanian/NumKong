@@ -31,8 +31,8 @@ namespace ashvardanian::numkong {
  *  @return Sum of per-query minimum angular distances.
  *
  *  @tparam in_type_ Input element type: @c bf16_t, @c f32_t or @c f16_t.
- *  @tparam result_type_ Result type, defaults to `in_type_::maxsim_result_t`.
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
+ *  @tparam result_type_ Result type, defaults to @c in_type_::maxsim_result_t.
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::maxsim_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
@@ -81,7 +81,7 @@ NK_API_COMPTIME void maxsim_packed(void const *query_packed, void const *documen
  *  @param[out] result Pointer to store the sum of per-query minimum angular distances.
  *
  *  @tparam in_type_ Input element type: @c bf16_t, @c f32_t or @c f16_t.
- *  @tparam result_type_ Result type, defaults to `in_type_::angular_result_t`.
+ *  @tparam result_type_ Result type, defaults to @c in_type_::angular_result_t.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>

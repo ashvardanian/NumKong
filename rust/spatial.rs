@@ -716,11 +716,10 @@ mod tests {
 
     // endregion
 
-    // region: Denormal (subnormal) inputs
+    // region: Subnormal inputs
     //
-    // Verify that distance kernels produce correct results when fed IEEE-754
-    // denormal (subnormal) values. This guards against FTZ/DAZ silently
-    // flushing tiny values to zero.
+    // Verify that distance kernels produce correct results when fed IEEE-754 subnormal values,
+    // also called denormals. This guards against FTZ/DAZ silently flushing tiny values to zero.
 
     #[test]
     fn sqeuclidean_f32_denormals() {

@@ -7,7 +7,7 @@ Matches C++ suite: test/reduce.cpp.
 
 File: test/reduce.py
 Author: Ash Vardanian
-Date: February 27, 2026
+Date: December 28, 2025
 """
 
 import atexit

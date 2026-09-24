@@ -7,7 +7,7 @@ Matches C++ suite: test/curved.cpp.
 
 File: test/curved.py
 Author: Ash Vardanian
-Date: February 27, 2026
+Date: September 4, 2024
 """
 
 import atexit

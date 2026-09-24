@@ -19,7 +19,7 @@
  *  It implements several operations:
  *
  *  - "dots_packed" - computing dot-products where the B matrix is pre-packed into optimal form
- *  - "dots_pack_size" - which estimates the memory requirements for external `malloc`
+ *  - "dots_pack_size" - which estimates the memory requirements for external @c malloc
  *  - "dots_pack" - to perform the pre-processing
  *  - "dots_compact" - optional helpers to normalize or downcast into original precision
  *  - "dots_symmetric" - for A × Aᵀ Gram matrix multiplication
@@ -57,9 +57,9 @@
  *  - f64: Dot2 (Ogita-Rump-Oishi) on the accurate backends, otherwise native f64 FMA accumulation.
  *  - f32: public outputs widen to f64. Packed and symmetric kernels keep payloads narrow but widen
  *    accumulation.
- *  - bf16/f16: f32 accumulation. VDPBF16PS on Genoa does bf16×bf16→f32 natively.
+ *  - bf16/f16: f32 accumulation. VDPBF16PS on Genoa does bf16 × bf16 → f32 natively.
  *  - e2m3/e3m2: f16 intermediate with flush to f32 every 128 elements (Sapphire).
- *  - i8: i32 accumulation. AMX TDPBSSD gives i8×i8→i32 tiles. Overflows at k > ~131K.
+ *  - i8: i32 accumulation. AMX TDPBSSD gives i8 × i8 → i32 tiles. Overflows at k > ~131K.
  *  - u1: Popcount, exact.
  *
  *  @section cuda_backends CUDA Backends
@@ -72,7 +72,7 @@
  *
  *  @section memory_layout Memory Layout and Transpose Semantics
  *
- *  All matrices use row-major storage. Column-major is NOT supported.
+ *  All matrices use row-major storage. Column-major is not supported.
  *  The kernel computes C = A × Bᵀ where:
  *
  *  - A is (m × k): m rows, k columns, stride = a_stride bytes between rows
@@ -189,7 +189,7 @@ extern "C" {
 /**
  *  @brief Returns packed buffer size in bytes for second multiplier matrix (B).
  *  @param[in] width The number of rows in B (output columns).
- *  @param[in] depth The number of columns in B. Counts dimensions, a multiple of the values per byte.
+ *  @param[in] depth Columns in B, counting dimensions, a multiple of the values per byte.
  *  @note The packed layout is backend-specific and must be produced by the matching pack function.
  */
 NK_API_RUNTIME nk_size_t nk_dots_pack_size_bf16(nk_size_t width, nk_size_t depth);
@@ -258,7 +258,7 @@ NK_API_RUNTIME void nk_dots_packed_shape_u1(void const *b_packed, nk_size_t *wid
  *  @brief Packs the second multiplier (B) matrix into a backend-specific layout.
  *  @param[in] b The input B matrix in row-major order.
  *  @param[in] width The number of rows in B (output columns).
- *  @param[in] depth The number of columns in B. Counts dimensions, a multiple of the values per byte.
+ *  @param[in] depth Columns in B, counting dimensions, a multiple of the values per byte.
  *  @param[in] b_stride The row stride in bytes for B.
  *  @param[out] b_packed The output packed buffer from nk_dots_pack_size_bf16.
  *  @param[in] columns_begin First output column to pack; 0 for a full pack.
@@ -313,7 +313,7 @@ NK_API_RUNTIME void nk_dots_pack_u1(nk_u1x8_t const *b, nk_size_t width, nk_size
  *  @param[out] c The output C matrix in row-major order.
  *  @param[in] height The number of rows in A.
  *  @param[in] width The number of rows in B (output columns).
- *  @param[in] depth The shared inner dimension. Counts dimensions, a multiple of the values per byte.
+ *  @param[in] depth Columns in A and B, counting dimensions, a multiple of the values per byte.
  *  @param[in] a_stride The row stride in bytes for A.
  *  @param[in] c_stride The row stride in bytes for C.
  */
@@ -365,7 +365,7 @@ NK_API_RUNTIME void nk_dots_packed_u1(nk_u1x8_t const *a, void const *b_packed, 
  *  @param[in] vectors_count Number of vectors (rows) in the input matrix.
  *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride Row stride in bytes for the input matrix.
- *  @param[out] result Output symmetric matrix (vectors_count × vectors_count).
+ *  @param[out] result Output symmetric matrix of @p vectors_count × @p vectors_count.
  *  @param[in] result_stride Row stride in bytes for the result matrix.
  *  @param[in] row_start Starting row offset of results to compute (needed for parallelism).
  *  @param[in] row_count Number of rows of results to compute (needed for parallelism).
@@ -621,8 +621,7 @@ NK_API_COMPTIME void nk_dots_packed_e3m2_serial(nk_e3m2_t const *a, void const *
 
 /*  Genoa backends using AVX-512 with BF16 extensions.
  *  These use VDPBF16PS for BF16 dot products.
- *  Packing interleaves elements for SIMD broadcast patterns.
- */
+ *  Packing interleaves elements for SIMD broadcast patterns. */
 #if NK_TARGET_GENOA
 /** @copydoc nk_dots_pack_size_bf16 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_genoa(nk_size_t width, nk_size_t depth);
@@ -708,8 +707,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e5m2_diamond(nk_e5m2_t const *vectors, nk
 /*  Sapphire Rapids backends using Intel AMX (Advanced Matrix Extensions).
  *  AMX provides 8 tile registers (TMM0-TMM7), each holding up to 1KB of data.
  *  Tiles are configured as 16 rows × 64 bytes, enabling (16 × 32) BF16 or (16 × 64) INT8 tiles.
- *  Packing arranges data into AMX-native tile layout with pair interleaving for TDPBF16PS.
- */
+ *  Packing arranges data into AMX-native tile layout with pair interleaving for TDPBF16PS. */
 #if NK_TARGET_SAPPHIREAMX
 /** @copydoc nk_dots_pack_size_bf16 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_sapphireamx(nk_size_t width, nk_size_t depth);
@@ -852,9 +850,9 @@ NK_API_COMPTIME void nk_dots_symmetric_u8_sapphireamx(nk_u8_t const *vectors, nk
 #endif // NK_TARGET_SAPPHIREAMX
 
 /*  Granite Rapids backends using Intel AMX-FP16 (Advanced Matrix Extensions with FP16 support).
- *  AMX-FP16 adds TDPFP16PS (FP16×FP16→FP32 tile multiply-accumulate), same tile geometry as BF16.
- *  The F32 Ozaki kernel splits F32 inputs into 2 FP16 halves for ~35-40 bit effective precision.
- */
+ *  AMX-FP16 adds TDPFP16PS, an FP16 × FP16 → FP32 tile multiply-accumulate with the same tile
+ *  geometry as BF16. The F32 Ozaki kernel splits F32 inputs into 2 FP16 halves for ~35-40 bit
+ *  effective precision. */
 #if NK_TARGET_GRANITEAMX
 /** @copydoc nk_dots_pack_size_f16 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_f16_graniteamx(nk_size_t width, nk_size_t depth);
@@ -893,8 +891,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e5m2_graniteamx(nk_e5m2_t const *vectors,
 
 /*  ARM SME backends using Scalable Matrix Extension.
  *  SME provides ZA tile registers for outer product operations.
- *  F16/BF16/I8/U8/E4M3 use ZA32 tiles, F32/F64 use ZA64 tiles (FEAT_SME_F64F64).
- */
+ *  F16/BF16/I8/U8/E4M3 use ZA32 tiles, F32/F64 use ZA64 tiles (FEAT_SME_F64F64). */
 #if NK_TARGET_SME
 /** @copydoc nk_dots_pack_size_f16 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_f16_sme(nk_size_t width, nk_size_t depth);
@@ -978,7 +975,11 @@ NK_API_COMPTIME void nk_dots_packed_shape_e5m2_sme(void const *b_packed, nk_size
 /** @copydoc nk_dots_pack_e5m2 */
 NK_API_COMPTIME void nk_dots_pack_e5m2_sme(nk_e5m2_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
                                            void *b_packed, nk_size_t columns_begin, nk_size_t columns_end);
-/** @copydoc nk_dots_packed_e5m2 */
+
+/**
+ *  @copydoc nk_dots_packed_e5m2
+ *  @note Handles edges with predicates, without scalar fallbacks.
+ */
 NK_API_COMPTIME void nk_dots_packed_e5m2_sme(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t height,
                                              nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride);
 /** @copydoc nk_dots_symmetric_e5m2 */
@@ -1052,7 +1053,11 @@ NK_API_COMPTIME void nk_dots_packed_shape_e3m2_sme(void const *b_packed, nk_size
 /** @copydoc nk_dots_pack_e3m2 */
 NK_API_COMPTIME void nk_dots_pack_e3m2_sme(nk_e3m2_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
                                            void *b_packed, nk_size_t columns_begin, nk_size_t columns_end);
-/** @copydoc nk_dots_packed_e3m2 */
+
+/**
+ *  @copydoc nk_dots_packed_e3m2
+ *  @note Handles edges with predicates, without scalar fallbacks.
+ */
 NK_API_COMPTIME void nk_dots_packed_e3m2_sme(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t height,
                                              nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride);
 /** @copydoc nk_dots_symmetric_e3m2 */
@@ -1062,8 +1067,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e3m2_sme(nk_e3m2_t const *vectors, nk_siz
 #endif // NK_TARGET_SME
 
 /*  ARM SME with integer-accumulating binary outer products.
- *  Used for packed 1-bit dot products backed by ZA32.
- */
+ *  Used for packed 1-bit dot products backed by ZA32. */
 #if NK_TARGET_SMEBI32
 /** @copydoc nk_dots_pack_size_u1 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_u1_smebi32(nk_size_t width, nk_size_t depth);
@@ -1083,8 +1087,7 @@ NK_API_COMPTIME void nk_dots_symmetric_u1_smebi32(nk_u1x8_t const *vectors, nk_s
 #endif // NK_TARGET_SMEBI32
 
 /*  ARM SME with FEAT_SME_F64F64 (F32/F64 with F64 accumulators).
- *  Requires Apple M4 or equivalent with F64 outer product support.
- */
+ *  Requires Apple M4 or equivalent with F64 outer product support. */
 #if NK_TARGET_SMEF64
 /** @copydoc nk_dots_pack_size_f32 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_f32_smef64(nk_size_t width, nk_size_t depth);
@@ -1120,8 +1123,7 @@ NK_API_COMPTIME void nk_dots_symmetric_f64_smef64(nk_f64_t const *vectors, nk_si
 #endif // NK_TARGET_SMEF64
 
 /*  Haswell backends using AVX2 (Intel Core 4th gen).
- *  Supports F32/F64 via FMA, F16/BF16/FP8 via software emulation, I8/U8 via VPMADDUBSW+VPADDD.
- */
+ *  Supports F32/F64 via FMA, F16/BF16/FP8 via software emulation, I8/U8 via VPMADDUBSW+VPADDD. */
 #if NK_TARGET_HASWELL
 /** @copydoc nk_dots_pack_size_f32 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_f32_haswell(nk_size_t width, nk_size_t depth);
@@ -1337,8 +1339,7 @@ NK_API_COMPTIME void nk_dots_symmetric_u4_haswell(nk_u4x2_t const *vectors, nk_s
 #endif // NK_TARGET_HASWELL
 
 /*  Skylake backends using AVX-512 (Intel Core 6th gen+).
- *  Provides 512-bit vectors (16× f32, 8× f64), supporting F32/F64/F16/BF16/FP8 with FMA.
- */
+ *  Provides 512-bit vectors (16× f32, 8× f64), supporting F32/F64/F16/BF16/FP8 with FMA. */
 #if NK_TARGET_SKYLAKE
 /** @copydoc nk_dots_pack_size_f64 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_f64_skylake(nk_size_t width, nk_size_t depth);
@@ -1479,8 +1480,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e3m2_skylake(nk_e3m2_t const *vectors, nk
 #endif // NK_TARGET_SKYLAKE
 
 /*  Ice Lake backends using AVX-512 with VNNI (Vector Neural Network Instructions).
- *  Adds VPDPBUSD for I8/U8, VPDPWSSD for I4/U4 with efficient dot products.
- */
+ *  Adds VPDPBUSD for I8/U8, VPDPWSSD for I4/U4 with efficient dot products. */
 #if NK_TARGET_ICELAKE
 /** @copydoc nk_dots_pack_size_i8 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_icelake(nk_size_t width, nk_size_t depth);
@@ -1560,8 +1560,7 @@ NK_API_COMPTIME void nk_dots_symmetric_u1_icelake(nk_u1x8_t const *vectors, nk_s
 #endif // NK_TARGET_ICELAKE
 
 /*  Alder backends using AMX with TDPB[SU]SD / TDPBF16PS.
- *  Optimized for I8/U8 via AMX integer tiles, E2M3 via AMX BF16 tiles.
- */
+ *  Optimized for I8/U8 via AMX integer tiles, E2M3 via AMX BF16 tiles. */
 #if NK_TARGET_ALDER
 /** @copydoc nk_dots_pack_size_i8 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_alder(nk_size_t width, nk_size_t depth);
@@ -1624,8 +1623,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m1_alder(nk_e2m1x2_t const *vectors, nk
 #endif // NK_TARGET_ALDER
 
 /*  Sierra backends using AVX10.2 with VMPSADBW.
- *  Optimized for I8/U8 via VMPSADBW (vector multiply-sum of absolute differences).
- */
+ *  Optimized for I8/U8 via VMPSADBW (vector multiply-sum of absolute differences). */
 #if NK_TARGET_SIERRA
 /** @copydoc nk_dots_pack_size_i8 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_sierra(nk_size_t width, nk_size_t depth);
@@ -1689,8 +1687,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m1_sierra(nk_e2m1x2_t const *vectors, n
 #endif // NK_TARGET_SIERRA
 
 /*  WASM Relaxed SIMD backends using wasm_i32x4_relaxed_dot_i8x16_i7x16_add.
- *  Covers I8/U8/E2M3 (depth_simd_dimensions=16), BF16/F32 (4), F64 (2).
- */
+ *  Covers I8/U8/E2M3 (depth_simd_dimensions=16), BF16/F32 (4), F64 (2). */
 #if NK_TARGET_V128RELAXED
 /** @copydoc nk_dots_pack_size_i8 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_v128relaxed(nk_size_t width, nk_size_t depth);
@@ -1971,8 +1968,7 @@ NK_API_COMPTIME void nk_dots_symmetric_u1_v128(nk_u1x8_t const *vectors, nk_size
 #endif // NK_TARGET_V128
 
 /*  ARM NEON backends (base NEON with F32/F64 support).
- *  Uses FMLA for F32 dots, FMLA (scalar) for F64.
- */
+ *  Uses FMLA for F32 dots, FMLA (scalar) for F64. */
 #if NK_TARGET_NEON
 /** @copydoc nk_dots_pack_size_f32 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_f32_neon(nk_size_t width, nk_size_t depth);
@@ -2047,8 +2043,7 @@ NK_API_COMPTIME void nk_dots_symmetric_bf16_neon(nk_bf16_t const *vectors, nk_si
 #endif // NK_TARGET_NEON
 
 /*  ARM NEON with BF16 dot product (ARMv8.6-A BF16).
- *  Uses BFDOT/BFMMLA for efficient BF16 matrix operations.
- */
+ *  Uses BFDOT/BFMMLA for efficient BF16 matrix operations. */
 #if NK_TARGET_NEONBFDOT
 /** @copydoc nk_dots_pack_size_bf16 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_neonbfdot(nk_size_t width, nk_size_t depth);
@@ -2070,8 +2065,7 @@ NK_API_COMPTIME void nk_dots_symmetric_bf16_neonbfdot(nk_bf16_t const *vectors, 
 #endif // NK_TARGET_NEONBFDOT
 
 /*  ARM NEON with signed/unsigned dot product (ARMv8.2-A DotProd).
- *  Provides SDOT/UDOT for I8/U8 vector dot products.
- */
+ *  Provides SDOT/UDOT for I8/U8 vector dot products. */
 #if NK_TARGET_NEONSDOT
 /** @copydoc nk_dots_pack_size_i8 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_neonsdot(nk_size_t width, nk_size_t depth);
@@ -2138,8 +2132,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m1_neonsdot(nk_e2m1x2_t const *vectors,
 #endif // NK_TARGET_NEONSDOT
 
 /*  ARM NEON with FP16 FML (fused multiply-long, ARMv8.2-A FP16FML).
- *  Uses FMLAL/FMLSL for F16 and custom FP8 (E2M3/E3M2) operations.
- */
+ *  Uses FMLAL/FMLSL for F16 and custom FP8 (E2M3/E3M2) operations. */
 #if NK_TARGET_NEONFHM
 /** @copydoc nk_dots_pack_size_f16 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_f16_neonfhm(nk_size_t width, nk_size_t depth);
@@ -2189,8 +2182,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e5m2_neonfhm(nk_e5m2_t const *vectors, nk
 #endif // NK_TARGET_NEONFHM
 
 /*  ARM NEON with FP8 (ARMv9.2-A FP8).
- *  Uses native FP8 dot-product instructions for E4M3/E5M2/E2M3/E3M2 operations.
- */
+ *  Uses native FP8 dot-product instructions for E4M3/E5M2/E2M3/E3M2 operations. */
 #if NK_TARGET_NEONFP8
 /** @copydoc nk_dots_pack_size_e4m3 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_e4m3_neonfp8(nk_size_t width, nk_size_t depth);
@@ -2270,6 +2262,9 @@ NK_API_COMPTIME void nk_dots_symmetric_e3m2_neonfp8(nk_e3m2_t const *vectors, nk
                                                     nk_size_t row_start, nk_size_t row_count);
 #endif // NK_TARGET_NEONFP8
 
+/*  RISC-V RVV backends. @c vsetvl handles partial vectors, so every packed kernel dispatches to its
+ *  aligned kernel without a separate edge kernel. Packed B uses a column-panel layout with
+ *  depth-contiguous storage, cache-line padding and zeroed padding values. */
 #if NK_TARGET_RVV
 /** @copydoc nk_dots_pack_size_e2m3 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_e2m3_rvv(nk_size_t width, nk_size_t depth);
@@ -2279,7 +2274,12 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_e2m1_rvv(nk_size_t width, nk_size_t 
 NK_API_COMPTIME void nk_dots_packed_shape_e2m3_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth);
 /** @copydoc nk_dots_packed_shape_e2m1 */
 NK_API_COMPTIME void nk_dots_packed_shape_e2m1_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth);
-/** @copydoc nk_dots_pack_e2m3 */
+
+/**
+ *  @copydoc nk_dots_pack_e2m3
+ *  @note Converts each e2m3 byte through a scalar LUT to a signed i8 holding value × 16, for
+ *      integer dot products.
+ */
 NK_API_COMPTIME void nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
                                            void *b_packed, nk_size_t columns_begin, nk_size_t columns_end);
 /** @copydoc nk_dots_pack_e2m1 */
@@ -2291,7 +2291,11 @@ NK_API_COMPTIME void nk_dots_packed_e2m3_rvv(nk_e2m3_t const *a, void const *b_p
 /** @copydoc nk_dots_packed_e2m1 */
 NK_API_COMPTIME void nk_dots_packed_e2m1_rvv(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t height,
                                              nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride);
-/** @copydoc nk_dots_symmetric_e2m3 */
+
+/**
+ *  @copydoc nk_dots_symmetric_e2m3
+ *  @note Uses i8 LUT arithmetic with i32 accumulation, scaled by 1/256.
+ */
 NK_API_COMPTIME void nk_dots_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                 nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
                                                 nk_size_t row_start, nk_size_t row_count);
@@ -2303,13 +2307,22 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m1_rvv(nk_e2m1x2_t const *vectors, nk_s
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_e3m2_rvv(nk_size_t width, nk_size_t depth);
 /** @copydoc nk_dots_packed_shape_e3m2 */
 NK_API_COMPTIME void nk_dots_packed_shape_e3m2_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth);
-/** @copydoc nk_dots_pack_e3m2 */
+
+/**
+ *  @copydoc nk_dots_pack_e3m2
+ *  @note Converts each e3m2 byte through a scalar LUT to a signed i16 holding value × 16, for
+ *      integer dot products.
+ */
 NK_API_COMPTIME void nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
                                            void *b_packed, nk_size_t columns_begin, nk_size_t columns_end);
 /** @copydoc nk_dots_packed_e3m2 */
 NK_API_COMPTIME void nk_dots_packed_e3m2_rvv(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t height,
                                              nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride);
-/** @copydoc nk_dots_symmetric_e3m2 */
+
+/**
+ *  @copydoc nk_dots_symmetric_e3m2
+ *  @note Uses i16 LUT arithmetic with an i32 widening multiply-accumulate, scaled by 1/256.
+ */
 NK_API_COMPTIME void nk_dots_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                 nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
                                                 nk_size_t row_start, nk_size_t row_count);
@@ -2323,7 +2336,11 @@ NK_API_COMPTIME void nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t width, nk
 /** @copydoc nk_dots_packed_f32 */
 NK_API_COMPTIME void nk_dots_packed_f32_rvv(nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t height,
                                             nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride);
-/** @copydoc nk_dots_symmetric_f32 */
+
+/**
+ *  @copydoc nk_dots_symmetric_f32
+ *  @note Accumulates in f64 via @c vfwmacc_vv_f64m4.
+ */
 NK_API_COMPTIME void nk_dots_symmetric_f32_rvv(nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
                                                nk_size_t row_start, nk_size_t row_count);
@@ -2337,63 +2354,117 @@ NK_API_COMPTIME void nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t width, nk
 /** @copydoc nk_dots_packed_f64 */
 NK_API_COMPTIME void nk_dots_packed_f64_rvv(nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t height,
                                             nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride);
-/** @copydoc nk_dots_symmetric_f64 */
+
+/**
+ *  @copydoc nk_dots_symmetric_f64
+ *  @note Applies Kahan compensation over the full depth.
+ */
 NK_API_COMPTIME void nk_dots_symmetric_f64_rvv(nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
                                                nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_dots_pack_size_bf16 */
+
+/**
+ *  @copydoc nk_dots_pack_size_bf16
+ *  @note B is stored as f32, so the vector length comes from `__riscv_vsetvlmax_e32m2()`.
+ */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_rvv(nk_size_t width, nk_size_t depth);
 /** @copydoc nk_dots_packed_shape_bf16 */
 NK_API_COMPTIME void nk_dots_packed_shape_bf16_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth);
-/** @copydoc nk_dots_pack_bf16 */
+
+/**
+ *  @copydoc nk_dots_pack_bf16
+ *  @note Widens each bf16 to f32 with a bit shift, as bf16 is the upper 16 bits of f32.
+ */
 NK_API_COMPTIME void nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
                                            void *b_packed, nk_size_t columns_begin, nk_size_t columns_end);
 /** @copydoc nk_dots_packed_bf16 */
 NK_API_COMPTIME void nk_dots_packed_bf16_rvv(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t height,
                                              nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride);
-/** @copydoc nk_dots_symmetric_bf16 */
+
+/**
+ *  @copydoc nk_dots_symmetric_bf16
+ *  @note Loads both inputs as u16, widens them to f32 via @c nk_bf16m1_to_f32m2_rvv_, and
+ *      accumulates in f64 via @c vfwmacc_vv_f64m4.
+ */
 NK_API_COMPTIME void nk_dots_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                 nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
                                                 nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_dots_pack_size_f16 */
+
+/**
+ *  @copydoc nk_dots_pack_size_f16
+ *  @note B is stored as f32, so the vector length comes from `__riscv_vsetvlmax_e32m2()`.
+ */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_f16_rvv(nk_size_t width, nk_size_t depth);
 /** @copydoc nk_dots_packed_shape_f16 */
 NK_API_COMPTIME void nk_dots_packed_shape_f16_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth);
-/** @copydoc nk_dots_pack_f16 */
+
+/**
+ *  @copydoc nk_dots_pack_f16
+ *  @note Widens each f16 to f32 via @c nk_f16_to_f32_serial.
+ */
 NK_API_COMPTIME void nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
                                           void *b_packed, nk_size_t columns_begin, nk_size_t columns_end);
 /** @copydoc nk_dots_packed_f16 */
 NK_API_COMPTIME void nk_dots_packed_f16_rvv(nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t height,
                                             nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride);
-/** @copydoc nk_dots_symmetric_f16 */
+
+/**
+ *  @copydoc nk_dots_symmetric_f16
+ *  @note Loads both inputs as u16, widens them to f32 via @c nk_f16m1_to_f32m2_rvv_, and
+ *      accumulates in f64 via @c vfwmacc_vv_f64m4.
+ */
 NK_API_COMPTIME void nk_dots_symmetric_f16_rvv(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
                                                nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_dots_pack_size_i8 */
+
+/**
+ *  @copydoc nk_dots_pack_size_i8
+ *  @note B is stored as i8, so the vector length comes from `__riscv_vsetvlmax_e8m1()`.
+ */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_rvv(nk_size_t width, nk_size_t depth);
 /** @copydoc nk_dots_packed_shape_i8 */
 NK_API_COMPTIME void nk_dots_packed_shape_i8_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth);
-/** @copydoc nk_dots_pack_i8 */
+
+/**
+ *  @copydoc nk_dots_pack_i8
+ *  @note Copies the values without conversion.
+ */
 NK_API_COMPTIME void nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
                                          void *b_packed, nk_size_t columns_begin, nk_size_t columns_end);
 /** @copydoc nk_dots_packed_i8 */
 NK_API_COMPTIME void nk_dots_packed_i8_rvv(nk_i8_t const *a, void const *b_packed, nk_i32_t *c, nk_size_t height,
                                            nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride);
-/** @copydoc nk_dots_symmetric_i8 */
+
+/**
+ *  @copydoc nk_dots_symmetric_i8
+ *  @note Widens i8 × i8 → i16 → i32 for accumulation.
+ */
 NK_API_COMPTIME void nk_dots_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                               nk_size_t stride, nk_i32_t *result, nk_size_t result_stride,
                                               nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_dots_pack_size_u8 */
+
+/**
+ *  @copydoc nk_dots_pack_size_u8
+ *  @note B is stored as u8, so the vector length comes from `__riscv_vsetvlmax_e8m1()`.
+ */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_u8_rvv(nk_size_t width, nk_size_t depth);
 /** @copydoc nk_dots_packed_shape_u8 */
 NK_API_COMPTIME void nk_dots_packed_shape_u8_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth);
-/** @copydoc nk_dots_pack_u8 */
+
+/**
+ *  @copydoc nk_dots_pack_u8
+ *  @note Copies the values without conversion.
+ */
 NK_API_COMPTIME void nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
                                          void *b_packed, nk_size_t columns_begin, nk_size_t columns_end);
 /** @copydoc nk_dots_packed_u8 */
 NK_API_COMPTIME void nk_dots_packed_u8_rvv(nk_u8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t height,
                                            nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride);
-/** @copydoc nk_dots_symmetric_u8 */
+
+/**
+ *  @copydoc nk_dots_symmetric_u8
+ *  @note Widens u8 × u8 → u16 → u32 for accumulation.
+ */
 NK_API_COMPTIME void nk_dots_symmetric_u8_rvv(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                               nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
                                               nk_size_t row_start, nk_size_t row_count);
@@ -2401,13 +2472,22 @@ NK_API_COMPTIME void nk_dots_symmetric_u8_rvv(nk_u8_t const *vectors, nk_size_t 
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_e4m3_rvv(nk_size_t width, nk_size_t depth);
 /** @copydoc nk_dots_packed_shape_e4m3 */
 NK_API_COMPTIME void nk_dots_packed_shape_e4m3_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth);
-/** @copydoc nk_dots_pack_e4m3 */
+
+/**
+ *  @copydoc nk_dots_pack_e4m3
+ *  @note Converts each e4m3 byte to f32 via @c nk_e4m3_to_f32_serial.
+ */
 NK_API_COMPTIME void nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
                                            void *b_packed, nk_size_t columns_begin, nk_size_t columns_end);
 /** @copydoc nk_dots_packed_e4m3 */
 NK_API_COMPTIME void nk_dots_packed_e4m3_rvv(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t height,
                                              nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride);
-/** @copydoc nk_dots_symmetric_e4m3 */
+
+/**
+ *  @copydoc nk_dots_symmetric_e4m3
+ *  @note Decodes both operands from e4m3 on the fly through an f32 magnitude LUT gather, and
+ *      accumulates in f64.
+ */
 NK_API_COMPTIME void nk_dots_symmetric_e4m3_rvv(nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                 nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
                                                 nk_size_t row_start, nk_size_t row_count);
@@ -2415,20 +2495,28 @@ NK_API_COMPTIME void nk_dots_symmetric_e4m3_rvv(nk_e4m3_t const *vectors, nk_siz
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_e5m2_rvv(nk_size_t width, nk_size_t depth);
 /** @copydoc nk_dots_packed_shape_e5m2 */
 NK_API_COMPTIME void nk_dots_packed_shape_e5m2_rvv(void const *b_packed, nk_size_t *width, nk_size_t *depth);
-/** @copydoc nk_dots_pack_e5m2 */
+
+/**
+ *  @copydoc nk_dots_pack_e5m2
+ *  @note Converts each e5m2 byte to f32 via @c nk_e5m2_to_f32_serial.
+ */
 NK_API_COMPTIME void nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
                                            void *b_packed, nk_size_t columns_begin, nk_size_t columns_end);
 /** @copydoc nk_dots_packed_e5m2 */
 NK_API_COMPTIME void nk_dots_packed_e5m2_rvv(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t height,
                                              nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride);
-/** @copydoc nk_dots_symmetric_e5m2 */
+
+/**
+ *  @copydoc nk_dots_symmetric_e5m2
+ *  @note Decodes both operands from e5m2 on the fly through an f32 magnitude LUT gather, and
+ *      accumulates in f64.
+ */
 NK_API_COMPTIME void nk_dots_symmetric_e5m2_rvv(nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                 nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
                                                 nk_size_t row_start, nk_size_t row_count);
 #endif // NK_TARGET_RVV
 
-/*  Loongson LASX backends using 256-bit SIMD (LoongArch).
- */
+/*  Loongson LASX backends using 256-bit SIMD (LoongArch). */
 #if NK_TARGET_LOONGSONASX
 /** @copydoc nk_dots_pack_size_f32 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_f32_loongsonasx(nk_size_t width, nk_size_t depth);
@@ -2547,11 +2635,11 @@ NK_API_COMPTIME void nk_dots_symmetric_u1_loongsonasx(nk_u1x8_t const *vectors, 
                                                       nk_size_t row_count);
 #endif // NK_TARGET_LOONGSONASX
 
-/*  NVIDIA backends from Ampere on: F64 in Dot2 and F32 in F64 on the CUDA cores, matching the serial precision; BF16,
- *  F16 and the integers through warp-level `mma.sync`, E2M3 and E2M1 scaled into exact integers, the other Float8 and
- *  Float6 widened into F16. Pointers are device-reachable, and every
- *  call is asynchronous on its `stream` and returns the launch status. E2M1 has no CPU counterpart yet.
- */
+/*  NVIDIA backends from Ampere on: F64 in Dot2 and F32 in F64 on the CUDA cores, matching the
+ *  serial precision; BF16, F16 and the integers through warp-level `mma.sync`, E2M3 and E2M1 scaled
+ *  into exact integers, the other Float8 and Float6 widened into F16. Pointers are
+ *  device-reachable, and every call runs asynchronously on its @c stream and returns the launch
+ *  status. E2M1 has no CPU counterpart yet. */
 #if NK_TARGET_AMPERE
 /** @copydoc nk_dots_pack_size_f64 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_f64_ampere(nk_size_t width, nk_size_t depth);
@@ -2789,9 +2877,9 @@ NK_API_COMPTIME cudaError_t nk_dots_symmetric_u4_ampere(nk_u4x2_t const *vectors
                                                         nk_size_t row_count, cudaStream_t stream);
 #endif // NK_TARGET_AMPERE
 
-/*  NVIDIA backends for the compute capability 12.x family, feeding Float8, Float6 and Float4 to the tensor cores
- *  natively. BF16, F16 and the integers there use the Ampere kernels, which already run at the native rate.
- */
+/*  NVIDIA backends for the compute capability 12.x family, feeding Float8, Float6 and Float4 to the
+ *  tensor cores natively. BF16, F16 and the integers there use the Ampere kernels, which already
+ *  run at the native rate. */
 #if NK_TARGET_BLACKWELLRTX
 /** @copydoc nk_dots_pack_size_e5m2 */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_e5m2_blackwellrtx(nk_size_t width, nk_size_t depth);

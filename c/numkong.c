@@ -22,23 +22,23 @@
 extern "C" {
 #endif
 
-// WASM capability detection for standalone Emscripten builds.
-// EM_JS embeds JavaScript probes for runtime SIMD detection. It only works in
-// standalone builds — Pyodide side modules cannot use EM_JS (the linker fails
-// with undefined ___em_js__* symbols). Pyodide builds define NK_PYODIDE_SIDE_MODULE
-// and fall through to compile-time detection in capabilities.h instead.
+/*  WASM capability detection for standalone Emscripten builds.
+ *  EM_JS embeds JavaScript probes for runtime SIMD detection. It only works in standalone builds —
+ *  Pyodide side modules cannot use EM_JS (the linker fails with undefined ___em_js__* symbols).
+ *  Pyodide builds define NK_PYODIDE_SIDE_MODULE and fall through to compile-time detection in
+ *  capabilities.h instead. */
 #if defined(__EMSCRIPTEN__) && NK_RUNTIME_DISPATCH && !defined(NK_PYODIDE_SIDE_MODULE)
 #include <emscripten.h>
 
-// EM_JS expands to an empty-parameter-list declaration `()` and a trailing `;`,
-// which trigger `-Wstrict-prototypes` and `-Wextra-semi` under Clang/Emscripten.
+/*  EM_JS expands to an empty-parameter-list declaration `()` and a trailing `;`, which trigger
+ *  `-Wstrict-prototypes` and `-Wextra-semi` under Clang/Emscripten. */
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wstrict-prototypes"
 #pragma clang diagnostic ignored "-Wextra-semi"
 #endif
 
-// One function of type `() → v128` per probe; the mirror arrays live in `javascript/wasm-probes.ts`.
+/** One `() → v128` function per probe; the mirror arrays live in `javascript/wasm-probes.ts`. */
 EM_JS(int, nk_has_v128, (), {
     var test = new Uint8Array([
         0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, // magic, version
@@ -88,10 +88,8 @@ EM_JS(int, nk_has_relaxed, (), {
 #endif
 #endif // __EMSCRIPTEN__ && NK_RUNTIME_DISPATCH && !NK_PYODIDE_SIDE_MODULE
 
-/**
- *  @brief Fill memory with 0xFF - produces NaN for floats, -1 for signed integers, and MAX for unsigned.
- *  Avoids libc dependency on memset.
- */
+/** Fills memory with 0xFF, producing NaN for floats, -1 for signed integers, and MAX for unsigned.
+ *  Avoids a LibC dependency on memset. */
 NK_HELPER_INLINE void nk_fill_error_(void *ptr, nk_size_t bytes) {
     nk_u8_t *p = (nk_u8_t *)ptr;
     while (bytes--) *p++ = 0xFF;
@@ -312,11 +310,11 @@ void nk_error_attention_causal_packed_(void const *q, void const *key_value_pack
     nk_unused_(diagonal_offset), nk_unused_(window), nk_unused_(task_start), nk_unused_(task_count);
 }
 
-// Global dispatch table - 64-byte aligned for cache performance
-// Type defined in dispatch.h, made non-static for access from dtype files
+/** Global dispatch table, 64-byte aligned for cache performance. The type is defined in dispatch.h,
+ *  and the table is non-static for access from dtype files. */
 NK_ALIGN64 nk_implementations_t nk_dispatch_table;
 
-// Direct dispatch macros using central dispatch table (no lazy initialization)
+/** Direct dispatch macros using the central dispatch table, with no lazy initialization. */
 #define nk_dispatch_dense_(name, extension, input_type, output_type)                                        \
     NK_API_RUNTIME void nk_##name##_##extension(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
                                                 nk_size_t n, nk_##output_type##_t *results) {               \
@@ -542,7 +540,7 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
                                                          scale, diagonal_offset, window, task_start, task_count);      \
     }
 
-// Dot products
+/*  Dot products */
 nk_dispatch_dense_(dot, f64c, f64c, f64c)
 nk_dispatch_dense_(dot, f32c, f32c, f64c)
 nk_dispatch_dense_(dot, bf16c, bf16c, f32c)
@@ -566,7 +564,7 @@ nk_dispatch_dense_(vdot, f32c, f32c, f64c)
 nk_dispatch_dense_(vdot, bf16c, bf16c, f32c)
 nk_dispatch_dense_(vdot, f16c, f16c, f32c)
 
-// Spatial distances
+/*  Spatial distances */
 nk_dispatch_dense_(angular, f64, f64, f64)
 nk_dispatch_dense_(angular, f32, f32, f64)
 nk_dispatch_dense_(angular, bf16, bf16, f32)
@@ -604,14 +602,14 @@ nk_dispatch_dense_(sqeuclidean, i4, i4x2, u32)
 nk_dispatch_dense_(sqeuclidean, u8, u8, u32)
 nk_dispatch_dense_(sqeuclidean, u4, u4x2, u32)
 
-// Binary distances
+/*  Binary distances */
 nk_dispatch_dense_(hamming, u8, u8, u32)
 nk_dispatch_dense_(hamming, u1, u1x8, u32)
 nk_dispatch_dense_(jaccard, u32, u32, f32)
 nk_dispatch_dense_(jaccard, u16, u16, f32)
 nk_dispatch_dense_(jaccard, u1, u1x8, f32)
 
-// Curved spaces
+/*  Curved spaces */
 nk_dispatch_curved_(bilinear, f64c, f64c)
 nk_dispatch_curved_(bilinear, f32c, f64c)
 nk_dispatch_curved_(bilinear, bf16c, f32c)
@@ -625,13 +623,13 @@ nk_dispatch_curved_(mahalanobis, f32, f64)
 nk_dispatch_curved_(mahalanobis, bf16, f32)
 nk_dispatch_curved_(mahalanobis, f16, f32)
 
-// Geospatial distances
+/*  Geospatial distances */
 nk_dispatch_geospatial_(haversine, f64, f64)
 nk_dispatch_geospatial_(haversine, f32, f32)
 nk_dispatch_geospatial_(vincenty, f64, f64)
 nk_dispatch_geospatial_(vincenty, f32, f32)
 
-// Probability distributions
+/*  Probability distributions */
 nk_dispatch_dense_(kld, f64, f64, f64)
 nk_dispatch_dense_(kld, f32, f32, f64)
 nk_dispatch_dense_(kld, bf16, bf16, f32)
@@ -641,7 +639,7 @@ nk_dispatch_dense_(jsd, f32, f32, f64)
 nk_dispatch_dense_(jsd, bf16, bf16, f32)
 nk_dispatch_dense_(jsd, f16, f16, f32)
 
-// Mesh alignment (RMSD, Kabsch, Umeyama)
+/*  Mesh alignment (RMSD, Kabsch, Umeyama) */
 nk_dispatch_mesh_(rmsd, f64, f64, f64)
 nk_dispatch_mesh_(rmsd, f32, f32, f64)
 nk_dispatch_mesh_(rmsd, bf16, f32, f32)
@@ -655,14 +653,14 @@ nk_dispatch_mesh_(umeyama, f32, f32, f64)
 nk_dispatch_mesh_(umeyama, bf16, f32, f32)
 nk_dispatch_mesh_(umeyama, f16, f32, f32)
 
-// Sparse sets
+/*  Sparse sets */
 nk_dispatch_sparse_(sparse_intersect, u64, u64)
 nk_dispatch_sparse_(sparse_intersect, u32, u32)
 nk_dispatch_sparse_(sparse_intersect, u16, u16)
 nk_dispatch_sparse_dot_(sparse_dot, u32, f32, f64)
 nk_dispatch_sparse_dot_(sparse_dot, u16, bf16, f32)
 
-// Element-wise operations
+/*  Element-wise operations */
 nk_dispatch_each_scale_(f64c, f64c)
 nk_dispatch_each_scale_(f32c, f32c)
 nk_dispatch_each_scale_(f64, f64)
@@ -738,7 +736,7 @@ nk_dispatch_each_fma_(u32, f64)
 nk_dispatch_each_fma_(u16, f32)
 nk_dispatch_each_fma_(u8, f32)
 
-// Trigonometry functions
+/*  Trigonometry functions */
 nk_dispatch_trig_(sin, f64)
 nk_dispatch_trig_rope_(f32, nk_f32_t)
 nk_dispatch_trig_rope_(bf16, nk_bf16_t)
@@ -751,7 +749,7 @@ nk_dispatch_trig_(atan, f64)
 nk_dispatch_trig_(atan, f32)
 nk_dispatch_trig_(atan, f16)
 
-// Horizontal reductions: moments (sum + sum-of-squares)
+/*  Horizontal reductions: moments (sum + sum-of-squares) */
 nk_dispatch_reduce_moments_(f64, nk_f64_t, nk_f64_t, nk_f64_t)
 nk_dispatch_reduce_moments_(f32, nk_f32_t, nk_f64_t, nk_f64_t)
 nk_dispatch_reduce_moments_(bf16, nk_bf16_t, nk_f32_t, nk_f32_t)
@@ -772,16 +770,16 @@ nk_dispatch_reduce_moments_(u8, nk_u8_t, nk_u64_t, nk_u64_t)
 nk_dispatch_reduce_moments_(u4, nk_u4x2_t, nk_u64_t, nk_u64_t)
 nk_dispatch_reduce_moments_(u1, nk_u1x8_t, nk_u64_t, nk_u64_t)
 
-// Fused transformer nonlinearities: grouped RMSNorm
+/*  Fused transformer nonlinearities: grouped RMSNorm */
 nk_dispatch_reduce_rmsnorm_(e4m3, nk_e4m3_t)
 
-// Fused transformer nonlinearities: SwiGLU / SiLU
+/*  Fused transformer nonlinearities: SwiGLU / SiLU */
 nk_dispatch_each_swiglu_(e4m3, nk_e4m3_t)
 
-// Fused transformer nonlinearities: RoPE (NeoX split-half)
+/*  Fused transformer nonlinearities: RoPE (NeoX split-half) */
 nk_dispatch_trig_rope_(e4m3, nk_e4m3_t)
 
-// Horizontal reductions: minmax (min + max with indices)
+/*  Horizontal reductions: minmax (min + max with indices) */
 nk_dispatch_reduce_minmax_(f64, nk_f64_t, nk_f64_t)
 nk_dispatch_reduce_rmsnorm_(f32, nk_f32_t)
 nk_dispatch_reduce_rmsnorm_(bf16, nk_bf16_t)
@@ -804,7 +802,7 @@ nk_dispatch_reduce_minmax_(u8, nk_u8_t, nk_u8_t)
 nk_dispatch_reduce_minmax_(u4, nk_u4x2_t, nk_u8_t)
 nk_dispatch_reduce_minmax_(u1, nk_u1x8_t, nk_u8_t)
 
-// Dots packed sizes
+/*  Dots packed sizes */
 nk_dispatch_cross_pack_size_(dots, f64, f64, f64)
 nk_dispatch_cross_pack_size_(dots, f32, f32, f32)
 nk_dispatch_cross_pack_size_(dots, bf16, bf16, f32)
@@ -835,7 +833,7 @@ nk_dispatch_cross_packed_shape_(dots, u8, u8, u32)
 nk_dispatch_cross_packed_shape_(dots, u4, u4x2, u32)
 nk_dispatch_cross_packed_shape_(dots, u1, u1x8, u32)
 
-// Dots packing
+/*  Dots packing */
 nk_dispatch_dots_pack_(f64, f64)
 nk_dispatch_dots_pack_(f32, f32)
 nk_dispatch_dots_pack_(bf16, bf16)
@@ -851,7 +849,7 @@ nk_dispatch_dots_pack_(u8, u8)
 nk_dispatch_dots_pack_(u4, u4x2)
 nk_dispatch_dots_pack_(u1, u1x8)
 
-// Dots packed
+/*  Dots packed */
 nk_dispatch_cross_packed_(dots, f64, f64, f64, f64)
 nk_dispatch_cross_packed_(dots, f32, f32, f32, f64)
 nk_dispatch_cross_packed_(dots, bf16, bf16, f32, f32)
@@ -867,7 +865,7 @@ nk_dispatch_cross_packed_(dots, u8, u8, u32, u32)
 nk_dispatch_cross_packed_(dots, u4, u4x2, u32, u32)
 nk_dispatch_cross_packed_(dots, u1, u1x8, u32, u32)
 
-// Dots symmetric
+/*  Dots symmetric */
 nk_dispatch_cross_symmetric_(dots, f64, f64, f64)
 nk_dispatch_cross_symmetric_(dots, f32, f32, f64)
 nk_dispatch_cross_symmetric_(dots, bf16, bf16, f32)
@@ -883,15 +881,15 @@ nk_dispatch_cross_symmetric_(dots, u8, u8, u32)
 nk_dispatch_cross_symmetric_(dots, u4, u4x2, u32)
 nk_dispatch_cross_symmetric_(dots, u1, u1x8, u32)
 
-// Sets packed
+/*  Sets packed */
 nk_dispatch_cross_packed_(hammings, u1, u1x8, u32, u32)
 nk_dispatch_cross_packed_(jaccards, u1, u1x8, f32, f32)
 
-// Sets symmetric
+/*  Sets symmetric */
 nk_dispatch_cross_symmetric_(hammings, u1, u1x8, u32)
 nk_dispatch_cross_symmetric_(jaccards, u1, u1x8, f32)
 
-// Angulars packed
+/*  Angulars packed */
 nk_dispatch_cross_packed_(angulars, f64, f64, f64, f64)
 nk_dispatch_cross_packed_(angulars, f32, f32, f32, f64)
 nk_dispatch_cross_packed_(angulars, bf16, bf16, f32, f32)
@@ -906,7 +904,7 @@ nk_dispatch_cross_packed_(angulars, i4, i4x2, i32, f32)
 nk_dispatch_cross_packed_(angulars, u8, u8, u32, f32)
 nk_dispatch_cross_packed_(angulars, u4, u4x2, u32, f32)
 
-// Angulars symmetric
+/*  Angulars symmetric */
 nk_dispatch_cross_symmetric_(angulars, f64, f64, f64)
 nk_dispatch_cross_symmetric_(angulars, f32, f32, f64)
 nk_dispatch_cross_symmetric_(angulars, bf16, bf16, f32)
@@ -921,7 +919,7 @@ nk_dispatch_cross_symmetric_(angulars, i4, i4x2, f32)
 nk_dispatch_cross_symmetric_(angulars, u8, u8, f32)
 nk_dispatch_cross_symmetric_(angulars, u4, u4x2, f32)
 
-// Euclideans packed
+/*  Euclideans packed */
 nk_dispatch_cross_packed_(euclideans, f64, f64, f64, f64)
 nk_dispatch_cross_packed_(euclideans, f32, f32, f32, f64)
 nk_dispatch_cross_packed_(euclideans, bf16, bf16, f32, f32)
@@ -936,7 +934,7 @@ nk_dispatch_cross_packed_(euclideans, i4, i4x2, i32, f32)
 nk_dispatch_cross_packed_(euclideans, u8, u8, u32, f32)
 nk_dispatch_cross_packed_(euclideans, u4, u4x2, u32, f32)
 
-// Euclideans symmetric
+/*  Euclideans symmetric */
 nk_dispatch_cross_symmetric_(euclideans, f64, f64, f64)
 nk_dispatch_cross_symmetric_(euclideans, f32, f32, f64)
 nk_dispatch_cross_symmetric_(euclideans, bf16, bf16, f32)
@@ -951,7 +949,7 @@ nk_dispatch_cross_symmetric_(euclideans, i4, i4x2, f32)
 nk_dispatch_cross_symmetric_(euclideans, u8, u8, f32)
 nk_dispatch_cross_symmetric_(euclideans, u4, u4x2, f32)
 
-// MaxSim packed sizes
+/*  MaxSim packed sizes */
 nk_dispatch_cross_pack_size_(maxsim, f32, f32, f32)
 nk_dispatch_cross_pack_size_(maxsim, bf16, bf16, f32)
 nk_dispatch_cross_pack_size_(maxsim, f16, f16, f32)
@@ -960,17 +958,17 @@ nk_dispatch_cross_packed_shape_(maxsim, f32, f32, f32)
 nk_dispatch_cross_packed_shape_(maxsim, bf16, bf16, f32)
 nk_dispatch_cross_packed_shape_(maxsim, f16, f16, f32)
 
-// MaxSim packing
+/*  MaxSim packing */
 nk_dispatch_cross_pack_(maxsim, f32, f32, f32)
 nk_dispatch_cross_pack_(maxsim, bf16, bf16, f32)
 nk_dispatch_cross_pack_(maxsim, f16, f16, f32)
 
-// MaxSim packed scoring
+/*  MaxSim packed scoring */
 nk_dispatch_maxsim_packed_(f32, f64)
 nk_dispatch_maxsim_packed_(bf16, f32)
 nk_dispatch_maxsim_packed_(f16, f32)
 
-// Attention packed KV sizes
+/*  Attention packed KV sizes */
 nk_dispatch_attention_pack_size_(bf16)
 nk_dispatch_attention_pack_size_(e4m3)
 nk_dispatch_attention_pack_size_(i8)
@@ -979,12 +977,12 @@ nk_dispatch_attention_packed_shape_(bf16)
 nk_dispatch_attention_packed_shape_(e4m3)
 nk_dispatch_attention_packed_shape_(i8)
 
-// Attention KV packing
+/*  Attention KV packing */
 nk_dispatch_attention_pack_(bf16)
 nk_dispatch_attention_pack_(e4m3)
 nk_dispatch_attention_pack_(i8)
 
-// Attention computation
+/*  Attention computation */
 nk_dispatch_attention_bidirectional_packed_(bf16)
 nk_dispatch_attention_bidirectional_packed_(e4m3)
 nk_dispatch_attention_bidirectional_packed_(i8)
@@ -1009,7 +1007,7 @@ NK_API_RUNTIME void nk_cast_block_scaled(                                       
                                         to_tensor_scale, to_format, count);
 }
 
-// Forward declarations for dtype-specific dispatch initialization functions
+/*  Forward declarations for dtype-specific dispatch initialization functions */
 void nk_dispatch_f64c_init_(nk_capability_t caps);
 void nk_dispatch_f32c_init_(nk_capability_t caps);
 void nk_dispatch_bf16c_init_(nk_capability_t caps);
@@ -1181,7 +1179,7 @@ NK_API_RUNTIME void nk_find_kernel_punned( //
 #endif
 }
 
-// Auto-initialization for dynamic libraries - ensures dispatch table is populated on library load
+/*  Auto-initialization for dynamic libraries populates the dispatch table on library load. */
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((constructor)) static void nk_auto_init(void) { nk_initialize_(); }
 #elif defined(_MSC_VER)

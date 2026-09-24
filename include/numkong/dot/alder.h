@@ -16,12 +16,12 @@
  *  @endverbatim
  *
  *  Alder Lake and Raptor Lake support AVX-VNNI for accelerated integer dot products, the 256-bit
- *  variant of AVX-512 VNNI found on Ice Lake. We use VPDPBUSD, an asymmetric unsigned×signed
- *  multiply, with algebraic transformations covering signed×signed i8 and unsigned×unsigned u8.
+ *  variant of AVX-512 VNNI found on Ice Lake. We use VPDPBUSD, an asymmetric unsigned × signed
+ *  multiply, with algebraic transformations covering signed × signed i8 and unsigned × unsigned u8.
  *
  *  Performance improvements over previous approaches:
- *  - i8×i8: 1.3-1.4× speedup using dpbusd with XOR transformation (a+128)×b - 128×sum(b)
- *  - u8×u8: 1.8-2.0× speedup using dpbusd with XOR transformation a×(b-128) + 128×sum(a)
+ *  - i8 × i8: 1.3-1.4× speedup using dpbusd with XOR transformation (a+128) × b - 128 × sum(b)
+ *  - u8 × u8: 1.8-2.0× speedup using dpbusd with XOR transformation a × (b-128) + 128 × sum(a)
  *
  *  These match the speedups achieved on Ice Lake (AVX-512 VNNI) but with 256-bit vectors.
  *
@@ -93,8 +93,8 @@
 extern "C" {
 #endif
 
-// On GCC/Clang, VEX encoding is handled by target attributes.
-// Alias the MSVC-specific _avx intrinsic names to standard names.
+/*  On GCC/Clang, VEX encoding is handled by target attributes.
+ *  Alias the MSVC-specific _avx intrinsic names to standard names. */
 #if !defined(_MSC_VER)
 #define _mm256_dpbusd_avx_epi32 _mm256_dpbusd_epi32
 #define _mm256_dpwssd_avx_epi32 _mm256_dpwssd_epi32
@@ -109,17 +109,17 @@ extern "C" {
 
 NK_API_COMPTIME void nk_dot_i8_alder(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
                                      nk_i32_t *result) {
-    // Optimized i8×i8 dot product using algebraic transformation with DPBUSD
+    // Optimized i8 × i8 dot product using algebraic transformation with DPBUSD
     //
     // Algebraic transformation:
     //   Let a' = a XOR 0x80 (interpreted as unsigned, gives a+128 mod 256)
     //   dpbusd(a', b) computes: (a+128) × b  [unsigned × signed]
-    //   Therefore: a×b = (a+128)×b - 128×sum(b)
+    //   Therefore: a × b = (a+128) × b - 128 × sum(b)
     //
     // Where:
     //   - XOR with 0x80 converts signed i8 [-128,127] to unsigned [0,255]
-    //   - dpbusd performs unsigned×signed multiply-accumulate
-    //   - Correction term 128×sum(b) is computed and subtracted at the end
+    //   - dpbusd performs unsigned × signed multiply-accumulate
+    //   - Correction term 128 × sum(b) is computed and subtracted at the end
     //
     // Performance: ~1.3-1.4× speedup expected over cvtepi8_epi16 + dpwssd approach
     //   - Processes 32 elements/iteration (AVX2 width)
@@ -162,9 +162,9 @@ nk_dot_i8_alder_cycle:
 
     if (count_scalars) goto nk_dot_i8_alder_cycle;
 
-    // Apply algebraic correction: a×b = (a+128)×b - 128×sum(b)
-    // With biased accumulator: sum(b) = sum_b_biased - 128×count
-    // So: correction = 128×sum(b) = 128×sum_b_biased - 16384×count
+    // Apply algebraic correction: a × b = (a+128) × b - 128 × sum(b)
+    // With biased accumulator: sum(b) = sum_b_biased - 128 × count
+    // So: correction = 128 × sum(b) = 128 × sum_b_biased - 16384 × count
     nk_i32_t ab_sum = nk_reduce_add_i32x8_haswell_(sum_ab_i32x8);
     nk_i64_t sum_b_biased = nk_reduce_add_i64x4_haswell_(sum_b_biased_i64x4);
     nk_size_t elements_rounded = nk_size_round_up_to_multiple_(total_elements, 32);
@@ -174,7 +174,7 @@ nk_dot_i8_alder_cycle:
 }
 
 typedef struct nk_dot_i8x32_state_alder_t {
-    __m256i biased_product_sum_i32x8; // Single accumulator: (a+128)×b, correction applied at finalize
+    __m256i biased_product_sum_i32x8; // Single accumulator: (a+128) × b, correction applied at finalize
 } nk_dot_i8x32_state_alder_t;
 
 NK_HELPER_INLINE void nk_dot_i8x32_init_alder(nk_dot_i8x32_state_alder_t *state) {
@@ -226,18 +226,18 @@ NK_HELPER_INLINE void nk_dot_i8x32_finalize_alder(                              
 
 NK_API_COMPTIME void nk_dot_u8_alder(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
                                      nk_u32_t *result) {
-    // Optimized u8×u8 dot product using algebraic transformation with DPBUSD
+    // Optimized u8 × u8 dot product using algebraic transformation with DPBUSD
     //
     // Algebraic transformation:
     //   Let b' = b XOR 0x80 (converts unsigned to signed: b' = b - 128)
     //   dpbusd(a, b') computes: a × (b-128)  [unsigned × signed]
-    //   Therefore: a×b = a×(b-128) + 128×sum(a)
+    //   Therefore: a × b = a × (b-128) + 128 × sum(a)
     //
     // Where:
     //   - XOR with 0x80 converts unsigned u8 [0,255] to signed [-128,127]
-    //   - dpbusd performs unsigned×signed multiply-accumulate
+    //   - dpbusd performs unsigned × signed multiply-accumulate
     //   - sad_epu8 computes sum(a) as correction term
-    //   - Correction term 128×sum(a) is added at the end
+    //   - Correction term 128 × sum(a) is added at the end
     //
     // Performance: ~1.8-2.0× speedup expected over unpack + dpwssd approach
     //   - Processes 32 elements/iteration
@@ -277,7 +277,7 @@ nk_dot_u8_alder_cycle:
 
     if (count_scalars) goto nk_dot_u8_alder_cycle;
 
-    // Apply algebraic correction: a×b = a×(b-128) + 128×sum(a)
+    // Apply algebraic correction: a × b = a × (b-128) + 128 × sum(a)
     nk_i32_t ab_dot_signed = nk_reduce_add_i32x8_haswell_(sum_ab_i32x8);
 
     // Reduce sum_a from 4 i64 values to scalar
@@ -305,7 +305,7 @@ NK_HELPER_INLINE void nk_dot_u8x32_update_alder(nk_dot_u8x32_state_alder_t *stat
                                                 nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    // Operand swap: DPBUSD(b, a^0x80) = b·(a−128) → result = biased + 128·Σb
+    // Operand swap: DPBUSD(b, a^0x80) = b · (a−128) → result = biased + 128 · Σb
     __m256i a_signed_i8x32 = _mm256_xor_si256(a.ymm, _mm256_set1_epi8((char)0x80));
     state->biased_product_sum_i32x8 = _mm256_dpbusd_avx_epi32(state->biased_product_sum_i32x8, b.ymm, a_signed_i8x32);
 }
@@ -345,12 +345,10 @@ NK_HELPER_INLINE void nk_dot_u8x32_finalize_alder(                              
     result_vec->xmm = _mm_add_epi32(biased_i32x4, correction_i32x4);
 }
 
-/**
- *  Stateful element-sum helpers for compensated symmetric GEMM.
- *  SAD runs on port 5 while DPBUSD runs on ports 0+1 — zero throughput cost when inlined.
- */
+/*  Stateful element-sum helpers for compensated symmetric GEMM.
+ *  SAD runs on port 5 while DPBUSD runs on ports 0+1 — zero throughput cost when inlined. */
 
-/* i8x32: signed i8 sum via XOR→unsigned + SAD, bias-corrected at finalize */
+/* i8x32: signed i8 sum via XOR → unsigned + SAD, bias-corrected at finalize */
 typedef struct nk_sum_i8x32_state_alder_t {
     __m256i biased_sum_u64x4; /* Accumulates SAD of (v ^ 0x80), needs bias correction at finalize */
 } nk_sum_i8x32_state_alder_t;
@@ -400,12 +398,12 @@ NK_HELPER_INLINE nk_u32_t nk_sum_u8x32_finalize_alder(nk_sum_u8x32_state_alder_t
 
 NK_API_COMPTIME void nk_dot_e2m3_alder(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars, nk_size_t count_scalars,
                                        nk_f32_t *result) {
-    // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPDPBUSD (unsigned×signed).
+    // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPDPBUSD (unsigned × signed).
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
     // Result = i32_dot / 256.0f (exact, no rounding error).
     //
     // This is the Alder Lake (256-bit AVX-VNNI) variant of the Ice Lake kernel.
-    // DPBUSD replaces MADDUBS+MADD (2 instructions → 1), accumulating u8×i8→i32 directly.
+    // DPBUSD replaces MADDUBS+MADD (2 instructions → 1), accumulating u8 × i8 → i32 directly.
     //
     __m256i const lut_low_u8x32 = _mm256_set_epi8(                 //
         30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0, //
@@ -526,7 +524,7 @@ NK_HELPER_INLINE void nk_dot_e2m3x32_finalize_alder(                            
     nk_size_t total_dimensions, nk_b128_vec_t *results) {
     nk_unused_(total_dimensions);
 
-    // ILP-optimized 4-way horizontal reduction: i32x8 → scalar i32, then → f32 with ÷256
+    // ILP-optimized 4-way horizontal reduction: i32x8 → scalar i32, then → f32 with ÷ 256
     __m128i sum_a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(state_a->sum_i32x8),
                                         _mm256_extracti128_si256(state_a->sum_i32x8, 1));
     __m128i sum_b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(state_b->sum_i32x8),
@@ -552,7 +550,8 @@ NK_HELPER_INLINE void nk_dot_e2m3x32_finalize_alder(                            
     results->xmm = _mm_castps_si128(sum_f32x4);
 }
 
-/** @brief Integer LUT batch state for e2m1 dot-products on Alder Lake (AVX-VNNI), 64 nibbles per update. */
+/** Integer LUT batch state for e2m1 dot-products on Alder Lake (AVX-VNNI), 64 nibbles per
+ *  update. */
 typedef struct nk_dot_e2m1x64_state_alder_t {
     __m256i sum_i32x8;
 } nk_dot_e2m1x64_state_alder_t;

@@ -14,7 +14,7 @@
  *  Trigonometric helpers — sin, cos, atan2 — come from trigonometry/rvv.h, which provides
  *  polynomial approximations operating on @c vfloat64m4_t and @c vfloat32m4_t vectors.
  *
- *  Vincenty convergence tracking uses RVV mask registers (`vbool16_t` / `vbool8_t`) with
+ *  Vincenty convergence tracking uses RVV mask registers, @c vbool16_t or @c vbool8_t, with
  *  @c __riscv_vcpop_m to check if all lanes have converged, and @c __riscv_vmerge for per-lane
  *  conditional updates.
  *
@@ -53,22 +53,22 @@ extern "C" {
 #endif
 
 /*  RVV implementations using LMUL=4 vectors for f64 and f32 geospatial distances.
- *  These require RVV trigonometric kernels from trigonometry/rvv.h.
- */
+ *  These require RVV trigonometric kernels from trigonometry/rvv.h. */
 
 #pragma region Haversine Distance
 
 /**
  *  @brief  RVV internal kernel for Haversine distance on vector_length f64 point pairs.
  *
- *  Haversine formula:
+ *  Haversine formula, where R is @c NK_EARTH_MEDIATORIAL_RADIUS:
+ *
+ *  @verbatim
  *      dlat = lat2 - lat1
  *      dlon = lon2 - lon1
- *      a = sin^2(dlat/2) + cos(lat1) * cos(lat2) * sin^2(dlon/2)
- *      c = 2 * atan2(sqrt(a), sqrt(1 - a))
- *      distance = R * c
- *
- *  where R = NK_EARTH_MEDIATORIAL_RADIUS.
+ *      a = sin²(dlat/2) + cos(lat1) × cos(lat2) × sin²(dlon/2)
+ *      c = 2 × atan2(√a, √(1 - a))
+ *      distance = R × c
+ *  @endverbatim
  */
 NK_HELPER_INLINE void nk_haversine_f64_rvv_kernel_( //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
@@ -135,9 +135,7 @@ NK_API_COMPTIME void nk_haversine_f64_rvv(          //
     }
 }
 
-/**
- *  @brief  RVV internal kernel for Haversine distance on vector_length f32 point pairs.
- */
+/** RVV internal kernel for Haversine distance on vector_length f32 point pairs. */
 NK_HELPER_INLINE void nk_haversine_f32_rvv_kernel_( //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //

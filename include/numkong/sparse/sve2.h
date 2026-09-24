@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/sparse/sve2.h
  *  @author Ash Vardanian
- *  @date February 6, 2026
+ *  @date September 11, 2024
  *  @brief SVE2-accelerated sparse vector operations.
  *
  *  @sa include/numkong/sparse.h
@@ -21,25 +21,25 @@ extern "C" {
 /*  SVE2 introduces many new integer-oriented instructions, extending some of the NEON functionality
  *  to variable-length SVE registers. Those include "compare multiple" intrinsics:
  *
- *  - `svmatch[_u16]` that matches each scalar in first vector against all members of a 128-bit lane in the second.
+ *  - `svmatch[_u16]` matches each scalar in the first vector against all members of a 128-bit lane
+ *    in the second.
  *  - `svhistcnt[_s32]_z` does something similar, performing an inclusive prefix scan.
- *  - `svtbx[_u16]` does extended table lookup
+ *  - `svtbx[_u16]` does extended table lookup.
  *
  *  Other notable instructions:
  *
- *  - `DUP`: Broadcast indexed predicate element
+ *  - @c DUP: Broadcast indexed predicate element
  *    https://developer.arm.com/documentation/ddi0602/2021-06/SVE-Instructions/DUP--predicate---Broadcast-indexed-predicate-element-?lang=en
- *  - `SCLAMP` and `UCLAMP`: clamp values, i.e. combined min+max
+ *  - @c SCLAMP and @c UCLAMP: clamp values, i.e. combined min+max
  *    https://developer.arm.com/documentation/ddi0602/2021-06/SVE-Instructions/SCLAMP--Signed-clamp-to-minimum-maximum-vector-?lang=en
  *    https://developer.arm.com/documentation/ddi0602/2021-06/SVE-Instructions/UCLAMP--Unsigned-clamp-to-minimum-maximum-vector-?lang=en
- *  - `TBLQ`: Table lookup quadword
+ *  - @c TBLQ: Table lookup quadword
  *    https://developer.arm.com/documentation/ddi0602/2022-12/SVE-Instructions/TBLQ--Programmable-table-lookup-within-each-quadword-vector-segment--zeroing--?lang=en
  *
  *  Great resources for SVE2 intrinsics:
  *
  *  > ARM's Scalable Vector Extensions: A Critical Look at SVE2 For Integer Workloads
- *    https://gist.github.com/zingaburga/805669eb891c820bd220418ee3f0d6bd
- */
+ *    https://gist.github.com/zingaburga/805669eb891c820bd220418ee3f0d6bd */
 #if NK_TARGET_SVE2
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+sve+sve2"))), apply_to = function)
@@ -419,7 +419,7 @@ NK_API_COMPTIME void nk_sparse_dot_u16bf16_sve2(            //
     nk_f32_t *product) {
 
     // Mirrors `nk_sparse_dot_u32f32_sve2`, widening the 16-bit indices on load. `svmatch_u16`
-    // only reports THAT a lane matched, never which, so pairing weights by lane index is wrong;
+    // only reports that a lane matched, never which, so pairing weights by lane index is wrong;
     // `svhistcnt_u32_z` is whole-vector and yields both overlap masks, and compacting each
     // weight vector by its own mask aligns the k-th survivors because both inputs are sorted.
     nk_size_t const register_size = svcntw();

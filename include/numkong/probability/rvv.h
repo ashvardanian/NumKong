@@ -35,22 +35,22 @@ extern "C" {
 #endif
 
 /**
- *  @brief  Computes `log2(x)` for a vector of f32 values using IEEE 754 bit manipulation
- *          and a 5-term Horner polynomial, matching the Haswell log2 approximation.
+ *  @brief Computes log₂(x) for a vector of f32 values using IEEE 754 bit manipulation and a 5-term
+ *      Horner polynomial, matching the Haswell log2 approximation.
  *
- *  Decomposes each float into exponent and mantissa:
- *  - exponent = (bits >> 23) - 127
- *  - mantissa = (bits & 0x007FFFFF) | 0x3F800000, yielding m in [1, 2)
+ *  Decomposes each float into exponent and mantissa, evaluates poly(m) via Horner's method, and
+ *  returns log₂(x) = exponent + poly × (m − 1):
  *
- *  Then evaluates poly(m) via Horner's method:
- *    poly = -3.4436006e-2f
- *    poly = poly * m + 3.1821337e-1f
- *    poly = poly * m - 1.2315303f
- *    poly = poly * m + 2.5988452f
- *    poly = poly * m - 3.3241990f
- *    poly = poly * m + 3.1157899f
- *
- *  Final result: log2(x) = exponent + poly * (m - 1)
+ *  @verbatim
+ *  exponent = (bits >> 23) - 127
+ *  mantissa = (bits & 0x007FFFFF) | 0x3F800000, yielding m in [1, 2)
+ *  poly = -3.4436006e-2f
+ *  poly = poly * m + 3.1821337e-1f
+ *  poly = poly * m - 1.2315303f
+ *  poly = poly * m + 2.5988452f
+ *  poly = poly * m - 3.3241990f
+ *  poly = poly * m + 3.1157899f
+ *  @endverbatim
  */
 NK_HELPER_INLINE vfloat32m4_t nk_log2_f32m4_rvv_(vfloat32m4_t x, nk_size_t vector_length) {
     vuint32m4_t bits_u32m4 = __riscv_vreinterpret_v_f32m4_u32m4(x);

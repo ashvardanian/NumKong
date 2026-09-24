@@ -25,7 +25,7 @@ namespace ashvardanian::numkong {
  *
  *  @tparam from_type_ Source element type.
  *  @tparam to_type_ Destination element type.
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
 template <numeric_dtype from_type_, numeric_dtype to_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void cast(from_type_ const *from, std::size_t n, to_type_ *to) noexcept {

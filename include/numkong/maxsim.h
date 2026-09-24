@@ -12,14 +12,14 @@
  *  angular distance and accumulated with @c f64.
  *
  *  Precision policy:
- *  - `f32` inputs keep packed payloads and metadata narrow for memory bandwidth.
- *  - The refined scores and final late-interaction sum widen to `f64`.
+ *  - @c f32 inputs keep packed payloads and metadata narrow for memory bandwidth.
+ *  - The refined scores and final late-interaction sum widen to @c f64.
  *
  *  It implements several operations:
  *
- *  - "maxsim_packed" - computing MaxSim where both Q and D are pre-packed into optimal form
- *  - "maxsim_pack_size" - estimating the memory requirements for external malloc
- *  - "maxsim_pack" - performing the pre-processing, quantization plus original copy
+ *  - @c maxsim_packed - computing MaxSim where both Q and D are pre-packed into optimal form
+ *  - @c maxsim_pack_size - estimating the memory requirements for external malloc
+ *  - @c maxsim_pack - performing the pre-processing, quantization plus original copy
  *
  *  @section maxsim_api Two-Phase API
  *
@@ -105,8 +105,8 @@ NK_API_RUNTIME void nk_maxsim_pack_f16(nk_f16_t const *vectors, nk_size_t vector
                                        nk_size_t stride, void *packed);
 
 /**
- *  @brief Computes angular distance late-interaction on pre-packed vectors.
- *  Returns Σᵢ minⱼ angular(qᵢ, dⱼ) where angular = 1 - dot / sqrt(||q||² × ||d||²).
+ *  @brief Computes angular distance late-interaction on pre-packed vectors. Returns Σᵢ minⱼ
+ *      angular(qᵢ, dⱼ) where angular = 1 - dot / sqrt(||q||² × ||d||²).
  *
  *  @param[in] query_packed Packed query vectors (from nk_maxsim_pack_bf16).
  *  @param[in] document_packed Packed document vectors (from nk_maxsim_pack_bf16).
@@ -219,7 +219,12 @@ NK_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx(nk_f32_t const *vectors, nk_
 /** @copydoc nk_maxsim_pack_bf16 */
 NK_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                     nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_packed_bf16 */
+
+/**
+ *  @copydoc nk_maxsim_packed_bf16
+ *  @note Pipelines 4 document tiles through TMM4-7 with TDPBF16PS, gathering columns of the 16×16
+ *      f32 accumulators into per-document dot products with AVX-512.
+ */
 NK_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx(void const *query_packed, void const *document_packed,
                                                        nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
                                                        nk_f32_t *result);
@@ -410,15 +415,18 @@ NK_API_COMPTIME void nk_maxsim_packed_bf16_sme(void const *query_packed, void co
 NK_API_COMPTIME void nk_maxsim_packed_f16_sme(void const *query_packed, void const *document_packed,
                                               nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
                                               nk_f32_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
+
+/**
+ *  @copydoc nk_maxsim_packed_bf16
+ *  @note Screens with i8 SMOPA, 4× the depth per instruction of f32 FMOPA, then refines the winning
+ *      pairs in f64 into the angular distance 1 − dot / √(‖q‖² × ‖d‖²).
+ */
 NK_API_COMPTIME void nk_maxsim_packed_f32_sme(void const *query_packed, void const *document_packed,
                                               nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
                                               nk_f64_t *result);
 #endif // NK_TARGET_SME
 
-/**
- *  @brief Returns the output dtype for MaxSim late-interaction.
- */
+/** Returns the output dtype for MaxSim late-interaction. */
 NK_HELPER_INLINE nk_dtype_t nk_maxsim_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f32_k: return nk_f64_k;

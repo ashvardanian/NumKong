@@ -49,27 +49,27 @@ NK_API_COMPTIME void nk_f16_to_f32_haswell(nk_f16_t const *from, nk_f32_t *to) {
 
 #pragma region Type Punned Loads and Stores
 
-/** @brief Type-agnostic 256-bit full load (Haswell AVX2). */
+/** Type-agnostic 256-bit full load (Haswell AVX2). */
 NK_HELPER_INLINE void nk_load_b256_haswell_(void const *src, nk_b256_vec_t *dst) {
     dst->ymm = _mm256_loadu_si256((const __m256i *)src);
 }
 
-/** @brief Type-agnostic 256-bit full store (Haswell AVX2). */
+/** Type-agnostic 256-bit full store (Haswell AVX2). */
 NK_HELPER_INLINE void nk_store_b256_haswell_(nk_b256_vec_t const *src, void *dst) {
     _mm256_storeu_si256((__m256i *)dst, src->ymm);
 }
 
-/** @brief Type-agnostic 128-bit full load (Haswell AVX2). */
+/** Type-agnostic 128-bit full load (Haswell AVX2). */
 NK_HELPER_INLINE void nk_load_b128_haswell_(void const *src, nk_b128_vec_t *dst) {
     dst->xmm = _mm_loadu_si128((const __m128i *)src);
 }
 
-/** @brief Type-agnostic 128-bit full store (SSE2). */
+/** Type-agnostic 128-bit full store (SSE2). */
 NK_HELPER_INLINE void nk_store_b128_haswell_(nk_b128_vec_t const *src, void *dst) {
     _mm_storeu_si128((__m128i *)dst, src->xmm);
 }
 
-/** @brief Type-agnostic 128-bit partial load with AVX maskload. */
+/** Type-agnostic 128-bit partial load with AVX maskload. */
 NK_HELPER_INLINE void nk_partial_load_b32x4_haswell_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     __m128i index_i32x4 = _mm_setr_epi32(0, 1, 2, 3);
     __m128i limit_i32x4 = _mm_set1_epi32((int)n);
@@ -77,7 +77,7 @@ NK_HELPER_INLINE void nk_partial_load_b32x4_haswell_(void const *src, nk_b128_ve
     dst->xmm = _mm_castps_si128(_mm_maskload_ps((float const *)src, mask_i32x4));
 }
 
-/** @brief Type-agnostic 128-bit partial store with AVX maskstore. */
+/** Type-agnostic 128-bit partial store with AVX maskstore. */
 NK_HELPER_INLINE void nk_partial_store_b32x4_haswell_(nk_b128_vec_t const *src, void *dst, nk_size_t n) {
     __m128i index_i32x4 = _mm_setr_epi32(0, 1, 2, 3);
     __m128i limit_i32x4 = _mm_set1_epi32((int)n);
@@ -85,7 +85,7 @@ NK_HELPER_INLINE void nk_partial_store_b32x4_haswell_(nk_b128_vec_t const *src, 
     _mm_maskstore_ps((float *)dst, mask_i32x4, _mm_castsi128_ps(src->xmm));
 }
 
-/** @brief Type-agnostic 256-bit partial load with AVX2 maskload. */
+/** Type-agnostic 256-bit partial load with AVX2 maskload. */
 NK_HELPER_INLINE void nk_partial_load_b64x4_haswell_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     __m256i index_i64x4 = _mm256_setr_epi64x(0, 1, 2, 3);
     __m256i limit_i64x4 = _mm256_set1_epi64x((long long)n);
@@ -93,7 +93,7 @@ NK_HELPER_INLINE void nk_partial_load_b64x4_haswell_(void const *src, nk_b256_ve
     dst->ymm = _mm256_castpd_si256(_mm256_maskload_pd((double const *)src, mask_i64x4));
 }
 
-/** @brief Type-agnostic 256-bit partial store with AVX2 maskstore. */
+/** Type-agnostic 256-bit partial store with AVX2 maskstore. */
 NK_HELPER_INLINE void nk_partial_store_b64x4_haswell_(nk_b256_vec_t const *src, void *dst, nk_size_t n) {
     __m256i index_i64x4 = _mm256_setr_epi64x(0, 1, 2, 3);
     __m256i limit_i64x4 = _mm256_set1_epi64x((long long)n);
@@ -105,12 +105,12 @@ NK_HELPER_INLINE void nk_partial_store_b64x4_haswell_(nk_b256_vec_t const *src, 
 
 #pragma region Vectorized Conversions
 
-/** @brief Convert 8x bf16 → 8x f32 by shifting left 16 bits (AVX2). */
+/** Convert 8x bf16 → 8x f32 by shifting left 16 bits (AVX2). */
 NK_HELPER_INLINE __m256 nk_bf16x8_to_f32x8_haswell_(__m128i bf16_i16x8) {
     return _mm256_castsi256_ps(_mm256_slli_epi32(_mm256_cvtepu16_epi32(bf16_i16x8), 16));
 }
 
-/** @brief Convert 8x f32 → 8x bf16 by truncating with RNE rounding (AVX2). */
+/** Convert 8x f32 → 8x bf16 by truncating with RNE rounding (AVX2). */
 NK_HELPER_INLINE __m128i nk_f32x8_to_bf16x8_haswell_(__m256 f32x8) {
     __m256i bits_i32x8 = _mm256_castps_si256(f32x8);
     // RNE rounding: add (0x7FFF + lsb) where lsb is bit 16
@@ -123,7 +123,7 @@ NK_HELPER_INLINE __m128i nk_f32x8_to_bf16x8_haswell_(__m256 f32x8) {
     return _mm_packus_epi32(low_i32x4, high_i32x4);
 }
 
-/** @brief Integer upcasts to f32x8 (AVX2). */
+/** Integer upcasts to f32x8 (AVX2). */
 NK_HELPER_INLINE __m256 nk_i8x8_to_f32x8_haswell_(__m128i i8x8) {
     return _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(i8x8));
 }
@@ -144,7 +144,7 @@ NK_HELPER_INLINE __m256 nk_u32x8_to_f32x8_haswell_(__m256i u32x8) {
                          _mm256_mul_ps(_mm256_cvtepi32_ps(high_i32x8), _mm256_set1_ps(65536.0f)));
 }
 
-/** @brief Saturating f32x8 downcasts to integers (AVX2). */
+/** Saturating @p f32x8 downcasts to integers (AVX2). */
 NK_HELPER_INLINE __m256i nk_f32x8_to_i32x8_haswell_(__m256 f32x8) { return _mm256_cvtps_epi32(f32x8); }
 NK_HELPER_INLINE __m256i nk_f32x8_to_u32x8_haswell_(__m256 f32x8) {
     __m256 clamped_f32x8 = _mm256_max_ps(_mm256_min_ps(f32x8, _mm256_set1_ps((float)NK_U32_MAX)), _mm256_setzero_ps());
@@ -180,13 +180,20 @@ NK_HELPER_INLINE __m128i nk_f32x8_to_u8x8_haswell_(__m256 f32x8) {
     return _mm_packus_epi16(packed_u16x8, _mm_setzero_si128());
 }
 
-/** @brief Convert 8x e4m3 → 8x f32 via Giesen-style fake-F16 cast (AVX2 + F16C).
- *  E4M3 `byte = S EEEE MMM` (bias 7). Shifting the magnitude into F16 positions
- *  `((byte & 0x7F) << 7) | ((byte & 0x80) << 8)` yields a fake F16 whose F16 value
- *  differs from the true E4M3 magnitude by exactly 2⁸ (bias delta 15 − 7). The
- *  fake F16 is widened via `vcvtph2ps` and corrected by ×256 in F32. Subnormal
- *  handling falls out for free via F16 subnormal semantics. NaN (|byte|==0x7F)
- *  is blended explicitly with F16 quiet-NaN bits. */
+/**
+ *  @brief Convert 8x e4m3 → 8x f32 via Giesen-style fake-F16 cast (AVX2 + F16C).
+ *
+ *  E4M3 packs each byte as S EEEE MMM with bias 7. Shifting the magnitude into F16 positions yields
+ *  a fake F16 whose value differs from the true E4M3 magnitude by exactly 2⁸, a bias delta of 8:
+ *
+ *  @verbatim
+ *      fake_f16 = ((byte & 0x7F) << 7) | ((byte & 0x80) << 8)
+ *  @endverbatim
+ *
+ *  The fake F16 is widened via @c vcvtph2ps and corrected by × 256 in F32. Subnormal handling falls
+ *  out for free via F16 subnormal semantics. NaN, where |byte| = 0x7F, is blended explicitly with
+ *  F16 quiet-NaN bits.
+ */
 NK_HELPER_INLINE __m256 nk_e4m3x8_to_f32x8_haswell_(__m128i e4m3_i8x8) {
     __m128i const magnitude_mask_u16x8 = _mm_set1_epi16(0x7F);
     __m128i const sign_mask_u16x8 = _mm_set1_epi16((short)0x80);
@@ -202,19 +209,19 @@ NK_HELPER_INLINE __m256 nk_e4m3x8_to_f32x8_haswell_(__m128i e4m3_i8x8) {
     return _mm256_mul_ps(fake_f32x8, _mm256_set1_ps(256.0f));
 }
 
-/** @brief Convert 8x e5m2 → 8x f32 via free-shift widen (AVX2 + F16C).
- *  E5M2 shares F16's exponent bias (15): `(byte << 8)` is the matching F16 bit
- *  pattern for every E5M2 value (normals, subnormals, zero, ±Inf, NaN — all
- *  bit-exact). Widen u8 → u16, shift, then VCVTPH2PS to F32. Three ops total. */
+/** Convert 8x e5m2 → 8x f32 via free-shift widen (AVX2 + F16C). E5M2 shares F16's exponent bias
+ *  (15): `(byte << 8)` is the matching F16 bit pattern for every E5M2 value (normals, subnormals,
+ *  zero, ±Inf, NaN — all bit-exact). Widens u8 → u16, shifts, then converts to F32 with VCVTPH2PS,
+ *  in three ops. */
 NK_HELPER_INLINE __m256 nk_e5m2x8_to_f32x8_haswell_(__m128i e5m2_i8x8) {
     __m128i e5m2_u16x8 = _mm_cvtepu8_epi16(e5m2_i8x8);
     __m128i f16_u16x8 = _mm_slli_epi16(e5m2_u16x8, 8);
     return _mm256_cvtph_ps(f16_u16x8);
 }
 
-/** @brief Convert 8x f32 → 8x e4m3 via bit manipulation (AVX2).
- *  E4M3 format: S EEEE MMM (bias=7). Handles normal, subnormal, and overflow cases.
- *  Subnormals (f32_exp ≤ 120): mantissa = round(abs_f32 * 512), clamped to [0,7]. */
+/** Convert 8x f32 → 8x e4m3 via bit manipulation (AVX2). E4M3 format: S EEEE MMM (bias=7). Handles
+ *  normal, subnormal, and overflow cases. Subnormals (f32_exp ≤ 120): mantissa = round(abs_f32 *
+ *  512), clamped to [0,7]. */
 NK_HELPER_INLINE __m128i nk_f32x8_to_e4m3x8_haswell_(__m256 f32x8) {
     __m256i bits_i32x8 = _mm256_castps_si256(f32x8);
     __m256i sign_i32x8 = _mm256_srli_epi32(bits_i32x8, 31);
@@ -274,9 +281,8 @@ NK_HELPER_INLINE __m128i nk_f32x8_to_e4m3x8_haswell_(__m256 f32x8) {
     return packed_i8x8;
 }
 
-/** @brief Convert 8x f32 → 8x e5m2 via bit manipulation (AVX2).
- *  E5M2 format: S EEEEE MM (bias=15). Handles normal, subnormal, and overflow cases.
- *  Uses RNE (round to nearest even) for mantissa rounding. */
+/** Convert 8x f32 → 8x e5m2 via bit manipulation (AVX2). E5M2 format: S EEEEE MM (bias=15). Handles
+ *  normal, subnormal, and overflow cases, rounding the mantissa to nearest even. */
 NK_HELPER_INLINE __m128i nk_f32x8_to_e5m2x8_haswell_(__m256 f32x8) {
     __m256i bits_i32x8 = _mm256_castps_si256(f32x8);
     __m256i sign_i32x8 = _mm256_srli_epi32(bits_i32x8, 31);
@@ -332,9 +338,9 @@ NK_HELPER_INLINE __m128i nk_f32x8_to_e5m2x8_haswell_(__m256 f32x8) {
     return packed_i8x8;
 }
 
-/** @brief Convert 8x e2m3 → 8x f32 via bit manipulation (AVX2).
- *  E2M3 format: S EE MMM (bias=1). F32: sign<<31, (exp+126)<<23, mantissa<<20.
- *  Subnormals (exp=0): value = mantissa × 2⁽¹⁻¹⁾ × 2⁻³ = mantissa ÷ 8. */
+/** Convert 8x e2m3 → 8x f32 via bit manipulation (AVX2). E2M3 format: S EE MMM (bias=1). F32:
+ *  sign<<31, (exp+126)<<23, mantissa<<20. Subnormals (exp=0): value = mantissa × 2⁽¹⁻¹⁾ × 2⁻³ =
+ *  mantissa ÷ 8. */
 NK_HELPER_INLINE __m256 nk_e2m3x8_to_f32x8_haswell_(__m128i e2m3_i8x8) {
     __m256i e2m3_i32x8 = _mm256_cvtepu8_epi32(e2m3_i8x8);
 
@@ -359,9 +365,9 @@ NK_HELPER_INLINE __m256 nk_e2m3x8_to_f32x8_haswell_(__m128i e2m3_i8x8) {
     return _mm256_blendv_ps(_mm256_castsi256_ps(normal_i32x8), subnorm_f32x8, _mm256_castsi256_ps(exponent_zero_b32x8));
 }
 
-/** @brief Convert 8x e3m2 → 8x f32 via bit manipulation (AVX2).
- *  E3M2 format: S EEE MM (bias=3). F32: sign<<31, (exp+124)<<23, mantissa<<21.
- *  Subnormals (exp=0): value = mantissa × 2⁽¹⁻³⁾ × 2⁻² = mantissa ÷ 16. */
+/** Convert 8x e3m2 → 8x f32 via bit manipulation (AVX2). E3M2 format: S EEE MM (bias=3). F32:
+ *  sign<<31, (exp+124)<<23, mantissa<<21. Subnormals (exp=0): value = mantissa × 2⁽¹⁻³⁾ × 2⁻² =
+ *  mantissa ÷ 16. */
 NK_HELPER_INLINE __m256 nk_e3m2x8_to_f32x8_haswell_(__m128i e3m2_i8x8) {
     __m256i e3m2_i32x8 = _mm256_cvtepu8_epi32(e3m2_i8x8);
 
@@ -386,9 +392,9 @@ NK_HELPER_INLINE __m256 nk_e3m2x8_to_f32x8_haswell_(__m128i e3m2_i8x8) {
     return _mm256_blendv_ps(_mm256_castsi256_ps(normal_i32x8), subnorm_f32x8, _mm256_castsi256_ps(exponent_zero_b32x8));
 }
 
-/** @brief Convert 8x f32 → 8x e2m3 via bit manipulation (AVX2).
- *  E2M3 format: S EE MMM (bias=1). Handles normal, subnormal, and overflow cases.
- *  Subnormals (f32_exp ≤ 126): mantissa = round(abs_f32 * 8), clamped to [0,7]. */
+/** Convert 8x f32 → 8x e2m3 via bit manipulation (AVX2). E2M3 format: S EE MMM (bias=1). Handles
+ *  normal, subnormal, and overflow cases. Subnormals (f32_exp ≤ 126): mantissa = round(abs_f32 *
+ *  8), clamped to [0,7]. */
 NK_HELPER_INLINE __m128i nk_f32x8_to_e2m3x8_haswell_(__m256 f32x8) {
     __m256i bits_i32x8 = _mm256_castps_si256(f32x8);
     __m256i sign_i32x8 = _mm256_srli_epi32(bits_i32x8, 31);
@@ -443,9 +449,9 @@ NK_HELPER_INLINE __m128i nk_f32x8_to_e2m3x8_haswell_(__m256 f32x8) {
     return packed_i8x8;
 }
 
-/** @brief Convert 8x f32 → 8x e3m2 via bit manipulation (AVX2).
- *  E3M2 format: S EEE MM (bias=3). Handles normal, subnormal, and overflow cases.
- *  Subnormals (f32_exp ≤ 124): mantissa = round(abs_f32 * 16), clamped to [0,3]. */
+/** Convert 8x f32 → 8x e3m2 via bit manipulation (AVX2). E3M2 format: S EEE MM (bias=3). Handles
+ *  normal, subnormal, and overflow cases. Subnormals (f32_exp ≤ 124): mantissa = round(abs_f32 *
+ *  16), clamped to [0,3]. */
 NK_HELPER_INLINE __m128i nk_f32x8_to_e3m2x8_haswell_(__m256 f32x8) {
     __m256i bits_i32x8 = _mm256_castps_si256(f32x8);
     __m256i sign_i32x8 = _mm256_srli_epi32(bits_i32x8, 31);
@@ -500,9 +506,13 @@ NK_HELPER_INLINE __m128i nk_f32x8_to_e3m2x8_haswell_(__m256 f32x8) {
     return packed_i8x8;
 }
 
-/** @brief Convert 8× e2m1 → 8× f32 via 8-magnitude LUT + sign flip (AVX2).
+/**
+ *  @brief Convert 8× e2m1 → 8× f32 via 8-magnitude LUT + sign flip (AVX2).
+ *
  *  Input: 4 bytes (low 32 bits of @p packed) holding 8 nibbles, high nibble of byte → even lane.
- *  E2M1 magnitudes {0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0} indexed by nibble bits 2..0; bit 3 → sign. */
+ *  E2M1 magnitudes {0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0} are indexed by nibble bits 2..0, and
+ *  bit 3 carries the sign.
+ */
 NK_HELPER_INLINE __m256 nk_e2m1x8_to_f32x8_haswell_(__m128i packed) {
     // Expand 4 packed bytes to 8 nibble bytes via shift + mask + unpack interleave
     __m128i low_nibbles_b8x16 = _mm_and_si128(packed, _mm_set1_epi8(0x0F));
@@ -520,8 +530,12 @@ NK_HELPER_INLINE __m256 nk_e2m1x8_to_f32x8_haswell_(__m128i packed) {
     return _mm256_castsi256_ps(_mm256_xor_si256(_mm256_castps_si256(magnitudes_f32x8), sign_f32_i32x8));
 }
 
-/** @brief Convert 8× f32 → 8× e2m1 via bit manipulation, packed to 4 bytes (AVX2).
- *  Output: 4 bytes in the low 32 bits of the result. Lane 0 → high nibble of byte 0, lane 1 → low nibble. */
+/**
+ *  @brief Convert 8× f32 → 8× e2m1 via bit manipulation, packed to 4 bytes (AVX2).
+ *
+ *  Output: 4 bytes in the low 32 bits of the result.
+ *  Lane 0 lands in the high nibble of byte 0, and lane 1 in its low nibble.
+ */
 NK_HELPER_INLINE __m128i nk_f32x8_to_e2m1x8_haswell_(__m256 f32x8) {
     __m256i bits_i32x8 = _mm256_castps_si256(f32x8);
     __m256i sign_i32x8 = _mm256_srli_epi32(bits_i32x8, 31);
@@ -572,8 +586,8 @@ NK_HELPER_INLINE __m128i nk_f32x8_to_e2m1x8_haswell_(__m256 f32x8) {
     return _mm_packus_epi16(packed_i16x4, _mm_setzero_si128());
 }
 
-/** @brief Reduce a block of `block_count` f32s to `amax = max(|x|)`. `block_count` ≤ 32.
- *  Propagates NaN (returns a NaN when any lane is NaN) so the block scale becomes the NaN sentinel. */
+/** Reduce a block of @p block_count f32s to `amax = max(|x|)`. @p block_count ≤ 32. Propagates NaN
+ *  (returns a NaN when any lane is NaN) so the block scale becomes the NaN sentinel. */
 NK_HELPER_INLINE nk_f32_t nk_block_amax_f32_haswell_(nk_f32_t const *block, nk_size_t block_count) {
     __m256 const abs_mask_f32x8 = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF));
     nk_fui32_t qnan;
@@ -610,114 +624,114 @@ NK_HELPER_INLINE nk_f32_t nk_block_amax_f32_haswell_(nk_f32_t const *block, nk_s
 
 #pragma region Converting Loads and Stores
 
-/** @brief Full load for f16 elements (8) with conversion to f32 via F16C. */
+/** Full load for f16 elements (8) with conversion to f32 via F16C. */
 NK_HELPER_INLINE void nk_load_f16x8_to_f32x8_haswell_(void const *src, nk_b256_vec_t *dst) {
     dst->ymm_ps = _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)src));
 }
 
-/** @brief Partial load for f16 elements (up to 8) with conversion to f32 via F16C. */
+/** Partial load for f16 elements (up to 8) with conversion to f32 via F16C. */
 NK_HELPER_INLINE void nk_partial_load_f16x8_to_f32x8_haswell_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b128_vec_t vec;
     nk_partial_load_b16x8_serial_(src, &vec, n);
     dst->ymm_ps = _mm256_cvtph_ps(vec.xmm);
 }
 
-/** @brief Full load for bf16 elements (8) with conversion to f32. */
+/** Full load for bf16 elements (8) with conversion to f32. */
 NK_HELPER_INLINE void nk_load_bf16x8_to_f32x8_haswell_(void const *src, nk_b256_vec_t *dst) {
     dst->ymm_ps = nk_bf16x8_to_f32x8_haswell_(_mm_loadu_si128((__m128i const *)src));
 }
 
-/** @brief Partial load for bf16 elements (up to 8) with conversion to f32. */
+/** Partial load for bf16 elements (up to 8) with conversion to f32. */
 NK_HELPER_INLINE void nk_partial_load_bf16x8_to_f32x8_haswell_(nk_bf16_t const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b128_vec_t vec;
     nk_partial_load_b16x8_serial_(src, &vec, n);
     dst->ymm_ps = nk_bf16x8_to_f32x8_haswell_(vec.xmm);
 }
 
-/** @brief Full load for e4m3 elements (8) with conversion to f32. */
+/** Full load for e4m3 elements (8) with conversion to f32. */
 NK_HELPER_INLINE void nk_load_e4m3x8_to_f32x8_haswell_(void const *src, nk_b256_vec_t *dst) {
     dst->ymm_ps = nk_e4m3x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)src));
 }
 
-/** @brief Partial load for e4m3 elements (up to 8) with conversion to f32. */
+/** Partial load for e4m3 elements (up to 8) with conversion to f32. */
 NK_HELPER_INLINE void nk_partial_load_e4m3x8_to_f32x8_haswell_(nk_e4m3_t const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b64_vec_t vec;
     nk_partial_load_b8x8_serial_(src, &vec, n);
     dst->ymm_ps = nk_e4m3x8_to_f32x8_haswell_(_mm_cvtsi64_si128(vec.u64));
 }
 
-/** @brief Full load for e5m2 elements (8) with conversion to f32. */
+/** Full load for e5m2 elements (8) with conversion to f32. */
 NK_HELPER_INLINE void nk_load_e5m2x8_to_f32x8_haswell_(void const *src, nk_b256_vec_t *dst) {
     dst->ymm_ps = nk_e5m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)src));
 }
 
-/** @brief Partial load for e5m2 elements (up to 8) with conversion to f32. */
+/** Partial load for e5m2 elements (up to 8) with conversion to f32. */
 NK_HELPER_INLINE void nk_partial_load_e5m2x8_to_f32x8_haswell_(nk_e5m2_t const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b64_vec_t vec;
     nk_partial_load_b8x8_serial_(src, &vec, n);
     dst->ymm_ps = nk_e5m2x8_to_f32x8_haswell_(_mm_cvtsi64_si128(vec.u64));
 }
 
-/** @brief Full load for e2m3 elements (8) with conversion to f32. */
+/** Full load for e2m3 elements (8) with conversion to f32. */
 NK_HELPER_INLINE void nk_load_e2m3x8_to_f32x8_haswell_(void const *src, nk_b256_vec_t *dst) {
     dst->ymm_ps = nk_e2m3x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)src));
 }
 
-/** @brief Partial load for e2m3 elements (up to 8) with conversion to f32. */
+/** Partial load for e2m3 elements (up to 8) with conversion to f32. */
 NK_HELPER_INLINE void nk_partial_load_e2m3x8_to_f32x8_haswell_(nk_e2m3_t const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b64_vec_t vec;
     nk_partial_load_b8x8_serial_(src, &vec, n);
     dst->ymm_ps = nk_e2m3x8_to_f32x8_haswell_(_mm_cvtsi64_si128(vec.u64));
 }
 
-/** @brief Full load for e3m2 elements (8) with conversion to f32. */
+/** Full load for e3m2 elements (8) with conversion to f32. */
 NK_HELPER_INLINE void nk_load_e3m2x8_to_f32x8_haswell_(void const *src, nk_b256_vec_t *dst) {
     dst->ymm_ps = nk_e3m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)src));
 }
 
-/** @brief Partial load for e3m2 elements (up to 8) with conversion to f32. */
+/** Partial load for e3m2 elements (up to 8) with conversion to f32. */
 NK_HELPER_INLINE void nk_partial_load_e3m2x8_to_f32x8_haswell_(nk_e3m2_t const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b64_vec_t vec;
     nk_partial_load_b8x8_serial_(src, &vec, n);
     dst->ymm_ps = nk_e3m2x8_to_f32x8_haswell_(_mm_cvtsi64_si128(vec.u64));
 }
 
-/** @brief Partial load for i8 elements (up to 8) with conversion to f32. */
+/** Partial load for i8 elements (up to 8) with conversion to f32. */
 NK_HELPER_INLINE void nk_partial_load_i8x8_to_f32x8_haswell_(nk_i8_t const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b64_vec_t vec;
     nk_partial_load_b8x8_serial_(src, &vec, n);
     dst->ymm_ps = nk_i8x8_to_f32x8_haswell_(_mm_cvtsi64_si128(vec.u64));
 }
 
-/** @brief Partial load for u8 elements (up to 8) with conversion to f32. */
+/** Partial load for u8 elements (up to 8) with conversion to f32. */
 NK_HELPER_INLINE void nk_partial_load_u8x8_to_f32x8_haswell_(nk_u8_t const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b64_vec_t vec;
     nk_partial_load_b8x8_serial_(src, &vec, n);
     dst->ymm_ps = nk_u8x8_to_f32x8_haswell_(_mm_cvtsi64_si128(vec.u64));
 }
 
-/** @brief Partial load for i16 elements (up to 8) with conversion to f32. */
+/** Partial load for i16 elements (up to 8) with conversion to f32. */
 NK_HELPER_INLINE void nk_partial_load_i16x8_to_f32x8_haswell_(nk_i16_t const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b128_vec_t vec;
     nk_partial_load_b16x8_serial_(src, &vec, n);
     dst->ymm_ps = nk_i16x8_to_f32x8_haswell_(vec.xmm);
 }
 
-/** @brief Partial load for u16 elements (up to 8) with conversion to f32. */
+/** Partial load for u16 elements (up to 8) with conversion to f32. */
 NK_HELPER_INLINE void nk_partial_load_u16x8_to_f32x8_haswell_(nk_u16_t const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b128_vec_t vec;
     nk_partial_load_b16x8_serial_(src, &vec, n);
     dst->ymm_ps = nk_u16x8_to_f32x8_haswell_(vec.xmm);
 }
 
-/** @brief Partial load for i32 elements (up to 8) with conversion to f32. */
+/** Partial load for i32 elements (up to 8) with conversion to f32. */
 NK_HELPER_INLINE void nk_partial_load_i32x8_to_f32x8_haswell_(nk_i32_t const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b256_vec_t vec;
     nk_partial_load_b32x8_serial_(src, &vec, n);
     dst->ymm_ps = nk_i32x8_to_f32x8_haswell_(vec.ymm);
 }
 
-/** @brief Partial load for u32 elements (up to 8) with conversion to f32. */
+/** Partial load for u32 elements (up to 8) with conversion to f32. */
 NK_HELPER_INLINE void nk_partial_load_u32x8_to_f32x8_haswell_(nk_u32_t const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b256_vec_t vec;
     nk_partial_load_b32x8_serial_(src, &vec, n);
@@ -913,14 +927,12 @@ NK_API_COMPTIME void nk_cast_haswell(void const *from, nk_dtype_t from_type, nk_
     }
 }
 
-/** @brief Build an AVX2 lane mask selecting the low @p valid (≤ 8) f32 lanes. */
+/** Build an AVX2 lane mask selecting the low @p valid (≤ 8) f32 lanes. */
 NK_HELPER_INLINE __m256i nk_lane_mask_f32x8_haswell_(nk_size_t valid) {
     __m256i index_i32x8 = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
     return _mm256_cmpgt_epi32(_mm256_set1_epi32((int)valid), index_i32x8);
 }
 
-/** @brief Haswell-optimised block-scaled cast. Uses AVX2 amax + broadcast reciprocal multiply
- *  around the serial element codec hub, mirroring `nk_cast_block_scaled_skylake` at x8 width. */
 NK_API_COMPTIME void nk_cast_block_scaled_haswell(                                                             //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //

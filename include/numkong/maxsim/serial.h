@@ -35,51 +35,66 @@
 extern "C" {
 #endif
 
-/**
- *  @brief Packed buffer header (64 bytes, cache-line aligned).
- *  Stored at the beginning of every maxsim packed buffer.
- */
+/** Packed buffer header, 64 bytes and cache-line aligned, opening every MaxSim packed buffer. */
 typedef struct {
-    nk_u32_t vectors;                ///< Number of vectors packed
-    nk_u32_t depth;                  ///< Logical depth (number of elements per vector)
-    nk_u32_t depth_i8_padded;        ///< Padded i8 depth in bytes (SIMD-aligned)
-    nk_u32_t original_element_bytes; ///< 2 for bf16, 4 for f32
-    nk_u32_t offset_i8_data;         ///< Byte offset from buffer start to i8 region
-    nk_u32_t offset_metadata;        ///< Byte offset from buffer start to metadata region
-    nk_u32_t offset_original_data;   ///< Byte offset from buffer start to originals region
-    nk_u32_t original_stride_bytes;  ///< Row stride in bytes for originals region
-    nk_u32_t reserved[8];            ///< Padding to 64 bytes
+
+    /** Number of vectors packed. */
+    nk_u32_t vectors;
+
+    /** Logical depth (number of elements per vector). */
+    nk_u32_t depth;
+
+    /** Padded i8 depth in bytes (SIMD-aligned). */
+    nk_u32_t depth_i8_padded;
+
+    /** Size of each original element in bytes: 2 for bf16, 4 for f32. */
+    nk_u32_t original_element_bytes;
+
+    /** Byte offset from buffer start to i8 region. */
+    nk_u32_t offset_i8_data;
+
+    /** Byte offset from buffer start to metadata region. */
+    nk_u32_t offset_metadata;
+
+    /** Byte offset from buffer start to originals region. */
+    nk_u32_t offset_original_data;
+
+    /** Row stride in bytes for originals region. */
+    nk_u32_t original_stride_bytes;
+
+    /** Padding to 64 bytes. */
+    nk_u32_t reserved[8];
 } nk_maxsim_packed_header_t;
 
 NK_STATIC_ASSERT(sizeof(nk_maxsim_packed_header_t) == 64, nk_maxsim_packed_header_must_be_64_bytes);
 
-/**
- *  @brief Per-vector quantization metadata (12 bytes).
- *  Stored in the metadata region of the packed buffer, one per vector.
- */
+/** Per-vector quantization metadata, 12 bytes, stored once per vector in the packed buffer's
+ *  metadata region. */
 typedef struct {
-    nk_f32_t scale_f32;        ///< Quantization scale: absmax / range_limit
-    nk_i32_t sum_i8_i32;       ///< Sum of all i8 quantized elements (for VPDPBUSD/VPMADDUBSW bias correction)
-    nk_f32_t inverse_norm_f32; ///< 1/sqrt(||v||^2), 0 if zero-vector — precomputed for angular finalization
+
+    /** Quantization scale, absmax / range_limit. */
+    nk_f32_t scale_f32;
+
+    /** Sum of all i8 quantized elements (for VPDPBUSD/VPMADDUBSW bias correction). */
+    nk_i32_t sum_i8_i32;
+
+    /** Inverse norm 1 / ‖v‖, or 0 for a zero vector, precomputed for angular finalization. */
+    nk_f32_t inverse_norm_f32;
 } nk_maxsim_vector_metadata_t;
 
 NK_STATIC_ASSERT(sizeof(nk_maxsim_vector_metadata_t) == 12, nk_maxsim_vector_metadata_must_be_12_bytes);
 
-/**
- *  @brief Conversion function pointer type for element-to-f32 conversion.
- *  Each conversion reads one element from `source` and writes one f32 to `destination`.
- */
+/** Conversion function pointer type for element-to-f32 conversion. Each conversion reads one
+ *  element from @c source and writes one f32 to @c destination. */
 typedef void (*nk_maxsim_to_f32_t)(void const *source, nk_f32_t *destination);
 
-/** @brief Identity conversion for f32 sources — just a typed memcpy. */
+/** Identity conversion for f32 sources — just a typed memcpy. */
 NK_HELPER_INLINE void nk_f32_to_f32_(void const *source, nk_f32_t *destination) {
     *destination = *(nk_f32_t const *)source;
 }
 
-/**
- *  @brief Fills the packed buffer header and returns the padded i8 depth.
- *  Consolidates header/offset computation duplicated in every pack function.
- */
+/** Fills the packed buffer header and returns the padded i8 depth. Consolidates header/offset
+ *  computation duplicated in every pack function. */
 NK_HELPER_INLINE nk_size_t nk_maxsim_packed_header_setup_( //
     void *packed, nk_size_t vector_count, nk_size_t depth, //
     nk_size_t depth_simd_dimensions, nk_size_t original_element_bytes) {
@@ -114,11 +129,8 @@ NK_HELPER_INLINE nk_size_t nk_maxsim_packed_header_setup_( //
     return depth_i8_padded;
 }
 
-/**
- *  @brief Quantizes a single source vector to i8, computing metadata.
- *  Iterates element-by-element, calling the conversion callback for each f32 value.
- *  No temp buffer needed — works for arbitrary depth.
- */
+/** Quantizes a single source vector to i8 and computes its metadata. It calls the conversion
+ *  callback element by element, so it needs no scratch buffer and works for any depth. */
 NK_HELPER_INLINE void nk_maxsim_quantize_vector_(                        //
     void const *source_vector, nk_size_t element_bytes, nk_size_t depth, //
     nk_size_t depth_i8_padded, nk_f32_t scale_limit,                     //
@@ -166,10 +178,8 @@ NK_HELPER_INLINE void nk_maxsim_quantize_vector_(                        //
     *norm_squared_ptr = norm_squared_f32;
 }
 
-/**
- *  @brief Region pointers extracted from two packed buffers.
- *  Eliminates ~15 lines of boilerplate per compute function.
- */
+/** Region pointers extracted from two packed buffers. Eliminates ~15 lines of boilerplate per
+ *  compute function. */
 typedef struct {
     nk_size_t depth_i8_padded;
     nk_i8_t const *query_quantized;
@@ -206,12 +216,12 @@ NK_HELPER_INLINE nk_maxsim_packed_regions_t nk_maxsim_extract_packed_regions_( /
 /**
  *  @brief Computes padded i8 depth and total packed buffer size for maxsim.
  *
- *  Layout: header + i8 data (64B-aligned) + metadata (64B-aligned) + originals (64B-aligned)
+ *  The layout is the header, then the i8 data, the metadata and the originals, each 64B-aligned.
  *
- *  @param vector_count Number of vectors to pack.
- *  @param depth Number of elements per vector.
- *  @param original_element_bytes Size of each original element (2 for bf16, 4 for f32).
- *  @param depth_simd_dimensions SIMD width for i8 depth padding (1 for serial).
+ *  @param[in] vector_count Number of vectors to pack.
+ *  @param[in] depth Number of elements per vector.
+ *  @param[in] original_element_bytes Size of each original element (2 for bf16, 4 for f32).
+ *  @param[in] depth_simd_dimensions SIMD width for i8 depth padding (1 for serial).
  */
 NK_HELPER_INLINE nk_size_t nk_maxsim_pack_size_( //
     nk_size_t vector_count, nk_size_t depth,     //

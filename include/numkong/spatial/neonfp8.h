@@ -6,8 +6,8 @@
  *
  *  @sa include/numkong/spatial.h
  *
- *  For L2 distance, we use (a−b)² = a² + b² − 2 × a × b, computing all three terms via FP8DOT4
- *  without FP8 subtraction; angular distance keeps a·b, ‖a‖² and ‖b‖² in three parallel DOT4 sums.
+ *  For L2 distance, we use (a − b)² = a² + b² − 2 × a × b, computing all three terms via FP8DOT4
+ *  without FP8 subtraction; angular distance keeps a · b, ‖a‖² and ‖b‖² in three parallel sums.
  */
 #ifndef NK_SPATIAL_NEONFP8_H
 #define NK_SPATIAL_NEONFP8_H

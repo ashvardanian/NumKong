@@ -330,7 +330,7 @@ void svd3x3_(scalar_type_ const *a, scalar_type_ *svd_u, scalar_type_ *svd_s, sc
  *  @tparam in_type_ Input point type (f32_t, f64_t, f16_t, bf16_t)
  *  @tparam transform_type_ Type of centroids, rotation, and scale outputs
  *  @tparam metric_type_ Type of the scalar fit metric output
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
           typename metric_type_ = typename in_type_::mesh_metric_t,
@@ -394,7 +394,7 @@ void rmsd(                                               //
  *  @tparam in_type_ Input point type (f32_t, f64_t, f16_t, bf16_t)
  *  @tparam transform_type_ Type of centroids, rotation, and scale outputs
  *  @tparam metric_type_ Type of the scalar fit metric output
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
           typename metric_type_ = typename in_type_::mesh_metric_t,
@@ -567,7 +567,7 @@ void kabsch(                                             //
  *  @tparam in_type_ Input point type (f32_t, f64_t, f16_t, bf16_t)
  *  @tparam transform_type_ Type of centroids, rotation, and scale outputs
  *  @tparam metric_type_ Type of the scalar fit metric output
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
           typename metric_type_ = typename in_type_::mesh_metric_t, allow_simd_t allow_simd_ = prefer_simd_k>

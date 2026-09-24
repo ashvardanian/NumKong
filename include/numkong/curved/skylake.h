@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/curved/skylake.h
  *  @author Ash Vardanian
- *  @date January 14, 2026
+ *  @date August 29, 2024
  *  @brief SIMD-accelerated curved-space similarity for Skylake.
  *
  *  @sa include/numkong/curved.h

@@ -1183,7 +1183,7 @@ pub struct Ue8m0(pub u8);
 impl Ue8m0 {
     /// Encodes an `f32` magnitude into a UE8M0 scale byte.
     ///
-    /// Rounds the magnitude to the NEAREST power of two — round-to-nearest in log2 space, the OCP
+    /// Rounds the magnitude to the nearest power of two — round-to-nearest in log2 space, the OCP
     /// MX convention; the split point is the geometric midpoint √2·2ᵉ. NaN → `0xFF`, block-NaN
     /// sentinel, zero/subnormal → `0x00`, overflow/±∞ → `0xFE`.
     #[inline(always)]

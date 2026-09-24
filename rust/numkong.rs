@@ -361,7 +361,7 @@ mod tests {
     fn attention_parallel_matches_serial() {
         capabilities::configure_thread();
         let (heads, head_dim) = (4usize, 64usize);
-        let lengths = [7u32, 250, 0, 33, 129]; // ragged mix: tiny, sub-panel, PAD, odd
+        let lengths = [7u32, 250, 0, 33, 129]; // ragged mix: tiny, sub-panel, pad, odd
         let mut offsets = vec![0u32];
         for length in lengths {
             offsets.push(offsets.last().unwrap() + length);
@@ -396,7 +396,7 @@ mod tests {
     fn attention_capabilities_symmetry() {
         capabilities::configure_thread();
         let (heads, head_dim) = (4usize, 64usize);
-        let lengths = [7u32, 250, 0, 33, 129]; // ragged mix incl. a PAD segment
+        let lengths = [7u32, 250, 0, 33, 129]; // ragged mix incl. a pad segment
         let mut offsets = vec![0u32];
         for length in lengths {
             offsets.push(offsets.last().unwrap() + length);
@@ -481,8 +481,8 @@ mod wasm_runtime_tests {
         }
     }
 
-    /// Test that WASI WASM module can be loaded and executed with Wasmtime
-    /// This validates the dual-path capability detection — EM_ASM vs WASI imports
+    /// Test that WASI WASM module can be loaded and executed with Wasmtime. This validates the
+    /// dual-path capability detection — EM_ASM vs WASI imports.
     #[test]
     fn wasi_with_wasmtime() -> wasmtime::Result<()> {
         // A missing module is a failed test, never a silent pass

@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/spatial/haswell.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date March 14, 2023
  *  @brief SIMD-accelerated spatial similarity measures for Haswell.
  *
  *  @sa include/numkong/spatial.h
@@ -45,7 +45,7 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-/** @brief Reciprocal square root of 4 floats with Newton-Raphson refinement. */
+/** Reciprocal square root of 4 floats with Newton-Raphson refinement. */
 NK_HELPER_INLINE __m128 nk_rsqrt_f32x4_haswell_(__m128 x) {
     __m128 rsqrt_f32x4 = _mm_rsqrt_ps(x);
     __m128 nr_f32x4 = _mm_mul_ps(_mm_mul_ps(x, rsqrt_f32x4), rsqrt_f32x4);
@@ -53,11 +53,12 @@ NK_HELPER_INLINE __m128 nk_rsqrt_f32x4_haswell_(__m128 x) {
     return _mm_mul_ps(_mm_mul_ps(_mm_set1_ps(0.5f), rsqrt_f32x4), nr_f32x4);
 }
 
-/** @brief Safe square root of 4 floats with zero-clamping for numerical stability. */
+/** Safe square root of 4 floats with zero-clamping for numerical stability. */
 NK_HELPER_INLINE __m128 nk_sqrt_f32x4_haswell_(__m128 x) { return _mm_sqrt_ps(_mm_max_ps(x, _mm_setzero_ps())); }
 
-/** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq) × rsqrt(target_sumsq) for 4 pairs.
- *  Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms. */
+/** Angular from_dot: computes 1 − dot × rsqrt(q) × rsqrt(t) for 4 pairs, where q is @p query_sumsq
+ *  and t each target's sum of squares. Separate reciprocal square roots avoid overflowing the
+ *  product of two finite-but-large norms. */
 NK_HELPER_INLINE void nk_angular_through_f32_from_dot_haswell_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                                nk_b128_vec_t const *target_sumsqs_vec,
                                                                nk_b128_vec_t *result_vec) {
@@ -70,7 +71,8 @@ NK_HELPER_INLINE void nk_angular_through_f32_from_dot_haswell_(nk_b128_vec_t con
     result_vec->xmm_ps = _mm_max_ps(angular_f32x4, _mm_setzero_ps());
 }
 
-/** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs. */
+/** Euclidean from_dot: computes √(q + t − 2 × dot) for 4 pairs, where q is @p query_sumsq and t
+ *  each target's sum of squares. */
 NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_haswell_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                                  nk_b128_vec_t const *target_sumsqs_vec,
                                                                  nk_b128_vec_t *result_vec) {
@@ -81,8 +83,9 @@ NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_haswell_(nk_b128_vec_t c
     result_vec->xmm_ps = nk_sqrt_f32x4_haswell_(dist_sq_f32x4);
 }
 
-/** @brief Angular from_dot for native f64: 1 − dot / (√query_sumsq × √target_sumsq) for 4 pairs.
- *  Separate square roots avoid overflowing the product of two finite-but-large norms. */
+/** Angular from_dot for native f64: 1 − dot / (√q × √t) for 4 pairs, where q is @p query_sumsq and
+ *  t each target's sum of squares. Separate square roots avoid overflowing the product of two
+ *  finite-but-large norms. */
 NK_HELPER_INLINE void nk_angular_through_f64_from_dot_haswell_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                                nk_b256_vec_t const *target_sumsqs_vec,
                                                                nk_b256_vec_t *result_vec) {
@@ -95,7 +98,8 @@ NK_HELPER_INLINE void nk_angular_through_f64_from_dot_haswell_(nk_b256_vec_t con
     result_vec->ymm_pd = _mm256_max_pd(angular_f64x4, _mm256_setzero_pd());
 }
 
-/** @brief Euclidean from_dot for native f64: √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs. */
+/** Euclidean from_dot for native f64: √(q + t − 2 × dot) for 4 pairs, where q is @p query_sumsq and
+ *  t each target's sum of squares. */
 NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_haswell_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                                  nk_b256_vec_t const *target_sumsqs_vec,
                                                                  nk_b256_vec_t *result_vec) {
@@ -106,7 +110,7 @@ NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_haswell_(nk_b256_vec_t c
     result_vec->ymm_pd = _mm256_sqrt_pd(_mm256_max_pd(dist_sq_f64x4, _mm256_setzero_pd()));
 }
 
-/** @brief Angular from_dot for i32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
+/** Angular from_dot for i32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
 NK_HELPER_INLINE void nk_angular_through_i32_from_dot_haswell_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
                                                                nk_b128_vec_t const *target_sumsqs_vec,
                                                                nk_b128_vec_t *result_vec) {
@@ -119,7 +123,7 @@ NK_HELPER_INLINE void nk_angular_through_i32_from_dot_haswell_(nk_b128_vec_t con
     result_vec->xmm_ps = _mm_max_ps(angular_f32x4, _mm_setzero_ps());
 }
 
-/** @brief Euclidean from_dot for i32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
+/** Euclidean from_dot for i32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
 NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_haswell_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
                                                                  nk_b128_vec_t const *target_sumsqs_vec,
                                                                  nk_b128_vec_t *result_vec) {
@@ -130,7 +134,7 @@ NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_haswell_(nk_b128_vec_t c
     result_vec->xmm_ps = nk_sqrt_f32x4_haswell_(dist_sq_f32x4);
 }
 
-/** @brief Angular from_dot for u32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
+/** Angular from_dot for u32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
 NK_HELPER_INLINE void nk_angular_through_u32_from_dot_haswell_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                                nk_b128_vec_t const *target_sumsqs_vec,
                                                                nk_b128_vec_t *result_vec) {
@@ -143,7 +147,7 @@ NK_HELPER_INLINE void nk_angular_through_u32_from_dot_haswell_(nk_b128_vec_t con
     result_vec->xmm_ps = _mm_max_ps(angular_f32x4, _mm_setzero_ps());
 }
 
-/** @brief Euclidean from_dot for u32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
+/** Euclidean from_dot for u32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
 NK_HELPER_INLINE void nk_euclidean_through_u32_from_dot_haswell_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                                  nk_b128_vec_t const *target_sumsqs_vec,
                                                                  nk_b128_vec_t *result_vec) {

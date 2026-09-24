@@ -100,8 +100,8 @@ void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
  *
  *  @tparam in_type_ Input element type
- *  @tparam result_type_ Accumulator/output type, defaults to `in_type_::dot_result_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Accumulator/output type, defaults to @c in_type_::dot_result_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
@@ -169,8 +169,8 @@ void dots_packed(in_type_ const *a, void const *b_packed, result_type_ *c, size_
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
  *
  *  @tparam in_type_ Input element type
- *  @tparam result_type_ Accumulator/output type, defaults to `in_type_::dot_result_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Accumulator/output type, defaults to @c in_type_::dot_result_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
@@ -255,7 +255,7 @@ void dots_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_t de
  *
  *  @tparam in_type_ Input element type (u1x8_t)
  *  @tparam result_type_ Output type (u32_t for Hamming distances)
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
@@ -309,7 +309,7 @@ void hammings_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_
  *
  *  @tparam in_type_ Input element type (u1x8_t)
  *  @tparam result_type_ Output type (u32_t for Hamming distances)
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>

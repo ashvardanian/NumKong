@@ -45,7 +45,7 @@
  *
  *  Angular and L2 distances can be computed from a single dot-product stream and precomputed
  *  magnitudes. The streaming helpers operate on 512-bit blocks, @c nk_b512_vec_t, and accumulate
- *  just the dot product a·b; finalization takes the L2 norms of the full vectors and computes:
+ *  just the dot product a · b; finalization takes the L2 norms of the full vectors and computes:
  *
  *  @verbatim
  *  a·b           = Σᵢ aᵢbᵢ
@@ -55,12 +55,12 @@
  *  @endverbatim
  *
  *  The angular distance is clamped to ≥ 0, with a 0 result when both norms are zero and a 1 result
- *  when a·b is zero. L2 clamps its square-root argument at 0 to avoid negatives from rounding.
+ *  when a · b is zero. L2 clamps its square-root argument at 0 to avoid negatives from rounding.
  *
  *  @code{.c}
  *  nk_b512_vec_t a_block, b_block;
- *  nk_f32_t a_norm = ..., b_norm = ...; // Precomputed L2 norms of full vectors
- *  nk_angular_f32x8_state_haswell_t state; // Often equivalent to dot-product state
+ *  nk_f32_t a_norm = ..., b_norm = ...;     // Precomputed L2 norms of full vectors
+ *  nk_angular_f32x8_state_haswell_t state;  // Often equivalent to dot-product state
  *  nk_angular_f32x8_init_haswell(&state);
  *  nk_angular_f32x8_update_haswell(&state, a_block, b_block);
  *  nk_angular_f32x8_finalize_haswell(&state, a_norm, b_norm, &distance);
@@ -246,8 +246,7 @@ NK_API_RUNTIME void nk_angular_i4(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_siz
 NK_API_RUNTIME void nk_angular_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
 
 /*  Serial backends for all numeric types.
- *  By default they use 32-bit arithmetic, unless the arguments themselves contain 64-bit floats.
- */
+ *  By default they use 32-bit arithmetic, unless the arguments themselves contain 64-bit floats. */
 /** @copydoc nk_euclidean_f64 */
 NK_API_COMPTIME void nk_euclidean_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
@@ -310,10 +309,9 @@ NK_API_COMPTIME void nk_sqeuclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t cons
 /** @copydoc nk_angular_f64 */
 NK_API_COMPTIME void nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
 
-/*  SIMD-powered backends for Arm NEON, mostly using 32-bit arithmetic over 128-bit words.
- *  By far the most portable backend, covering most Arm v8 devices, over a billion phones, and almost all
- *  server CPUs produced before 2023.
- */
+/*  SIMD-powered backends for Arm NEON, mostly using 32-bit arithmetic over 128-bit words. By far
+ *  the most portable backend, covering most Arm v8 devices, over a billion phones, and almost all
+ *  server CPUs produced before 2023. */
 #if NK_TARGET_NEON
 /** @copydoc nk_euclidean_f64 */
 NK_API_COMPTIME void nk_euclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
@@ -420,9 +418,9 @@ NK_API_COMPTIME void nk_euclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t con
 NK_API_COMPTIME void nk_angular_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_NEONFP8
 
-/*  SIMD-powered backends for Arm SVE, mostly using 32-bit arithmetic over variable-length platform-defined word sizes.
- *  Designed for Arm Graviton 3, Microsoft Cobalt, as well as Nvidia Grace and newer Ampere Altra CPUs.
- */
+/*  SIMD-powered backends for Arm SVE, mostly using 32-bit arithmetic over variable-length
+ *  platform-defined word sizes. Designed for Arm Graviton 3, Microsoft Cobalt, as well as NVIDIA
+ *  Grace and newer Ampere Altra CPUs. */
 #if NK_TARGET_SVE
 /** @copydoc nk_euclidean_f64 */
 NK_API_COMPTIME void nk_euclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
@@ -457,12 +455,12 @@ NK_API_COMPTIME void nk_sqeuclidean_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t 
 NK_API_COMPTIME void nk_angular_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_SVEBFDOT
 
-/*  SIMD-powered backends for AVX2 CPUs of Haswell generation and newer, using 32-bit arithmetic over 256-bit words.
- *  First demonstrated in 2011, at least one Haswell-based processor was still being sold in 2022 — the Pentium G3420.
- *  Practically all modern x86 CPUs support AVX2, FMA, and F16C, making it a perfect baseline for SIMD algorithms.
- *  On other hand, there is no need to implement AVX2 versions of `f32` and `f64` functions, as those are
- *  properly vectorized by recent compilers.
- */
+/*  SIMD-powered backends for AVX2 CPUs of Haswell generation and newer, using 32-bit arithmetic
+ *  over 256-bit words. First demonstrated in 2011, at least one Haswell-based processor was
+ *  still being sold in 2022 — the Pentium G3420. Practically all modern x86 CPUs support AVX2,
+ *  FMA, and F16C, making it a perfect baseline for SIMD algorithms. On other hand, there is no
+ *  need to implement AVX2 versions of @c f32 and @c f64 functions, as those are properly
+ *  vectorized by recent compilers. */
 #if NK_TARGET_HASWELL
 /** @copydoc nk_euclidean_f64 */
 NK_API_COMPTIME void nk_euclidean_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
@@ -502,21 +500,22 @@ NK_API_COMPTIME void nk_sqeuclidean_f64_haswell(nk_f64_t const *a, nk_f64_t cons
 NK_API_COMPTIME void nk_angular_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 #endif // NK_TARGET_HASWELL
 
-/*  SIMD-powered backends for AVX512 CPUs of Skylake generation and newer, using 32-bit arithmetic over 512-bit words.
- *  Skylake was launched in 2015, and discontinued in 2019. Skylake had support for F, CD, VL, DQ, and BW extensions,
- *  as well as masked operations. This is enough to supersede auto-vectorization on `f32` and `f64` types.
+/*  SIMD-powered backends for AVX512 CPUs of Skylake generation and newer, using 32-bit arithmetic
+ *  over 512-bit words. Skylake was launched in 2015, and discontinued in 2019. Skylake had support
+ *  for F, CD, VL, DQ, and BW extensions, as well as masked operations. This is enough to supersede
+ *  auto-vectorization on @c f32 and @c f64 types.
  *
- *  Sadly, we can't effectively interleave different kinds of arithmetic instructions to utilize more ports:
+ *  Sadly, we can't effectively interleave different kinds of arithmetic instructions to utilize
+ *  more ports, as Chips and Cheese explains:
  *
- *  > Like Intel server architectures since Skylake-X, SPR cores feature two 512-bit FMA units, and organize them in a
- *    similar fashion. > One 512-bit FMA unit is created by fusing two 256-bit ones on port 0 and port 1. The other is
- *    added to port 5, as a server-specific > core extension. The FMA units on port 0 and 1 are configured into
- *    2×256-bit or 1×512-bit mode depending on whether 512-bit FMA > instructions are present in the scheduler. That
- *    means a mix of 256-bit and 512-bit FMA instructions will not achieve higher IPC > than executing 512-bit
- *    instructions alone.
+ *  "Like Intel server architectures since Skylake-X, SPR cores feature two 512-bit FMA units, and
+ *  organize them in a similar fashion. One 512-bit FMA unit is created by fusing two 256-bit ones
+ *  on port 0 and port 1. The other is added to port 5, as a server-specific core extension. The FMA
+ *  units on port 0 and 1 are configured into 2×256-bit or 1×512-bit mode depending on whether
+ *  512-bit FMA instructions are present in the scheduler. That means a mix of 256-bit and 512-bit
+ *  FMA instructions will not achieve higher IPC than executing 512-bit instructions alone."
  *
- *  Source: https://chipsandcheese.com/p/a-peek-at-sapphire-rapids
- */
+ *  Source: https://chipsandcheese.com/p/a-peek-at-sapphire-rapids */
 #if NK_TARGET_SKYLAKE
 /** @copydoc nk_euclidean_f64 */
 NK_API_COMPTIME void nk_euclidean_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
@@ -550,11 +549,10 @@ NK_API_COMPTIME void nk_sqeuclidean_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t c
 NK_API_COMPTIME void nk_angular_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_SKYLAKE
 
-/*  SIMD-powered backends for AVX512 CPUs of Ice Lake generation and newer, using mixed arithmetic over 512-bit words.
- *  Ice Lake added VNNI, VPOPCNTDQ, IFMA, VBMI, VAES, GFNI, VBMI2, BITALG, VPCLMULQDQ, and other extensions for integral
- *  operations. Sapphire Rapids added tiled matrix operations, but we are most interested in the new mixed-precision FMA
- *  instructions.
- */
+/*  SIMD-powered backends for AVX512 CPUs of Ice Lake generation and newer, using mixed arithmetic
+ *  over 512-bit words. Ice Lake added VNNI, VPOPCNTDQ, IFMA, VBMI, VAES, GFNI, VBMI2, BITALG,
+ *  VPCLMULQDQ, and other extensions for integral operations. Sapphire Rapids added tiled matrix
+ *  operations, but we are most interested in the new mixed-precision FMA instructions. */
 #if NK_TARGET_ICELAKE
 /** @copydoc nk_euclidean_f64 */
 NK_API_COMPTIME void nk_euclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
@@ -630,10 +628,9 @@ NK_API_COMPTIME void nk_sqeuclidean_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t c
 NK_API_COMPTIME void nk_angular_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_DIAMOND
 
-/*  SIMD-powered backends for AVX-INT8-VNNI extensions on Xeon 6 CPUs, including Sierra Forest and Granite Rapids.
- *  The packs many "efficiency" cores into a single socket, avoiding heavy 512-bit operations, and focusing on
- *  256-bit ones.
- */
+/*  SIMD-powered backends for AVX-INT8-VNNI extensions on Xeon 6 CPUs, including Sierra Forest and
+ *  Granite Rapids. It packs many "efficiency" cores into a single socket, avoiding heavy 512-bit
+ *  operations, and focusing on 256-bit ones. */
 #if NK_TARGET_SIERRA
 /** @copydoc nk_angular_f64 */
 NK_API_COMPTIME void nk_angular_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
@@ -786,8 +783,7 @@ NK_API_COMPTIME void nk_angular_e3m2_v128relaxed(nk_e3m2_t const *a, nk_e3m2_t c
 #endif // NK_TARGET_V128RELAXED
 
 /*  SIMD-powered backends for RISC-V Vector extension, using scalable vector arithmetic.
- *  Designed for SiFive, T-Head, and other RISC-V processors with the V extension.
- */
+ *  Designed for SiFive, T-Head, and other RISC-V processors with the V extension. */
 #if NK_TARGET_RVV
 /** @copydoc nk_euclidean_f64 */
 NK_API_COMPTIME void nk_euclidean_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
@@ -869,7 +865,7 @@ NK_API_COMPTIME void nk_sqeuclidean_bf16_rvvbf16(nk_bf16_t const *a, nk_bf16_t c
 NK_API_COMPTIME void nk_angular_bf16_rvvbf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_RVVBF16
 
-/** @brief Returns the output dtype for L2 (Euclidean) distance. */
+/** Returns the output dtype for L2 (Euclidean) distance. */
 NK_HELPER_INLINE nk_dtype_t nk_euclidean_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
@@ -889,7 +885,7 @@ NK_HELPER_INLINE nk_dtype_t nk_euclidean_output_dtype(nk_dtype_t dtype) {
     }
 }
 
-/** @brief Returns the output dtype for L2 squared distance. */
+/** Returns the output dtype for L2 squared distance. */
 NK_HELPER_INLINE nk_dtype_t nk_sqeuclidean_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
@@ -908,7 +904,7 @@ NK_HELPER_INLINE nk_dtype_t nk_sqeuclidean_output_dtype(nk_dtype_t dtype) {
     }
 }
 
-/** @brief Returns the output dtype for angular/cosine distance. */
+/** Returns the output dtype for angular/cosine distance. */
 NK_HELPER_INLINE nk_dtype_t nk_angular_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;

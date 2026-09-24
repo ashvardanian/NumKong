@@ -37,7 +37,7 @@ namespace ashvardanian::numkong::test {
 
 #pragma region Backend Policy
 
-/** Significant bits of the softmax weights as P·V reads them, which floors how close an attention
+/** Significant bits of the softmax weights as P · V reads them, which floors how close an attention
  *  output lands. */
 enum class attention_weights_t : unsigned {
 
@@ -94,8 +94,8 @@ inline int grid_exponent(double value) noexcept {
 }
 
 /** How far a dot product of @p depth terms may land from @p reference under @p accumulation, given
- *  Σ|a·b| as @p magnitude and the grid every product lies on as @p grid. A sum in p bits of terms
- *  on one grid is exact while Σ|a·b| stays below 2ᵖ grid steps, so F32 and F64 accumulations must
+ *  Σ|a · b| as @p magnitude and the grid every product lies on as @p grid. A sum in p bits of terms
+ *  on one grid is exact while Σ|a · b| stays below 2ᵖ grid steps, so F32 and F64 accumulations must
  *  then match exactly. */
 inline double dot_bound(accumulation_t accumulation, double reference, double magnitude, int grid,
                         std::size_t depth) noexcept {
@@ -218,7 +218,7 @@ void accumulate_attention(error_stats_t &stats, output_vector_ const &output, re
  *  past a row shows. */
 constexpr unsigned char canary_k = 0xFF;
 
-/** Fills every byte of @p vector with `canary_k`. */
+/** Fills every byte of @p vector with @c canary_k. */
 template <typename vector_type_>
 void fill_canary(vector_type_ &vector) noexcept {
     std::memset(vector.raw_values_data(), canary_k, vector.size_bytes());
@@ -373,7 +373,7 @@ inline std::vector<attention_bidirectional_case_t> attention_bidirectional_cases
  *  runs under. */
 struct attention_causal_case_t {
 
-    /** Keys of the long segment, which a PAD and a 33-key decode segment follow. */
+    /** Keys of the long segment, which a pad and a 33-key decode segment follow. */
     nk_u32_t main_length;
 
     /** Query heads per key-value head. */
@@ -499,7 +499,7 @@ enum class dots_operands_t {
     /** Drawn from the configured distribution. */
     random_k,
 
-    /** F64 halves cancelling to ~2⁻³³ of Σ|a·b|, which plain F64 accumulation visibly misses. */
+    /** F64 halves cancelling to ~2⁻³³ of Σ|a · b|, which plain F64 accumulation visibly misses. */
     ill_conditioned_k,
 };
 
@@ -1035,7 +1035,7 @@ error_stats_t test_jaccards_symmetric(typename scalar_type_::jaccards_symmetric_
 
 #pragma region Spatial Distances
 
-/** Batched angular distances, 1 − dot / √(‖a‖²·‖b‖²), with B packed in two column windows. */
+/** Batched angular distances, 1 − dot / √(‖a‖² · ‖b‖²), with B packed in two column windows. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           accumulation_t accumulation_ = backend_type_::template spatials_accumulation<scalar_type_>(),
           typename pack_size_kernel_type_, typename pack_kernel_type_, typename angulars_kernel_type_>
@@ -1107,8 +1107,8 @@ error_stats_t test_angulars_packed(pack_size_kernel_type_ packed_size_fn, pack_k
     return stats;
 }
 
-/** Batched euclidean distances, √max(0, ‖a‖² + ‖b‖² − 2·dot), with B packed in two column windows.
- *  Row 0 of A is zero, so row 0 of C reads every packed norm back as √‖b‖². */
+/** Batched euclidean distances, √max(0, ‖a‖² + ‖b‖² − 2 · dot), with B packed in two column
+ *  windows. Row 0 of A is zero, so row 0 of C reads every packed norm back as √‖b‖². */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           accumulation_t accumulation_ = backend_type_::template spatials_accumulation<scalar_type_>(),
           typename pack_size_kernel_type_, typename pack_kernel_type_, typename euclideans_kernel_type_>
@@ -1320,7 +1320,7 @@ error_stats_t test_euclideans_symmetric(symmetric_kernel_type_ symmetric_fn) {
 #pragma region Attention
 
 /** Ragged bidirectional attention over @c attention_bidirectional_cases against the serial backend:
- *  a segment mix with a zero-length PAD, one spanning two 512-key panels, and a 1000-key segment,
+ *  a segment mix with a zero-length pad, one spanning two 512-key panels, and a 1000-key segment,
  *  packed in two task windows. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           attention_weights_t weights_ = attention_weights_t::unquantized_k, typename pack_size_kernel_type_,
@@ -1407,7 +1407,7 @@ error_stats_t test_attention_causal_packed(pack_size_kernel_type_ packed_size_fn
 
     for (auto start = test_start_time(); within_time_budget(start);) {
         for (attention_causal_case_t const &test_case : cases) {
-            auto const segments = make_attention_segments<backend_type_>( // long block, PAD without keys, decode
+            auto const segments = make_attention_segments<backend_type_>( // long block, pad without keys, decode
                 {test_case.main_length, 0, 33}, {attention_causal_queries(test_case.main_length), 2, 1});
             attention_layout_t const layout {attention_key_value_heads_k * test_case.group, attention_key_value_heads_k,
                                              test_case.depth, 0.05f};

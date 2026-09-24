@@ -6,9 +6,9 @@
  *
  *  @sa include/numkong/maxsim.h
  *
- *  Uses ARM SDOT, vdotq_s32, for coarse i8 screening — signed×signed natively, no bias correction.
- *  4x4 register tiling: 4 queries × 4 documents = 16 int32x4_t accumulators per depth loop. Depth
- *  steps at 16 bytes, the 128-bit NEON width of 16 i8 lanes.
+ *  Uses ARM SDOT, vdotq_s32, for coarse i8 screening — signed × signed natively, no bias
+ *  correction. 4x4 register tiling: 4 queries × 4 documents = 16 int32x4_t accumulators per depth
+ *  loop. Depth steps at 16 bytes, the 128-bit NEON width of 16 i8 lanes.
  */
 #ifndef NK_MAXSIM_NEONSDOT_H
 #define NK_MAXSIM_NEONSDOT_H
@@ -134,11 +134,8 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_neonsdot( //
     }
 }
 
-/**
- *  @brief Factored coarse i8 argmax kernel for NEONSDOT.
- *  Uses vdotq_s32 (signed×signed) — no XOR bias, no metadata parameter.
- *  4Q×4D register tiling with 16 int32x4_t accumulators.
- */
+/** Factored coarse i8 argmax kernel for NEONSDOT. Uses vdotq_s32 (signed × signed) — no XOR bias,
+ *  no metadata parameter. 4Q × 4D register tiling with 16 int32x4_t accumulators. */
 NK_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                                                  //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8, nk_size_t query_count, nk_size_t document_count, //
     nk_size_t depth_i8_padded, nk_u32_t *best_document_indices) {
@@ -149,7 +146,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                        
         nk_i32_t running_max_i32[4] = {NK_I32_MIN, NK_I32_MIN, NK_I32_MIN, NK_I32_MIN};
         nk_u32_t running_argmax_u32[4] = {0, 0, 0, 0};
 
-        // 4Q×4D document blocking
+        // 4Q × 4D document blocking
         nk_size_t document_block_start_index = 0;
         for (; document_block_start_index + 4 <= document_count; document_block_start_index += 4) {
             // 16 accumulators: [query_idx][doc_idx]
@@ -213,7 +210,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                        
             }
         }
 
-        // Document tail: 4Q×1D
+        // Document tail: 4Q × 1D
         for (nk_size_t document_index = document_block_start_index; document_index < document_count; document_index++) {
             nk_i8_t const *document_i8_row = document_i8 + document_index * depth_i8_padded;
 
@@ -261,7 +258,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                        
             best_document_indices[query_block_start_index + query_tile_index] = running_argmax_u32[query_tile_index];
     }
 
-    // Query tail: 1Q×1D
+    // Query tail: 1Q × 1D
     for (nk_size_t query_index = query_block_start_index; query_index < query_count; query_index++) {
         nk_i8_t const *query_i8_row = query_i8 + query_index * depth_i8_padded;
         nk_i32_t running_max_i32 = NK_I32_MIN;

@@ -1,7 +1,7 @@
 /**
  *  @file c/dispatch_i4.c
  *  @author Ash Vardanian
- *  @date February 3, 2026
+ *  @date October 14, 2024
  *  @brief Dispatch initialization for I4 data types.
  */
 #include "dispatch.h"

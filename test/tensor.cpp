@@ -397,7 +397,7 @@ template <typename scaled_type_>
 concept exposes_tensor_scale_ = requires(scaled_type_ const &t) { t.tensor_scale(); };
 
 /**
- *  @brief End-to-end test of the `scaled_tensor` family: encode via `cast`, inspect the SoA
+ *  @brief End-to-end test of the @c scaled_tensor family: encode via @c cast, inspect the SoA
  *      components, slice rows / block-aligned column tiles, materialize back to dense, and verify
  *      the per-tensor scale is exposed for NVFP4 but compile-time absent for the MX family.
  *
@@ -581,7 +581,7 @@ error_stats_t test_scaled_tensor() {
  *  @brief Per-format bidirectional round-trip checks, one block, covering three regimes:
  *
  *  - B exactly-representable: a block of powers of two — amax = 2 is a power of two, no scale clip
- *    — must round-trip bit-exactly through UE8M0 formats; NVFP4's two-level f32×UE4M3 scale only
+ *    — must round-trip bit-exactly through UE8M0 formats; NVFP4's two-level f32 × UE4M3 scale only
  *    reaches it within the element resolution, so that case asserts the same relative bound as C.
  *  - C narrow range [1, 1.5): every value's mantissa is below each element format's max mantissa,
  *    so nothing clips and the relative error is bounded by the element resolution

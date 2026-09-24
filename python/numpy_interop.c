@@ -113,8 +113,8 @@ typedef struct {
 /**
  *  @brief PyArray_Descr layout, 2.x — returned by DescrFromType, input to RegisterCastFunc.
  *
- *  Uses `npy_intp elsize`, `npy_intp alignment`, no `f` pointer. Much smaller.
- *  We only read `type_num` from this; remaining fields are opaque.
+ *  Uses `npy_intp elsize`, `npy_intp alignment`, no @c f pointer. Much smaller.
+ *  We only read @c type_num from this; remaining fields are opaque.
  */
 typedef struct {
     PyObject_HEAD PyTypeObject *typeobj;

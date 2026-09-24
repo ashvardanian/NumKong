@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dots/neonbfdot.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date September 14, 2024
  *  @brief SIMD-accelerated Batched Dot Products for NEON BF16.
  *
  *  @sa include/numkong/dots.h

@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/each/neonbfdot.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date October 27, 2024
  *  @brief SIMD-accelerated elementwise arithmetic for NEON BF16.
  *
  *  @sa include/numkong/each.h

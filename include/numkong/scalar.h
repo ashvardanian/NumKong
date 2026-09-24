@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/scalar.h
  *  @author Ash Vardanian
- *  @date March 1, 2026
+ *  @date November 20, 2024
  *  @brief SIMD-accelerated scalar math helpers.
  *
  *  Provides dispatchable scalar helpers: sqrt, rsqrt, fma, saturating arithmetic, and ordering.
@@ -26,7 +26,7 @@ extern "C" {
 #endif
 
 /**
- *  @brief Scalar square root: `√x`.
+ *  @brief Scalar square root, √x.
  *
  *  @param[in] x The input value.
  *  @return The square root of @p x.
@@ -36,8 +36,9 @@ NK_API_RUNTIME nk_f32_t nk_f32_sqrt(nk_f32_t x);
 NK_API_RUNTIME nk_f64_t nk_f64_sqrt(nk_f64_t x);
 
 /**
- *  @brief Scalar reciprocal square root: `1/√x`.
- *  @sa std::rsqrt, @sa Rust f32::rsqrt
+ *  @brief Scalar reciprocal square root, 1 / √x.
+ *  @sa C++ @c std::rsqrt
+ *  @sa Rust @c f32::rsqrt
  *
  *  @param[in] x The input value.
  *  @return The reciprocal square root of @p x.
@@ -47,13 +48,14 @@ NK_API_RUNTIME nk_f32_t nk_f32_rsqrt(nk_f32_t x);
 NK_API_RUNTIME nk_f64_t nk_f64_rsqrt(nk_f64_t x);
 
 /**
- *  @brief Scalar fused multiply-add: `a × b + c`.
- *  @sa std::fma, @sa Rust f32::mul_add
+ *  @brief Scalar fused multiply-add, a × b + c.
+ *  @sa C++ @c std::fma
+ *  @sa Rust @c f32::mul_add
  *
  *  @param[in] a Multiplicand.
  *  @param[in] b Multiplier.
  *  @param[in] c Addend.
- *  @return `a * b + c` computed without intermediate rounding.
+ *  @return a × b + c computed without intermediate rounding.
  */
 NK_API_RUNTIME nk_f32_t nk_f32_fma(nk_f32_t a, nk_f32_t b, nk_f32_t c);
 /** @copydoc nk_f32_fma */
@@ -131,9 +133,8 @@ NK_API_RUNTIME nk_u4x2_t nk_u4x2_saturating_mul(nk_u4x2_t a, nk_u4x2_t b);
  *  @param[in] b Second operand.
  *  @return Negative if `a < b`, zero if `a == b`, positive if `a > b`.
  *
- *  @note NaN values are ordered at the extremes per IEEE 754 totalOrder
- *  (negative NaN < all finite < positive NaN). Callers requiring NaN-exclusion
- *  semantics must filter NaN before calling.
+ *  @note NaN values are ordered at the extremes per IEEE 754 totalOrder (negative NaN < all finite
+ *      < positive NaN). Callers requiring NaN-exclusion semantics must filter NaN before calling.
  */
 NK_API_RUNTIME int nk_f16_order(nk_f16_t a, nk_f16_t b);
 /** @copydoc nk_f16_order */
@@ -155,9 +156,17 @@ NK_API_COMPTIME nk_f64_t nk_f64_sqrt_serial(nk_f64_t x);
 NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_serial(nk_f32_t x);
 /** @copydoc nk_f64_rsqrt */
 NK_API_COMPTIME nk_f64_t nk_f64_rsqrt_serial(nk_f64_t x);
-/** @copydoc nk_f32_fma */
+
+/**
+ *  @copydoc nk_f32_fma
+ *  @note Emulates the fused rounding with Dekker's error-free product and Knuth's TwoSum.
+ */
 NK_API_COMPTIME nk_f32_t nk_f32_fma_serial(nk_f32_t a, nk_f32_t b, nk_f32_t c);
-/** @copydoc nk_f64_fma */
+
+/**
+ *  @copydoc nk_f64_fma
+ *  @note Emulates the fused rounding with Dekker's error-free product and Knuth's TwoSum.
+ */
 NK_API_COMPTIME nk_f64_t nk_f64_fma_serial(nk_f64_t a, nk_f64_t b, nk_f64_t c);
 
 /** @copydoc nk_f16_sqrt */

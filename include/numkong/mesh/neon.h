@@ -363,7 +363,7 @@ NK_API_COMPTIME void nk_kabsch_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk
     cross_covariance[7] = covariance_z_y - (nk_f64_t)n * centroid_a_z * centroid_b_y;
     cross_covariance[8] = covariance_z_z - (nk_f64_t)n * centroid_a_z * centroid_b_z;
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -419,7 +419,7 @@ NK_API_COMPTIME void nk_kabsch_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk
         for (int j = 0; j != 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f64_t centered_norm_squared_a = norm_squared_a -
                                        (nk_f64_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
                                                       centroid_a_z * centroid_a_z);
@@ -652,7 +652,7 @@ NK_API_COMPTIME void nk_kabsch_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk
     nk_f64_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -694,7 +694,7 @@ NK_API_COMPTIME void nk_kabsch_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk
 
     if (scale) *scale = 1.0;
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f64_t centered_norm_squared_a = norm_squared_a_sum -
                                        (nk_f64_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
                                                       centroid_a_z * centroid_a_z);
@@ -881,7 +881,7 @@ NK_API_COMPTIME void nk_umeyama_f32_neon(nk_f32_t const *a, nk_f32_t const *b, n
     cross_covariance[7] = covariance_z_y - (nk_f64_t)n * centroid_a_z * centroid_b_y;
     cross_covariance[8] = covariance_z_z - (nk_f64_t)n * centroid_a_z * centroid_b_z;
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -942,7 +942,7 @@ NK_API_COMPTIME void nk_umeyama_f32_neon(nk_f32_t const *a, nk_f32_t const *b, n
         for (int j = 0; j != 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
     if (scale) *scale = (nk_f32_t)applied_scale;
 
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f64_t sum_squared = applied_scale * applied_scale * centered_norm_squared_a + centered_norm_squared_b -
                            2.0 * applied_scale * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
@@ -1178,7 +1178,7 @@ NK_API_COMPTIME void nk_umeyama_f64_neon(nk_f64_t const *a, nk_f64_t const *b, n
     nk_f64_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -1224,7 +1224,7 @@ NK_API_COMPTIME void nk_umeyama_f64_neon(nk_f64_t const *a, nk_f64_t const *b, n
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = computed_scale;
 
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f64_t sum_squared = computed_scale * computed_scale * centered_norm_squared_a + centered_norm_squared_b -
                            2.0 * computed_scale * trace_rotation_covariance;
     if (sum_squared < 0.0) sum_squared = 0.0;
@@ -1264,10 +1264,6 @@ NK_HELPER_INLINE void nk_partial_deinterleave_f16_to_f32x4x2_neon_(nk_f16_t cons
                                            z_low_out, z_high_out);
 }
 
-/**
- *  @brief RMSD (Root Mean Square Deviation) computation using NEON FP16 with widening to FP32.
- *  Matches the serial-RMSD contract: zero centroids, identity rotation, raw √(Σ‖a-b‖² / n).
- */
 NK_API_COMPTIME void nk_rmsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
     if (rotation)
@@ -1335,10 +1331,6 @@ NK_API_COMPTIME void nk_rmsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_s
     *result = nk_f32_sqrt_neon(sum_squared / (nk_f32_t)n);
 }
 
-/**
- *  @brief Kabsch algorithm for optimal rigid body superposition using NEON FP16 with widening to FP32.
- *  Finds the rotation matrix R that minimizes RMSD between two point sets.
- */
 NK_API_COMPTIME void nk_kabsch_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
     if (n == 0) {
@@ -1504,7 +1496,7 @@ NK_API_COMPTIME void nk_kabsch_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk
     cross_covariance[7] = covariance_z_y - (nk_f32_t)n * centroid_a_z * centroid_b_y;
     cross_covariance[8] = covariance_z_z - (nk_f32_t)n * centroid_a_z * centroid_b_z;
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -1564,7 +1556,7 @@ NK_API_COMPTIME void nk_kabsch_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f32_t centered_norm_squared_a = norm_squared_a -
                                        (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
                                                       centroid_a_z * centroid_a_z);
@@ -1745,7 +1737,7 @@ NK_API_COMPTIME void nk_umeyama_f16_neon(nk_f16_t const *a, nk_f16_t const *b, n
     cross_covariance[7] = covariance_z_y - (nk_f32_t)n * centroid_a_z * centroid_b_y;
     cross_covariance[8] = covariance_z_z - (nk_f32_t)n * centroid_a_z * centroid_b_z;
 
-    // Identity-dominant short-circuit: if H ≈ diag(positive entries), R = I and trace(R·H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -1811,7 +1803,7 @@ NK_API_COMPTIME void nk_umeyama_f16_neon(nk_f16_t const *a, nk_f16_t const *b, n
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f32_t sum_squared = scale_factor * scale_factor * centered_norm_squared_a + centered_norm_squared_b -
                            2.0f * scale_factor * trace_rotation_covariance;
     if (sum_squared < 0.0f) sum_squared = 0.0f;

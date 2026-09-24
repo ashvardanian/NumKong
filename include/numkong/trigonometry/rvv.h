@@ -58,8 +58,7 @@ extern "C" {
 #endif
 
 /*  RVV trigonometry kernels using LMUL=4 for f32 and f64.
- *  Internal helpers return vector register groups for use by geospatial/rvv.h.
- */
+ *  Internal helpers return vector register groups for use by geospatial/rvv.h. */
 
 NK_HELPER_INLINE vfloat32m4_t nk_f32m4_sin_rvv_(vfloat32m4_t angles_f32m4, nk_size_t vector_length) {
     nk_f32_t const pi = 3.14159265358979323846f;
@@ -587,8 +586,7 @@ NK_HELPER_INLINE vfloat64m4_t nk_f64m4_atan2_rvv_(vfloat64m4_t ys_inputs_f64m4, 
 }
 
 /*  m2-width versions of sin/cos/atan for the f16 conversion path.
- *  f16 data is loaded as m1 (16-bit), widened to f32 m2, computed, then narrowed back.
- */
+ *  f16 data is loaded as m1 (16-bit), widened to f32 m2, computed, then narrowed back. */
 
 NK_HELPER_INLINE vfloat32m2_t nk_f32m2_sin_rvv_(vfloat32m2_t angles_f32m2, nk_size_t vector_length) {
     nk_f32_t const pi = 3.14159265358979323846f;

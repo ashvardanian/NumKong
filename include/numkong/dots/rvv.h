@@ -31,7 +31,7 @@
  *
  *  e3m2 GEMM uses integer arithmetic via a LUT, mapping a 5-bit magnitude to an i16 value times 16.
  *  B is pre-packed as signed i16, and A is converted on-the-fly via a @c vluxei16 gather. @c vwmacc
- *  performs a widening i16×i16 → i32 K-vectorized MAC, with the final result scaled by 1/256. It
+ *  performs a widening i16 × i16 → i32 K-vectorized MAC, with the final result scaled by 1/256. It
  *  processes 2 rows per tile via rows_per_tile=2, a wider accumulator element.
  *
  *  e4m3 GEMM gathers from an f32 LUT, mapping a 7-bit magnitude to an f32 bit pattern across 128
@@ -63,24 +63,18 @@
 extern "C" {
 #endif
 
-/**
- *  @brief  E2M3 magnitude LUT: 5-bit magnitude → unsigned value×16 (u8).
- *          Shared across scalar helper, packed kernel, and symmetric kernel.
- */
+/** E2M3 magnitude LUT: 5-bit magnitude → unsigned value × 16 (u8). Shared across scalar helper,
+ *  packed kernel, and symmetric kernel. */
 static nk_u8_t const nk_e2m3_magnitude_lut_rvv_[32] = {0,  2,  4,  6,  8,  10, 12, 14,  16,  18, 20,
                                                        22, 24, 26, 28, 30, 32, 36, 40,  44,  48, 52,
                                                        56, 60, 64, 72, 80, 88, 96, 104, 112, 120};
 
-/**
- *  @brief  E2M1 LUT: 4-bit code → signed value×2 (i8), sign included.
- *          Shared across the pack, packed, and symmetric kernels.
- */
+/** E2M1 LUT: 4-bit code → signed value × 2 (i8), sign included. Shared across the pack, packed, and
+ *  symmetric kernels. */
 static nk_i8_t const nk_e2m1_doubled_lut_rvv_[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
 
-/**
- *  @brief  E3M2 magnitude LUT: 5-bit magnitude → unsigned value×16 (u16).
- *          Shared across scalar helper, packed kernel, and symmetric kernel.
- */
+/** E3M2 magnitude LUT: 5-bit magnitude → unsigned value × 16 (u16). Shared across scalar helper,
+ *  packed kernel, and symmetric kernel. */
 static nk_u16_t const nk_e3m2_magnitude_lut_rvv_[32] = {0,  1,   2,   3,   4,   5,   6,   7,   8,   10, 12,
                                                         14, 16,  20,  24,  28,  32,  40,  48,  56,  64, 80,
                                                         96, 112, 128, 160, 192, 224, 256, 320, 384, 448};
@@ -155,7 +149,7 @@ NK_API_COMPTIME void nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column_co
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    acc_f64 = sum_k  f64(a[row][k]) * f64(b_packed[column][k])
- *  using `vfwmacc_vv_f64m4` which widens both operands from f32m2 to f64m4.
+ *  using @c vfwmacc_vv_f64m4 which widens both operands from f32m2 to f64m4.
  *
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
  *  Each row loads its own A vector; B vector is shared across rows per depth chunk.
@@ -250,24 +244,12 @@ NK_HELPER_INLINE void nk_dots_packed_f32_rvv_aligned_(nk_f32_t const *a_matrix, 
     }
 }
 
-/**
- *  @brief  Public f32 packed GEMM wrapper matching the declared signature in dots.h.
- *
- *  Dispatches to the aligned kernel for all cases — RVV's `vsetvl` handles partial
- *  vectors naturally, so no separate edge kernel is needed.
- */
 NK_API_COMPTIME void nk_dots_packed_f32_rvv(nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows,
                                             nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                             nk_size_t c_stride_in_bytes) {
     nk_dots_packed_f32_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
-/**
- *  @brief  Symmetric f32 GEMM: C = A * A^T, upper triangle + mirror.
- *
- *  Uses f64 widened accumulation via `vfwmacc_vv_f64m4` for precision.
- *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
- */
 NK_API_COMPTIME void nk_dots_symmetric_f32_rvv(nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                nk_size_t stride_in_bytes, nk_f64_t *result,
                                                nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -368,7 +350,7 @@ NK_API_COMPTIME void nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column_co
 /**
  *  @brief  f64 packed GEMM kernel: C += A * B_packed^T with Kahan compensation.
  *
- *  Vectorizes over depth dimension k using `vfmul`+Kahan (vector-vector multiply).
+ *  Vectorizes over depth dimension k using @c vfmul+Kahan (vector-vector multiply).
  *  Uses Kahan summation over full depth to maintain precision.
  *  Register tile: process 2 rows per iteration (rows_per_tile=2, budget: 32 regs at LMUL=4).
  */
@@ -480,21 +462,12 @@ NK_HELPER_INLINE void nk_dots_packed_f64_rvv_aligned_(nk_f64_t const *a_matrix, 
     }
 }
 
-/**
- *  @brief  Public f64 packed GEMM wrapper matching the declared signature in dots.h.
- */
 NK_API_COMPTIME void nk_dots_packed_f64_rvv(nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows,
                                             nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                             nk_size_t c_stride_in_bytes) {
     nk_dots_packed_f64_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
-/**
- *  @brief  Symmetric f64 GEMM: C = A * A^T, upper triangle + mirror.
- *
- *  Uses Kahan compensation over full depth for precision.
- *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
- */
 NK_API_COMPTIME void nk_dots_symmetric_f64_rvv(nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                nk_size_t stride_in_bytes, nk_f64_t *result,
                                                nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -568,12 +541,6 @@ NK_API_COMPTIME void nk_dots_packed_shape_e2m3_rvv(void const *b_packed, nk_size
     *depth = header->depth_dimensions;
 }
 
-/**
- *  @brief  Pack B matrix from e2m3 to signed i8 (value × 16) for integer dot product.
- *
- *  Each e2m3 byte is converted to a signed i8 via scalar LUT lookup.
- *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
- */
 NK_API_COMPTIME void nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t column_count, nk_size_t depth,
                                            nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
                                            nk_size_t columns_end) {
@@ -621,14 +588,14 @@ NK_API_COMPTIME void nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t column_
  *  @brief  e2m3 packed GEMM kernel: C += A * B_packed^T with integer i8 LUT arithmetic.
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
- *    - Load raw e2m3 bytes from A, extract magnitude via `vluxei8` gather LUT
+ *    - Load raw e2m3 bytes from A, extract magnitude via @c vluxei8 gather LUT
  *    - Apply sign from bit 5 via masked negate to produce signed i8 A values
  *    - Load pre-packed signed i8 values from B
- *    - Widening multiply i8×i8 → i16, then widen-accumulate i32 += i16
+ *    - Widening multiply i8 × i8 → i16, then widen-accumulate i32 += i16
  *    - Final result = i32_sum / 256.0f
  *
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
- *  The LUT gather on A magnitudes uses `vluxei8_v_u8m1` (byte-indexed byte gather).
+ *  The LUT gather on A magnitudes uses @c vluxei8_v_u8m1 (byte-indexed byte gather).
  */
 NK_HELPER_INLINE void nk_dots_packed_e2m3_rvv_aligned_(nk_e2m3_t const *a_matrix, void const *b_packed_buffer,
                                                        nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
@@ -713,7 +680,7 @@ NK_HELPER_INLINE void nk_dots_packed_e2m3_rvv_aligned_(nk_e2m3_t const *a_matrix
                                                                  0, vector_length);
                 a_vector_3_i8m1 = __riscv_vneg_v_i8m1_mu(negated_3_b8, a_vector_3_i8m1, a_vector_3_i8m1, vector_length);
 
-                // Widening multiply: i8×i8 → i16, then accumulate: i32 += i16
+                // Widening multiply: i8 × i8 → i16, then accumulate: i32 += i16
                 vint16m2_t product_0_i16m2 = __riscv_vwmul_vv_i16m2(a_vector_0_i8m1, b_vector_i8m1, vector_length);
                 vint16m2_t product_1_i16m2 = __riscv_vwmul_vv_i16m2(a_vector_1_i8m1, b_vector_i8m1, vector_length);
                 vint16m2_t product_2_i16m2 = __riscv_vwmul_vv_i16m2(a_vector_2_i8m1, b_vector_i8m1, vector_length);
@@ -777,21 +744,12 @@ NK_HELPER_INLINE void nk_dots_packed_e2m3_rvv_aligned_(nk_e2m3_t const *a_matrix
     }
 }
 
-/**
- *  @brief  Public e2m3 packed GEMM wrapper matching the declared signature in dots.h.
- */
 NK_API_COMPTIME void nk_dots_packed_e2m3_rvv(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                              nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                              nk_size_t c_stride_in_bytes) {
     nk_dots_packed_e2m3_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
-/**
- *  @brief  Symmetric e2m3 GEMM: C = A * A^T, upper triangle + mirror.
- *
- *  Uses integer i8 LUT arithmetic with i32 accumulation, scaled by 1/256.
- *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
- */
 NK_API_COMPTIME void nk_dots_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                 nk_size_t stride_in_bytes, nk_f32_t *result,
                                                 nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -830,7 +788,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_siz
                 vint8m1_t value_j_i8m1 = __riscv_vreinterpret_v_u8m1_i8m1(uvalue_j_u8m1);
                 value_j_i8m1 = __riscv_vneg_v_i8m1_mu(negate_b8, value_j_i8m1, value_j_i8m1, vector_length);
 
-                // Widening multiply: i8×i8 → i16, then accumulate: i32 += i16
+                // Widening multiply: i8 × i8 → i16, then accumulate: i32 += i16
                 vint16m2_t product_i16m2 = __riscv_vwmul_vv_i16m2(value_i_i8m1, value_j_i8m1, vector_length);
                 accumulator_i32m4 = __riscv_vwadd_wv_i32m4_tu(accumulator_i32m4, accumulator_i32m4, product_i16m2,
                                                               vector_length);
@@ -846,12 +804,10 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_siz
 
 #pragma endregion E2M3 Floats
 
+/*  B packs every column as two i8 halves of `depth_padded_values / 2` bytes each: the values of the
+ *  high nibbles, then those of the low nibbles. A decodes both halves of each byte on the fly, so
+ *  byte @c k of A meets entry @c k of each half. */
 #pragma region E2M1 Floats
-
-/*  B packs every column as two i8 halves of `depth_padded_values / 2` bytes each: the values of the high nibbles,
- *  then those of the low nibbles. A decodes both halves of each byte on the fly, so byte `k` of A meets entry `k` of
- *  each half.
- */
 
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_e2m1_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
@@ -919,9 +875,10 @@ NK_API_COMPTIME void nk_dots_pack_e2m1_rvv(nk_e2m1x2_t const *b, nk_size_t colum
 /**
  *  @brief  e2m1 packed GEMM kernel: C = A * B_packed^T with integer i8 LUT arithmetic.
  *
- *  Vectorizes over the bytes of A. Each byte's nibbles gather their signed values via `vluxei8`,
- *  meet the matching entries of the two packed B halves in `vwmul` and `vwmacc`, whose paired products stay within 288
- *  in i16, and widen-accumulate into i32. The final result is scaled by 1/4.
+ *  Vectorizes over the bytes of A. Each byte's nibbles gather their signed values via @c vluxei8,
+ *  meet the matching entries of the two packed B halves in @c vwmul and @c vwmacc, whose paired
+ *  products stay within 288 in i16, and widen-accumulate into i32, with the final result scaled
+ *  by 1/4.
  *  Register tile: 4 rows per iteration.
  */
 NK_HELPER_INLINE void nk_dots_packed_e2m1_rvv_aligned_(nk_e2m1x2_t const *a_matrix, void const *b_packed_buffer,
@@ -1128,12 +1085,6 @@ NK_API_COMPTIME void nk_dots_packed_shape_e3m2_rvv(void const *b_packed, nk_size
     *depth = header->depth_dimensions;
 }
 
-/**
- *  @brief  Pack B matrix from e3m2 to signed i16 (value × 16) for integer dot product.
- *
- *  Each e3m2 byte is converted to a signed i16 via scalar LUT lookup.
- *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
- */
 NK_API_COMPTIME void nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t column_count, nk_size_t depth,
                                            nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
                                            nk_size_t columns_end) {
@@ -1181,13 +1132,13 @@ NK_API_COMPTIME void nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t column_
  *  @brief  e3m2 packed GEMM kernel: C += A * B_packed^T with integer i16 LUT arithmetic.
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
- *    - Load raw e3m2 bytes from A, convert to signed i16 via `vluxei16` gather LUT
+ *    - Load raw e3m2 bytes from A, convert to signed i16 via @c vluxei16 gather LUT
  *    - Load pre-packed i16 values from B
- *    - Widening multiply-accumulate: i16×i16 → i32 via `vwmacc`
+ *    - Widening multiply-accumulate: i16 × i16 → i32 via @c vwmacc
  *    - Final result = i32_sum / 256.0f
  *
  *  Register tile: process 2 rows per iteration (rows_per_tile=2, wider i16/i32 elements reduce VL).
- *  The LUT gather on A magnitudes uses `vluxei16_v_u16m2` (16-bit indexed 16-bit gather).
+ *  The LUT gather on A magnitudes uses @c vluxei16_v_u16m2 (16-bit indexed 16-bit gather).
  */
 NK_HELPER_INLINE void nk_dots_packed_e3m2_rvv_aligned_(nk_e3m2_t const *a_matrix, void const *b_packed_buffer,
                                                        nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
@@ -1260,7 +1211,7 @@ NK_HELPER_INLINE void nk_dots_packed_e3m2_rvv_aligned_(nk_e3m2_t const *a_matrix
                 a_vector_1_i16m2 = __riscv_vneg_v_i16m2_mu(negated_1_b8, a_vector_1_i16m2, a_vector_1_i16m2,
                                                            vector_length);
 
-                // Widening multiply-accumulate: i16×i16 → i32
+                // Widening multiply-accumulate: i16 × i16 → i32
                 accumulator_0_i32m4 = __riscv_vwmacc_vv_i32m4_tu(accumulator_0_i32m4, a_vector_0_i16m2, b_vector_i16m2,
                                                                  vector_length);
                 accumulator_1_i32m4 = __riscv_vwmacc_vv_i32m4_tu(accumulator_1_i32m4, a_vector_1_i16m2, b_vector_i16m2,
@@ -1311,21 +1262,12 @@ NK_HELPER_INLINE void nk_dots_packed_e3m2_rvv_aligned_(nk_e3m2_t const *a_matrix
     }
 }
 
-/**
- *  @brief  Public e3m2 packed GEMM wrapper matching the declared signature in dots.h.
- */
 NK_API_COMPTIME void nk_dots_packed_e3m2_rvv(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                              nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                              nk_size_t c_stride_in_bytes) {
     nk_dots_packed_e3m2_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
-/**
- *  @brief  Symmetric e3m2 GEMM: C = A * A^T, upper triangle + mirror.
- *
- *  Uses integer i16 LUT arithmetic with i32 widening MAC, scaled by 1/256.
- *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
- */
 NK_API_COMPTIME void nk_dots_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                 nk_size_t stride_in_bytes, nk_f32_t *result,
                                                 nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -1373,7 +1315,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_siz
                 vint16m2_t value_j_i16m2 = __riscv_vreinterpret_v_u16m2_i16m2(uvalue_j_u16m2);
                 value_j_i16m2 = __riscv_vneg_v_i16m2_mu(negated_j_b8, value_j_i16m2, value_j_i16m2, vector_length);
 
-                // Widening multiply-accumulate: i16×i16 → i32
+                // Widening multiply-accumulate: i16 × i16 → i32
                 accumulator_i32m4 = __riscv_vwmacc_vv_i32m4_tu(accumulator_i32m4, value_i_i16m2, value_j_i16m2,
                                                                vector_length);
             }
@@ -1390,12 +1332,6 @@ NK_API_COMPTIME void nk_dots_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_siz
 
 #pragma region BF16 Floats
 
-/**
- *  @brief  Compute the packed buffer size for bf16 GEMM (B stored as f32).
- *
- *  VL is determined by `__riscv_vsetvlmax_e32m2()` since B is stored as f32.
- *  Layout: column-panel with depth-contiguous f32 values, cache-line padding.
- */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -1412,12 +1348,6 @@ NK_API_COMPTIME void nk_dots_packed_shape_bf16_rvv(void const *b_packed, nk_size
     *depth = header->depth_dimensions;
 }
 
-/**
- *  @brief  Pack B matrix from bf16 to f32 for widened dot product.
- *
- *  Each bf16 value is converted to f32 via bit shift (bf16 is the upper 16 bits of f32).
- *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
- */
 NK_API_COMPTIME void nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t column_count, nk_size_t depth,
                                            nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
                                            nk_size_t columns_end) {
@@ -1472,9 +1402,9 @@ NK_API_COMPTIME void nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t column_
  *  @brief  bf16 packed GEMM kernel: C += A * B_packed^T with f64 widened accumulation.
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
- *    - Load A as u16m1 and convert to f32m2 via `nk_bf16m1_to_f32m2_rvv_`
+ *    - Load A as u16m1 and convert to f32m2 via @c nk_bf16m1_to_f32m2_rvv_
  *    - Load B as f32m2 directly (pre-packed)
- *    - Accumulate via `vfwmacc_vv_f64m4` which widens both f32 operands to f64
+ *    - Accumulate via @c vfwmacc_vv_f64m4 which widens both f32 operands to f64
  *    - Horizontal reduce and narrow to f32 on store
  *
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
@@ -1575,26 +1505,12 @@ NK_HELPER_INLINE void nk_dots_packed_bf16_rvv_aligned_(nk_bf16_t const *a_matrix
     }
 }
 
-/**
- *  @brief  Public bf16 packed GEMM wrapper matching the declared signature in dots.h.
- *
- *  Dispatches to the aligned kernel for all cases — RVV's `vsetvl` handles partial
- *  vectors naturally, so no separate edge kernel is needed.
- */
 NK_API_COMPTIME void nk_dots_packed_bf16_rvv(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                              nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                              nk_size_t c_stride_in_bytes) {
     nk_dots_packed_bf16_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
-/**
- *  @brief  Symmetric bf16 GEMM: C = A * A^T, upper triangle + mirror.
- *
- *  Uses f64 widened accumulation via `vfwmacc_vv_f64m4` for precision.
- *  Both inputs are bf16, loaded as u16 and converted to f32 via `nk_bf16m1_to_f32m2_rvv_`.
- *  Stride is in bytes.
- *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
- */
 NK_API_COMPTIME void nk_dots_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                 nk_size_t stride_in_bytes, nk_f32_t *result,
                                                 nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -1631,12 +1547,6 @@ NK_API_COMPTIME void nk_dots_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_siz
 
 #pragma region F16 Floats
 
-/**
- *  @brief  Compute the packed buffer size for f16 GEMM (B stored as f32).
- *
- *  VL is determined by `__riscv_vsetvlmax_e32m2()` since B is stored as f32.
- *  Layout: column-panel with depth-contiguous f32 values, cache-line padding.
- */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_f16_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -1653,12 +1563,6 @@ NK_API_COMPTIME void nk_dots_packed_shape_f16_rvv(void const *b_packed, nk_size_
     *depth = header->depth_dimensions;
 }
 
-/**
- *  @brief  Pack B matrix from f16 to f32 for widened dot product.
- *
- *  Each f16 value is converted to f32 via `nk_f16_to_f32_serial`.
- *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
- */
 NK_API_COMPTIME void nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t column_count, nk_size_t depth,
                                           nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
                                           nk_size_t columns_end) {
@@ -1706,9 +1610,9 @@ NK_API_COMPTIME void nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t column_co
  *  @brief  f16 packed GEMM kernel: C += A * B_packed^T with f64 widened accumulation.
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
- *    - Load A as u16m1 and convert to f32m2 via `nk_f16m1_to_f32m2_rvv_`
+ *    - Load A as u16m1 and convert to f32m2 via @c nk_f16m1_to_f32m2_rvv_
  *    - Load B as f32m2 directly (pre-packed)
- *    - Accumulate via `vfwmacc_vv_f64m4` which widens both f32 operands to f64
+ *    - Accumulate via @c vfwmacc_vv_f64m4 which widens both f32 operands to f64
  *    - Horizontal reduce and narrow to f32 on store
  *
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
@@ -1809,26 +1713,12 @@ NK_HELPER_INLINE void nk_dots_packed_f16_rvv_aligned_(nk_f16_t const *a_matrix, 
     }
 }
 
-/**
- *  @brief  Public f16 packed GEMM wrapper matching the declared signature in dots.h.
- *
- *  Dispatches to the aligned kernel for all cases — RVV's `vsetvl` handles partial
- *  vectors naturally, so no separate edge kernel is needed.
- */
 NK_API_COMPTIME void nk_dots_packed_f16_rvv(nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                             nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                             nk_size_t c_stride_in_bytes) {
     nk_dots_packed_f16_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
-/**
- *  @brief  Symmetric f16 GEMM: C = A * A^T, upper triangle + mirror.
- *
- *  Uses f64 widened accumulation via `vfwmacc_vv_f64m4` for precision.
- *  Both inputs are f16, loaded as u16 and converted to f32 via `nk_f16m1_to_f32m2_rvv_`.
- *  Stride is in bytes.
- *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
- */
 NK_API_COMPTIME void nk_dots_symmetric_f16_rvv(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                nk_size_t stride_in_bytes, nk_f32_t *result,
                                                nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -1865,12 +1755,6 @@ NK_API_COMPTIME void nk_dots_symmetric_f16_rvv(nk_f16_t const *vectors, nk_size_
 
 #pragma region I8 Integers
 
-/**
- *  @brief  Compute the packed buffer size for i8 GEMM (B stored as i8).
- *
- *  VL is determined by `__riscv_vsetvlmax_e8m1()` since B is stored as i8.
- *  Layout: column-panel with depth-contiguous i8 values, cache-line padding.
- */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -1887,12 +1771,6 @@ NK_API_COMPTIME void nk_dots_packed_shape_i8_rvv(void const *b_packed, nk_size_t
     *depth = header->depth_dimensions;
 }
 
-/**
- *  @brief  Pack B matrix from i8 to i8 (direct copy) for integer dot product.
- *
- *  No conversion needed — values are copied directly.
- *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
- */
 NK_API_COMPTIME void nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_count, nk_size_t depth,
                                          nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
                                          nk_size_t columns_end) {
@@ -1946,9 +1824,9 @@ NK_API_COMPTIME void nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_coun
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    - Load i8 values from A and pre-packed i8 values from B
- *    - Widening multiply: i8 × i8 → i16 via `vwmul`
- *    - Widen-accumulate: i32 += i16 via `vwadd_wv`
- *    - Horizontal reduce via `vredsum`
+ *    - Widening multiply: i8 × i8 → i16 via @c vwmul
+ *    - Widen-accumulate: i32 += i16 via @c vwadd_wv
+ *    - Horizontal reduce via @c vredsum
  *
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
  *  Output is nk_i32_t (integer result, no scaling).
@@ -2048,26 +1926,12 @@ NK_HELPER_INLINE void nk_dots_packed_i8_rvv_aligned_(nk_i8_t const *a_matrix, vo
     }
 }
 
-/**
- *  @brief  Public i8 packed GEMM wrapper matching the declared signature in dots.h.
- *
- *  Dispatches to the aligned kernel for all cases — RVV's `vsetvl` handles partial
- *  vectors naturally, so no separate edge kernel is needed.
- */
 NK_API_COMPTIME void nk_dots_packed_i8_rvv(nk_i8_t const *a, void const *b_packed, nk_i32_t *c, nk_size_t rows,
                                            nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                            nk_size_t c_stride_in_bytes) {
     nk_dots_packed_i8_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
-/**
- *  @brief  Symmetric i8 GEMM: C = A * A^T, upper triangle + mirror.
- *
- *  Uses integer i8 arithmetic with i32 accumulation.
- *  Both inputs are i8, widened via i8 × i8 → i16 → i32 accumulation.
- *  Stride is in bytes.
- *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
- */
 NK_API_COMPTIME void nk_dots_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                               nk_size_t stride_in_bytes, nk_i32_t *result,
                                               nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -2103,12 +1967,6 @@ NK_API_COMPTIME void nk_dots_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size_t 
 
 #pragma region U8 Integers
 
-/**
- *  @brief  Compute the packed buffer size for u8 GEMM (B stored as u8).
- *
- *  VL is determined by `__riscv_vsetvlmax_e8m1()` since B is stored as u8.
- *  Layout: column-panel with depth-contiguous u8 values, cache-line padding.
- */
 NK_API_COMPTIME nk_size_t nk_dots_pack_size_u8_rvv(nk_size_t column_count, nk_size_t depth) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -2125,12 +1983,6 @@ NK_API_COMPTIME void nk_dots_packed_shape_u8_rvv(void const *b_packed, nk_size_t
     *depth = header->depth_dimensions;
 }
 
-/**
- *  @brief  Pack B matrix from u8 to u8 (direct copy) for integer dot product.
- *
- *  No conversion needed — values are copied directly.
- *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
- */
 NK_API_COMPTIME void nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_count, nk_size_t depth,
                                          nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
                                          nk_size_t columns_end) {
@@ -2183,9 +2035,9 @@ NK_API_COMPTIME void nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_coun
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    - Load u8 values from A and pre-packed u8 values from B
- *    - Widening multiply: u8 × u8 → u16 via `vwmulu`
- *    - Widen-accumulate: u32 += u16 via `vwaddu_wv`
- *    - Horizontal reduce via `vredsum`
+ *    - Widening multiply: u8 × u8 → u16 via @c vwmulu
+ *    - Widen-accumulate: u32 += u16 via @c vwaddu_wv
+ *    - Horizontal reduce via @c vredsum
  *
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
  *  Output is nk_u32_t (unsigned integer result, no scaling).
@@ -2285,26 +2137,12 @@ NK_HELPER_INLINE void nk_dots_packed_u8_rvv_aligned_(nk_u8_t const *a_matrix, vo
     }
 }
 
-/**
- *  @brief  Public u8 packed GEMM wrapper matching the declared signature in dots.h.
- *
- *  Dispatches to the aligned kernel for all cases — RVV's `vsetvl` handles partial
- *  vectors naturally, so no separate edge kernel is needed.
- */
 NK_API_COMPTIME void nk_dots_packed_u8_rvv(nk_u8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t rows,
                                            nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                            nk_size_t c_stride_in_bytes) {
     nk_dots_packed_u8_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
-/**
- *  @brief  Symmetric u8 GEMM: C = A * A^T, upper triangle + mirror.
- *
- *  Uses unsigned integer u8 arithmetic with u32 accumulation.
- *  Both inputs are u8, widened via u8 × u8 → u16 → u32 accumulation.
- *  Stride is in bytes.
- *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
- */
 NK_API_COMPTIME void nk_dots_symmetric_u8_rvv(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                               nk_size_t stride_in_bytes, nk_u32_t *result,
                                               nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -2340,12 +2178,9 @@ NK_API_COMPTIME void nk_dots_symmetric_u8_rvv(nk_u8_t const *vectors, nk_size_t 
 
 #pragma region E4M3 Floats
 
-/**
- *  @brief  E4M3 magnitude LUT: 7-bit magnitude → f32 bit pattern (u32).
- *          nk_e4m3_magnitude_lut_rvv_[i] = float_to_bits(e4m3_to_f32(i)) for i=0..127.
- *          E4M3FN: 4 exponent bits (bias=7), 3 mantissa bits, no infinity,
- *          NaN = magnitude 0x7F only.
- */
+/** E4M3 magnitude LUT: 7-bit magnitude → f32 bit pattern (u32). nk_e4m3_magnitude_lut_rvv_[i] =
+ *  float_to_bits(e4m3_to_f32(i)) for i=0..127. E4M3FN: 4 exponent bits (bias=7), 3 mantissa bits,
+ *  no infinity, NaN = magnitude 0x7F only. */
 static nk_u32_t const nk_e4m3_magnitude_lut_rvv_[128] = {
     0x00000000u, 0x3B000000u, 0x3B800000u, 0x3BC00000u,
     0x3C000000u, 0x3C200000u, 0x3C400000u, 0x3C600000u, /* [  0..  7] */
@@ -2396,12 +2231,6 @@ NK_API_COMPTIME void nk_dots_packed_shape_e4m3_rvv(void const *b_packed, nk_size
     *depth = header->depth_dimensions;
 }
 
-/**
- *  @brief  Pack B matrix from e4m3 to f32 for floating-point dot product.
- *
- *  Each e4m3 byte is converted to f32 via `nk_e4m3_to_f32_serial`.
- *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
- */
 NK_API_COMPTIME void nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t column_count, nk_size_t depth,
                                            nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
                                            nk_size_t columns_end) {
@@ -2450,12 +2279,13 @@ NK_API_COMPTIME void nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t column_
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    - Load pre-packed f32 values from B
- *    - Load raw e4m3 bytes from A, convert on-the-fly via 128-entry f32 LUT gather:
- *      extract 7-bit magnitude, zero-extend to u32, compute byte offsets (x4),
- *      gather f32 bit patterns, inject sign bit from bit 7 (<<24), reinterpret as f32
- *    - Widening FMA: f32xf32 → f64 via `vfwmacc_vv_f64m4`
+ *    - Load raw e4m3 bytes from A, convert on-the-fly via 128-entry f32 LUT gather: extract
+ *      7-bit magnitude, zero-extend to u32, compute byte offsets (x4), gather f32 bit patterns,
+ *      inject sign bit from bit 7 (<<24), reinterpret as f32
+ *    - Widening FMA: f32 × f32 → f64 via @c vfwmacc_vv_f64m4
  *
- *  Register tile: process 2 rows per iteration (rows_per_tile=2, u32m2 gather + f64m4 accumulator is register-heavy).
+ *  Register tile: process 2 rows per iteration, rows_per_tile = 2, as the u32m2 gather and the
+ *  f64m4 accumulator are register-heavy.
  */
 NK_HELPER_INLINE void nk_dots_packed_e4m3_rvv_aligned_(nk_e4m3_t const *a_matrix, void const *b_packed_buffer,
                                                        nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
@@ -2576,22 +2406,12 @@ NK_HELPER_INLINE void nk_dots_packed_e4m3_rvv_aligned_(nk_e4m3_t const *a_matrix
     }
 }
 
-/**
- *  @brief  Public e4m3 packed GEMM wrapper matching the declared signature in dots.h.
- */
 NK_API_COMPTIME void nk_dots_packed_e4m3_rvv(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                              nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                              nk_size_t c_stride_in_bytes) {
     nk_dots_packed_e4m3_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
-/**
- *  @brief  Symmetric e4m3 GEMM: C = A * A^T, upper triangle + mirror.
- *
- *  Uses f32 LUT gather with f64 widened accumulation for precision.
- *  Both operands are converted from e4m3 on-the-fly via magnitude LUT.
- *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
- */
 NK_API_COMPTIME void nk_dots_symmetric_e4m3_rvv(nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                 nk_size_t stride_in_bytes, nk_f32_t *result,
                                                 nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -2652,12 +2472,9 @@ NK_API_COMPTIME void nk_dots_symmetric_e4m3_rvv(nk_e4m3_t const *vectors, nk_siz
 
 #pragma region E5M2 Floats
 
-/**
- *  @brief  E5M2 magnitude LUT: 7-bit magnitude → f32 bit pattern (u32).
- *          nk_e5m2_magnitude_lut_rvv_[i] = float_to_bits(e5m2_to_f32(i)) for i=0..127.
- *          E5M2: 5 exponent bits (bias=15), 2 mantissa bits, has infinity (0x7C) and
- *          NaN (magnitudes 0x7D..0x7F).
- */
+/** E5M2 magnitude LUT: 7-bit magnitude → f32 bit pattern (u32). nk_e5m2_magnitude_lut_rvv_[i] =
+ *  float_to_bits(e5m2_to_f32(i)) for i=0..127. E5M2: 5 exponent bits (bias=15), 2 mantissa bits,
+ *  has infinity (0x7C) and NaN (magnitudes 0x7D..0x7F). */
 static nk_u32_t const nk_e5m2_magnitude_lut_rvv_[128] = {
     0x00000000u, 0x37800000u, 0x38000000u, 0x38400000u,
     0x38800000u, 0x38A00000u, 0x38C00000u, 0x38E00000u, /* [  0..  7] */
@@ -2708,12 +2525,6 @@ NK_API_COMPTIME void nk_dots_packed_shape_e5m2_rvv(void const *b_packed, nk_size
     *depth = header->depth_dimensions;
 }
 
-/**
- *  @brief  Pack B matrix from e5m2 to f32 for floating-point dot product.
- *
- *  Each e5m2 byte is converted to f32 via `nk_e5m2_to_f32_serial`.
- *  Padding values are zeroed. Column-panel layout with depth-contiguous storage.
- */
 NK_API_COMPTIME void nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth,
                                            nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
                                            nk_size_t columns_end) {
@@ -2762,12 +2573,13 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t column_
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    - Load pre-packed f32 values from B
- *    - Load raw e5m2 bytes from A, convert on-the-fly via 128-entry f32 LUT gather:
- *      extract 7-bit magnitude, zero-extend to u32, compute byte offsets (x4),
- *      gather f32 bit patterns, inject sign bit from bit 7 (<<24), reinterpret as f32
- *    - Widening FMA: f32xf32 → f64 via `vfwmacc_vv_f64m4`
+ *    - Load raw e5m2 bytes from A, convert on-the-fly via 128-entry f32 LUT gather: extract
+ *      7-bit magnitude, zero-extend to u32, compute byte offsets (x4), gather f32 bit patterns,
+ *      inject sign bit from bit 7 (<<24), reinterpret as f32
+ *    - Widening FMA: f32 × f32 → f64 via @c vfwmacc_vv_f64m4
  *
- *  Register tile: process 2 rows per iteration (rows_per_tile=2, u32m2 gather + f64m4 accumulator is register-heavy).
+ *  Register tile: process 2 rows per iteration, rows_per_tile = 2, as the u32m2 gather and the
+ *  f64m4 accumulator are register-heavy.
  */
 NK_HELPER_INLINE void nk_dots_packed_e5m2_rvv_aligned_(nk_e5m2_t const *a_matrix, void const *b_packed_buffer,
                                                        nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
@@ -2888,22 +2700,12 @@ NK_HELPER_INLINE void nk_dots_packed_e5m2_rvv_aligned_(nk_e5m2_t const *a_matrix
     }
 }
 
-/**
- *  @brief  Public e5m2 packed GEMM wrapper matching the declared signature in dots.h.
- */
 NK_API_COMPTIME void nk_dots_packed_e5m2_rvv(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                              nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                              nk_size_t c_stride_in_bytes) {
     nk_dots_packed_e5m2_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
 }
 
-/**
- *  @brief  Symmetric e5m2 GEMM: C = A * A^T, upper triangle + mirror.
- *
- *  Uses f32 LUT gather with f64 widened accumulation for precision.
- *  Both operands are converted from e5m2 on-the-fly via magnitude LUT.
- *  Processes only the rows in [row_start, row_start + row_count) for parallelism.
- */
 NK_API_COMPTIME void nk_dots_symmetric_e5m2_rvv(nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                 nk_size_t stride_in_bytes, nk_f32_t *result,
                                                 nk_size_t result_stride_in_bytes, nk_size_t row_start,

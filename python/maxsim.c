@@ -5,10 +5,10 @@
  *  @brief MaxSim late-interaction operations for NumKong Python bindings.
  *
  *  This module owns:
- *  - `MaxSimPackedMatrix`: opaque pre-packed matrix for MaxSim scoring.
- *  - Packing API: `maxsim_pack()`.
- *  - Packed scoring API: `maxsim_packed()`.
- *  - Convenience API: `maxsim()` (pack + compute).
+ *  - @c MaxSimPackedMatrix: the opaque pre-packed matrix for MaxSim scoring.
+ *  - @c maxsim_pack: packs a matrix into it.
+ *  - @c maxsim_packed: scores two packed matrices.
+ *  - @c maxsim: packs and scores in one call.
  */
 #include "maxsim.h"
 #include "tensor.h"

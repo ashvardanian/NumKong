@@ -79,8 +79,8 @@ public final class Tensor<Element>: @unchecked Sendable {
     /// Resizes within the allocated `capacity` without moving storage, so existing `view()`,
     /// `span()`, and `row()` results stay valid.
     ///
-    /// - Returns: `false`, leaving the tensor unchanged, if either extent is negative or `rows *
-    ///     cols` exceeds `capacity`; call `reserve(_:)` first to grow.
+    /// - Returns: `false`, leaving the tensor unchanged, if either extent is negative or
+    ///   `rows * cols` exceeds `capacity`; call `reserve(_:)` first to grow.
     @discardableResult
     public func tryResize(rows newRows: Int, cols newCols: Int) -> Bool {
         guard newRows >= 0, newCols >= 0, newRows * newCols <= capacity else { return false }
@@ -93,7 +93,7 @@ public final class Tensor<Element>: @unchecked Sendable {
     /// A no-op when already large enough.
     ///
     /// - Warning: This may move storage, invalidating any outstanding `view()`, `span()`, or
-    ///     `row()` pointers obtained before the call.
+    ///   `row()` pointers obtained before the call.
     public func reserve(_ minimumCapacity: Int) {
         guard minimumCapacity > capacity else { return }
         let grown = UnsafeMutablePointer<Element>.allocate(capacity: minimumCapacity)

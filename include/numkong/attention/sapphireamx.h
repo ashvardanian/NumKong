@@ -18,7 +18,7 @@
  *  family's E4M3 recipe. I8 keeps its own pipeline shape-for-shape: exact I32 scores via TDPBSSD
  *  over 64-channel-deep quad-interleaved tiles, softmax weights quantized to U8 as round(255 ·
  *  2^(s₂ − m₂)), the running-max position lands on 255, so the weight sum is never zero and the 255
- *  cancels in normalization, and P×V via TDPBUSD — the serial I8 tier defines that contract.
+ *  cancels in normalization, and P × V via TDPBUSD — the serial I8 tier defines that contract.
  *
  *  The ragged form is the only form: transformer inference packs many variable-length segments into
  *  one token buffer, UForm's @c segment_offsets and @c segment_lengths convention, and a
@@ -33,13 +33,13 @@
  *
  *  Q, K, V, and O all use the activations-natural layout of shape @b [tokens,heads,depth] with an
  *  explicit row stride in bytes: element (head, token, channel) lives at base + token · stride +
- *  (head · depth + channel) · sizeof(scalar). A fused QKV projection output of shape @b
- *  [tokens,3,hidden] is therefore consumable in place — pass interior pointers and 3 · hidden ·
+ *  (head · depth + channel) · sizeof(scalar). A fused QKV projection output of shape
+ *  @b [tokens,3,hidden] is therefore consumable in place — pass interior pointers and 3 · hidden ·
  *  sizeof(scalar) strides, no copies.
  *
- *  Packing takes a half-open `(task_begin, task_end)` window over the flat @b [segment,kv_head]
- *  grid and attention a `(task_start, task_count)` window over the flat @b [segment,head] grid, so
- *  a parallel caller distributes tasks across threads — one thread per physical core, longest
+ *  Packing takes a [task_begin, task_end) window over the flat @b [segment,kv_head] grid and
+ *  attention a [task_start, task_start + task_count) window over the flat @b [segment,head] grid,
+ *  so a parallel caller distributes tasks across threads — one thread per physical core, longest
  *  segments first — without any second entry point. Tasks touch disjoint outputs; packing tasks
  *  write disjoint tile blocks, and the tiny header/directory bytes come out identical no matter
  *  which task performs the write.
@@ -47,7 +47,7 @@
  *  @section attention_sapphireamx_design Design
  *
  *  Classic FlashAttention tiling, Bᶜ = 32, interleaves a 16×32 score block, an online softmax, and
- *  a P×V accumulation. Ablation on that sequence shows the AMX work plus all tile moves cost ~275
+ *  a P × V accumulation. Ablation on that sequence shows the AMX work plus all tile moves cost ~275
  *  cycles per block while the online softmax chain costs ~600, the horizontal @c reduce_max and
  *  @c reduce_add chains, not the exponent, and the TMM → memory → ZMM output round-trip another
  *  ~400 — the matrix unit idles ~85% of the time. This kernel instead sweeps KV in @b panels of 512
@@ -57,7 +57,7 @@
  *  @b 32-row register blocking accumulates scores as a 2×2 grid of TMM tiles, two 16-row Q tiles ×
  *  two 16-column K tiles, so every loaded operand tile feeds two MACs: one tile load per
  *  @c tdpbf16ps in both matmuls, versus 1.5 for the 16-row variant this replaced, and all
- *  per-query-block fixed costs amortize over twice the rows. P×V holds four F32 accumulator tiles
+ *  per-query-block fixed costs amortize over twice the rows. P × V holds four F32 accumulator tiles
  *  TMM-resident per 32-channel slice of the head across the panel's whole depth; the accumulator
  *  crosses into ZMM once per panel per slice, fused with the online correction as a single FMA: O =
  *  O · 2^(m_old − m_new) + O_panel.
@@ -74,7 +74,7 @@
  *  octaves above F32's true limit are denormal, and one denormal operand in the correction FMA
  *  costs a ~150-cycle FP assist per element — measured as a 2.5× whole-kernel slowdown.
  *
- *  Rejected by measurement: exp/P×V instruction interleaving — wins at 16-row blocking, loses at
+ *  Rejected by measurement: exp/P × V instruction interleaving — wins at 16-row blocking, loses at
  *  32-row where the vector stage dominates each step — sigmoid scoring, the division costs what the
  *  max/sum bookkeeping saves, and software prefetching.
  *
@@ -91,13 +91,13 @@
  *  entry is the total, followed by `nk_u32_t segment_lengths[segment_count]`, padded to 64 bytes.
  *  Every segment's sequence is zero-padded to a multiple of 32 and its channels to a multiple of
  *  32; each block holds K tiles for all KV heads, then V tiles, always as BF16 regardless of the
- *  input dtype. K is packed transposed for Q×Kᵀ as pair-interleaved B-tiles `[kv_tile][depth_tile]`
- *  — @c kv_tile is 16 positions, @c depth_tile is 32 channels. V is packed for P×V as
- *  pair-interleaved B-tiles `[depth_tile_idx][position_block_idx]` — depth-major so each output
- *  tile's depth accumulation streams contiguous 1 KB tiles, one depth tile is 16 channels, one
- *  position block is 32 positions. Zero-padded K rows yield zero scores, which the column-bounded
- *  softmax turns into zero weights; padded V rows and channels are multiplied by those zero weights
- *  or skipped at the final store.
+ *  input dtype. K is packed transposed for Q × Kᵀ as pair-interleaved B-tiles
+ *  `[kv_tile][depth_tile]` — @c kv_tile is 16 positions, @c depth_tile is 32 channels. V is packed
+ *  for P × V as pair-interleaved B-tiles `[depth_tile_idx][position_block_idx]` — depth-major so
+ *  each output tile's depth accumulation streams contiguous 1 KB tiles, one depth tile is 16
+ *  channels, one position block is 32 positions. Zero-padded K rows yield zero scores, which the
+ *  column-bounded softmax turns into zero weights; padded V rows and channels are multiplied by
+ *  those zero weights or skipped at the final store.
  *
  *  The kernel keeps ~350 KB of scratch on the stack: a 64 KB F32 score panel, a 32 KB BF16 weight
  *  panel, four 32 KB output accumulators, and 64 KB of packed Q tiles.
@@ -140,15 +140,19 @@ extern "C" {
 #endif
 
 enum {
+
     /** KV panel width in positions; the 32-row F32 score panel (64 KB) stays L2-resident. */
     nk_attention_panel_sapphireamx_k_ = 512,
-    /** 32-row query blocks sharing one KV panel sweep; bounds packed-K/V re-reads at long context. */
+
+    /** Count of 32-row query blocks sharing one KV panel sweep; bounds packed-K/V re-reads at long
+     *  context lengths. */
     nk_attention_chunk_sapphireamx_k_ = 4,
+
     /** Widest head this backend handles in tiles; larger heads route to the serial tier. */
     nk_attention_max_depth_sapphireamx_k_ = 256,
 };
 
-/** @brief Gathers one 16×32 A-tile of BF16 from strided rows, zero-padding rows and channels. */
+/** Gathers one 16×32 A-tile of BF16 from strided rows, zero-padding rows and channels. */
 typedef void (*nk_attention_gather_sapphireamx_t_)(nk_dots_bf16_a16x32_sapphireamx_t *tile, void const *source,
                                                    nk_size_t source_stride_bytes, nk_size_t valid_positions,
                                                    nk_size_t valid_columns);
@@ -167,7 +171,7 @@ NK_HELPER_INLINE void nk_attention_gather_e4m3_sapphireamx_(nk_dots_bf16_a16x32_
                                      valid_positions, valid_columns);
 }
 
-/** @brief Loads two V rows of 16 channels as BF16 for pair-interleaving; dead rows/channels zero. */
+/** Loads two V rows of 16 channels as BF16 for pair-interleaving; dead rows/channels zero. */
 typedef void (*nk_attention_v_rows_sapphireamx_t_)(void const *row_a, void const *row_b, int a_live, int b_live,
                                                    __mmask16 columns_m16, __m256i *a_bf16x16, __m256i *b_bf16x16);
 
@@ -178,7 +182,7 @@ NK_HELPER_INLINE void nk_attention_v_rows_bf16_sapphireamx_(void const *row_a, v
     *b_bf16x16 = b_live ? _mm256_maskz_loadu_epi16(columns_m16, row_b) : _mm256_setzero_si256();
 }
 
-/** @brief One 32-lane E4M3→BF16 conversion covers both rows, packed into the two 128-bit halves. */
+/** One 32-lane E4M3 → BF16 conversion covers both rows, packed into the two 128-bit halves. */
 NK_HELPER_INLINE void nk_attention_v_rows_e4m3_sapphireamx_(void const *row_a, void const *row_b, int a_live,
                                                             int b_live, __mmask16 columns_m16, __m256i *a_bf16x16,
                                                             __m256i *b_bf16x16) {
@@ -231,11 +235,9 @@ NK_API_COMPTIME void nk_attention_packed_shape_e4m3_sapphireamx(void const *key_
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
 }
 
-/**
- *  @brief Shared packing core: K/V of any dtype become BF16 AMX tiles via the two loaders.
- *  The header and directory are deterministic functions of the arguments, so concurrent
- *  packing tasks may rewrite them with identical bytes.
- */
+/** Shared packing core: K/V of any dtype become BF16 AMX tiles via the two loaders. The header and
+ *  directory are deterministic functions of the arguments, so concurrent packing tasks may rewrite
+ *  them with identical bytes. */
 NK_HELPER_INLINE void nk_attention_pack_sapphireamx_(                                     //
     void const *keys, void const *values, nk_size_t element_bytes,                        //
     nk_attention_gather_sapphireamx_t_ gather, nk_attention_v_rows_sapphireamx_t_ v_rows, //
@@ -302,8 +304,8 @@ NK_HELPER_INLINE void nk_attention_pack_sapphireamx_(                           
             }
         }
 
-        // V: interleave consecutive position pairs per 16-channel column group with one
-        // VPERMT2W per pair, tiles ordered [depth_tile][position_block] (depth-major streaming for P×V).
+        // V: interleave consecutive position pairs per 16-channel column group with one VPERMT2W
+        // per pair, tiles ordered [depth_tile][position_block] (depth-major streaming for P × V).
         nk_bf16_t *values_head_tiles = (nk_bf16_t *)(tiles_base + tile_offsets_ro[segment_idx] +
                                                      (key_value_head_count + key_value_head_idx) * bytes_per_head);
         for (nk_size_t depth_tile_idx = 0; depth_tile_idx < dim_tiles; depth_tile_idx++) {
@@ -377,7 +379,7 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_sapphireamx(                        
                                    key_value_packed, task_begin, task_end);
 }
 
-/** @brief Per-call scratch: score/weight panels, output accumulators, packed Q tiles. */
+/** Per-call scratch: score/weight panels, output accumulators, packed Q tiles. */
 typedef struct {
     NK_ALIGN64 nk_f32_t scores_panel[32 * nk_attention_panel_sapphireamx_k_];   // 64 KB
     NK_ALIGN64 nk_bf16_t weights_panel[32 * nk_attention_panel_sapphireamx_k_]; // 32 KB
@@ -385,7 +387,8 @@ typedef struct {
     nk_dots_bf16_a16x32_sapphireamx_t q_tiles[nk_attention_chunk_sapphireamx_k_][2][8]; // 64 KB
 } nk_attention_scratch_sapphireamx_t;
 
-/** @brief Lanes of the 16-column chunk at `chunk_start` that fall inside `[column_begin, column_end)`. */
+/** Lanes of the 16-column chunk at @p chunk_start that fall between @p column_begin inclusive and
+ *  @p column_end exclusive. */
 NK_HELPER_INLINE __mmask16 nk_attention_lanes_sapphireamx_(nk_size_t chunk_start, nk_size_t column_begin,
                                                            nk_size_t column_end) {
     nk_size_t const lanes_begin = column_begin > chunk_start ? column_begin - chunk_start : 0;
@@ -395,7 +398,8 @@ NK_HELPER_INLINE __mmask16 nk_attention_lanes_sapphireamx_(nk_size_t chunk_start
     return (__mmask16)(below_end & ~below_begin);
 }
 
-/** @brief Visible keys of each row in one 32-row query block and their union; rows past `row_count` are empty. */
+/** Visible keys of each row in one 32-row query block and their union; rows past @c row_count are
+ *  empty. */
 NK_HELPER_INLINE void nk_attention_block_ranges_sapphireamx_(                 //
     nk_size_t block_first_row, nk_size_t row_count, nk_size_t position_count, //
     nk_i64_t diagonal_offset, nk_size_t window,                               //
@@ -414,7 +418,8 @@ NK_HELPER_INLINE void nk_attention_block_ranges_sapphireamx_(                 //
     }
 }
 
-/** @brief Clips one block's key ranges to a panel's live columns; rows with nothing there become `[0, 0)`. */
+/** Clips one block's key ranges to a panel's live columns; rows with nothing there become the
+ *  empty range `[0, 0)`. */
 NK_HELPER_INLINE void nk_attention_panel_columns_sapphireamx_(    //
     nk_size_t const *row_key_begin, nk_size_t const *row_key_end, // [32] absolute keys
     nk_size_t panel_start, nk_size_t valid_channels,              //
@@ -429,13 +434,13 @@ NK_HELPER_INLINE void nk_attention_panel_columns_sapphireamx_(    //
 }
 
 /**
- *  @brief Stage 1: Q×Kᵀ for one KV panel with 2×2 register blocking, then the row-max sweep.
+ *  @brief Stage 1: Q × Kᵀ for one KV panel with 2×2 register blocking, then the row-max sweep.
  *
- *  Per 32-column pair, scores accumulate in TMM0-3 (two 16-row Q tiles × two 16-column
- *  K tiles) with Q in TMM4/5 and K in TMM6/7 — every loaded tile feeds two MACs. The
- *  depth loop covers `depth_tiles` 32-channel steps (4 for the `depth = 128` hot path).
- *  Emits per-row raw (unscaled) maxima for both 16-row groups over each row's own
- *  `[column_begin, column_end)`; a row with no columns in the panel reports `NK_F32_MIN`.
+ *  Per 32-column pair, scores accumulate in TMM0-3 (two 16-row Q tiles × two 16-column K tiles)
+ *  with Q in TMM4/5 and K in TMM6/7 — every loaded tile feeds two MACs. The depth loop covers
+ *  @c depth_tiles 32-channel steps (4 for the `depth = 128` hot path). Emits per-row raw (unscaled)
+ *  maxima for both 16-row groups over each row's own `[column_begin, column_end)`; a row with no
+ *  columns in the panel reports @c NK_F32_MIN.
  */
 NK_HELPER_INLINE void nk_attention_score_panel_sapphireamx_(      //
     nk_dots_bf16_a16x32_sapphireamx_t const (*q_tiles)[8],        // [2][depth_tiles] pre-packed Q
@@ -495,11 +500,11 @@ NK_HELPER_INLINE void nk_attention_score_panel_sapphireamx_(      //
 /**
  *  @brief Stage 2: streaming base-2 softmax over one panel (32 rows).
  *
- *  Row-major single pass: `weights = bf16(2^(scores · scale₂ − m₂_row))` with the running
- *  sum in a register — one horizontal reduction per row per panel, no per-block online
- *  state. Columns outside each row's `[column_begin, column_end)` (masked keys and sequence
- *  padding) get zero weights and no sum contribution. `new_max` is the base-2-scaled running
- *  maximum, already merged.
+ *  Row-major single pass: weights = bf16(2^(scores · scale₂ − m₂_row)) with the running sum
+ *  in a register — one horizontal reduction per row per panel, no per-block online state.
+ *  Columns outside each row's `[column_begin, column_end)` (masked keys and sequence
+ *  padding) get zero weights and no sum contribution. @c new_max is the base-2-scaled
+ *  running maximum, already merged.
  */
 NK_HELPER_INLINE void nk_attention_exp_panel_sapphireamx_(      //
     nk_f32_t const *scores_panel, nk_bf16_t *weights_panel,     // [32][panel] each
@@ -548,13 +553,12 @@ NK_HELPER_INLINE void nk_attention_exp_panel_sapphireamx_(      //
 }
 
 /**
- *  @brief Stage 3: P×V for one panel with 2×2 register blocking, TMM-resident accumulation.
+ *  @brief Stage 3: P × V for one panel with 2×2 register blocking, TMM-resident accumulation.
  *
- *  One sweep over the weight panel per 32-channel slice of the head: TMM0-3 hold
- *  (two 16-row P groups) × (two 16-channel V tiles) across the panel's whole depth, with
- *  P in TMM4/5 and V in TMM6/7 — one tile load per MAC. Each accumulator crosses into
- *  the F32 output accumulator once per panel, fused with the online correction:
- *  `o_acc = o_acc · correction + o_panel`.
+ *  One sweep over the weight panel per 32-channel slice of the head: TMM0-3 hold (two 16-row P
+ *  groups) × (two 16-channel V tiles) across the panel's whole depth, with P in TMM4/5 and V in
+ *  TMM6/7 — one tile load per MAC. Each accumulator crosses into the F32 output accumulator once
+ *  per panel, fused with the online correction: o_acc = o_acc · correction + o_panel.
  */
 NK_HELPER_INLINE void nk_attention_weighted_sum_panel_sapphireamx_( //
     nk_bf16_t const *weights_panel, nk_size_t panel_width,          // [32][panel] BF16
@@ -606,10 +610,8 @@ NK_HELPER_INLINE void nk_attention_weighted_sum_panel_sapphireamx_( //
     }
 }
 
-/**
- *  @brief One (segment, head) task: panel-flash attention for `query_count` rows against
- *         one segment's packed KV, with KV-reuse chunking over 128-query groups.
- */
+/** One (segment, head) task: panel-flash attention for @c query_count rows against one segment's
+ *  packed KV, with KV-reuse chunking over 128-query groups. */
 NK_HELPER_INLINE void nk_attention_task_sapphireamx_(                                           //
     void const *queries, nk_size_t element_bytes, nk_attention_gather_sapphireamx_t_ gather,    //
     nk_f32_t *output,                                                                           //
@@ -748,9 +750,7 @@ NK_HELPER_INLINE void nk_attention_task_sapphireamx_(                           
     }
 }
 
-/**
- *  @brief Shared entry: resolves the task window and per-segment tile bases, then runs tasks.
- */
+/** Shared entry: resolves the task window and per-segment tile bases, then runs tasks. */
 NK_HELPER_INLINE void nk_attention_packed_sapphireamx_(                                                         //
     void const *queries, nk_size_t element_bytes, nk_attention_gather_sapphireamx_t_ gather,                    //
     void const *key_value_packed, nk_f32_t *output,                                                             //
@@ -767,7 +767,7 @@ NK_HELPER_INLINE void nk_attention_packed_sapphireamx_(                         
                              nk_attention_pack_directory_size_(segment_count);
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 32);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x · log₂e)
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
     if (task_start >= task_end) return;
@@ -925,7 +925,7 @@ NK_API_COMPTIME void nk_attention_pack_i8_sapphireamx(                          
     if (task_begin >= total_tasks) return;
     if (task_end > total_tasks) task_end = total_tasks;
 
-    // Output byte 4·col+q of each depth-group row comes from input byte q·16+col: one VPERMB
+    // Output byte 4 · col+q of each depth-group row comes from input byte q · 16+col: one VPERMB
     // interleaves four 16-channel V rows into the quad layout TDPBUSD's B operand consumes.
 
     __m512i const quad_interleave_index_u8x64 = _mm512_setr_epi32( //
@@ -970,8 +970,8 @@ NK_API_COMPTIME void nk_attention_pack_i8_sapphireamx(                          
             }
         }
 
-        // V: interleave four consecutive position rows per 16-channel column group with one
-        // VPERMB per quad, tiles ordered [depth_tile][position_block] (depth-major streaming for P×V).
+        // V: interleave four consecutive position rows per 16-channel column group with one VPERMB
+        // per quad, tiles ordered [depth_tile][position_block] (depth-major streaming for P × V).
         nk_i8_t *values_head_tiles = (nk_i8_t *)(tiles_base + tile_offsets_ro[segment_idx] +
                                                  (key_value_head_count + key_value_head_idx) * bytes_per_head);
         for (nk_size_t depth_tile_idx = 0; depth_tile_idx < dim_tiles; depth_tile_idx++) {
@@ -1011,7 +1011,7 @@ NK_API_COMPTIME void nk_attention_pack_i8_sapphireamx(                          
     nk_compiler_barrier_sapphireamx_();
 }
 
-/** @brief Per-call I8 scratch: I32 score panel, U8 weight panel, output accumulators, packed Q tiles. */
+/** Per-call I8 scratch: I32 score panel, U8 weight panel, output accumulators, packed Q tiles. */
 typedef struct {
     NK_ALIGN64 nk_i32_t scores_panel[32 * nk_attention_panel_sapphireamx_k_]; // 64 KB
     NK_ALIGN64 nk_u8_t weights_panel[32 * nk_attention_panel_sapphireamx_k_]; // 16 KB
@@ -1020,7 +1020,7 @@ typedef struct {
 } nk_attention_scratch_i8_sapphireamx_t_;
 
 /**
- *  @brief Stage 1: exact-integer Q×Kᵀ for one KV panel with 2×2 register blocking.
+ *  @brief Stage 1: exact-integer Q × Kᵀ for one KV panel with 2×2 register blocking.
  *
  *  Same tile schedule as the BF16 stage, but TDPBSSD over 64-channel depth steps and an
  *  I32 score panel. The row-max sweep covers only each row's `[column_begin, column_end)`:
@@ -1082,13 +1082,12 @@ NK_HELPER_INLINE void nk_attention_score_panel_i8_sapphireamx_( //
         }
 }
 
-/**
- *  @brief Stage 2: streaming base-2 softmax with U8 weight quantization over one panel, entirely in
- *         integer arithmetic: `w̃ = iexp2((score − m_row)·scale₂)` in Q15, with the running sum of
- *         the quantized weights accumulated in I32 and converted to F32 for the online correction.
- *         The max-scoring position of a non-empty row lands on 255. Columns outside each row's
- *         `[column_begin, column_end)` get zero weights (U8 zero is an exact zero weight) and no sum contribution.
- */
+/** Stage 2: streaming base-2 softmax with U8 weight quantization over one panel, entirely
+ *  in integer arithmetic: w̃ = iexp2((score − m_row) · scale₂) in Q15, with the running sum
+ *  of the quantized weights accumulated in I32 and converted to F32 for the online
+ *  correction. The max-scoring position of a non-empty row lands on 255. Columns outside
+ *  each row's `[column_begin, column_end)` get zero weights (U8 zero is an exact zero
+ *  weight) and no sum contribution. */
 NK_HELPER_INLINE void nk_attention_exp_panel_i8_sapphireamx_(   //
     nk_i32_t const *scores_panel, nk_u8_t *weights_panel,       // [32][panel] each
     nk_size_t panel_cols, nk_size_t panel_width,                //
@@ -1141,11 +1140,11 @@ NK_HELPER_INLINE void nk_attention_exp_panel_i8_sapphireamx_(   //
 }
 
 /**
- *  @brief Stage 3: P×V for one panel via TDPBUSD (U8 weights × I8 values → I32).
+ *  @brief Stage 3: P × V for one panel via TDPBUSD (U8 weights × I8 values → I32).
  *
  *  Same 2×2 schedule as the BF16 stage over 64-position depth steps: TMM0-3 stay
  *  TMM-resident across the panel, then each I32 accumulator converts to F32 once and
- *  fuses with the online correction: `o_acc = o_acc · correction + o_panel`.
+ *  fuses with the online correction: o_acc = o_acc · correction + o_panel.
  */
 NK_HELPER_INLINE void nk_attention_weighted_sum_panel_i8_sapphireamx_( //
     nk_u8_t const *weights_panel, nk_size_t panel_width,               // [32][panel] U8
@@ -1197,11 +1196,9 @@ NK_HELPER_INLINE void nk_attention_weighted_sum_panel_i8_sapphireamx_( //
     }
 }
 
-/**
- *  @brief One (segment, head) I8 task: panel-flash attention with U8-quantized weights.
- *  Panel-local quantization against the running maximum differs from the serial
- *  reference's global-max quantization by design; both normalize the 255 away.
- */
+/** One (segment, head) I8 task: panel-flash attention with U8-quantized weights. Panel-local
+ *  quantization against the running maximum differs from the serial reference's global-max
+ *  quantization by design; both normalize the 255 away. */
 NK_HELPER_INLINE void nk_attention_task_i8_sapphireamx_(                                        //
     nk_i8_t const *queries, nk_f32_t *output,                                                   //
     nk_i8_t const *keys_head_tiles, nk_i8_t const *values_head_tiles,                           //
@@ -1232,7 +1229,7 @@ NK_HELPER_INLINE void nk_attention_task_i8_sapphireamx_(                        
     __m512 row_sum_f32x16[nk_attention_chunk_sapphireamx_k_][2];
     __m512 const zero_f32x16 = _mm512_setzero_ps();
     nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
-    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t·255 + 0.5 < 1)
+    nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t · 255 + 0.5 < 1)
         scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
     nk_size_t const depth_full = depth & ~(nk_size_t)15;
     __mmask16 const dim_tail_m16 = (__mmask16)((1u << (depth - depth_full)) - 1);
@@ -1346,7 +1343,7 @@ NK_HELPER_INLINE void nk_attention_task_i8_sapphireamx_(                        
     }
 }
 
-/** @brief Shared I8 entry: resolves the task window and per-segment tile bases, then runs tasks. */
+/** Shared I8 entry: resolves the task window and per-segment tile bases, then runs tasks. */
 NK_HELPER_INLINE void nk_attention_packed_i8_sapphireamx_(                       //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,      //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
@@ -1369,7 +1366,7 @@ NK_HELPER_INLINE void nk_attention_packed_i8_sapphireamx_(                      
                              nk_attention_pack_directory_size_(segment_count);
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x · log₂e)
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
     if (task_start >= task_end) return;

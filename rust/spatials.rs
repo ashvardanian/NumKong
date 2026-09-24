@@ -4,7 +4,7 @@
 //!
 //! - [`Angulars`] / [`Euclideans`]: Low-level per-scalar batched distance traits — FFI-backed
 //! - [`AngularsPackedOps`] / [`EuclideansPackedOps`]: `C = dist(A, Bᵀ)` for any [`TensorRef`]
-//! - `AngularsPackedParallelOps` / `EuclideansPackedParallelOps`: the same over a thread pool
+//! - [`AngularsPackedParallelOps`] / [`EuclideansPackedParallelOps`]: the same over a thread pool
 //! - [`SymmetricAngularsOps`] / [`SymmetricEuclideansOps`]: self-distance upper triangle
 //!
 //! The right-hand operand is a [`DotsPackedMatrix`] from the [`crate::dots`] module.
@@ -2205,9 +2205,9 @@ where
     /// Distributes rows of A across threads; each computes its portion of C.
     ///
     /// # Arguments
-    /// * `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::try_pack[_transposed]`
-    /// * `c` - Pre-allocated output tensor (m × n)
-    /// * `pool` - Pre-constructed thread pool
+    /// - `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::try_pack[_transposed]`
+    /// - `c` - Pre-allocated output tensor of shape [m, n]
+    /// - `pool` - Pre-constructed thread pool
     ///
     /// The output may be a `&mut Tensor<...>` or a `&mut TensorSpan<...>` — any
     /// writable tensor container that implements [`TensorMut`]. The kernel
@@ -2418,9 +2418,9 @@ where
     /// Distributes rows of A across threads; each computes its portion of C.
     ///
     /// # Arguments
-    /// * `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::try_pack[_transposed]`
-    /// * `c` - Pre-allocated output tensor (m × n)
-    /// * `pool` - Pre-constructed thread pool
+    /// - `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::try_pack[_transposed]`
+    /// - `c` - Pre-allocated output tensor of shape [m, n]
+    /// - `pool` - Pre-constructed thread pool
     ///
     /// The output may be a `&mut Tensor<...>` or a `&mut TensorSpan<...>` — any
     /// writable tensor container that implements [`TensorMut`]. The kernel

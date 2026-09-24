@@ -423,7 +423,7 @@ std::size_t cublaslt_scale_block(nk_dtype_t dtype) noexcept {
 }
 
 /**
- *  @brief One planned `cublasLtMatmul` for row-major C = A × Bᵀ.
+ *  @brief One planned @c cublasLtMatmul for row-major C = A × Bᵀ.
  *
  *  Row-major C is column-major Cᵀ = B × Aᵀ, so B goes in as the transposed first operand and A as
  *  the second. Leading dimensions count elements, so a nibble-pair row of K elements has a leading

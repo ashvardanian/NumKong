@@ -48,8 +48,7 @@ extern "C" {
  *  Uses AVX2 gather instructions for clean stride-3 access.
  *
  *  Input: 24 contiguous floats [x0,y0,z0, x1,y1,z1, ..., x7,y7,z7]
- *  Output: x[8], y[8], z[8] vectors
- */
+ *  Output: x[8], y[8], z[8] vectors */
 NK_HELPER_INLINE void nk_deinterleave_f32x8_haswell_(nk_f32_t const *ptr, __m256 *x_out, __m256 *y_out, __m256 *z_out) {
     // Gather indices: 0, 3, 6, 9, 12, 15, 18, 21 (stride 3)
     __m256i index_i32x8 = _mm256_setr_epi32(0, 3, 6, 9, 12, 15, 18, 21);
@@ -62,8 +61,7 @@ NK_HELPER_INLINE void nk_deinterleave_f32x8_haswell_(nk_f32_t const *ptr, __m256
  *  Uses scalar extraction for simplicity as AVX2 lacks efficient stride-3 gather for f64.
  *
  *  Input: 12 contiguous f64 [x0,y0,z0, x1,y1,z1, x2,y2,z2, x3,y3,z3]
- *  Output: x[4], y[4], z[4] vectors
- */
+ *  Output: x[4], y[4], z[4] vectors */
 NK_HELPER_INLINE void nk_deinterleave_f64x4_haswell_(nk_f64_t const *ptr, __m256d *x_out, __m256d *y_out,
                                                      __m256d *z_out) {
     nk_f64_t x0 = ptr[0], x1 = ptr[3], x2 = ptr[6], x3 = ptr[9];
@@ -77,8 +75,7 @@ NK_HELPER_INLINE void nk_deinterleave_f64x4_haswell_(nk_f64_t const *ptr, __m256
 
 /* Horizontal reduction helpers moved to reduce.h:
  * - nk_reduce_add_f32x8_haswell_
- * - nk_reduce_add_f64x4_haswell_
- */
+ * - nk_reduce_add_f64x4_haswell_ */
 
 NK_HELPER_INLINE nk_f64_t nk_reduce_stable_f64x4_haswell_(__m256d values_f64x4) {
     nk_b256_vec_t values;
@@ -435,7 +432,7 @@ NK_API_COMPTIME void nk_kabsch_f32_haswell(nk_f32_t const *a, nk_f32_t const *b,
     if (rotation)
         for (int j = 0; j != 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f64_t sum_sq = centered_norm_sq_a + centered_norm_sq_b - 2.0 * trace_rotation_covariance;
     if (sum_sq < 0.0) sum_sq = 0.0;
     *result = nk_f64_sqrt_haswell(sum_sq / (nk_f64_t)n);
@@ -583,7 +580,7 @@ NK_API_COMPTIME void nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b,
     nk_f64_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
                                     covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f64_t centered_norm_sq_a = norm_sq_a_sum -
                                   (nk_f64_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
                                                  centroid_a_z * centroid_a_z);
@@ -844,7 +841,7 @@ NK_API_COMPTIME void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b
         for (int j = 0; j != 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
     if (scale) *scale = (nk_f32_t)applied_scale;
 
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f64_t sum_sq = applied_scale * applied_scale * centered_norm_sq_a + centered_norm_sq_b -
                       2.0 * applied_scale * trace_rotation_covariance;
     if (sum_sq < 0.0) sum_sq = 0.0;
@@ -1039,7 +1036,7 @@ NK_API_COMPTIME void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f64_t sum_sq = c * c * centered_norm_sq_a + centered_norm_sq_b - 2.0 * c * trace_rotation_covariance;
     if (sum_sq < 0.0) sum_sq = 0.0;
     *result = nk_f64_sqrt_haswell(sum_sq * inv_n);
@@ -1049,8 +1046,7 @@ NK_API_COMPTIME void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b
  *  Uses scalar extraction for clean stride-3 access, then F16C conversion.
  *
  *  Input: 24 contiguous f16 [x0,y0,z0, x1,y1,z1, ..., x7,y7,z7]
- *  Output: x[8], y[8], z[8] vectors in f32
- */
+ *  Output: x[8], y[8], z[8] vectors in f32 */
 NK_HELPER_INLINE void nk_deinterleave_f16x8_to_f32x8_haswell_(nk_f16_t const *ptr, __m256 *x_out, __m256 *y_out,
                                                               __m256 *z_out) {
     // Extract x, y, z components with stride-3 access
@@ -1071,8 +1067,7 @@ NK_HELPER_INLINE void nk_deinterleave_f16x8_to_f32x8_haswell_(nk_f16_t const *pt
  *  Uses scalar extraction for clean stride-3 access, then bit-shift conversion.
  *
  *  Input: 24 contiguous bf16 [x0,y0,z0, x1,y1,z1, ..., x7,y7,z7]
- *  Output: x[8], y[8], z[8] vectors in f32
- */
+ *  Output: x[8], y[8], z[8] vectors in f32 */
 NK_HELPER_INLINE void nk_deinterleave_bf16x8_to_f32x8_haswell_(nk_bf16_t const *ptr, __m256 *x_out, __m256 *y_out,
                                                                __m256 *z_out) {
     // Extract x, y, z components with stride-3 access
@@ -1375,7 +1370,7 @@ NK_API_COMPTIME void nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b,
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f32_t sum_sq = centered_norm_sq_a + centered_norm_sq_b - 2.0f * trace_rotation_covariance;
     if (sum_sq < 0.0f) sum_sq = 0.0f;
     *result = nk_f32_sqrt_haswell(sum_sq * inv_n);
@@ -1573,7 +1568,7 @@ NK_API_COMPTIME void nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const 
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2·trace(R · H_centered).
+    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
     nk_f32_t sum_sq = centered_norm_sq_a + centered_norm_sq_b - 2.0f * trace_rotation_covariance;
     if (sum_sq < 0.0f) sum_sq = 0.0f;
     *result = nk_f32_sqrt_haswell(sum_sq * inv_n);
@@ -1770,7 +1765,7 @@ NK_API_COMPTIME void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = applied_scale;
 
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f32_t sum_sq = applied_scale * applied_scale * centered_norm_sq_a + centered_norm_sq_b -
                       2.0f * applied_scale * trace_rotation_covariance;
     if (sum_sq < 0.0f) sum_sq = 0.0f;
@@ -1968,7 +1963,7 @@ NK_API_COMPTIME void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = applied_scale;
 
-    // Folded SSD with scale: c²·‖a-ā‖² + ‖b-b̄‖² − 2c·trace(R · H_centered).
+    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
     nk_f32_t sum_sq = applied_scale * applied_scale * centered_norm_sq_a + centered_norm_sq_b -
                       2.0f * applied_scale * trace_rotation_covariance;
     if (sum_sq < 0.0f) sum_sq = 0.0f;

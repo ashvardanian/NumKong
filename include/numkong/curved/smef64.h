@@ -7,9 +7,9 @@
  *  @sa include/numkong/curved.h
  *
  *  Implements bilinear forms and Mahalanobis distance using ARM SME:
- *  - f32 inputs: GEMV via f64 FMOPA (widening load f32→f64, exact accumulation)
+ *  - f32 inputs: GEMV via f64 FMOPA (widening load f32 → f64, exact accumulation)
  *  - f64 inputs: row-by-row streaming SVE with Dot2 (Ogita-Rump-Oishi 2005)
- *  - f32c complex: 4-FMOPA complex GEMV with FMOPS for the cᵢₘ×bᵢₘ subtraction
+ *  - f32c complex: 4-FMOPA complex GEMV with FMOPS for the cᵢₘ × bᵢₘ subtraction
  *  - f64c complex: interleaved Dot2 with permute + deferred XOR sign-flip
  *
  *  Complex number history — approaches tried and abandoned.
@@ -66,10 +66,8 @@ extern "C" {
 #pragma GCC target("+sme+sme-f64f64")
 #endif
 
-/**
- *  @brief SVE Dot2 accumulator: sum += a × b with error compensation.
- *  Uses TwoProd (svneg+svnmls) and TwoSum error-free transformations.
- */
+/** SVE Dot2 accumulator: sum += a × b with error compensation. Uses TwoProd (svneg+svnmls) and
+ *  TwoSum error-free transformations. */
 NK_HELPER_AUTO void nk_dot2_f64_sve_accumulate_(svbool_t predicate_b64x, svfloat64_t *sum, svfloat64_t *comp,
                                                 svfloat64_t a_f64x, svfloat64_t b_f64x) NK_STREAMING_ {
     svfloat64_t product_f64x = svmul_f64_x(predicate_b64x, a_f64x, b_f64x);
@@ -85,10 +83,8 @@ NK_HELPER_AUTO void nk_dot2_f64_sve_accumulate_(svbool_t predicate_b64x, svfloat
     *comp = svadd_f64_m(predicate_b64x, *comp, svadd_f64_x(predicate_b64x, sum_error_f64x, product_error_f64x));
 }
 
-/**
- *  @brief f32 bilinear: GEMV via FMOPA (widening f32→f64, exact accumulation).
- *  ZA0.D = C staging, ZA1.D = GEMV accumulator.
- */
+/** f32 bilinear: GEMV via FMOPA, widening f32 → f64 for exact accumulation. ZA0.D stages C and
+ *  ZA1.D accumulates the GEMV. */
 __arm_new("za") static void nk_bilinear_f32_smef64_streaming_( //
     nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result) NK_STREAMING_ {
     svbool_t predicate_body_b64x = svptrue_b64();
@@ -136,10 +132,8 @@ NK_API_COMPTIME void nk_bilinear_f32_smef64( //
     nk_sme_stop_streaming_();
 }
 
-/**
- *  @brief f32 Mahalanobis: GEMV v = C×d via FMOPA, where d = a − b (exact in f64).
- *  ZA0.D = C staging, ZA1.D = GEMV accumulator.
- */
+/** f32 Mahalanobis: GEMV v = C × d via FMOPA, where d = a − b (exact in f64). ZA0.D = C staging,
+ *  ZA1.D = GEMV accumulator. */
 __arm_new("za") static nk_f64_t nk_mahalanobis_f32_smef64_streaming_( //
     nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions) NK_STREAMING_ {
 
@@ -193,10 +187,8 @@ NK_API_COMPTIME void nk_mahalanobis_f32_smef64( //
     *result = nk_f64_sqrt_neon(quadratic > 0 ? quadratic : 0);
 }
 
-/**
- *  @brief f64 bilinear: row-by-row streaming SVE with Dot2 compensation.
- *  4-row fast path shares b_f64x loads; 1-row tail for remainder.
- */
+/** f64 bilinear: row-by-row streaming SVE with Dot2 compensation. 4-row fast path shares b_f64x
+ *  loads; 1-row tail for remainder. */
 NK_STREAMING_OUTLINED_ void nk_bilinear_f64_smef64_ssve_( //
     nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result) NK_STREAMING_ {
     svbool_t predicate_all_b64x = svptrue_b64();
@@ -270,10 +262,8 @@ NK_API_COMPTIME void nk_bilinear_f64_smef64( //
     nk_sme_stop_streaming_();
 }
 
-/**
- *  @brief f64 Mahalanobis: row-by-row streaming SVE with Dot2 compensation.
- *  4-row fast path shares (a−b) column vector; 1-row tail for remainder.
- */
+/** f64 Mahalanobis: row-by-row streaming SVE with Dot2 compensation. 4-row fast path shares (a−b)
+ *  column vector; 1-row tail for remainder. */
 NK_STREAMING_OUTLINED_ nk_f64_t nk_mahalanobis_f64_smef64_ssve_( //
     nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions) NK_STREAMING_ {
     svbool_t predicate_all_b64x = svptrue_b64();
@@ -352,10 +342,8 @@ NK_API_COMPTIME void nk_mahalanobis_f64_smef64( //
     *result = nk_f64_sqrt_neon(quadratic > 0 ? quadratic : 0);
 }
 
-/**
- *  @brief f32c bilinear: complex GEMV via FMOPA (widening f32→f64).
- *  ZA0.D = C staging, ZA1.D = v_real accumulator, ZA2.D = v_imag accumulator.
- */
+/** f32c bilinear: complex GEMV via FMOPA (widening f32 → f64). ZA0.D = C staging, ZA1.D = v_real
+ *  accumulator, ZA2.D = v_imag accumulator. */
 __arm_new("za") static void nk_bilinear_f32c_smef64_streaming_( //
     nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_f32c_t const *c_pairs, nk_size_t dimensions,
     nk_f64c_t *results) NK_STREAMING_ {
@@ -440,10 +428,8 @@ NK_API_COMPTIME void nk_bilinear_f32c_smef64( //
     nk_sme_stop_streaming_();
 }
 
-/**
- *  @brief f64c bilinear: interleaved Dot2 with permute + deferred XOR sign-flip.
- *  2 accumulators instead of 4, halving inner loop work (~15 vs ~28 SVE ops).
- */
+/** f64c bilinear: interleaved Dot2 with permute + deferred XOR sign-flip. 2 accumulators instead of
+ *  4, halving inner loop work (~15 vs ~28 SVE ops). */
 NK_STREAMING_OUTLINED_ void nk_bilinear_f64c_smef64_ssve_( //
     nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_f64c_t const *c_pairs, nk_size_t dimensions,
     nk_f64c_t *results) NK_STREAMING_ {
@@ -475,8 +461,8 @@ NK_STREAMING_OUTLINED_ void nk_bilinear_f64c_smef64_ssve_( //
             svfloat64_t c_swapped_f64x = svtbl_f64(c_f64x, swap_idx_u64x);
 
             // 2 Dot2 accumulators instead of 4:
-            // sum_real_f64x accumulates [c_real×b_real, c_imag×b_imag, ...] (sign-flip deferred)
-            // sum_imag_f64x accumulates [c_imag×b_real, c_real×b_imag, ...] (all positive)
+            // sum_real_f64x accumulates [c_real × b_real, c_imag × b_imag, …] (sign-flip deferred)
+            // sum_imag_f64x accumulates [c_imag × b_real, c_real × b_imag, …] (all positive)
             nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_real_f64x, &comp_real_f64x, c_f64x, b_f64x);
             nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_imag_f64x, &comp_imag_f64x, c_swapped_f64x, b_f64x);
 
@@ -484,7 +470,7 @@ NK_STREAMING_OUTLINED_ void nk_bilinear_f64c_smef64_ssve_( //
             predicate_b64x = svwhilelt_b64(j, n2);
         }
 
-        // Flip sign of odd positions in sum_real_f64x: [c_real×b_real, -(c_imag×b_imag), ...]
+        // Flip sign of odd positions in sum_real_f64x: [c_real × b_real, -(c_imag × b_imag), ...]
         sum_real_f64x = svreinterpret_f64_u64(
             sveor_u64_x(predicate_all_b64x, svreinterpret_u64_f64(sum_real_f64x), sign_mask_u64x));
         comp_real_f64x = svreinterpret_f64_u64(

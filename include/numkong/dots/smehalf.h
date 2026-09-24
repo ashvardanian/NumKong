@@ -34,9 +34,9 @@
 extern "C" {
 #endif
 
-// TODO: Implement E2M3/E3M2 dot products with FP16 intermediate accumulation
-//   - nk_dots_e2m3_smehalf: widen every 16 products
-//   - nk_dots_e3m2_smehalf: widen every 64 products
+/*  TODO: Implement E2M3/E3M2 dot products with FP16 intermediate accumulation:
+ *  - nk_dots_e2m3_smehalf: widen every 16 products
+ *  - nk_dots_e3m2_smehalf: widen every 64 products */
 
 #if defined(__cplusplus)
 }

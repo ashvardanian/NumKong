@@ -288,7 +288,7 @@ NK_HELPER_INLINE void nk_dot_e2m3x16_finalize_neonfp8(                          
     result->f32x4 = vpaddq_f32(ab_f32x4, cd_f32x4);
 }
 
-/** @brief E2M1 state: doubled nibbles through one signed TBL, then widening i8 products into i32 lanes. */
+/** E2M1 state: doubled nibbles through one signed TBL, then widening i8 products into i32 lanes. */
 typedef struct nk_dot_e2m1x32_state_neonfp8_t {
     int32x4_t sum_i32x4;
 } nk_dot_e2m1x32_state_neonfp8_t;
@@ -297,7 +297,8 @@ NK_HELPER_INLINE void nk_dot_e2m1x32_init_neonfp8(nk_dot_e2m1x32_state_neonfp8_t
     state->sum_i32x4 = vdupq_n_s32(0);
 }
 
-/** Products of doubled E2M1 values reach 144, so a pair of them still fits i16 before widening into i32. */
+/** Products of doubled E2M1 values reach 144, so a pair of them still fits i16 before
+ *  widening into i32. */
 NK_HELPER_INLINE void nk_dot_e2m1x32_update_neonfp8(nk_dot_e2m1x32_state_neonfp8_t *state, nk_b128_vec_t a,
                                                     nk_b128_vec_t b, nk_size_t depth_offset,
                                                     nk_size_t active_dimensions) {

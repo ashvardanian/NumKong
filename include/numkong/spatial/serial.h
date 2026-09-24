@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/spatial/serial.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date March 14, 2023
  *  @brief SWAR-accelerated spatial similarity measures for SIMD-free CPUs.
  *
  *  @sa include/numkong/spatial.h
@@ -35,7 +35,8 @@ extern "C" {
  *    - If |sum| ≥ |term|: c += (sum − t) + term   (lost low-order bits of term)
  *    - Else:              c += (term − t) + sum   (lost low-order bits of sum)
  *
- *  @see Neumaier, A. (1974). "Rundungsfehleranalyse einiger Verfahren zur Summation endlicher Summen"
+ *  The method follows "Rundungsfehleranalyse einiger Verfahren zur Summation endlicher Summen" by
+ *  A. Neumaier, 1974.
  */
 #define nk_define_sqeuclidean_(input_type, accumulator_type, output_type, load_and_convert)                      \
     NK_API_COMPTIME void nk_sqeuclidean_##input_type##_serial(                                                   \
@@ -69,7 +70,7 @@ extern "C" {
  *  Uses Neumaier summation for all three accumulators (dot_product, a_norm_sq, b_norm_sq).
  *  Achieves O(1) error growth regardless of vector dimension.
  *
- *  @see nk_define_sqeuclidean_ for detailed documentation on Neumaier summation.
+ *  @sa nk_define_sqeuclidean_ for detailed documentation on Neumaier summation.
  */
 #define nk_define_angular_(input_type, accumulator_type, output_type, load_and_convert, compute_rsqrt)                \
     NK_API_COMPTIME void nk_angular_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
@@ -108,7 +109,8 @@ extern "C" {
         }                                                                                                             \
     }
 
-/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at
+ *  the Armv8-A floor. */
 #if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC push_options
 #pragma GCC target("arch=armv8-a")
@@ -259,8 +261,9 @@ NK_API_COMPTIME void nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b
 #pragma GCC pop_options
 #endif
 
-/** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq) × rsqrt(target_sumsq) for 4 pairs (serial).
- *  Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms. */
+/** Angular from_dot: computes 1 − dot × rsqrt(q) × rsqrt(t) for 4 pairs (serial), where q is
+ *  @p query_sumsq and t each target's sum of squares. Separate reciprocal square roots avoid
+ *  overflowing the product of two finite-but-large norms. */
 NK_HELPER_INLINE void nk_angular_through_f32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                               nk_b128_vec_t const *target_sumsqs_vec,
                                                               nk_b128_vec_t *result_vec) {
@@ -277,7 +280,8 @@ NK_HELPER_INLINE void nk_angular_through_f32_from_dot_serial_(nk_b128_vec_t cons
     }
 }
 
-/** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs (serial). */
+/** Euclidean from_dot: computes √(q + t − 2 × dot) for 4 pairs (serial), where q is @p query_sumsq
+ *  and t each target's sum of squares. */
 NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                                 nk_b128_vec_t const *target_sumsqs_vec,
                                                                 nk_b128_vec_t *result_vec) {
@@ -287,7 +291,7 @@ NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_serial_(nk_b128_vec_t co
     }
 }
 
-/** @brief Angular from_dot for f64 precision. Separate rsqrts avoid the product overflowing. */
+/** Angular from_dot for f64 precision. Separate rsqrts avoid the product overflowing. */
 NK_HELPER_INLINE void nk_angular_through_f64_from_dot_serial_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                               nk_b256_vec_t const *target_sumsqs_vec,
                                                               nk_b256_vec_t *result_vec) {
@@ -304,7 +308,7 @@ NK_HELPER_INLINE void nk_angular_through_f64_from_dot_serial_(nk_b256_vec_t cons
     }
 }
 
-/** @brief Euclidean from_dot for f64 precision. */
+/** Euclidean from_dot for f64 precision. */
 NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_serial_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                                 nk_b256_vec_t const *target_sumsqs_vec,
                                                                 nk_b256_vec_t *result_vec) {
@@ -314,7 +318,7 @@ NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_serial_(nk_b256_vec_t co
     }
 }
 
-/** @brief Angular from_dot for i32 accumulators: cast to f32, then same math as f32 variant. */
+/** Angular from_dot for i32 accumulators: cast to f32, then same math as f32 variant. */
 NK_HELPER_INLINE void nk_angular_through_i32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
                                                               nk_b128_vec_t const *target_sumsqs_vec,
                                                               nk_b128_vec_t *result_vec) {
@@ -331,7 +335,7 @@ NK_HELPER_INLINE void nk_angular_through_i32_from_dot_serial_(nk_b128_vec_t cons
     }
 }
 
-/** @brief Euclidean from_dot for i32 accumulators: cast to f32, then same math as f32 variant. */
+/** Euclidean from_dot for i32 accumulators: cast to f32, then same math as f32 variant. */
 NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
                                                                 nk_b128_vec_t const *target_sumsqs_vec,
                                                                 nk_b128_vec_t *result_vec) {
@@ -342,7 +346,7 @@ NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_serial_(nk_b128_vec_t co
     }
 }
 
-/** @brief Angular from_dot for u32 accumulators: cast to f32, then same math as f32 variant. */
+/** Angular from_dot for u32 accumulators: cast to f32, then same math as f32 variant. */
 NK_HELPER_INLINE void nk_angular_through_u32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                               nk_b128_vec_t const *target_sumsqs_vec,
                                                               nk_b128_vec_t *result_vec) {
@@ -359,7 +363,7 @@ NK_HELPER_INLINE void nk_angular_through_u32_from_dot_serial_(nk_b128_vec_t cons
     }
 }
 
-/** @brief Euclidean from_dot for u32 accumulators: cast to f32, then same math as f32 variant. */
+/** Euclidean from_dot for u32 accumulators: cast to f32, then same math as f32 variant. */
 NK_HELPER_INLINE void nk_euclidean_through_u32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                                 nk_b128_vec_t const *target_sumsqs_vec,
                                                                 nk_b128_vec_t *result_vec) {

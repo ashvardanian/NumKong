@@ -78,7 +78,7 @@ NK_API_RUNTIME void nk_hammings_packed_u1(nk_u1x8_t const *v, void const *q_pack
  *  @param[in] vectors_count Number of vectors (rows) in the input matrix.
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride Row stride in bytes for the input matrix.
- *  @param[out] result Output symmetric matrix (vectors_count × vectors_count).
+ *  @param[out] result Output symmetric matrix of @p vectors_count × @p vectors_count.
  *  @param[in] result_stride Row stride in bytes for the result matrix.
  *  @param[in] row_start Starting row offset of results to compute (needed for parallelism).
  *  @param[in] row_count Number of rows of results to compute (needed for parallelism).
@@ -108,7 +108,7 @@ NK_API_RUNTIME void nk_jaccards_packed_u1(nk_u1x8_t const *v, void const *q_pack
  *  @param[in] vectors_count Number of vectors (rows).
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride Row stride in bytes.
- *  @param[out] result Output symmetric f32 matrix (vectors_count × vectors_count).
+ *  @param[out] result Output symmetric f32 matrix of @p vectors_count × @p vectors_count.
  *  @param[in] result_stride Row stride in bytes for the result matrix.
  *  @param[in] row_start Starting row offset (for parallelism).
  *  @param[in] row_count Number of rows to compute (for parallelism).
@@ -135,8 +135,7 @@ NK_API_COMPTIME void nk_jaccards_symmetric_u1_serial(nk_u1x8_t const *vectors, n
                                                      nk_size_t row_start, nk_size_t row_count);
 
 /*  ARM SME with BI32 (binary integer outer products).
- *  Uses BMOPA/BMOPS for efficient popcount-based set distances.
- */
+ *  Uses BMOPA/BMOPS for efficient popcount-based set distances. */
 #if NK_TARGET_SMEBI32
 /** @copydoc nk_hammings_packed_u1 */
 NK_API_COMPTIME void nk_hammings_packed_u1_smebi32(nk_u1x8_t const *v, void const *q_packed, nk_u32_t *result,
@@ -157,8 +156,7 @@ NK_API_COMPTIME void nk_jaccards_symmetric_u1_smebi32(nk_u1x8_t const *vectors, 
 #endif // NK_TARGET_SMEBI32
 
 /*  Haswell backends using AVX2 (Intel Core 4th gen).
- *  Supports F32/F64 via FMA, F16/BF16/FP8 via software emulation, I8/U8 via VPMADDUBSW+VPADDD.
- */
+ *  Supports F32/F64 via FMA, F16/BF16/FP8 via software emulation, I8/U8 via VPMADDUBSW+VPADDD. */
 #if NK_TARGET_HASWELL
 /** @copydoc nk_hammings_packed_u1 */
 NK_API_COMPTIME void nk_hammings_packed_u1_haswell(nk_u1x8_t const *v, void const *q_packed, nk_u32_t *result,
@@ -179,8 +177,7 @@ NK_API_COMPTIME void nk_jaccards_symmetric_u1_haswell(nk_u1x8_t const *vectors, 
 #endif // NK_TARGET_HASWELL
 
 /*  Ice Lake backends using AVX-512 with VNNI (Vector Neural Network Instructions).
- *  Adds VPDPBUSD for I8/U8, VPDPWSSD for I4/U4 with efficient dot products.
- */
+ *  Adds VPDPBUSD for I8/U8, VPDPWSSD for I4/U4 with efficient dot products. */
 #if NK_TARGET_ICELAKE
 /** @copydoc nk_hammings_packed_u1 */
 NK_API_COMPTIME void nk_hammings_packed_u1_icelake(nk_u1x8_t const *v, void const *q_packed, nk_u32_t *result,
@@ -201,8 +198,7 @@ NK_API_COMPTIME void nk_jaccards_symmetric_u1_icelake(nk_u1x8_t const *vectors, 
 #endif // NK_TARGET_ICELAKE
 
 /*  ARM NEON backends (base NEON with F32/F64 support).
- *  Uses FMLA for F32 dots, FMLA (scalar) for F64.
- */
+ *  Uses FMLA for F32 dots, FMLA (scalar) for F64. */
 #if NK_TARGET_NEON
 /** @copydoc nk_hammings_packed_u1 */
 NK_API_COMPTIME void nk_hammings_packed_u1_neon(nk_u1x8_t const *v, void const *q_packed, nk_u32_t *result,
@@ -222,8 +218,7 @@ NK_API_COMPTIME void nk_jaccards_symmetric_u1_neon(nk_u1x8_t const *vectors, nk_
                                                    nk_size_t row_start, nk_size_t row_count);
 #endif // NK_TARGET_NEON
 
-/*  WASM Relaxed SIMD backends using wasm_i8x16_popcnt for popcount-based set distances.
- */
+/*  WASM Relaxed SIMD backends using wasm_i8x16_popcnt for popcount-based set distances. */
 #if NK_TARGET_V128
 /** @copydoc nk_hammings_packed_u1 */
 NK_API_COMPTIME void nk_hammings_packed_u1_v128(nk_u1x8_t const *v, void const *q_packed, nk_u32_t *result,
@@ -243,8 +238,7 @@ NK_API_COMPTIME void nk_jaccards_symmetric_u1_v128(nk_u1x8_t const *vectors, nk_
                                                    nk_size_t row_start, nk_size_t row_count);
 #endif // NK_TARGET_V128
 
-/*  Loongson LASX backends using 256-bit SIMD with XVPCNT.W for popcount-based set distances.
- */
+/*  Loongson LASX backends using 256-bit SIMD with XVPCNT.W for popcount-based set distances. */
 #if NK_TARGET_LOONGSONASX
 /** @copydoc nk_hammings_packed_u1 */
 NK_API_COMPTIME void nk_hammings_packed_u1_loongsonasx(nk_u1x8_t const *v, void const *q_packed, nk_u32_t *result,

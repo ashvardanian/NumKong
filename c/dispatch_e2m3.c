@@ -1,7 +1,7 @@
 /**
  *  @file c/dispatch_e2m3.c
  *  @author Ash Vardanian
- *  @date February 3, 2026
+ *  @date January 20, 2026
  *  @brief Dispatch initialization for E2M3 data types.
  */
 #include "dispatch.h"

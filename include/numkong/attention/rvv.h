@@ -50,13 +50,15 @@ extern "C" {
 #endif
 
 enum {
+
     /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
     nk_attention_panel_rvv_k_ = 512,
+
     /** Widest head this backend handles in scratch rows; larger depths route to the serial tier. */
     nk_attention_max_depth_rvv_k_ = 256,
 };
 
-/** @brief Widens `vector_length` raw scalars (BF16 or E4M3) to an F32 (m2) register group. */
+/** Widens @p vector_length raw scalars (BF16 or E4M3) to an F32 (m2) register group. */
 typedef vfloat32m2_t (*nk_attention_load_f32m2_rvv_t_)(void const *source, nk_size_t vector_length);
 
 NK_HELPER_INLINE vfloat32m2_t nk_attention_load_bf16_f32m2_rvv_(void const *source, nk_size_t vector_length) {
@@ -95,7 +97,7 @@ NK_HELPER_INLINE vfloat32m2_t nk_attention_load_e4m3_f32m2_rvv_(void const *sour
     return __riscv_vreinterpret_v_u32m2_f32m2(__riscv_vor_vv_u32m2(magnitude_u32m2, sign_u32m2, vector_length));
 }
 
-/** @brief Repacks one row of `count` input scalars into the packed-plane representation. */
+/** Repacks one row of @p count input scalars into the packed-plane representation. */
 typedef void (*nk_attention_pack_row_rvv_t_)(void const *source, void *destination, nk_size_t count);
 
 NK_HELPER_INLINE void nk_attention_pack_row_bf16_rvv_(void const *source, void *destination, nk_size_t count) {
@@ -181,12 +183,10 @@ NK_API_COMPTIME void nk_attention_packed_shape_i8_rvv(void const *key_value_pack
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
 }
 
-/**
- *  @brief Shared packing core: repacks K and V rows into raw `[key_value_head][position][channel]`
- *         planes per segment, one `pack_row` call per row, no padding in either axis.
- *  The header and directory are deterministic functions of the arguments, so concurrent
- *  packing tasks may rewrite them with identical bytes.
- */
+/** Shared packing core: repacks K and V rows into raw `[key_value_head][position][channel]`
+ *  planes per segment, one @c pack_row call per row, no padding in either axis. The header and
+ *  directory are deterministic functions of the arguments, so concurrent packing tasks may
+ *  rewrite them with identical bytes. */
 NK_HELPER_INLINE void nk_attention_pack_rvv_(                                                                  //
     void const *keys, void const *values, nk_size_t element_bytes,                                             //
     nk_size_t packed_element_bytes, nk_attention_pack_row_rvv_t_ pack_row,                                     //
@@ -273,11 +273,9 @@ NK_API_COMPTIME void nk_attention_pack_i8_rvv(                                  
                            key_stride_bytes, value_stride_bytes, key_value_packed, task_begin, task_end);
 }
 
-/**
- *  @brief Shared attention core over BF16 planes: per query row, panel-flash with an exact
- *         online correction; queries widen once per row through `query_load`, K/V widen
- *         in-loop through `key_value_load`, softmax elementwise passes run at e32m4.
- */
+/** Shared attention core over BF16 planes: per query row, panel-flash with an exact online
+ *  correction; queries widen once per row through @c query_load, K/V widen in-loop through
+ *  @c key_value_load, softmax elementwise passes run at e32m4. */
 NK_HELPER_INLINE void nk_attention_packed_float_rvv_(                                                           //
     void const *queries, nk_size_t query_element_bytes, nk_attention_load_f32m2_rvv_t_ query_load,              //
     nk_size_t key_value_element_bytes, nk_attention_load_f32m2_rvv_t_ key_value_load,                           //
@@ -296,7 +294,7 @@ NK_HELPER_INLINE void nk_attention_packed_float_rvv_(                           
     nk_size_t const output_stride_floats = output_stride_bytes / sizeof(nk_f32_t);
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const plane_row_bytes = depth * key_value_element_bytes;
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_rvv_k_;
     nk_size_t const vlmax2 = __riscv_vsetvlmax_e32m2();
     nk_size_t const vlmax4 = __riscv_vsetvlmax_e32m4();
@@ -525,7 +523,7 @@ NK_HELPER_INLINE void nk_attention_packed_i8_rvv_(                              
                                nk_attention_pack_directory_size_(segment_count);
     nk_size_t const output_stride_floats = output_stride_bytes / sizeof(nk_f32_t);
     nk_size_t const head_group_size = head_count / key_value_head_count;
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x·log₂e)
+    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_rvv_k_;
     nk_size_t const vlmax4 = __riscv_vsetvlmax_e32m4();
 

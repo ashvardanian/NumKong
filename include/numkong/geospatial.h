@@ -19,9 +19,9 @@
  *
  *  Precision policy:
  *
- *  - `f32` remains the throughput-oriented lane and intentionally stays narrow end-to-end.
- *  - `f64` is the higher-accuracy lane for the same formulas.
- *  - We do not widen `f32` outputs here because the dominant error comes from the geodesic model
+ *  - @c f32 remains the throughput-oriented lane and intentionally stays narrow end-to-end.
+ *  - @c f64 is the higher-accuracy lane for the same formulas.
+ *  - We do not widen @c f32 outputs here because the dominant error comes from the geodesic model
  *    and transcendental approximations, not from long horizontal reductions.
  *
  *  For hardware architectures:
@@ -70,7 +70,7 @@
  *  #define NK_EARTH_ELLIPSOID_INVERSE_FLATTENING (298.25642)
  *  @endcode
  *
- *  To revert from oblate spheroids to spheres, use `NK_EARTH_MEDIATORIAL_RADIUS`.
+ *  To revert from oblate spheroids to spheres, use @c NK_EARTH_MEDIATORIAL_RADIUS.
  *
  *  @section geospatial_x86_instructions Relevant x86 Instructions
  *
@@ -157,7 +157,7 @@ extern "C" {
  *  @param[in] b_lats Latitudes of the second points, in radians.
  *  @param[in] b_lons Longitudes of the second points, in radians.
  *  @param[in] n The number of point pairs.
- *  @param[out] results Output distances in meters, length `n`.
+ *  @param[out] results Output distances in meters, length @c n.
  *
  *  @note Inputs are in radians and outputs are in meters.
  */
@@ -180,7 +180,7 @@ NK_API_RUNTIME void nk_haversine_f32(               //
  *  @param[in] b_lats Latitudes of the second points, in radians.
  *  @param[in] b_lons Longitudes of the second points, in radians.
  *  @param[in] n The number of point pairs.
- *  @param[out] results Output distances in meters, length `n`.
+ *  @param[out] results Output distances in meters, length @c n.
  *
  *  @note Inputs are in radians and outputs are in meters.
  *  @note Uses the Earth ellipsoid parameters configured via `NK_EARTH_ELLIPSOID_*`.
@@ -332,9 +332,7 @@ NK_API_COMPTIME void nk_vincenty_f32_rvv(           //
     nk_size_t n, nk_f32_t *results);
 #endif // NK_TARGET_RVV
 
-/**
- *  @brief  Returns the output dtype for Haversine distance.
- */
+/** Returns the output dtype for Haversine distance. */
 NK_HELPER_INLINE nk_dtype_t nk_haversine_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
@@ -343,9 +341,7 @@ NK_HELPER_INLINE nk_dtype_t nk_haversine_output_dtype(nk_dtype_t dtype) {
     }
 }
 
-/**
- *  @brief  Returns the output dtype for Vincenty distance.
- */
+/** Returns the output dtype for Vincenty distance. */
 NK_HELPER_INLINE nk_dtype_t nk_vincenty_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;

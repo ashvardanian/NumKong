@@ -1,5 +1,5 @@
-// numkong/golang/dots.go
-// Written by Ash Vardanian.
+// File: golang/dots.go
+// Author: Ash Vardanian
 
 package numkong
 

@@ -47,7 +47,7 @@ extern "C" {
 
 #pragma region Reduction Helpers
 
-/** @brief Horizontal sum of 4 u64 lanes in a 256-bit LASX register. */
+/** Horizontal sum of 4 u64 lanes in a 256-bit LASX register. */
 NK_HELPER_INLINE nk_u64_t nk_reduce_add_u64x4_loongsonasx_(__m256i sum_u64x4) {
     __m256i high_u64x4 = __lasx_xvpermi_q(sum_u64x4, sum_u64x4, 0x11);
     __m256i sum_u64x2 = __lasx_xvadd_d(sum_u64x4, high_u64x4);
@@ -56,10 +56,8 @@ NK_HELPER_INLINE nk_u64_t nk_reduce_add_u64x4_loongsonasx_(__m256i sum_u64x4) {
     return (nk_u64_t)__lasx_xvpickve2gr_du(reduced_u64x2, 0);
 }
 
-/** @brief Horizontally sum all bytes in a 256-bit register as unsigned values.
- *
- *  Chains pairwise widening additions: u8→u16→u32→u64, then reduces 4 u64 lanes.
- */
+/** Horizontally sums all bytes in a 256-bit register as unsigned values, chaining pairwise widening
+ *  additions u8 → u16 → u32 → u64, then reducing 4 u64 lanes. */
 NK_HELPER_INLINE nk_u64_t nk_reduce_add_u8x32_loongsonasx_(__m256i v_u8x32) {
     __m256i sum_u16x16 = __lasx_xvhaddw_hu_bu(v_u8x32, v_u8x32);
     __m256i sum_u32x8 = __lasx_xvhaddw_wu_hu(sum_u16x16, sum_u16x16);
@@ -144,7 +142,7 @@ NK_API_COMPTIME void nk_hamming_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *
 
 #pragma region Batched Finalizers
 
-/** @brief Hamming from_dot: computes pop_a + pop_b − 2 × dot for 4 pairs (LSX). */
+/** Hamming from_dot: computes pop_a + pop_b − 2 × dot for 4 pairs (LSX). */
 NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
                                                              nk_b128_vec_t const *target_pops_vec,
                                                              nk_b128_vec_t *result_vec) {
@@ -154,7 +152,7 @@ NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_loongsonasx_(nk_b128_vec_t const
     result_vec->xmm = __lsx_vsub_w(__lsx_vadd_w(query_u32x4, target_u32x4), __lsx_vslli_w(dots_u32x4, 1));
 }
 
-/** @brief Jaccard from_dot: computes 1 − dot / (pop_a + pop_b − dot) for 4 pairs (LSX). */
+/** Jaccard from_dot: computes 1 − dot / (pop_a + pop_b − dot) for 4 pairs (LSX). */
 NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
                                                              nk_b128_vec_t const *target_pops_vec,
                                                              nk_b128_vec_t *result_vec) {

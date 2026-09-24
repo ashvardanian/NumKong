@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dot/serial.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date March 14, 2023
  *  @brief SWAR-accelerated dot products for SIMD-free CPUs.
  *
  *  @sa include/numkong/dot.h

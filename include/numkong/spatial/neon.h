@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/spatial/neon.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date March 14, 2023
  *  @brief SIMD-accelerated spatial similarity measures for NEON.
  *
  *  @sa include/numkong/spatial.h
@@ -51,9 +51,9 @@ extern "C" {
 /**
  *  @brief Reciprocal square root of 4 floats with Newton-Raphson refinement.
  *
- *  Uses `vrsqrteq_f32` (~8-bit initial estimate) followed by two Newton-Raphson iterations
- *  via `vrsqrtsq_f32`, achieving ~23-bit precision — sufficient for f32.
- *  Much faster than `vsqrtq_f32` (2 cy vs 9-12 cy latency, 2/cy vs 0.25/cy throughput).
+ *  Uses @c vrsqrteq_f32 (~8-bit initial estimate) followed by two Newton-Raphson iterations
+ *  via @c vrsqrtsq_f32, achieving ~23-bit precision — sufficient for f32.
+ *  Much faster than @c vsqrtq_f32 (2 cy vs 9-12 cy latency, 2/cy vs 0.25/cy throughput).
  */
 NK_HELPER_INLINE float32x4_t nk_rsqrt_f32x4_neon_(float32x4_t x) {
     float32x4_t rsqrt_f32x4 = vrsqrteq_f32(x);
@@ -65,10 +65,9 @@ NK_HELPER_INLINE float32x4_t nk_rsqrt_f32x4_neon_(float32x4_t x) {
 /**
  *  @brief Reciprocal square root of 2 doubles with Newton-Raphson refinement.
  *
- *  Uses `vrsqrteq_f64` (~8-bit initial estimate) followed by three Newton-Raphson iterations
- *  via `vrsqrtsq_f64`, achieving ~48-bit precision — reasonable for f64 distance computations
- *  where the final result is often narrowed to f32.  For full 52-bit mantissa fidelity,
- *  prefer `vsqrtq_f64` instead.
+ *  Uses @c vrsqrteq_f64 (~8-bit initial estimate) followed by three Newton-Raphson iterations via
+ *  @c vrsqrtsq_f64, achieving ~48-bit precision. That is reasonable for f64 distance computations,
+ *  whose result is often narrowed to f32, while full 52-bit mantissa fidelity needs @c vsqrtq_f64.
  */
 NK_HELPER_INLINE float64x2_t nk_rsqrt_f64x2_neon_(float64x2_t x) {
     float64x2_t rsqrt_f64x2 = vrsqrteq_f64(x);
@@ -671,8 +670,9 @@ nk_angular_e5m2_neon_cycle:
     *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
 }
 
-/** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq) × rsqrt(target_sumsq) for 4 pairs in f64.
- *  Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms. */
+/** Angular from_dot: computes 1 − dot × rsqrt(q) × rsqrt(t) for 4 pairs in f64, where q is
+ *  @p query_sumsq and t each target's sum of squares. Separate reciprocal square roots avoid
+ *  overflowing the product of two finite-but-large norms. */
 NK_HELPER_INLINE void nk_angular_through_f64_from_dot_neon_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                             nk_b256_vec_t const *target_sumsqs_vec,
                                                             nk_b256_vec_t *result_vec) {
@@ -721,7 +721,8 @@ NK_HELPER_INLINE void nk_angular_through_f64_from_dot_neon_(nk_b256_vec_t const 
     result_vec->f64x2s[1] = result_cd_f64x2;
 }
 
-/** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs in f64. */
+/** Euclidean from_dot: computes √(q + t − 2 × dot) for 4 pairs in f64, where q is @p query_sumsq
+ *  and t each target's sum of squares. */
 NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_neon_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                               nk_b256_vec_t const *target_sumsqs_vec,
                                                               nk_b256_vec_t *result_vec) {
@@ -749,8 +750,9 @@ NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_neon_(nk_b256_vec_t cons
     result_vec->f64x2s[1] = dist_cd_f64x2;
 }
 
-/** @brief Angular from_dot: computes 1 − dot × rsqrt(query_sumsq) × rsqrt(target_sumsq) for 4 pairs in f32.
- *  Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms. */
+/** Angular from_dot: computes 1 − dot × rsqrt(q) × rsqrt(t) for 4 pairs in f32, where q is
+ *  @p query_sumsq and t each target's sum of squares. Separate reciprocal square roots avoid
+ *  overflowing the product of two finite-but-large norms. */
 NK_HELPER_INLINE void nk_angular_through_f32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                             nk_b128_vec_t const *target_sumsqs_vec,
                                                             nk_b128_vec_t *result_vec) {
@@ -764,7 +766,8 @@ NK_HELPER_INLINE void nk_angular_through_f32_from_dot_neon_(nk_b128_vec_t const 
     result_vec->f32x4 = vmaxq_f32(angular_f32x4, vdupq_n_f32(0.0f));
 }
 
-/** @brief Euclidean from_dot: computes √(query_sumsq + target_sumsq − 2 × dot) for 4 pairs in f32. */
+/** Euclidean from_dot: computes √(q + t − 2 × dot) for 4 pairs in f32, where q is @p query_sumsq
+ *  and t each target's sum of squares. */
 NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                               nk_b128_vec_t const *target_sumsqs_vec,
                                                               nk_b128_vec_t *result_vec) {
@@ -778,7 +781,7 @@ NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_neon_(nk_b128_vec_t cons
     result_vec->f32x4 = vsqrtq_f32(dist_sq_f32x4);
 }
 
-/** @brief Angular from_dot for i32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
+/** Angular from_dot for i32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
 NK_HELPER_INLINE void nk_angular_through_i32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
                                                             nk_b128_vec_t const *target_sumsqs_vec,
                                                             nk_b128_vec_t *result_vec) {
@@ -791,7 +794,7 @@ NK_HELPER_INLINE void nk_angular_through_i32_from_dot_neon_(nk_b128_vec_t const 
     result_vec->f32x4 = vmaxq_f32(angular_f32x4, vdupq_n_f32(0.0f));
 }
 
-/** @brief Euclidean from_dot for i32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
+/** Euclidean from_dot for i32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
 NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
                                                               nk_b128_vec_t const *target_sumsqs_vec,
                                                               nk_b128_vec_t *result_vec) {
@@ -803,7 +806,7 @@ NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_neon_(nk_b128_vec_t cons
     result_vec->f32x4 = vsqrtq_f32(dist_sq_f32x4);
 }
 
-/** @brief Angular from_dot for u32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
+/** Angular from_dot for u32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
 NK_HELPER_INLINE void nk_angular_through_u32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                             nk_b128_vec_t const *target_sumsqs_vec,
                                                             nk_b128_vec_t *result_vec) {
@@ -816,7 +819,7 @@ NK_HELPER_INLINE void nk_angular_through_u32_from_dot_neon_(nk_b128_vec_t const 
     result_vec->f32x4 = vmaxq_f32(angular_f32x4, vdupq_n_f32(0.0f));
 }
 
-/** @brief Euclidean from_dot for u32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
+/** Euclidean from_dot for u32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
 NK_HELPER_INLINE void nk_euclidean_through_u32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                               nk_b128_vec_t const *target_sumsqs_vec,
                                                               nk_b128_vec_t *result_vec) {

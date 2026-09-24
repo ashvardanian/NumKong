@@ -8,7 +8,7 @@ Matches C++ suite: test/geospatial.cpp.
 
 File: test/geospatial.py
 Author: Ash Vardanian
-Date: February 27, 2026
+Date: December 22, 2025
 """
 
 import atexit

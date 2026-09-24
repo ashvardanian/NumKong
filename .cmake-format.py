@@ -16,8 +16,8 @@ with section("format"):
     # parenthesis on its own line.
     dangle_parens = True
 
-    # Allow many positional arguments before forcing vertical layout
-    # (default 6 splits target_compile_definitions onto one-per-line)
+    # Allow many positional arguments before forcing vertical layout; the default of 6 splits
+    # target_compile_definitions one argument per line
     max_pargs_hwrap = 40
 
     # Allow more sub-groups before forcing vertical layout

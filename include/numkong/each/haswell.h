@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/each/haswell.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date October 18, 2024
  *  @brief SIMD-accelerated elementwise arithmetic for Haswell.
  *
  *  @sa include/numkong/each.h
@@ -1646,7 +1646,7 @@ NK_API_COMPTIME void nk_each_fma_f64c_haswell(nk_f64c_t const *a, nk_f64c_t cons
     }
 }
 
-/** @brief Vectorized `2^x` (Haswell AVX2); matches `nk_f32_exp2_serial_` to polynomial precision. */
+/** Vectorized `2^x` (Haswell AVX2); matches @c nk_f32_exp2_serial_ to polynomial precision. */
 NK_HELPER_INLINE __m256 nk_exp2_f32x8_haswell_(__m256 x_f32x8) {
     x_f32x8 = _mm256_max_ps(_mm256_min_ps(x_f32x8, _mm256_set1_ps(127.0f)), _mm256_set1_ps(-125.0f));
     __m256 n_f32x8 = _mm256_round_ps(x_f32x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
@@ -1661,10 +1661,9 @@ NK_HELPER_INLINE __m256 nk_exp2_f32x8_haswell_(__m256 x_f32x8) {
     return _mm256_mul_ps(p_f32x8, _mm256_castsi256_ps(n_i32x8));
 }
 
-/**
- *  @brief I-BERT-style integer `2^t`: takes a Q15 exponent in `[−10·2^15, 0]` and returns `round(2^t · 255)` as a U8
- *         weight in each I32 lane, through a degree-3 Q14 polynomial and a lane-variable shift, with no float.
- */
+/** I-BERT-style integer 2ᵗ without floats: takes a Q15 exponent in [−10 × 2¹⁵, 0] and returns
+ *  round(2ᵗ × 255) as a U8 weight in each I32 lane, through a degree-3 Q14 polynomial and a
+ *  lane-variable shift. */
 NK_HELPER_INLINE __m256i nk_exp2_u8_i32x8_haswell_(__m256i t_q15_i32x8) {
     __m256i const whole_i32x8 = _mm256_srai_epi32(t_q15_i32x8, 15); // floor, in [-10, 0]
     __m256i const fraction_i32x8 = _mm256_and_si256(t_q15_i32x8, _mm256_set1_epi32(0x7FFF));
@@ -1682,7 +1681,7 @@ NK_HELPER_INLINE __m256i nk_exp2_u8_i32x8_haswell_(__m256i t_q15_i32x8) {
     return _mm256_srav_epi32(_mm256_add_epi32(scaled_i32x8, bias_i32x8), shift_i32x8);
 }
 
-/** @brief Vectorized SiLU `x / (1 + 2^(-x·log2e))` (Haswell AVX2). */
+/** Vectorized SiLU, x / (1 + 2^(−x × log₂e)), on Haswell AVX2. */
 NK_HELPER_INLINE __m256 nk_silu_f32x8_haswell_(__m256 x_f32x8) {
     __m256 e_f32x8 = nk_exp2_f32x8_haswell_(_mm256_mul_ps(x_f32x8, _mm256_set1_ps(-NK_F32_LOG2E_)));
     return _mm256_div_ps(x_f32x8, _mm256_add_ps(_mm256_set1_ps(1.0f), e_f32x8));

@@ -17,10 +17,8 @@
 extern "C" {
 #endif
 
-/*  Constants for the McAdams 3×3 SVD algorithm.
- *  γ = (√8 + 3)² / 4 = 5.828427124
- *  cstar = cos(π/8), sstar = sin(π/8)
- */
+/** Constants for the McAdams 3×3 SVD algorithm: γ = (√8 + 3)² / 4 = 5.828427124, with cstar =
+ *  cos(π/8) and sstar = sin(π/8). */
 #define NK_F32_SVD_GAMMA_   5.828427124f
 #define NK_F32_SVD_CSTAR_   0.923879532f
 #define NK_F32_SVD_SSTAR_   0.3826834323f
@@ -31,11 +29,8 @@ extern "C" {
 #define NK_F64_SVD_SSTAR_   0.3826834323650898
 #define NK_F64_SVD_EPSILON_ 1e-12
 
-/*  Type-Generic SVD Helper Macros
- *  These macros generate f32 and f64 versions of SVD helper functions
- *  used by the Kabsch and Umeyama algorithms.
- */
-
+/** Type-generic SVD helper macros, starting with this conditional swap, generate f32 and f64
+ *  versions of the SVD helper functions used by the Kabsch and Umeyama algorithms. */
 #define nk_define_cond_swap_(type)                                                            \
     NK_HELPER_INLINE void nk_cond_swap_##type##_(int c, nk_##type##_t *x, nk_##type##_t *y) { \
         nk_##type##_t temp = *x;                                                              \
@@ -116,7 +111,7 @@ extern "C" {
         nk_##type##_t *s11, nk_##type##_t *s21, nk_##type##_t *s22, nk_##type##_t *s31, nk_##type##_t *s32, \
         nk_##type##_t *s33, nk_##type##_t *quaternion) {                                                    \
         quaternion[0] = 0, quaternion[1] = 0, quaternion[2] = 0, quaternion[3] = 1;                         \
-        /* 16 iterations for better convergence with repeated eigenvalues and identity-like matrices */     \
+        /* 16 iterations converge better with repeated eigenvalues and identity-like matrices */            \
         for (int iter = 0; iter < 16; iter++) {                                                             \
             nk_jacobi_conjugation_##type##_(0, 1, 2, s11, s21, s22, s31, s32, s33, quaternion);             \
             nk_jacobi_conjugation_##type##_(1, 2, 0, s11, s21, s22, s31, s32, s33, quaternion);             \
@@ -176,9 +171,8 @@ extern "C" {
         nk_conditional_negating_swap_##type##_(should_swap, &v[7], &v[8]);                        \
     }
 
-/*  Q-only QR via three Givens rotations. The R upper-triangular factor is unused by the SVD
- *  caller, so we skip computing it (saves the third cos_theta/sin_theta and 9 R stores per call).
- */
+/** Q-only QR via three Givens rotations. The R upper-triangular factor is unused by the SVD caller,
+ *  so we skip computing it (saves the third cos_theta/sin_theta and 9 R stores per call). */
 #define nk_define_qr_orthogonal_factor_(type)                                                                        \
     NK_HELPER_INLINE void nk_qr_orthogonal_factor_##type##_(nk_##type##_t const *input, nk_##type##_t *q) {          \
         nk_##type##_t cos_half_1, sin_half_1;                                                                        \
@@ -200,7 +194,7 @@ extern "C" {
         sin_theta = 2 * cos_half_2 * sin_half_2;                                                                     \
         nk_##type##_t matrix_temp_4 = rotation_temp[4];                                                              \
         nk_##type##_t matrix_temp_7 = -sin_theta * rotation_temp[1] + cos_theta * rotation_temp[7];                  \
-        /* Third Givens rotation (zero matrix_temp_7) — only sin_half_3 / cos_half_3 are needed for Q */             \
+        /* Third Givens rotation zeroes matrix_temp_7; Q needs only sin_half_3 and cos_half_3 */                     \
         nk_qr_givens_quaternion_##type##_(matrix_temp_4, matrix_temp_7, &cos_half_3, &sin_half_3);                   \
         /* Construct Q = Q1 * Q2 * Q3 (closed-form expressions) */                                                   \
         nk_##type##_t sin_half_1_sq = sin_half_1 * sin_half_1;                                                       \
@@ -260,7 +254,7 @@ extern "C" {
         nk_##type##_t singular_value_squared_2 = nk_sum_three_squares_##type##_(product[2], product[5], product[8]); \
         /* Q-only QR: extract U (the orthogonal factor); R is unused by SVD */                                       \
         nk_qr_orthogonal_factor_##type##_(product, svd_left);                                                        \
-        /* Store singular values on diagonal positions [0], [4], [8]; off-diagonals never read by callers */         \
+        /* Singular values go on diagonal positions [0], [4], [8]; callers never read the rest */                    \
         svd_diagonal[0] = compute_sqrt(singular_value_squared_0);                                                    \
         svd_diagonal[4] = compute_sqrt(singular_value_squared_1);                                                    \
         svd_diagonal[8] = compute_sqrt(singular_value_squared_2);                                                    \
@@ -272,7 +266,8 @@ extern "C" {
                m[2] * (m[3] * m[7] - m[4] * m[6]);                                       \
     }
 
-/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at
+ *  the Armv8-A floor. */
 #if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC push_options
 #pragma GCC target("arch=armv8-a")
@@ -410,9 +405,8 @@ nk_define_qr_orthogonal_factor_(f64)
 nk_define_svd3x3_(f64, nk_f64_sqrt_serial)
 nk_define_det3x3_(f64)
 
-/*  RMSD (Root Mean Square Deviation) without optimal superposition.
- *  Simply computes the RMS of distances between corresponding points.
- */
+/** RMSD, the root mean square deviation, without optimal superposition: the RMS of distances
+ *  between corresponding points. */
 #define nk_define_rmsd_(input_type, accumulator_type, output_type, result_type, load_and_convert, compute_sqrt)    \
     NK_API_COMPTIME void nk_rmsd_##input_type##_serial(                                                            \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n, nk_##output_type##_t *a_centroid, \
@@ -441,9 +435,8 @@ nk_define_det3x3_(f64)
         *result = msd > 0 ? (nk_##result_type##_t)compute_sqrt(msd) : 0;                                           \
     }
 
-/*  Kabsch algorithm for optimal rigid body superposition.
- *  Finds the rotation matrix R that minimizes RMSD between the two point sets.
- */
+/** Kabsch algorithm for optimal rigid body superposition. Finds the rotation matrix R that
+ *  minimizes the RMSD between the two point sets. */
 #define nk_define_kabsch_(input_type, accumulator_type, output_type, result_type, svd_type, load_and_convert,         \
                           compute_sqrt)                                                                               \
     NK_API_COMPTIME void nk_kabsch_##input_type##_serial(                                                             \
@@ -571,11 +564,9 @@ nk_define_det3x3_(f64)
         *result = (nk_##result_type##_t)compute_sqrt((sum_squared + sum_squared_compensation) * inv_n);               \
     }
 
-/*  Umeyama algorithm for optimal similarity transformation (rotation + uniform scale).
- *  Finds the rotation matrix R and scale factor c that minimizes ‖c × R × A - B‖.
- *  Reference: S. Umeyama, "Least-squares estimation of transformation parameters
- *  between two point patterns", IEEE TPAMI 1991.
- */
+/** Umeyama algorithm for optimal similarity transformation, a rotation plus a uniform scale. Finds
+ *  the rotation matrix R and scale factor c minimizing ‖c × R × A − B‖, per S. Umeyama, IEEE TPAMI
+ *  1991: "Least-squares estimation of transformation parameters between two point patterns". */
 #define nk_define_umeyama_(input_type, accumulator_type, output_type, result_type, svd_type, load_and_convert,        \
                            compute_sqrt)                                                                              \
     NK_API_COMPTIME void nk_umeyama_##input_type##_serial(                                                            \
@@ -667,7 +658,7 @@ nk_define_det3x3_(f64)
         nk_##svd_type##_t optimal_rotation[9];                                                                        \
         nk_rotation_from_svd_##svd_type##_serial_(svd_left, svd_right, optimal_rotation);                             \
         /* Handle reflection and compute scale: c = trace(D × S) / variance(a) */                                     \
-        /* D = diag(1, 1, det(R)), svd_diagonal contains proper positive singular values on diagonal */               \
+        /* D = diag(1, 1, det(R)); svd_diagonal holds proper positive singular values */                              \
         nk_##svd_type##_t rotation_determinant = nk_det3x3_##svd_type##_(optimal_rotation);                           \
         nk_##svd_type##_t sign_det = rotation_determinant < 0 ? (nk_##svd_type##_t) - 1.0 : (nk_##svd_type##_t)1.0;   \
         nk_##svd_type##_t trace_scaled_s = svd_diagonal[0] + svd_diagonal[4] + sign_det * svd_diagonal[8];            \
@@ -716,10 +707,10 @@ nk_define_det3x3_(f64)
         *result = (nk_##result_type##_t)compute_sqrt((sum_squared + sum_squared_compensation) * inv_n);               \
     }
 
-/*  Keep the serial instantiations below actually scalar, regardless of build type.
- *  Without this, -O3 + LTO can vectorize or clone the serial kernels under AVX-512
- *  callers in dispatch_*.c, which wastes binary and breaks the nk_*_serial-as-scalar-oracle
- *  contract that tests and numerical-stability docs rely on. See dots/serial.h. */
+/*  Keep the serial instantiations below actually scalar, regardless of build type. Without this,
+ *  -O3 + LTO can vectorize or clone the serial kernels under AVX-512 callers in dispatch_*.c, which
+ *  wastes binary and breaks the nk_*_serial-as-scalar-oracle contract that tests and
+ *  numerical-stability docs rely on. See dots/serial.h. */
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)
 #elif defined(__GNUC__)

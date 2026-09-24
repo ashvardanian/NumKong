@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dots/icelake.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date September 14, 2024
  *  @brief SIMD-accelerated Batched Dot Products for Ice Lake.
  *
  *  @sa include/numkong/dots.h

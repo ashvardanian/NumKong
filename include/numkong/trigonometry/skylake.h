@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/trigonometry/skylake.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date November 20, 2024
  *  @brief SIMD-accelerated trigonometric functions for Skylake.
  *
  *  @sa include/numkong/trigonometry.h
@@ -440,10 +440,8 @@ NK_HELPER_INLINE __m512d nk_atan_f64x8_skylake_(__m512d const inputs) {
     return result_f64x8;
 }
 
-/**
- *  @brief AVX-512 implementation of atan2(y, x) for 8 double-precision values.
- *  @see Based on the f32x16 version with appropriate precision constants.
- */
+/** AVX-512 implementation of atan2(y, x) for 8 double-precision values, based on the f32x16 version
+ *  with appropriate precision constants. */
 NK_HELPER_INLINE __m512d nk_atan2_f64x8_skylake_(__m512d const ys_inputs, __m512d const xs_inputs) {
     // Polynomial coefficients for atan approximation (higher precision than f32)
     __m512d const coeff_19_f64x8 = _mm512_set1_pd(-1.88796008463073496563746e-05);

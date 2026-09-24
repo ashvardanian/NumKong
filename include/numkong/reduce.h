@@ -66,7 +66,7 @@
  *      __m512 data_f32x16 = _mm512_loadu_ps(data_pointer);
  *      sum_f32x16 = _mm512_add_ps(sum_f32x16, data_f32x16);
  *  }
- *  // Single horizontal reduce at the END only
+ *  // Single horizontal reduce at the end only
  *  nk_f32_t result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
  *  @endcode
  *
@@ -923,7 +923,7 @@ NK_API_COMPTIME void nk_reduce_minmax_e3m2_v128relaxed(nk_e3m2_t const *, nk_siz
 #endif // NK_TARGET_V128RELAXED
 
 /**
- *  @brief  Returns the accumulator dtype for the `sum` output of reduce_moments.
+ *  @brief  Returns the accumulator dtype for the @c sum output of reduce_moments.
  *
  *  Float types accumulate into wider floats; signed ints into i64; unsigned ints into u64.
  */
@@ -953,7 +953,7 @@ NK_HELPER_INLINE nk_dtype_t nk_reduce_moments_sum_dtype(nk_dtype_t dtype) {
 }
 
 /**
- *  @brief  Returns the accumulator dtype for the `sumsq` output of reduce_moments.
+ *  @brief  Returns the accumulator dtype for the @c sumsq output of reduce_moments.
  *
  *  Same as sum except all integers (signed and unsigned) accumulate into u64.
  */
@@ -983,9 +983,9 @@ NK_HELPER_INLINE nk_dtype_t nk_reduce_moments_sumsq_dtype(nk_dtype_t dtype) {
 }
 
 /**
- *  @brief  Returns the value dtype for reduce_minmax outputs.
+ *  @brief Returns the value dtype for reduce_minmax outputs.
  *
- *  Standard types return themselves. Sub-byte types widen: i4->i8, u4->u8, u1->u8.
+ *  Standard types return themselves. Sub-byte types widen: i4 → i8, u4 → u8, u1 → u8.
  */
 NK_HELPER_INLINE nk_dtype_t nk_reduce_minmax_value_dtype(nk_dtype_t dtype) {
     switch (dtype) {

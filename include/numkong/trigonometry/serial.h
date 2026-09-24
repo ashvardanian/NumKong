@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/trigonometry/serial.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date November 20, 2024
  *  @brief SWAR-accelerated trigonometric functions for SIMD-free CPUs.
  *
  *  @sa include/numkong/trigonometry.h
@@ -19,8 +19,10 @@ extern "C" {
 #endif
 
 /**
- *  @brief Computes an approximate sine of the given angle in radians with @b 3-ULP error bound for [-2π, 2π].
- *  @see Based on @b `xfastsinf_u3500` in SLEEF library.
+ *  @brief Approximates the sine of an angle in radians within @b 3-ULP error on [-2π, 2π].
+ *
+ *  Based on @c xfastsinf_u3500 in the SLEEF library.
+ *
  *  @param[in] angle_radians The input angle in radians.
  *  @return The approximate sine of the input angle in [-1, 1] range.
  */
@@ -60,8 +62,10 @@ NK_API_COMPTIME nk_f32_t nk_f32_sin(nk_f32_t const angle_radians) {
 }
 
 /**
- *  @brief Computes an approximate cosine of the given angle in radians with @b 3-ULP error bound for [-2π, 2π].
- *  @see Based on @b `xfastcosf_u3500` in SLEEF library.
+ *  @brief Approximates the cosine of an angle in radians within @b 3-ULP error on [-2π, 2π].
+ *
+ *  Based on @c xfastcosf_u3500 in the SLEEF library.
+ *
  *  @param[in] angle_radians The input angle in radians.
  *  @return The approximate cosine of the input angle in [-1, 1] range.
  */
@@ -104,8 +108,10 @@ NK_API_COMPTIME nk_f32_t nk_f32_cos(nk_f32_t const angle_radians) {
 
 /**
  *  @brief Computes the arc-tangent of a value with @b 0-ULP error bound.
- *  @see Based on @b `xatanf` in SLEEF library.
- *  @param  input The input value.
+ *
+ *  Based on @c xatanf in the SLEEF library.
+ *
+ *  @param[in] input The input value.
  *  @return The arc-tangent of the input value in [-π/2, π/2] radians range.
  */
 NK_API_COMPTIME nk_f32_t nk_f32_atan(nk_f32_t const input) {
@@ -188,10 +194,12 @@ NK_API_COMPTIME int nk_float_class_belongs_to(nk_float_class_t const class_, int
 
 /**
  *  @brief Computes the arc-tangent of (y/x) with @b 0-ULP error bound.
- *  @see Based on @b `xatan2f` in SLEEF library.
- *  @param  y_input The input sine value.
- *  @param  x_input The input cosine value.
- *  @return The arc-tangent of (y_input/x_input) in [-π, π] radians range.
+ *
+ *  Based on @c xatan2f in the SLEEF library.
+ *
+ *  @param[in] y_input The input sine value.
+ *  @param[in] x_input The input cosine value.
+ *  @return The arc-tangent of @p y_input / @p x_input in [-π, π] radians range.
  */
 NK_API_COMPTIME nk_f32_t nk_f32_atan2(nk_f32_t const y_input, nk_f32_t const x_input) {
 
@@ -254,7 +262,9 @@ NK_API_COMPTIME nk_f32_t nk_f32_atan2(nk_f32_t const y_input, nk_f32_t const x_i
 
 /**
  *  @brief Computes the sine of the given angle in radians with @b 0-ULP error bound in [-2π, 2π].
- *  @see Based on @b `xsin` in SLEEF library.
+ *
+ *  Based on @c xsin in the SLEEF library.
+ *
  *  @param[in] angle_radians The input angle in radians.
  *  @return The approximate sine of the input angle.
  */
@@ -315,7 +325,9 @@ NK_API_COMPTIME nk_f64_t nk_f64_sin(nk_f64_t const angle_radians) {
 
 /**
  *  @brief Computes the cosine of the given angle in radians with @b 0-ULP error bound in [-2π, 2π].
- *  @see Based on @b `xcos` in SLEEF library.
+ *
+ *  Based on @c xcos in the SLEEF library.
+ *
  *  @param[in] angle_radians The input angle in radians.
  *  @return The approximate cosine of the input angle in [-1, 1] range.
  */
@@ -370,8 +382,10 @@ NK_API_COMPTIME nk_f64_t nk_f64_cos(nk_f64_t const angle_radians) {
 
 /**
  *  @brief Computes the arc-tangent of a value with @b 0-ULP error bound.
- *  @see Based on @b `xatan` in SLEEF library.
- *  @param  input The input value.
+ *
+ *  Based on @c xatan in the SLEEF library.
+ *
+ *  @param[in] input The input value.
  *  @return The arc-tangent of the input value in [-π/2, π/2] radians range.
  */
 NK_API_COMPTIME nk_f64_t nk_f64_atan(nk_f64_t const input) {
@@ -436,10 +450,12 @@ NK_API_COMPTIME nk_f64_t nk_f64_atan(nk_f64_t const input) {
 
 /**
  *  @brief Computes the arc-tangent of (y/x) with @b 0-ULP error bound.
- *  @see Based on @b `xatan2` in SLEEF library.
- *  @param  y_input The input sine value.
- *  @param  x_input The input cosine value.
- *  @return The arc-tangent of (y_input/x_input) in [-π, π] radians range.
+ *
+ *  Based on @c xatan2 in the SLEEF library.
+ *
+ *  @param[in] y_input The input sine value.
+ *  @param[in] x_input The input cosine value.
+ *  @return The arc-tangent of @p y_input / @p x_input in [-π, π] radians range.
  */
 NK_API_COMPTIME nk_f64_t nk_f64_atan2(nk_f64_t const y_input, nk_f64_t const x_input) {
     // Polynomial coefficients for atan2 approximation
@@ -537,7 +553,7 @@ NK_API_COMPTIME nk_f64_t nk_f64_atan2(nk_f64_t const y_input, nk_f64_t const x_i
 }
 
 /**
- *  @brief Computes an approximate tangent of the given angle in radians with @b 3-ULP error bound for [-2π, 2π].
+ *  @brief Approximates the tangent of an angle in radians within @b 3-ULP error on [-2π, 2π].
  *  @param[in] angle_radians The input angle in radians.
  *  @return The approximate tangent of the input angle.
  */
@@ -589,7 +605,7 @@ NK_API_COMPTIME nk_f32_t nk_f32_tan(nk_f32_t const angle_radians) {
 }
 
 /**
- *  @brief Computes the tangent of the given angle in radians with @b 0-ULP error bound in [-2π, 2π].
+ *  @brief Computes the tangent of an angle in radians with a @b 0-ULP error bound on [-2π, 2π].
  *  @param[in] angle_radians The input angle in radians.
  *  @return The approximate tangent of the input angle.
  */
@@ -696,13 +712,14 @@ NK_API_COMPTIME void nk_trig_atan_f16_serial(nk_f16_t const *ins, nk_size_t n, n
     }
 }
 
-/*  RoPE (NeoX split-half rotary position embedding). Each row (a token, byte stride `x_row_stride`)
- *  holds `heads` heads of `2·half_dim` channels. Every pair `i` rotates channel `i` against its
- *  split-half partner `i+half_dim` by the per-token angle from the `[rows, half_dim]` cosine/sine
- *  grids (row `r` at `r·half_dim`), shared across heads — exactly a complex multiply by `(cos, sin)`.
- *  The whole head is written, so the output `y` (byte stride `y_row_stride`) may alias `x` for
- *  in-place rotation; the caller bakes position lookup and M-RoPE axis assignment into the grids.
- *  `input_scale` folds an E4M3 descale onto the load (1.0 for BF16/F32). */
+/** RoPE, the NeoX split-half rotary position embedding. Each row, a token with byte stride
+ *  @c x_row_stride, holds @c heads heads of 2 × half_dim channels. Every pair @c i rotates channel
+ *  @c i against its split-half partner i + half_dim by the per-token angle from the
+ *  @b [rows,half_dim] cosine and sine grids, where row @c r starts at r × half_dim and is shared
+ *  across heads, exactly a complex multiply by (cos, sin). The whole head is written, so the output
+ *  @c y, with byte stride @c y_row_stride, may alias @c x for in-place rotation, and the caller
+ *  bakes position lookup and M-RoPE axis assignment into the grids. @c input_scale folds an E4M3
+ *  descale onto the load, and is 1.0 for BF16 and F32. */
 #define nk_define_trig_rope_(input_type, load_and_convert, convert_and_store)                                         \
     NK_API_COMPTIME void nk_trig_rope_##input_type##_serial(                                                          \
         nk_##input_type##_t const *x, nk_##input_type##_t *y, nk_rope_angle_t const *cos, nk_rope_angle_t const *sin, \

@@ -224,7 +224,7 @@ impl SparseDot for u16 {
     type Output = f32;
 
     fn sparse_dot(a_indices: &[Self], b_indices: &[Self], a_weights: &[bf16], b_weights: &[bf16]) -> Self::Output {
-        // The index lengths below bound the kernel's reads of BOTH arrays of each vector.
+        // The index lengths below bound the kernel's reads of both arrays of each vector.
         if a_weights.len() < a_indices.len() || b_weights.len() < b_indices.len() {
             return Self::Output::default();
         }
@@ -249,7 +249,7 @@ impl SparseDot for u32 {
     type Output = f64;
 
     fn sparse_dot(a_indices: &[Self], b_indices: &[Self], a_weights: &[f32], b_weights: &[f32]) -> Self::Output {
-        // The index lengths below bound the kernel's reads of BOTH arrays of each vector.
+        // The index lengths below bound the kernel's reads of both arrays of each vector.
         if a_weights.len() < a_indices.len() || b_weights.len() < b_indices.len() {
             return Self::Output::default();
         }

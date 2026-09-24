@@ -1,5 +1,5 @@
-// numkong/golang/matrix.go
-// Written by Ash Vardanian.
+// File: golang/matrix.go
+// Author: Ash Vardanian
 
 package numkong
 

@@ -41,7 +41,7 @@
  *  Speedup sources:
  *
  *  1. Pre-packing both sides → 4 ZA tiles, vs 3 with A-staging: +33% MOPA throughput
- *  2. No output matrix materialization → eliminates M×N f32 memory round-trip
+ *  2. No output matrix materialization → eliminates M × N f32 memory round-trip
  *  3. Vertical column reads → ~128 element-wise svmax, 1cy, vs ~256 svmaxv reductions, 8cy
  */
 #ifndef NK_MAXSIM_SME_H
@@ -66,12 +66,12 @@ extern "C" {
 #endif
 
 /**
- *  Packed header for MaxSim SME kernels. Used by f32 (i8 screening + f32 refinement)
- *  and bf16/f16 (BFMOPA/FMOPA + angular normalization) kernels.
+ *  @brief Packed header for MaxSim SME kernels, shared by the f32 kernels, which screen in i8 and
+ *      refine in f32, and the bf16 and f16 kernels, which use BFMOPA or FMOPA and normalize angles.
  *
- *  For f32: stores i8 tile-interleaved data, f32 squared norms, AND f32 originals.
- *  For bf16/f16: stores tile-interleaved data and f32 inverse norms (1/||v||).
- *    originals_offset and original_stride are 0 (unused).
+ *  For f32 it stores i8 tile-interleaved data, f32 squared norms, and the f32 originals. For bf16
+ *  and f16 it stores tile-interleaved data and f32 inverse norms 1 / ‖v‖, leaving
+ *  @c originals_offset and @c original_stride unused at 0.
  */
 typedef struct {
     nk_u32_t column_tile_count; // ceil(n / tile_dimension)
@@ -79,8 +79,8 @@ typedef struct {
     nk_u32_t columns;           // actual vector count (for predicates)
     nk_u32_t depth;             // actual depth
     nk_u32_t svl_bytes;         // SVL in bytes at pack time (validation)
-    nk_u32_t norms_offset;      // byte offset -> per-vector norms (squared for f32, inverse for bf16/f16)
-    nk_u32_t originals_offset;  // byte offset -> f32 original vectors (0 for bf16/f16)
+    nk_u32_t norms_offset;      // byte offset → per-vector norms (squared for f32, inverse for bf16/f16)
+    nk_u32_t originals_offset;  // byte offset → f32 original vectors (0 for bf16/f16)
     nk_u32_t original_stride;   // row stride in bytes for originals (64B-aligned, 0 for bf16/f16)
     nk_u32_t reserved[8];       // padding to 64 bytes
 } nk_maxsim_sme_packed_header_t;
@@ -88,13 +88,13 @@ typedef struct {
 NK_STATIC_ASSERT(sizeof(nk_maxsim_sme_packed_header_t) == 64, nk_maxsim_sme_packed_header_must_be_64_bytes);
 
 /**
- *  MaxSim f16 kernel: both Q and D pre-packed, vertical column read extraction.
+ *  @brief MaxSim f16 kernel with both Q and D pre-packed, extracting through vertical column reads.
  *
- *  4-tile fast path: processes 4 doc column tiles simultaneously using ZA0-ZA3.
- *  Inner loop per depth_step: 1 Q load + 4 D loads + 4 FMOPA = 9 ops.
- *  Extraction per 4-tile group: 4×16 = 64 vertical reads + 64 svmax = ~128 cycles.
+ *  The 4-tile fast path processes 4 document column tiles simultaneously using ZA0-ZA3. Each depth
+ *  step of the inner loop costs 1 Q load, 4 D loads and 4 FMOPA, 9 ops in all. Extraction per
+ *  4-tile group costs 4 × 16 = 64 vertical reads and 64 svmax, about 128 cycles.
  *
- *  1-tile remainder: uses ZA0 only, with predicated loads for partial tiles.
+ *  The 1-tile remainder uses ZA0 only, with predicated loads for partial tiles.
  */
 __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
@@ -279,13 +279,13 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_sme( //
 }
 
 /**
- *  MaxSim bf16 kernel: both Q and D pre-packed, vertical column read extraction.
+ *  @brief MaxSim bf16 kernel with Q and D pre-packed, extracting through vertical column reads.
  *
- *  4-tile fast path: processes 4 doc column tiles simultaneously using ZA0-ZA3.
- *  Inner loop per depth_step: 1 Q load + 4 D loads + 4 BFMOPA = 9 ops.
- *  Extraction per 4-tile group: 4×16 = 64 vertical reads + 64 svmax = ~128 cycles.
+ *  The 4-tile fast path processes 4 document column tiles simultaneously using ZA0-ZA3. Each depth
+ *  step of the inner loop costs 1 Q load, 4 D loads and 4 BFMOPA, 9 ops in all. Extraction per
+ *  4-tile group costs 4 × 16 = 64 vertical reads and 64 svmax, about 128 cycles.
  *
- *  1-tile remainder: uses ZA0 only, with predicated loads for partial tiles.
+ *  The 1-tile remainder uses ZA0 only, with predicated loads for partial tiles.
  */
 __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
@@ -540,15 +540,6 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_sme(                                    
     }
 }
 
-/**
- *  MaxSim f32 kernel: i8 SMOPA screening + f32/f64 refinement + angular distance.
- *
- *  Screening: i8 SMOPA has expansion=4, processing 4x more depth per instruction than f32 FMOPA.
- *  With 4 ZA tiles the fast path processes 64 document columns per iteration.
- *
- *  Refinement: tile-wide interleaved f64 dot products for the winning (query, document) pairs.
- *  Angular distance: 1 - dot / sqrt(||q||^2 * ||d||^2), accumulated with f64.
- */
 NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sme(nk_size_t columns, nk_size_t depth) { //
     nk_size_t const expansion = 4;                                                          // i8->i32 SMOPA
     nk_size_t const tile_dimension = nk_sme_cntw_();                                        // 16 for SVL=512
@@ -654,10 +645,8 @@ NK_API_COMPTIME void nk_maxsim_pack_f32_sme(                                    
     }
 }
 
-/**
- *  Streaming-compatible f32 dot product with f64 accumulation.
- *  Follows the svcntd()-stride + svcvt_f64_f32_x pattern from nk_dots_reduce_sumsq_f32_ssve_.
- */
+/** Streaming-compatible f32 dot product with f64 accumulation, following the svcntd() stride and
+ *  svcvt_f64_f32_x widening of @c nk_dots_reduce_sumsq_f32_ssve_. */
 NK_HELPER_AUTO nk_f64_t nk_maxsim_reduce_dot_f32_ssve_(                    //
     nk_f32_t const *a, nk_f32_t const *b, nk_size_t count) NK_STREAMING_ { //
     svfloat64_t accumulator_even_f64x = svdup_f64(0.0);
@@ -682,11 +671,8 @@ NK_HELPER_AUTO nk_f64_t nk_maxsim_reduce_dot_f32_ssve_(                    //
     return nk_svaddv_f64_(svptrue_b64(), accumulator_even_f64x) + nk_svaddv_f64_(svptrue_b64(), accumulator_odd_f64x);
 }
 
-/**
- *  Streaming-compatible angular distance accumulation from pre-reduced dot products
- *  and contiguous f64 norm arrays.
- *  Computes rsqrt via Newton-Raphson and accumulates `1 - dot / sqrt(||q||^2 * ||d||^2)`.
- */
+/** Streaming-compatible angular distance accumulation from pre-reduced dot products and contiguous
+ *  f64 norm arrays. Computes rsqrt via Newton-Raphson and accumulates 1 − dot / √(‖q‖² × ‖d‖²). */
 NK_HELPER_AUTO nk_f64_t nk_maxsim_angular_from_dots_ssve_(                               //
     nk_f64_t const *dot_products, nk_size_t count,                                       //
     nk_f64_t const *query_norms_f64, nk_f64_t const *document_norms_f64) NK_STREAMING_ { //
@@ -723,13 +709,13 @@ NK_HELPER_AUTO nk_f64_t nk_maxsim_angular_from_dots_ssve_(                      
 }
 
 /**
- *  MaxSim f32 kernel: i8 SMOPA screening + f32/f64 refinement + angular distance.
+ *  @brief MaxSim f32 kernel: i8 SMOPA screening, then f32 and f64 refinement into angular distance.
  *
- *  Screening: i8 SMOPA has expansion=4, processing 4x more depth per instruction than f32 FMOPA.
- *  With 4 ZA tiles the fast path processes 64 document columns per iteration.
+ *  Screening uses i8 SMOPA with an expansion of 4, covering 4× more depth per instruction than f32
+ *  FMOPA. With 4 ZA tiles the fast path processes 64 document columns per iteration.
  *
- *  Refinement: tile-wide interleaved f64 dot products for the winning (query, document) pairs.
- *  Angular distance: 1 - dot / sqrt(||q||^2 * ||d||^2), accumulated with f64.
+ *  Refinement computes tile-wide interleaved f64 dot products for the winning (query, document)
+ *  pairs, and accumulates the angular distance 1 − dot / √(‖q‖² × ‖d‖²) in f64.
  */
 __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,

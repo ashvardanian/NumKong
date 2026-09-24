@@ -428,9 +428,9 @@ pub enum TensorError {
     IndexOutOfBounds { index: usize, size: usize },
     /// Too many dimensions — exceeds MAX_RANK.
     TooManyRanks { got: usize },
-    /// A resize would exceed the fixed allocated capacity; call `try_reserve` to grow the buffer first.
+    /// A resize would exceed the fixed allocated capacity; grow the buffer via `try_reserve` first.
     CapacityExceeded { requested: usize, capacity: usize },
-    /// Operation not supported for sub-byte types (i4x2, u4x2, u1x8).
+    /// Operation not supported for sub-byte types: i4x2, u4x2, u1x8.
     SubByteUnsupported,
 }
 
@@ -6995,7 +6995,7 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
     /// lockstep and keeping the rank, with the leading extent reduced to 1 rather than dropped.
     pub fn row(&self, i: usize) -> Result<ScaledTensorView<'a, F>, TensorError> { self.rows(i, i + 1) }
 
-    /// Slice a contiguous leading-axis range `start..end`, slicing BOTH sub-tensors in lockstep.
+    /// Slice a contiguous leading-axis range `start..end`, slicing both sub-tensors in lockstep.
     pub fn rows(&self, start: usize, end: usize) -> Result<ScaledTensorView<'a, F>, TensorError> {
         let leading = self.elements.shape().first().copied().unwrap_or(0);
         if end > leading || start > end {
@@ -7063,8 +7063,8 @@ mod tests {
     use crate::trigonometry::TrigSinOps;
     use crate::types::{bf16c, f16, f16c, f32c};
 
-    /// Property test: materializing a random slice of a random iota tensor yields exactly the
-    /// source elements its strides address — exercises the stride/offset/slice math on random shapes.
+    /// Property test: a materialized random slice of a random iota tensor holds exactly the source
+    /// elements its strides address, exercising stride, offset, and slice math on random shapes.
     #[test]
     fn prop_slice_materializes_correct_elements() {
         // Self-contained xorshift64 PRNG — reproducible, no external dependency.

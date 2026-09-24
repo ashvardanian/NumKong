@@ -6,9 +6,9 @@
  *
  *  @sa include/numkong/dots.h
  *
- *  Native FP16×FP16 → FP32 GEMM kernels using Intel AMX-FP16 via TDPFP16PS on Granite Rapids CPUs.
- *  Same tile geometry as BF16 — 16 rows × 32 FP16 = 1KB per tile — same 2×2 output blocking, same
- *  packing format — only the tile multiply instruction differs.
+ *  Native FP16 × FP16 → FP32 GEMM kernels using Intel AMX-FP16 via TDPFP16PS on Granite Rapids
+ *  CPUs. Same tile geometry as BF16 — 16 rows × 32 FP16 = 1KB per tile — same 2×2 output blocking,
+ *  same packing format — only the tile multiply instruction differs.
  *
  *  Tile register allocation:
  *
@@ -27,9 +27,9 @@
  *
  *  TDPFP16PS: 16 × 16 × 32 = 8192 FP16 MACs per instruction (same throughput as TDPBF16PS).
  *
- *  @section ozaki_limitations F32→F64 via Ozaki Scheme — Attempted and Abandoned
+ *  @section ozaki_limitations F32 → F64 via Ozaki Scheme — Attempted and Abandoned
  *
- *  We explored using AMX-FP16 tiles to compute F32→F64 GEMMs via the Ozaki decomposition scheme,
+ *  We explored using AMX-FP16 tiles to compute F32 → F64 GEMMs via the Ozaki decomposition scheme,
  *  splitting each F32 scalar into 2 or 3 FP16 terms and cross-multiplying via TDPFP16PS.
  *
  *  Results on Intel Xeon 6776P (Granite Rapids), single-threaded:
@@ -44,7 +44,7 @@
  *  @endverbatim
  *
  *  The fundamental bottleneck is TDPFP16PS's internal F32 accumulation: each instruction sums 32
- *  FP16×FP16 products into an F32 register, a 23-bit mantissa. Even with Ozaki cross-term
+ *  FP16 × FP16 products into an F32 register, a 23-bit mantissa. Even with Ozaki cross-term
  *  separation into distinct TMM accumulators — preventing magnitude mixing — and periodic
  *  extraction to F64 running sums, the per-instruction accumulation of 32 products loses ~5 bits
  *  (log2(32) = 5), capping effective precision at ~28 - 5 = ~23 bits — barely exceeding F32 BLAS.
@@ -68,7 +68,7 @@
  *
  *  Conclusion: AMX-FP16's F32 tile accumulation fundamentally limits Ozaki to ~22-24 bits —
  *  comparable to F32 BLAS, far short of the ~48-bit F64 precision needed to justify the complexity.
- *  For F32→F64 GEMM, pure AVX-512 with F64 FMA remains the correct approach.
+ *  For F32 → F64 GEMM, pure AVX-512 with F64 FMA remains the correct approach.
  */
 #ifndef NK_DOTS_GRANITEAMX_H
 #define NK_DOTS_GRANITEAMX_H
@@ -222,7 +222,7 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_f16_graniteamx(nk_size_t column_coun
     // All tiles for full column rows (pair-interleaved, depth remainder zero-padded)
     size += full_column_tiles * tiles_along_depth * tile_bytes;
 
-    // Column edge: remaining rows for ALL depth columns, stored row-major
+    // Column edge: remaining rows for all depth columns, stored row-major
     if (column_remainder_count > 0) size += column_remainder_count * depth * sizeof(nk_f16_t);
 
     // Per-column norms for angular/euclidean distance (4 bytes each: f32)

@@ -26,8 +26,8 @@ namespace ashvardanian::numkong {
  *  @param[out] results Output array of distances (meters)
  *
  *  @tparam in_type_ Input coordinate type (f32_t, f64_t)
- *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to `in_type_`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to @c in_type_
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  *
  *  @note Uses spherical Earth model with mediatorial radius (6335439.0 m)
  *  @note Accuracy: 0.3-0.6% vs WGS-84, suitable for ranking/similarity
@@ -54,7 +54,7 @@ void haversine(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ const *b
             precision_type_ latitude_delta = second_latitude - first_latitude;
             precision_type_ longitude_delta = second_longitude - first_longitude;
 
-            // Haversine formula: a = sin²(Δlat/2) + cos(lat1)×cos(lat2)×sin²(Δlon/2)
+            // Haversine formula: a = sin²(Δlat/2) + cos(lat1) × cos(lat2) × sin²(Δlon/2)
             precision_type_ sin_latitude_delta_half = (latitude_delta * precision_type_(0.5)).sin();
             precision_type_ sin_longitude_delta_half = (longitude_delta * precision_type_(0.5)).sin();
             precision_type_ cos_first_latitude = first_latitude.cos();
@@ -84,8 +84,8 @@ void haversine(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ const *b
  *  @param[out] results Output array of distances (meters)
  *
  *  @tparam in_type_ Input coordinate type (f32_t, f64_t)
- *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to `in_type_`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to @c in_type_
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  *
  *  @note Uses WGS-84/IERS-2003 ellipsoid model
  *  @note Accuracy: 0.01-0.2% vs WGS-84, 3-20x more accurate than Haversine

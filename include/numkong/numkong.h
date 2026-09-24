@@ -35,9 +35,7 @@
 extern "C" {
 #endif
 
-/**
- *  @brief  Returns the output dtype for a given metric kind and input dtype.
- */
+/** Returns the output dtype for a given metric kind and input dtype. */
 NK_API_COMPTIME nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk_dtype_t input) {
     switch (kind) {
     case nk_kernel_dot_k:

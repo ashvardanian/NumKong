@@ -18,13 +18,13 @@
  *
  *  Precision policy:
  *
- *  - For `f32` inputs, the per-element vertical path stays in `f32` to preserve the fast ratio/log
- *    approximations and SIMD throughput.
- *  - The horizontal reduction over those per-element contributions widens to `f64`, and public
- *    `f32` results are exposed as `f64`.
- *  - For `f64` inputs, both the vertical path and the horizontal reduction stay in `f64`, with
+ *  - For @c f32 inputs, the per-element vertical path stays in @c f32 to preserve the fast
+ *    ratio/log approximations and SIMD throughput.
+ *  - The horizontal reduction over those per-element contributions widens to @c f64, and public
+ *    @c f32 results are exposed as @c f64.
+ *  - For @c f64 inputs, both the vertical path and the horizontal reduction stay in @c f64, with
  *    stable summation in the serial kernels.
- *  - For `f16` and `bf16` inputs, the kernels still widen to `f32`.
+ *  - For @c f16 and @c bf16 inputs, the kernels still widen to @c f32.
  *
  *  For hardware architectures:
  *
@@ -91,6 +91,7 @@ extern "C" {
  *  @note The output divergence value is zero if and only if the two distributions are identical.
  */
 NK_API_RUNTIME void nk_kld_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+
 /**
  *  @brief Kullback-Leibler divergence between two discrete probability distributions.
  *
@@ -104,6 +105,7 @@ NK_API_RUNTIME void nk_kld_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n
  *  @note The output divergence value is zero if and only if the two distributions are identical.
  */
 NK_API_RUNTIME void nk_kld_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+
 /**
  *  @brief Kullback-Leibler divergence between two discrete probability distributions.
  *
@@ -117,6 +119,7 @@ NK_API_RUNTIME void nk_kld_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_
  *  @note The output divergence value is zero if and only if the two distributions are identical.
  */
 NK_API_RUNTIME void nk_kld_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+
 /**
  *  @brief Kullback-Leibler divergence between two discrete probability distributions.
  *
@@ -130,6 +133,7 @@ NK_API_RUNTIME void nk_kld_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n
  *  @note The output divergence value is zero if and only if the two distributions are identical.
  */
 NK_API_RUNTIME void nk_kld_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+
 /**
  *  @brief Jensen-Shannon distance between two discrete probability distributions.
  *
@@ -143,6 +147,7 @@ NK_API_RUNTIME void nk_kld_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n
  *  @note The output distance value is zero if and only if the two distributions are identical.
  */
 NK_API_RUNTIME void nk_jsd_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+
 /**
  *  @brief Jensen-Shannon distance between two discrete probability distributions.
  *
@@ -156,6 +161,7 @@ NK_API_RUNTIME void nk_jsd_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n
  *  @note The output distance value is zero if and only if the two distributions are identical.
  */
 NK_API_RUNTIME void nk_jsd_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+
 /**
  *  @brief Jensen-Shannon distance between two discrete probability distributions.
  *
@@ -169,6 +175,7 @@ NK_API_RUNTIME void nk_jsd_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_
  *  @note The output distance value is zero if and only if the two distributions are identical.
  */
 NK_API_RUNTIME void nk_jsd_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+
 /**
  *  @brief Jensen-Shannon distance between two discrete probability distributions.
  *
@@ -256,7 +263,7 @@ NK_API_COMPTIME void nk_kld_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_
 NK_API_COMPTIME void nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
 #endif // NK_TARGET_RVV
 
-/** @brief Returns the output dtype for probability measures (KLD, JSD). */
+/** Returns the output dtype for probability measures (KLD, JSD). */
 NK_HELPER_INLINE nk_dtype_t nk_probability_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;

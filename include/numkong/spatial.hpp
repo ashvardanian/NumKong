@@ -23,8 +23,8 @@ namespace ashvardanian::numkong {
  *  @param[out] r Pointer to output distance value
  *
  *  @tparam in_type_ Input vector element type
- *  @tparam result_type_ Accumulator type, defaults to `in_type_::euclidean_result_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Accumulator type, defaults to @c in_type_::euclidean_result_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::euclidean_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
@@ -59,8 +59,8 @@ void euclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_
  *  @param[out] r Pointer to output distance value
  *
  *  @tparam in_type_ Input vector element type
- *  @tparam result_type_ Accumulator type, defaults to `in_type_::sqeuclidean_result_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Accumulator type, defaults to @c in_type_::sqeuclidean_result_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::sqeuclidean_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
@@ -95,8 +95,8 @@ void sqeuclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_typ
  *  @param[out] r Pointer to output distance value
  *
  *  @tparam in_type_ Input vector element type
- *  @tparam result_type_ Accumulator type, defaults to `in_type_::angular_result_t`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam result_type_ Accumulator type, defaults to @c in_type_::angular_result_t
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>

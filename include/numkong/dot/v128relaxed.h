@@ -11,12 +11,12 @@
  *  - Smart i8/u8 dot products using algebraic decomposition + correction terms
  *  - F64 upcasting variant for improved numerical precision, NEON-style
  *
- *  Smart i8 optimization decomposes b = b_7bit − 128 × signbit, so a·b = a·b_7bit − 128 × Σ a[i]
- *  over the lanes where b[i] < 0: a fast relaxed_dot_i8x16_i7x16 plus a SAD-like correction.
+ *  Smart i8 optimization decomposes b = b_7bit − 128 × signbit, so a · b = a · b_7bit − 128 × Σ
+ *  a[i] over the lanes where b[i] < 0: a fast relaxed_dot_i8x16_i7x16 plus a SAD-like correction.
  *
- *  Smart u8 optimization decomposes b = b_7bit + 128 × highbit, so a·b = a·b_7bit + 128 × Σ a[i]
- *  over the lanes where b[i] ≥ 128. It is simpler than i8: the correction is positive, and a shift
- *  can replace the multiplication.
+ *  Smart u8 optimization decomposes b = b_7bit + 128 × highbit, so a · b = a · b_7bit + 128 × Σ
+ *  a[i] over the lanes where b[i] ≥ 128. It is simpler than i8: the correction is positive, and a
+ *  shift can replace the multiplication.
  *
  *  @sa include/numkong/dot/v128.h for the SIMD128 twins of the bf16, i8, u8, and u1 dot kernels.
  */
@@ -180,7 +180,7 @@ NK_API_COMPTIME void nk_dot_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, n
             // Fast path: a · b_7bit
             sum_i32x4 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(a_i8x16, b_7bit_i8x16, sum_i32x4);
 
-            // Accumulate correction in i16 (only ONE extadd per iteration!)
+            // Accumulate correction in i16 (only one extadd per iteration!)
             v128_t a_where_b_neg_i8x16 = wasm_v128_and(a_i8x16, b_neg_mask_i8x16);
             v128_t a_neg_i16x8 = wasm_i16x8_extadd_pairwise_i8x16(a_where_b_neg_i8x16);
             correction_i16x8 = wasm_i16x8_add(correction_i16x8, a_neg_i16x8);
@@ -407,7 +407,7 @@ nk_dot_e3m2_v128relaxed_cycle:
     b_unsigned_high_i16x8 = wasm_i16x8_relaxed_laneselect(wasm_i16x8_neg(b_unsigned_high_i16x8), b_unsigned_high_i16x8,
                                                           negate_high_i16x8);
 
-    // Widening multiply: i16×i16 → i32, accumulate (a is unsigned magnitude, b has combined sign)
+    // Widening multiply: i16 × i16 → i32, accumulate (a is unsigned magnitude, b has combined sign)
     sum_i32x4 = wasm_i32x4_add(sum_i32x4, wasm_i32x4_extmul_low_i16x8(a_unsigned_low_i16x8, b_unsigned_low_i16x8));
     sum_i32x4 = wasm_i32x4_add(sum_i32x4, wasm_i32x4_extmul_high_i16x8(a_unsigned_low_i16x8, b_unsigned_low_i16x8));
     sum_i32x4 = wasm_i32x4_add(sum_i32x4, wasm_i32x4_extmul_low_i16x8(a_unsigned_high_i16x8, b_unsigned_high_i16x8));
@@ -417,10 +417,8 @@ nk_dot_e3m2_v128relaxed_cycle:
     *result = (nk_f32_t)nk_reduce_add_i32x4_v128_(sum_i32x4) / 256.0f;
 }
 
-/**
- *  Stateful GEMM kernels for batched dot products (4-way parallel accumulation).
- *  Used by nk_define_cross_packed_ / nk_define_cross_compensated_packed_ macros.
- */
+/*  Stateful GEMM kernels for batched dot products (4-way parallel accumulation).
+ *  Used by nk_define_cross_packed_ / nk_define_cross_compensated_packed_ macros. */
 
 typedef struct nk_dot_through_f32x4_state_v128relaxed_t_ {
     v128_t sum_f32x4;
@@ -573,8 +571,8 @@ NK_HELPER_INLINE void nk_dot_i8x16_update_v128relaxed(nk_dot_i8x16_state_v128rel
                                                       nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    // Bit-split: b = b_low + (-128)·b_high where b_low = b & 0x7F ∈ [0,127], b_high = b >> 7 ∈ {0,1}
-    // So a·b = a·b_low − 128·a·b_high, both operands fit i7 for relaxed_dot
+    // Split b = b_low − 128 · b_high, with b_low = b & 0x7F ∈ [0,127] and b_high = b >> 7 ∈ {0,1}.
+    // So a · b = a · b_low − 128 · a · b_high, and both operands fit i7 for relaxed_dot.
     v128_t b_low_u8x16 = wasm_v128_and(b.v128, wasm_i8x16_splat(0x7F));
     v128_t b_high_u8x16 = wasm_u8x16_shr(b.v128, 7);
     state->product_sum_i32x4 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(a.v128, b_low_u8x16, state->product_sum_i32x4);
@@ -613,9 +611,9 @@ NK_HELPER_INLINE void nk_dot_u8x16_update_v128relaxed(nk_dot_u8x16_state_v128rel
                                                       nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    // Bit-split b: b = b_low + 128·b_high, with a_signed = a ^ 0x80 = a - 128 (reinterpret u8 as i8)
-    // Σ a·b = Σ(a_signed+128)·(b_lo+128·b_high) = relaxed_dot(a_signed,b_low) + 128·relaxed_dot(a_signed,b_high) +
-    // 128·Σb
+    // Bit-split b: b = b_low + 128 · b_high, with a_signed = a ^ 0x80 = a - 128 (u8 read as i8)
+    // Σ a · b = Σ (a_signed + 128) · (b_low + 128 · b_high)
+    //         = relaxed_dot(a_signed, b_low) + 128 · relaxed_dot(a_signed, b_high) + 128 · Σb
     v128_t a_signed_i8x16 = wasm_v128_xor(a.v128, wasm_i8x16_splat((signed char)0x80));
     v128_t b_low_u8x16 = wasm_v128_and(b.v128, wasm_i8x16_splat(0x7F));
     v128_t b_high_u8x16 = wasm_u8x16_shr(b.v128, 7);
@@ -631,7 +629,7 @@ NK_HELPER_INLINE void nk_dot_u8x16_finalize_v128relaxed(                        
     nk_size_t total_dimensions, nk_u32_t a_sum, nk_b128_vec_t const *b_sums_vec, nk_b128_vec_t *result_vec) {
     nk_unused_(total_dimensions);
     nk_unused_(a_sum);
-    // Σ a·b = reduce(lo) + 128·reduce(hi) + 128·Σb
+    // Σ a · b = reduce(lo) + 128 · reduce(hi) + 128 · Σb
     result_vec->u32s[0] = (nk_u32_t)(nk_reduce_add_i32x4_v128_(state_a->product_low_i32x4) +
                                      128 * nk_reduce_add_i32x4_v128_(state_a->product_high_i32x4) +
                                      128 * (nk_i32_t)b_sums_vec->u32s[0]);
@@ -700,7 +698,7 @@ NK_HELPER_INLINE void nk_dot_e2m3x16_finalize_v128relaxed(                      
     nk_dot_e2m3x16_state_v128relaxed_t const *state_c, nk_dot_e2m3x16_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_unused_(total_dimensions);
-    // Standard 4-way reduce, divide by 256.0f (LUT values are scaled ×16 for each operand)
+    // Standard 4-way reduce, divide by 256.0f (LUT values are scaled × 16 for each operand)
     nk_f32_t inv_256 = 1.0f / 256.0f;
     result->f32s[0] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_a->sum_i32x4) * inv_256;
     result->f32s[1] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_b->sum_i32x4) * inv_256;
@@ -708,10 +706,9 @@ NK_HELPER_INLINE void nk_dot_e2m3x16_finalize_v128relaxed(                      
     result->f32s[3] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_d->sum_i32x4) * inv_256;
 }
 
-/**
- *  @brief E2M1 state: 16 bytes (32 nibbles) per update, doubled values accumulated exactly in i32.
- *  The relaxed dot wants a non-negative second operand, so B contributes magnitudes and A carries both signs.
- */
+/** E2M1 state: 16 bytes (32 nibbles) per update, doubled values accumulated exactly in i32.
+ *  The relaxed dot wants a non-negative second operand, so B contributes magnitudes and A
+ *  carries both signs. */
 typedef struct nk_dot_e2m1x32_state_v128relaxed_t {
     v128_t sum_i32x4;
 } nk_dot_e2m1x32_state_v128relaxed_t;
@@ -790,9 +787,9 @@ NK_HELPER_INLINE void nk_dot_e3m2x16_update_v128relaxed(nk_dot_e3m2x16_state_v12
                                                         nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    // ×4 scaled LUT — all values ≤ 112, fits u7 for relaxed_dot
-    // Indices 0-11 rounded to nearest integer (max error ±0.5 in ×4 domain = ±0.125 in value)
-    // Indices 12-31 exact
+    // 4× scaled LUT — all values ≤ 112, fits u7 for relaxed_dot.
+    // Indices 0-11 rounded to nearest integer (max error ±0.5 in the 4× domain = ±0.125 in value).
+    // Indices 12-31 exact.
     v128_t lut_low_u8x16 = wasm_i8x16_const(0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 4, 4, 5, 6, 7);
     v128_t lut_high_u8x16 = wasm_i8x16_const(8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 112);
     v128_t magnitude_mask_u8x16 = wasm_u8x16_splat(0x1F);
@@ -831,7 +828,7 @@ NK_HELPER_INLINE void nk_dot_e3m2x16_finalize_v128relaxed(                      
     nk_dot_e3m2x16_state_v128relaxed_t const *state_c, nk_dot_e3m2x16_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_unused_(total_dimensions);
-    // ×4 per operand → ×16 product scaling → divide by 16
+    // × 4 per operand → × 16 product scaling → divide by 16
     nk_f32_t inv_16 = 1.0f / 16.0f;
     result->f32s[0] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_a->sum_i32x4) * inv_16;
     result->f32s[1] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_b->sum_i32x4) * inv_16;

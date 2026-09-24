@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dots/neon.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date September 14, 2024
  *  @brief SIMD-accelerated Batched Dot Products for NEON.
  *
  *  @sa include/numkong/dots.h
@@ -25,7 +25,8 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd")
 #endif
 
-/* F32 GEMM: depth_simd_dimensions=2 (2 f32s = 8 bytes = 64-bit input for f64 upcast accumulation) */
+/*  F32 GEMM: depth_simd_dimensions = 2, as 2 f32s span an 8-byte, 64-bit input for f64 upcast
+ *  accumulation. */
 nk_define_cross_pack_size_(dots, f32, neon, f32, f32, /*norm_value_type=*/f64, /*depth_simd_dimensions=*/2,
                            /*dimensions_per_value=*/1)
 nk_define_cross_packed_shape_(dots, f32, neon)

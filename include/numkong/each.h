@@ -6,10 +6,10 @@
  *
  *  Contains following element-wise operations:
  *
- *  - Scale (Multiply) with shift: result[i] = α·a[i] + β
+ *  - Scale (Multiply) with shift: result[i] = α · a[i] + β
  *  - Sum (Add): result[i] = a[i] + b[i]
- *  - Blend: result[i] = α·a[i] + β·b[i]
- *  - FMA (Fused Multiply-Add): result[i] = α·a[i]·b[i] + β·c[i]
+ *  - Blend: result[i] = α · a[i] + β · b[i]
+ *  - FMA (Fused Multiply-Add): result[i] = α · a[i] · b[i] + β · c[i]
  *
  *  Beyond their obvious usecases, those can be reused for vector-scalar math and other operations:
  *
@@ -274,7 +274,8 @@ NK_API_RUNTIME void nk_each_blend_f64c(nk_f64c_t const *a, nk_f64c_t const *b, n
  *  @param[in] b The second input vector.
  *  @param[in] c The third input vector.
  *  @param[in] n The number of elements in the vectors.
- *  @param[in] alpha Pointer to the scaling factor for a[i] * b[i] (type depends on input precision).
+ *  @param[in] alpha Pointer to the scaling factor for a[i] * b[i] (type depends
+ *      on input precision).
  *  @param[in] beta Pointer to the scaling factor for c[i] (type depends on input precision).
  *  @param[out] result The output vector.
  */
@@ -333,7 +334,7 @@ NK_API_RUNTIME void nk_each_fma_f64c(nk_f64c_t const *a, nk_f64c_t const *b, nk_
                                      nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result);
 
 /**
- *  @brief Fused SwiGLU: result[i] = silu(input_scale * gate[i]) * (input_scale * up[i]).
+ *  @brief Fused SwiGLU: result[i] = silu(gate[i] × s) × up[i] × s, where s is @p input_scale.
  *
  *  @param[in] gate The gate input matrix of shape rows by cols.
  *  @param[in] up The up input matrix, same shape as gate; NULL collapses to plain SiLU.
@@ -1307,9 +1308,7 @@ NK_API_COMPTIME void nk_each_fma_f64c_rvv(nk_f64c_t const *a, nk_f64c_t const *b
                                           nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result);
 #endif // NK_TARGET_RVV
 
-/**
- *  @brief  Returns the scalar parameter dtype for elementwise scale/blend/fma operations.
- */
+/** Returns the scalar parameter dtype for elementwise scale/blend/fma operations. */
 NK_HELPER_INLINE nk_dtype_t nk_each_scale_input_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64c_k: return nk_f64c_k;

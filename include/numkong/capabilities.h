@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/capabilities.h
  *  @author Ash Vardanian
- *  @date February 6, 2026
+ *  @date October 3, 2023
  *  @brief SIMD capability detection and thread configuration.
  *
  *  @section x86_targets Choosing x86 Target Generations
@@ -32,7 +32,8 @@
  *  5. AMD Turin (2024+): advanced sparse algorithms.
  *
  *  Beyond those, AVX2 serves Haswell, AVX2+VNNI serves 12th and 13th gen Alder Lake, and Sierra
- *  Forest gets AVX2+VNNI-INT8 with native signed×signed and unsigned×unsigned 8-bit dot products.
+ *  Forest gets AVX2+VNNI-INT8, whose 8-bit dot products natively take signed × signed and
+ *  unsigned × unsigned operands.
  *
  *  To list all available macros for x86, take a recent compiler, like GCC 12 and run:
  *
@@ -176,104 +177,207 @@ extern long syscall(long, ...);
 extern "C" {
 #endif
 
-/**
- *  @brief  Enumeration of supported metric kinds.
- *          Some have aliases for convenience/discoverability.
- */
+/** Enumeration of supported metric kinds. Some have aliases for convenience/discoverability. */
 typedef enum {
-    nk_kernel_unknown_k = 0, ///< Unknown kernel kind
+
+    /** Unknown kernel kind. */
+    nk_kernel_unknown_k = 0,
 
     // Classics:
-    nk_kernel_dot_k = 'i',         ///< Inner product
-    nk_kernel_vdot_k = 'v',        ///< Complex inner product
-    nk_kernel_angular_k = 'a',     ///< Angular (cosine) distance
-    nk_kernel_euclidean_k = 'e',   ///< Euclidean distance
-    nk_kernel_sqeuclidean_k = '2', ///< Squared Euclidean distance
+
+    /** Inner product. */
+    nk_kernel_dot_k = 'i',
+
+    /** Complex inner product. */
+    nk_kernel_vdot_k = 'v',
+
+    /** Angular (cosine) distance. */
+    nk_kernel_angular_k = 'a',
+
+    /** Euclidean distance. */
+    nk_kernel_euclidean_k = 'e',
+
+    /** Squared Euclidean distance. */
+    nk_kernel_sqeuclidean_k = '2',
 
     // Binary:
-    nk_kernel_hamming_k = 'h', ///< Hamming (or Manhattan) distance
-    nk_kernel_jaccard_k = 'j', ///< Jaccard (or Tanimoto) coefficient
+
+    /** Hamming (or Manhattan) distance. */
+    nk_kernel_hamming_k = 'h',
+
+    /** Jaccard (or Tanimoto) coefficient. */
+    nk_kernel_jaccard_k = 'j',
 
     // Curved Spaces:
-    nk_kernel_bilinear_k = 'b',    ///< Bilinear form
-    nk_kernel_mahalanobis_k = 'm', ///< Mahalanobis distance
+
+    /** Bilinear form. */
+    nk_kernel_bilinear_k = 'b',
+
+    /** Mahalanobis distance. */
+    nk_kernel_mahalanobis_k = 'm',
 
     // Geospatial:
-    nk_kernel_haversine_k = 'o', ///< Haversine distance
-    nk_kernel_vincenty_k = 'O',  ///< Vincenty distance (ellipsoidal geodesic)
+
+    /** Haversine distance. */
+    nk_kernel_haversine_k = 'o',
+
+    /** Vincenty distance (ellipsoidal geodesic). */
+    nk_kernel_vincenty_k = 'O',
 
     // Probability:
-    nk_kernel_kld_k = 'k', ///< Kullback-Leibler divergence
-    nk_kernel_jsd_k = 's', ///< Jensen-Shannon divergence
+
+    /** Kullback-Leibler divergence. */
+    nk_kernel_kld_k = 'k',
+
+    /** Jensen-Shannon divergence. */
+    nk_kernel_jsd_k = 's',
 
     // Mesh superposition:
-    nk_kernel_rmsd_k = 'r',    ///< RMSD without optimal superposition
-    nk_kernel_kabsch_k = 'K',  ///< Kabsch RMSD with optimal rotation
-    nk_kernel_umeyama_k = 'U', ///< Umeyama RMSD with optimal rotation and scale
+
+    /** RMSD without optimal superposition. */
+    nk_kernel_rmsd_k = 'r',
+
+    /** Kabsch RMSD with optimal rotation. */
+    nk_kernel_kabsch_k = 'K',
+
+    /** Umeyama RMSD with optimal rotation and scale. */
+    nk_kernel_umeyama_k = 'U',
 
     // Sparse Sets:
-    nk_kernel_sparse_dot_k = 'd',       ///< Sparse dot product with weighted indices
-    nk_kernel_sparse_intersect_k = 'x', ///< Equivalent to unnormalized Jaccard
+
+    /** Sparse dot product with weighted indices. */
+    nk_kernel_sparse_dot_k = 'd',
+
+    /** Equivalent to unnormalized Jaccard. */
+    nk_kernel_sparse_intersect_k = 'x',
 
     // BLAS-like operations:
-    nk_kernel_each_scale_k = '*',  ///< Element-wise Scale
-    nk_kernel_each_sum_k = '+',    ///< Element-wise Sum
-    nk_kernel_each_blend_k = 'w',  ///< Element-wise Weighted Sum
-    nk_kernel_each_fma_k = 'f',    ///< Element-wise Fused Multiply-Add
-    nk_kernel_each_swiglu_k = 'W', ///< Fused SwiGLU: y = silu(gate) ⊙ up (up = NULL → SiLU)
+
+    /** Element-wise Scale. */
+    nk_kernel_each_scale_k = '*',
+
+    /** Element-wise Sum. */
+    nk_kernel_each_sum_k = '+',
+
+    /** Element-wise Weighted Sum. */
+    nk_kernel_each_blend_k = 'w',
+
+    /** Element-wise Fused Multiply-Add. */
+    nk_kernel_each_fma_k = 'f',
+
+    /** Fused SwiGLU: y = silu(gate) ⊙ up (up = NULL → SiLU). */
+    nk_kernel_each_swiglu_k = 'W',
 
     // Trigonometric functions:
-    nk_kernel_trig_sin_k = 'S',  ///< Element-wise sine
-    nk_kernel_trig_cos_k = 'C',  ///< Element-wise cosine
-    nk_kernel_trig_atan_k = 'A', ///< Element-wise arctangent
-    nk_kernel_trig_rope_k = 'I', ///< NeoX split-half rotary position embedding (in place)
+
+    /** Element-wise sine. */
+    nk_kernel_trig_sin_k = 'S',
+
+    /** Element-wise cosine. */
+    nk_kernel_trig_cos_k = 'C',
+
+    /** Element-wise arctangent. */
+    nk_kernel_trig_atan_k = 'A',
+
+    /** NeoX split-half rotary position embedding (in place). */
+    nk_kernel_trig_rope_k = 'I',
 
     // Horizontal reductions:
-    nk_kernel_reduce_moments_k = 'R', ///< Horizontal moments reduction (sum + sum-of-squares)
-    nk_kernel_reduce_minmax_k = 'X',  ///< Horizontal minmax reduction (min + argmin + max + argmax)
-    nk_kernel_reduce_rmsnorm_k = 'H', ///< Grouped RMSNorm: y = x · rsqrt(mean(x²) + eps) · γ
+
+    /** Horizontal moments reduction (sum + sum-of-squares). */
+    nk_kernel_reduce_moments_k = 'R',
+
+    /** Horizontal minmax reduction (min + argmin + max + argmax). */
+    nk_kernel_reduce_minmax_k = 'X',
+
+    /** Grouped RMSNorm: y = x · rsqrt(mean(x²) + eps) · γ. */
+    nk_kernel_reduce_rmsnorm_k = 'H',
 
     // GEMM-like batched dot products:
-    nk_kernel_dots_pack_size_k = 'P',    ///< GEMM packed buffer size
-    nk_kernel_dots_pack_k = 'Q',         ///< GEMM B matrix packing
-    nk_kernel_dots_packed_k = 'G',       ///< GEMM computation
-    nk_kernel_dots_packed_shape_k = 'J', ///< GEMM packed shape read (width, depth)
-    nk_kernel_dots_symmetric_k = 'y',    ///< Symmetric Gram matrix (A x At)
+
+    /** GEMM packed buffer size. */
+    nk_kernel_dots_pack_size_k = 'P',
+
+    /** GEMM B matrix packing. */
+    nk_kernel_dots_pack_k = 'Q',
+
+    /** GEMM computation. */
+    nk_kernel_dots_packed_k = 'G',
+
+    /** GEMM packed shape read (width, depth). */
+    nk_kernel_dots_packed_shape_k = 'J',
+
+    /** Symmetric Gram matrix A × Aᵀ. */
+    nk_kernel_dots_symmetric_k = 'y',
 
     // GEMM-like batched set similarity functions:
-    nk_kernel_hammings_packed_k = 'M',    ///< Hamming distance computation
-    nk_kernel_hammings_symmetric_k = 'Y', ///< Symmetric Hamming distance matrix (A x At)
-    nk_kernel_jaccards_packed_k = 'p',    ///< Jaccard distance computation
-    nk_kernel_jaccards_symmetric_k = 'Z', ///< Symmetric Jaccard distance matrix
+
+    /** Hamming distance computation. */
+    nk_kernel_hammings_packed_k = 'M',
+
+    /** Symmetric Hamming distance matrix A × Aᵀ. */
+    nk_kernel_hammings_symmetric_k = 'Y',
+
+    /** Jaccard distance computation. */
+    nk_kernel_jaccards_packed_k = 'p',
+
+    /** Symmetric Jaccard distance matrix. */
+    nk_kernel_jaccards_symmetric_k = 'Z',
 
     // GEMM-like batched spatial distances functions:
-    nk_kernel_angulars_packed_k = 'N',      ///< Batched angular distances (packed B)
-    nk_kernel_angulars_symmetric_k = 'n',   ///< Symmetric angular distance matrix
-    nk_kernel_euclideans_packed_k = 'E',    ///< Batched euclidean distances (packed B)
-    nk_kernel_euclideans_symmetric_k = 'D', ///< Symmetric euclidean distance matrix
+
+    /** Batched angular distances (packed B). */
+    nk_kernel_angulars_packed_k = 'N',
+
+    /** Symmetric angular distance matrix. */
+    nk_kernel_angulars_symmetric_k = 'n',
+
+    /** Batched euclidean distances (packed B). */
+    nk_kernel_euclideans_packed_k = 'E',
+
+    /** Symmetric euclidean distance matrix. */
+    nk_kernel_euclideans_symmetric_k = 'D',
 
     // MaxSim late-interaction functions:
-    nk_kernel_maxsim_pack_size_k = 'L',    ///< MaxSim packed buffer size
-    nk_kernel_maxsim_pack_k = 'l',         ///< MaxSim vector packing
-    nk_kernel_maxsim_packed_k = 'T',       ///< MaxSim late-interaction computation
-    nk_kernel_maxsim_packed_shape_k = 'q', ///< MaxSim packed shape read (vectors, depth)
+
+    /** MaxSim packed buffer size. */
+    nk_kernel_maxsim_pack_size_k = 'L',
+
+    /** MaxSim vector packing. */
+    nk_kernel_maxsim_pack_k = 'l',
+
+    /** MaxSim late-interaction computation. */
+    nk_kernel_maxsim_packed_k = 'T',
+
+    /** MaxSim packed shape read (vectors, depth). */
+    nk_kernel_maxsim_packed_shape_k = 'q',
 
     // Ragged scaled-dot-product attention functions:
-    nk_kernel_attention_pack_size_k = 'B',            ///< Attention packed KV-cache Buffer size in Bytes
-    nk_kernel_attention_pack_k = 'V',                 ///< Attention K/V packing (KV cache → backend format)
-    nk_kernel_attention_bidirectional_packed_k = 'F', ///< Fused (Flash-style) bidirectional attention
-    nk_kernel_attention_causal_packed_k = 'c',        ///< Fused (Flash-style) causal attention
-    nk_kernel_attention_packed_shape_k = 'z',         ///< Attention packed shape read (heads, depth, segments)
 
-    nk_kernel_cast_k = '-',              ///< Type casting from one type to another
-    nk_kernel_cast_block_scaled_k = '~', ///< Block-scaled cast (MX / NVFP4 encode / decode / transcode)
+    /** Attention packed KV-cache Buffer size in Bytes. */
+    nk_kernel_attention_pack_size_k = 'B',
 
+    /** Attention K/V packing (KV cache → backend format). */
+    nk_kernel_attention_pack_k = 'V',
+
+    /** Fused (Flash-style) bidirectional attention. */
+    nk_kernel_attention_bidirectional_packed_k = 'F',
+
+    /** Fused (Flash-style) causal attention. */
+    nk_kernel_attention_causal_packed_k = 'c',
+
+    /** Attention packed shape read (heads, depth, segments). */
+    nk_kernel_attention_packed_shape_k = 'z',
+
+    /** Type casting from one type to another. */
+    nk_kernel_cast_k = '-',
+
+    /** Block-scaled cast (MX / NVFP4 encode / decode / transcode). */
+    nk_kernel_cast_block_scaled_k = '~',
 } nk_kernel_kind_t;
 
-/**
- *  @brief  Canonical name of a kernel kind - the spelling bindings parse and interchange
- *          formats carry; "unknown" for unrecognized values.
- */
+/** Canonical name of a kernel kind - the spelling bindings parse and interchange formats carry;
+ *  "unknown" for unrecognized values. */
 NK_API_COMPTIME char const *nk_kernel_name(nk_kernel_kind_t kind) {
     switch (kind) {
     case nk_kernel_unknown_k: return "unknown";
@@ -335,10 +439,8 @@ NK_API_COMPTIME char const *nk_kernel_name(nk_kernel_kind_t kind) {
     }
 }
 
-/**
- *  @brief  Inverse of `nk_kernel_name` over an explicit-length string;
- *          `nk_kernel_unknown_k` for unrecognized names.
- */
+/** Inverse of @c nk_kernel_name over an explicit-length string; @c nk_kernel_unknown_k for
+ *  unrecognized names. */
 NK_API_COMPTIME nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t length) {
     if (nk_same_literal_(name, length, "dot")) return nk_kernel_dot_k;
     if (nk_same_literal_(name, length, "vdot")) return nk_kernel_vdot_k;
@@ -398,15 +500,13 @@ NK_API_COMPTIME nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t len
     return nk_kernel_unknown_k;
 }
 
-/**
- *  @brief  64-bit bitmask representing SIMD capabilities of the target architecture.
- */
+/** 64-bit bitmask representing SIMD capabilities of the target architecture. */
 typedef nk_u64_t nk_capability_t;
 
-/** @brief  Serial (non-SIMD) fallback capability. Always available. */
+/** Serial (non-SIMD) fallback capability. Always available. */
 #define nk_cap_serial_k ((nk_capability_t)1)
 
-/** @brief  Mask representing any capability. */
+/** Mask representing any capability. */
 #define nk_cap_any_k ((nk_capability_t)NK_U64_MAX)
 
 #define nk_cap_neon_k        ((nk_capability_t)1 << 1)
@@ -451,17 +551,19 @@ typedef nk_u64_t nk_capability_t;
 #define nk_cap_diamondamx_k  ((nk_capability_t)1 << 40)
 #define nk_cap_v128_k        ((nk_capability_t)1 << 41)
 
-/*  CUDA device families, one cubin each, reported per device by `nk_capabilities_cuda_*` only. */
+/** CUDA device families, one cubin each, reported per device by `nk_capabilities_cuda_*` only. */
 #define nk_cap_ampere_k       ((nk_capability_t)1 << 42)
 #define nk_cap_hopper_k       ((nk_capability_t)1 << 43)
 #define nk_cap_blackwell_k    ((nk_capability_t)1 << 44)
 #define nk_cap_blackwellrtx_k ((nk_capability_t)1 << 45)
 
-/*  AMD Instinct device families, one code object each, reported per device by `nk_capabilities_hip_*` only. */
+/** AMD Instinct device families, one code object each, reported per device by
+ *  `nk_capabilities_hip_*` only. */
 #define nk_cap_cdna4_k ((nk_capability_t)1 << 46)
 #define nk_cap_cdna5_k ((nk_capability_t)1 << 47)
 
-/*  Apple GPU families, one Metal library each, reported per device by `nk_capabilities_metal_*` only. */
+/** Apple GPU families, one Metal library each, reported per device by
+ *  `nk_capabilities_metal_*` only. */
 #define nk_cap_apple9_k  ((nk_capability_t)1 << 48)
 #define nk_cap_apple10_k ((nk_capability_t)1 << 49)
 
@@ -730,11 +832,11 @@ NK_HELPER_AUTO int nk_configure_thread_arm64_(nk_capability_t capabilities) {
 #else
     // FPCR.EBF (bit 13) — requires FEAT_EBF16:
     //   Enables fused BF16 dot-product semantics for BFDOT/BFMOPA/BFMMLA.
-    //   Without it, each bf16×bf16 product is individually rounded (Round-to-Odd) before
+    //   Without it, each bf16 × bf16 product is individually rounded (Round-to-Odd) before
     //   summation (3-way rounding). With EBF=1, intermediates are summed before rounding,
     //   matching x86 VDPBF16PS (Genoa/Sapphire Rapids) precision.
     //
-    // FPCR.AH (bit 1) — requires FEAT_AFP — is intentionally NOT set:
+    // FPCR.AH (bit 1) — requires FEAT_AFP — is intentionally not set:
     //   It enables alternate floating-point behavior (FEAT_RPRES: 12-bit FRECPE/FRSQRTE),
     //   but also changes sign-bit handling in ways that break CPython's `decimal` module
     //   (`Decimal.from_float()` drops the sign of negative values). The FEAT_RPRES benefit
@@ -993,11 +1095,13 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_power64_(void) {
 #if NK_TARGET_WASM_
 
 #if defined(__EMSCRIPTEN__) && NK_RUNTIME_DISPATCH && !defined(NK_PYODIDE_SIDE_MODULE)
-// Standalone Emscripten runtime dispatch: EM_JS probes defined in c/numkong.c.
+
+/** Standalone Emscripten runtime dispatch: EM_JS probes defined in c/numkong.c. */
 extern int nk_has_v128(void);
 extern int nk_has_relaxed(void);
 #elif defined(__wasi__) && NK_DEFINED_WASI_
-// WASI hosted (NK_WASI_HOSTED=ON): the host provides capability probes via imports.
+
+/** WASI hosted, with @c NK_WASI_HOSTED on: the host provides capability probes via imports. */
 __attribute__((__import_module__("env"), __import_name__("nk_has_v128"))) extern int nk_has_v128(void);
 __attribute__((__import_module__("env"), __import_name__("nk_has_relaxed"))) extern int nk_has_relaxed(void);
 #endif
@@ -1049,11 +1153,9 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_(void) {
 #endif
 }
 
-/**
- *  @brief  Returns the capabilities whose kernels were compiled into this binary,
- *          as decided by the `NK_TARGET_*` macros the ISA probes set at build time.
- *          Says nothing about the current CPU — see @b nk_capabilities_detected_().
- */
+/** Returns the capabilities whose kernels were compiled into this binary, as decided by the
+ *  `NK_TARGET_*` macros the ISA probes set at build time. Says nothing about the current CPU — see
+ *  @b nk_capabilities_detected_(). */
 NK_HELPER_AUTO nk_capability_t nk_capabilities_compiled_(void) {
     nk_capability_t caps = nk_cap_serial_k;
 #if NK_TARGET_X8664_
@@ -1112,8 +1214,7 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_compiled_(void) {
     return caps;
 }
 
-/**
- *  @brief  SIMD capabilities, reported along two independent axes and the sets derived from them.
+/*  SIMD capabilities, reported along two independent axes and the sets derived from them:
  *
  *  - @b nk_capabilities_detected() — what this CPU can execute, from CPUID or HWCAP.
  *  - @b nk_capabilities_compiled() — what this binary contains, from the `NK_TARGET_*` macros
@@ -1125,8 +1226,7 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_compiled_(void) {
  *  The two axes are independent, and conflating them is a silent performance cliff rather than a
  *  build error: a binary whose ISA probes failed still reports this machine's full @b detected
  *  mask while containing no SIMD kernels at all. Ask for @b available() unless you specifically
- *  mean one of the raw axes.
- */
+ *  mean one of the raw axes. */
 
 #if NK_RUNTIME_DISPATCH
 
@@ -1151,10 +1251,9 @@ NK_API_COMPTIME nk_capability_t nk_capabilities_compiled(void) { return nk_capab
 NK_API_COMPTIME nk_capability_t nk_capabilities_available(void) {
     return nk_capabilities_detected_() & nk_capabilities_compiled_();
 }
-/**
- *  @brief  Without a dispatch table there is nothing to narrow: the ISA was fixed at compile
- *          time, so the enabled set is always the available one and the mutators are no-ops.
- */
+
+/** Without a dispatch table there is nothing to narrow: the ISA was fixed at compile time, so the
+ *  enabled set is always the available one and the mutators are no-ops. */
 NK_API_COMPTIME nk_capability_t nk_capabilities_enabled(void) { return nk_capabilities_available(); }
 
 /** @copydoc nk_capabilities_enabled */
@@ -1168,7 +1267,8 @@ NK_API_COMPTIME void nk_capabilities_disable(nk_capability_t caps) { nk_unused_(
 
 #endif
 
-/** CUDA families @p device can run from its compute capability, where every 8.0+ device runs Ampere, else zero. */
+/** CUDA families @p device can run from its compute capability, where every 8.0+ device runs
+ *  Ampere, else zero. */
 #if NK_TARGET_CUDA_
 NK_API_COMPTIME nk_capability_t nk_capabilities_cuda_detected(int device) {
     int major = 0;

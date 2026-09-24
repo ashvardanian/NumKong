@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/trigonometry/haswell.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date November 20, 2024
  *  @brief SIMD-accelerated trigonometric functions for Haswell.
  *
  *  @sa include/numkong/trigonometry.h
@@ -42,9 +42,8 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-/*  Haswell AVX2 trigonometry kernels (8-way f32, 4-way f64)
- *  These implement the same polynomial approximations as Skylake but with 256-bit vectors.
- */
+/*  Haswell AVX2 trigonometry kernels, 8-way f32 and 4-way f64. These implement the same polynomial
+ *  approximations as Skylake but with 256-bit vectors. */
 
 NK_HELPER_INLINE __m256 nk_sin_f32x8_haswell_(__m256 const angles_radians) {
     // Cody-Waite constants for argument reduction

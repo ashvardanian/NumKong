@@ -49,9 +49,8 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
 
-/*  WASM Relaxed SIMD trigonometry kernels (4-way f32, 2-way f64)
- *  These implement polynomial approximations using 128-bit WASM SIMD vectors.
- */
+/*  WASM Relaxed SIMD trigonometry kernels, 4-way f32 and 2-way f64, implementing polynomial
+ *  approximations using 128-bit WASM SIMD vectors. */
 
 NK_HELPER_INLINE v128_t nk_f32x4_sin_v128relaxed_(v128_t const angles_radians) {
     // Constants for argument reduction
@@ -551,10 +550,9 @@ NK_HELPER_INLINE v128_t nk_f64x2_atan2_v128relaxed_(v128_t const ys_inputs, v128
     return results_f64x2;
 }
 
-/*  NK_API_COMPTIME wrappers — same loop+tail pattern as neon.h.
- *  Full loads use wasm_v128_load/wasm_v128_store.
- *  Tails use nk_partial_load_b32x4_serial_/nk_partial_store_b32x4_serial_ via .v128 union member.
- */
+/*  NK_API_COMPTIME wrappers, with the same loop and tail pattern as neon.h. Full loads use
+ *  wasm_v128_load and wasm_v128_store, while tails use nk_partial_load_b32x4_serial_ and
+ *  nk_partial_store_b32x4_serial_ through the .v128 union member. */
 
 NK_API_COMPTIME void nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     nk_size_t i = 0;

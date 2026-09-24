@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/geospatial/neon.h
  *  @author Ash Vardanian
- *  @date February 6, 2026
+ *  @date December 21, 2025
  *  @brief SIMD-accelerated geospatial distances for NEON.
  *
  *  @sa include/numkong/geospatial.h
@@ -37,8 +37,7 @@ extern "C" {
 #endif
 
 /*  NEON implementations using 2-wide f64 and 4-wide f32 SIMD.
- *  These require NEON trigonometric kernels from trigonometry/neon.h.
- */
+ *  These require NEON trigonometric kernels from trigonometry/neon.h. */
 
 NK_HELPER_INLINE float64x2_t nk_haversine_f64x2_neon_(                     //
     float64x2_t first_latitudes_f64x2, float64x2_t first_longitudes_f64x2, //

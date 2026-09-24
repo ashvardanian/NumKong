@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/dot/genoa.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date June 4, 2024
  *  @brief SIMD-accelerated dot products for Genoa.
  *
  *  @sa include/numkong/dot.h

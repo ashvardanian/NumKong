@@ -1,7 +1,7 @@
 /**
  *  @file c/dispatch_i8.c
  *  @author Ash Vardanian
- *  @date February 3, 2026
+ *  @date October 3, 2023
  *  @brief Dispatch initialization for I8 data types.
  */
 #include "dispatch.h"

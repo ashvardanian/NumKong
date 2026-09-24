@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/set/neon.h
  *  @author Ash Vardanian
- *  @date December 27, 2025
+ *  @date March 23, 2023
  *  @brief SIMD-accelerated set similarity measures for NEON.
  *
  *  @sa include/numkong/set.h
@@ -317,7 +317,7 @@ NK_HELPER_INLINE void nk_jaccard_u1x128_finalize_neon( //
     result_vec->f32x4 = vbslq_f32(zero_union_u32x4, vdupq_n_f32(0.0f), jaccard_f32x4);
 }
 
-/** @brief Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (NEON). */
+/** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (NEON). */
 NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
                                                       nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
     uint32x4_t dots_u32x4 = dots_vec->u32x4;
@@ -326,7 +326,7 @@ NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_neon_(nk_b128_vec_t const *dots_
     result_vec->u32x4 = vsubq_u32(vaddq_u32(query_u32x4, target_u32x4), vshlq_n_u32(dots_u32x4, 1));
 }
 
-/** @brief Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (NEON). */
+/** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (NEON). */
 NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
                                                       nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
     float32x4_t dot_f32x4 = vcvtq_f32_u32(dots_vec->u32x4);

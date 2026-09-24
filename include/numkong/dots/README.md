@@ -96,7 +96,7 @@ For signed×signed (Int8×Int8), one operand is XOR'd with `0x80` to shift to un
 Rather than computing the bias correction per-element inside the inner loop (requiring extra registers for running sums), the B column sums $\sum_k b_k$ are pre-computed once during packing and stored in the packed buffer metadata.
 The inner loop only needs the `VPDPBUSD` accumulator — the bias subtraction is a single post-loop correction: `result[i][j] -= 128 * b_column_sum[j]`.
 This reduces per-accumulator state from 2 registers (dot + running sum) to 1 register (dot only), freeing registers for more accumulators in the 4×4 tile.
-Haswell fallback uses `VPMADDUBSW` (UInt8×Int8→Int16) + `VPMADDWD` (Int16→Int32), a two-instruction chain with Int16 intermediate overflow risk — quantization ranges must be tighter ([-79, 79] vs [-127, 127]).
+Haswell fallback uses `VPMADDUBSW` (UInt8 × Int8 → Int16) + `VPMADDWD` (Int16 → Int32), a two-instruction chain with Int16 intermediate overflow risk — quantization ranges must be tighter ([-79, 79] vs [-127, 127]).
 
 ### 4-Way Finalizer Amortization
 

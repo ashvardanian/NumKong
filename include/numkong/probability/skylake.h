@@ -1,7 +1,7 @@
 /**
  *  @file include/numkong/probability/skylake.h
  *  @author Ash Vardanian
- *  @date February 6, 2026
+ *  @date October 20, 2023
  *  @brief Skylake-accelerated probability distribution similarity measures.
  *
  *  @sa include/numkong/probability.h

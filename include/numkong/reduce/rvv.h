@@ -27,7 +27,7 @@
 extern "C" {
 #endif
 
-/** @brief Saturating horizontal sum of u64m1 via tree fold: O(log vector_length) vector ops. */
+/** Saturating horizontal sum of u64m1 via tree fold: O(log @p vector_length) vector ops. */
 NK_HELPER_INLINE nk_u64_t nk_reduce_vsaddu_u64m1_rvv_(vuint64m1_t accumulator_u64m1, nk_size_t vector_length) {
     for (nk_size_t half = vector_length >> 1; half > 0; half >>= 1) {
         vuint64m1_t shifted_u64m1 = __riscv_vslidedown_vx_u64m1(accumulator_u64m1, half, vector_length);
@@ -36,7 +36,7 @@ NK_HELPER_INLINE nk_u64_t nk_reduce_vsaddu_u64m1_rvv_(vuint64m1_t accumulator_u6
     return __riscv_vmv_x_s_u64m1_u64(accumulator_u64m1);
 }
 
-/** @brief Saturating horizontal sum of u64m2 via tree fold: O(log vector_length) vector ops. */
+/** Saturating horizontal sum of u64m2 via tree fold: O(log @p vector_length) vector ops. */
 NK_HELPER_INLINE nk_u64_t nk_reduce_vsaddu_u64m2_rvv_(vuint64m2_t accumulator_u64m2, nk_size_t vector_length) {
     for (nk_size_t half = vector_length >> 1; half > 0; half >>= 1) {
         vuint64m2_t shifted_u64m2 = __riscv_vslidedown_vx_u64m2(accumulator_u64m2, half, vector_length);
@@ -45,7 +45,7 @@ NK_HELPER_INLINE nk_u64_t nk_reduce_vsaddu_u64m2_rvv_(vuint64m2_t accumulator_u6
     return __riscv_vmv_x_s_u64m2_u64(accumulator_u64m2);
 }
 
-/** @brief 128-bit horizontal sum of (upper:i64m1, lower:u64m1) via tree fold, then saturate to i64. */
+/** 128-bit horizontal sum of (upper:i64m1, lower:u64m1) via tree fold, then saturate to i64. */
 NK_HELPER_INLINE nk_i64_t nk_reduce_128bit_sum_i64m1_rvv_( //
     vuint64m1_t sum_low_u64m1, vint64m1_t sum_high_i64m1, nk_size_t vector_length) {
     for (nk_size_t half = vector_length >> 1; half > 0; half >>= 1) {
@@ -67,7 +67,7 @@ NK_HELPER_INLINE nk_i64_t nk_reduce_128bit_sum_i64m1_rvv_( //
     else return NK_I64_MIN;
 }
 
-/** @brief 128-bit horizontal sum of (upper:i64m2, lower:u64m2) via tree fold, then saturate to i64. */
+/** 128-bit horizontal sum of (upper:i64m2, lower:u64m2) via tree fold, then saturate to i64. */
 NK_HELPER_INLINE nk_i64_t nk_reduce_128bit_sum_i64m2_rvv_( //
     vuint64m2_t sum_low_u64m2, vint64m2_t sum_high_i64m2, nk_size_t vector_length) {
     for (nk_size_t half = vector_length >> 1; half > 0; half >>= 1) {
@@ -2179,7 +2179,7 @@ NK_HELPER_INLINE void nk_reduce_moments_bf16_rvv_contiguous_( //
         vfloat64m4_t data_f64m4 = __riscv_vfwcvt_f_f_v_f64m4(data_f32m2, vector_length);
         sum_f64m4 = __riscv_vfadd_vv_f64m4_tu(sum_f64m4, sum_f64m4, data_f64m4, vector_length);
 
-        // Sumsq via widening FMA: f32×f32 → f64
+        // Sumsq via widening FMA: f32 × f32 → f64
         sumsq_f64m4 = __riscv_vfwmacc_vv_f64m4_tu(sumsq_f64m4, data_f32m2, data_f32m2, vector_length);
     }
 
@@ -2209,7 +2209,7 @@ NK_HELPER_INLINE void nk_reduce_moments_bf16_rvv_strided_(              //
         vfloat64m4_t data_f64m4 = __riscv_vfwcvt_f_f_v_f64m4(data_f32m2, vector_length);
         sum_f64m4 = __riscv_vfadd_vv_f64m4_tu(sum_f64m4, sum_f64m4, data_f64m4, vector_length);
 
-        // Sumsq via widening FMA: f32×f32 → f64
+        // Sumsq via widening FMA: f32 × f32 → f64
         sumsq_f64m4 = __riscv_vfwmacc_vv_f64m4_tu(sumsq_f64m4, data_f32m2, data_f32m2, vector_length);
     }
 
@@ -2420,7 +2420,7 @@ NK_HELPER_INLINE void nk_reduce_moments_f16_rvv_contiguous_( //
         vfloat64m4_t data_f64m4 = __riscv_vfwcvt_f_f_v_f64m4(data_f32m2, vector_length);
         sum_f64m4 = __riscv_vfadd_vv_f64m4_tu(sum_f64m4, sum_f64m4, data_f64m4, vector_length);
 
-        // Sumsq via widening FMA: f32×f32 → f64
+        // Sumsq via widening FMA: f32 × f32 → f64
         sumsq_f64m4 = __riscv_vfwmacc_vv_f64m4_tu(sumsq_f64m4, data_f32m2, data_f32m2, vector_length);
     }
 
@@ -2450,7 +2450,7 @@ NK_HELPER_INLINE void nk_reduce_moments_f16_rvv_strided_(              //
         vfloat64m4_t data_f64m4 = __riscv_vfwcvt_f_f_v_f64m4(data_f32m2, vector_length);
         sum_f64m4 = __riscv_vfadd_vv_f64m4_tu(sum_f64m4, sum_f64m4, data_f64m4, vector_length);
 
-        // Sumsq via widening FMA: f32×f32 → f64
+        // Sumsq via widening FMA: f32 × f32 → f64
         sumsq_f64m4 = __riscv_vfwmacc_vv_f64m4_tu(sumsq_f64m4, data_f32m2, data_f32m2, vector_length);
     }
 
