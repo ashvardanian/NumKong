@@ -367,8 +367,8 @@ NK_INTERNAL void nk_reduce_moments_f64_neon_contiguous_( //
                       vsubq_f64(data_squared_f64x2, residual_sumsq_f64x2)));
         sumsq_f64x2 = temp_sumsq_f64x2;
     }
-    *sum_ptr = vaddvq_f64(vaddq_f64(sum_f64x2, sum_compensation_f64x2));
-    *sumsq_ptr = vaddvq_f64(vaddq_f64(sumsq_f64x2, sumsq_compensation_f64x2));
+    *sum_ptr = nk_f64_compensated_sum_(vaddvq_f64(sum_f64x2), vaddvq_f64(sum_compensation_f64x2));
+    *sumsq_ptr = nk_f64_compensated_sum_(vaddvq_f64(sumsq_f64x2), vaddvq_f64(sumsq_compensation_f64x2));
 }
 
 NK_PUBLIC void nk_reduce_moments_f64_neon(                             //

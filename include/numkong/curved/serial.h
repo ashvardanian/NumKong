@@ -147,10 +147,10 @@ NK_PUBLIC void nk_bilinear_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f64_t inner_sum = 0, inner_comp = 0;
         for (nk_size_t col = 0; col != n; ++col) nk_f64_dot2_(&inner_sum, &inner_comp, c[row * n + col], b[col]);
-        nk_f64_t cb_j = inner_sum + inner_comp;
+        nk_f64_t cb_j = nk_f64_compensated_sum_(inner_sum, inner_comp);
         nk_f64_dot2_(&outer_sum, &outer_comp, a[row], cb_j);
     }
-    *result = outer_sum + outer_comp;
+    *result = nk_f64_compensated_sum_(outer_sum, outer_comp);
 }
 
 NK_PUBLIC void nk_bilinear_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_f64c_t const *c_pairs,
@@ -173,16 +173,16 @@ NK_PUBLIC void nk_bilinear_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const
             nk_f64_dot2_(&sum_ri, &comp_ri, c_real, b_imag);
             nk_f64_dot2_(&sum_ir, &comp_ir, c_imag, b_real);
         }
-        nk_f64_t inner_real = (sum_rr + comp_rr) - (sum_ii + comp_ii);
-        nk_f64_t inner_imag = (sum_ri + comp_ri) + (sum_ir + comp_ir);
+        nk_f64_t inner_real = nk_f64_compensated_sum_(sum_rr, comp_rr) - nk_f64_compensated_sum_(sum_ii, comp_ii);
+        nk_f64_t inner_imag = nk_f64_compensated_sum_(sum_ri, comp_ri) + nk_f64_compensated_sum_(sum_ir, comp_ir);
         // Outer Dot2 complex multiply: a × inner
         nk_f64_dot2_(&outer_sum_real, &outer_comp_real, a_real, inner_real);
         nk_f64_dot2_(&outer_sum_real, &outer_comp_real, -a_imag, inner_imag);
         nk_f64_dot2_(&outer_sum_imag, &outer_comp_imag, a_real, inner_imag);
         nk_f64_dot2_(&outer_sum_imag, &outer_comp_imag, a_imag, inner_real);
     }
-    results->real = outer_sum_real + outer_comp_real;
-    results->imag = outer_sum_imag + outer_comp_imag;
+    results->real = nk_f64_compensated_sum_(outer_sum_real, outer_comp_real);
+    results->imag = nk_f64_compensated_sum_(outer_sum_imag, outer_comp_imag);
 }
 
 NK_PUBLIC void nk_mahalanobis_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
@@ -193,10 +193,10 @@ NK_PUBLIC void nk_mahalanobis_f64_serial(nk_f64_t const *a, nk_f64_t const *b, n
         nk_f64_t inner_sum = 0, inner_comp = 0;
         for (nk_size_t col = 0; col != n; ++col)
             nk_f64_dot2_(&inner_sum, &inner_comp, c[row * n + col], a[col] - b[col]);
-        nk_f64_t cb_j = inner_sum + inner_comp;
+        nk_f64_t cb_j = nk_f64_compensated_sum_(inner_sum, inner_comp);
         nk_f64_dot2_(&outer_sum, &outer_comp, diff_row, cb_j);
     }
-    nk_f64_t quadratic = outer_sum + outer_comp;
+    nk_f64_t quadratic = nk_f64_compensated_sum_(outer_sum, outer_comp);
     *result = nk_f64_sqrt_serial(quadratic);
 }
 

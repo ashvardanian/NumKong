@@ -235,7 +235,7 @@ NK_PUBLIC void nk_dot_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_
 NK_PUBLIC void nk_dot_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_f64_t sum = 0, compensation = 0;
     for (nk_size_t i = 0; i != n; ++i) nk_f64_dot2_(&sum, &compensation, a[i], b[i]);
-    *result = sum + compensation;
+    *result = nk_f64_compensated_sum_(sum, compensation);
 }
 
 NK_PUBLIC void nk_dot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
@@ -249,8 +249,8 @@ NK_PUBLIC void nk_dot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_p
         nk_f64_dot2_(&sum_imag, &compensation_imag, a_real, b_imag);
         nk_f64_dot2_(&sum_imag, &compensation_imag, a_imag, b_real);
     }
-    result->real = sum_real + compensation_real;
-    result->imag = sum_imag + compensation_imag;
+    result->real = nk_f64_compensated_sum_(sum_real, compensation_real);
+    result->imag = nk_f64_compensated_sum_(sum_imag, compensation_imag);
 }
 
 NK_PUBLIC void nk_vdot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
@@ -264,8 +264,8 @@ NK_PUBLIC void nk_vdot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_
         nk_f64_dot2_(&sum_imag, &compensation_imag, a_real, b_imag);
         nk_f64_dot2_(&sum_imag, &compensation_imag, -a_imag, b_real);
     }
-    result->real = sum_real + compensation_real;
-    result->imag = sum_imag + compensation_imag;
+    result->real = nk_f64_compensated_sum_(sum_real, compensation_real);
+    result->imag = nk_f64_compensated_sum_(sum_imag, compensation_imag);
 }
 
 typedef struct nk_dot_f64x2_state_serial_t {

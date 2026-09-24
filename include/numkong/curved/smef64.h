@@ -263,7 +263,7 @@ NK_STREAMING_OUTLINED_ void nk_bilinear_f64_smef64_ssve_( //
         nk_f64_dot2_(&outer_sum, &outer_comp, a[row], cb_j);
     }
 
-    *result = outer_sum + outer_comp;
+    *result = nk_f64_compensated_sum_(outer_sum, outer_comp);
 }
 
 NK_PUBLIC void nk_bilinear_f64_smef64( //
@@ -344,7 +344,7 @@ NK_STREAMING_OUTLINED_ nk_f64_t nk_mahalanobis_f64_smef64_ssve_( //
         nk_f64_dot2_(&outer_sum, &outer_comp, diff_row, cb_j);
     }
 
-    return outer_sum + outer_comp;
+    return nk_f64_compensated_sum_(outer_sum, outer_comp);
 }
 
 NK_PUBLIC void nk_mahalanobis_f64_smef64( //
@@ -492,10 +492,10 @@ NK_STREAMING_OUTLINED_ void nk_bilinear_f64c_smef64_ssve_( //
             sveor_u64_x(predicate_all_b64x, svreinterpret_u64_f64(sum_real_f64x), sign_mask_u64x));
         comp_real_f64x = svreinterpret_f64_u64(
             sveor_u64_x(predicate_all_b64x, svreinterpret_u64_f64(comp_real_f64x), sign_mask_u64x));
-        nk_f64_t inner_real = nk_svaddv_f64_(predicate_all_b64x,
-                                             svadd_f64_x(predicate_all_b64x, sum_real_f64x, comp_real_f64x));
-        nk_f64_t inner_imag = nk_svaddv_f64_(predicate_all_b64x,
-                                             svadd_f64_x(predicate_all_b64x, sum_imag_f64x, comp_imag_f64x));
+        nk_f64_t inner_real = nk_f64_compensated_sum_(nk_svaddv_f64_(predicate_all_b64x, sum_real_f64x),
+                                                      nk_svaddv_f64_(predicate_all_b64x, comp_real_f64x));
+        nk_f64_t inner_imag = nk_f64_compensated_sum_(nk_svaddv_f64_(predicate_all_b64x, sum_imag_f64x),
+                                                      nk_svaddv_f64_(predicate_all_b64x, comp_imag_f64x));
 
         // Outer Dot2 complex multiply: a × inner
         nk_f64_dot2_(&outer_sum_real, &outer_comp_real, a_real, inner_real);
@@ -504,8 +504,8 @@ NK_STREAMING_OUTLINED_ void nk_bilinear_f64c_smef64_ssve_( //
         nk_f64_dot2_(&outer_sum_imag, &outer_comp_imag, a_imag, inner_real);
     }
 
-    results->real = outer_sum_real + outer_comp_real;
-    results->imag = outer_sum_imag + outer_comp_imag;
+    results->real = nk_f64_compensated_sum_(outer_sum_real, outer_comp_real);
+    results->imag = nk_f64_compensated_sum_(outer_sum_imag, outer_comp_imag);
 }
 
 NK_PUBLIC void nk_bilinear_f64c_smef64( //

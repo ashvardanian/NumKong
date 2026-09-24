@@ -231,7 +231,7 @@ NK_INTERNAL nk_f64_t nk_reduce_stable_f64x8_skylake_(__m512d values_f64x8) {
     nk_f64_t sum = 0.0, compensation = 0.0;
     for (nk_size_t lane_index = 0; lane_index != 8; ++lane_index)
         nk_accumulate_sum_f64_(&sum, &compensation, values.f64s[lane_index]);
-    return sum + compensation;
+    return nk_f64_compensated_sum_(sum, compensation);
 }
 
 NK_INTERNAL void nk_accumulate_square_f64x8_skylake_(__m512d *sum_f64x8, __m512d *compensation_f64x8,
@@ -646,8 +646,9 @@ NK_PUBLIC void nk_rmsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size
         nk_accumulate_square_f64_(&total_squared_z, &total_squared_z_compensation, delta_z);
     }
 
-    total_squared_x += total_squared_x_compensation, total_squared_y += total_squared_y_compensation,
-        total_squared_z += total_squared_z_compensation;
+    total_squared_x = nk_f64_compensated_sum_(total_squared_x, total_squared_x_compensation),
+    total_squared_y = nk_f64_compensated_sum_(total_squared_y, total_squared_y_compensation),
+    total_squared_z = nk_f64_compensated_sum_(total_squared_z, total_squared_z_compensation);
     *result = nk_f64_sqrt_haswell((total_squared_x + total_squared_y + total_squared_z) / (nk_f64_t)n);
 }
 
@@ -791,16 +792,23 @@ NK_PUBLIC void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_si
         nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, bz);
     }
 
-    sum_a_x += sum_a_x_compensation, sum_a_y += sum_a_y_compensation, sum_a_z += sum_a_z_compensation;
-    sum_b_x += sum_b_x_compensation, sum_b_y += sum_b_y_compensation, sum_b_z += sum_b_z_compensation;
-    covariance_x_x += covariance_x_x_compensation, covariance_x_y += covariance_x_y_compensation,
-        covariance_x_z += covariance_x_z_compensation;
-    covariance_y_x += covariance_y_x_compensation, covariance_y_y += covariance_y_y_compensation,
-        covariance_y_z += covariance_y_z_compensation;
-    covariance_z_x += covariance_z_x_compensation, covariance_z_y += covariance_z_y_compensation,
-        covariance_z_z += covariance_z_z_compensation;
-    norm_squared_a_sum += norm_squared_a_compensation;
-    norm_squared_b_sum += norm_squared_b_compensation;
+    sum_a_x = nk_f64_compensated_sum_(sum_a_x, sum_a_x_compensation),
+    sum_a_y = nk_f64_compensated_sum_(sum_a_y, sum_a_y_compensation),
+    sum_a_z = nk_f64_compensated_sum_(sum_a_z, sum_a_z_compensation);
+    sum_b_x = nk_f64_compensated_sum_(sum_b_x, sum_b_x_compensation),
+    sum_b_y = nk_f64_compensated_sum_(sum_b_y, sum_b_y_compensation),
+    sum_b_z = nk_f64_compensated_sum_(sum_b_z, sum_b_z_compensation);
+    covariance_x_x = nk_f64_compensated_sum_(covariance_x_x, covariance_x_x_compensation),
+    covariance_x_y = nk_f64_compensated_sum_(covariance_x_y, covariance_x_y_compensation),
+    covariance_x_z = nk_f64_compensated_sum_(covariance_x_z, covariance_x_z_compensation);
+    covariance_y_x = nk_f64_compensated_sum_(covariance_y_x, covariance_y_x_compensation),
+    covariance_y_y = nk_f64_compensated_sum_(covariance_y_y, covariance_y_y_compensation),
+    covariance_y_z = nk_f64_compensated_sum_(covariance_y_z, covariance_y_z_compensation);
+    covariance_z_x = nk_f64_compensated_sum_(covariance_z_x, covariance_z_x_compensation),
+    covariance_z_y = nk_f64_compensated_sum_(covariance_z_y, covariance_z_y_compensation),
+    covariance_z_z = nk_f64_compensated_sum_(covariance_z_z, covariance_z_z_compensation);
+    norm_squared_a_sum = nk_f64_compensated_sum_(norm_squared_a_sum, norm_squared_a_compensation);
+    norm_squared_b_sum = nk_f64_compensated_sum_(norm_squared_b_sum, norm_squared_b_compensation);
 
     nk_f64_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;
     nk_f64_t centroid_b_x = sum_b_x * inv_n, centroid_b_y = sum_b_y * inv_n, centroid_b_z = sum_b_z * inv_n;
@@ -1098,16 +1106,23 @@ NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
         nk_accumulate_square_f64_(&norm_squared_b_sum, &norm_squared_b_compensation, bz);
     }
 
-    sum_a_x += sum_a_x_compensation, sum_a_y += sum_a_y_compensation, sum_a_z += sum_a_z_compensation;
-    sum_b_x += sum_b_x_compensation, sum_b_y += sum_b_y_compensation, sum_b_z += sum_b_z_compensation;
-    covariance_x_x += covariance_x_x_compensation, covariance_x_y += covariance_x_y_compensation,
-        covariance_x_z += covariance_x_z_compensation;
-    covariance_y_x += covariance_y_x_compensation, covariance_y_y += covariance_y_y_compensation,
-        covariance_y_z += covariance_y_z_compensation;
-    covariance_z_x += covariance_z_x_compensation, covariance_z_y += covariance_z_y_compensation,
-        covariance_z_z += covariance_z_z_compensation;
-    norm_squared_a_sum += norm_squared_a_compensation;
-    norm_squared_b_sum += norm_squared_b_compensation;
+    sum_a_x = nk_f64_compensated_sum_(sum_a_x, sum_a_x_compensation),
+    sum_a_y = nk_f64_compensated_sum_(sum_a_y, sum_a_y_compensation),
+    sum_a_z = nk_f64_compensated_sum_(sum_a_z, sum_a_z_compensation);
+    sum_b_x = nk_f64_compensated_sum_(sum_b_x, sum_b_x_compensation),
+    sum_b_y = nk_f64_compensated_sum_(sum_b_y, sum_b_y_compensation),
+    sum_b_z = nk_f64_compensated_sum_(sum_b_z, sum_b_z_compensation);
+    covariance_x_x = nk_f64_compensated_sum_(covariance_x_x, covariance_x_x_compensation),
+    covariance_x_y = nk_f64_compensated_sum_(covariance_x_y, covariance_x_y_compensation),
+    covariance_x_z = nk_f64_compensated_sum_(covariance_x_z, covariance_x_z_compensation);
+    covariance_y_x = nk_f64_compensated_sum_(covariance_y_x, covariance_y_x_compensation),
+    covariance_y_y = nk_f64_compensated_sum_(covariance_y_y, covariance_y_y_compensation),
+    covariance_y_z = nk_f64_compensated_sum_(covariance_y_z, covariance_y_z_compensation);
+    covariance_z_x = nk_f64_compensated_sum_(covariance_z_x, covariance_z_x_compensation),
+    covariance_z_y = nk_f64_compensated_sum_(covariance_z_y, covariance_z_y_compensation),
+    covariance_z_z = nk_f64_compensated_sum_(covariance_z_z, covariance_z_z_compensation);
+    norm_squared_a_sum = nk_f64_compensated_sum_(norm_squared_a_sum, norm_squared_a_compensation);
+    norm_squared_b_sum = nk_f64_compensated_sum_(norm_squared_b_sum, norm_squared_b_compensation);
 
     nk_f64_t centroid_a_x = sum_a_x * inv_n, centroid_a_y = sum_a_y * inv_n, centroid_a_z = sum_a_z * inv_n;
     nk_f64_t centroid_b_x = sum_b_x * inv_n, centroid_b_y = sum_b_y * inv_n, centroid_b_z = sum_b_z * inv_n;

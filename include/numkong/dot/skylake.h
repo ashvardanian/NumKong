@@ -99,6 +99,9 @@ extern "C" {
 
 /** @brief Compensated horizontal sum of 8 f64 lanes via TwoSum tree reduction. */
 NK_INTERNAL nk_f64_t nk_dot_stable_sum_f64x8_skylake_(__m512d sum_f64x8, __m512d compensation_f64x8) {
+    // Zero NaN compensation lanes, which overflow leaves beside infinite sums
+    compensation_f64x8 = _mm512_maskz_mov_pd(_mm512_cmp_pd_mask(compensation_f64x8, compensation_f64x8, _CMP_ORD_Q),
+                                             compensation_f64x8);
     // Stage 0: TwoSum merge of sum + compensation (8-wide)
     __m512d tentative_sum_f64x8 = _mm512_add_pd(sum_f64x8, compensation_f64x8);
     __m512d virtual_addend_f64x8 = _mm512_sub_pd(tentative_sum_f64x8, sum_f64x8);

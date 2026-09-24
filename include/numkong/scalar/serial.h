@@ -31,7 +31,9 @@ NK_PUBLIC nk_f32_t nk_f32_rsqrt_serial(nk_f32_t number) {
 }
 
 NK_PUBLIC nk_f32_t nk_f32_sqrt_serial(nk_f32_t number) {
-    return number <= 0 ? 0 : number * nk_f32_rsqrt_serial(number);
+    if (number <= 0) return 0;
+    if (number - number != 0) return number; // +inf and NaN, which the rsqrt refinement would corrupt
+    return number * nk_f32_rsqrt_serial(number);
 }
 
 NK_PUBLIC nk_f64_t nk_f64_rsqrt_serial(nk_f64_t number) {
@@ -47,7 +49,9 @@ NK_PUBLIC nk_f64_t nk_f64_rsqrt_serial(nk_f64_t number) {
 }
 
 NK_PUBLIC nk_f64_t nk_f64_sqrt_serial(nk_f64_t number) {
-    return number <= 0 ? 0 : number * nk_f64_rsqrt_serial(number);
+    if (number <= 0) return 0;
+    if (number - number != 0) return number; // +inf and NaN, which the rsqrt refinement would corrupt
+    return number * nk_f64_rsqrt_serial(number);
 }
 
 NK_PUBLIC nk_f16_t nk_f16_sqrt_serial(nk_f16_t x) {

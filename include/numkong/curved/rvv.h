@@ -91,7 +91,7 @@ NK_PUBLIC void nk_bilinear_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_
         else outer_compensation += (product_outer - new_sum) + old_sum;
         sum_f64m1 = __riscv_vfmv_v_f_f64m1(new_sum, 1);
     }
-    *result = __riscv_vfmv_f_s_f64m1_f64(sum_f64m1) + outer_compensation;
+    *result = nk_f64_compensated_sum_(__riscv_vfmv_f_s_f64m1_f64(sum_f64m1), outer_compensation);
 }
 
 NK_PUBLIC void nk_bilinear_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
@@ -218,7 +218,7 @@ NK_PUBLIC void nk_mahalanobis_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f
         else outer_compensation += (product_outer - new_sum) + old_sum;
         sum_f64m1 = __riscv_vfmv_v_f_f64m1(new_sum, 1);
     }
-    nk_f64_t quadratic = __riscv_vfmv_f_s_f64m1_f64(sum_f64m1) + outer_compensation;
+    nk_f64_t quadratic = nk_f64_compensated_sum_(__riscv_vfmv_f_s_f64m1_f64(sum_f64m1), outer_compensation);
     *result = nk_f64_sqrt_rvv(quadratic < 0 ? 0 : quadratic);
 }
 

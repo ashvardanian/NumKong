@@ -51,7 +51,7 @@ extern "C" {
                                 : ((term - t) + sum);                                                               \
             sum = t;                                                                                                \
         }                                                                                                           \
-        *result = (nk_##output_type##_t)(sum + compensation);                                                       \
+        *result = (nk_##output_type##_t)nk_##accumulator_type##_compensated_sum_(sum, compensation);                \
     }
 
 #define nk_define_euclidean_(input_type, accumulator_type, l2sq_output_type, output_type, load_and_convert,       \
@@ -71,41 +71,41 @@ extern "C" {
  *
  *  @see nk_define_sqeuclidean_ for detailed documentation on Neumaier summation.
  */
-#define nk_define_angular_(input_type, accumulator_type, output_type, load_and_convert, compute_rsqrt)            \
-    NK_PUBLIC void nk_angular_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b,   \
-                                                    nk_size_t n, nk_##output_type##_t *result) {                  \
-        nk_##accumulator_type##_t dot_sum = 0, a_sum = 0, b_sum = 0, a_value, b_value;                            \
-        nk_##accumulator_type##_t compensation_dot = 0, compensation_a = 0, compensation_b = 0;                   \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                      \
-            load_and_convert(a + i, &a_value);                                                                    \
-            load_and_convert(b + i, &b_value);                                                                    \
-            nk_##accumulator_type##_t term_dot = a_value * b_value, t_dot = dot_sum + term_dot;                   \
-            nk_##accumulator_type##_t term_a = a_value * a_value, t_a = a_sum + term_a;                           \
-            nk_##accumulator_type##_t term_b = b_value * b_value, t_b = b_sum + term_b;                           \
-            compensation_dot += (nk_##accumulator_type##_abs_(dot_sum) >= nk_##accumulator_type##_abs_(term_dot)) \
-                                    ? ((dot_sum - t_dot) + term_dot)                                              \
-                                    : ((term_dot - t_dot) + dot_sum);                                             \
-            compensation_a += (nk_##accumulator_type##_abs_(a_sum) >= nk_##accumulator_type##_abs_(term_a))       \
-                                  ? ((a_sum - t_a) + term_a)                                                      \
-                                  : ((term_a - t_a) + a_sum);                                                     \
-            compensation_b += (nk_##accumulator_type##_abs_(b_sum) >= nk_##accumulator_type##_abs_(term_b))       \
-                                  ? ((b_sum - t_b) + term_b)                                                      \
-                                  : ((term_b - t_b) + b_sum);                                                     \
-            dot_sum = t_dot;                                                                                      \
-            a_sum = t_a;                                                                                          \
-            b_sum = t_b;                                                                                          \
-        }                                                                                                         \
-        nk_##accumulator_type##_t dot_product = dot_sum + compensation_dot;                                       \
-        nk_##accumulator_type##_t a_norm_sq = a_sum + compensation_a;                                             \
-        nk_##accumulator_type##_t b_norm_sq = b_sum + compensation_b;                                             \
-        if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }                                                    \
-        else if (dot_product == 0) { *result = 1; }                                                               \
-        else {                                                                                                    \
-            nk_##output_type##_t unclipped_distance = (nk_##output_type##_t)(                                     \
-                1 - (nk_##output_type##_t)dot_product * compute_rsqrt((nk_##output_type##_t)a_norm_sq) *          \
-                        compute_rsqrt((nk_##output_type##_t)b_norm_sq));                                          \
-            *result = unclipped_distance < 0 ? 0 : unclipped_distance;                                            \
-        }                                                                                                         \
+#define nk_define_angular_(input_type, accumulator_type, output_type, load_and_convert, compute_rsqrt)               \
+    NK_PUBLIC void nk_angular_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b,      \
+                                                    nk_size_t n, nk_##output_type##_t *result) {                     \
+        nk_##accumulator_type##_t dot_sum = 0, a_sum = 0, b_sum = 0, a_value, b_value;                               \
+        nk_##accumulator_type##_t compensation_dot = 0, compensation_a = 0, compensation_b = 0;                      \
+        for (nk_size_t i = 0; i != n; ++i) {                                                                         \
+            load_and_convert(a + i, &a_value);                                                                       \
+            load_and_convert(b + i, &b_value);                                                                       \
+            nk_##accumulator_type##_t term_dot = a_value * b_value, t_dot = dot_sum + term_dot;                      \
+            nk_##accumulator_type##_t term_a = a_value * a_value, t_a = a_sum + term_a;                              \
+            nk_##accumulator_type##_t term_b = b_value * b_value, t_b = b_sum + term_b;                              \
+            compensation_dot += (nk_##accumulator_type##_abs_(dot_sum) >= nk_##accumulator_type##_abs_(term_dot))    \
+                                    ? ((dot_sum - t_dot) + term_dot)                                                 \
+                                    : ((term_dot - t_dot) + dot_sum);                                                \
+            compensation_a += (nk_##accumulator_type##_abs_(a_sum) >= nk_##accumulator_type##_abs_(term_a))          \
+                                  ? ((a_sum - t_a) + term_a)                                                         \
+                                  : ((term_a - t_a) + a_sum);                                                        \
+            compensation_b += (nk_##accumulator_type##_abs_(b_sum) >= nk_##accumulator_type##_abs_(term_b))          \
+                                  ? ((b_sum - t_b) + term_b)                                                         \
+                                  : ((term_b - t_b) + b_sum);                                                        \
+            dot_sum = t_dot;                                                                                         \
+            a_sum = t_a;                                                                                             \
+            b_sum = t_b;                                                                                             \
+        }                                                                                                            \
+        nk_##accumulator_type##_t dot_product = nk_##accumulator_type##_compensated_sum_(dot_sum, compensation_dot); \
+        nk_##accumulator_type##_t a_norm_sq = nk_##accumulator_type##_compensated_sum_(a_sum, compensation_a);       \
+        nk_##accumulator_type##_t b_norm_sq = nk_##accumulator_type##_compensated_sum_(b_sum, compensation_b);       \
+        if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }                                                       \
+        else if (dot_product == 0) { *result = 1; }                                                                  \
+        else {                                                                                                       \
+            nk_##output_type##_t unclipped_distance = (nk_##output_type##_t)(                                        \
+                1 - (nk_##output_type##_t)dot_product * compute_rsqrt((nk_##output_type##_t)a_norm_sq) *             \
+                        compute_rsqrt((nk_##output_type##_t)b_norm_sq));                                             \
+            *result = unclipped_distance < 0 ? 0 : unclipped_distance;                                               \
+        }                                                                                                            \
     }
 
 /*  Keep the serial instantiations below actually scalar, regardless of build type.
@@ -149,17 +149,41 @@ nk_define_angular_(e3m2, f32, f32, nk_e3m2_to_f32_serial, nk_f32_rsqrt_serial)  
 nk_define_sqeuclidean_(e3m2, f32, f32, nk_e3m2_to_f32_serial)                        // nk_sqeuclidean_e3m2_serial
 nk_define_euclidean_(e3m2, f32, f32, f32, nk_e3m2_to_f32_serial, nk_f32_sqrt_serial) // nk_euclidean_e3m2_serial
 
-nk_define_angular_(i8, i32, f32, nk_assign_from_to_, nk_f32_rsqrt_serial)       // nk_angular_i8_serial
-nk_define_sqeuclidean_(i8, i32, u32, nk_assign_from_to_)                        // nk_sqeuclidean_i8_serial
-nk_define_euclidean_(i8, i32, u32, f32, nk_assign_from_to_, nk_f32_sqrt_serial) // nk_euclidean_i8_serial
-
-nk_define_angular_(u8, u32, f32, nk_assign_from_to_, nk_f32_rsqrt_serial)       // nk_angular_u8_serial
-nk_define_sqeuclidean_(u8, u32, u32, nk_assign_from_to_)                        // nk_sqeuclidean_u8_serial
-nk_define_euclidean_(u8, u32, u32, f32, nk_assign_from_to_, nk_f32_sqrt_serial) // nk_euclidean_u8_serial
-
 #undef nk_define_sqeuclidean_
 #undef nk_define_euclidean_
 #undef nk_define_angular_
+
+NK_PUBLIC void nk_sqeuclidean_i8_serial(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
+    nk_i32_t sum = 0;
+    for (nk_size_t index = 0; index != n; ++index) {
+        nk_i32_t difference = (nk_i32_t)a[index] - (nk_i32_t)b[index];
+        sum += difference * difference;
+    }
+    *result = (nk_u32_t)sum;
+}
+
+NK_PUBLIC void nk_euclidean_i8_serial(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+    nk_u32_t distance_sq;
+    nk_sqeuclidean_i8_serial(a, b, n, &distance_sq);
+    *result = nk_f32_sqrt_serial((nk_f32_t)distance_sq);
+}
+
+NK_PUBLIC void nk_angular_i8_serial(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+    nk_i32_t dot_sum = 0, a_norm_sq = 0, b_norm_sq = 0;
+    for (nk_size_t index = 0; index != n; ++index) {
+        nk_i32_t a_value = a[index], b_value = b[index];
+        dot_sum += a_value * b_value;
+        a_norm_sq += a_value * a_value;
+        b_norm_sq += b_value * b_value;
+    }
+    if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }
+    else if (dot_sum == 0) { *result = 1; }
+    else {
+        nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_sum * nk_f32_rsqrt_serial((nk_f32_t)a_norm_sq) *
+                                        nk_f32_rsqrt_serial((nk_f32_t)b_norm_sq);
+        *result = unclipped < 0 ? 0 : unclipped;
+    }
+}
 
 NK_PUBLIC void nk_sqeuclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
@@ -197,6 +221,38 @@ NK_PUBLIC void nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_s
         dot_sum += a_low * b_low + a_high * b_high;
         a_norm_sq += a_low * a_low + a_high * a_high;
         b_norm_sq += b_low * b_low + b_high * b_high;
+    }
+    if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }
+    else if (dot_sum == 0) { *result = 1; }
+    else {
+        nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_sum * nk_f32_rsqrt_serial((nk_f32_t)a_norm_sq) *
+                                        nk_f32_rsqrt_serial((nk_f32_t)b_norm_sq);
+        *result = unclipped < 0 ? 0 : unclipped;
+    }
+}
+
+NK_PUBLIC void nk_sqeuclidean_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+    nk_u32_t sum = 0;
+    for (nk_size_t index = 0; index != n; ++index) {
+        nk_i32_t difference = (nk_i32_t)a[index] - (nk_i32_t)b[index];
+        sum += (nk_u32_t)(difference * difference);
+    }
+    *result = sum;
+}
+
+NK_PUBLIC void nk_euclidean_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+    nk_u32_t distance_sq;
+    nk_sqeuclidean_u8_serial(a, b, n, &distance_sq);
+    *result = nk_f32_sqrt_serial((nk_f32_t)distance_sq);
+}
+
+NK_PUBLIC void nk_angular_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+    nk_u32_t dot_sum = 0, a_norm_sq = 0, b_norm_sq = 0;
+    for (nk_size_t index = 0; index != n; ++index) {
+        nk_u32_t a_value = a[index], b_value = b[index];
+        dot_sum += a_value * b_value;
+        a_norm_sq += a_value * a_value;
+        b_norm_sq += b_value * b_value;
     }
     if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }
     else if (dot_sum == 0) { *result = 1; }

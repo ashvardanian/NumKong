@@ -752,8 +752,10 @@ NK_INTERNAL void nk_reduce_moments_f64_haswell_contiguous_( //
         sumsq_comp_f64x4 = _mm256_add_pd(sumsq_comp_f64x4, corr_sq_f64x4);
         sumsq_f64x4 = tentative_sq_f64x4;
     }
-    *sum_ptr = nk_reduce_add_f64x4_haswell_(_mm256_add_pd(sum_f64x4, sum_comp_f64x4)),
-    *sumsq_ptr = nk_reduce_add_f64x4_haswell_(_mm256_add_pd(sumsq_f64x4, sumsq_comp_f64x4));
+    *sum_ptr = nk_f64_compensated_sum_(nk_reduce_add_f64x4_haswell_(sum_f64x4),
+                                       nk_reduce_add_f64x4_haswell_(sum_comp_f64x4)),
+    *sumsq_ptr = nk_f64_compensated_sum_(nk_reduce_add_f64x4_haswell_(sumsq_f64x4),
+                                         nk_reduce_add_f64x4_haswell_(sumsq_comp_f64x4));
 }
 
 NK_INTERNAL void nk_reduce_moments_f64_haswell_strided_(                  //
@@ -786,8 +788,10 @@ NK_INTERNAL void nk_reduce_moments_f64_haswell_strided_(                  //
         sumsq_comp_f64x4 = _mm256_add_pd(sumsq_comp_f64x4, corr_sq_f64x4);
         sumsq_f64x4 = tentative_sq_f64x4;
     }
-    nk_f64_t sum = nk_reduce_add_f64x4_haswell_(_mm256_add_pd(sum_f64x4, sum_comp_f64x4));
-    nk_f64_t sumsq = nk_reduce_add_f64x4_haswell_(_mm256_add_pd(sumsq_f64x4, sumsq_comp_f64x4));
+    nk_f64_t sum = nk_f64_compensated_sum_(nk_reduce_add_f64x4_haswell_(sum_f64x4),
+                                           nk_reduce_add_f64x4_haswell_(sum_comp_f64x4));
+    nk_f64_t sumsq = nk_f64_compensated_sum_(nk_reduce_add_f64x4_haswell_(sumsq_f64x4),
+                                             nk_reduce_add_f64x4_haswell_(sumsq_comp_f64x4));
     nk_f64_t const *ptr = data_ptr + idx;
     nk_size_t remaining_elements = count - idx / stride_elements;
     for (nk_size_t i = 0; i < remaining_elements; ++i, ptr += stride_elements) {
