@@ -754,8 +754,7 @@ NK_PUBLIC void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_s
         cross_covariance[7] -= (nk_f64_t)n * centroid_a_z * centroid_b_y,
         cross_covariance[8] -= (nk_f64_t)n * centroid_a_z * centroid_b_z;
 
-    // Identity-dominant short-circuit: if H is essentially diagonal with positive diagonals,
-    // R = I and trace(DS) reduces to trace(H) directly.
+    // Identity-dominant short-circuit: if H is essentially diagonal with positive diagonals, R = I.
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -772,7 +771,6 @@ NK_PUBLIC void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_s
         optimal_rotation[3] = 0.0, optimal_rotation[4] = 1.0, optimal_rotation[5] = 0.0;
         optimal_rotation[6] = 0.0, optimal_rotation[7] = 0.0, optimal_rotation[8] = 1.0;
         trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
-        applied_scale = trace_rotation_covariance / centered_norm_squared_a;
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
@@ -787,7 +785,7 @@ NK_PUBLIC void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_s
         optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
         optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
 
-        nk_f64_t det = nk_det3x3_f64_(optimal_rotation), sign_correction = det < 0 ? -1.0 : 1.0;
+        nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
         if (det < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
@@ -800,8 +798,6 @@ NK_PUBLIC void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_s
             optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
             optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
         }
-        nk_f64_t trace_ds = svd_diagonal[0] + svd_diagonal[4] + sign_correction * svd_diagonal[8];
-        applied_scale = trace_ds / centered_norm_squared_a;
         trace_rotation_covariance =
             optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
             optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
@@ -809,6 +805,7 @@ NK_PUBLIC void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_s
             optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
             optimal_rotation[8] * cross_covariance[8];
     }
+    applied_scale = trace_rotation_covariance / centered_norm_squared_a;
 
     if (rotation)
         for (int j = 0; j != 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
@@ -960,8 +957,7 @@ NK_PUBLIC void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_s
     cross_covariance[7] = covariance_z_y - sum_a_z * sum_b_y * inv_n;
     cross_covariance[8] = covariance_z_z - sum_a_z * sum_b_z * inv_n;
 
-    // Identity-dominant short-circuit: if H is essentially diagonal with positive diagonals,
-    // R = I and trace(DS) reduces to trace(H) directly.
+    // Identity-dominant short-circuit: if H is essentially diagonal with positive diagonals, R = I.
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -978,7 +974,6 @@ NK_PUBLIC void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_s
         optimal_rotation[3] = 0.0, optimal_rotation[4] = 1.0, optimal_rotation[5] = 0.0;
         optimal_rotation[6] = 0.0, optimal_rotation[7] = 0.0, optimal_rotation[8] = 1.0;
         trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
-        c = trace_rotation_covariance / centered_norm_squared_a;
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
@@ -986,9 +981,6 @@ NK_PUBLIC void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_s
         nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
 
         nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
-        nk_f64_t d3 = det < 0 ? -1.0 : 1.0;
-        nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8], d3);
-        c = trace_ds / centered_norm_squared_a;
 
         if (det < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
@@ -1001,6 +993,7 @@ NK_PUBLIC void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_s
             optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
             optimal_rotation[8] * cross_covariance[8];
     }
+    c = trace_rotation_covariance / centered_norm_squared_a;
 
     if (scale) *scale = c;
     if (rotation)
@@ -1631,8 +1624,7 @@ NK_PUBLIC void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_s
     if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
     if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
 
-    // Identity-dominant short-circuit: if H is essentially diagonal with positive diagonals,
-    // R = I and trace(DS) = trace(H).
+    // Identity-dominant short-circuit: if H is essentially diagonal with positive diagonals, R = I.
     nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -1649,7 +1641,6 @@ NK_PUBLIC void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_s
         optimal_rotation[3] = 0.0f, optimal_rotation[4] = 1.0f, optimal_rotation[5] = 0.0f;
         optimal_rotation[6] = 0.0f, optimal_rotation[7] = 0.0f, optimal_rotation[8] = 1.0f;
         trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
-        applied_scale = trace_rotation_covariance / centered_norm_squared_a;
     }
     else {
         nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
@@ -1666,7 +1657,6 @@ NK_PUBLIC void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_s
         optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
 
         nk_f32_t det = nk_det3x3_f32_(optimal_rotation);
-        nk_f32_t sign_correction = det < 0 ? -1.0f : 1.0f;
         if (det < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
@@ -1679,8 +1669,6 @@ NK_PUBLIC void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_s
             optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
             optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
         }
-        nk_f32_t trace_ds = svd_diagonal[0] + svd_diagonal[4] + sign_correction * svd_diagonal[8];
-        applied_scale = trace_ds / centered_norm_squared_a;
         trace_rotation_covariance =
             optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
             optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
@@ -1688,6 +1676,7 @@ NK_PUBLIC void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_s
             optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
             optimal_rotation[8] * cross_covariance[8];
     }
+    applied_scale = trace_rotation_covariance / centered_norm_squared_a;
 
     // Output rotation matrix and scale
     if (rotation)
@@ -1817,8 +1806,7 @@ NK_PUBLIC void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, n
     if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
     if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
 
-    // Identity-dominant short-circuit: if H is essentially diagonal with positive diagonals,
-    // R = I and trace(DS) = trace(H).
+    // Identity-dominant short-circuit: if H is essentially diagonal with positive diagonals, R = I.
     nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -1835,7 +1823,6 @@ NK_PUBLIC void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, n
         optimal_rotation[3] = 0.0f, optimal_rotation[4] = 1.0f, optimal_rotation[5] = 0.0f;
         optimal_rotation[6] = 0.0f, optimal_rotation[7] = 0.0f, optimal_rotation[8] = 1.0f;
         trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
-        applied_scale = trace_rotation_covariance / centered_norm_squared_a;
     }
     else {
         nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
@@ -1852,7 +1839,6 @@ NK_PUBLIC void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, n
         optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
 
         nk_f32_t det = nk_det3x3_f32_(optimal_rotation);
-        nk_f32_t sign_correction = det < 0 ? -1.0f : 1.0f;
         if (det < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
@@ -1865,8 +1851,6 @@ NK_PUBLIC void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, n
             optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
             optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
         }
-        nk_f32_t trace_ds = svd_diagonal[0] + svd_diagonal[4] + sign_correction * svd_diagonal[8];
-        applied_scale = trace_ds / centered_norm_squared_a;
         trace_rotation_covariance =
             optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
             optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
@@ -1874,6 +1858,7 @@ NK_PUBLIC void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, n
             optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
             optimal_rotation[8] * cross_covariance[8];
     }
+    applied_scale = trace_rotation_covariance / centered_norm_squared_a;
 
     // Output rotation matrix and scale
     if (rotation)

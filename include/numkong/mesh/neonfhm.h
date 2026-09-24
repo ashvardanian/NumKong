@@ -605,7 +605,6 @@ NK_PUBLIC void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_s
         optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
         optimal_rotation[8] = 1;
         trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
-        scale_factor = trace_rotation_covariance / centered_norm_squared_a;
     }
     else {
         // SVD of H = U · S · Vᵀ
@@ -622,12 +621,7 @@ NK_PUBLIC void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_s
         optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
         optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
         optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
-
-        // Handle reflection and compute scale: c = trace(D · S) / ‖a-ā‖²
         nk_f32_t rotation_determinant = nk_det3x3_f32_(optimal_rotation);
-        nk_f32_t sign_det = rotation_determinant < 0 ? -1.0f : 1.0f;
-        nk_f32_t trace_scaled_s = svd_diagonal[0] + svd_diagonal[4] + sign_det * svd_diagonal[8];
-        scale_factor = trace_scaled_s / centered_norm_squared_a;
 
         if (rotation_determinant < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
@@ -650,6 +644,7 @@ NK_PUBLIC void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_s
             optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
             optimal_rotation[8] * cross_covariance[8];
     }
+    scale_factor = trace_rotation_covariance / centered_norm_squared_a;
     if (scale) *scale = scale_factor;
 
     if (rotation)

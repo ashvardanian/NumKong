@@ -655,18 +655,21 @@ nk_define_det3x3_(f64)
         /* Step 4: R = V * Uᵀ */                                                                                      \
         nk_##svd_type##_t optimal_rotation[9];                                                                        \
         nk_rotation_from_svd_##svd_type##_serial_(svd_left, svd_right, optimal_rotation);                             \
-        /* Handle reflection and compute scale: c = trace(D × S) / variance(a) */                                     \
-        /* D = diag(1, 1, det(R)), svd_diagonal contains proper positive singular values on diagonal */               \
         nk_##svd_type##_t rotation_determinant = nk_det3x3_##svd_type##_(optimal_rotation);                           \
-        nk_##svd_type##_t sign_det = rotation_determinant < 0 ? (nk_##svd_type##_t) - 1.0 : (nk_##svd_type##_t)1.0;   \
-        nk_##svd_type##_t trace_scaled_s = svd_diagonal[0] + svd_diagonal[4] + sign_det * svd_diagonal[8];            \
-        nk_##accumulator_type##_t scale_factor = (nk_##accumulator_type##_t)trace_scaled_s /                          \
-                                                 ((nk_##accumulator_type##_t)n * variance_a);                         \
-        if (scale) *scale = (nk_##output_type##_t)scale_factor;                                                       \
         if (rotation_determinant < 0) {                                                                               \
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];                 \
             nk_rotation_from_svd_##svd_type##_serial_(svd_left, svd_right, optimal_rotation);                         \
         }                                                                                                             \
+        /* Optimal scale for the chosen rotation: c = trace(R × H) / ‖a - ā‖² */                                      \
+        nk_##svd_type##_t trace_rotation_covariance =                                                                 \
+            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +                   \
+            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +                   \
+            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +                   \
+            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +                   \
+            optimal_rotation[8] * cross_covariance[8];                                                                \
+        nk_##accumulator_type##_t scale_factor = (nk_##accumulator_type##_t)trace_rotation_covariance /               \
+                                                 ((nk_##accumulator_type##_t)n * variance_a);                         \
+        if (scale) *scale = (nk_##output_type##_t)scale_factor;                                                       \
         /* Output rotation matrix */                                                                                  \
         if (rotation)                                                                                                 \
             for (int j = 0; j < 9; ++j) rotation[j] = (nk_##output_type##_t)optimal_rotation[j];                      \
