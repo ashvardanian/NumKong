@@ -422,14 +422,14 @@ static void cast_strided_recursive(                                            /
     char const *src_data, nk_dtype_t src_dtype, Py_ssize_t const *src_strides, //
     char *dest_data, nk_dtype_t dest_dtype, Py_ssize_t const *dest_strides,    //
     size_t element_size, Py_ssize_t const *shape,                              //
-    size_t remaining_dims, size_t contiguous_tail_dims) {
+    size_t remaining_dims, size_t contiguous_tail_dims, nk_kernel_cast_punned_t cast_kernel) {
 
     // Base case: both sides pack the remaining dimensions — one operation
     if (remaining_dims <= contiguous_tail_dims) {
         size_t slice_elements = 1;
         for (size_t dimension = 0; dimension < remaining_dims; ++dimension) slice_elements *= (size_t)shape[dimension];
         if (src_dtype == dest_dtype) memcpy(dest_data, src_data, slice_elements * element_size);
-        else nk_cast(src_data, src_dtype, (nk_size_t)slice_elements, dest_data, dest_dtype);
+        else if (slice_elements) cast_kernel(src_data, src_dtype, (nk_size_t)slice_elements, dest_data, dest_dtype);
         return;
     }
 
@@ -441,7 +441,7 @@ static void cast_strided_recursive(                                            /
             src_data + signed_position * src_strides[0], src_dtype, src_strides + 1, //
             dest_data + signed_position * dest_strides[0], dest_dtype,               //
             dest_strides + 1, element_size, shape + 1,                               //
-            remaining_dims - 1, contiguous_tail_dims);
+            remaining_dims - 1, contiguous_tail_dims, cast_kernel);
     }
 }
 
@@ -462,8 +462,10 @@ static size_t jointly_contiguous_tail_dimensions(size_t rank, Py_ssize_t const *
     return contiguous_tail_dims;
 }
 
-void linearize_cast_into(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype,
-                         size_t rank, Py_ssize_t const *shape, Py_ssize_t const *strides, size_t total_elements) {
+static void linearize_cast_with_kernel(char const *src_data, nk_dtype_t src_dtype, char *dest_data,
+                                       nk_dtype_t dest_dtype, size_t rank, Py_ssize_t const *shape,
+                                       Py_ssize_t const *strides, size_t total_elements,
+                                       nk_kernel_cast_punned_t cast_kernel) {
     nk_unused_(total_elements);
     size_t const src_element_size = nk_dtype_bytes_per_value(src_dtype);
     size_t const dest_element_size = nk_dtype_bytes_per_value(dest_dtype);
@@ -474,7 +476,13 @@ void linearize_cast_into(char const *src_data, nk_dtype_t src_dtype, char *dest_
                                                                            dense_dest_strides, dest_element_size);
 
     cast_strided_recursive(src_data, src_dtype, strides, dest_data, dest_dtype, dense_dest_strides, dest_element_size,
-                           shape, rank, contiguous_tail_dims);
+                           shape, rank, contiguous_tail_dims, cast_kernel);
+}
+
+void linearize_cast_into(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype,
+                         size_t rank, Py_ssize_t const *shape, Py_ssize_t const *strides, size_t total_elements) {
+    linearize_cast_with_kernel(src_data, src_dtype, dest_data, dest_dtype, rank, shape, strides, total_elements,
+                               nk_cast);
 }
 
 void cast_into_strided(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype, size_t rank,
@@ -488,7 +496,7 @@ void cast_into_strided(char const *src_data, nk_dtype_t src_dtype, char *dest_da
         rank, shape, dense_src_strides, src_element_size, dest_strides, dest_element_size);
 
     cast_strided_recursive(src_data, src_dtype, dense_src_strides, dest_data, dest_dtype, dest_strides,
-                           dest_element_size, shape, rank, contiguous_tail_dims);
+                           dest_element_size, shape, rank, contiguous_tail_dims, nk_cast);
 }
 
 char *ensure_contiguous_buffer(char const *src_data, nk_dtype_t src_dtype, nk_dtype_t target_dtype, size_t rank,
@@ -2054,6 +2062,8 @@ char const doc_astype[] =                                                       
     "Parameters:\n"                                                                        //
     "    a: Input buffer with arbitrary rank and strides.\n"                               //
     "    dtype: Target NumKong dtype name.\n"                                              //
+    "    rounding: 'nearest_even' (default) or 'truncate'. Truncation requires real\n"     //
+    "        floats and 8/16/32/64-bit integer outputs.\n"                                 //
     "    out: Optional writable C-contiguous output buffer with the exact input shape\n"   //
     "        and requested dtype. It must not overlap `a`.\n\n"                            //
     "Returns:\n"                                                                           //
@@ -2062,22 +2072,39 @@ char const doc_astype[] =                                                       
     "Notes:\n"                                                                             //
     "    Unlike `Tensor(a).astype(dtype)`, the input is never staged through a Tensor.\n"  //
     "    Narrower floating formats round ties to even. Float-to-integer casts round\n"     //
-    "    ties to even, saturate overflow and infinity, and map NaN to zero.\n\n"           //
+    "    ties to even by default; truncate discards fractions toward zero. Both modes\n"   //
+    "    saturate overflow and infinity, and map NaN to zero.\n"                           //
+    "    Truncation uses a portable serial kernel.\n\n"                                    //
     "Signature:\n"                                                                         //
-    "    >>> def astype(a, dtype, /, *, out=None) -> Tensor: ...";
+    "    >>> def astype(a, dtype, /, *, rounding='nearest_even', out=None) -> Tensor: ...";
 
 PyObject *api_astype(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
     if (nargs != 2) {
-        PyErr_SetString(PyExc_TypeError, "astype(a, dtype, /, *, out=None) requires exactly two positional arguments");
+        PyErr_SetString(
+            PyExc_TypeError,
+            "astype(a, dtype, /, *, rounding='nearest_even', out=None) requires exactly two positional arguments");
         return NULL;
     }
 
     PyObject *out_obj = NULL;
+    int truncate = 0;
     Py_ssize_t const keyword_count = kwnames ? PyTuple_Size(kwnames) : 0;
     for (Py_ssize_t i = 0; i < keyword_count; ++i) {
         PyObject *name = PyTuple_GET_ITEM(kwnames, i);
         if (PyUnicode_CompareWithASCIIString(name, "out") == 0) out_obj = args[nargs + i];
+        else if (PyUnicode_CompareWithASCIIString(name, "rounding") == 0) {
+            PyObject *rounding = args[nargs + i];
+            if (!PyUnicode_Check(rounding)) {
+                PyErr_SetString(PyExc_TypeError, "rounding must be a string");
+                return NULL;
+            }
+            if (PyUnicode_CompareWithASCIIString(rounding, "truncate") == 0) truncate = 1;
+            else if (PyUnicode_CompareWithASCIIString(rounding, "nearest_even") != 0) {
+                PyErr_SetString(PyExc_ValueError, "rounding must be 'nearest_even' or 'truncate'");
+                return NULL;
+            }
+        }
         else {
             PyErr_Format(PyExc_TypeError, "astype() got an unexpected keyword argument '%S'", name);
             return NULL;
@@ -2106,6 +2133,13 @@ PyObject *api_astype(PyObject *self, PyObject *const *args, Py_ssize_t const nar
     nk_dtype_t const output_dtype = py_object_to_nk_dtype(args[1]);
     if (output_dtype == nk_dtype_unknown_k) goto cleanup;
 
+    nk_dtype_family_t output_family = nk_dtype_family(output_dtype);
+    if (truncate && (nk_dtype_family(input_dtype) != nk_dtype_family_float_k || nk_dtype_bits(output_dtype) < 8 ||
+                     (output_family != nk_dtype_family_int_k && output_family != nk_dtype_family_uint_k))) {
+        PyErr_SetString(PyExc_ValueError, "rounding='truncate' requires real floats to 8/16/32/64-bit integers");
+        goto cleanup;
+    }
+
     char *result_data = NULL;
     if (!out_obj) {
         Tensor *result = Tensor_new(output_dtype, (size_t)input_buffer.ndim, input_buffer.shape);
@@ -2126,8 +2160,9 @@ PyObject *api_astype(PyObject *self, PyObject *const *args, Py_ssize_t const nar
     for (int dim = 0; dim < input_buffer.ndim; ++dim) total_elements *= (size_t)input_buffer.shape[dim];
 
     PyThreadState *gil = PyEval_SaveThread();
-    linearize_cast_into(input_buffer.buf, input_dtype, result_data, output_dtype, (size_t)input_buffer.ndim,
-                        input_buffer.shape, input_buffer.strides, total_elements);
+    linearize_cast_with_kernel(input_buffer.buf, input_dtype, result_data, output_dtype, (size_t)input_buffer.ndim,
+                               input_buffer.shape, input_buffer.strides, total_elements,
+                               truncate ? nk_cast_truncate : nk_cast);
     PyEval_RestoreThread(gil);
 
 cleanup:

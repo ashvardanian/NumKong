@@ -51,6 +51,10 @@ void run_cast(std::string name, cast_kernel_t kernel) {
 }
 
 void bench_cast() {
+    run_cast<nk_f32_k, nk_u8_k>("cast_truncate_f32_to_u8_serial", nk_cast_truncate_serial);
+    run_cast<nk_f64_k, nk_i64_k>("cast_truncate_f64_to_i64_serial", nk_cast_truncate_serial);
+    run_cast<nk_f32_k, nk_u8_k>("cast_truncate_f32_to_u8", nk_cast_truncate);
+    run_cast<nk_f64_k, nk_i64_k>("cast_truncate_f64_to_i64", nk_cast_truncate);
 
 #if NK_TARGET_HASWELL
     run_cast<nk_f32_k, nk_f16_k>("cast_f32_to_f16_haswell", nk_cast_haswell);

@@ -54,6 +54,23 @@ extern "C" {
  */
 NK_DYNAMIC void nk_cast(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type);
 
+/**
+ *  @brief Cast real floating-point arrays to byte-or-larger integers, truncating toward zero.
+ *  @param[in] from Source array of @p n real floating-point elements.
+ *  @param[in] from_type Source dtype: f64, f32, f16, bf16, e4m3, e5m2, e2m3, or e3m2.
+ *  @param[in] n Number of elements in both arrays.
+ *  @param[out] to Non-overlapping destination array.
+ *  @param[in] to_type Signed or unsigned integer dtype of width 8, 16, 32, or 64 bits.
+ *  @note Finite values truncate toward zero and saturate to the destination range.
+ *    NaNs map to zero; infinities saturate. Unsupported dtype pairs leave output untouched.
+ *    Uses a portable serial kernel; no SIMD acceleration is currently provided.
+ */
+NK_DYNAMIC void nk_cast_truncate(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type);
+
+/** @copydoc nk_cast_truncate */
+NK_PUBLIC void nk_cast_truncate_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                       nk_dtype_t to_type);
+
 /** @copydoc nk_cast */
 NK_PUBLIC void nk_cast_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type);
 
@@ -184,6 +201,10 @@ extern "C" {
 #endif
 
 #if !NK_DYNAMIC_DISPATCH
+
+NK_PUBLIC void nk_cast_truncate(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type) {
+    nk_cast_truncate_serial(from, from_type, n, to, to_type);
+}
 
 NK_PUBLIC void nk_cast(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type) {
 #if NK_TARGET_SAPPHIRE
