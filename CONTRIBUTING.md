@@ -255,7 +255,7 @@ If you already have one:
 
 ```sh
 pip install -e .                                    # build locally from source
-pip install pytest pytest-repeat pytest-randomly    # testing dependencies
+pip install --group test                            # testing dependencies
 pip install numpy scipy ml_dtypes tabulate          # optional reference libraries
 pytest test/ -s -x -Wd                              # to run tests
 
@@ -271,7 +271,7 @@ source .venv/bin/activate       # activate the environment
 uv pip install -e .             # build locally from source
 
 # to run GIL-related tests in a free-threaded environment:
-uv pip install pytest pytest-repeat pytest-randomly numpy scipy ml_dtypes tabulate
+uv pip install --group test numpy scipy ml_dtypes
 PYTHON_GIL=0 python -m pytest test/ -s -x -Wd -k gil
 ```
 
