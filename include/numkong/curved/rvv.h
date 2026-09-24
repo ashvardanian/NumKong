@@ -78,6 +78,11 @@ NK_PUBLIC void nk_bilinear_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_
             compensation_f64m4 = __riscv_vfsub_vv_f64m4_tu(
                 compensation_f64m4, __riscv_vfsub_vv_f64m4(running_sum_f64m4, inner_f64m4, vector_length),
                 corrected_term_f64m4, vector_length);
+            compensation_f64m4 = __riscv_vfmerge_vfm_f64m4_tu(
+                compensation_f64m4, compensation_f64m4, 0.0,
+                __riscv_vmfne_vf_f64m4_b16(
+                    __riscv_vfsub_vv_f64m4(compensation_f64m4, compensation_f64m4, vector_length), 0.0, vector_length),
+                vector_length);
             inner_f64m4 = running_sum_f64m4;
         }
         vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
@@ -205,6 +210,11 @@ NK_PUBLIC void nk_mahalanobis_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f
             compensation_f64m4 = __riscv_vfsub_vv_f64m4_tu(
                 compensation_f64m4, __riscv_vfsub_vv_f64m4(running_sum_f64m4, inner_f64m4, vector_length),
                 corrected_term_f64m4, vector_length);
+            compensation_f64m4 = __riscv_vfmerge_vfm_f64m4_tu(
+                compensation_f64m4, compensation_f64m4, 0.0,
+                __riscv_vmfne_vf_f64m4_b16(
+                    __riscv_vfsub_vv_f64m4(compensation_f64m4, compensation_f64m4, vector_length), 0.0, vector_length),
+                vector_length);
             inner_f64m4 = running_sum_f64m4;
         }
         vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);

@@ -391,6 +391,12 @@ NK_INTERNAL void nk_dots_packed_f64_rvv_aligned_(nk_f64_t const *a_matrix, void 
                     compensation_0_f64m4,
                     __riscv_vfsub_vv_f64m4(running_sum_0_f64m4, accumulator_0_f64m4, vector_length),
                     corrected_term_0_f64m4, vector_length);
+                compensation_0_f64m4 = __riscv_vfmerge_vfm_f64m4_tu(
+                    compensation_0_f64m4, compensation_0_f64m4, 0.0,
+                    __riscv_vmfne_vf_f64m4_b16(
+                        __riscv_vfsub_vv_f64m4(compensation_0_f64m4, compensation_0_f64m4, vector_length), 0.0,
+                        vector_length),
+                    vector_length);
                 accumulator_0_f64m4 = running_sum_0_f64m4;
 
                 // Kahan step for row 1
@@ -403,6 +409,12 @@ NK_INTERNAL void nk_dots_packed_f64_rvv_aligned_(nk_f64_t const *a_matrix, void 
                     compensation_1_f64m4,
                     __riscv_vfsub_vv_f64m4(running_sum_1_f64m4, accumulator_1_f64m4, vector_length),
                     corrected_term_1_f64m4, vector_length);
+                compensation_1_f64m4 = __riscv_vfmerge_vfm_f64m4_tu(
+                    compensation_1_f64m4, compensation_1_f64m4, 0.0,
+                    __riscv_vmfne_vf_f64m4_b16(
+                        __riscv_vfsub_vv_f64m4(compensation_1_f64m4, compensation_1_f64m4, vector_length), 0.0,
+                        vector_length),
+                    vector_length);
                 accumulator_1_f64m4 = running_sum_1_f64m4;
             }
 
@@ -439,6 +451,12 @@ NK_INTERNAL void nk_dots_packed_f64_rvv_aligned_(nk_f64_t const *a_matrix, void 
                 compensation_f64m4 = __riscv_vfsub_vv_f64m4_tu(
                     compensation_f64m4, __riscv_vfsub_vv_f64m4(running_sum_f64m4, accumulator_f64m4, vector_length),
                     corrected_term_f64m4, vector_length);
+                compensation_f64m4 = __riscv_vfmerge_vfm_f64m4_tu(
+                    compensation_f64m4, compensation_f64m4, 0.0,
+                    __riscv_vmfne_vf_f64m4_b16(
+                        __riscv_vfsub_vv_f64m4(compensation_f64m4, compensation_f64m4, vector_length), 0.0,
+                        vector_length),
+                    vector_length);
                 accumulator_f64m4 = running_sum_f64m4;
             }
 
@@ -494,6 +512,12 @@ NK_PUBLIC void nk_dots_symmetric_f64_rvv(nk_f64_t const *vectors, nk_size_t vect
                 compensation_f64m4 = __riscv_vfsub_vv_f64m4_tu(
                     compensation_f64m4, __riscv_vfsub_vv_f64m4(running_sum_f64m4, accumulator_f64m4, vector_length),
                     corrected_term_f64m4, vector_length);
+                compensation_f64m4 = __riscv_vfmerge_vfm_f64m4_tu(
+                    compensation_f64m4, compensation_f64m4, 0.0,
+                    __riscv_vmfne_vf_f64m4_b16(
+                        __riscv_vfsub_vv_f64m4(compensation_f64m4, compensation_f64m4, vector_length), 0.0,
+                        vector_length),
+                    vector_length);
                 accumulator_f64m4 = running_sum_f64m4;
             }
 
