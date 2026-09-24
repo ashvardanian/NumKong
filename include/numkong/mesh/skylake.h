@@ -922,8 +922,7 @@ NK_PUBLIC void nk_umeyama_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_s
     cross_covariance[8] = raw_covariance[8] - n_f64 * centroid_a_z * centroid_b_z;
 
     // Identity-dominant short-circuit: when H_centered is near-diagonal positive-definite, R = I
-    // and trace(R * H) collapses to H[0]+H[4]+H[8]. Also d3 = +1, so trace_ds = sum of diagonal,
-    // and applied_scale = trace_ds / (n * variance_a). Skips SVD + two rotation_from_svd calls.
+    // and trace(R * H) collapses to H[0]+H[4]+H[8]. Skips SVD + two rotation_from_svd calls.
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -940,18 +939,12 @@ NK_PUBLIC void nk_umeyama_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_s
         optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
         optimal_rotation[8] = 1;
         trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
-        applied_scale = trace_rotation_covariance / (n_f64 * variance_a);
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
         nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
         nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
-
-        // Scale factor: c = trace(D · S) / (n * variance_a), with reflection sign via d3.
         nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
-        nk_f64_t d3 = det < 0 ? -1.0 : 1.0;
-        nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8], d3);
-        applied_scale = trace_ds / (n_f64 * variance_a);
 
         if (det < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
@@ -964,6 +957,7 @@ NK_PUBLIC void nk_umeyama_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_s
             optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
             optimal_rotation[8] * cross_covariance[8];
     }
+    applied_scale = trace_rotation_covariance / (n_f64 * variance_a);
     if (scale) *scale = (nk_f32_t)applied_scale;
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
@@ -1153,9 +1147,8 @@ NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
     cross_covariance[8] = covariance_z_z - sum_a_z * sum_b_z * inv_n;
 
     // SVD using f64 for full precision
-    // Identity-dominant short-circuit: when H_centered is near-diagonal positive-definite,
-    // R = I, trace(R * H) = H[0]+H[4]+H[8] (also == trace_ds with d3=+1), and the scale
-    // derivation collapses. Skips SVD + two rotation_from_svd calls.
+    // Identity-dominant short-circuit: when H_centered is near-diagonal positive-definite, R = I
+    // and trace(R * H) collapses to H[0]+H[4]+H[8]. Skips SVD + two rotation_from_svd calls.
     nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -1172,18 +1165,12 @@ NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
         optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
         optimal_rotation[8] = 1;
         trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
-        c = trace_rotation_covariance / centered_norm_squared_a;
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
         nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
         nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
-
-        // Scale factor: c = trace(D · S) / (n * variance(a)), with reflection sign via d3.
         nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
-        nk_f64_t d3 = det < 0 ? -1.0 : 1.0;
-        nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8], d3);
-        c = trace_ds / centered_norm_squared_a;
 
         if (det < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
@@ -1196,6 +1183,7 @@ NK_PUBLIC void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_s
             optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
             optimal_rotation[8] * cross_covariance[8];
     }
+    c = trace_rotation_covariance / centered_norm_squared_a;
     if (scale) *scale = c;
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = (nk_f64_t)optimal_rotation[j];
@@ -1631,12 +1619,7 @@ NK_PUBLIC void nk_umeyama_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_s
     nk_f32_t optimal_rotation[9];
     nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
 
-    // Scale factor: c = trace(D · S) / ‖a-ā‖², with reflection sign via d3.
     nk_f32_t det = nk_det3x3_f32_(optimal_rotation);
-    nk_f32_t d3 = det < 0.0f ? -1.0f : 1.0f;
-    nk_f32_t trace_ds = nk_sum_three_products_f32_(svd_diagonal[0], 1.0f, svd_diagonal[4], 1.0f, svd_diagonal[8], d3);
-    nk_f32_t c = trace_ds / centered_norm_squared_a;
-    if (scale) *scale = c;
 
     if (det < 0.0f) {
         svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
@@ -1653,6 +1636,8 @@ NK_PUBLIC void nk_umeyama_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_s
         optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
         optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
         optimal_rotation[8] * cross_covariance[8];
+    nk_f32_t c = trace_rotation_covariance / centered_norm_squared_a;
+    if (scale) *scale = c;
     nk_f32_t sum_squared = c * c * centered_norm_squared_a + centered_norm_squared_b -
                            2.0f * c * trace_rotation_covariance;
     if (sum_squared < 0.0f) sum_squared = 0.0f;
@@ -1760,12 +1745,7 @@ NK_PUBLIC void nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, n
     nk_f32_t optimal_rotation[9];
     nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
 
-    // Scale factor: c = trace(D · S) / ‖a-ā‖², with reflection sign via d3.
     nk_f32_t det = nk_det3x3_f32_(optimal_rotation);
-    nk_f32_t d3 = det < 0.0f ? -1.0f : 1.0f;
-    nk_f32_t trace_ds = nk_sum_three_products_f32_(svd_diagonal[0], 1.0f, svd_diagonal[4], 1.0f, svd_diagonal[8], d3);
-    nk_f32_t c = trace_ds / centered_norm_squared_a;
-    if (scale) *scale = c;
 
     if (det < 0.0f) {
         svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
@@ -1782,6 +1762,8 @@ NK_PUBLIC void nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, n
         optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
         optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
         optimal_rotation[8] * cross_covariance[8];
+    nk_f32_t c = trace_rotation_covariance / centered_norm_squared_a;
+    if (scale) *scale = c;
     nk_f32_t sum_squared = c * c * centered_norm_squared_a + centered_norm_squared_b -
                            2.0f * c * trace_rotation_covariance;
     if (sum_squared < 0.0f) sum_squared = 0.0f;
