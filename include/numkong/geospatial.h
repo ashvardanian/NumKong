@@ -117,31 +117,6 @@
 #include "numkong/types.h"
 #include "numkong/trigonometry.h"
 
-/*  Earth Ellipsoid Constants
- *  The default values use the IERS-2003 standard, but can be overridden before including this header.
- */
-#ifndef NK_EARTH_MEDIATORIAL_RADIUS
-#define NK_EARTH_MEDIATORIAL_RADIUS (6335439.0)
-#endif
-#ifndef NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS
-#define NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS (6378136.6)
-#endif
-#ifndef NK_EARTH_ELLIPSOID_POLAR_RADIUS
-#define NK_EARTH_ELLIPSOID_POLAR_RADIUS (6356751.9)
-#endif
-#ifndef NK_EARTH_ELLIPSOID_INVERSE_FLATTENING
-#define NK_EARTH_ELLIPSOID_INVERSE_FLATTENING (298.25642)
-#endif
-#ifndef NK_VINCENTY_MAX_ITERATIONS
-#define NK_VINCENTY_MAX_ITERATIONS 100
-#endif
-#ifndef NK_VINCENTY_CONVERGENCE_THRESHOLD_F64
-#define NK_VINCENTY_CONVERGENCE_THRESHOLD_F64 1e-12
-#endif
-#ifndef NK_VINCENTY_CONVERGENCE_THRESHOLD_F32
-#define NK_VINCENTY_CONVERGENCE_THRESHOLD_F32 1e-7f
-#endif
-
 #if defined(__cplusplus)
 extern "C" {
 #endif

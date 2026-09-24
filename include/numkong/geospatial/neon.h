@@ -22,6 +22,7 @@
 
 #include "numkong/types.h"
 #include "numkong/trigonometry/neon.h" // `nk_sin_f64x2_neon_`, `nk_cos_f64x2_neon_`, `nk_atan2_f64x2_neon_`
+#include "numkong/geospatial/serial.h" // `NK_EARTH_*` and `NK_VINCENTY_*` constants
 
 #if defined(__cplusplus)
 extern "C" {
@@ -214,22 +215,22 @@ NK_INTERNAL float64x2_t nk_vincenty_f64x2_neon_(                           //
     // Longitude difference
     float64x2_t longitude_difference_f64x2 = vsubq_f64(second_longitudes_f64x2, first_longitudes_f64x2);
 
-    // Reduced latitudes: tan(U) = (1-f) * tan(lat)
+    // Reduced latitudes: (cos U, sin U) ∝ (cos φ, (1 − f) · sin φ), which stays finite at the poles
     float64x2_t one_minus_f_f64x2 = vsubq_f64(one_f64x2, flattening_f64x2);
-    float64x2_t tan_first_f64x2 = vdivq_f64(nk_sin_f64x2_neon_(first_latitudes_f64x2),
-                                            nk_cos_f64x2_neon_(first_latitudes_f64x2));
-    float64x2_t tan_second_f64x2 = vdivq_f64(nk_sin_f64x2_neon_(second_latitudes_f64x2),
-                                             nk_cos_f64x2_neon_(second_latitudes_f64x2));
-    float64x2_t tan_reduced_first_f64x2 = vmulq_f64(one_minus_f_f64x2, tan_first_f64x2);
-    float64x2_t tan_reduced_second_f64x2 = vmulq_f64(one_minus_f_f64x2, tan_second_f64x2);
-
-    // cos(U) = 1/√(1 + tan²(U)), sin(U) = tan(U) × cos(U)
-    float64x2_t cos_reduced_first_f64x2 = vdivq_f64(
-        one_f64x2, vsqrtq_f64(vfmaq_f64(one_f64x2, tan_reduced_first_f64x2, tan_reduced_first_f64x2)));
-    float64x2_t sin_reduced_first_f64x2 = vmulq_f64(tan_reduced_first_f64x2, cos_reduced_first_f64x2);
-    float64x2_t cos_reduced_second_f64x2 = vdivq_f64(
-        one_f64x2, vsqrtq_f64(vfmaq_f64(one_f64x2, tan_reduced_second_f64x2, tan_reduced_second_f64x2)));
-    float64x2_t sin_reduced_second_f64x2 = vmulq_f64(tan_reduced_second_f64x2, cos_reduced_second_f64x2);
+    float64x2_t scaled_sin_first_f64x2 = vmulq_f64(one_minus_f_f64x2, nk_sin_f64x2_neon_(first_latitudes_f64x2));
+    float64x2_t cos_first_f64x2 = nk_cos_f64x2_neon_(first_latitudes_f64x2);
+    float64x2_t inverse_norm_first_f64x2 = vdivq_f64(
+        one_f64x2, vsqrtq_f64(vfmaq_f64(vmulq_f64(scaled_sin_first_f64x2, scaled_sin_first_f64x2), cos_first_f64x2,
+                                        cos_first_f64x2)));
+    float64x2_t cos_reduced_first_f64x2 = vmulq_f64(cos_first_f64x2, inverse_norm_first_f64x2);
+    float64x2_t sin_reduced_first_f64x2 = vmulq_f64(scaled_sin_first_f64x2, inverse_norm_first_f64x2);
+    float64x2_t scaled_sin_second_f64x2 = vmulq_f64(one_minus_f_f64x2, nk_sin_f64x2_neon_(second_latitudes_f64x2));
+    float64x2_t cos_second_f64x2 = nk_cos_f64x2_neon_(second_latitudes_f64x2);
+    float64x2_t inverse_norm_second_f64x2 = vdivq_f64(
+        one_f64x2, vsqrtq_f64(vfmaq_f64(vmulq_f64(scaled_sin_second_f64x2, scaled_sin_second_f64x2), cos_second_f64x2,
+                                        cos_second_f64x2)));
+    float64x2_t cos_reduced_second_f64x2 = vmulq_f64(cos_second_f64x2, inverse_norm_second_f64x2);
+    float64x2_t sin_reduced_second_f64x2 = vmulq_f64(scaled_sin_second_f64x2, inverse_norm_second_f64x2);
 
     // Initialize lambda_f64x2 and tracking variables
     float64x2_t lambda_f64x2 = longitude_difference_f64x2;
@@ -361,7 +362,8 @@ NK_INTERNAL float64x2_t nk_vincenty_f64x2_neon_(                           //
     float64x2_t distances_f64x2 = vmulq_f64(vmulq_f64(polar_radius_f64x2, series_a_f64x2),
                                             vsubq_f64(angular_distance_f64x2, delta_sigma_f64x2));
 
-    // Set coincident points to zero
+    // Zero coincident points; antipodes also have sin σ ≈ 0 but cos σ < 0
+    coincident_mask_u64x2 = vandq_u64(coincident_mask_u64x2, vcgtzq_f64(cos_angular_distance_f64x2));
     distances_f64x2 = vbslq_f64(coincident_mask_u64x2, vdupq_n_f64(0.0), distances_f64x2);
 
     return distances_f64x2;
@@ -422,22 +424,22 @@ NK_INTERNAL float32x4_t nk_vincenty_f32x4_neon_(                           //
     // Longitude difference
     float32x4_t longitude_difference_f32x4 = vsubq_f32(second_longitudes_f32x4, first_longitudes_f32x4);
 
-    // Reduced latitudes: tan(U) = (1-f) * tan(lat)
+    // Reduced latitudes: (cos U, sin U) ∝ (cos φ, (1 − f) · sin φ), which stays finite at the poles
     float32x4_t one_minus_f_f32x4 = vsubq_f32(one_f32x4, flattening_f32x4);
-    float32x4_t tan_first_f32x4 = vdivq_f32(nk_sin_f32x4_neon_(first_latitudes_f32x4),
-                                            nk_cos_f32x4_neon_(first_latitudes_f32x4));
-    float32x4_t tan_second_f32x4 = vdivq_f32(nk_sin_f32x4_neon_(second_latitudes_f32x4),
-                                             nk_cos_f32x4_neon_(second_latitudes_f32x4));
-    float32x4_t tan_reduced_first_f32x4 = vmulq_f32(one_minus_f_f32x4, tan_first_f32x4);
-    float32x4_t tan_reduced_second_f32x4 = vmulq_f32(one_minus_f_f32x4, tan_second_f32x4);
-
-    // cos(U) = 1/√(1 + tan²(U)), sin(U) = tan(U) × cos(U)
-    float32x4_t cos_reduced_first_f32x4 = vdivq_f32(
-        one_f32x4, vsqrtq_f32(vfmaq_f32(one_f32x4, tan_reduced_first_f32x4, tan_reduced_first_f32x4)));
-    float32x4_t sin_reduced_first_f32x4 = vmulq_f32(tan_reduced_first_f32x4, cos_reduced_first_f32x4);
-    float32x4_t cos_reduced_second_f32x4 = vdivq_f32(
-        one_f32x4, vsqrtq_f32(vfmaq_f32(one_f32x4, tan_reduced_second_f32x4, tan_reduced_second_f32x4)));
-    float32x4_t sin_reduced_second_f32x4 = vmulq_f32(tan_reduced_second_f32x4, cos_reduced_second_f32x4);
+    float32x4_t scaled_sin_first_f32x4 = vmulq_f32(one_minus_f_f32x4, nk_sin_f32x4_neon_(first_latitudes_f32x4));
+    float32x4_t cos_first_f32x4 = nk_cos_f32x4_neon_(first_latitudes_f32x4);
+    float32x4_t inverse_norm_first_f32x4 = vdivq_f32(
+        one_f32x4, vsqrtq_f32(vfmaq_f32(vmulq_f32(scaled_sin_first_f32x4, scaled_sin_first_f32x4), cos_first_f32x4,
+                                        cos_first_f32x4)));
+    float32x4_t cos_reduced_first_f32x4 = vmulq_f32(cos_first_f32x4, inverse_norm_first_f32x4);
+    float32x4_t sin_reduced_first_f32x4 = vmulq_f32(scaled_sin_first_f32x4, inverse_norm_first_f32x4);
+    float32x4_t scaled_sin_second_f32x4 = vmulq_f32(one_minus_f_f32x4, nk_sin_f32x4_neon_(second_latitudes_f32x4));
+    float32x4_t cos_second_f32x4 = nk_cos_f32x4_neon_(second_latitudes_f32x4);
+    float32x4_t inverse_norm_second_f32x4 = vdivq_f32(
+        one_f32x4, vsqrtq_f32(vfmaq_f32(vmulq_f32(scaled_sin_second_f32x4, scaled_sin_second_f32x4), cos_second_f32x4,
+                                        cos_second_f32x4)));
+    float32x4_t cos_reduced_second_f32x4 = vmulq_f32(cos_second_f32x4, inverse_norm_second_f32x4);
+    float32x4_t sin_reduced_second_f32x4 = vmulq_f32(scaled_sin_second_f32x4, inverse_norm_second_f32x4);
 
     // Initialize lambda_f32x4 and tracking variables
     float32x4_t lambda_f32x4 = longitude_difference_f32x4;
@@ -562,7 +564,8 @@ NK_INTERNAL float32x4_t nk_vincenty_f32x4_neon_(                           //
     float32x4_t distances_f32x4 = vmulq_f32(vmulq_f32(polar_radius_f32x4, series_a_f32x4),
                                             vsubq_f32(angular_distance_f32x4, delta_sigma_f32x4));
 
-    // Set coincident points to zero
+    // Zero coincident points; antipodes also have sin σ ≈ 0 but cos σ < 0
+    coincident_mask_u32x4 = vandq_u32(coincident_mask_u32x4, vcgtzq_f32(cos_angular_distance_f32x4));
     distances_f32x4 = vbslq_f32(coincident_mask_u32x4, vdupq_n_f32(0.0f), distances_f32x4);
 
     return distances_f32x4;

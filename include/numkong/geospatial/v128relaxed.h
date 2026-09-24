@@ -33,6 +33,7 @@
 
 #include "numkong/types.h"
 #include "numkong/trigonometry/v128relaxed.h"
+#include "numkong/geospatial/serial.h" // `NK_EARTH_*` and `NK_VINCENTY_*` constants
 #include "numkong/cast/serial.h" // `nk_partial_load_b32x4_serial_`, `nk_partial_load_b64x2_serial_`, `nk_partial_store_b32x4_serial_`
 
 #if defined(__cplusplus)
@@ -227,24 +228,25 @@ NK_INTERNAL v128_t nk_vincenty_f64x2_v128relaxed_(               //
     // Longitude difference
     v128_t longitude_difference_f64x2 = wasm_f64x2_sub(second_longitudes_f64x2, first_longitudes_f64x2);
 
-    // Reduced latitudes: tan(U) = (1-f) * tan(lat)
+    // Reduced latitudes: (cos U, sin U) ∝ (cos φ, (1 − f) · sin φ), which stays finite at the poles
     v128_t one_minus_f_f64x2 = wasm_f64x2_sub(one_f64x2, flattening_f64x2);
-    v128_t tan_first_f64x2 = wasm_f64x2_div(nk_f64x2_sin_v128relaxed_(first_latitudes_f64x2),
-                                            nk_f64x2_cos_v128relaxed_(first_latitudes_f64x2));
-    v128_t tan_second_f64x2 = wasm_f64x2_div(nk_f64x2_sin_v128relaxed_(second_latitudes_f64x2),
-                                             nk_f64x2_cos_v128relaxed_(second_latitudes_f64x2));
-    v128_t tan_reduced_first_f64x2 = wasm_f64x2_mul(one_minus_f_f64x2, tan_first_f64x2);
-    v128_t tan_reduced_second_f64x2 = wasm_f64x2_mul(one_minus_f_f64x2, tan_second_f64x2);
-
-    // cos(U) = 1/sqrt(1 + tan^2(U)), sin(U) = tan(U) * cos(U)
-    v128_t cos_reduced_first_f64x2 = wasm_f64x2_div(
+    v128_t scaled_sin_first_f64x2 = wasm_f64x2_mul(one_minus_f_f64x2, nk_f64x2_sin_v128relaxed_(first_latitudes_f64x2));
+    v128_t cos_first_f64x2 = nk_f64x2_cos_v128relaxed_(first_latitudes_f64x2);
+    v128_t inverse_norm_first_f64x2 = wasm_f64x2_div(
         one_f64x2,
-        wasm_f64x2_sqrt(wasm_f64x2_relaxed_madd(tan_reduced_first_f64x2, tan_reduced_first_f64x2, one_f64x2)));
-    v128_t sin_reduced_first_f64x2 = wasm_f64x2_mul(tan_reduced_first_f64x2, cos_reduced_first_f64x2);
-    v128_t cos_reduced_second_f64x2 = wasm_f64x2_div(
+        wasm_f64x2_sqrt(wasm_f64x2_relaxed_madd(cos_first_f64x2, cos_first_f64x2,
+                                                wasm_f64x2_mul(scaled_sin_first_f64x2, scaled_sin_first_f64x2))));
+    v128_t cos_reduced_first_f64x2 = wasm_f64x2_mul(cos_first_f64x2, inverse_norm_first_f64x2);
+    v128_t sin_reduced_first_f64x2 = wasm_f64x2_mul(scaled_sin_first_f64x2, inverse_norm_first_f64x2);
+    v128_t scaled_sin_second_f64x2 = wasm_f64x2_mul(one_minus_f_f64x2,
+                                                    nk_f64x2_sin_v128relaxed_(second_latitudes_f64x2));
+    v128_t cos_second_f64x2 = nk_f64x2_cos_v128relaxed_(second_latitudes_f64x2);
+    v128_t inverse_norm_second_f64x2 = wasm_f64x2_div(
         one_f64x2,
-        wasm_f64x2_sqrt(wasm_f64x2_relaxed_madd(tan_reduced_second_f64x2, tan_reduced_second_f64x2, one_f64x2)));
-    v128_t sin_reduced_second_f64x2 = wasm_f64x2_mul(tan_reduced_second_f64x2, cos_reduced_second_f64x2);
+        wasm_f64x2_sqrt(wasm_f64x2_relaxed_madd(cos_second_f64x2, cos_second_f64x2,
+                                                wasm_f64x2_mul(scaled_sin_second_f64x2, scaled_sin_second_f64x2))));
+    v128_t cos_reduced_second_f64x2 = wasm_f64x2_mul(cos_second_f64x2, inverse_norm_second_f64x2);
+    v128_t sin_reduced_second_f64x2 = wasm_f64x2_mul(scaled_sin_second_f64x2, inverse_norm_second_f64x2);
 
     // Initialize lambda_f64x2 and tracking variables
     v128_t lambda_f64x2 = longitude_difference_f64x2;
@@ -385,9 +387,11 @@ NK_INTERNAL v128_t nk_vincenty_f64x2_v128relaxed_(               //
     v128_t distances_f64x2 = wasm_f64x2_mul(wasm_f64x2_mul(polar_radius_f64x2, series_a_f64x2),
                                             wasm_f64x2_sub(angular_distance_f64x2, delta_sigma_f64x2));
 
-    // Set coincident points to zero
+    // Zero coincident points; antipodes also have sin σ ≈ 0 but cos σ < 0
     // relaxed_laneselect: 1 instruction (vblendvpd) vs 3 (vpand+vpandn+vpor) on x86.
     // Safe because mask is from comparison (all-ones or all-zeros per lane).
+    coincident_mask_i64x2 = wasm_v128_and(coincident_mask_i64x2,
+                                          wasm_f64x2_gt(cos_angular_distance_f64x2, wasm_f64x2_splat(0.0)));
     distances_f64x2 = wasm_i64x2_relaxed_laneselect(wasm_f64x2_splat(0.0), distances_f64x2, coincident_mask_i64x2);
 
     return distances_f64x2;
@@ -448,24 +452,25 @@ NK_INTERNAL v128_t nk_vincenty_f32x4_v128relaxed_(               //
     // Longitude difference
     v128_t longitude_difference_f32x4 = wasm_f32x4_sub(second_longitudes_f32x4, first_longitudes_f32x4);
 
-    // Reduced latitudes: tan(U) = (1-f) * tan(lat)
+    // Reduced latitudes: (cos U, sin U) ∝ (cos φ, (1 − f) · sin φ), which stays finite at the poles
     v128_t one_minus_f_f32x4 = wasm_f32x4_sub(one_f32x4, flattening_f32x4);
-    v128_t tan_first_f32x4 = wasm_f32x4_div(nk_f32x4_sin_v128relaxed_(first_latitudes_f32x4),
-                                            nk_f32x4_cos_v128relaxed_(first_latitudes_f32x4));
-    v128_t tan_second_f32x4 = wasm_f32x4_div(nk_f32x4_sin_v128relaxed_(second_latitudes_f32x4),
-                                             nk_f32x4_cos_v128relaxed_(second_latitudes_f32x4));
-    v128_t tan_reduced_first_f32x4 = wasm_f32x4_mul(one_minus_f_f32x4, tan_first_f32x4);
-    v128_t tan_reduced_second_f32x4 = wasm_f32x4_mul(one_minus_f_f32x4, tan_second_f32x4);
-
-    // cos(U) = 1/sqrt(1 + tan^2(U)), sin(U) = tan(U) * cos(U)
-    v128_t cos_reduced_first_f32x4 = wasm_f32x4_div(
+    v128_t scaled_sin_first_f32x4 = wasm_f32x4_mul(one_minus_f_f32x4, nk_f32x4_sin_v128relaxed_(first_latitudes_f32x4));
+    v128_t cos_first_f32x4 = nk_f32x4_cos_v128relaxed_(first_latitudes_f32x4);
+    v128_t inverse_norm_first_f32x4 = wasm_f32x4_div(
         one_f32x4,
-        wasm_f32x4_sqrt(wasm_f32x4_relaxed_madd(tan_reduced_first_f32x4, tan_reduced_first_f32x4, one_f32x4)));
-    v128_t sin_reduced_first_f32x4 = wasm_f32x4_mul(tan_reduced_first_f32x4, cos_reduced_first_f32x4);
-    v128_t cos_reduced_second_f32x4 = wasm_f32x4_div(
+        wasm_f32x4_sqrt(wasm_f32x4_relaxed_madd(cos_first_f32x4, cos_first_f32x4,
+                                                wasm_f32x4_mul(scaled_sin_first_f32x4, scaled_sin_first_f32x4))));
+    v128_t cos_reduced_first_f32x4 = wasm_f32x4_mul(cos_first_f32x4, inverse_norm_first_f32x4);
+    v128_t sin_reduced_first_f32x4 = wasm_f32x4_mul(scaled_sin_first_f32x4, inverse_norm_first_f32x4);
+    v128_t scaled_sin_second_f32x4 = wasm_f32x4_mul(one_minus_f_f32x4,
+                                                    nk_f32x4_sin_v128relaxed_(second_latitudes_f32x4));
+    v128_t cos_second_f32x4 = nk_f32x4_cos_v128relaxed_(second_latitudes_f32x4);
+    v128_t inverse_norm_second_f32x4 = wasm_f32x4_div(
         one_f32x4,
-        wasm_f32x4_sqrt(wasm_f32x4_relaxed_madd(tan_reduced_second_f32x4, tan_reduced_second_f32x4, one_f32x4)));
-    v128_t sin_reduced_second_f32x4 = wasm_f32x4_mul(tan_reduced_second_f32x4, cos_reduced_second_f32x4);
+        wasm_f32x4_sqrt(wasm_f32x4_relaxed_madd(cos_second_f32x4, cos_second_f32x4,
+                                                wasm_f32x4_mul(scaled_sin_second_f32x4, scaled_sin_second_f32x4))));
+    v128_t cos_reduced_second_f32x4 = wasm_f32x4_mul(cos_second_f32x4, inverse_norm_second_f32x4);
+    v128_t sin_reduced_second_f32x4 = wasm_f32x4_mul(scaled_sin_second_f32x4, inverse_norm_second_f32x4);
 
     // Initialize lambda_f32x4 and tracking variables
     v128_t lambda_f32x4 = longitude_difference_f32x4;
@@ -601,9 +606,11 @@ NK_INTERNAL v128_t nk_vincenty_f32x4_v128relaxed_(               //
     v128_t distances_f32x4 = wasm_f32x4_mul(wasm_f32x4_mul(polar_radius_f32x4, series_a_f32x4),
                                             wasm_f32x4_sub(angular_distance_f32x4, delta_sigma_f32x4));
 
-    // Set coincident points to zero
+    // Zero coincident points; antipodes also have sin σ ≈ 0 but cos σ < 0
     // relaxed_laneselect: 1 instruction (vblendvps) vs 3 (vpand+vpandn+vpor) on x86.
     // Safe because mask is from comparison (all-ones or all-zeros per lane).
+    coincident_mask_i32x4 = wasm_v128_and(coincident_mask_i32x4,
+                                          wasm_f32x4_gt(cos_angular_distance_f32x4, wasm_f32x4_splat(0.0f)));
     distances_f32x4 = wasm_i32x4_relaxed_laneselect(wasm_f32x4_splat(0.0f), distances_f32x4, coincident_mask_i32x4);
 
     return distances_f32x4;

@@ -13,6 +13,31 @@
 #include "numkong/spatial/serial.h"      // `nk_f64_sqrt_serial`, `nk_f32_sqrt_serial`
 #include "numkong/trigonometry/serial.h" // `nk_f64_sin`, `nk_f64_cos`, `nk_f64_atan2`
 
+/*  Earth Ellipsoid Constants
+ *  The default values use the IERS-2003 standard, but can be overridden before including any geospatial header.
+ */
+#ifndef NK_EARTH_MEDIATORIAL_RADIUS
+#define NK_EARTH_MEDIATORIAL_RADIUS (6335439.0)
+#endif
+#ifndef NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS
+#define NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS (6378136.6)
+#endif
+#ifndef NK_EARTH_ELLIPSOID_POLAR_RADIUS
+#define NK_EARTH_ELLIPSOID_POLAR_RADIUS (6356751.9)
+#endif
+#ifndef NK_EARTH_ELLIPSOID_INVERSE_FLATTENING
+#define NK_EARTH_ELLIPSOID_INVERSE_FLATTENING (298.25642)
+#endif
+#ifndef NK_VINCENTY_MAX_ITERATIONS
+#define NK_VINCENTY_MAX_ITERATIONS 100
+#endif
+#ifndef NK_VINCENTY_CONVERGENCE_THRESHOLD_F64
+#define NK_VINCENTY_CONVERGENCE_THRESHOLD_F64 1e-12
+#endif
+#ifndef NK_VINCENTY_CONVERGENCE_THRESHOLD_F32
+#define NK_VINCENTY_CONVERGENCE_THRESHOLD_F32 1e-7f
+#endif
+
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -121,12 +146,18 @@ NK_PUBLIC void nk_vincenty_f64_serial(              //
         nk_f64_t longitude_difference = b_lons[i] - a_lons[i];
 
         // Reduced latitudes on the auxiliary sphere
-        nk_f64_t tan_reduced_first = (1.0 - flattening) * (nk_f64_sin(first_latitude) / nk_f64_cos(first_latitude));
-        nk_f64_t tan_reduced_second = (1.0 - flattening) * (nk_f64_sin(second_latitude) / nk_f64_cos(second_latitude));
-        nk_f64_t cos_reduced_first = 1.0 / nk_f64_sqrt_serial(1.0 + tan_reduced_first * tan_reduced_first);
-        nk_f64_t sin_reduced_first = tan_reduced_first * cos_reduced_first;
-        nk_f64_t cos_reduced_second = 1.0 / nk_f64_sqrt_serial(1.0 + tan_reduced_second * tan_reduced_second);
-        nk_f64_t sin_reduced_second = tan_reduced_second * cos_reduced_second;
+        nk_f64_t scaled_sin_first = (1.0 - flattening) * nk_f64_sin(first_latitude);
+        nk_f64_t cos_first = nk_f64_cos(first_latitude);
+        nk_f64_t inverse_norm_first = 1.0 /
+                                      nk_f64_sqrt_serial(cos_first * cos_first + scaled_sin_first * scaled_sin_first);
+        nk_f64_t cos_reduced_first = cos_first * inverse_norm_first;
+        nk_f64_t sin_reduced_first = scaled_sin_first * inverse_norm_first;
+        nk_f64_t scaled_sin_second = (1.0 - flattening) * nk_f64_sin(second_latitude);
+        nk_f64_t cos_second = nk_f64_cos(second_latitude);
+        nk_f64_t inverse_norm_second = 1.0 / nk_f64_sqrt_serial(cos_second * cos_second +
+                                                                scaled_sin_second * scaled_sin_second);
+        nk_f64_t cos_reduced_second = cos_second * inverse_norm_second;
+        nk_f64_t sin_reduced_second = scaled_sin_second * inverse_norm_second;
 
         // Iterative convergence of lambda (difference in longitude on auxiliary sphere)
         nk_f64_t lambda = longitude_difference;
@@ -221,12 +252,18 @@ NK_PUBLIC void nk_vincenty_f32_serial(              //
         nk_f32_t longitude_difference = b_lons[i] - a_lons[i];
 
         // Reduced latitudes on the auxiliary sphere
-        nk_f32_t tan_reduced_first = (1.0f - flattening) * (nk_f32_sin(first_latitude) / nk_f32_cos(first_latitude));
-        nk_f32_t tan_reduced_second = (1.0f - flattening) * (nk_f32_sin(second_latitude) / nk_f32_cos(second_latitude));
-        nk_f32_t cos_reduced_first = 1.0f / nk_f32_sqrt_serial(1.0f + tan_reduced_first * tan_reduced_first);
-        nk_f32_t sin_reduced_first = tan_reduced_first * cos_reduced_first;
-        nk_f32_t cos_reduced_second = 1.0f / nk_f32_sqrt_serial(1.0f + tan_reduced_second * tan_reduced_second);
-        nk_f32_t sin_reduced_second = tan_reduced_second * cos_reduced_second;
+        nk_f32_t scaled_sin_first = (1.0f - flattening) * nk_f32_sin(first_latitude);
+        nk_f32_t cos_first = nk_f32_cos(first_latitude);
+        nk_f32_t inverse_norm_first = 1.0f /
+                                      nk_f32_sqrt_serial(cos_first * cos_first + scaled_sin_first * scaled_sin_first);
+        nk_f32_t cos_reduced_first = cos_first * inverse_norm_first;
+        nk_f32_t sin_reduced_first = scaled_sin_first * inverse_norm_first;
+        nk_f32_t scaled_sin_second = (1.0f - flattening) * nk_f32_sin(second_latitude);
+        nk_f32_t cos_second = nk_f32_cos(second_latitude);
+        nk_f32_t inverse_norm_second = 1.0f / nk_f32_sqrt_serial(cos_second * cos_second +
+                                                                 scaled_sin_second * scaled_sin_second);
+        nk_f32_t cos_reduced_second = cos_second * inverse_norm_second;
+        nk_f32_t sin_reduced_second = scaled_sin_second * inverse_norm_second;
 
         // Iterative convergence of lambda (difference in longitude on auxiliary sphere)
         nk_f32_t lambda = longitude_difference;

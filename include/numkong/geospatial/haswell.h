@@ -25,6 +25,7 @@
 
 #include "numkong/types.h"
 #include "numkong/trigonometry/haswell.h" // `nk_sin_f64x4_haswell_`, `nk_cos_f64x4_haswell_`, `nk_atan2_f64x4_haswell_`
+#include "numkong/geospatial/serial.h"    // `NK_EARTH_*` and `NK_VINCENTY_*` constants
 
 #if defined(__cplusplus)
 extern "C" {
@@ -217,22 +218,22 @@ NK_INTERNAL __m256d nk_vincenty_f64x4_haswell_(                    //
     // Longitude difference
     __m256d longitude_difference_f64x4 = _mm256_sub_pd(second_longitudes_f64x4, first_longitudes_f64x4);
 
-    // Reduced latitudes: tan(U) = (1-f) * tan(lat)
+    // Reduced latitudes: (cos U, sin U) ∝ (cos φ, (1 − f) · sin φ), which stays finite at the poles
     __m256d one_minus_f_f64x4 = _mm256_sub_pd(one_f64x4, flattening_f64x4);
-    __m256d tan_first_f64x4 = _mm256_div_pd(nk_sin_f64x4_haswell_(first_latitudes_f64x4),
-                                            nk_cos_f64x4_haswell_(first_latitudes_f64x4));
-    __m256d tan_second_f64x4 = _mm256_div_pd(nk_sin_f64x4_haswell_(second_latitudes_f64x4),
-                                             nk_cos_f64x4_haswell_(second_latitudes_f64x4));
-    __m256d tan_reduced_first_f64x4 = _mm256_mul_pd(one_minus_f_f64x4, tan_first_f64x4);
-    __m256d tan_reduced_second_f64x4 = _mm256_mul_pd(one_minus_f_f64x4, tan_second_f64x4);
-
-    // cos(U) = 1/√(1 + tan²(U)), sin(U) = tan(U) × cos(U)
-    __m256d cos_reduced_first_f64x4 = _mm256_div_pd(
-        one_f64x4, _mm256_sqrt_pd(_mm256_fmadd_pd(tan_reduced_first_f64x4, tan_reduced_first_f64x4, one_f64x4)));
-    __m256d sin_reduced_first_f64x4 = _mm256_mul_pd(tan_reduced_first_f64x4, cos_reduced_first_f64x4);
-    __m256d cos_reduced_second_f64x4 = _mm256_div_pd(
-        one_f64x4, _mm256_sqrt_pd(_mm256_fmadd_pd(tan_reduced_second_f64x4, tan_reduced_second_f64x4, one_f64x4)));
-    __m256d sin_reduced_second_f64x4 = _mm256_mul_pd(tan_reduced_second_f64x4, cos_reduced_second_f64x4);
+    __m256d scaled_sin_first_f64x4 = _mm256_mul_pd(one_minus_f_f64x4, nk_sin_f64x4_haswell_(first_latitudes_f64x4));
+    __m256d cos_first_f64x4 = nk_cos_f64x4_haswell_(first_latitudes_f64x4);
+    __m256d inverse_norm_first_f64x4 = _mm256_div_pd(
+        one_f64x4, _mm256_sqrt_pd(_mm256_fmadd_pd(cos_first_f64x4, cos_first_f64x4,
+                                                  _mm256_mul_pd(scaled_sin_first_f64x4, scaled_sin_first_f64x4))));
+    __m256d cos_reduced_first_f64x4 = _mm256_mul_pd(cos_first_f64x4, inverse_norm_first_f64x4);
+    __m256d sin_reduced_first_f64x4 = _mm256_mul_pd(scaled_sin_first_f64x4, inverse_norm_first_f64x4);
+    __m256d scaled_sin_second_f64x4 = _mm256_mul_pd(one_minus_f_f64x4, nk_sin_f64x4_haswell_(second_latitudes_f64x4));
+    __m256d cos_second_f64x4 = nk_cos_f64x4_haswell_(second_latitudes_f64x4);
+    __m256d inverse_norm_second_f64x4 = _mm256_div_pd(
+        one_f64x4, _mm256_sqrt_pd(_mm256_fmadd_pd(cos_second_f64x4, cos_second_f64x4,
+                                                  _mm256_mul_pd(scaled_sin_second_f64x4, scaled_sin_second_f64x4))));
+    __m256d cos_reduced_second_f64x4 = _mm256_mul_pd(cos_second_f64x4, inverse_norm_second_f64x4);
+    __m256d sin_reduced_second_f64x4 = _mm256_mul_pd(scaled_sin_second_f64x4, inverse_norm_second_f64x4);
 
     // Initialize lambda_f64x4 and tracking variables
     __m256d lambda_f64x4 = longitude_difference_f64x4;
@@ -368,8 +369,11 @@ NK_INTERNAL __m256d nk_vincenty_f64x4_haswell_(                    //
     __m256d distances_f64x4 = _mm256_mul_pd(_mm256_mul_pd(polar_radius_f64x4, series_a_f64x4),
                                             _mm256_sub_pd(angular_distance_f64x4, delta_sigma_f64x4));
 
-    // Set coincident points to zero
-    distances_f64x4 = _mm256_blendv_pd(distances_f64x4, _mm256_setzero_pd(), coincident_mask_f64x4);
+    // Zero coincident points; antipodes also have sin σ ≈ 0 but cos σ < 0
+    distances_f64x4 = _mm256_blendv_pd(
+        distances_f64x4, _mm256_setzero_pd(),
+        _mm256_and_pd(coincident_mask_f64x4,
+                      _mm256_cmp_pd(cos_angular_distance_f64x4, _mm256_setzero_pd(), _CMP_GT_OQ)));
 
     return distances_f64x4;
 }
@@ -429,22 +433,22 @@ NK_INTERNAL __m256 nk_vincenty_f32x8_haswell_(                   //
     // Longitude difference
     __m256 longitude_difference_f32x8 = _mm256_sub_ps(second_longitudes_f32x8, first_longitudes_f32x8);
 
-    // Reduced latitudes: tan(U) = (1-f) * tan(lat)
+    // Reduced latitudes: (cos U, sin U) ∝ (cos φ, (1 − f) · sin φ), which stays finite at the poles
     __m256 one_minus_f_f32x8 = _mm256_sub_ps(one_f32x8, flattening_f32x8);
-    __m256 tan_first_f32x8 = _mm256_div_ps(nk_sin_f32x8_haswell_(first_latitudes_f32x8),
-                                           nk_cos_f32x8_haswell_(first_latitudes_f32x8));
-    __m256 tan_second_f32x8 = _mm256_div_ps(nk_sin_f32x8_haswell_(second_latitudes_f32x8),
-                                            nk_cos_f32x8_haswell_(second_latitudes_f32x8));
-    __m256 tan_reduced_first_f32x8 = _mm256_mul_ps(one_minus_f_f32x8, tan_first_f32x8);
-    __m256 tan_reduced_second_f32x8 = _mm256_mul_ps(one_minus_f_f32x8, tan_second_f32x8);
-
-    // cos(U) = 1/√(1 + tan²(U)), sin(U) = tan(U) × cos(U)
-    __m256 cos_reduced_first_f32x8 = _mm256_div_ps(
-        one_f32x8, _mm256_sqrt_ps(_mm256_fmadd_ps(tan_reduced_first_f32x8, tan_reduced_first_f32x8, one_f32x8)));
-    __m256 sin_reduced_first_f32x8 = _mm256_mul_ps(tan_reduced_first_f32x8, cos_reduced_first_f32x8);
-    __m256 cos_reduced_second_f32x8 = _mm256_div_ps(
-        one_f32x8, _mm256_sqrt_ps(_mm256_fmadd_ps(tan_reduced_second_f32x8, tan_reduced_second_f32x8, one_f32x8)));
-    __m256 sin_reduced_second_f32x8 = _mm256_mul_ps(tan_reduced_second_f32x8, cos_reduced_second_f32x8);
+    __m256 scaled_sin_first_f32x8 = _mm256_mul_ps(one_minus_f_f32x8, nk_sin_f32x8_haswell_(first_latitudes_f32x8));
+    __m256 cos_first_f32x8 = nk_cos_f32x8_haswell_(first_latitudes_f32x8);
+    __m256 inverse_norm_first_f32x8 = _mm256_div_ps(
+        one_f32x8, _mm256_sqrt_ps(_mm256_fmadd_ps(cos_first_f32x8, cos_first_f32x8,
+                                                  _mm256_mul_ps(scaled_sin_first_f32x8, scaled_sin_first_f32x8))));
+    __m256 cos_reduced_first_f32x8 = _mm256_mul_ps(cos_first_f32x8, inverse_norm_first_f32x8);
+    __m256 sin_reduced_first_f32x8 = _mm256_mul_ps(scaled_sin_first_f32x8, inverse_norm_first_f32x8);
+    __m256 scaled_sin_second_f32x8 = _mm256_mul_ps(one_minus_f_f32x8, nk_sin_f32x8_haswell_(second_latitudes_f32x8));
+    __m256 cos_second_f32x8 = nk_cos_f32x8_haswell_(second_latitudes_f32x8);
+    __m256 inverse_norm_second_f32x8 = _mm256_div_ps(
+        one_f32x8, _mm256_sqrt_ps(_mm256_fmadd_ps(cos_second_f32x8, cos_second_f32x8,
+                                                  _mm256_mul_ps(scaled_sin_second_f32x8, scaled_sin_second_f32x8))));
+    __m256 cos_reduced_second_f32x8 = _mm256_mul_ps(cos_second_f32x8, inverse_norm_second_f32x8);
+    __m256 sin_reduced_second_f32x8 = _mm256_mul_ps(scaled_sin_second_f32x8, inverse_norm_second_f32x8);
 
     // Initialize lambda_f32x8 and tracking variables
     __m256 lambda_f32x8 = longitude_difference_f32x8;
@@ -580,8 +584,11 @@ NK_INTERNAL __m256 nk_vincenty_f32x8_haswell_(                   //
     __m256 distances_f32x8 = _mm256_mul_ps(_mm256_mul_ps(polar_radius_f32x8, series_a_f32x8),
                                            _mm256_sub_ps(angular_distance_f32x8, delta_sigma_f32x8));
 
-    // Set coincident points to zero
-    distances_f32x8 = _mm256_blendv_ps(distances_f32x8, _mm256_setzero_ps(), coincident_mask_f32x8);
+    // Zero coincident points; antipodes also have sin σ ≈ 0 but cos σ < 0
+    distances_f32x8 = _mm256_blendv_ps(
+        distances_f32x8, _mm256_setzero_ps(),
+        _mm256_and_ps(coincident_mask_f32x8,
+                      _mm256_cmp_ps(cos_angular_distance_f32x8, _mm256_setzero_ps(), _CMP_GT_OQ)));
 
     return distances_f32x8;
 }

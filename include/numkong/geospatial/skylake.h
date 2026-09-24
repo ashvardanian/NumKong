@@ -25,6 +25,7 @@
 
 #include "numkong/types.h"
 #include "numkong/trigonometry/skylake.h" // `nk_sin_f64x8_skylake_`, `nk_cos_f64x8_skylake_`, `nk_atan2_f64x8_skylake_`
+#include "numkong/geospatial/serial.h"    // `NK_EARTH_*` and `NK_VINCENTY_*` constants
 
 #if defined(__cplusplus)
 extern "C" {
@@ -136,22 +137,22 @@ NK_INTERNAL __m512d nk_vincenty_f64x8_skylake_(                    //
     // Longitude difference
     __m512d longitude_difference_f64x8 = _mm512_sub_pd(second_longitudes_f64x8, first_longitudes_f64x8);
 
-    // Reduced latitudes: tan(U) = (1-f) * tan(lat)
+    // Reduced latitudes: (cos U, sin U) ∝ (cos φ, (1 − f) · sin φ), which stays finite at the poles
     __m512d one_minus_f_f64x8 = _mm512_sub_pd(one_f64x8, flattening_f64x8);
-    __m512d tan_first_f64x8 = _mm512_div_pd(nk_sin_f64x8_skylake_(first_latitudes_f64x8),
-                                            nk_cos_f64x8_skylake_(first_latitudes_f64x8));
-    __m512d tan_second_f64x8 = _mm512_div_pd(nk_sin_f64x8_skylake_(second_latitudes_f64x8),
-                                             nk_cos_f64x8_skylake_(second_latitudes_f64x8));
-    __m512d tan_reduced_first_f64x8 = _mm512_mul_pd(one_minus_f_f64x8, tan_first_f64x8);
-    __m512d tan_reduced_second_f64x8 = _mm512_mul_pd(one_minus_f_f64x8, tan_second_f64x8);
-
-    // cos(U) = 1/√(1 + tan²(U)), sin(U) = tan(U) × cos(U)
-    __m512d cos_reduced_first_f64x8 = _mm512_div_pd(
-        one_f64x8, _mm512_sqrt_pd(_mm512_fmadd_pd(tan_reduced_first_f64x8, tan_reduced_first_f64x8, one_f64x8)));
-    __m512d sin_reduced_first_f64x8 = _mm512_mul_pd(tan_reduced_first_f64x8, cos_reduced_first_f64x8);
-    __m512d cos_reduced_second_f64x8 = _mm512_div_pd(
-        one_f64x8, _mm512_sqrt_pd(_mm512_fmadd_pd(tan_reduced_second_f64x8, tan_reduced_second_f64x8, one_f64x8)));
-    __m512d sin_reduced_second_f64x8 = _mm512_mul_pd(tan_reduced_second_f64x8, cos_reduced_second_f64x8);
+    __m512d scaled_sin_first_f64x8 = _mm512_mul_pd(one_minus_f_f64x8, nk_sin_f64x8_skylake_(first_latitudes_f64x8));
+    __m512d cos_first_f64x8 = nk_cos_f64x8_skylake_(first_latitudes_f64x8);
+    __m512d inverse_norm_first_f64x8 = _mm512_div_pd(
+        one_f64x8, _mm512_sqrt_pd(_mm512_fmadd_pd(cos_first_f64x8, cos_first_f64x8,
+                                                  _mm512_mul_pd(scaled_sin_first_f64x8, scaled_sin_first_f64x8))));
+    __m512d cos_reduced_first_f64x8 = _mm512_mul_pd(cos_first_f64x8, inverse_norm_first_f64x8);
+    __m512d sin_reduced_first_f64x8 = _mm512_mul_pd(scaled_sin_first_f64x8, inverse_norm_first_f64x8);
+    __m512d scaled_sin_second_f64x8 = _mm512_mul_pd(one_minus_f_f64x8, nk_sin_f64x8_skylake_(second_latitudes_f64x8));
+    __m512d cos_second_f64x8 = nk_cos_f64x8_skylake_(second_latitudes_f64x8);
+    __m512d inverse_norm_second_f64x8 = _mm512_div_pd(
+        one_f64x8, _mm512_sqrt_pd(_mm512_fmadd_pd(cos_second_f64x8, cos_second_f64x8,
+                                                  _mm512_mul_pd(scaled_sin_second_f64x8, scaled_sin_second_f64x8))));
+    __m512d cos_reduced_second_f64x8 = _mm512_mul_pd(cos_second_f64x8, inverse_norm_second_f64x8);
+    __m512d sin_reduced_second_f64x8 = _mm512_mul_pd(scaled_sin_second_f64x8, inverse_norm_second_f64x8);
 
     // Initialize lambda_f64x8 and tracking variables
     __m512d lambda_f64x8 = longitude_difference_f64x8;
@@ -279,7 +280,8 @@ NK_INTERNAL __m512d nk_vincenty_f64x8_skylake_(                    //
     __m512d distances_f64x8 = _mm512_mul_pd(_mm512_mul_pd(polar_radius_f64x8, series_a_f64x8),
                                             _mm512_sub_pd(angular_distance_f64x8, delta_sigma_f64x8));
 
-    // Set coincident points to zero
+    // Zero coincident points; antipodes also have sin σ ≈ 0 but cos σ < 0
+    coincident_mask &= _mm512_cmp_pd_mask(cos_angular_distance_f64x8, _mm512_setzero_pd(), _CMP_GT_OQ);
     distances_f64x8 = _mm512_mask_blend_pd(coincident_mask, distances_f64x8, _mm512_setzero_pd());
 
     return distances_f64x8;
@@ -416,22 +418,23 @@ NK_INTERNAL __m512 nk_vincenty_f32x16_skylake_(                    //
     // Longitude difference
     __m512 longitude_difference_f32x16 = _mm512_sub_ps(second_longitudes_f32x16, first_longitudes_f32x16);
 
-    // Reduced latitudes: tan(U) = (1-f) * tan(lat)
+    // Reduced latitudes: (cos U, sin U) ∝ (cos φ, (1 − f) · sin φ), which stays finite at the poles
     __m512 one_minus_f_f32x16 = _mm512_sub_ps(one_f32x16, flattening_f32x16);
-    __m512 tan_first_f32x16 = _mm512_div_ps(nk_sin_f32x16_skylake_(first_latitudes_f32x16),
-                                            nk_cos_f32x16_skylake_(first_latitudes_f32x16));
-    __m512 tan_second_f32x16 = _mm512_div_ps(nk_sin_f32x16_skylake_(second_latitudes_f32x16),
-                                             nk_cos_f32x16_skylake_(second_latitudes_f32x16));
-    __m512 tan_reduced_first_f32x16 = _mm512_mul_ps(one_minus_f_f32x16, tan_first_f32x16);
-    __m512 tan_reduced_second_f32x16 = _mm512_mul_ps(one_minus_f_f32x16, tan_second_f32x16);
-
-    // cos(U) = 1/√(1 + tan²(U)), sin(U) = tan(U) × cos(U)
-    __m512 cos_reduced_first_f32x16 = _mm512_div_ps(
-        one_f32x16, _mm512_sqrt_ps(_mm512_fmadd_ps(tan_reduced_first_f32x16, tan_reduced_first_f32x16, one_f32x16)));
-    __m512 sin_reduced_first_f32x16 = _mm512_mul_ps(tan_reduced_first_f32x16, cos_reduced_first_f32x16);
-    __m512 cos_reduced_second_f32x16 = _mm512_div_ps(
-        one_f32x16, _mm512_sqrt_ps(_mm512_fmadd_ps(tan_reduced_second_f32x16, tan_reduced_second_f32x16, one_f32x16)));
-    __m512 sin_reduced_second_f32x16 = _mm512_mul_ps(tan_reduced_second_f32x16, cos_reduced_second_f32x16);
+    __m512 scaled_sin_first_f32x16 = _mm512_mul_ps(one_minus_f_f32x16, nk_sin_f32x16_skylake_(first_latitudes_f32x16));
+    __m512 cos_first_f32x16 = nk_cos_f32x16_skylake_(first_latitudes_f32x16);
+    __m512 inverse_norm_first_f32x16 = _mm512_div_ps(
+        one_f32x16, _mm512_sqrt_ps(_mm512_fmadd_ps(cos_first_f32x16, cos_first_f32x16,
+                                                   _mm512_mul_ps(scaled_sin_first_f32x16, scaled_sin_first_f32x16))));
+    __m512 cos_reduced_first_f32x16 = _mm512_mul_ps(cos_first_f32x16, inverse_norm_first_f32x16);
+    __m512 sin_reduced_first_f32x16 = _mm512_mul_ps(scaled_sin_first_f32x16, inverse_norm_first_f32x16);
+    __m512 scaled_sin_second_f32x16 = _mm512_mul_ps(one_minus_f_f32x16,
+                                                    nk_sin_f32x16_skylake_(second_latitudes_f32x16));
+    __m512 cos_second_f32x16 = nk_cos_f32x16_skylake_(second_latitudes_f32x16);
+    __m512 inverse_norm_second_f32x16 = _mm512_div_ps(
+        one_f32x16, _mm512_sqrt_ps(_mm512_fmadd_ps(cos_second_f32x16, cos_second_f32x16,
+                                                   _mm512_mul_ps(scaled_sin_second_f32x16, scaled_sin_second_f32x16))));
+    __m512 cos_reduced_second_f32x16 = _mm512_mul_ps(cos_second_f32x16, inverse_norm_second_f32x16);
+    __m512 sin_reduced_second_f32x16 = _mm512_mul_ps(scaled_sin_second_f32x16, inverse_norm_second_f32x16);
 
     // Initialize lambda_f32x16 and tracking variables
     __m512 lambda_f32x16 = longitude_difference_f32x16;
@@ -560,7 +563,8 @@ NK_INTERNAL __m512 nk_vincenty_f32x16_skylake_(                    //
     __m512 distances_f32x16 = _mm512_mul_ps(_mm512_mul_ps(polar_radius_f32x16, series_a_f32x16),
                                             _mm512_sub_ps(angular_distance_f32x16, delta_sigma_f32x16));
 
-    // Set coincident points to zero
+    // Zero coincident points; antipodes also have sin σ ≈ 0 but cos σ < 0
+    coincident_mask &= _mm512_cmp_ps_mask(cos_angular_distance_f32x16, _mm512_setzero_ps(), _CMP_GT_OQ);
     distances_f32x16 = _mm512_mask_blend_ps(coincident_mask, distances_f32x16, _mm512_setzero_ps());
 
     return distances_f32x16;

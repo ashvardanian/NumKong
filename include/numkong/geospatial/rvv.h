@@ -37,7 +37,8 @@
 #if NK_TARGET_RVV
 
 #include "numkong/types.h"
-#include "numkong/trigonometry/rvv.h" // nk_f64m4_sin_rvv_, nk_f64m4_cos_rvv_, nk_f64m4_atan2_rvv_, etc.
+#include "numkong/trigonometry/rvv.h"  // nk_f64m4_sin_rvv_, nk_f64m4_cos_rvv_, nk_f64m4_atan2_rvv_, etc.
+#include "numkong/geospatial/serial.h" // `NK_EARTH_*` and `NK_VINCENTY_*` constants
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
@@ -239,27 +240,26 @@ NK_INTERNAL void nk_vincenty_f64_rvv_kernel_(       //
     // Longitude difference
     vfloat64m4_t longitude_difference = __riscv_vfsub_vv_f64m4(lon2, lon1, vector_length);
 
-    // Reduced latitudes: tan(U) = (1-f) * tan(lat)
+    // Reduced latitudes: (cos U, sin U) ∝ (cos φ, (1 − f) · sin φ), which stays finite at the poles
     vfloat64m4_t one_minus_f = __riscv_vfsub_vv_f64m4(v_one, v_flattening, vector_length);
     vfloat64m4_t sin_lat1 = nk_f64m4_sin_rvv_(lat1, vector_length);
     vfloat64m4_t cos_lat1 = nk_f64m4_cos_rvv_(lat1, vector_length);
     vfloat64m4_t sin_lat2 = nk_f64m4_sin_rvv_(lat2, vector_length);
     vfloat64m4_t cos_lat2 = nk_f64m4_cos_rvv_(lat2, vector_length);
-    vfloat64m4_t tan_first = __riscv_vfdiv_vv_f64m4(sin_lat1, cos_lat1, vector_length);
-    vfloat64m4_t tan_second = __riscv_vfdiv_vv_f64m4(sin_lat2, cos_lat2, vector_length);
-    vfloat64m4_t tan_reduced_first = __riscv_vfmul_vv_f64m4(one_minus_f, tan_first, vector_length);
-    vfloat64m4_t tan_reduced_second = __riscv_vfmul_vv_f64m4(one_minus_f, tan_second, vector_length);
-
-    // cos(U) = 1/sqrt(1 + tan^2(U)), sin(U) = tan(U) * cos(U)
-    vfloat64m4_t tan_sq_first = __riscv_vfmadd_vv_f64m4(tan_reduced_first, tan_reduced_first, v_one, vector_length);
-    vfloat64m4_t cos_reduced_first = __riscv_vfdiv_vv_f64m4(v_one, __riscv_vfsqrt_v_f64m4(tan_sq_first, vector_length),
-                                                            vector_length);
-    vfloat64m4_t sin_reduced_first = __riscv_vfmul_vv_f64m4(tan_reduced_first, cos_reduced_first, vector_length);
-
-    vfloat64m4_t tan_sq_second = __riscv_vfmadd_vv_f64m4(tan_reduced_second, tan_reduced_second, v_one, vector_length);
-    vfloat64m4_t cos_reduced_second = __riscv_vfdiv_vv_f64m4(
-        v_one, __riscv_vfsqrt_v_f64m4(tan_sq_second, vector_length), vector_length);
-    vfloat64m4_t sin_reduced_second = __riscv_vfmul_vv_f64m4(tan_reduced_second, cos_reduced_second, vector_length);
+    vfloat64m4_t scaled_sin_first = __riscv_vfmul_vv_f64m4(one_minus_f, sin_lat1, vector_length);
+    vfloat64m4_t norm_squared_first = __riscv_vfmadd_vv_f64m4(
+        cos_lat1, cos_lat1, __riscv_vfmul_vv_f64m4(scaled_sin_first, scaled_sin_first, vector_length), vector_length);
+    vfloat64m4_t inverse_norm_first = __riscv_vfdiv_vv_f64m4(
+        v_one, __riscv_vfsqrt_v_f64m4(norm_squared_first, vector_length), vector_length);
+    vfloat64m4_t cos_reduced_first = __riscv_vfmul_vv_f64m4(cos_lat1, inverse_norm_first, vector_length);
+    vfloat64m4_t sin_reduced_first = __riscv_vfmul_vv_f64m4(scaled_sin_first, inverse_norm_first, vector_length);
+    vfloat64m4_t scaled_sin_second = __riscv_vfmul_vv_f64m4(one_minus_f, sin_lat2, vector_length);
+    vfloat64m4_t norm_squared_second = __riscv_vfmadd_vv_f64m4(
+        cos_lat2, cos_lat2, __riscv_vfmul_vv_f64m4(scaled_sin_second, scaled_sin_second, vector_length), vector_length);
+    vfloat64m4_t inverse_norm_second = __riscv_vfdiv_vv_f64m4(
+        v_one, __riscv_vfsqrt_v_f64m4(norm_squared_second, vector_length), vector_length);
+    vfloat64m4_t cos_reduced_second = __riscv_vfmul_vv_f64m4(cos_lat2, inverse_norm_second, vector_length);
+    vfloat64m4_t sin_reduced_second = __riscv_vfmul_vv_f64m4(scaled_sin_second, inverse_norm_second, vector_length);
 
     // Initialize lambda and tracking variables
     vfloat64m4_t lambda = longitude_difference;
@@ -432,7 +432,9 @@ NK_INTERNAL void nk_vincenty_f64_rvv_kernel_(       //
     vfloat64m4_t distances = __riscv_vfmul_vv_f64m4(v_polar_radius, series_a, vector_length);
     distances = __riscv_vfmul_vv_f64m4(distances, sigma_minus_ds, vector_length);
 
-    // Set coincident points to zero
+    // Zero coincident points; antipodes also have sin σ ≈ 0 but cos σ < 0
+    coincident_mask_b16 = __riscv_vmand_mm_b16(
+        coincident_mask_b16, __riscv_vmfgt_vf_f64m4_b16(cos_angular_distance, 0.0, vector_length), vector_length);
     distances = __riscv_vfmerge_vfm_f64m4(distances, 0.0, coincident_mask_b16, vector_length);
 
     __riscv_vse64_v_f64m4(results, distances, vector_length);
@@ -484,27 +486,26 @@ NK_INTERNAL void nk_vincenty_f32_rvv_kernel_(       //
     // Longitude difference
     vfloat32m4_t longitude_difference = __riscv_vfsub_vv_f32m4(lon2, lon1, vector_length);
 
-    // Reduced latitudes: tan(U) = (1-f) * tan(lat)
+    // Reduced latitudes: (cos U, sin U) ∝ (cos φ, (1 − f) · sin φ), which stays finite at the poles
     vfloat32m4_t one_minus_f = __riscv_vfsub_vv_f32m4(v_one, v_flattening, vector_length);
     vfloat32m4_t sin_lat1 = nk_f32m4_sin_rvv_(lat1, vector_length);
     vfloat32m4_t cos_lat1 = nk_f32m4_cos_rvv_(lat1, vector_length);
     vfloat32m4_t sin_lat2 = nk_f32m4_sin_rvv_(lat2, vector_length);
     vfloat32m4_t cos_lat2 = nk_f32m4_cos_rvv_(lat2, vector_length);
-    vfloat32m4_t tan_first = __riscv_vfdiv_vv_f32m4(sin_lat1, cos_lat1, vector_length);
-    vfloat32m4_t tan_second = __riscv_vfdiv_vv_f32m4(sin_lat2, cos_lat2, vector_length);
-    vfloat32m4_t tan_reduced_first = __riscv_vfmul_vv_f32m4(one_minus_f, tan_first, vector_length);
-    vfloat32m4_t tan_reduced_second = __riscv_vfmul_vv_f32m4(one_minus_f, tan_second, vector_length);
-
-    // cos(U) = 1/sqrt(1 + tan^2(U)), sin(U) = tan(U) * cos(U)
-    vfloat32m4_t tan_sq_first = __riscv_vfmadd_vv_f32m4(tan_reduced_first, tan_reduced_first, v_one, vector_length);
-    vfloat32m4_t cos_reduced_first = __riscv_vfdiv_vv_f32m4(v_one, __riscv_vfsqrt_v_f32m4(tan_sq_first, vector_length),
-                                                            vector_length);
-    vfloat32m4_t sin_reduced_first = __riscv_vfmul_vv_f32m4(tan_reduced_first, cos_reduced_first, vector_length);
-
-    vfloat32m4_t tan_sq_second = __riscv_vfmadd_vv_f32m4(tan_reduced_second, tan_reduced_second, v_one, vector_length);
-    vfloat32m4_t cos_reduced_second = __riscv_vfdiv_vv_f32m4(
-        v_one, __riscv_vfsqrt_v_f32m4(tan_sq_second, vector_length), vector_length);
-    vfloat32m4_t sin_reduced_second = __riscv_vfmul_vv_f32m4(tan_reduced_second, cos_reduced_second, vector_length);
+    vfloat32m4_t scaled_sin_first = __riscv_vfmul_vv_f32m4(one_minus_f, sin_lat1, vector_length);
+    vfloat32m4_t norm_squared_first = __riscv_vfmadd_vv_f32m4(
+        cos_lat1, cos_lat1, __riscv_vfmul_vv_f32m4(scaled_sin_first, scaled_sin_first, vector_length), vector_length);
+    vfloat32m4_t inverse_norm_first = __riscv_vfdiv_vv_f32m4(
+        v_one, __riscv_vfsqrt_v_f32m4(norm_squared_first, vector_length), vector_length);
+    vfloat32m4_t cos_reduced_first = __riscv_vfmul_vv_f32m4(cos_lat1, inverse_norm_first, vector_length);
+    vfloat32m4_t sin_reduced_first = __riscv_vfmul_vv_f32m4(scaled_sin_first, inverse_norm_first, vector_length);
+    vfloat32m4_t scaled_sin_second = __riscv_vfmul_vv_f32m4(one_minus_f, sin_lat2, vector_length);
+    vfloat32m4_t norm_squared_second = __riscv_vfmadd_vv_f32m4(
+        cos_lat2, cos_lat2, __riscv_vfmul_vv_f32m4(scaled_sin_second, scaled_sin_second, vector_length), vector_length);
+    vfloat32m4_t inverse_norm_second = __riscv_vfdiv_vv_f32m4(
+        v_one, __riscv_vfsqrt_v_f32m4(norm_squared_second, vector_length), vector_length);
+    vfloat32m4_t cos_reduced_second = __riscv_vfmul_vv_f32m4(cos_lat2, inverse_norm_second, vector_length);
+    vfloat32m4_t sin_reduced_second = __riscv_vfmul_vv_f32m4(scaled_sin_second, inverse_norm_second, vector_length);
 
     // Initialize lambda and tracking variables
     vfloat32m4_t lambda = longitude_difference;
@@ -668,7 +669,9 @@ NK_INTERNAL void nk_vincenty_f32_rvv_kernel_(       //
     vfloat32m4_t distances = __riscv_vfmul_vv_f32m4(v_polar_radius, series_a, vector_length);
     distances = __riscv_vfmul_vv_f32m4(distances, sigma_minus_ds, vector_length);
 
-    // Set coincident points to zero
+    // Zero coincident points; antipodes also have sin σ ≈ 0 but cos σ < 0
+    coincident_mask_b8 = __riscv_vmand_mm_b8(
+        coincident_mask_b8, __riscv_vmfgt_vf_f32m4_b8(cos_angular_distance, 0.0f, vector_length), vector_length);
     distances = __riscv_vfmerge_vfm_f32m4(distances, 0.0f, coincident_mask_b8, vector_length);
 
     __riscv_vse32_v_f32m4(results, distances, vector_length);
