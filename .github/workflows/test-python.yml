@@ -51,7 +51,7 @@ jobs:
           timeout_minutes: 180
           command: |
             python -m pip install --no-cache-dir --upgrade pip
-            pip install --no-cache-dir py-cpuinfo pytest pytest-repeat pytest-randomly numpy scipy ml_dtypes tabulate
+            pip install --no-cache-dir --group test py-cpuinfo numpy scipy ml_dtypes
             python -c "from cpuinfo import get_cpu_info; print(get_cpu_info())"
 
       - name: Build Locally

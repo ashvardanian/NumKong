@@ -11,6 +11,9 @@
 build-backend = "setuptools.build_meta"
 requires = ["setuptools>=42"]
 
+[dependency-groups]
+test = ["pytest", "pytest-repeat", "pytest-randomly", "tabulate"]
+
 [tool.pyright]
 extraPaths = ["test"]
 stubPath = "python"
@@ -23,7 +26,7 @@ xfail_strict = true
 
 [tool.cibuildwheel]
 build-verbosity = 0
-test-requires = ["pytest", "pytest-repeat", "pytest-randomly", "tabulate"]
+test-groups = ["test"]
 
 # Assuming NumPy and SciPy aren't available precompiled for some platforms,
 # we will end up compiling them from source on emulated hardware...
